@@ -20,12 +20,11 @@ export type Timer = {
 }
 
 export function resetTimer(timer: Timer, time?: number) {
-	timer._currentTime = now();
-	if (time && timer.timescale !== 0) {
-		// Compute the previous time based on the current time, the timescale, and the given time
-		timer._previousTime = timer._currentTime - time / timer.timescale;
-	}
-	return updateTimer(timer);
+	const nowVal = now();
+	timer._currentTime = nowVal;
+	timer._previousTime = nowVal;
+	timer.time = time ? time : 0;
+	return timer;
 }
 
 export function now(): RawTime {
