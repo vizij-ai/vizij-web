@@ -13,3 +13,4 @@ export { pairwise } from "./pairwise";
 export { useLazy } from "./lazy";
 export { getHexagonPath, getDegenerateHexagonPath } from "./hexagon";
 export { closestFrame } from "./closest-frame";
+export { toRadians, toDegrees } from "./angles";
