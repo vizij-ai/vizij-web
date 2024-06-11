@@ -1,5 +1,5 @@
 {
-  "extends": "@semio/typescript-config/react-library.json",
+  "extends": "@semio/typescript-config/base.json",
   "include": ["."],
   "exclude": ["dist", "build", "node_modules"]
 }
