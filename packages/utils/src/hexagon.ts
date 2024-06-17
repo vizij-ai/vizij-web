@@ -15,16 +15,16 @@ function getHexagonPath(
   height: number,
 ): string {
   const path = [
-    `${x},${y - height / 2}`,
-    `${x},${y - size / 2}`,
-    `${x + size * 0.433},${y - size / 4}`,
-    `${x + size * 0.433},${y + size / 4}`,
-    `${x},${y + size / 2}`,
-    `${x},${y + height / 2}`,
-    `${x},${y + size / 2}`,
-    `${x - size * 0.433},${y + size / 4}`,
-    `${x - size * 0.433},${y - size / 4}`,
-    `${x},${y - size / 2}`,
+    `${x.toString()},${(y - height / 2).toString()}`,
+    `${x.toString()},${(y - size / 2).toString()}`,
+    `${(x + size * 0.433).toString()},${(y - size / 4).toString()}`,
+    `${(x + size * 0.433).toString()},${(y + size / 4).toString()}`,
+    `${x.toString()},${(y + size / 2).toString()}`,
+    `${x.toString()},${(y + height / 2).toString()}`,
+    `${x.toString()},${(y + size / 2).toString()}`,
+    `${(x - size * 0.433).toString()},${(y + size / 4).toString()}`,
+    `${(x - size * 0.433).toString()},${(y - size / 4).toString()}`,
+    `${x.toString()},${(y - size / 2).toString()}`,
   ].join("L");
   return `M${path}Z`;
 }
@@ -47,16 +47,16 @@ function getDegenerateHexagonPath(
   height: number,
 ): string {
   const path = [
-    `${x},${y - height / 2}`,
-    `${x},${y - size / 2}`,
-    `${x},${y - size / 4}`,
-    `${x},${y + size / 4}`,
-    `${x},${y + size / 2}`,
-    `${x},${y + height / 2}`,
-    `${x},${y + size / 2}`,
-    `${x},${y + size / 4}`,
-    `${x},${y - size / 4}`,
-    `${x},${y - size / 2}`,
+    `${x.toString()},${(y - height / 2).toString()}`,
+    `${x.toString()},${(y - size / 2).toString()}`,
+    `${x.toString()},${(y - size / 4).toString()}`,
+    `${x.toString()},${(y + size / 4).toString()}`,
+    `${x.toString()},${(y + size / 2).toString()}`,
+    `${x.toString()},${(y + height / 2).toString()}`,
+    `${x.toString()},${(y + size / 2).toString()}`,
+    `${x.toString()},${(y + size / 4).toString()}`,
+    `${x.toString()},${(y - size / 4).toString()}`,
+    `${x.toString()},${(y - size / 2).toString()}`,
   ].join("L");
   return `M${path}Z`;
 }
