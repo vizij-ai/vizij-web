@@ -1,13 +1,14 @@
 export { log } from "./log";
 export {
-  type Timer,
-  resetTimer,
+  type Player,
+  reset,
   now,
-  updateTimer,
-  playTimer,
-  pauseTimer,
-  newTimer,
-} from "./timer";
+  update,
+  play,
+  pause,
+  setBounds,
+  newPlayer,
+} from "./player";
 export { numberToDurationString } from "./time";
 export { pairwise } from "./pairwise";
 export { useLazy } from "./lazy";
