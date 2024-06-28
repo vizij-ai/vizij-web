@@ -33,7 +33,7 @@ export const rgbToRgba = (rgb: string, alpha: number): string => {
   const g = parseInt(result[2]);
   const b = parseInt(result[3]);
 
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${r.toFixed()}, ${g.toFixed()}, ${b.toFixed()}, ${alpha.toFixed(2)})`;
 };
 
 export const hslToRgba = (hsl: string, alpha: number): string => {
@@ -55,11 +55,12 @@ export const hslToRgba = (hsl: string, alpha: number): string => {
     b = l;
   } else {
     const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      let t1 = t;
+      if (t1 < 0) t1 += 1;
+      if (t1 > 1) t1 -= 1;
+      if (t1 < 1 / 6) return p + (q - p) * 6 * t1;
+      if (t1 < 1 / 2) return q;
+      if (t1 < 2 / 3) return p + (q - p) * (2 / 3 - t1) * 6;
       return p;
     };
 
