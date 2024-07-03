@@ -41,11 +41,12 @@ This function creates a copy of the provided timer, but updated with the new tim
 @return - the updated timer
 */
 export function reset(player: Player, stamp?: number): Player {
+  const p = { ...player };
   const nowVal = now();
-  player._currentTime = nowVal;
-  player._previousTime = nowVal;
-  player.stamp = stamp ? stamp : 0;
-  return player;
+  p._currentTime = nowVal;
+  p._previousTime = nowVal;
+  p.stamp = stamp ? stamp : 0;
+  return p;
 }
 
 /*
@@ -66,44 +67,43 @@ the timestamp since it was last called and the duration of the animation itself.
 @return - the updated timer
 */
 export function update(player: Player, duration: number): Player {
-  player._previousTime = player._currentTime;
-  player._currentTime = now();
+  const p = { ...player };
+  p._previousTime = p._currentTime;
+  p._currentTime = now();
 
   // Compute the time delta between the two raw times, multiplied by the timescale
-  const delta =
-    ((player._currentTime - player._previousTime) * player.timescale) /
-    duration;
+  const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
 
   // Apply the time delta
-  const updatedStamp = player.stamp + delta;
+  const updatedStamp = p.stamp + delta;
 
   // Adjust for bounds
-  const [start, end] = player.bounds;
+  const [start, end] = p.bounds;
   if (updatedStamp > end) {
-    if (player.playback === "loop") {
-      player.stamp = start;
-    } else if (player.playback === "bounce") {
-      player.stamp = end;
-      player.timescale *= -1;
+    if (p.playback === "loop") {
+      p.stamp = start;
+    } else if (p.playback === "bounce") {
+      p.stamp = end;
+      p.timescale *= -1;
     } else {
-      player.stamp = start;
-      player.running = false;
+      p.stamp = start;
+      p.running = false;
     }
   } else if (updatedStamp < start) {
-    if (player.playback === "loop") {
-      player.stamp = start;
-    } else if (player.playback === "bounce") {
-      player.stamp = start;
-      player.timescale *= -1;
+    if (p.playback === "loop") {
+      p.stamp = start;
+    } else if (p.playback === "bounce") {
+      p.stamp = start;
+      p.timescale *= -1;
     } else {
-      player.stamp = start;
-      player.running = false;
+      p.stamp = start;
+      p.running = false;
     }
   } else {
     // Otherwise, update the stamp
-    player.stamp = updatedStamp;
+    p.stamp = updatedStamp;
   }
-  return player;
+  return p;
 }
 
 /*
@@ -114,8 +114,9 @@ This function sets the bounds for the timer.
 @return - the updated player
 */
 export function setBounds(player: Player, bounds: [number, number]): Player {
-  player.bounds = bounds;
-  return player;
+  const p = { ...player };
+  p.bounds = bounds;
+  return p;
 }
 
 /*
@@ -126,15 +127,16 @@ This function creates a copy of the provided timer, but updated with a timescale
 @return - the updated timer
 */
 export function play(player: Player, speed?: number): Player {
-  player.running = true;
-  player.timescale = speed ? speed : 1;
+  const p = { ...player };
+  p.running = true;
+  p.timescale = speed ? speed : 1;
 
   // If playback mode is 'once' and playing again, reset stamp to the beginning of the bounds
-  if (player.playback === "once" && player.stamp === player.bounds[1]) {
-    player.stamp = player.bounds[0];
+  if (p.playback === "once" && p.stamp === p.bounds[1]) {
+    p.stamp = p.bounds[0];
   }
 
-  return player;
+  return p;
 }
 
 /*
@@ -144,10 +146,11 @@ This function creates a copy of the provided timer, but updated with a timescale
 @return - the updated timer
 */
 export function pause(player: Player): Player {
-  player.running = false;
-  player.timescale = 0;
+  const p = { ...player };
+  p.running = false;
+  p.timescale = 0;
 
-  return player;
+  return p;
 }
 
 /*
