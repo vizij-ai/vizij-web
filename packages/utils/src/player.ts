@@ -71,14 +71,16 @@ export function update(player: Player, duration: number): Player {
   p._previousTime = p._currentTime;
   p._currentTime = now();
 
+  const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
+
   // Compute the time delta between the two raw times, multiplied by the timescale
   const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
+  const [start, end] = currentInBounds ? p.bounds : [0, 1];
 
   // Adjust for bounds
-  const [start, end] = p.bounds;
   if (updatedStamp > end) {
     if (p.playback === "loop") {
       p.stamp = start;
@@ -89,9 +91,13 @@ export function update(player: Player, duration: number): Player {
       p.stamp = start;
       p.running = false;
     }
-  } else if (updatedStamp < start) {
+  } else if (currentInBounds && updatedStamp < start) {
     if (p.playback === "loop") {
       p.stamp = start;
+      if (p.timescale < 0) {
+        // p.timescale = -1 * p.timescale;
+        p.running = false;
+      }
     } else if (p.playback === "bounce") {
       p.stamp = start;
       p.timescale *= -1;
@@ -100,7 +106,6 @@ export function update(player: Player, duration: number): Player {
       p.running = false;
     }
   } else {
-    // Otherwise, update the stamp
     p.stamp = updatedStamp;
   }
   return p;
@@ -129,7 +134,7 @@ This function creates a copy of the provided timer, but updated with a timescale
 export function play(player: Player, speed?: number): Player {
   const p = { ...player };
   p.running = true;
-  p.timescale = speed ? speed : 1;
+  p.timescale = speed ?? 1;
 
   // If playback mode is 'once' and playing again, reset stamp to the beginning of the bounds
   if (p.playback === "once" && p.stamp === p.bounds[1]) {

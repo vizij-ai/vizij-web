@@ -17,3 +17,4 @@ export { closestFrame } from "./closest-frame";
 export { toRadians, toDegrees } from "./angles";
 export { alpha, hexToRgba, rgbToRgba, hslToRgba } from "./colors";
 export { useDeep } from "./use-deep";
+export { useMediaQuery } from "./use-media-query";
