@@ -20,3 +20,5 @@ export { alpha, hexToRgba, rgbToRgba, hslToRgba } from "./colors";
 export { useDeep } from "./use-deep";
 export { useMediaQuery } from "./use-media-query";
 export type { Write, StoreSubscribeWithSelector } from "./zustand";
+export { stringifyMapped, parseToMapped } from "./json";
+export { downloadBlob } from "./download";
