@@ -10,6 +10,7 @@ export {
   setBounds,
   newPlayer,
 } from "./player";
+export * from "./animated-values";
 export { numberToDurationString } from "./time";
 export { pairwise } from "./pairwise";
 export { useLazy } from "./lazy";
