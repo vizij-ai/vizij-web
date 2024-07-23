@@ -13,8 +13,10 @@ It assumes that the the entire animation length is 1, and the current time (stam
 @field _currentTime - the absolute current time, in milliseconds
 @field stamp - the current time of the timer, in the range [0, 1]
 @field timescale - the time multiplier of the timer. A value of 1 corresponds to real-time, and negative values are reversed time
+@field bounds - the start and end points within the range of 0 to 1 for constrained playback
+@field playback - the playback mode, either 'loop' or 'reverse'
 */
-export interface Timer {
+export interface Player {
   // Whether the timer is running
   running: boolean;
   // The absolute time at the previous update, in milliseconds
@@ -25,6 +27,10 @@ export interface Timer {
   stamp: number;
   // The time multiplier of the timer. A value of 1 corresponds to real-time
   timescale: number;
+  // The start and end points within the range of 0 to 1 for constrained playback
+  bounds: [number, number];
+  // The playback mode, either 'loop' or 'reverse'
+  playback: "loop" | "bounce" | "once";
 }
 
 /*
@@ -34,12 +40,13 @@ This function creates a copy of the provided timer, but updated with the new tim
 @param stamp - the new timestamp in the range [0, 1]
 @return - the updated timer
 */
-export function resetTimer(timer: Timer, stamp?: number): Timer {
+export function reset(player: Player, stamp?: number): Player {
+  const p = { ...player };
   const nowVal = now();
-  timer._currentTime = nowVal;
-  timer._previousTime = nowVal;
-  timer.stamp = stamp ? stamp : 0;
-  return timer;
+  p._currentTime = nowVal;
+  p._previousTime = nowVal;
+  p.stamp = stamp ? stamp : 0;
+  return p;
 }
 
 /*
@@ -59,31 +66,62 @@ the timestamp since it was last called and the duration of the animation itself.
 @param duration - the duration of the animation
 @return - the updated timer
 */
-export function updateTimer(timer: Timer, duration: number): Timer {
-  timer._previousTime = timer._currentTime;
-  timer._currentTime = now();
+export function update(player: Player, duration: number): Player {
+  const p = { ...player };
+  p._previousTime = p._currentTime;
+  p._currentTime = now();
+
+  const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
 
   // Compute the time delta between the two raw times, multiplied by the timescale
-  const delta =
-    ((timer._currentTime - timer._previousTime) * timer.timescale) / duration;
+  const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
 
   // Apply the time delta
-  const updatedStamp = timer.stamp + delta;
+  const updatedStamp = p.stamp + delta;
+  const [start, end] = currentInBounds ? p.bounds : [0, 1];
 
-  if (duration && updatedStamp > 1) {
-    // If the updated time exceeds the duration, reset the timer
-    timer.stamp = updatedStamp - 1;
-  } else if (duration && updatedStamp < 0) {
-    // If the updated time is negative, reset the timer
-    timer.stamp = 1 - updatedStamp;
+  // Adjust for bounds
+  if (updatedStamp > end) {
+    if (p.playback === "loop") {
+      p.stamp = start;
+    } else if (p.playback === "bounce") {
+      p.stamp = end;
+      p.timescale *= -1;
+    } else {
+      p.stamp = start;
+      p.running = false;
+    }
+  } else if (currentInBounds && updatedStamp < start) {
+    if (p.playback === "loop") {
+      p.stamp = start;
+      if (p.timescale < 0) {
+        // p.timescale = -1 * p.timescale;
+        p.running = false;
+      }
+    } else if (p.playback === "bounce") {
+      p.stamp = start;
+      p.timescale *= -1;
+    } else {
+      p.stamp = start;
+      p.running = false;
+    }
   } else {
-    // Otherwise, update the time
-    timer.stamp = updatedStamp;
+    p.stamp = updatedStamp;
   }
+  return p;
+}
 
-  // console.log("timer.stamp", timer.stamp)
-
-  return timer;
+/*
+@description
+This function sets the bounds for the timer.
+@param player - the player to be updated
+@param bounds - the new bounds in the range [0, 1]
+@return - the updated player
+*/
+export function setBounds(player: Player, bounds: [number, number]): Player {
+  const p = { ...player };
+  p.bounds = bounds;
+  return p;
 }
 
 /*
@@ -93,11 +131,17 @@ This function creates a copy of the provided timer, but updated with a timescale
 @param speed - the speed of playback desired (defaults to 1)
 @return - the updated timer
 */
-export function playTimer(timer: Timer, speed?: number): Timer {
-  timer.running = true;
-  timer.timescale = speed ? speed : 1;
+export function play(player: Player, speed?: number): Player {
+  const p = { ...player };
+  p.running = true;
+  p.timescale = speed ?? 1;
 
-  return timer;
+  // If playback mode is 'once' and playing again, reset stamp to the beginning of the bounds
+  if (p.playback === "once" && p.stamp === p.bounds[1]) {
+    p.stamp = p.bounds[0];
+  }
+
+  return p;
 }
 
 /*
@@ -106,11 +150,12 @@ This function creates a copy of the provided timer, but updated with a timescale
 @param timer - the timer to be updated
 @return - the updated timer
 */
-export function pauseTimer(timer: Timer): Timer {
-  timer.running = false;
-  timer.timescale = 0;
+export function pause(player: Player): Player {
+  const p = { ...player };
+  p.running = false;
+  p.timescale = 0;
 
-  return timer;
+  return p;
 }
 
 /*
@@ -118,12 +163,14 @@ export function pauseTimer(timer: Timer): Timer {
 This function returns a new object that represents a timer with default values.
 @return - a new timer
 */
-export function newTimer(): Timer {
+export function newPlayer(): Player {
   return {
     running: false,
     _previousTime: now(),
     _currentTime: now(),
     stamp: 0,
     timescale: 0,
+    bounds: [0, 1],
+    playback: "loop",
   };
 }

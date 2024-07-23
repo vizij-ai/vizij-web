@@ -11,10 +11,10 @@ export const numberToDurationString = (duration: number): string => {
   let seconds: number | string = Math.floor((duration / 1000) % 60);
   let minutes: number | string = Math.floor((duration / (1000 * 60)) % 60);
 
-  minutes = minutes < 10 ? `0${minutes}` : minutes;
-  seconds = seconds < 10 ? `0${seconds}` : seconds;
+  minutes = minutes < 10 ? `0${minutes.toString()}` : minutes;
+  seconds = seconds < 10 ? `0${seconds.toString()}` : seconds;
   milliseconds = milliseconds.length === 1 ? `0${milliseconds}` : milliseconds;
   //   milliseconds = milliseconds < 10 ? "00" + milliseconds : milliseconds;
 
-  return `${minutes}:${seconds}:${milliseconds}`; //minutes + ":" + seconds + "." + milliseconds;
+  return `${minutes.toString()}:${seconds.toString()}:${milliseconds}`; //minutes + ":" + seconds + "." + milliseconds;
 };
