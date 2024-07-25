@@ -17,7 +17,7 @@ export { useLazy } from "./lazy";
 export { getHexagonPath, getDegenerateHexagonPath } from "./hexagon";
 export { closestFrame } from "./closest-frame";
 export { toRadians, toDegrees } from "./angles";
-export { alpha, hexToRgba, rgbToRgba, hslToRgba } from "./colors";
+export { alpha, hexToRgba, rgbToRgba, hslToRgba, altColor } from "./colors";
 export { useDeep } from "./use-deep";
 export { useMediaQuery } from "./use-media-query";
 export type { Write, StoreSubscribeWithSelector } from "./zustand";
