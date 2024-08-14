@@ -8,6 +8,7 @@ export {
   play,
   pause,
   setBounds,
+  setViewport,
   newPlayer,
 } from "./player";
 export * from "./animated-values";
