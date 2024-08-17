@@ -205,3 +205,15 @@ export function instanceOfRawHSL(object: any): object is RawHSL {
     object.h !== undefined && object.s !== undefined && object.l !== undefined
   );
 }
+
+export function isRawObject(value: any) {
+  if (
+    instanceOfRawVector3(value) ||
+    instanceOfRawEuler(value) ||
+    instanceOfRawColor(value) ||
+    instanceOfRawRGB(value) ||
+    instanceOfRawHSL(value)
+  )
+    return true;
+  return false;
+}
