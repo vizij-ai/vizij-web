@@ -31,6 +31,8 @@ export interface Player {
   bounds: [number, number];
   // The playback mode, either 'loop' or 'reverse'
   playback: "loop" | "bounce" | "once";
+  // viewport information
+  viewport: [number, number];
 }
 
 /*
@@ -113,7 +115,7 @@ export function update(player: Player, duration: number): Player {
 
 /*
 @description
-This function sets the bounds for the timer.
+This function sets the bounds for the player.
 @param player - the player to be updated
 @param bounds - the new bounds in the range [0, 1]
 @return - the updated player
@@ -121,6 +123,22 @@ This function sets the bounds for the timer.
 export function setBounds(player: Player, bounds: [number, number]): Player {
   const p = { ...player };
   p.bounds = bounds;
+  return p;
+}
+
+/*
+@description
+This function sets the viewport for the player
+@param player - the player to be updated
+@param viewport - the new viewport in the range [0, 1]
+@return - the updated player
+*/
+export function setViewport(
+  player: Player,
+  viewport: [number, number],
+): Player {
+  const p = { ...player };
+  p.viewport = viewport;
   return p;
 }
 
@@ -172,5 +190,6 @@ export function newPlayer(): Player {
     timescale: 0,
     bounds: [0, 1],
     playback: "loop",
+    viewport: [0.25, 0.8],
   };
 }
