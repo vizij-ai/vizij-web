@@ -74,6 +74,9 @@ export function update(player: Player, duration: number): Player {
   p._currentTime = now();
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
+  const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
+  const nearViewportCenterCurrent =
+    Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
   // Compute the time delta between the two raw times, multiplied by the timescale
   const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
@@ -81,6 +84,26 @@ export function update(player: Player, duration: number): Player {
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
   const [start, end] = currentInBounds ? p.bounds : [0, 1];
+
+  let attachOverride = false;
+
+  // If the updated stamp is past the viewport center (depending on the direction of playback),
+  // but still in the viewport, then adjust the viewport to center around the updated stamp.
+  // if (
+  //   p.timescale > 0 &&
+  //   p.stamp <= p.viewport[1] &&
+  //   p.stamp >= p.viewport[0] &&
+  //   p.stamp > currentViewportCenter
+  // ) {
+  //   attachOverride = true;
+  // } else if (
+  //   p.timescale < 0 &&
+  //   p.stamp <= p.viewport[1] &&
+  //   p.stamp >= p.viewport[0] &&
+  //   p.stamp < currentViewportCenter
+  // ) {
+  //   attachOverride = true;
+  // }
 
   // Adjust for bounds
   if (updatedStamp > end) {
@@ -93,6 +116,7 @@ export function update(player: Player, duration: number): Player {
       p.stamp = start;
       p.running = false;
     }
+    attachOverride = true;
   } else if (currentInBounds && updatedStamp < start) {
     if (p.playback === "loop") {
       p.stamp = start;
@@ -107,9 +131,29 @@ export function update(player: Player, duration: number): Player {
       p.stamp = start;
       p.running = false;
     }
+    attachOverride = true;
   } else {
     p.stamp = updatedStamp;
   }
+
+  const newNearViewportCenter =
+    Math.abs(p.stamp - currentViewportCenter) < 0.01;
+
+  if (
+    p.running &&
+    (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)
+  ) {
+    p.viewport = getFittedViewport(p.stamp, p.viewport);
+  } else if (p.running && !newNearViewportCenter) {
+    // Give the current stamp a bit of oomph with the delta to make it move towards the goal faster.
+    const oomphOffset = currentViewportCenter < p.stamp ? delta : 0;
+    const idealViewport = getFittedViewport(p.stamp + oomphOffset, p.viewport);
+    p.viewport = [
+      p.viewport[0] * 0.6 + idealViewport[0] * 0.4,
+      p.viewport[1] * 0.6 + idealViewport[1] * 0.4,
+    ];
+  }
+
   return p;
 }
 
@@ -190,6 +234,22 @@ export function newPlayer(): Player {
     timescale: 0,
     bounds: [0, 1],
     playback: "loop",
-    viewport: [0.25, 0.8],
+    viewport: [0, 1],
   };
 }
+
+const getFittedViewport = (
+  playhead: number,
+  proposedViewport: [number, number],
+): [number, number] => {
+  const viewportWidth = proposedViewport[1] - proposedViewport[0];
+  const proposedLeft = playhead - viewportWidth / 2;
+  const proposedRight = playhead + viewportWidth / 2;
+  if (proposedLeft >= 0 && proposedRight <= 1) {
+    return [playhead - viewportWidth / 2, playhead + viewportWidth / 2];
+  } else if (proposedLeft < 0) {
+    return [0, viewportWidth];
+  } else {
+    return [1 - viewportWidth, 1];
+  }
+};
