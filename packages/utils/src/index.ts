@@ -7,6 +7,7 @@ export {
   update,
   play,
   pause,
+  seek,
   setBounds,
   setViewport,
   newPlayer,

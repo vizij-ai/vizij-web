@@ -222,6 +222,18 @@ export function pause(player: Player): Player {
 
 /*
 @description
+This function returns the provided player, with the viewport centered around the provided stamp as much as possible.
+@param player - the player to be updated
+@param stamp - the new stamp to center the viewport around
+*/
+export function seek(player: Player, stamp: number): Player {
+  const p = reset(player, stamp);
+  p.viewport = getFittedViewport(stamp, p.viewport);
+  return p;
+}
+
+/*
+@description
 This function returns a new object that represents a timer with default values.
 @return - a new timer
 */
