@@ -96,7 +96,7 @@ export interface AnimatableString {
   type: "string";
   default: RawString;
   constraints: {
-    length?: string;
+    length?: number;
   };
   pub?: {
     public: boolean;
