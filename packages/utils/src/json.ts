@@ -21,7 +21,9 @@ function replacer(key: string, value: unknown): unknown {
  * @param value - The value to check.
  * @returns True if the value is a serialized Map object, false otherwise.
  */
-function isSerializedMap(value: any): value is { dataType: string; value: [unknown, unknown][] } {
+function isSerializedMap(
+  value: any,
+): value is { dataType: string; value: [unknown, unknown][] } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -71,7 +73,10 @@ export function parseToMapped(json: string): unknown {
  * @param event - The event containing the files to parse.
  * @param fn - The function to call on each array item.
  */
-export function parseJSONFileEvent(event: React.ChangeEvent<HTMLInputElement>, fn: (item: unknown) => void): void {
+export function parseJSONFileEvent(
+  event: React.ChangeEvent<HTMLInputElement>,
+  fn: (item: unknown) => void,
+): void {
   const files = event.target.files;
   if (files && files.length > 0) {
     const reader = new FileReader();

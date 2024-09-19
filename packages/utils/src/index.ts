@@ -7,7 +7,9 @@ export {
   update,
   play,
   pause,
+  seek,
   setBounds,
+  setViewport,
   newPlayer,
 } from "./player";
 export * from "./animated-values";
@@ -23,3 +25,4 @@ export { useMediaQuery } from "./use-media-query";
 export type { Write, StoreSubscribeWithSelector } from "./zustand";
 export { stringifyMapped, parseToMapped, parseJSONFileEvent } from "./json";
 export { downloadBlob, downloadJSONFile } from "./download";
+export { pointsToPath } from "./points-to-path";
