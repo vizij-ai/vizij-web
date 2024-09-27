@@ -39,22 +39,10 @@ export type AnimatableValue =
   | AnimatableEuler
   | AnimatableColor;
 
-interface AnimatableBase {
-  id: string;
-  name?: string;
-  type: string;
-  default: any;
-  constraints: any;
-  pub?: {
-    public: boolean;
-    output: string;
-  };
-}
-
 /*
 A specification for an animated numerical value
 */
-export interface AnimatableBoolean extends AnimatableBase {
+export interface AnimatableBoolean {
   id: string;
   name?: string;
   type: "boolean";
@@ -71,7 +59,7 @@ export interface AnimatableBoolean extends AnimatableBase {
 /*
 A specification for an animated numerical value
 */
-export interface AnimatableNumber extends AnimatableBase {
+export interface AnimatableNumber {
   id: string;
   name?: string;
   type: "number";
