@@ -21,9 +21,7 @@ function replacer(key: string, value: unknown): unknown {
  * @param value - The value to check.
  * @returns True if the value is a serialized Map object, false otherwise.
  */
-function isSerializedMap(
-  value: any,
-): value is { dataType: string; value: [unknown, unknown][] } {
+function isSerializedMap(value: any): value is { dataType: string; value: [unknown, unknown][] } {
   return (
     typeof value === "object" &&
     value !== null &&

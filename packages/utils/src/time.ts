@@ -5,9 +5,7 @@ This function returns a string that represents a numerical value (in millisecond
 @return - the duration as a string
 */
 export const numberToDurationString = (duration: number): string => {
-  let milliseconds: number | string = Math.floor(
-    (duration % 1000) / 10,
-  ).toString();
+  let milliseconds: number | string = Math.floor((duration % 1000) / 10).toString();
   let seconds: number | string = Math.floor((duration / 1000) % 60);
   let minutes: number | string = Math.floor((duration / (1000 * 60)) % 60);
 
