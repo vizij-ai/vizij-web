@@ -75,8 +75,7 @@ export function update(player: Player, duration: number): Player {
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
-  const nearViewportCenterCurrent =
-    Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
   // Compute the time delta between the two raw times, multiplied by the timescale
   const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
@@ -136,13 +135,9 @@ export function update(player: Player, duration: number): Player {
     p.stamp = updatedStamp;
   }
 
-  const newNearViewportCenter =
-    Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
-  if (
-    p.running &&
-    (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)
-  ) {
+  if (p.running && (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)) {
     p.viewport = getFittedViewport(p.stamp, p.viewport);
   } else if (p.running && !newNearViewportCenter) {
     // Give the current stamp a bit of oomph with the delta to make it move towards the goal faster.
@@ -177,10 +172,7 @@ This function sets the viewport for the player
 @param viewport - the new viewport in the range [0, 1]
 @return - the updated player
 */
-export function setViewport(
-  player: Player,
-  viewport: [number, number],
-): Player {
+export function setViewport(player: Player, viewport: [number, number]): Player {
   const p = { ...player };
   p.viewport = viewport;
   return p;
