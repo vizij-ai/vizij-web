@@ -68,10 +68,12 @@ the timestamp since it was last called and the duration of the animation itself.
 @param duration - the duration of the animation
 @return - the updated timer
 */
-export function update(player: Player, duration: number): Player {
+export function update(player: Player, duration: number, coldStart: boolean): Player {
   const p = { ...player };
-  p._previousTime = p._currentTime;
-  p._currentTime = now();
+
+  const t = now();
+  p._previousTime = coldStart ? t : p._currentTime;
+  p._currentTime = t;
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
