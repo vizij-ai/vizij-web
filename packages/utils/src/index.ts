@@ -26,3 +26,8 @@ export type { Write, StoreSubscribeWithSelector } from "./zustand";
 export { stringifyMapped, parseToMapped, parseJSONFileEvent } from "./json";
 export { downloadBlob, downloadJSONFile } from "./download";
 export { pointsToPath } from "./points-to-path";
+export {
+  angularDistance,
+  eulerToRotationMatrix,
+  rotationMatrixToAngle,
+} from "./euler";
