@@ -8,12 +8,7 @@ It also includes a set of flanges on the top and bottom of the hexagon to provid
 @param height - the height of the entire path, including flanges
 @return - the path of the hexagon
 */
-function getHexagonPath(
-  x: number,
-  y: number,
-  size: number,
-  height: number,
-): string {
+function getHexagonPath(x: number, y: number, size: number, height: number): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,
     `${x.toString()},${(y - size / 2).toString()}`,
@@ -40,12 +35,7 @@ function above, and can therefore be smoothly interpolated.
 @param height - the height of the entire path, including flanges
 @return - the path of the degenerate hexagon
 */
-function getDegenerateHexagonPath(
-  x: number,
-  y: number,
-  size: number,
-  height: number,
-): string {
+function getDegenerateHexagonPath(x: number, y: number, size: number, height: number): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,
     `${x.toString()},${(y - size / 2).toString()}`,

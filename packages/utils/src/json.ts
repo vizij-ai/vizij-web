@@ -71,7 +71,10 @@ export function parseToMapped(json: string): unknown {
  * @param event - The event containing the files to parse.
  * @param fn - The function to call on each array item.
  */
-export function parseJSONFileEvent(event: React.ChangeEvent<HTMLInputElement>, fn: (item: unknown) => void): void {
+export function parseJSONFileEvent(
+  event: React.ChangeEvent<HTMLInputElement>,
+  fn: (item: unknown) => void,
+): void {
   const files = event.target.files;
   if (files && files.length > 0) {
     const reader = new FileReader();

@@ -1,3 +1,5 @@
+import Color from "color";
+
 const regex = /(\d+),\s*(\d+),\s*(\d+)/;
 
 export const hexToRgba = (hex: string, alpha: number): string => {
@@ -91,3 +93,13 @@ export const alpha = (color: string, opacity: number): string => {
 // console.log(alpha("#3498db", 0.5)); // "rgba(52, 152, 219, 0.5)"
 // console.log(alpha("rgb(52, 152, 219)", 0.5)); // "rgba(52, 152, 219, 0.5)"
 // console.log(alpha("hsl(204, 70%, 53%)", 0.5)); // "rgba(52, 152, 219, 0.5)"
+
+export function altColor(color: string, factor: number): string {
+  if (factor > 0) {
+    return Color(color).lighten(factor).hex() as string;
+  } else {
+    return Color(color)
+      .darken(-1 * factor)
+      .hex() as string;
+  }
+}

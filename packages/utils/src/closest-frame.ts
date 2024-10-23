@@ -8,6 +8,7 @@ This function takes in the framerate, completion, and count of an animation and 
 */
 function closestFrame(completion: number, count: number): number {
   const frameIdx = Math.round(completion * count);
+  // console.log(completion, completion * count, frameIdx);
   return frameIdx / count;
 }
 
