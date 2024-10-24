@@ -33,9 +33,15 @@ export type AnimatableValue =
   | AnimatableEuler
   | AnimatableColor;
 
-/*
-A specification for an animated numerical value
-*/
+/**
+ * A specification for an animated numerical value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "boolean" for this type).
+ * @param default - the default value of the boolean.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableBoolean {
   id: string;
   name?: string;
@@ -50,9 +56,15 @@ export interface AnimatableBoolean {
   };
 }
 
-/*
-A specification for an animated numerical value
-*/
+/**
+ * A specification for an animated numerical value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "number" for this type).
+ * @param default - the default value of the number.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableNumber {
   id: string;
   name?: string;
@@ -69,9 +81,15 @@ export interface AnimatableNumber {
   };
 }
 
-/*
-A specification for an animated string value
-*/
+/**
+ * A specification for an animated string value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "string" for this type).
+ * @param default - the default value of the string.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableString {
   id: string;
   name?: string;
@@ -86,9 +104,15 @@ export interface AnimatableString {
   };
 }
 
-/*
-A specification for an animated 3-vector value
-*/
+/**
+ * A specification for an animated 3-vector value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "vector3" for this type).
+ * @param default - the default value of the vector3.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableVector3 {
   id: string;
   name?: string;
@@ -105,9 +129,15 @@ export interface AnimatableVector3 {
   };
 }
 
-/*
-A specification for an animated Euler value
-*/
+/**
+ * A specification for an animated Euler value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "euler" for this type).
+ * @param default - the default value of the euler.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableEuler {
   id: string;
   name?: string;
@@ -124,9 +154,15 @@ export interface AnimatableEuler {
   };
 }
 
-/*
-A specification for an animated encoded color value
-*/
+/**
+ * A specification for an animated encoded color value
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "rgb" or "hsl" for this type).
+ * @param default - the default value of the color.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
 export interface AnimatableColor {
   id: string;
   name?: string;
