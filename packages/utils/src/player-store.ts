@@ -28,6 +28,8 @@ export interface PlayerData {
 }
 
 export interface PlayerActions {
+  // Set the duration of the player
+  updateDuration: (duration: number) => void;
   // Set the timescale of the animation playback
   updateTimescale: (speed: number) => void;
   // Set the time of the animation
@@ -37,7 +39,7 @@ export interface PlayerActions {
   // Pause the animation
   pausePlayer: () => void;
   // Update the timer
-  updatePlayer: (duration: number, coldStart?: boolean) => void;
+  updatePlayer: (coldStart?: boolean) => void;
   // Set the player bounds
   updatePlayerBounds: (start: number, end: number) => void;
   // Update one bound of the player
@@ -64,6 +66,14 @@ export type PlayerStoreGetter = () => PlayerData & PlayerActions;
 
 export const PlayerSlice = (set: PlayerStoreSetter) => ({
   player: newPlayer(),
+  // Set the duration of the player
+  updateDuration: (duration: number) => {
+    set(
+      produce((state: PlayerData) => {
+        state.player.duration = duration;
+      }),
+    );
+  },
   // Set the timescale of the animation playback
   updateTimescale: (speed: number) => {
     set(
@@ -85,9 +95,9 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
     set((state: PlayerData) => ({ player: pause(state.player) }));
   },
   // Update the timer
-  updatePlayer: (duration: number, coldStart?: boolean) => {
+  updatePlayer: (coldStart?: boolean) => {
     set((state: PlayerData) => ({
-      player: update(state.player, duration, coldStart ?? false),
+      player: update(state.player, coldStart ?? false),
     }));
   },
   // Set the player bounds
