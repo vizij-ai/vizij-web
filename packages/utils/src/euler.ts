@@ -1,6 +1,4 @@
-export function eulerToRotationMatrix(
-  euler: [number, number, number],
-): number[][] {
+export function eulerToRotationMatrix(euler: [number, number, number]): number[][] {
   const [z, y, x] = euler;
 
   const cz = Math.cos(z);
