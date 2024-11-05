@@ -12,6 +12,12 @@ export {
   setViewport,
   newPlayer,
 } from "./player";
+export {
+  usePlayerStore,
+  type PlayerData,
+  type PlayerActions,
+  type PlayerStore,
+} from "./player-store";
 export * from "./animated-values";
 export { numberToDurationString } from "./time";
 export { pairwise } from "./pairwise";
