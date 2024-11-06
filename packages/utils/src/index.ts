@@ -34,3 +34,10 @@ export { downloadBlob, downloadJSONFile } from "./download";
 export { pointsToPath } from "./points-to-path";
 export { angularDistance, eulerToRotationMatrix, rotationMatrixToAngle } from "./euler";
 export { overlappingSegments } from "./overlapping-segments";
+export {
+  type Progress,
+  incrementProgress,
+  composeProgress,
+  type PendingResultWithProgress,
+} from "./progress";
+export { Result } from "./result";
