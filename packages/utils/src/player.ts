@@ -1,7 +1,4 @@
-// Credit to Mugen87 while we wait for this to be added to three.js
-// https://github.com/Mugen87/three.js/blob/3a6d8139367e710a3d4fef274d530dda485f1110/examples/jsm/misc/Timer.js
-
-// Raw milliseconds
+/** Time in milliseconds */
 export type RawTime = number;
 
 /**
@@ -18,32 +15,23 @@ export type RawTime = number;
  * @param duration - the duration information
  */
 export interface Player {
-  // Whether the timer is running
   running: boolean;
-  // The absolute time at the previous update, in milliseconds
   _previousTime: RawTime;
-  // The absolute current time, in milliseconds
   _currentTime: RawTime;
-  // The current time of the timer, in the range [0, 1]
   stamp: number;
-  // The time multiplier of the timer. A value of 1 corresponds to real-time
   timescale: number;
-  // The start and end points within the range of 0 to 1 for constrained playback
   bounds: [number, number];
-  // The playback mode, either 'loop' or 'reverse'
   playback: "loop" | "bounce" | "once";
-  // viewport information
   viewport: [number, number];
-  // duration information
   duration: number;
 }
 
 /**
-Creates a copy of the provided timer, but updated with the new timestamp.
-@param timer - the timer to be updated
-@param stamp - the new timestamp in the range [0, 1]
-@returns the updated timer
-*/
+ * Creates a copy of the provided timer, but updated with the new timestamp.
+ * @param timer - the timer to be updated
+ * @param stamp - the new timestamp in the range [0, 1]
+ * @returns the updated timer
+ */
 export function reset(player: Player, stamp?: number): Player {
   const p = { ...player };
   const nowVal = now();
@@ -54,19 +42,19 @@ export function reset(player: Player, stamp?: number): Player {
 }
 
 /**
-Returns the current time in milliseconds.
-@returns the current time in milliseconds
-*/
+ * Returns the current time in milliseconds.
+ * @returns the current time in milliseconds
+ */
 export function now(): RawTime {
   return (typeof performance === "undefined" ? Date : performance).now();
 }
 
 /**
-Creates a copy of the provided timer, but updated with a new timestamp as determined by
-the timestamp since it was last called and the duration of the animation itself.
-@param timer - the timer to be updated
-@returns the updated timer
-*/
+ * Creates a copy of the provided timer, but updated with a new timestamp as determined by
+ * the timestamp since it was last called and the duration of the animation itself.
+ * @param timer - the timer to be updated
+ * @returns the updated timer
+ */
 export function update(player: Player, coldStart: boolean): Player {
   const p = { ...player };
   const duration = p.duration;
@@ -140,11 +128,11 @@ export function update(player: Player, coldStart: boolean): Player {
 }
 
 /**
-Sets the bounds for the player.
-@param player - the player to be updated
-@param bounds - the new bounds in the range [0, 1]
-@returns the updated player
-*/
+ * Sets the bounds for the player.
+ * @param player - the player to be updated
+ * @param bounds - the new bounds in the range [0, 1]
+ * @returns the updated player
+ */
 export function setBounds(player: Player, bounds: [number, number]): Player {
   const p = { ...player };
   p.bounds = bounds;
@@ -152,11 +140,11 @@ export function setBounds(player: Player, bounds: [number, number]): Player {
 }
 
 /**
-Sets the viewport for the player
-@param player - the player to be updated
-@param viewport - the new viewport in the range [0, 1]
-@returns the updated player
-*/
+ * Sets the viewport for the player
+ * @param player - the player to be updated
+ * @param viewport - the new viewport in the range [0, 1]
+ * @returns the updated player
+ */
 export function setViewport(player: Player, viewport: [number, number]): Player {
   const p = { ...player };
   p.viewport = viewport;
@@ -164,11 +152,11 @@ export function setViewport(player: Player, viewport: [number, number]): Player 
 }
 
 /**
-Creates a copy of the provided timer, but updated with a timescale based on the speed provided.
-@param timer - the timer to be updated
-@param speed - the speed of playback desired (defaults to 1)
-@returns the updated timer
-*/
+ * Creates a copy of the provided timer, but updated with a timescale based on the speed provided.
+ * @param timer - the timer to be updated
+ * @param speed - the speed of playback desired (defaults to 1)
+ * @returns the updated timer
+ */
 export function play(player: Player, speed?: number): Player {
   const p = { ...player };
   p.running = true;
@@ -183,10 +171,10 @@ export function play(player: Player, speed?: number): Player {
 }
 
 /**
-Creates a copy of the provided timer, but updated with a timescale of 0 (paused)
-@param timer - the timer to be updated
-@returns the updated timer
-*/
+ * Creates a copy of the provided timer, but updated with a timescale of 0 (paused)
+ * @param timer - the timer to be updated
+ * @returns the updated timer
+ */
 export function pause(player: Player): Player {
   const p = { ...player };
   p.running = false;
@@ -196,11 +184,11 @@ export function pause(player: Player): Player {
 }
 
 /**
-Returns the provided player, with the viewport centered around the provided stamp as much as possible.
-@param player - the player to be updated
-@param stamp - the new stamp to center the viewport around
-@returns the updated player
-*/
+ * Returns the provided player, with the viewport centered around the provided stamp as much as possible.
+ * @param player - the player to be updated
+ * @param stamp - the new stamp to center the viewport around
+ * @returns the updated player
+ */
 export function seek(player: Player, stamp: number): Player {
   const p = reset(player, stamp);
   p.viewport = getFittedViewport(stamp, p.viewport);
@@ -208,11 +196,11 @@ export function seek(player: Player, stamp: number): Player {
 }
 
 /**
-Returns the provided player, with the duration set to the provided value.
-@param player - the player to be updated
-@param duration - the new duration
-@returns the updated player
-*/
+ * Returns the provided player, with the duration set to the provided value.
+ * @param player - the player to be updated
+ * @param duration - the new duration
+ * @returns the updated player
+ */
 export function setDuration(player: Player, duration: number): Player {
   const p = { ...player };
   p.duration = duration;
@@ -220,9 +208,9 @@ export function setDuration(player: Player, duration: number): Player {
 }
 
 /**
-Returns a new object that represents a timer with default values.
-@returns a new timer
-*/
+ * Returns a new object that represents a timer with default values.
+ * @returns a new timer
+ */
 export function newPlayer(): Player {
   return {
     running: false,
@@ -237,6 +225,13 @@ export function newPlayer(): Player {
   };
 }
 
+/**
+ * Adjusts the proposed viewport to ensure it fits within the bounds [0, 1].
+ *
+ * @param playhead - The current position within the range [0, 1].
+ * @param proposedViewport - The proposed viewport as a tuple [start, end].
+ * @returns A tuple representing the adjusted viewport [start, end] that fits within the bounds [0, 1].
+ */
 const getFittedViewport = (
   playhead: number,
   proposedViewport: [number, number],
