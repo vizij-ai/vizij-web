@@ -20,3 +20,4 @@ export * from "./euler";
 export * from "./overlapping-segments";
 export * from "./progress";
 export * from "./result";
+export * from "./regex";
