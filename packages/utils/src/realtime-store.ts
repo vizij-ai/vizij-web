@@ -29,7 +29,7 @@ export type RealtimeStoreSetter = (
     | ((
         state: RealtimeData & RealtimeActions,
       ) => (RealtimeData & RealtimeActions) | Partial<RealtimeData & RealtimeActions>),
-  replace?: false | undefined,
+  replace?: boolean | undefined,
 ) => void;
 
 export type RealtimeStoreGetter = () => RealtimeData & RealtimeActions;
