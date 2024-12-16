@@ -14,6 +14,7 @@
     "build": "tsup src/index.ts --format esm,cjs --dts src/index.ts --external react",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts src/index.ts --external react",
     "lint": "eslint . --max-warnings 0",
+    "test": "vitest",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "devDependencies": {
@@ -21,11 +22,13 @@
     "@semio/typescript-config": "*",
     "@types/color": "^3.0.6",
     "@types/deep-equal": "^1.0.4",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.170.0",
     "eslint": "^8.57.1",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.3.1"
   },
   "publishConfig": {
     "access": "public"
@@ -33,6 +36,9 @@
   "dependencies": {
     "color": "^4.2.3",
     "deep-equal": "^2.2.3",
-    "react": "^18.3.0"
+    "immer": "^10.1.1",
+    "react": "^18.3.1",
+    "three": "^0.170.0",
+    "zustand": "^5.0.2"
   }
 }
