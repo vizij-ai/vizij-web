@@ -52,7 +52,58 @@ export function composeProgress(progresses: Progress[]): Progress {
  * Represents a result that can either be a success or a failure, with an associated progress.
  * Until result is defined, the operation is still pending.
  */
-export interface PendingResultWithProgress<T, E = Error> {
+export interface ProgressiveResult<T, E = Error> {
   result?: Result<T, E>;
   progress: Progress;
+}
+
+/**
+ * Composes multiple progressive results into a single progressive result containing an array of results.
+ *
+ * @remarks
+ * This function handles both array and single item progressive results, combining them into a unified result
+ * while maintaining progress information. It can optionally filter and order results based on expected IDs.
+ *
+ * @typeparam T - Type of the result items, must contain an 'id' string property
+ *
+ * @param progressiveResults - Array of progressive results to compose
+ * @param expectedIds - Optional array of IDs to filter and order the results
+ *
+ * @returns A ProgressiveResult containing an array of results (or undefined values)
+ * where:
+ * - If any input result is an error, returns an error result
+ * - If expectedIds is provided, returns results ordered by the expected IDs
+ * - If expectedIds is provided and not all IDs are found when progress is complete, returns an error
+ * - Otherwise returns all results combined into an array
+ */
+export function composeProgressiveResult<T extends { id: string }>(
+  progressiveResults: ProgressiveResult<T[] | T | undefined | null>[],
+  expectedIds?: string[],
+): ProgressiveResult<(T | undefined | null)[]> {
+  const fullProgress = composeProgress(progressiveResults.map((pr) => pr.progress));
+  let fullResult: Result<(T | undefined | null)[]>;
+  if (progressiveResults.some((res) => res.result?.isErr() ?? true)) {
+    fullResult = Result.ErrFromStr("There was an error");
+  } else {
+    const metas: (T | undefined | null)[] = progressiveResults.flatMap((res) => {
+      const innerRes = res.result?.unwrap();
+      if (Array.isArray(innerRes)) return innerRes;
+      return [innerRes];
+    });
+
+    if (expectedIds) {
+      const data = expectedIds.map((id) => metas.find((m) => "id" in (m || {}) && m?.id === id));
+      if (
+        fullProgress.current >= fullProgress.total &&
+        data.some((m) => m === undefined || m === null)
+      ) {
+        fullResult = Result.ErrFromStr("Some documents not found");
+      } else {
+        fullResult = Result.Ok(data);
+      }
+    } else {
+      fullResult = Result.Ok(metas);
+    }
+  }
+  return { result: fullResult, progress: fullProgress };
 }
