@@ -132,7 +132,7 @@ export class Result<T, E = Error> {
    */
   unwrap(): T {
     if (this.isErr()) {
-      throw new Error("Tried to unwrap an Err value");
+      throw new Error(`Tried to unwrap an Err value${this.error ? `: ${String(this.error)}` : ""}`);
     }
     return this.value as T;
   }
