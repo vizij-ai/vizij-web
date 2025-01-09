@@ -6,6 +6,10 @@ export interface RawVector3 {
   y: number;
   z: number;
 }
+export interface RawVector2 {
+  x: number;
+  y: number;
+}
 export interface RawEuler {
   x: number;
   y: number;
@@ -23,13 +27,21 @@ export interface RawHSL {
 }
 export type RawColor = RawRGB | RawHSL;
 
-export type RawValue = RawBoolean | RawNumber | RawString | RawVector3 | RawEuler | RawColor;
+export type RawValue =
+  | RawBoolean
+  | RawNumber
+  | RawString
+  | RawVector3
+  | RawVector2
+  | RawEuler
+  | RawColor;
 
 export type AnimatableValue =
   | AnimatableBoolean
   | AnimatableNumber
   | AnimatableString
   | AnimatableVector3
+  | AnimatableVector2
   | AnimatableEuler
   | AnimatableColor;
 
@@ -134,6 +146,32 @@ export interface AnimatableVector3 {
 }
 
 /**
+ * A specification for an animated 2-vector value
+ *
+ * @param id - a unique identifier for the value.
+ * @param name - the name of the value, defined by the user.
+ * @param type - the type of the value (always "vector2" for this type).
+ * @param default - the default value of the vector2.
+ * @param constraints - a collection of constraints that the value must adhere to.
+ * @param pub - a collection of properties that determine whether the value is public and what its output should be.
+ */
+export interface AnimatableVector2 {
+  id: string;
+  name?: string;
+  type: "vector2";
+  default: RawVector2;
+  constraints: {
+    min?: [number | null, number | null];
+    max?: [number | null, number | null];
+    velocity?: number;
+  };
+  pub?: {
+    public: boolean;
+    output: string;
+  };
+}
+
+/**
  * A specification for an animated Euler value
  *
  * @param id - a unique identifier for the value.
@@ -201,6 +239,10 @@ export function instanceOfRawVector3(object: any): object is RawVector3 {
   return object.x !== undefined && object.y !== undefined && object.z !== undefined;
 }
 
+export function instanceOfRawVector2(object: any): object is RawVector2 {
+  return object.x !== undefined && object.y !== undefined;
+}
+
 export function instanceOfRawEuler(object: any): object is RawEuler {
   return object.x !== undefined && object.y !== undefined && object.z !== undefined;
 }
@@ -223,6 +265,7 @@ export function instanceOfRawHSL(object: any): object is RawHSL {
 export function isRawObject(value: any) {
   if (
     instanceOfRawVector3(value) ||
+    instanceOfRawVector2(value) ||
     instanceOfRawEuler(value) ||
     instanceOfRawColor(value) ||
     instanceOfRawRGB(value) ||

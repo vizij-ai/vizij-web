@@ -1,0 +1,51 @@
+{
+  "name": "vizij",
+  "description": "Higher-level visualization and interaction components for robot and ai faces.",
+  "version": "0.0.0",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "license": "MIT",
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsup src/index.tsx --format esm,cjs --dts src/index.tsx --external react",
+    "dev": "tsup src/index.tsx --format esm,cjs --watch --dts src/index.tsx --external react",
+    "lint": "eslint . --max-warnings 0",
+    "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
+  },
+  "dependencies": {
+    "@semio/ui": "*",
+    "@semio/utils": "*",
+    "@types/json-stable-stringify": "^1.0.36",
+    "@use-gesture/react": "^10.3.1",
+    "fast-xml-parser": "^4.4.0",
+    "immer": "^10.0.3",
+    "json-stable-stringify": "^1.1.1",
+    "lodash": "^4.17.21",
+    "maath": "^0.10.7",
+    "react-error-boundary": "^4.0.13",
+    "react-use-measure": "^2.1.1",
+    "three": "^0.170.0",
+    "three-stdlib": "^2.30.0",
+    "uuid": "^9.0.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@semio/eslint-config": "*",
+    "@semio/typescript-config": "*",
+    "@types/lodash": "^4.17.4",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.170.0",
+    "eslint": "^8.57.1",
+    "react": "^18.3.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
