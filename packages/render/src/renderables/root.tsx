@@ -4,8 +4,9 @@ import { RawValue, instanceOfRawNumber } from "@semio/utils";
 import { useFeatures } from "../hooks/use-features";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { VizijActions } from "../store-types";
-import { Renderable } from "./renderable";
 import { Root } from "../types/root";
+// eslint-disable-next-line import/no-cycle -- circular import will be fixed later
+import { Renderable } from "./renderable";
 
 export interface RenderedRootProps {
   id: string;

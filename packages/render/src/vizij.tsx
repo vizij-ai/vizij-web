@@ -28,12 +28,7 @@ export interface VizijProps {
  *
  * @returns The rendered ReactNode.
  */
-export function Vizij({
-  style,
-  className,
-  rootId,
-  namespace = "default",
-}: VizijProps): ReactNode {
+export function Vizij({ style, className, rootId, namespace = "default" }: VizijProps): ReactNode {
   const ctx = useContext(VizijContext);
   if (ctx) {
     return (
@@ -58,22 +53,12 @@ export function Vizij({
   }
 }
 
-export function InnerVizij({
-  style,
-  className,
-  rootId,
-  namespace = "default",
-}: VizijProps) {
+export function InnerVizij({ style, className, rootId, namespace = "default" }: VizijProps) {
   const [ref, bounds] = useMeasure();
   return (
     <svg ref={ref} style={style} className={className}>
       <Suspense fallback={null}>
-        <World
-          width={bounds.width}
-          height={bounds.height}
-          rootId={rootId}
-          namespace={namespace}
-        />
+        <World width={bounds.width} height={bounds.height} rootId={rootId} namespace={namespace} />
       </Suspense>
     </svg>
   );
@@ -99,9 +84,7 @@ function InnerWorld({
   rootId: string;
   namespace?: string;
 }) {
-  const present = useVizijStore(
-    useShallow((state) => state.world[rootId] !== undefined),
-  );
+  const present = useVizijStore(useShallow((state) => state.world[rootId] !== undefined));
 
   if (!present) {
     return null;

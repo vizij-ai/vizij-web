@@ -38,10 +38,8 @@ function InnerResizer({
       // get the aspect ratio of the group
       const groupAspectRatio = bbox.width / bbox.height;
       // get the new height/width based on the aspect ratio of the root and group
-      const newHeight =
-        rootAspectRatio > groupAspectRatio ? height : width / groupAspectRatio;
-      const newWidth =
-        rootAspectRatio > groupAspectRatio ? height * groupAspectRatio : width;
+      const newHeight = rootAspectRatio > groupAspectRatio ? height : width / groupAspectRatio;
+      const newWidth = rootAspectRatio > groupAspectRatio ? height * groupAspectRatio : width;
 
       // get the zoom value to transform the group to fit the new sizes
       const newScale = Math.min(newWidth / bbox.width, newHeight / bbox.height);
@@ -51,12 +49,10 @@ function InnerResizer({
         y: (height - newHeight) / 2 / newScale - bbox.y,
       };
 
-      const scaleString = `scale(${newScale})`;
-      const translationString = `translate(${newTranslation.x} ${newTranslation.y})`;
+      const scaleString = `scale(${newScale.toString()})`;
+      const translationString = `translate(${newTranslation.x.toString()} ${newTranslation.y.toString()})`;
       const transform = `${scaleString} ${translationString}`;
       transformSpring.set(transform);
-
-      return;
     }, 10);
   }, [width, height, children, transformSpring]);
 

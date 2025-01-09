@@ -28,7 +28,7 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
     translation: (pos: RawValue) => {
       if (groupRef.current && instanceOfRawVector2(pos)) {
         // TODO use gpu-accelerated transforms instead
-        const translation = `translate(${pos.x},${pos.y})`;
+        const translation = `translate(${pos.x.toString()},${pos.y.toString()})`;
         const rotation = groupRef.current.getAttribute("rotation") ?? "rotate(0)";
         const transform = `${translation} ${rotation}`;
         groupRef.current.setAttribute("translation", translation);
@@ -38,7 +38,7 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
     rotation: (rot: RawValue) => {
       if (groupRef.current && instanceOfRawNumber(rot)) {
         const translation = groupRef.current.getAttribute("translation") ?? "translate(0 0)";
-        const rotation = `rotate(${toDegrees(rot)})`;
+        const rotation = `rotate(${toDegrees(rot).toString()})`;
         const transform = `${translation} ${rotation}`;
         groupRef.current.setAttribute("rotation", rotation);
         groupRef.current.setAttribute("transform", transform);
@@ -46,12 +46,12 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
     },
     height: (height: RawValue) => {
       if (ellipseRef.current && instanceOfRawNumber(height)) {
-        ellipseRef.current.setAttribute("ry", `${height / 2}px`);
+        ellipseRef.current.setAttribute("ry", `${(height / 2).toString()}px`);
       }
     },
     width: (width: RawValue) => {
       if (ellipseRef.current && instanceOfRawNumber(width)) {
-        ellipseRef.current.setAttribute("rx", `${width / 2}px`);
+        ellipseRef.current.setAttribute("rx", `${(width / 2).toString()}px`);
       }
     },
     fillOpacity: (fillOpacity: RawValue) => {
@@ -68,12 +68,12 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
       if (ellipseRef.current && instanceOfRawRGB(fillColor)) {
         ellipseRef.current.setAttribute(
           "fill",
-          `rgb(${fillColor.r * 255},${fillColor.g * 255},${fillColor.b * 255})`,
+          `rgb(${(fillColor.r * 255).toString()},${(fillColor.g * 255).toString()},${(fillColor.b * 255).toString()})`,
         );
       } else if (ellipseRef.current && instanceOfRawHSL(fillColor)) {
         ellipseRef.current.setAttribute(
           "fill",
-          `hsl(${fillColor.h * 255},${fillColor.s * 255},${fillColor.l * 255})`,
+          `hsl(${(fillColor.h * 255).toString()},${(fillColor.s * 255).toString()},${(fillColor.l * 255).toString()})`,
         );
       }
     },
@@ -81,12 +81,12 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
       if (ellipseRef.current && instanceOfRawRGB(strokeColor)) {
         ellipseRef.current.setAttribute(
           "stroke",
-          `rgb(${strokeColor.r * 255},${strokeColor.g * 255},${strokeColor.b * 255})`,
+          `rgb(${(strokeColor.r * 255).toString()},${(strokeColor.g * 255).toString()},${(strokeColor.b * 255).toString()})`,
         );
       } else if (ellipseRef.current && instanceOfRawHSL(strokeColor)) {
         ellipseRef.current.setAttribute(
           "stroke",
-          `hsl(${strokeColor.h * 255},${strokeColor.s * 255},${strokeColor.l * 255})`,
+          `hsl(${(strokeColor.h * 255).toString()},${(strokeColor.s * 255).toString()},${(strokeColor.l * 255).toString()})`,
         );
       }
     },
