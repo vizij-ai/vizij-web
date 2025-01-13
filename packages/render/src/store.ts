@@ -216,12 +216,18 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       preferences: { ...state.preferences, ...preferences },
     }));
   },
-  setReference: (id: string, namespace: string, ref: RefObject<Group | Mesh | SVGGElement>) => {
+  setReference: (id: string, namespace: string, ref: RefObject<Group | Mesh>) => {
     set(
       produce((state: VizijData) => {
-        if (state.world[id].type === "group") {
-          (state.world[id].refs[namespace] as MutableRefObject<SVGGElement>).current =
-            ref.current as SVGGElement;
+        switch (state.world[id].type) {
+          case "ellipse":
+            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+              ref.current as Mesh;
+            break;
+          case "group":
+            (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
+              ref.current as Group;
+            break;
         }
       }),
     );

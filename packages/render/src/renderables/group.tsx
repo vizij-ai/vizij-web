@@ -1,12 +1,23 @@
-import { ReactNode, memo, RefObject, useEffect, useRef } from "react";
+import { ReactNode, memo, RefObject, useEffect, useRef, useMemo } from "react";
+import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
-import { RawValue, instanceOfRawNumber, instanceOfRawVector2, toDegrees } from "@semio/utils";
+import {
+  RawValue,
+  AnimatableValue,
+  instanceOfRawEuler,
+  instanceOfRawNumber,
+  instanceOfRawVector2,
+  instanceOfRawVector3,
+} from "@semio/utils";
 import { useFeatures } from "../hooks/use-features";
-import { useVizijStore } from "../hooks/use-vizij-store";
-import { VizijActions } from "../store-types";
 import { Group } from "../types/group";
+import { useVizijStore } from "../hooks/use-vizij-store";
+import { createStoredRenderable } from "../functions/create-stored-data";
+import { VizijActions } from "../store-types";
 // eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { Renderable } from "./renderable";
+
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export interface RenderedGroupProps {
   id: string;
@@ -14,46 +25,56 @@ export interface RenderedGroupProps {
 }
 
 function InnerRenderedGroup({ id, namespace }: RenderedGroupProps): ReactNode {
-  const ref = useRef<SVGGElement>() as RefObject<SVGGElement>;
+  const ref = useRef<THREE.Group>() as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
+
+  const animatables = useVizijStore(useShallow((state) => state.animatables));
+
+  const animatableValues = useMemo(() => {
+    const av: Record<string, AnimatableValue> = {};
+    Object.values(group.features).forEach((feat) => {
+      if (feat.animated) {
+        const animatable = animatables[feat.value];
+        av[animatable.id] = animatable;
+      }
+    });
+    return av;
+  }, [group.features, animatables]);
+
+  const userData = {
+    gltfExtensions: {
+      RobotData: createStoredRenderable(group, animatableValues),
+    },
+  };
 
   useFeatures(namespace, group.features, {
     translation: (pos: RawValue) => {
-      if (ref.current && instanceOfRawVector2(pos)) {
-        // TODO use gpu-accelerated transforms instead
-        const translation = `translate(${pos.x.toString()} ${pos.y.toString()})`;
-        const rotation = ref.current.getAttribute("rotation") ?? "rotate(0)";
-        const scale = ref.current.getAttribute("scale") ?? "scale(1 1)";
-        const transform = `${rotation} ${translation} ${scale}`;
-        ref.current.setAttribute("translation", translation);
-        ref.current.setAttribute("transform", transform);
+      if (ref.current?.position && instanceOfRawVector3(pos)) {
+        ref.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+      } else if (ref.current?.position && instanceOfRawVector2(pos)) {
+        const currentZ = ref.current.position.z;
+        ref.current!.position.set(pos.x as number, pos.y as number, currentZ);
       }
     },
     rotation: (rot: RawValue) => {
-      if (ref.current && instanceOfRawNumber(rot)) {
-        const translation = ref.current.getAttribute("translation") ?? "translate(0 0)";
-        const rotation = `rotate(${toDegrees(rot).toString()})`;
-        const scale = ref.current.getAttribute("scale") ?? "scale(1 1)";
-        const transform = `${rotation} ${translation} ${scale}`;
-        ref.current.setAttribute("rotation", rotation);
-        ref.current.setAttribute("transform", transform);
+      if (ref.current?.rotation && instanceOfRawEuler(rot)) {
+        ref.current!.rotation.set(rot.x, rot.y, rot.z, "ZYX");
+      } else if (ref.current?.rotation && instanceOfRawNumber(rot)) {
+        ref.current!.rotation.set(0, 0, 0);
+        ref.current.rotateZ(rot);
       }
     },
-    scale: (scl: RawValue) => {
-      if (ref.current && instanceOfRawVector2(scl)) {
-        const translation = ref.current.getAttribute("translation") ?? "translate(0 0)";
-        const rotation = ref.current.getAttribute("rotation") ?? "rotate(0)";
-        const scale = `scale(${scl.x.toString()} ${scl.y.toString()})`;
-        const transform = `${rotation} ${translation} ${scale}`;
-        ref.current.setAttribute("scale", scale);
-        ref.current.setAttribute("transform", transform);
-      } else if (ref.current && instanceOfRawNumber(scl)) {
-        const translation = ref.current.getAttribute("translation") ?? "translate(0 0)";
-        const rotation = ref.current.getAttribute("rotation") ?? "rotate(0)";
-        const scale = `scale(${scl.toString()} ${scl.toString()})`;
-        const transform = `${rotation} ${translation} ${scale}`;
-        ref.current.setAttribute("scale", scale);
-        ref.current.setAttribute("transform", transform);
+    scale: (scale: RawValue) => {
+      if (ref.current?.scale && instanceOfRawVector3(scale)) {
+        if (scale.x === null || scale.y === null || scale.z === null) {
+          ref.current!.scale.set(0.1, 0.1, 0.1);
+          return;
+        }
+        ref.current!.scale.set(scale.x, scale.y, scale.z);
+      } else if (ref.current && instanceOfRawNumber(scale)) {
+        ref.current!.scale.set(scale, scale, scale);
+      } else if (ref.current) {
+        ref.current!.scale.set(1, 1, 1);
       }
     },
   });
@@ -65,11 +86,11 @@ function InnerRenderedGroup({ id, namespace }: RenderedGroupProps): ReactNode {
   }, [group.id, namespace, ref, setReference]);
 
   return (
-    <g ref={ref} id={`${namespace}.${group.id}`}>
+    <group ref={ref} uuid={`${namespace}.${group.id}`} userData={userData}>
       {group.children.map((child) => (
         <Renderable key={child} id={child} namespace={namespace} />
       ))}
-    </g>
+    </group>
   );
 }
 

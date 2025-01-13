@@ -1,10 +1,9 @@
 import { ReactNode, memo, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-// import { ErrorBoundary } from "react-error-boundary";
 import { useVizijStore } from "../hooks/use-vizij-store";
+// eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { RenderedGroup } from "./group";
 import { RenderedEllipse } from "./ellipse";
-import { RenderedRoot } from "./root";
 
 export interface RenderableProps {
   id: string;
@@ -41,22 +40,18 @@ export function InnerRenderable({ id, namespace }: RenderableProps): ReactNode {
   }
 
   return (
-    <g key={id}>
+    <>
       {resolvedNamespaces.map((ns) => {
         switch (type) {
           case "group":
             return <RenderedGroup key={`${ns}.${id}`} id={id} namespace={ns} />;
           case "ellipse":
-            return (
-              <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} />
-            );
-          case "root":
-            return <RenderedRoot key={`${ns}.${id}`} id={id} namespace={ns} />;
+            return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} />;
           default:
             return null;
         }
       })}
-    </g>
+    </>
   );
 }
 

@@ -1,4 +1,5 @@
 import { RefObject } from "react";
+import { Group as ThreeGroup } from "three";
 import { Feature } from "./feature";
 import { Stored } from "./stored";
 import { RenderableBase } from "./renderable-base";
@@ -17,7 +18,7 @@ import { RenderableBase } from "./renderable-base";
  */
 export interface Group extends RenderableBase {
   type: "group";
-  refs: Record<string, RefObject<SVGGElement>>;
+  refs: Record<string, RefObject<ThreeGroup>>;
 
   features: {
     translation: Feature;
@@ -32,4 +33,4 @@ export interface Group extends RenderableBase {
 export type GroupFeature = keyof Group["features"];
 
 // Covenience type for storing a body
-export type StoredBody = Stored<Group>;
+export type StoredGroup = Stored<Group>;

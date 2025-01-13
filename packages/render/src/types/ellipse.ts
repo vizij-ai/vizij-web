@@ -1,4 +1,5 @@
 import { RefObject } from "react";
+import { Mesh } from "three";
 import { Feature } from "./feature";
 import { Stored } from "./stored";
 import { RenderableBase } from "./renderable-base";
@@ -16,7 +17,7 @@ import { RenderableBase } from "./renderable-base";
  */
 export interface Ellipse extends RenderableBase {
   type: "ellipse";
-  refs: Record<string, RefObject<SVGEllipseElement>>;
+  refs: Record<string, RefObject<Mesh>>;
 
   features: {
     height: Feature; // AnimatedNumber;

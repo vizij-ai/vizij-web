@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@react-spring/web": "^9.7.5",
+    "@react-three/drei": "^9.115.0",
+    "@react-three/fiber": "^8.17.10",
     "@semio/ui": "*",
     "@semio/utils": "*",
     "@types/json-stable-stringify": "^1.0.36",

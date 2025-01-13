@@ -1,18 +1,23 @@
-import { type ReactNode, Suspense, memo, useContext } from "react";
+import { type ReactNode, Suspense, memo, useContext, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import useMeasure from "react-use-measure";
+import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
+import { Canvas, useThree } from "@react-three/fiber";
+import { OrthographicCamera } from "@react-three/drei";
 import { useShallow } from "zustand/shallow";
 import { Renderable } from "./renderables";
 import { VizijContext } from "./context";
 import { useDefaultVizijStore } from "./store";
 import { useVizijStore } from "./hooks/use-vizij-store";
-import { Resizer } from "./resizer";
+
+Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export interface VizijProps {
   style?: React.CSSProperties;
   className?: string;
   rootId: string;
   namespace?: string;
+  width: number;
+  height: number;
 }
 
 /**
@@ -28,7 +33,14 @@ export interface VizijProps {
  *
  * @returns The rendered ReactNode.
  */
-export function Vizij({ style, className, rootId, namespace = "default" }: VizijProps): ReactNode {
+export function Vizij({
+  style,
+  className,
+  rootId,
+  namespace = "default",
+  height,
+  width,
+}: VizijProps): ReactNode {
   const ctx = useContext(VizijContext);
   if (ctx) {
     return (
@@ -37,6 +49,8 @@ export function Vizij({ style, className, rootId, namespace = "default" }: Vizij
         className={className}
         rootId={rootId}
         namespace={namespace}
+        height={height}
+        width={width}
       />
     );
   } else {
@@ -47,21 +61,48 @@ export function Vizij({ style, className, rootId, namespace = "default" }: Vizij
           className={className}
           rootId={rootId}
           namespace={namespace}
+          height={height}
+          width={width}
         />
       </VizijContext.Provider>
     );
   }
 }
 
-export function InnerVizij({ style, className, rootId, namespace = "default" }: VizijProps) {
-  const [ref, bounds] = useMeasure();
+export function InnerVizij({
+  style,
+  className,
+  rootId,
+  namespace = "default",
+  width,
+  height,
+}: VizijProps) {
   return (
-    <svg ref={ref} style={style} className={className}>
+    <Canvas shadows={false} style={style} className={className} gl={{ antialias: false }}>
+      <ambientLight intensity={Math.PI / 2} />
+      <CameraConfigurator width={width} height={height} />
+      <OrthographicCamera makeDefault position={[0, 0, 100]} near={0.1} far={101} />
       <Suspense fallback={null}>
-        <World width={bounds.width} height={bounds.height} rootId={rootId} namespace={namespace} />
+        <World rootId={rootId} namespace={namespace} />
       </Suspense>
-    </svg>
+    </Canvas>
   );
+}
+
+function CameraConfigurator({ width, height }: { height: number; width: number }) {
+  const { camera, size } = useThree((state) => ({ camera: state.camera, size: state.size }));
+
+  useEffect(() => {
+    if (camera && (camera as OrthographicCameraType).isOrthographicCamera) {
+      const zoom = Math.min(size.width / width, size.height / height);
+      if (camera.zoom !== zoom) {
+        camera.zoom = zoom;
+        camera.updateProjectionMatrix();
+      }
+    }
+  }, [width, height, camera, size]);
+
+  return null;
 }
 
 const MemoizedInnerVizij = memo(InnerVizij);
@@ -73,17 +114,7 @@ const MemoizedInnerVizij = memo(InnerVizij);
  *
  * @returns The JSX element representing the inner world.
  */
-function InnerWorld({
-  height,
-  width,
-  rootId,
-  namespace = "default",
-}: {
-  height: number;
-  width: number;
-  rootId: string;
-  namespace?: string;
-}) {
+function InnerWorld({ rootId, namespace = "default" }: { rootId: string; namespace?: string }) {
   const present = useVizijStore(useShallow((state) => state.world[rootId] !== undefined));
 
   if (!present) {
@@ -92,9 +123,7 @@ function InnerWorld({
 
   return (
     <ErrorBoundary fallback={null}>
-      <Resizer width={width} height={height}>
-        <Renderable id={rootId} namespace={namespace} />
-      </Resizer>
+      <Renderable id={rootId} namespace={namespace} />
     </ErrorBoundary>
   );
 }

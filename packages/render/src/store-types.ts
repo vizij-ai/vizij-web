@@ -48,11 +48,7 @@ export interface VizijActions {
   setChildren: (id: string, children: string[]) => void;
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => void;
   setMaterial: (id: string, material: string) => void;
-  setReference: (
-    id: string,
-    namespace: string,
-    object: RefObject<Group | Mesh | SVGGElement>,
-  ) => void;
+  setReference: (id: string, namespace: string, object: RefObject<Group | Mesh>) => void;
   createGroup: (root: boolean) => void;
   createAnimatable: (
     elementId: string,
