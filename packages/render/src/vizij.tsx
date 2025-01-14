@@ -78,7 +78,7 @@ export function InnerVizij({
   height,
 }: VizijProps) {
   return (
-    <Canvas shadows={false} style={style} className={className} gl={{ antialias: false }}>
+    <Canvas shadows={false} style={style} className={className}>
       <ambientLight intensity={Math.PI / 2} />
       <CameraConfigurator width={width} height={height} />
       <OrthographicCamera makeDefault position={[0, 0, 100]} near={0.1} far={101} />

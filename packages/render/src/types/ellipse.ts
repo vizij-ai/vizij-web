@@ -26,8 +26,10 @@ export interface Ellipse extends RenderableBase {
     strokeOpacity?: Feature; // AnimatedNumber;
     fillColor?: Feature; // AnimatedColor;
     strokeColor?: Feature; // AnimatedColor;
-    translation: Feature; // AnimatedVector2;
-    rotation: Feature; // AnimatedNumber;
+    strokeWidth?: Feature; // AnimatedNumber;
+    strokeOffset?: Feature; // AnimatedNumber;
+    translation: Feature; // AnimatedVector2 | AnimatedVector3;
+    rotation: Feature; // AnimatedNumber | AnimatedEuler;
   };
 }
 
