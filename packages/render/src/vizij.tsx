@@ -44,18 +44,7 @@ export function Vizij({
   const ctx = useContext(VizijContext);
   if (ctx) {
     return (
-      <MemoizedInnerVizij
-        style={style}
-        className={className}
-        rootId={rootId}
-        namespace={namespace}
-        height={height}
-        width={width}
-      />
-    );
-  } else {
-    return (
-      <VizijContext.Provider value={useDefaultVizijStore}>
+      <Canvas shadows={false} style={style} className={className}>
         <MemoizedInnerVizij
           style={style}
           className={className}
@@ -64,28 +53,42 @@ export function Vizij({
           height={height}
           width={width}
         />
+      </Canvas>
+    );
+  } else {
+    return (
+      <VizijContext.Provider value={useDefaultVizijStore}>
+        <Canvas shadows={false} style={style} className={className}>
+          <MemoizedInnerVizij
+            style={style}
+            className={className}
+            rootId={rootId}
+            namespace={namespace}
+            height={height}
+            width={width}
+          />
+        </Canvas>
       </VizijContext.Provider>
     );
   }
 }
 
 export function InnerVizij({
-  style,
-  className,
   rootId,
   namespace = "default",
   width,
   height,
-}: VizijProps) {
+}: Omit<VizijProps, "className" | "style">) {
+  console.log("InnerVizij", rootId, namespace, width, height);
   return (
-    <Canvas shadows={false} style={style} className={className}>
+    <>
       <ambientLight intensity={Math.PI / 2} />
       <CameraConfigurator width={width} height={height} />
       <OrthographicCamera makeDefault position={[0, 0, 100]} near={0.1} far={101} />
       <Suspense fallback={null}>
         <World rootId={rootId} namespace={namespace} />
       </Suspense>
-    </Canvas>
+    </>
   );
 }
 
