@@ -39,7 +39,6 @@ export const RealtimeSlice = (set: RealtimeStoreSetter) => ({
   setValue: (id: string, namespace: string, value: RawValue) => {
     set(
       produce((state: RealtimeData) => {
-        console.log("(Utils) Setting value", id, namespace, value);
         const lookupId = getLookup(id, namespace);
         state.values.set(lookupId, value);
       }),
