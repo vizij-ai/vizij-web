@@ -4,6 +4,7 @@ import { useVizijStore } from "../hooks/use-vizij-store";
 // eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { RenderedGroup } from "./group";
 import { RenderedEllipse } from "./ellipse";
+import { RenderedRectangle } from "./rectangle";
 
 export interface RenderableProps {
   id: string;
@@ -47,6 +48,8 @@ export function InnerRenderable({ id, namespace }: RenderableProps): ReactNode {
             return <RenderedGroup key={`${ns}.${id}`} id={id} namespace={ns} />;
           case "ellipse":
             return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} />;
+          case "rectangle":
+            return <RenderedRectangle key={`${ns}.${id}`} id={id} namespace={ns} />;
           default:
             return null;
         }
