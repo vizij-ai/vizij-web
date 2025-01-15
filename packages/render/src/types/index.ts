@@ -1,3 +1,4 @@
+export * from "./rectangle";
 export * from "./ellipse";
 export * from "./group";
 export * from "./feature";
