@@ -1,5 +1,5 @@
 export function getLookup(namespace: string, id: string): string {
-  return `${namespace === "default" ? "" : `${namespace}.`}${id}`;
+  return `${namespace === "default" ? "default." : `${namespace}.`}${id}`;
 }
 
 export function getNamespace(lookup: string): string {
