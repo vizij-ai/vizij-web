@@ -16,11 +16,13 @@ export interface RawRGB {
   g: number;
   b: number;
 }
+
 export interface RawHSL {
   h: number;
   s: number;
   l: number;
 }
+
 export type RawColor = RawRGB | RawHSL;
 
 export type RawValue = RawBoolean | RawNumber | RawString | RawVector3 | RawEuler | RawColor;

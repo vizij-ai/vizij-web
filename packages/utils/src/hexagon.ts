@@ -1,13 +1,18 @@
-/*
-@description
-This function returns a string that represents the path of a hexagon for usage in svg paths.
-It also includes a set of flanges on the top and bottom of the hexagon to provide a marker in the timeline
-@param x - the x coordinate of the center of the hexagon
-@param y - the y coordinate of the center of the hexagon
-@param size - the size of the hexagon
-@param height - the height of the entire path, including flanges
-@return - the path of the hexagon
-*/
+/**
+ * Generates an SVG path string for a hexagon with flanges.
+ *
+ * @param x - Center X coordinate of the hexagon
+ * @param y - Center Y coordinate of the hexagon
+ * @param size - Width/height of the hexagon's body
+ * @param height - Total height including top and bottom flanges
+ * @returns SVG path string for the hexagon
+ *
+ * @example
+ * ```typescript
+ * const path = getHexagonPath(100, 100, 50, 80);
+ * // Use in SVG: <path d={path} />
+ * ```
+ */
 function getHexagonPath(x: number, y: number, size: number, height: number): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,
@@ -24,17 +29,18 @@ function getHexagonPath(x: number, y: number, size: number, height: number): str
   return `M${path}Z`;
 }
 
-/*
-@description
-This function returns a string that represents the path of a degenerate hexagon for usage in svg paths.
-Specifically, this path appears as a single vertical line, but has the same number of vertices as the hexacon generation
-function above, and can therefore be smoothly interpolated.
-@param x - the x coordinate of the center of the hexagon
-@param y - the y coordinate of the center of the hexagon
-@param size - the size of the hexagon
-@param height - the height of the entire path, including flanges
-@return - the path of the degenerate hexagon
-*/
+/**
+ * Generates an SVG path string for a degenerate (collapsed) hexagon.
+ *
+ * Creates a vertical line with the same number of vertices as a regular hexagon,
+ * allowing smooth interpolation between the two shapes.
+ *
+ * @param x - Center X coordinate of the line
+ * @param y - Center Y coordinate of the line
+ * @param size - Reference size (affects vertical spacing of points)
+ * @param height - Total height of the line including endpoints
+ * @returns SVG path string for the degenerate hexagon
+ */
 function getDegenerateHexagonPath(x: number, y: number, size: number, height: number): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,

@@ -1,3 +1,13 @@
+/**
+ * @fileoverview
+ * Experimental store for handling player state and actions.
+ * Provides a centralized way to manage animation playback state.
+ *
+ * @remarks
+ * Not currently in use. Part of an attempt to improve performance
+ * by separating rapidly-changing player data.
+ */
+
 import { createContext } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
@@ -23,32 +33,39 @@ import {
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
 
+/**
+ * Core data structure for player state
+ */
 export interface PlayerData {
+  /** The player instance containing current state */
   player: Player;
 }
 
+/**
+ * Actions available for controlling the player
+ */
 export interface PlayerActions {
-  // Set the duration of the player
+  /** Updates the total duration of the animation */
   updateDuration: (duration: number) => void;
-  // Set the timescale of the animation playback
+  /** Updates the playback speed multiplier */
   updateTimescale: (speed: number) => void;
-  // Set the time of the animation
+  /** Resets the player to initial state or specified time */
   resetPlayer: (time?: number) => void;
-  // Play the animation
+  /** Plays the animation */
   playPlayer: (speed?: number) => void;
-  // Pause the animation
+  /** Pauses the animation */
   pausePlayer: () => void;
-  // Update the timer
+  /** Updates the timer */
   updatePlayer: (coldStart?: boolean) => void;
-  // Set the player bounds
+  /** Sets the player bounds */
   updatePlayerBounds: (start: number, end: number) => void;
-  // Update one bound of the player
+  /** Updates one bound of the player */
   updatePlayerBound: (bound: "start" | "end", time?: number) => void;
-  // Set the player viewport
+  /** Sets the player viewport */
   updatePlayerViewport: (start: number, end: number) => void;
-  // Seek the viewport to center the player at a time
+  /** Seeks the viewport to center the player at a time */
   updatePlayerViewportCenter: (time?: number) => void;
-  // Update one bound of the player viewport
+  /** Updates one bound of the player viewport */
   updatePlayerViewportBound: (bound: "start" | "end", time: number) => void;
 }
 
