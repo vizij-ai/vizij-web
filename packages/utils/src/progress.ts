@@ -1,13 +1,18 @@
 import { Result } from "./result";
 
 /**
- * Represents some progress towards a goal, and bring an optional message along.
- * Avoids having to depend on the DOM's ProgressEvent.
- * If `total` is 0 the progress is indeterminate, and it is impossible to assess completeness.
+ * Represents progress towards a goal with optional status message.
+ *
+ * @remarks
+ * Used to track progress of operations without depending on DOM ProgressEvent.
+ * Progress is indeterminate when total is 0.
  */
 export interface Progress {
+  /** Current progress value */
   current: number;
+  /** Total value representing 100% completion. 0 indicates indeterminate progress */
   total: number;
+  /** Optional status message describing current progress state */
   message?: string;
 }
 

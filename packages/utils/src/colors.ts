@@ -2,6 +2,19 @@ import Color from "color";
 
 const regex = /(\d+),\s*(\d+),\s*(\d+)/;
 
+/**
+ * Converts a hexadecimal color value to an RGBA color string.
+ *
+ * @param hex - The hex color string (with or without #)
+ * @param alpha - The opacity value between 0 and 1
+ * @returns An RGBA color string
+ * @throws {Error} If the hex color format is invalid
+ *
+ * @example
+ * ```typescript
+ * const color = hexToRgba('#ff0000', 0.5); // "rgba(255, 0, 0, 0.5)"
+ * ```
+ */
 export const hexToRgba = (hex: string, alpha: number): string => {
   // Remove the hash at the start if it's there
   const h = hex.replace(/^#/, "");
@@ -24,6 +37,14 @@ export const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r.toFixed(0)}, ${g.toFixed(0)}, ${b.toFixed(0)}, ${alpha.toString()})`;
 };
 
+/**
+ * Converts an RGB color value to an RGBA color string.
+ *
+ * @param rgb - The RGB color string in format "r, g, b"
+ * @param alpha - The opacity value between 0 and 1
+ * @returns An RGBA color string
+ * @throws {Error} If the RGB color format is invalid
+ */
 export const rgbToRgba = (rgb: string, alpha: number): string => {
   // Extract r, g, b values
   const result = regex.exec(rgb);
@@ -38,6 +59,14 @@ export const rgbToRgba = (rgb: string, alpha: number): string => {
   return `rgba(${r.toFixed()}, ${g.toFixed()}, ${b.toFixed()}, ${alpha.toFixed(2)})`;
 };
 
+/**
+ * Converts an HSL color value to an RGBA color string.
+ *
+ * @param hsl - The HSL color string in format "h, s, l"
+ * @param alpha - The opacity value between 0 and 1
+ * @returns An RGBA color string
+ * @throws {Error} If the HSL color format is invalid
+ */
 export const hslToRgba = (hsl: string, alpha: number): string => {
   // Extract h, s, l values
   const result = regex.exec(hsl);
@@ -77,6 +106,20 @@ export const hslToRgba = (hsl: string, alpha: number): string => {
   return `rgba(${Math.round(r * 255).toFixed(0)}, ${Math.round(g * 255).toFixed(0)}, ${Math.round(b * 255).toFixed(0)}, ${alpha.toString()})`;
 };
 
+/**
+ * Adds transparency to a color string of any supported format (hex, rgb, hsl).
+ *
+ * @param color - The color string in hex, RGB, or HSL format
+ * @param opacity - The desired opacity value between 0 and 1
+ * @returns An RGBA color string
+ * @throws {Error} If the color format is not supported
+ *
+ * @example
+ * ```typescript
+ * const transparentRed = alpha('#ff0000', 0.5); // "rgba(255, 0, 0, 0.5)"
+ * const transparentBlue = alpha('rgb(0, 0, 255)', 0.7); // "rgba(0, 0, 255, 0.7)"
+ * ```
+ */
 export const alpha = (color: string, opacity: number): string => {
   if (color.startsWith("#")) {
     return hexToRgba(color, opacity);
@@ -94,6 +137,19 @@ export const alpha = (color: string, opacity: number): string => {
 // console.log(alpha("rgb(52, 152, 219)", 0.5)); // "rgba(52, 152, 219, 0.5)"
 // console.log(alpha("hsl(204, 70%, 53%)", 0.5)); // "rgba(52, 152, 219, 0.5)"
 
+/**
+ * Lightens or darkens a color by a given factor.
+ *
+ * @param color - The color string to modify
+ * @param factor - Positive values lighten the color, negative values darken it
+ * @returns A hex color string
+ *
+ * @example
+ * ```typescript
+ * const lighterBlue = altColor('#0000ff', 0.2); // Lightens blue by 20%
+ * const darkerRed = altColor('#ff0000', -0.3); // Darkens red by 30%
+ * ```
+ */
 export function altColor(color: string, factor: number): string {
   if (factor > 0) {
     return Color(color).lighten(factor).hex() as string;
