@@ -224,6 +224,10 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
             (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
               ref.current as Mesh;
             break;
+          case "rectangle":
+            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+              ref.current as Mesh;
+            break;
           case "group":
             (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
               ref.current as Group;
