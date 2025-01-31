@@ -6,5 +6,11 @@ export type StoredFeatures<T extends RenderableBase["features"]> = {
 };
 
 export interface Stored<T extends Omit<RenderableBase, "refs">> {
+  id: T["id"];
+  name: T["name"];
+  tags: T["tags"];
+  type: T["type"];
   features: StoredFeatures<T["features"]>;
 }
+
+export type StoredRenderable = Stored<RenderableBase>;

@@ -1,3 +1,5 @@
+import { createRef, type RefObject } from "react";
+
 export function iterateOrExtract(data: any, cb: (data: any) => void): void {
   if (Array.isArray(data)) {
     data.forEach((item) => cb(item));
@@ -25,4 +27,8 @@ export function processTuple(val: string | null | undefined): number[] {
     .trim()
     .split(/\s+/g)
     .map((num) => parseFloat(num));
+}
+
+export function namespaceArrayToRefs<T>(namespaces: string[]): Record<string, RefObject<T>> {
+  return namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<T>() }), {});
 }

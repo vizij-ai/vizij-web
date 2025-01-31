@@ -11,8 +11,7 @@ import { removeFromTree } from "./actions/remove-children";
 import { VizijData, VizijActions, VizijStoreGetter, VizijStoreSetter } from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
 import { RenderableFeature } from "./types/renderable-feature";
-import { BodyFeature } from "./types/body";
-import { StaticFeature } from "./types/feature";
+import { StaticFeature, GroupFeature } from "./types";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
@@ -148,7 +147,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         const entry = state.world[id];
         switch (entry.type) {
           case "group":
-            (entry.features[feature as BodyFeature] as StaticFeature).value = value;
+            (entry.features[feature as GroupFeature] as StaticFeature).value = value;
             state.world[id] = entry;
             break;
           default:
@@ -219,7 +218,11 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   setReference: (id: string, namespace: string, ref: RefObject<Group | Mesh>) => {
     set(
       produce((state: VizijData) => {
-        switch (state.world[id].type) {
+        switch (state.world[id].type as string) {
+          case "shape":
+            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+              ref.current as Mesh;
+            break;
           case "ellipse":
             (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
               ref.current as Mesh;
