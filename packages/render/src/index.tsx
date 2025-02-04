@@ -8,3 +8,4 @@ export * from "./hooks/use-vizij-store";
 export * from "./hooks/use-vizij-store-subscription";
 export * from "./hooks/use-vizij-store-setter";
 export * from "./hooks/use-vizij-store-getter";
+export * from "./functions/load-gltf";

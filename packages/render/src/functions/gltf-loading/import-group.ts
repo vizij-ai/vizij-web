@@ -10,12 +10,14 @@ export function importGroup(
   group: Group,
   namespaces: string[],
   root?: boolean,
-): [World, Record<string, AnimatableValue>] {
+): [World, Record<string, AnimatableValue>, string] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
+  let children: string[] = [];
 
   const translationAnimatable: AnimatableVector3 = {
     id: crypto.randomUUID(),
+    name: `${group.name ?? "Group"} translation`,
     type: "vector3",
     default: { x: group.position.x, y: group.position.y, z: group.position.z },
     constraints: {},
@@ -24,6 +26,7 @@ export function importGroup(
 
   const rotationAnimatable: AnimatableEuler = {
     id: crypto.randomUUID(),
+    name: `${group.name ?? "Group"} rotation`,
     type: "euler",
     default: { x: group.rotation.x, y: group.position.y, z: group.position.z },
     constraints: {},
@@ -32,6 +35,7 @@ export function importGroup(
 
   const scaleAnimatable: AnimatableVector3 = {
     id: crypto.randomUUID(),
+    name: `${group.name ?? "Group"} scale`,
     type: "vector3",
     default: { x: group.scale.x, y: group.scale.y, z: group.scale.z },
     constraints: {},
@@ -40,13 +44,15 @@ export function importGroup(
 
   group.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
-      const [newWorldItems, newAnimatables] = importMesh(child as Mesh, namespaces);
+      const [newWorldItems, newAnimatables, childId] = importMesh(child as Mesh, namespaces);
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
+      children.push(childId);
     } else if ((child as Group).isGroup) {
-      const [newWorldItems, newAnimatables] = importGroup(child as Group, namespaces);
+      const [newWorldItems, newAnimatables, childId] = importGroup(child as Group, namespaces);
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
+      children.push(childId);
     }
   });
 
@@ -61,10 +67,10 @@ export function importGroup(
       scale: { animated: true, value: scaleAnimatable.id },
     },
     root: root ?? false,
-    children: [],
+    children,
     refs: namespaceArrayToRefs(namespaces),
   };
   world = { ...world, [newGroup.id]: newGroup };
 
-  return [world, animatables];
+  return [world, animatables, newGroup.id];
 }

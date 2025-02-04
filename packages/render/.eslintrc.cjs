@@ -26,6 +26,8 @@ module.exports = {
           "depthTest",
           "dispose",
           "object",
+          "morphTargetDictionary",
+          "morphTargetInfluences",
         ],
       },
     ],

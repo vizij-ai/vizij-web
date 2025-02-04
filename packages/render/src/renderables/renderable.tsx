@@ -5,6 +5,7 @@ import { useVizijStore } from "../hooks/use-vizij-store";
 import { RenderedGroup } from "./group";
 import { RenderedEllipse } from "./ellipse";
 import { RenderedRectangle } from "./rectangle";
+import { RenderedShape } from "./shape";
 
 export interface RenderableProps {
   id: string;
@@ -50,6 +51,8 @@ export function InnerRenderable({ id, namespace }: RenderableProps): ReactNode {
             return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} />;
           case "rectangle":
             return <RenderedRectangle key={`${ns}.${id}`} id={id} namespace={ns} />;
+          case "shape":
+            return <RenderedShape key={`${ns}.${id}`} id={id} namespace={ns} />;
           default:
             return null;
         }

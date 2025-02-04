@@ -40,6 +40,7 @@ export interface Shape extends RenderableBase {
 
   material: ShapeMaterial;
   geometry: BufferGeometry | ShapeGeometry;
+  morphTargets?: string[];
 }
 
 /**
