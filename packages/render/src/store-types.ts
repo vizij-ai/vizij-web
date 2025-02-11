@@ -1,32 +1,35 @@
 import { type RefObject } from "react";
 import * as THREE from "three";
 import { Group, Mesh } from "three";
+import { ThreeEvent } from "@react-three/fiber";
 import { RawValue, AnimatableValue } from "@semio/utils";
-import { World } from "./types/world";
-import { RenderableFeature } from "./types/renderable-feature";
+import { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {
   world: World;
   animatables: Record<string, AnimatableValue>;
   values: Map<string, RawValue | undefined>;
-  selection: string | null;
   // Remove after control refactor
   renderHit: boolean;
-  dragLock: string | null;
   preferences: {
     damping: boolean;
   };
-  selectedWorldElement: string;
+  elementSelection: Selection[];
+  slotConfig: Record<string, string>;
 }
 
 export interface VizijActions {
   setValue: (id: string, namespace: string, value: RawValue) => void;
   setWorldElementName: (id: string, value: string) => void;
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => void;
-  select: (id: string | null) => void;
-  deselect: () => void;
-  setDragLock: (lock: string | null) => void;
-  // Add world elements and animated values
+  setSlot: (
+    parentId: string,
+    parentNamespace: string,
+    childId: string,
+    childNamespace: string,
+  ) => void;
+  setSlots: (slots: Record<string, string>, replace?: boolean) => void;
+  clearSlot: (parentId: string, parentNamespace: string) => void;
   addWorldElements: (
     world: World,
     animatables: Record<string, AnimatableValue>,
@@ -34,7 +37,9 @@ export interface VizijActions {
   ) => void;
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => void;
   getExportableBodies: (filterIds?: string[]) => Group[];
-  setSelectedWorldElement: (id: string) => void;
+  updateElementSelection: (selection: Selection, chain: string[]) => void;
+  onElementClick: (selection: Selection, chain: string[], event: ThreeEvent<MouseEvent>) => void;
+  clearSelection: () => void;
   setOrigin: (
     id: string,
     origin: { translation?: THREE.Vector3; rotation?: THREE.Vector3 },

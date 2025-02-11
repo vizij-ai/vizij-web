@@ -9,11 +9,13 @@ Object3D.DEFAULT_UP.set(0, 0, 1);
 export function importGroup(
   group: Group,
   namespaces: string[],
+  colorLookup: Record<string, [string, string, boolean]>,
   root?: boolean,
-): [World, Record<string, AnimatableValue>, string] {
+): [World, Record<string, AnimatableValue>, string, Record<string, [string, string, boolean]>] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
-  let children: string[] = [];
+  let newColorLookup: Record<string, [string, string, boolean]> = {};
+  const children: string[] = [];
 
   const translationAnimatable: AnimatableVector3 = {
     id: crypto.randomUUID(),
@@ -44,12 +46,22 @@ export function importGroup(
 
   group.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
-      const [newWorldItems, newAnimatables, childId] = importMesh(child as Mesh, namespaces);
+      const [newWorldItems, newAnimatables, childId, newMeshColors] = importMesh(
+        child as Mesh,
+        namespaces,
+        { ...colorLookup, ...newColorLookup },
+      );
+      newColorLookup = { ...newColorLookup, ...newMeshColors };
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
     } else if ((child as Group).isGroup) {
-      const [newWorldItems, newAnimatables, childId] = importGroup(child as Group, namespaces);
+      const [newWorldItems, newAnimatables, childId, newMeshColors] = importGroup(
+        child as Group,
+        namespaces,
+        { ...colorLookup, ...newColorLookup },
+      );
+      newColorLookup = { ...newColorLookup, ...newMeshColors };
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
@@ -72,5 +84,5 @@ export function importGroup(
   };
   world = { ...world, [newGroup.id]: newGroup };
 
-  return [world, animatables, newGroup.id];
+  return [world, animatables, newGroup.id, newColorLookup];
 }

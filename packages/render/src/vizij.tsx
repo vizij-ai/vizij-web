@@ -127,7 +127,7 @@ function InnerWorld({ rootId, namespace = "default" }: { rootId: string; namespa
 
   return (
     <ErrorBoundary fallback={null}>
-      <Renderable id={rootId} namespace={namespace} />
+      <Renderable id={rootId} namespace={namespace} chain={[]} />
     </ErrorBoundary>
   );
 }

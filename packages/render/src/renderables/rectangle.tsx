@@ -22,16 +22,19 @@ import { createStoredRenderable } from "../functions/create-stored-data";
 export interface RenderedRectangleProps {
   id: string;
   namespace: string;
+  chain: string[];
 }
 
-function InnerRenderedRectangle({ id, namespace }: RenderedRectangleProps): ReactNode {
+function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps): ReactNode {
   const rectangleRef = useRef<Mesh>() as RefObject<Mesh>;
   const materialRef = useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
   const lineRef = useRef<Mesh>() as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
+  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
 
   const rectangle = useVizijStore(useShallow((state) => state.world[id] as Rectangle));
+  const refIsNull = !rectangle.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
 
@@ -188,12 +191,19 @@ function InnerRenderedRectangle({ id, namespace }: RenderedRectangleProps): Reac
   }, []);
 
   useEffect(() => {
-    setReference(rectangle.id, namespace, rectangleRef);
-  }, [rectangle.id, namespace, rectangleRef, setReference]);
+    if (rectangleRef.current && refIsNull) setReference(rectangle.id, namespace, rectangleRef);
+  }, [rectangle.id, namespace, rectangleRef, setReference, refIsNull]);
 
   return (
     <>
-      <Plane ref={rectangleRef} userData={userData} args={[1, 1]}>
+      <Plane
+        ref={rectangleRef}
+        userData={userData}
+        args={[1, 1]}
+        onClick={(e) => {
+          onElementClick({ id, type: "rectangle", namespace }, [...chain, id], e);
+        }}
+      >
         <meshStandardMaterial attach="material" ref={materialRef} />
       </Plane>
       {showLine(rectangle) && <Line ref={lineRef} points={points} />}

@@ -22,11 +22,13 @@ THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 export interface RenderedGroupProps {
   id: string;
   namespace: string;
+  chain: string[];
 }
 
-function InnerRenderedGroup({ id, namespace }: RenderedGroupProps): ReactNode {
+function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): ReactNode {
   const ref = useRef<THREE.Group>() as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
+  const refIsNull = !group.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
 
@@ -82,13 +84,13 @@ function InnerRenderedGroup({ id, namespace }: RenderedGroupProps): ReactNode {
   const setReference = useVizijStore(useShallow((state: VizijActions) => state.setReference));
 
   useEffect(() => {
-    setReference(group.id, namespace, ref);
-  }, [group.id, namespace, ref, setReference]);
+    if (ref.current && refIsNull) setReference(group.id, namespace, ref);
+  }, [group.id, namespace, ref, setReference, refIsNull]);
 
   return (
     <group ref={ref} uuid={`${namespace}.${group.id}`} userData={userData}>
       {group.children.map((child) => (
-        <Renderable key={child} id={child} namespace={namespace} />
+        <Renderable key={child} id={child} namespace={namespace} chain={[...chain, id]} />
       ))}
     </group>
   );

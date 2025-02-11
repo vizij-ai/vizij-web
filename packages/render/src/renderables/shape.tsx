@@ -21,15 +21,18 @@ import { Shape } from "../types/shape";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { useFeatures } from "../hooks/use-features";
 import { createStoredRenderable } from "../functions/create-stored-data";
+// eslint-disable-next-line import/no-cycle -- circular import will be fixed later
+import { Renderable } from "./renderable";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export interface RenderedShapeProps {
   id: string;
   namespace: string;
+  chain: string[];
 }
 
-function InnerRenderedShape({ id, namespace }: RenderedShapeProps): ReactNode {
+function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): ReactNode {
   const refGroup = useRef<THREE.Group>() as RefObject<THREE.Group>;
   const ref = useRef<THREE.Mesh>() as RefObject<THREE.Mesh>;
   const shape = useVizijStore(useShallow((state) => state.world[id] as Shape));
@@ -153,71 +156,67 @@ function InnerRenderedShape({ id, namespace }: RenderedShapeProps): ReactNode {
     shape,
   );
   // const showAxes = useSceneStore(useShallow((state) => id === state.selectedWorldElement));
-  console.log("rendering shape", shape.id, shape.name);
   const setReference = useVizijStore(useShallow((state) => state.setReference));
+  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
 
   useEffect(() => {
     if (ref.current && refIsNull) setReference(shape.id, namespace, ref);
   }, [shape.id, namespace, ref, setReference, refIsNull]);
 
   return (
-    <>
-      {/* {showAxes && (
-        <group key={shape.id} ref={refGroup as Ref<THREE.Group>}>
-          <RenderedAxes scale={0.3} />
-        </group>
-      )} */}
-      <mesh
-        ref={ref as Ref<THREE.Mesh>}
-        userData={userData}
-        castShadow
-        receiveShadow
-        up={[0, 0, 1]}
-        geometry={geometry}
-        morphTargetDictionary={morphTargetSettings[0]}
-        morphTargetInfluences={morphTargetSettings[1]}
-        // onClick={(e) => {
-        //   setSelectedWorldElement(id);
-        //   e.stopPropagation();
-        // }}
-      >
-        {shape.material === "basic" && (
-          <meshBasicMaterial
-            attach="material"
-            ref={material as RefObject<MeshBasicMaterial>}
-            side={THREE.DoubleSide}
-          />
-        )}
-        {shape.material === "lambert" && (
-          <meshLambertMaterial
-            attach="material"
-            ref={material as RefObject<MeshLambertMaterial>}
-            side={THREE.DoubleSide}
-          />
-        )}
-        {shape.material === "phong" && (
-          <meshPhongMaterial
-            attach="material"
-            ref={material as RefObject<MeshPhongMaterial>}
-            side={THREE.DoubleSide}
-          />
-        )}
-        {shape.material === "standard" && (
-          <meshStandardMaterial
-            attach="material"
-            ref={material as RefObject<MeshStandardMaterial>}
-            side={THREE.DoubleSide}
-          />
-        )}
-        {shape.material === "normal" && (
-          <meshNormalMaterial
-            attach="material"
-            ref={material as RefObject<MeshNormalMaterial>}
-            side={THREE.DoubleSide}
-          />
-        )}
-      </mesh>
-    </>
+    <mesh
+      ref={ref as Ref<THREE.Mesh>}
+      userData={userData}
+      castShadow
+      receiveShadow
+      up={[0, 0, 1]}
+      geometry={geometry}
+      morphTargetDictionary={morphTargetSettings[0]}
+      morphTargetInfluences={morphTargetSettings[1]}
+      onClick={(e) => {
+        console.log("Clicked element", shape);
+        onElementClick({ id, type: "shape", namespace }, [...chain, id], e);
+      }}
+    >
+      {shape.material === "basic" && (
+        <meshBasicMaterial
+          attach="material"
+          ref={material as RefObject<MeshBasicMaterial>}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {shape.material === "lambert" && (
+        <meshLambertMaterial
+          attach="material"
+          ref={material as RefObject<MeshLambertMaterial>}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {shape.material === "phong" && (
+        <meshPhongMaterial
+          attach="material"
+          ref={material as RefObject<MeshPhongMaterial>}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {shape.material === "standard" && (
+        <meshStandardMaterial
+          attach="material"
+          ref={material as RefObject<MeshStandardMaterial>}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {shape.material === "normal" && (
+        <meshNormalMaterial
+          attach="material"
+          ref={material as RefObject<MeshNormalMaterial>}
+          side={THREE.DoubleSide}
+        />
+      )}
+      {shape.children?.map((child) => (
+        <Renderable key={child} id={child} namespace={namespace} chain={[...chain, id]} />
+      ))}
+    </mesh>
   );
 }
 

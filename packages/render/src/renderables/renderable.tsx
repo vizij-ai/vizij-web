@@ -10,6 +10,7 @@ import { RenderedShape } from "./shape";
 export interface RenderableProps {
   id: string;
   namespace: string;
+  chain: string[];
 }
 
 /**
@@ -23,7 +24,7 @@ export interface RenderableProps {
  * from the state. It then resolves the namespaces and renders the appropriate component based on the type.
  * Supported types include "body", "shape", and various joint types.
  */
-export function InnerRenderable({ id, namespace }: RenderableProps): ReactNode {
+export function InnerRenderable({ id, namespace, chain }: RenderableProps): ReactNode {
   const type = useVizijStore(useShallow((state) => state.world[id].type));
   const refs = useVizijStore(useShallow((state) => state.world[id].refs));
 
@@ -46,13 +47,13 @@ export function InnerRenderable({ id, namespace }: RenderableProps): ReactNode {
       {resolvedNamespaces.map((ns) => {
         switch (type) {
           case "group":
-            return <RenderedGroup key={`${ns}.${id}`} id={id} namespace={ns} />;
+            return <RenderedGroup key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
           case "ellipse":
-            return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} />;
+            return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
           case "rectangle":
-            return <RenderedRectangle key={`${ns}.${id}`} id={id} namespace={ns} />;
+            return <RenderedRectangle key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
           case "shape":
-            return <RenderedShape key={`${ns}.${id}`} id={id} namespace={ns} />;
+            return <RenderedShape key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
           default:
             return null;
         }

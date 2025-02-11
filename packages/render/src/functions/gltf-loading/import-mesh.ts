@@ -6,6 +6,7 @@ import {
   MeshBasicMaterial,
   MeshNormalMaterial,
   MeshLambertMaterial,
+  MeshPhysicalMaterial,
 } from "three";
 import {
   AnimatableEuler,
@@ -23,9 +24,11 @@ Object3D.DEFAULT_UP.set(0, 0, 1);
 export function importMesh(
   mesh: Mesh,
   namespaces: string[],
-): [World, Record<string, AnimatableValue>, string] {
+  colorLookup: Record<string, [string, string, boolean]>,
+): [World, Record<string, AnimatableValue>, string, Record<string, [string, string, boolean]>] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
+  let newColorLookup: Record<string, [string, string, boolean]> = {};
 
   const translationAnimatable: AnimatableVector3 = {
     id: crypto.randomUUID(),
@@ -55,9 +58,20 @@ export function importMesh(
   animatables = { ...animatables, [scaleAnimatable.id]: scaleAnimatable };
 
   const color = (mesh.material as MeshStandardMaterial).color;
+  let useEmissive = false;
+  if (
+    color.r === 0 &&
+    color.g === 0 &&
+    color.b === 0 &&
+    (mesh.material as MeshStandardMaterial).emissive
+  ) {
+    color.copy((mesh.material as MeshPhysicalMaterial).emissive);
+    useEmissive = true;
+  }
+  const colorName: string | undefined = (mesh.material as MeshStandardMaterial).name;
   const colorAnimatable: AnimatableColor = {
     id: crypto.randomUUID(),
-    name: `${mesh.name ?? "Mesh"} color`,
+    name: (mesh.material as MeshStandardMaterial).name ?? `${mesh.name ?? "Mesh"} color`,
     type: "rgb",
     default: { r: color.r, g: color.g, b: color.b },
     constraints: {
@@ -65,11 +79,12 @@ export function importMesh(
       max: [1, 1, 1],
     },
   };
-  animatables = { ...animatables, [colorAnimatable.id]: colorAnimatable };
 
   const opacityAnimatable: AnimatableNumber = {
     id: crypto.randomUUID(),
-    name: `${mesh.name ?? "Mesh"} opacity`,
+    name: (mesh.material as MeshStandardMaterial).name
+      ? `${(mesh.material as MeshStandardMaterial).name} Opacity`
+      : `${mesh.name ?? "Mesh"} opacity`,
     type: "number",
     default: (mesh.material as MeshStandardMaterial).opacity,
     constraints: {
@@ -77,16 +92,47 @@ export function importMesh(
       max: 1,
     },
   };
-  animatables = { ...animatables, [opacityAnimatable.id]: opacityAnimatable };
+  let colorId = colorAnimatable.id;
+  let opacityId = opacityAnimatable.id;
+
+  if (colorName && colorLookup[colorName]) {
+    // A color with this name has already been defined. Use that one instead.
+    colorId = colorLookup[colorName][0];
+    opacityId = colorLookup[colorName][1];
+    useEmissive = colorLookup[colorName][2];
+  } else {
+    animatables = { ...animatables, [colorAnimatable.id]: colorAnimatable };
+    animatables = { ...animatables, [opacityAnimatable.id]: opacityAnimatable };
+    if (colorName) {
+      newColorLookup[colorName] = [colorAnimatable.id, opacityAnimatable.id, useEmissive];
+      console.log(mesh.material, colorAnimatable, opacityAnimatable);
+    }
+  }
 
   const [geometryFeatures, geometryAnimatables, morphTargets] = importGeometry(mesh.geometry, mesh);
   animatables = { ...animatables, ...geometryAnimatables };
+
+  const children: string[] = [];
+
+  mesh.children.forEach((child) => {
+    if ((child as Mesh).isMesh) {
+      const [newWorldItems, newAnimatables, childId, newMeshColors] = importMesh(
+        child as Mesh,
+        namespaces,
+        { ...colorLookup, ...newColorLookup },
+      );
+      newColorLookup = { ...newColorLookup, ...newMeshColors };
+      world = { ...world, ...newWorldItems };
+      animatables = { ...animatables, ...newAnimatables };
+      children.push(childId);
+    }
+  });
 
   const newShape: Shape = {
     id: mesh.uuid,
     name: mesh.name,
     geometry: mesh.geometry,
-    material: getShapeMaterial(mesh),
+    material: getShapeMaterial(mesh, useEmissive),
     type: "shape",
     tags: [],
     morphTargets,
@@ -94,19 +140,23 @@ export function importMesh(
       translation: { animated: true, value: translationAnimatable.id },
       rotation: { animated: true, value: rotationAnimatable.id },
       scale: { animated: true, value: scaleAnimatable.id },
-      color: { animated: true, value: colorAnimatable.id },
-      opacity: { animated: true, value: opacityAnimatable.id },
+      color: { animated: true, value: colorId },
+      opacity: { animated: true, value: opacityId },
       ...geometryFeatures,
     },
+    children: children.length > 0 ? children : undefined,
     refs: namespaceArrayToRefs(namespaces),
   };
   world = { ...world, [newShape.id]: newShape };
 
-  return [world, animatables, newShape.id];
+  return [world, animatables, newShape.id, newColorLookup];
 }
 
-function getShapeMaterial(mesh: Mesh): ShapeMaterial {
+function getShapeMaterial(mesh: Mesh, useEmissive: boolean): ShapeMaterial {
   const material = mesh.material;
+  if (useEmissive) {
+    return ShapeMaterial.Basic;
+  }
   if ((material as MeshStandardMaterial).isMeshStandardMaterial) {
     return ShapeMaterial.Standard;
   } else if ((material as MeshPhongMaterial).isMeshPhongMaterial) {

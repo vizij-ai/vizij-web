@@ -22,7 +22,7 @@ function InnerController({
 
   if (animatable.type === "number") {
     return (
-      <button type="button" onClick={(e) => e.stopPropagation()} className="flex flex-col w-full">
+      <div className="flex flex-col w-full">
         <SliderNumberField
           value={(rawValue ?? animatable.default) as number}
           onChange={(v) => {
@@ -31,11 +31,11 @@ function InnerController({
           min={animatable.constraints.min}
           max={animatable.constraints.max}
         />
-      </button>
+      </div>
     );
   } else if (animatable.type === "vector3" && !subfield) {
     return (
-      <button type="button" onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {["x", "y", "z"].map((axis) => {
           return (
             <InnerController
@@ -46,11 +46,11 @@ function InnerController({
             />
           );
         })}
-      </button>
+      </div>
     );
   } else if (animatable.type === "vector2" && !subfield) {
     return (
-      <button type="button" onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {["x", "y"].map((axis) => {
           return (
             <InnerController
@@ -61,11 +61,11 @@ function InnerController({
             />
           );
         })}
-      </button>
+      </div>
     );
   } else if (animatable.type === "euler" && !subfield) {
     return (
-      <button type="button" onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {["x", "y", "z"].map((axis) => {
           return (
             <InnerController
@@ -76,11 +76,11 @@ function InnerController({
             />
           );
         })}
-      </button>
+      </div>
     );
   } else if (animatable.type === "rgb" && !subfield) {
     return (
-      <button type="button" onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {["r", "g", "b"].map((axis) => {
           return (
             <InnerController
@@ -91,7 +91,7 @@ function InnerController({
             />
           );
         })}
-      </button>
+      </div>
     );
   } else if (animatable.type === "vector3" && subfield && ["x", "y", "z"].includes(subfield)) {
     const axis = subfield as "x" | "y" | "z";

@@ -12,7 +12,12 @@ export function importScene(
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
 
-  const [newWorldItems, newAnimatables] = importGroup(scene as Group, namespaces, true);
+  const [newWorldItems, newAnimatables, _newColors] = importGroup(
+    scene as Group,
+    namespaces,
+    {},
+    true,
+  );
   world = { ...world, ...newWorldItems };
   animatables = { ...animatables, ...newAnimatables };
   return [world, animatables];

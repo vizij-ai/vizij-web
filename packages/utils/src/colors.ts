@@ -159,3 +159,8 @@ export function altColor(color: string, factor: number): string {
       .hex() as string;
   }
 }
+
+export function hexToRgbArray(color: string): [number, number, number] {
+  const c = Color(color);
+  return [c.red(), c.green(), c.blue()];
+}

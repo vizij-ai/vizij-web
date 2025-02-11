@@ -38,6 +38,12 @@ export type RawValue =
   | RawEuler
   | RawColor;
 
+export interface AnimatablePubInfo {
+  public: boolean;
+  output: string;
+  color?: string;
+}
+
 export type AnimatableValue =
   | AnimatableBoolean
   | AnimatableNumber
@@ -65,10 +71,7 @@ export interface AnimatableBoolean {
   constraints: {
     frequency?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -91,10 +94,7 @@ export interface AnimatableNumber {
     max?: number;
     velocity?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -115,10 +115,7 @@ export interface AnimatableString {
   constraints: {
     length?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -141,10 +138,7 @@ export interface AnimatableVector3 {
     max?: [number | null, number | null, number | null];
     velocity?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -167,10 +161,7 @@ export interface AnimatableVector2 {
     max?: [number | null, number | null];
     velocity?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -193,10 +184,7 @@ export interface AnimatableEuler {
     max?: [number | null, number | null, number | null];
     velocity?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 /**
@@ -219,10 +207,7 @@ export interface AnimatableColor {
     max?: [number | null, number | null, number | null];
     velocity?: number;
   };
-  pub?: {
-    public: boolean;
-    output: string;
-  };
+  pub?: AnimatablePubInfo;
 }
 
 export function instanceOfRawBoolean(object: any): object is RawBoolean {

@@ -22,16 +22,19 @@ import { createStoredRenderable } from "../functions/create-stored-data";
 export interface RenderedEllipseProps {
   id: string;
   namespace: string;
+  chain: string[];
 }
 
-function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNode {
+function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): ReactNode {
   const ellipseRef = useRef<Mesh>() as RefObject<Mesh>;
   const materialRef = useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
   const lineRef = useRef<Mesh>() as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
+  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
 
   const ellipse = useVizijStore(useShallow((state) => state.world[id] as Ellipse));
+  const refIsNull = !ellipse.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
 
@@ -193,12 +196,19 @@ function InnerRenderedEllipse({ id, namespace }: RenderedEllipseProps): ReactNod
   }, []);
 
   useEffect(() => {
-    setReference(ellipse.id, namespace, ellipseRef);
-  }, [ellipse.id, namespace, ellipseRef, setReference]);
+    if (ellipseRef.current && refIsNull) setReference(ellipse.id, namespace, ellipseRef);
+  }, [ellipse.id, namespace, ellipseRef, setReference, refIsNull]);
 
   return (
     <>
-      <Circle ref={ellipseRef} userData={userData} args={[1, 100]}>
+      <Circle
+        ref={ellipseRef}
+        userData={userData}
+        args={[1, 100]}
+        onClick={(e) => {
+          onElementClick({ id, type: "ellipse", namespace }, [...chain, id], e);
+        }}
+      >
         <meshStandardMaterial attach="material" ref={materialRef} />
       </Circle>
       {showLine(ellipse) && <Line ref={lineRef} points={points} />}

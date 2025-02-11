@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { produce, enableMapSet } from "immer";
 import * as THREE from "three";
+import { ThreeEvent } from "@react-three/fiber";
 import { Group, Mesh } from "three";
 import { type RawValue, type AnimatableValue, getLookup } from "@semio/utils";
 import { World } from "./types/world";
@@ -11,7 +12,7 @@ import { removeFromTree } from "./actions/remove-children";
 import { VizijData, VizijActions, VizijStoreGetter, VizijStoreSetter } from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
 import { RenderableFeature } from "./types/renderable-feature";
-import { StaticFeature, GroupFeature } from "./types";
+import { StaticFeature, GroupFeature, Selection } from "./types";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
@@ -21,14 +22,41 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   world: {},
   animatables: {},
   values: new Map(),
-  selection: null,
   renderHit: false,
-  dragLock: null,
   preferences: {
     damping: false,
   },
-  selectedWorldElement: "",
-  setSelectedWorldElement: (id: string) => set({ selectedWorldElement: id }),
+  elementSelection: [],
+  slotConfig: {},
+  clearSelection: () => {
+    set({ elementSelection: [] });
+  },
+  updateElementSelection: (selection: Selection, _chain: string[]) => {
+    set(
+      produce((state: VizijData) => {
+        state.elementSelection = [selection];
+      }),
+    );
+  },
+  onElementClick: (selection: Selection, _chain: string[], event: ThreeEvent<MouseEvent>) => {
+    const { id, namespace, type } = selection;
+    set(
+      produce((state: VizijData) => {
+        if (
+          event.metaKey &&
+          !state.elementSelection.find((e) => e.id === id && e.namespace === namespace)
+        ) {
+          state.elementSelection.push(selection);
+        } else if (event.metaKey) {
+          state.elementSelection = state.elementSelection.filter(
+            (e) => e.id !== id && e.namespace !== namespace && e.type !== type,
+          );
+        } else {
+          state.elementSelection = [selection];
+        }
+      }),
+    );
+  },
   getExportableBodies: (filterIds?: string[]) => {
     const worldData = get().world as World;
     if (!filterIds) {
@@ -191,15 +219,41 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
+  setSlot: (parentId: string, parentNamespace: string, childId: string, childNamespace: string) => {
+    set(
+      produce((state) => {
+        const parentLookupId = getLookup(parentNamespace, parentId);
+        const childLookupId = getLookup(childNamespace, childId);
+        state.slotConfig[parentLookupId] = childLookupId;
+      }),
+    );
+  },
+  setSlots: (slots: Record<string, string>, replace?: boolean) => {
+    set(
+      produce((state) => {
+        if (replace) {
+          state.slotConfig = slots;
+        } else {
+          state.slotConfig = { ...state.slotConfig, ...slots };
+        }
+      }),
+    );
+  },
+  clearSlot: (parentId: string, parentNamespace: string) => {
+    set(
+      produce((state) => {
+        const parentLookupId = getLookup(parentNamespace, parentId);
+        const { slotConfig, [parentLookupId]: _ } = state.slotConfig;
+        state.slotConfig = slotConfig;
+      }),
+    );
+  },
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => {
     set({
       world: scene,
       animatables,
     });
   },
-  select: (id: string | null) => set({ selection: id }),
-  deselect: () => set({ selection: null }),
-  setDragLock: (lock: string | null) => set({ dragLock: lock }),
   addWorldElements(world: World, animatables: Record<string, AnimatableValue>, replace?: boolean) {
     if (replace) {
       set({ world, animatables });

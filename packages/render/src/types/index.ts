@@ -5,5 +5,6 @@ export * from "./shape";
 export * from "./feature";
 export * from "./renderable-base";
 export * from "./renderable-feature";
+export * from "./selection";
 export * from "./stored";
 export * from "./world";
