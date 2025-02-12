@@ -25,7 +25,6 @@ export function useFeatures(
   namespace: string,
   features: Record<string, Feature>,
   callbacks: Record<string, (current: RawValue) => void>,
-  /* eslint-disable-next-line */
   debugInfo?: any,
 ) {
   const store = useContext(VizijContext);

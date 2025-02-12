@@ -9,9 +9,7 @@ export function removeFromTree(
     if ("children" in element) {
       // element is a body
       // Remove child from children of all other parents
-      element.children = element.children.filter(
-        (c: string) => !nodesToRemove.includes(c),
-      );
+      element.children = element.children.filter((c: string) => !nodesToRemove.includes(c));
       state.world[element.id] = element;
     }
   });

@@ -5,18 +5,11 @@ import { World } from "../types/world";
 import { VizijData } from "../store-types";
 import { Group } from "../types/group";
 
-export function createNewElement(
-  state: VizijData,
-  type: "group",
-  root = false,
-) {
+export function createNewElement(state: VizijData, type: "group", root = false) {
   if (type === "group") {
     if (Object.entries(state.world as World).length === 0) {
       const name = `New-Root`;
-      const refs = { default: createRef() } as Record<
-        string,
-        RefObject<SVGGElement>
-      >;
+      const refs = { default: createRef() } as Record<string, RefObject<SVGGElement>>;
       const newElement: Group = createDefaultGroup({ name, root: true, refs });
       state.world[newElement.id] = newElement;
       state.selectedWorldElement = newElement.id;

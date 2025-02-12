@@ -6,8 +6,6 @@ export interface RenderableBase {
   name: string;
   tags: string[];
   type: string;
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic type */
   refs: Record<string, RefObject<any>>;
-
   features: Record<string, Feature>;
 }
