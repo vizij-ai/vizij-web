@@ -84,9 +84,13 @@ function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): React
   const setReference = useVizijStore(useShallow((state: VizijActions) => state.setReference));
 
   useEffect(() => {
-    if (ref.current && refIsNull) setReference(group.id, namespace, ref);
+    if (ref.current && refIsNull) {
+      console.log("updating ref for group", ref.current);
+      setReference(group.id, namespace, ref);
+    }
   }, [group.id, namespace, ref, setReference, refIsNull]);
 
+  // console.log("group", group, ref);
   return (
     <group ref={ref} uuid={`${namespace}.${group.id}`} userData={userData}>
       {group.children.map((child) => (

@@ -272,24 +272,29 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   setReference: (id: string, namespace: string, ref: RefObject<Group | Mesh>) => {
     set(
       produce((state: VizijData) => {
-        switch (state.world[id].type as string) {
-          case "shape":
-            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
-              ref.current as Mesh;
-            break;
-          case "ellipse":
-            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
-              ref.current as Mesh;
-            break;
-          case "rectangle":
-            (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
-              ref.current as Mesh;
-            break;
-          case "group":
-            (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
-              ref.current as Group;
-            break;
+        console.log("in store", id, namespace, ref.current);
+        (state.world[id].refs[namespace] as MutableRefObject<Group>).current = ref.current as Group;
+        if (ref.current?.children && state.world[id].refs[namespace].current) {
+          state.world[id].refs[namespace].current.children = ref.current.children;
         }
+        // switch (state.world[id].type as string) {
+        //   case "shape":
+        //     (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+        //       ref.current as Mesh;
+        //     break;
+        //   case "ellipse":
+        //     (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+        //       ref.current as Mesh;
+        //     break;
+        //   case "rectangle":
+        //     (state.world[id].refs[namespace] as MutableRefObject<Mesh>).current =
+        //       ref.current as Mesh;
+        //     break;
+        //   case "group":
+        //     (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
+        //       ref.current as Group;
+        //     break;
+        // }
       }),
     );
   },
