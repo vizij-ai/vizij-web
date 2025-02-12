@@ -12,6 +12,8 @@ export function importScene(
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
 
+  console.log(scene);
+
   const [newWorldItems, newAnimatables, _newColors] = importGroup(
     scene as Group,
     namespaces,

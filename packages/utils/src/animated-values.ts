@@ -40,6 +40,7 @@ export type RawValue =
 
 export interface AnimatablePubInfo {
   public: boolean;
+  units?: string;
   output: string;
   color?: string;
 }
@@ -82,6 +83,7 @@ export interface AnimatableBoolean {
  * @param type - the type of the value (always "number" for this type).
  * @param default - the default value of the number.
  * @param constraints - a collection of constraints that the value must adhere to.
+ * @param angle - a boolean indicating whether the value represents an angle.
  * @param pub - a collection of properties that determine whether the value is public and what its output should be.
  */
 export interface AnimatableNumber {

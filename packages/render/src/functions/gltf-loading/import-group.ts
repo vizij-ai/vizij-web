@@ -30,7 +30,7 @@ export function importGroup(
     id: crypto.randomUUID(),
     name: `${group.name ?? "Group"} rotation`,
     type: "euler",
-    default: { x: group.rotation.x, y: group.position.y, z: group.position.z },
+    default: { x: group.rotation.x, y: group.rotation.y, z: group.rotation.z },
     constraints: {},
   };
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
@@ -55,7 +55,7 @@ export function importGroup(
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
-    } else if ((child as Group).isGroup) {
+    } else if ((child as Group).isGroup || (child.isObject3D && child.children.length !== 0)) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] = importGroup(
         child as Group,
         namespaces,
