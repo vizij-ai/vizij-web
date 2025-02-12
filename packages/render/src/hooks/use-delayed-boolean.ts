@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-export function useDelayedBoolean(
-  value: boolean,
-  timeoutDuration: number,
-): boolean {
+export function useDelayedBoolean(value: boolean, timeoutDuration: number): boolean {
   const [delayedValue, setDelayedValue] = useState<boolean>(value);
   const timer = useRef<number | null>(null);
 

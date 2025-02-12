@@ -1,7 +1,7 @@
+/* eslint-disable import/no-cycle -- circular import will be fixed later*/
 import { ReactNode, memo, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useVizijStore } from "../hooks/use-vizij-store";
-// eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { RenderedGroup } from "./group";
 import { RenderedEllipse } from "./ellipse";
 import { RenderedRectangle } from "./rectangle";

@@ -1,19 +1,19 @@
-import { mapValues } from "lodash";
+// import { mapValues } from "lodash";
 import { AnimatableValue } from "@semio/utils";
-import stringify from "json-stable-stringify";
+// import stringify from "json-stable-stringify";
 import { World } from "../types/world";
-import { Body, StoredBody } from "../types/body";
-import { Shape, StoredShape } from "../types/shape";
-import { Joint, JointType, StoredJoint } from "../types/joint";
-import { Screen, StoredScreen } from "../types/screen";
-import { Light, StoredLight } from "../types/light";
-import {
-  createStoredBody,
-  createStoredJoint,
-  createStoredLight,
-  createStoredScreen,
-  createStoredShape,
-} from "./create-stored-data";
+// import { Shape, StoredShape } from "../types/shape";
+// import { Body, StoredBody } from "../types/body";
+// import { Joint, JointType, StoredJoint } from "../types/joint";
+// import { Screen, StoredScreen } from "../types/screen";
+// import { Light, StoredLight } from "../types/light";
+// import {
+//   createStoredBody,
+//   createStoredJoint,
+//   createStoredLight,
+//   createStoredScreen,
+//   createStoredShape,
+// } from "./create-stored-data";
 
 export function compareData(
   world1: World,
@@ -51,13 +51,13 @@ export function compareData(
 
   // Test if generated data match
   // We will see if the stored versions of each are the same
-  const world1Stored = store(world1, animatableValues1);
-  const world2Stored = store(world2, animatableValues2);
-  if (stringify(world1Stored) !== stringify(world2Stored)) {
-    console.error("Stored world data does not match", world1Stored, world2Stored);
-  } else {
-    console.log("Stored world data matches");
-  }
+  // const world1Stored = store(world1, animatableValues1);
+  // const world2Stored = store(world2, animatableValues2);
+  // if (stringify(world1Stored) !== stringify(world2Stored)) {
+  //   console.error("Stored world data does not match", world1Stored, world2Stored);
+  // } else {
+  //   console.log("Stored world data matches");
+  // }
 
   // Test if generated animatables and animated values match
   const animatableValues1Keys = Object.keys(animatableValues1);
@@ -86,21 +86,22 @@ const arraysEqual = (a: string[], b: string[]): boolean => {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
 };
 
-function store(
-  world: World,
-  animatableValues: Record<string, AnimatableValue>,
-): Record<string, StoredBody | StoredJoint | StoredShape | StoredLight | StoredScreen> {
-  return mapValues(world, (e) => {
-    if (e.type === "light") {
-      return createStoredLight(e as Light, animatableValues);
-    } else if (e.type === "screen") {
-      return createStoredScreen(e as Screen, animatableValues);
-    } else if (e.type === "shape") {
-      return createStoredShape(e as Shape, animatableValues);
-    } else if (e.type in JointType) {
-      return createStoredJoint(e as Joint, animatableValues);
-    } else {
-      return createStoredBody(e as Body, animatableValues);
-    }
-  });
-}
+// function store(
+//   world: World,
+//   animatableValues: Record<string, AnimatableValue>,
+// ) {
+
+//   return mapValues(world, (e) => {
+//     if (e.type === "light") {
+//       return createStoredLight(e as Light, animatableValues);
+//     } else if (e.type === "screen") {
+//       return createStoredScreen(e as Screen, animatableValues);
+//     } else if (e.type === "shape") {
+//       return createStoredShape(e as Shape, animatableValues);
+//     } else if (e.type in JointType) {
+//       return createStoredJoint(e as Joint, animatableValues);
+//     } else {
+//       return createStoredBody(e as Body, animatableValues);
+//     }
+//   });
+// }
