@@ -98,7 +98,7 @@ export function InnerVizij({
   return (
     <>
       <ambientLight intensity={Math.PI / 2} />
-      <color attach="background" args={["white"]} />
+      {/* <color attach="background" args={["white"]} /> */}
       <OrthographicCamera makeDefault position={[0, 0, 100]} near={0.1} far={101} />
       <Suspense fallback={null}>
         <World rootId={rootId} namespace={namespace} />
