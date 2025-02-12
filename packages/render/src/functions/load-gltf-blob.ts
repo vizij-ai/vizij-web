@@ -1,5 +1,4 @@
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
-import { GLTFLoader, GLTF } from "three/examples/jsm/loaders/GLTFLoader";
+import { DRACOLoader, GLTFLoader, GLTF } from "three-stdlib";
 import { AnimatableValue } from "@semio/utils";
 import { World } from "../types";
 import { traverseThree } from "./gltf-loading/traverse-three";
