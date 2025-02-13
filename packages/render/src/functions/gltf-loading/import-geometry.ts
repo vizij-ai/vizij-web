@@ -30,6 +30,10 @@ export function importGeometry(
           min: 0,
           max: 1,
         },
+        pub: {
+          public: true,
+          output: name,
+        },
       };
       animatableValues[morphId] = animatableMorphValue;
     });

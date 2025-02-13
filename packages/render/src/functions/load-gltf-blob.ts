@@ -30,7 +30,6 @@ export const loadGltfFromBlob = (
           // Create a scene and add the loaded GLTF model
           const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
           // console.log("actualizedNamespaces", actualizedNamespaces);
-          console.log(actualizedNamespaces, gltf.scene);
           resolve(traverseThree(gltf.scene, actualizedNamespaces));
         },
         (error: ErrorEvent) => {
