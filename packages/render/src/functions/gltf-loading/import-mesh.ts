@@ -36,6 +36,11 @@ export function importMesh(
     type: "vector3",
     default: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${mesh.name ?? "Mesh"} translation`,
+      units: "m",
+    },
   };
   animatables = { ...animatables, [translationAnimatable.id]: translationAnimatable };
 
@@ -45,6 +50,11 @@ export function importMesh(
     type: "euler",
     default: { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${mesh.name ?? "Mesh"} rotation`,
+      units: "rad",
+    },
   };
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
 
@@ -54,6 +64,10 @@ export function importMesh(
     type: "vector3",
     default: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${mesh.name ?? "Mesh"} scale`,
+    },
   };
   animatables = { ...animatables, [scaleAnimatable.id]: scaleAnimatable };
 
@@ -78,6 +92,12 @@ export function importMesh(
       min: [0, 0, 0],
       max: [1, 1, 1],
     },
+    pub: {
+      public: true,
+      output: (mesh.material as MeshStandardMaterial).name
+        ? `${(mesh.material as MeshStandardMaterial).name} color`
+        : `${mesh.name ?? "Mesh"} color`,
+    },
   };
 
   const opacityAnimatable: AnimatableNumber = {
@@ -90,6 +110,12 @@ export function importMesh(
     constraints: {
       min: 0,
       max: 1,
+    },
+    pub: {
+      public: true,
+      output: (mesh.material as MeshStandardMaterial).name
+        ? `${(mesh.material as MeshStandardMaterial).name} opacity`
+        : `${mesh.name ?? "Mesh"} opacity`,
     },
   };
   let colorId = colorAnimatable.id;

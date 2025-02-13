@@ -23,6 +23,11 @@ export function importGroup(
     type: "vector3",
     default: { x: group.position.x, y: group.position.y, z: group.position.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${group.name ?? "Group"} translation`,
+      units: "m",
+    },
   };
   animatables = { ...animatables, [translationAnimatable.id]: translationAnimatable };
 
@@ -32,6 +37,11 @@ export function importGroup(
     type: "euler",
     default: { x: group.rotation.x, y: group.rotation.y, z: group.rotation.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${group.name ?? "Group"} rotation`,
+      units: "rad",
+    },
   };
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
 
@@ -41,6 +51,10 @@ export function importGroup(
     type: "vector3",
     default: { x: group.scale.x, y: group.scale.y, z: group.scale.z },
     constraints: {},
+    pub: {
+      public: true,
+      output: `${group.name ?? "Group"} scale`,
+    },
   };
   animatables = { ...animatables, [scaleAnimatable.id]: scaleAnimatable };
 
