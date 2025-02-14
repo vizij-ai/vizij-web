@@ -2,7 +2,7 @@ import { type ReactNode, Suspense, memo, useContext, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Bounds, Line, OrthographicCamera } from "@react-three/drei";
+import { Line, OrthographicCamera } from "@react-three/drei";
 import { useShallow } from "zustand/shallow";
 import { Renderable } from "./renderables";
 import { VizijContext } from "./context";
