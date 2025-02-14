@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader, DRACOLoader, GLTF } from "three-stdlib";
-import { AnimatableValue } from "@semio/utils";
+import { AnimatableValue, RawVector2 } from "@semio/utils";
 import { World } from "../types/world";
 import { traverseThree } from "./gltf-loading/traverse-three";
 
@@ -17,6 +17,10 @@ export async function loadGLTF(
   url: string,
   namespaces: string[],
   aggressiveImport = false,
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  },
 ): Promise<[World, Record<string, AnimatableValue>]> {
   const modelLoader = new GLTFLoader();
   modelLoader.setDRACOLoader(new DRACOLoader());
@@ -25,13 +29,17 @@ export async function loadGLTF(
 
   const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
 
-  return traverseThree(modelData.scene, actualizedNamespaces, aggressiveImport);
+  return traverseThree(modelData.scene, actualizedNamespaces, aggressiveImport, rootBounds);
 }
 
 export async function loadGLTFFromBlob(
   blob: Blob,
   namespaces: string[],
   aggressiveImport = false,
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  },
 ): Promise<[World, Record<string, AnimatableValue>]> {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
@@ -49,7 +57,7 @@ export async function loadGLTFFromBlob(
           // Create a scene and add the loaded GLTF model
           const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
           // console.log("actualizedNamespaces", actualizedNamespaces);
-          resolve(traverseThree(gltf.scene, actualizedNamespaces, aggressiveImport));
+          resolve(traverseThree(gltf.scene, actualizedNamespaces, aggressiveImport, rootBounds));
         },
         (error: ErrorEvent) => {
           reject(new Error(`Error loading GLTF: ${error.message}`));

@@ -1,5 +1,5 @@
 import { Object3D, Group, Mesh } from "three";
-import { AnimatableEuler, AnimatableValue, AnimatableVector3 } from "@semio/utils";
+import { AnimatableEuler, AnimatableValue, AnimatableVector3, RawVector2 } from "@semio/utils";
 import { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
@@ -10,7 +10,10 @@ export function importGroup(
   group: Group,
   namespaces: string[],
   colorLookup: Record<string, [string, string, boolean]>,
-  root?: boolean,
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  },
 ): [World, Record<string, AnimatableValue>, string, Record<string, [string, string, boolean]>] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
@@ -92,7 +95,7 @@ export function importGroup(
       rotation: { animated: true, value: rotationAnimatable.id },
       scale: { animated: true, value: scaleAnimatable.id },
     },
-    root: root ?? false,
+    rootBounds,
     children,
     refs: namespaceArrayToRefs(namespaces),
   };

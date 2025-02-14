@@ -61,7 +61,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     const worldData = get().world as World;
     if (!filterIds) {
       const bodies = Object.values(worldData)
-        .filter((entry) => entry.type === "group" && entry.root)
+        .filter((entry) => entry.type === "group" && entry.rootBounds)
         .map((entry) => {
           const firstNs = Object.keys(entry.refs)[0];
           const refGroup = entry.refs[firstNs].current!;
@@ -70,7 +70,9 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       return bodies;
     } else {
       const bodies = Object.values(worldData)
-        .filter((entry) => entry.type === "group" && entry.root && filterIds.includes(entry.id))
+        .filter(
+          (entry) => entry.type === "group" && entry.rootBounds && filterIds.includes(entry.id),
+        )
         .map((entry) => {
           const firstNs = Object.keys(entry.refs)[0];
           const refGroup = entry.refs[firstNs].current!;
