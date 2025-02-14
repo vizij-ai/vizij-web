@@ -1,7 +1,7 @@
 import { createRef } from "react";
 import * as THREE from "three";
 import { Group, Mesh } from "three";
-import { AnimatableValue } from "@semio/utils";
+import { AnimatableValue, RawVector2 } from "@semio/utils";
 import {
   World,
   RenderableBase,
@@ -22,6 +22,10 @@ export function traverseThree(
   group: Group,
   namespaces: string[],
   aggressiveImport = false,
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  },
 ): [World, Record<string, AnimatableValue>] {
   const worldData: World = {};
   const animatableData: Record<string, AnimatableValue> = {};
@@ -86,11 +90,14 @@ export function traverseThree(
         }
       }
     });
-  } else {
+  } else if (rootBounds) {
     // Using an aggressive import that converts all three elements into their direct vizij counterparts
-    const [newWorldData, newAnimatableData] = importScene(group, namespaces);
+    const [newWorldData, newAnimatableData] = importScene(group, namespaces, rootBounds!);
     Object.assign(worldData, newWorldData);
     Object.assign(animatableData, newAnimatableData);
+  } else {
+    // Root bounds are expected if using an aggressive import
+    throw new Error("Root bounds are expected if using an aggressive import");
   }
 
   // console.log("worldData", worldData);

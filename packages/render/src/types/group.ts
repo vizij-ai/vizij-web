@@ -1,5 +1,6 @@
 import { RefObject } from "react";
 import { Group as ThreeGroup } from "three";
+import { RawVector2 } from "@semio/utils";
 import { Feature } from "./feature";
 import { Stored } from "./stored";
 import { RenderableBase } from "./renderable-base";
@@ -26,7 +27,10 @@ export interface Group extends RenderableBase {
     scale?: Feature;
   };
 
-  root: boolean;
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  };
   children: string[];
 }
 
