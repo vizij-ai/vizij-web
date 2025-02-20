@@ -1,5 +1,5 @@
 import { AbiVizij } from "./AbiVizij";
-import { HugoVizij } from "./HugoVizij";
+import { HugoVizijWithContext } from "./HugoVizij";
 import { QuoriVizij } from "./QuoriVizij";
 
 function App() {
@@ -41,7 +41,7 @@ function App() {
               </a>{" "}
               screen-based face.
             </p>
-            <HugoVizij />
+            <HugoVizijWithContext />
           </div>
           <div>
             <h3 className="text-xl text-semio-yellow m-2">Meet Abi</h3>
