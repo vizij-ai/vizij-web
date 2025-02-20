@@ -1,6 +1,6 @@
-import { AbiVizij } from "./AbiVizij";
+import { AbiVizijWithContext } from "./AbiVizij";
 import { HugoVizijWithContext } from "./HugoVizij";
-import { QuoriVizij } from "./QuoriVizij";
+import { QuoriVizijWithContext } from "./QuoriVizij";
 
 function App() {
   return (
@@ -26,7 +26,9 @@ function App() {
           <div>
             <h3 className="text-xl text-semio-yellow m-2">Meet Quori</h3>
             <p>Quori .... </p>
-            <QuoriVizij />
+            <div className="h-64">
+              <QuoriVizijWithContext />
+            </div>
           </div>
           <div>
             <h3 className="text-xl text-semio-yellow m-2">Meet Hugo</h3>
@@ -56,7 +58,7 @@ function App() {
               </a>{" "}
               robot.
             </p>
-            <AbiVizij />
+            <AbiVizijWithContext />
           </div>
         </div>
         {/* <div className="w-full bg-black p-4">
