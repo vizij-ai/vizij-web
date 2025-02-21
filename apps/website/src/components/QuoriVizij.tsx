@@ -29,13 +29,37 @@ export function QuoriVizijWithControls() {
     },
   };
 
+  const QuoriMaterials = [
+    {
+      display: "Ring",
+      name: "Face_Outside_Color",
+    },
+    {
+      display: "Face Color",
+      name: "Face_Inside_Color",
+    },
+  ];
+
+  const QuoriMovables = [
+    {
+      display: "Mouth",
+      name: "Plane",
+    },
+  ];
+  const QuoriMorphables = [
+    {
+      display: "Mouth",
+      name: "Plane",
+    },
+  ];
+
   return (
     <HardCodedVizijWithControls
       glb={Quori}
       bounds={QuoriBounds}
-      materials={[]}
-      morphables={[]}
-      movables={[]}
+      materials={QuoriMaterials}
+      morphables={QuoriMorphables}
+      movables={QuoriMovables}
     />
   );
 }

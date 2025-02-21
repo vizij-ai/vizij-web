@@ -29,13 +29,35 @@ export function AbiVizijWithControls() {
     },
   };
 
+  const AbiMaterials = [
+    {
+      display: "Face",
+      name: "Black",
+    },
+    {
+      display: "Eye",
+      name: "White",
+    },
+    {
+      display: "Pupil",
+      name: "Pink",
+    },
+  ];
+
+  const AbiMovables = [
+    {
+      display: "Pupils",
+      name: "Eyes",
+    },
+  ];
+
   return (
     <HardCodedVizijWithControls
       glb={Abi}
       bounds={AbiBounds}
-      materials={[]}
+      materials={AbiMaterials}
       morphables={[]}
-      movables={[]}
+      movables={AbiMovables}
     />
   );
 }
