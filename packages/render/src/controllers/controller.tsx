@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
-import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
-import { SliderNumberField } from "@semio/ui";
+import { getLookup, RawColor, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
+import { ColorPickerInput, SliderNumberField } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 
 function InnerController({
@@ -81,16 +81,16 @@ function InnerController({
   } else if (animatable.type === "rgb" && !subfield) {
     return (
       <div className="flex flex-col gap-2">
-        {["r", "g", "b"].map((axis) => {
-          return (
-            <InnerController
-              animatableId={animatableId}
-              namespace={namespace}
-              subfield={axis}
-              key={axis}
-            />
-          );
-        })}
+        <ColorPickerInput
+          value={
+            rawValue
+              ? convertRGBRange(rawValue as RawRGB, "255")
+              : convertRGBRange(animatable.default as RawRGB, "255")
+          }
+          onChange={(v) => {
+            setValue(animatableId, namespace ?? "default", convertRGBRange(v, "1"));
+          }}
+        />
       </div>
     );
   } else if (animatable.type === "vector3" && subfield && ["x", "y", "z"].includes(subfield)) {
@@ -178,4 +178,21 @@ const vectorIndexLookup = {
   r: 0,
   g: 1,
   b: 2,
+};
+
+const convertRGBRange = (color: RawRGB, to: "255" | "1") => {
+  if (to === "255") {
+    return {
+      r: color.r * 255,
+      g: color.g * 255,
+      b: color.b * 255,
+    };
+  } else if (to === "1") {
+    return {
+      r: color.r / 255,
+      g: color.g / 255,
+      b: color.b / 255,
+    };
+  }
+  return color;
 };
