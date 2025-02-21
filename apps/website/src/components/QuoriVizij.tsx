@@ -10,7 +10,7 @@ export function QuoriVizij() {
     },
     size: {
       x: 0.5,
-      y: 0.8,
+      y: 0.6,
     },
   };
 
@@ -24,8 +24,8 @@ export function QuoriVizijWithControls() {
       y: 0,
     },
     size: {
-      x: 0.5,
-      y: 0.8,
+      x: 0.3,
+      y: 0.6,
     },
   };
 

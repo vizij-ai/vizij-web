@@ -9,8 +9,8 @@ export function HugoVizij() {
       y: 0,
     },
     size: {
-      x: 5,
-      y: 6,
+      x: 4,
+      y: 5,
     },
   };
   return <HardCodedVizij glb={Hugo} bounds={HugoBounds} />;
@@ -23,8 +23,8 @@ export function HugoVizijWithControls() {
       y: 0,
     },
     size: {
-      x: 5,
-      y: 6,
+      x: 4,
+      y: 5,
     },
   };
   const HugoMaterials = [
