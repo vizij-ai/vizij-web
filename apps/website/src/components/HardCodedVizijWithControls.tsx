@@ -18,6 +18,7 @@ type AnimatableLookup = {
 
 function InnerHardCodedVizijWithControls({
   glb,
+  bounds,
   materials,
   movables,
   morphables,
@@ -85,16 +86,7 @@ function InnerHardCodedVizijWithControls({
 
   useEffect(() => {
     const loadVizij = async () => {
-      const [world, animatables] = await loadGLTF(glb, ["default"], true, {
-        center: {
-          x: 0,
-          y: 0,
-        },
-        size: {
-          x: 5,
-          y: 6,
-        },
-      });
+      const [world, animatables] = await loadGLTF(glb, ["default"], true, bounds);
       const root = Object.values(world).find((e) => e.type === "group" && e.rootBounds);
       addWorldElements(world, animatables, true);
       setRootId((root as Group | undefined)?.id);
@@ -107,7 +99,7 @@ function InnerHardCodedVizijWithControls({
       {/* @ts-expect-error Async Server Component */}
       <Vizij rootId={rootId ?? ""} namespace="default" />
       <div className="grid grid-cols-3">
-        <div className="p-2 h-64 overflow-scroll">
+        <div className="p-2 max-h-64 overflow-scroll">
           <p>Colors</p>
           {calculatedMaterials.map((material) => {
             return (
@@ -119,7 +111,7 @@ function InnerHardCodedVizijWithControls({
             );
           })}
         </div>
-        <div className="p-2 h-64 overflow-scroll">
+        <div className="p-2 max-h-64 overflow-scroll">
           <p>Control</p>
           {calculatedMovables.map((control) => {
             return (
@@ -137,7 +129,7 @@ function InnerHardCodedVizijWithControls({
             );
           })}
         </div>
-        <div className="p-2 h-64 overflow-scroll">
+        <div className="p-2 max-h-64 overflow-scroll">
           <p>Animations</p>
           {calculatedMorphables.map((morphable) => {
             return (

@@ -1,54 +1,41 @@
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { createVizijStore, useVizijStore, Vizij, VizijContext, Group, loadGLTF } from "vizij";
 import Quori from "../assets/Quori.glb";
-import { useShallow } from "zustand/shallow";
+import { HardCodedVizij } from "./HardCodedVizij";
+import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function QuoriVizij() {
-  // Hardcode the rootId for Quori
-  const [rootId, setRootId] = useState<string | undefined>("");
-  const [rootGroup, setRootGroup] = useState<Group | undefined>();
+  const QuoriBounds = {
+    center: {
+      x: 0,
+      y: 0,
+    },
+    size: {
+      x: 0.5,
+      y: 0.8,
+    },
+  };
 
-  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
-  const setSlots = useVizijStore(useShallow((state) => state.setSlots));
-
-  useEffect(() => {
-    const loadQuori = async () => {
-      const [world, animatables] = await loadGLTF(Quori, ["default"], true, {
-        center: {
-          x: 0,
-          y: 0,
-        },
-        size: {
-          x: 0.5,
-          y: 0.8,
-        },
-      });
-      const root = Object.values(world).find((e) => e.type === "group" && e.rootBounds);
-      addWorldElements(world, animatables, true);
-      setRootId((root as Group | undefined)?.id);
-      setRootGroup(root as Group | undefined);
-    };
-
-    loadQuori();
-  }, []);
-
-  return (
-    <Suspense fallback={<div>Loading Quori...</div>}>
-      {/* @ts-expect-error Async Server Component */}
-      <Vizij rootId={rootId ?? ""} namespace="default" />
-    </Suspense>
-  );
+  return <HardCodedVizij glb={Quori} bounds={QuoriBounds} />;
 }
 
-export function QuoriVizijWithContext() {
-  const quoriStore = useMemo(() => createVizijStore(), []);
+export function QuoriVizijWithControls() {
+  const QuoriBounds = {
+    center: {
+      x: 0,
+      y: 0,
+    },
+    size: {
+      x: 0.5,
+      y: 0.8,
+    },
+  };
 
   return (
-    <>
-      {/* @ts-expect-error Async Server Component */}
-      <VizijContext.Provider value={quoriStore}>
-        <QuoriVizij />
-      </VizijContext.Provider>
-    </>
+    <HardCodedVizijWithControls
+      glb={Quori}
+      bounds={QuoriBounds}
+      materials={[]}
+      morphables={[]}
+      movables={[]}
+    />
   );
 }

@@ -1,6 +1,10 @@
-import { AbiVizijWithContext } from "./AbiVizij";
-import { HugoVizij } from "./HugoVizij";
-import { QuoriVizijWithContext } from "./QuoriVizij";
+import { AbiVizij, AbiVizijWithControls } from "./AbiVizij";
+import { BaxterVizij } from "./BaxterVizij";
+import { HugoVizij, HugoVizijWithControls } from "./HugoVizij";
+import { JiboVizij } from "./JiboVizij";
+import { QuoriVizij, QuoriVizijWithControls } from "./QuoriVizij";
+import { TiagoVizij } from "./TiagoVizij";
+import { VizijControlDemo } from "./VizijControlDemo";
 
 function App() {
   return (
@@ -21,45 +25,39 @@ function App() {
             <a target="_blank" className="underline hover:text-gray-200">
               Doug Dooley
             </a>{" "}
-            for creating and animating the vizijs below.
+            for creating the (unofficial) vizijs below.
           </p>
-          <div>
-            <h3 className="text-xl text-semio-yellow m-2">Meet Quori</h3>
-            <p>Quori .... </p>
-            <div className="h-64">
-              <QuoriVizijWithContext />
+          <div className="grid md:grid-cols-3">
+            <div className="h-36 m-4 p-2">
+              <p>Quori</p>
+              <QuoriVizij />
+            </div>
+            <div className="h-36 m-4 p-2">
+              <p>Hugo</p>
+              <HugoVizij />
+            </div>
+            <div className="h-36 m-4 p-2">
+              <p>Abi</p>
+              <AbiVizij />
+            </div>
+            <div className="h-36 m-4 p-2">
+              <p>Baxter</p>
+              <BaxterVizij />
+            </div>
+            <div className="h-36 m-4 p-2">
+              <p>Jibo</p>
+              <JiboVizij />
+            </div>
+            <div className="h-36 m-4 p-2">
+              <p>Tiago</p>
+              <TiagoVizij />
             </div>
           </div>
-          <div>
-            <h3 className="text-xl text-semio-yellow m-2">Meet Hugo</h3>
-            <p>
-              The Hugo face below is the forthcoming default{" "}
-              <a
-                href="https://peerbots.org"
-                target="_blank"
-                className="underline hover:text-gray-200"
-              >
-                Peerbots
-              </a>{" "}
-              screen-based face.
-            </p>
-            <HugoVizij />
-          </div>
-          <div>
-            <h3 className="text-xl text-semio-yellow m-2">Meet Abi</h3>
-            <p>
-              The below vizij is a replica face of{" "}
-              <a
-                href="https://www.dromeda.com.au/product"
-                target="_blank"
-                className="underline hover:text-gray-200"
-              >
-                Andromeda's Abi
-              </a>{" "}
-              robot.
-            </p>
-            <AbiVizijWithContext />
-          </div>
+        </div>
+        <div className="w-full bg-black p-4">
+          <h2 className="text-semio-orange text-4xl my-4">Modify & Control</h2>
+          <p>Not only can you display the vizijs, you can modify and control them.</p>
+          <VizijControlDemo />
         </div>
         {/* <div className="w-full bg-black p-4">
         <h2 className="text-semio-orange text-4xl my-4">Design Your Own</h2>

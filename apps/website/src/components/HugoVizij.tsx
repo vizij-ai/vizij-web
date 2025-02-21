@@ -1,7 +1,22 @@
 import Hugo from "../assets/Hugo.glb";
+import { HardCodedVizij } from "./HardCodedVizij";
 import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function HugoVizij() {
+  const HugoBounds = {
+    center: {
+      x: 0,
+      y: 0,
+    },
+    size: {
+      x: 5,
+      y: 6,
+    },
+  };
+  return <HardCodedVizij glb={Hugo} bounds={HugoBounds} />;
+}
+
+export function HugoVizijWithControls() {
   const HugoBounds = {
     center: {
       x: 0,
