@@ -5,12 +5,12 @@ import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 export function QuoriVizij() {
   const QuoriBounds = {
     center: {
-      x: 0,
-      y: 0,
+      x: 0.01,
+      y: -0.04,
     },
     size: {
-      x: 0.5,
-      y: 0.6,
+      x: 0.6,
+      y: 0.4,
     },
   };
 
@@ -20,12 +20,12 @@ export function QuoriVizij() {
 export function QuoriVizijWithControls() {
   const QuoriBounds = {
     center: {
-      x: 0,
-      y: 0,
+      x: 0.01,
+      y: -0.04,
     },
     size: {
-      x: 0.3,
-      y: 0.6,
+      x: 0.6,
+      y: 0.4,
     },
   };
 
