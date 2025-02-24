@@ -166,7 +166,6 @@ function InnerWorld({
     console.log("not found");
     return null;
   }
-  console.log("rendering content");
 
   return (
     <ErrorBoundary fallback={null}>
