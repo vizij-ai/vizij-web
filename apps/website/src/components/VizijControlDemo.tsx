@@ -8,7 +8,7 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Abi":
       return (
         <div>
-          <h3 className="text-xl text-semio-yellow m-2">Meet Abi</h3>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Abi</h3> */}
           <p>
             The below vizij is a replica face of{" "}
             <a
@@ -26,7 +26,7 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Hugo":
       return (
         <div>
-          <h3 className="text-xl text-semio-yellow m-2">Meet Hugo</h3>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
           <p>
             The Hugo face below is the forthcoming default{" "}
             <a
@@ -45,7 +45,7 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     default:
       return (
         <div>
-          <h3 className="text-xl text-semio-yellow m-2">Meet Quori</h3>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Quori</h3> */}
           <p>Quori .... </p>
           <QuoriVizijWithControls />
         </div>
@@ -57,7 +57,42 @@ export function VizijControlDemo() {
   const [selectedRobot, setSelectedRobot] = useState<string>("Quori");
   return (
     <>
-      <label>
+      <div className="my-8">
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Quori" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Quori");
+          }}
+        >
+          Meet Quori
+        </button>
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Hugo" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Hugo");
+          }}
+        >
+          Meet Hugo
+        </button>
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Abi" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Abi");
+          }}
+        >
+          Meet Abi
+        </button>
+      </div>
+      {/* <label className="my-4">
         Select the robot you would like to customize
         <select
           className="p-2 m-2 bg-white text-black"
@@ -69,7 +104,7 @@ export function VizijControlDemo() {
           <option value={"Hugo"}>Hugo</option>
           <option value={"Abi"}>Abi</option>
         </select>
-      </label>
+      </label> */}
       <VizijWithControlSwitch robot={selectedRobot} />
     </>
   );

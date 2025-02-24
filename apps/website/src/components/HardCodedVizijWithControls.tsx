@@ -96,56 +96,68 @@ function InnerHardCodedVizijWithControls({
   }, []);
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      {/* @ts-expect-error Async Server Component */}
-      <Vizij rootId={rootId ?? ""} namespace="default" />
+      <div className="h-100 m-10">
+        {/* @ts-expect-error Async Server Component */}
+        <Vizij rootId={rootId ?? ""} namespace="default" />
+      </div>
       <div className="grid grid-cols-3">
-        <div className="p-2 max-h-64 overflow-scroll">
-          <p>Colors</p>
-          {calculatedMaterials.map((material) => {
-            return (
-              <div key={material?.id}>
-                <span>{material?.display}</span>
-                {/* @ts-expect-error Async Server Component */}
-                <Controller animatableId={material?.id} />
-              </div>
-            );
-          })}
-        </div>
-        <div className="p-2 max-h-64 overflow-scroll">
-          <p>Control</p>
-          {calculatedMovables.map((control) => {
-            return (
-              <div key={control?.id}>
-                {control?.display}
-                <div>
-                  <span>Move</span>
+        <div className="p-4 mx-2">
+          <p className="font-bold text-xl uppercase">Colors</p>
+          <div className="max-h-120 overflow-scroll">
+            {calculatedMaterials.map((material) => {
+              return (
+                <div key={material?.id} className="m-1 p-1 text-left font-bold">
+                  <span>{material?.display}</span>
                   {/* @ts-expect-error Async Server Component */}
-                  <Controller animatableId={control.translationId} />
-                  <span>Scale</span>
-                  {/* @ts-expect-error Async Server Component */}
-                  <Controller animatableId={control.scaleId} />
+                  <Controller animatableId={material?.id} />
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-        <div className="p-2 max-h-64 overflow-scroll">
-          <p>Animations</p>
-          {calculatedMorphables.map((morphable) => {
-            return (
-              <div key={morphable.id}>
-                <span>{morphable.display}</span>
-                {morphable.morphTargets.map((morph: string) => {
-                  return (
-                    <>
+        <div className="p-4 mx-2">
+          <p className="font-bold text-xl uppercase">Control</p>
+          <div className="max-h-120 overflow-scroll">
+            {calculatedMovables.map((control) => {
+              return (
+                <div key={control?.id} className="m-1 p-1 text-left font-bold">
+                  {control?.display}
+                  <div className="p-4 text-left">
+                    <div className="my-4">
+                      <span>Move</span>
                       {/* @ts-expect-error Async Server Component */}
-                      <Controller key={morph} animatableId={morph} />
-                    </>
-                  );
-                })}
-              </div>
-            );
-          })}
+                      <Controller animatableId={control.translationId} />
+                    </div>
+                    <div className="my-4">
+                      <span>Scale</span>
+                      {/* @ts-expect-error Async Server Component */}
+                      <Controller animatableId={control.scaleId} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="p-4 mx-2">
+          <p className="font-bold text-xl uppercase">Animations</p>
+          <div className="max-h-120 overflow-scroll">
+            {calculatedMorphables.map((morphable) => {
+              return (
+                <div key={morphable.id} className="m-1 p-1 text-left font-bold">
+                  <span>{morphable.display}</span>
+                  {morphable.morphTargets.map((morph: string) => {
+                    return (
+                      <div className="p-2 text-left">
+                        {/* @ts-expect-error Async Server Component */}
+                        <Controller key={morph} animatableId={morph} />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Suspense>
