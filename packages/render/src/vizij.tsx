@@ -190,11 +190,11 @@ function SafeAreaRenderer({ rootId }: { rootId: string }) {
   return (
     <Line
       points={[
-        [left, top],
-        [right, top],
-        [right, bottom],
-        [left, bottom],
-        [left, top],
+        [left, top, 99],
+        [right, top, 99],
+        [right, bottom, 99],
+        [left, bottom, 99],
+        [left, top, 99],
       ]}
       color="red"
       lineWidth={2}
