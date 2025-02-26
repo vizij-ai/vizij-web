@@ -16,6 +16,25 @@ type AnimatableLookup = {
   name: string;
 };
 
+type IdentifiedMaterial = {
+  display: string;
+  name: string;
+  id: string;
+};
+type IdentifiedMovable = {
+  display: string;
+  name: string;
+  id: string;
+  translationId: string;
+  scaleId: string;
+};
+type IdentifiedMorphable = {
+  display: string;
+  name: string;
+  id: string;
+  morphTargets: string[];
+};
+
 function InnerHardCodedVizijWithControls({
   glb,
   bounds,
@@ -40,9 +59,6 @@ function InnerHardCodedVizijWithControls({
 
   const calculatedMaterials = useMemo(() => {
     return materials
-      .filter((mat) => {
-        return Object.values(activeAnimatables).find((anim) => anim.name == mat.name) !== undefined;
-      })
       .map((mat) => {
         let foundMat = Object.values(activeAnimatables).find((anim) => anim.name == mat.name);
         if (foundMat !== undefined) {
@@ -51,37 +67,51 @@ function InnerHardCodedVizijWithControls({
             id: foundMat.id,
           };
         }
-      });
+        return mat;
+      })
+      .filter((mat) => {
+        return "id" in mat;
+      }) as IdentifiedMaterial[];
   }, [materials, activeAnimatables]);
 
   const calculatedMovables = useMemo(() => {
     return movables
-      .filter((val) => {
-        return Object.values(world).find((e) => e.name === val.name) !== undefined;
-      })
       .map((controllable) => {
         let foundShape = Object.values(world).find((e) => e.name === controllable.name);
-        return {
-          ...controllable,
-          id: foundShape.id,
-          translationId: foundShape?.features.translation.value,
-          scaleId: foundShape?.features.scale?.value,
-        };
-      });
+        if (foundShape !== undefined) {
+          return {
+            ...controllable,
+            id: foundShape.id,
+            translationId: foundShape?.features.translation.value,
+            ...("scale" in foundShape.features && foundShape?.features.scale?.value !== undefined
+              ? { scaleId: foundShape?.features.scale?.value }
+              : {}),
+          };
+        }
+        return controllable;
+      })
+      .filter((val) => {
+        return "id" in val && "translationId" in val && "scaleId" in val;
+      }) as IdentifiedMovable[];
   }, [movables, world]);
   const calculatedMorphables = useMemo(() => {
     return morphables
-      .filter((anim) => {
-        return Object.values(world).find((e) => e.name == anim.name) !== undefined;
-      })
       .map((anim) => {
         let foundAnim = Object.values(world).find((e) => e.name == anim.name);
-        return {
-          ...anim,
-          id: foundAnim?.id,
-          ...(foundAnim?.morphTargets ? { morphTargets: foundAnim.morphTargets } : null),
-        };
-      });
+        if (foundAnim !== undefined) {
+          return {
+            ...anim,
+            id: foundAnim?.id,
+            ...("morphTargets" in foundAnim && foundAnim.morphTargets !== undefined
+              ? { morphTargets: foundAnim.morphTargets }
+              : {}),
+          };
+        }
+        return anim;
+      })
+      .filter((anim) => {
+        return "id" in anim && "morphTargets" in anim;
+      }) as IdentifiedMorphable[];
   }, [morphables, world]);
 
   useEffect(() => {
