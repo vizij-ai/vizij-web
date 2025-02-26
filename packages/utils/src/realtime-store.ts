@@ -1,3 +1,14 @@
+/**
+ * @fileoverview
+ * Experimental store for handling rapidly-changing realtime data.
+ * This is a first attempt to improve performance by separating realtime data
+ * from the main application store.
+ *
+ * @remarks
+ * Not currently in use. Requires synchronization with the main store
+ * to handle events like setting values from controls.
+ */
+
 import { createContext } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
@@ -14,11 +25,24 @@ import { getLookup } from "./namespace";
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
 
+/**
+ * Core data structure for realtime values
+ */
 export interface RealtimeData {
+  /** Map of lookupId to raw values */
   values: Map<string, RawValue>;
 }
 
+/**
+ * Actions available for manipulating realtime data
+ */
 export interface RealtimeActions {
+  /**
+   * Sets a value in the realtime store
+   * @param id - The identifier for the value
+   * @param namespace - The namespace the value belongs to
+   * @param value - The raw value to store
+   */
   setValue: (id: string, namespace: string, value: RawValue) => void;
 }
 
