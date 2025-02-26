@@ -22,7 +22,7 @@ function App() {
       </header>
       <div className="w-full text-center text-black">
         <div className="w-full bg-white p-12">
-          <h2 className="text-4xl font-bold">Example Vizijs</h2>
+          <h2 className="text-4xl font-bold">Example Visages</h2>
 
           <div className="grid md:grid-cols-3 m-8 p-4 text-left text-white">
             <div className="h-60 m-4 my-8 p-4 shadow-lg rounded-md bg-black ">
@@ -68,13 +68,13 @@ function App() {
               <a target="_blank" className="underline hover:text-gray-600 cursor-pointer">
                 Doug Dooley
               </a>{" "}
-              for creating the (unofficial) vizijs above.
+              for creating the (unofficial) visages above.
             </p>
           </div>
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">Modify & Control</h2>
-          <p>Not only can you display the vizijs, you can modify and control them.</p>
+          <p>Not only can you display a visage, you can modify and control it as well.</p>
           <VizijControlDemo />
         </div>
         <div className="w-full bg-white text-black p-12">
