@@ -20,48 +20,60 @@ function App() {
           </p>
         </div>
       </header>
-      <div className="w-full text-center text-white">
-        <div className="w-full bg-gray-800 p-12">
-          <h2 className="text-semio-orange text-4xl font-bold">Example Vizijs</h2>
+      <div className="w-full text-center text-black">
+        <div className="w-full bg-white p-12">
+          <h2 className="text-4xl font-bold">Example Vizijs</h2>
 
-          <div className="grid md:grid-cols-3 m-8 p-4">
-            <div className="h-36 m-4 my-8 p-4">
+          <div className="grid md:grid-cols-3 m-8 p-4 text-left text-white">
+            <div className="h-60 m-4 my-8 p-4 shadow-lg rounded-md bg-black ">
               <p className="text-lg font-bold">Quori</p>
-              <QuoriVizij />
+              <div className="">
+                <QuoriVizij />
+              </div>
             </div>
-            <div className="h-36 m-4 my-8 p-4">
+            <div className="h-60 m-4 my-8 p-4 shadow-md rounded-md bg-black ">
               <p className="text-lg font-bold">Hugo</p>
-              <HugoVizij />
+              <div className="">
+                <HugoVizij />
+              </div>
             </div>
-            <div className="h-36 m-4 my-8 p-4">
+            <div className="h-60 m-4 my-8 p-4 shadow-md rounded-md bg-black ">
               <p className="text-lg font-bold">Abi</p>
-              <AbiVizij />
+              <div className="">
+                <AbiVizij />
+              </div>
             </div>
-            <div className="h-36 m-4 my-8 p-4">
+            <div className="h-60 m-4 my-8 p-4 shadow-md rounded-md bg-black ">
               <p className="text-lg font-bold">Baxter</p>
-              <BaxterVizij />
+              <div className="">
+                <BaxterVizij />
+              </div>
             </div>
-            <div className="h-36 m-4 my-8 p-4">
+            <div className="h-60 m-4 my-8 p-4 shadow-md rounded-md bg-black ">
               <p className="text-lg font-bold">Jibo</p>
-              <JiboVizij />
+              <div className="">
+                <JiboVizij />
+              </div>
             </div>
-            <div className="h-36 m-4 my-8 p-4">
+            <div className="h-60 m-4 my-8 p-4 shadow-md rounded-md bg-black ">
               <p className="text-lg font-bold">Tiago</p>
-              <TiagoVizij />
+              <div className="">
+                <TiagoVizij />
+              </div>
             </div>
           </div>
           <div className="my-10">
             <p>
               Thanks to{" "}
-              <a target="_blank" className="underline hover:text-gray-200">
+              <a target="_blank" className="underline hover:text-gray-200 cursor-pointer">
                 Doug Dooley
               </a>{" "}
               for creating the (unofficial) vizijs above.
             </p>
           </div>
         </div>
-        <div className="w-full bg-gray-900 p-12">
-          <h2 className="text-semio-orange text-4xl my-4 font-bold">Modify & Control</h2>
+        <div className="w-full bg-gray-900 p-12 text-white">
+          <h2 className="text-4xl my-4 font-bold">Modify & Control</h2>
           <p>Not only can you display the vizijs, you can modify and control them.</p>
           <VizijControlDemo />
         </div>

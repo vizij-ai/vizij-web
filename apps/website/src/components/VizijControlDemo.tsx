@@ -20,7 +20,9 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
             </a>{" "}
             robot.
           </p>
-          <AbiVizijWithControls />
+          <div>
+            <AbiVizijWithControls />
+          </div>
         </div>
       );
     case "Hugo":
@@ -38,7 +40,9 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
             </a>{" "}
             screen-based face.
           </p>
-          <HugoVizijWithControls />
+          <div>
+            <HugoVizijWithControls />
+          </div>
         </div>
       );
 
@@ -47,7 +51,9 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
         <div>
           {/* <h3 className="text-xl text-white font-bold m-2">Meet Quori</h3> */}
           <p>Quori .... </p>
-          <QuoriVizijWithControls />
+          <div>
+            <QuoriVizijWithControls />
+          </div>
         </div>
       );
   }
@@ -105,7 +111,9 @@ export function VizijControlDemo() {
           <option value={"Abi"}>Abi</option>
         </select>
       </label> */}
-      <VizijWithControlSwitch robot={selectedRobot} />
+      <div>
+        <VizijWithControlSwitch robot={selectedRobot} />
+      </div>
     </>
   );
 }
