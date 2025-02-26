@@ -1,5 +1,22 @@
 import { useState, useEffect } from "react";
 
+/**
+ * Custom hook to handle responsive media queries in React components.
+ *
+ * @param query - A valid CSS media query string (e.g., '(min-width: 768px)')
+ * @returns A boolean indicating whether the media query matches
+ *
+ * @example
+ * ```typescript
+ * const isMobile = useMediaQuery('(max-width: 768px)');
+ *
+ * return (
+ *   <div>
+ *     {isMobile ? <MobileView /> : <DesktopView />}
+ *   </div>
+ * );
+ * ```
+ */
 export const useMediaQuery = (query: string): boolean => {
   const [matches, setMatches] = useState<boolean>(false);
 

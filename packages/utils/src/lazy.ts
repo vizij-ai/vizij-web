@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 
-/*
-@description
-This hook is used to delay the nullification of a state value until the the timeout has been reached, such as keeping an object
-in a hovered state even if the mouse has left the object for a short period of time.
-@param value - the value to be delayed
-@param timeout - the time to delay the nullification of the value
-@return - the delayed value
-*/
+/**
+ * A hook that delays the nullification of a boolean state value.
+ *
+ * Useful for maintaining hover states or other temporary UI states
+ * for a specified duration after the triggering condition becomes false.
+ *
+ * @param value - The current boolean state value
+ * @param timeout - The delay duration in milliseconds
+ * @returns The delayed boolean state value
+ *
+ * @example
+ * ```typescript
+ * const isHoveredWithDelay = useLazy(isHovered, 500);
+ * ```
+ */
 export function useLazy(value: boolean, timeout: number): boolean {
   const [lazy, setLazy] = useState(value);
   const [timeoutValue, setTimeoutValue] = useState<NodeJS.Timeout | null>(null);

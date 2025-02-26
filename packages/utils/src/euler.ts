@@ -1,3 +1,15 @@
+/**
+ * Converts Euler angles to a 3x3 rotation matrix.
+ * Uses ZYX order (intrinsic rotations).
+ *
+ * @param euler - Array of three numbers representing rotation angles in radians [z, y, x]
+ * @returns A 3x3 rotation matrix as a nested array
+ *
+ * @example
+ * ```typescript
+ * const matrix = eulerToRotationMatrix([0, Math.PI/2, 0]);
+ * ```
+ */
 export function eulerToRotationMatrix(euler: [number, number, number]): number[][] {
   const [z, y, x] = euler;
 
@@ -16,6 +28,12 @@ export function eulerToRotationMatrix(euler: [number, number, number]): number[]
   ];
 }
 
+/**
+ * Calculates the angle of rotation from a rotation matrix.
+ *
+ * @param R - A 3x3 rotation matrix as a nested array
+ * @returns The angle of rotation in radians
+ */
 export function rotationMatrixToAngle(R: number[][]): number {
   // Angle of rotation from rotation matrix
   // Angle = acos((trace(R) - 1) / 2)
@@ -23,6 +41,18 @@ export function rotationMatrixToAngle(R: number[][]): number {
   return Math.acos((trace - 1) / 2);
 }
 
+/**
+ * Calculates the angular distance between two orientations specified by Euler angles.
+ *
+ * @param euler1 - First orientation in Euler angles [z, y, x] in radians
+ * @param euler2 - Second orientation in Euler angles [z, y, x] in radians
+ * @returns The angular distance in radians
+ *
+ * @example
+ * ```typescript
+ * const distance = angularDistance([0, 0, 0], [0, Math.PI/2, 0]);
+ * ```
+ */
 export function angularDistance(
   euler1: [number, number, number],
   euler2: [number, number, number],

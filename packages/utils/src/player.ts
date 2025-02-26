@@ -1,18 +1,24 @@
-/** Time in milliseconds */
+/**
+ * Time representation in milliseconds.
+ */
 export type RawTime = number;
 
 /**
- * An interface that represents a timer that can be used to keep track of time in an animation loop.
- * It assumes that the the entire animation length is 1, and the current time (stamp) is represented as a value in the range [0, 1].
- * @param running - whether the timer is running
- * @param _previousTime - the absolute time at the previous update, in milliseconds
- * @param _currentTime - the absolute current time, in milliseconds
- * @param stamp - the current time of the timer, in the range [0, 1]
- * @param timescale - the time multiplier of the timer. A value of 1 corresponds to real-time, and negative values are reversed time
- * @param bounds - the start and end points within the range of 0 to 1 for constrained playback
- * @param playback - the playback mode, either 'loop' or 'reverse'
- * @param viewport - the viewport information
- * @param duration - the duration information
+ * A timer implementation for managing animation playback.
+ *
+ * The timer operates on a normalized time range of [0, 1], where:
+ * - 0 represents the start of the animation
+ * - 1 represents the end of the animation
+ *
+ * @property running - Whether the timer is actively running
+ * @property _previousTime - The last update time in milliseconds
+ * @property _currentTime - The current time in milliseconds
+ * @property stamp - Current normalized time position [0, 1]
+ * @property timescale - Playback speed multiplier (negative for reverse)
+ * @property bounds - Constrains playback to a [start, end] range within [0, 1]
+ * @property playback - Animation behavior at bounds ("loop"|"bounce"|"once")
+ * @property viewport - Visible time range as [start, end] within [0, 1]
+ * @property duration - Total animation duration in milliseconds
  */
 export interface Player {
   running: boolean;
@@ -208,8 +214,17 @@ export function setDuration(player: Player, duration: number): Player {
 }
 
 /**
- * Returns a new object that represents a timer with default values.
- * @returns a new timer
+ * Creates a new Player instance with default values.
+ *
+ * @returns A new Player instance initialized with:
+ * - Not running
+ * - Current timestamp
+ * - Zero stamp position
+ * - No timescale
+ * - Full bounds [0, 1]
+ * - Loop playback
+ * - Full viewport [0, 1]
+ * - 1000ms duration
  */
 export function newPlayer(): Player {
   return {
