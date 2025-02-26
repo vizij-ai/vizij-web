@@ -65,23 +65,28 @@ function App() {
           <div className="my-10">
             <p>
               Thanks to{" "}
-              <a target="_blank" className="underline hover:text-gray-200 cursor-pointer">
+              <a target="_blank" className="underline hover:text-gray-600 cursor-pointer">
                 Doug Dooley
               </a>{" "}
               for creating the (unofficial) vizijs above.
             </p>
           </div>
         </div>
-        <div className="w-full bg-gray-900 p-12 text-white">
+        <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">Modify & Control</h2>
           <p>Not only can you display the vizijs, you can modify and control them.</p>
           <VizijControlDemo />
         </div>
-        {/* <div className="w-full bg-gray-900 p-4">
-        <h2 className="text-semio-orange text-4xl my-4 font-bold">Design Your Own</h2>
-      </div> */}
-        <div className="w-full bg-gray-800 p-12">
-          <h2 className="text-semio-orange text-4xl my-4 font-bold">Sign Up</h2>
+        <div className="w-full bg-white text-black p-12">
+          <div className="my-16">
+            <a
+              className="bg-semio-orange text-black rounded-md text-2xl font-bold p-8"
+              href=""
+              target="_blank"
+            >
+              Sign Up To Learn More
+            </a>
+          </div>
         </div>
       </div>
       <footer></footer>
