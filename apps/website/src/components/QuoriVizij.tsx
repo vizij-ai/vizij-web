@@ -45,11 +45,51 @@ export function QuoriVizijWithControls() {
       display: "Mouth",
       name: "Plane",
     },
+    {
+      display: "Left Eye",
+      name: "L_Eye",
+    },
+    {
+      display: "Left Eye Highlight",
+      name: "L_EyeHighlight",
+    },
+    {
+      display: "Left Eye Top Eyelid",
+      name: "LT_Lid",
+    },
+    {
+      display: "Left Eye Bottom Eyelid",
+      name: "LB_Lid",
+    },
+    {
+      display: "Right Eye",
+      name: "R_Eye",
+    },
+    {
+      display: "Right Eye Highlight",
+      name: "R_EyeHighlight",
+    },
+    {
+      display: "Right Eye Top Eyelid",
+      name: "RT_Lid",
+    },
+    {
+      display: "Right Eye Bottom Eyelid",
+      name: "RB_Lid",
+    },
   ];
   const QuoriMorphables = [
     {
       display: "Mouth",
       name: "Plane",
+    },
+    {
+      display: "Left Eye Top Eyelid",
+      name: "LT_Lid",
+    },
+    {
+      display: "Right Eye Top Eyelid",
+      name: "RT_Lid",
     },
   ];
 
