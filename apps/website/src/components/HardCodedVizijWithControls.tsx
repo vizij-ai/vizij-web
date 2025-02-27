@@ -238,7 +238,7 @@ function InnerHardCodedVizijWithControls({
                         {control?.display}
                         <div className="p-4 text-left">
                           <div className="my-4">
-                            <span>Move</span>
+                            <span>Translate</span>
                             {/* @ts-expect-error Async Server Component */}
                             <Controller animatableId={control.translationId} />
                           </div>
