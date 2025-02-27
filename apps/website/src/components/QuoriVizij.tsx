@@ -31,7 +31,7 @@ export function QuoriVizijWithControls() {
 
   const QuoriMaterials = [
     {
-      display: "Ring",
+      display: "Border",
       name: "Face_Outside_Color",
     },
     {

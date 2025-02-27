@@ -126,11 +126,11 @@ function InnerHardCodedVizijWithControls({
   }, []);
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <div className="h-100 m-10">
+      <div className="h-50 md:h-100 m-5 md:m-10">
         {/* @ts-expect-error Async Server Component */}
         <Vizij rootId={rootId ?? ""} namespace="default" />
       </div>
-      <div className="grid grid-cols-3">
+      <div className="grid md:grid-cols-3">
         <div className="p-4 mx-2">
           <p className="font-bold text-xl uppercase">Colors</p>
           <div className="max-h-120 overflow-scroll">
@@ -170,7 +170,7 @@ function InnerHardCodedVizijWithControls({
           </div>
         </div>
         <div className="p-4 mx-2">
-          <p className="font-bold text-xl uppercase">Animations</p>
+          <p className="font-bold text-xl uppercase">Blend Shapes</p>
           <div className="max-h-120 overflow-scroll">
             {calculatedMorphables.map((morphable) => {
               return (
