@@ -181,7 +181,7 @@ function InnerHardCodedVizijWithControls({
                       <div key={material?.id} className="m-1 p-1 text-left font-bold">
                         <span>{material?.display}</span>
                         {/* @ts-expect-error Async Server Component */}
-                        <Controller animatableId={material?.id} />
+                        <Controller animatableId={material?.id} className="inline-block" />
                       </div>
                     );
                   })}
@@ -304,9 +304,9 @@ function InnerHardCodedVizijWithControls({
                         <span>{morphable.display}</span>
                         {morphable.morphTargets.map((morph: string) => {
                           return (
-                            <div className="p-2 text-left">
+                            <div className="p-2 text-left" key={morph}>
                               {/* @ts-expect-error Async Server Component */}
-                              <Controller key={morph} animatableId={morph} />
+                              <Controller animatableId={morph} />
                             </div>
                           );
                         })}

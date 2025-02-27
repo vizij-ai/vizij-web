@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
 import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
-import { ColorPickerInput, SliderNumberField } from "@semio/ui";
+import { ColorPickerPopover, SliderNumberField } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 
 function InnerController({
@@ -81,7 +81,7 @@ function InnerController({
   } else if (animatable.type === "rgb" && !subfield) {
     return (
       <div className="flex flex-col gap-2">
-        <ColorPickerInput
+        <ColorPickerPopover
           value={
             rawValue
               ? convertRGBRange(rawValue as RawRGB, "255")
