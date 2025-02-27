@@ -1,5 +1,6 @@
 import { RawVector2 } from "@semio/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
 import {
   createVizijStore,
   Group,
@@ -126,68 +127,196 @@ function InnerHardCodedVizijWithControls({
   }, []);
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <div className="h-50 md:h-100 m-5 md:m-10">
-        {/* @ts-expect-error Async Server Component */}
-        <Vizij rootId={rootId ?? ""} namespace="default" />
-      </div>
-      <div className="grid md:grid-cols-3">
-        <div className="p-4 mx-2">
-          <p className="font-bold text-xl uppercase">Colors</p>
-          <div className="max-h-120 overflow-scroll">
-            {calculatedMaterials.map((material) => {
-              return (
-                <div key={material?.id} className="m-1 p-1 text-left font-bold">
-                  <span>{material?.display}</span>
-                  {/* @ts-expect-error Async Server Component */}
-                  <Controller animatableId={material?.id} />
-                </div>
-              );
-            })}
-          </div>
+      <div className="grid md:grid-cols-2">
+        <div className="h-50 md:h-100 m-5 md:m-10">
+          {/* @ts-expect-error Async Server Component */}
+          <Vizij rootId={rootId ?? ""} namespace="default" />
         </div>
-        <div className="p-4 mx-2">
-          <p className="font-bold text-xl uppercase">Control</p>
-          <div className="max-h-120 overflow-scroll">
-            {calculatedMovables.map((control) => {
-              return (
-                <div key={control?.id} className="m-1 p-1 text-left font-bold">
-                  {control?.display}
-                  <div className="p-4 text-left">
-                    <div className="my-4">
-                      <span>Move</span>
-                      {/* @ts-expect-error Async Server Component */}
-                      <Controller animatableId={control.translationId} />
-                    </div>
-                    <div className="my-4">
-                      <span>Scale</span>
-                      {/* @ts-expect-error Async Server Component */}
-                      <Controller animatableId={control.scaleId} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="p-4 mx-2">
-          <p className="font-bold text-xl uppercase">Blend Shapes</p>
-          <div className="max-h-120 overflow-scroll">
-            {calculatedMorphables.map((morphable) => {
-              return (
-                <div key={morphable.id} className="m-1 p-1 text-left font-bold">
-                  <span>{morphable.display}</span>
-                  {morphable.morphTargets.map((morph: string) => {
+        <div className="max-h-70 md:max-h-120 overflow-scroll">
+          <Disclosure as={"div"} className={"p-4 mx-2"} defaultOpen>
+            {({ open }) => (
+              <>
+                <DisclosureButton
+                  className={
+                    "sticky top-0 font-bold text-xl uppercase block w-full p-1 cursor-pointer " +
+                    (open ? "bg-gray-800" : "bg-gray-600")
+                  }
+                >
+                  Colors{" "}
+                  {open ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m4.5 15.75 7.5-7.5 7.5 7.5"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                      />
+                    </svg>
+                  )}
+                </DisclosureButton>
+                <DisclosurePanel className="max-h-120 overflow-scroll">
+                  {calculatedMaterials.map((material) => {
                     return (
-                      <div className="p-2 text-left">
+                      <div key={material?.id} className="m-1 p-1 text-left font-bold">
+                        <span>{material?.display}</span>
                         {/* @ts-expect-error Async Server Component */}
-                        <Controller key={morph} animatableId={morph} />
+                        <Controller animatableId={material?.id} />
                       </div>
                     );
                   })}
-                </div>
-              );
-            })}
-          </div>
+                </DisclosurePanel>
+              </>
+            )}
+          </Disclosure>
+          <Disclosure as={"div"} className={"p-4 mx-2"}>
+            {({ open }) => (
+              <>
+                <DisclosureButton
+                  className={
+                    "sticky top-0 font-bold text-xl uppercase block w-full p-1 cursor-pointer " +
+                    (open ? "bg-gray-800" : "bg-gray-600")
+                  }
+                >
+                  Control{" "}
+                  {open ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m4.5 15.75 7.5-7.5 7.5 7.5"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                      />
+                    </svg>
+                  )}
+                </DisclosureButton>
+                <DisclosurePanel className="max-h-120 overflow-scroll">
+                  {calculatedMovables.map((control) => {
+                    return (
+                      <div key={control?.id} className="m-1 p-1 text-left font-bold">
+                        {control?.display}
+                        <div className="p-4 text-left">
+                          <div className="my-4">
+                            <span>Move</span>
+                            {/* @ts-expect-error Async Server Component */}
+                            <Controller animatableId={control.translationId} />
+                          </div>
+                          <div className="my-4">
+                            <span>Scale</span>
+                            {/* @ts-expect-error Async Server Component */}
+                            <Controller animatableId={control.scaleId} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </DisclosurePanel>
+              </>
+            )}
+          </Disclosure>
+          <Disclosure as={"div"} className={"p-4 mx-2"}>
+            {({ open }) => (
+              <>
+                <DisclosureButton
+                  className={
+                    "sticky top-0 font-bold text-xl uppercase block w-full p-1 cursor-pointer " +
+                    (open ? "bg-gray-800" : "bg-gray-600")
+                  }
+                >
+                  Morphs{" "}
+                  {open ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m4.5 15.75 7.5-7.5 7.5 7.5"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4 inline-block ml-4"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                      />
+                    </svg>
+                  )}
+                </DisclosureButton>
+                <DisclosurePanel className="max-h-120 overflow-scroll">
+                  {calculatedMorphables.map((morphable) => {
+                    return (
+                      <div key={morphable.id} className="m-1 p-1 text-left font-bold">
+                        <span>{morphable.display}</span>
+                        {morphable.morphTargets.map((morph: string) => {
+                          return (
+                            <div className="p-2 text-left">
+                              {/* @ts-expect-error Async Server Component */}
+                              <Controller key={morph} animatableId={morph} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </DisclosurePanel>
+              </>
+            )}
+          </Disclosure>
         </div>
       </div>
     </Suspense>
