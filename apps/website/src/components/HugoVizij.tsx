@@ -48,31 +48,55 @@ export function HugoVizijWithControls() {
 
   const HugoMovables = [
     {
-      display: "Face",
-      name: "Circle",
+      display: "Mouth",
+      name: "Mouth",
     },
     {
       display: "Left Eye (Face perspective)",
       name: "L_Eye",
     },
     {
+      display: "Left Eye Pupil",
+      name: "L_EyeHighlight1",
+    },
+    {
+      display: "Left Eye Pupil Reflection",
+      name: "L_EyeHighlight2",
+    },
+    {
+      display: "Left Eye Top Eyelid",
+      name: "Plane005",
+    },
+    {
+      display: "Left Eye Bottom Eyelid",
+      name: "L_Eye009",
+    },
+    {
       display: "Right Eye (Face perspective)",
       name: "R_Eye",
     },
     {
-      display: "Mouth",
-      name: "Mouth",
+      display: "Right Eye Top Eyelid",
+      name: "Plane006",
+    },
+    {
+      display: "Right Eye Bottom Eyelid",
+      name: "R_Eye009",
+    },
+    {
+      display: "Face",
+      name: "Circle",
     },
   ];
 
   const HugoMorphables = [
     {
       display: "Left Eyelid",
-      name: "Plane006",
+      name: "Plane005",
     },
     {
       display: "Right Eyelid",
-      name: "Plane005",
+      name: "Plane006",
     },
     {
       display: "Left Brow",

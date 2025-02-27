@@ -2,6 +2,9 @@ import { useState } from "react";
 import { AbiVizijWithControls } from "./AbiVizij";
 import { HugoVizijWithControls } from "./HugoVizij";
 import { QuoriVizijWithControls } from "./QuoriVizij";
+import { JiboVizijWithControls } from "./JiboVizij";
+import { BaxterVizijWithControls } from "./BaxterVizij";
+import { TiagoVizijWithControls } from "./TiagoVizij";
 
 function VizijWithControlSwitch({ robot }: { robot: string }) {
   switch (robot) {
@@ -42,6 +45,36 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
           </p>
           <div>
             <HugoVizijWithControls />
+          </div>
+        </div>
+      );
+    case "Baxter":
+      return (
+        <div>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
+          <p>Baxter</p>
+          <div>
+            <BaxterVizijWithControls />
+          </div>
+        </div>
+      );
+    case "Jibo":
+      return (
+        <div>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
+          <p>Jibo</p>
+          <div>
+            <JiboVizijWithControls />
+          </div>
+        </div>
+      );
+    case "Tiago":
+      return (
+        <div>
+          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
+          <p>Tiago</p>
+          <div>
+            <TiagoVizijWithControls />
           </div>
         </div>
       );
@@ -97,20 +130,40 @@ export function VizijControlDemo() {
         >
           Meet Abi
         </button>
-      </div>
-      {/* <label className="my-4">
-        Select the robot you would like to customize
-        <select
-          className="p-2 m-2 bg-white text-black"
-          onChange={(e) => {
-            setSelectedRobot(e.target.value);
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Baxter" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Baxter");
           }}
         >
-          <option value={"Quori"}>Quori</option>
-          <option value={"Hugo"}>Hugo</option>
-          <option value={"Abi"}>Abi</option>
-        </select>
-      </label> */}
+          Meet Baxter
+        </button>
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Jibo" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Jibo");
+          }}
+        >
+          Meet Jibo
+        </button>
+        <button
+          className={
+            "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
+            (selectedRobot === "Tiago" && " bg-semio-blue border-0 text-gray-900")
+          }
+          onClick={() => {
+            setSelectedRobot("Tiago");
+          }}
+        >
+          Meet Tiago
+        </button>
+      </div>
       <div>
         <VizijWithControlSwitch robot={selectedRobot} />
       </div>
