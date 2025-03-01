@@ -14,7 +14,7 @@ import { useShallow } from "zustand/shallow";
 
 type axis = "x" | "y" | "z";
 
-type AnimatableLookup = {
+export type AnimatableLookup = {
   display: string;
   name: string;
   allow?: {
@@ -207,18 +207,22 @@ function InnerHardCodedVizijWithControls({
                         <DisclosurePanel className={"bg-gray-800 p-2"}>
                           {control.allow ? (
                             <div className="p-1 text-left">
-                              {control.translationId !== undefined && control.allow.translate && (
+                              {control.allow.translate && (
                                 <div className="my-2">
                                   <span>Translate</span>
-                                  {control.allow.translate.map((allowableAxis) => {
-                                    return (
-                                      <Controller
-                                        key={allowableAxis}
-                                        animatableId={control.translationId}
-                                        subfield={allowableAxis}
-                                      />
-                                    );
-                                  })}
+                                  {control.translationId !== undefined &&
+                                    control.allow.translate.map((allowableAxis) => {
+                                      return (
+                                        <>
+                                          {/* @ts-expect-error Async Server Component */}
+                                          <Controller
+                                            key={allowableAxis}
+                                            animatableId={control.translationId ?? ""}
+                                            subfield={allowableAxis}
+                                          />
+                                        </>
+                                      );
+                                    })}
                                 </div>
                               )}
                               {control.rotateId &&
@@ -228,11 +232,14 @@ function InnerHardCodedVizijWithControls({
                                     <span>Rotate</span>
                                     {control.allow.rotate.map((allowableAxis) => {
                                       return (
-                                        <Controller
-                                          key={allowableAxis}
-                                          animatableId={control.rotateId}
-                                          subfield={allowableAxis}
-                                        />
+                                        <>
+                                          {/* @ts-expect-error Async Server Component */}
+                                          <Controller
+                                            key={allowableAxis}
+                                            animatableId={control.rotateId ?? ""}
+                                            subfield={allowableAxis}
+                                          />
+                                        </>
                                       );
                                     })}
                                   </div>
@@ -242,11 +249,14 @@ function InnerHardCodedVizijWithControls({
                                   <span>Scale</span>
                                   {control.allow.scale.map((allowableAxis) => {
                                     return (
-                                      <Controller
-                                        key={allowableAxis}
-                                        animatableId={control.scaleId}
-                                        subfield={allowableAxis}
-                                      />
+                                      <>
+                                        {/* @ts-expect-error Async Server Component */}
+                                        <Controller
+                                          key={allowableAxis}
+                                          animatableId={control.scaleId ?? ""}
+                                          subfield={allowableAxis}
+                                        />
+                                      </>
                                     );
                                   })}
                                 </div>

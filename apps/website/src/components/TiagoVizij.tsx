@@ -1,6 +1,6 @@
 import TiagoGLB from "../assets/Tiago.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function TiagoVizij() {
   const TiagoBounds = {
@@ -32,7 +32,7 @@ export function TiagoVizijWithControls() {
     { display: "Main", name: "Gray_4" },
     { display: "Background", name: "Material" },
   ];
-  const TiagoMovables = [
+  const TiagoMovables: AnimatableLookup[] = [
     { display: "Left Eye", name: "L_Eye", allow: { translate: ["x", "y"] } },
     { display: "Right Eye", name: "R_Eye", allow: { translate: ["x", "y"] } },
     { display: "Mouth", name: "Mouth", allow: { scale: ["x"], rotate: ["z"], morphs: true } },

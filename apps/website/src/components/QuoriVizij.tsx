@@ -1,6 +1,6 @@
 import Quori from "../assets/Quori.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function QuoriVizij() {
   const QuoriBounds = {
@@ -40,7 +40,7 @@ export function QuoriVizijWithControls() {
     },
   ];
 
-  const QuoriMovables = [
+  const QuoriMovables: AnimatableLookup[] = [
     {
       display: "Left Eye",
       name: "L_Eye",

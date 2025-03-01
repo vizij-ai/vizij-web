@@ -1,6 +1,6 @@
 import BaxterGLB from "../assets/Baxter.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function BaxterVizij() {
   const BaxterBounds = {
@@ -34,7 +34,7 @@ export function BaxterVizijWithControls() {
     { display: "Iris", name: "IRIS_S" },
     { display: "Pupil", name: "Blue_BG_S" },
   ];
-  const BaxterMovables = [
+  const BaxterMovables: AnimatableLookup[] = [
     {
       display: "Eyes",
       name: "Eyes",

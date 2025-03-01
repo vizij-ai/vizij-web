@@ -1,6 +1,6 @@
 import Hugo from "../assets/Hugo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
 
 export function HugoVizij() {
   const HugoBounds = {
@@ -46,7 +46,7 @@ export function HugoVizijWithControls() {
     },
   ];
 
-  const HugoMovables = [
+  const HugoMovables: AnimatableLookup[] = [
     {
       display: "Mouth",
       name: "Mouth",
