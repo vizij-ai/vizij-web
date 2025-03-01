@@ -127,8 +127,8 @@ function InnerHardCodedVizijWithControls({
           {/* @ts-expect-error Async Server Component */}
           <Vizij rootId={rootId ?? ""} namespace="default" />
         </div>
-        <div className="max-h-70 md:max-h-120 overflow-scroll">
-          <Disclosure as={"div"} className={"p-4 mx-2"}>
+        <div className="max-h-70 md:max-h-120 overflow-scroll mt-4">
+          <Disclosure as={"div"} className={"px-4 py-2 mx-2"}>
             {({ open }) => (
               <>
                 <DisclosureButton
@@ -184,151 +184,126 @@ function InnerHardCodedVizijWithControls({
               </>
             )}
           </Disclosure>
-          <Disclosure as={"div"} className={"p-4 mx-2"} defaultOpen>
-            {({ open }) => (
-              <>
-                <DisclosureButton
-                  className={
-                    "sticky top-0 font-bold text-xl uppercase block w-full p-1 cursor-pointer " +
-                    (open ? "bg-gray-800" : "bg-gray-600")
-                  }
-                >
-                  Control{" "}
-                  {open ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="h-4 w-4 inline-block ml-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m4.5 15.75 7.5-7.5 7.5 7.5"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="h-4 w-4 inline-block ml-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m19.5 8.25-7.5 7.5-7.5-7.5"
-                      />
-                    </svg>
-                  )}
-                </DisclosureButton>
-                <DisclosurePanel className="max-h-120 overflow-scroll">
-                  {calculatedMovables.map((control) => {
-                    return (
-                      <div key={control?.id} className="m-1 p-1 text-left font-bold">
-                        {control?.display}
-                        {control.allow ? (
-                          <div className="p-4 text-left">
-                            {control.translationId !== undefined && control.allow.translate && (
-                              <div className="my-4">
-                                <span>Translate</span>
-                                {control.allow.translate.map((allowableAxis) => {
-                                  return (
-                                    <Controller
-                                      key={allowableAxis}
-                                      animatableId={control.translationId}
-                                      subfield={allowableAxis}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {control.rotateId &&
-                              control.rotateId !== undefined &&
-                              control.allow.rotate && (
-                                <div className="my-4">
-                                  <span>Rotate</span>
-                                  {control.allow.rotate.map((allowableAxis) => {
+          <div className={"px-4 py-2 mx-2"}>
+            <span
+              className={"sticky top-0 font-bold text-xl uppercase block w-full p-1 bg-gray-800"}
+            >
+              Control
+            </span>
+            <div className="max-h-120 overflow-scroll">
+              {calculatedMovables.map((control) => {
+                return (
+                  <Disclosure as="div" key={control?.id} className="m-1 p-1 text-left font-bold">
+                    {({ open }) => (
+                      <>
+                        <DisclosureButton
+                          className={
+                            "cursor-pointer block w-full text-left p-1 pl-2 " +
+                            (open ? "bg-gray-800" : "bg-gray-900")
+                          }
+                        >
+                          {control?.display}
+                        </DisclosureButton>
+                        <DisclosurePanel className={"bg-gray-800 p-2"}>
+                          {control.allow ? (
+                            <div className="p-1 text-left">
+                              {control.translationId !== undefined && control.allow.translate && (
+                                <div className="my-2">
+                                  <span>Translate</span>
+                                  {control.allow.translate.map((allowableAxis) => {
                                     return (
                                       <Controller
                                         key={allowableAxis}
-                                        animatableId={control.rotateId}
+                                        animatableId={control.translationId}
                                         subfield={allowableAxis}
                                       />
                                     );
                                   })}
                                 </div>
                               )}
-                            {control.scaleId !== undefined && control.allow.scale && (
-                              <div className="my-4">
+                              {control.rotateId &&
+                                control.rotateId !== undefined &&
+                                control.allow.rotate && (
+                                  <div className="my-2">
+                                    <span>Rotate</span>
+                                    {control.allow.rotate.map((allowableAxis) => {
+                                      return (
+                                        <Controller
+                                          key={allowableAxis}
+                                          animatableId={control.rotateId}
+                                          subfield={allowableAxis}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              {control.scaleId !== undefined && control.allow.scale && (
+                                <div className="my-2">
+                                  <span>Scale</span>
+                                  {control.allow.scale.map((allowableAxis) => {
+                                    return (
+                                      <Controller
+                                        key={allowableAxis}
+                                        animatableId={control.scaleId}
+                                        subfield={allowableAxis}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {control.morphTargets !== undefined && control.allow.morphs && (
+                                <div className="my-2">
+                                  <span>Morphs</span>
+                                  {control.morphTargets.map((morph: string) => {
+                                    return (
+                                      <div className="p-2 text-left" key={morph}>
+                                        {/* @ts-expect-error Async Server Component */}
+                                        <Controller animatableId={morph} />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="p-1 text-left">
+                              <div className="my-2">
+                                <span>Translate</span>
+                                {/* @ts-expect-error Async Server Component */}
+                                <Controller animatableId={control.translationId} subfield="x" />
+                                {/* @ts-expect-error Async Server Component */}
+                                <Controller animatableId={control.translationId} subfield="y" />
+                              </div>
+                              <div className="my-2">
                                 <span>Scale</span>
-                                {control.allow.scale.map((allowableAxis) => {
-                                  return (
-                                    <Controller
-                                      key={allowableAxis}
-                                      animatableId={control.scaleId}
-                                      subfield={allowableAxis}
-                                    />
-                                  );
-                                })}
+                                {/* @ts-expect-error Async Server Component */}
+                                <Controller animatableId={control.scaleId} subfield="x" />
+                                {/* @ts-expect-error Async Server Component */}
+                                <Controller animatableId={control.scaleId} subfield="y" />
                               </div>
-                            )}
-                            {control.morphTargets !== undefined && control.allow.morphs && (
-                              <div className="my-4">
-                                <span>Morphs</span>
-                                {control.morphTargets.map((morph: string) => {
-                                  return (
-                                    <div className="p-2 text-left" key={morph}>
-                                      {/* @ts-expect-error Async Server Component */}
-                                      <Controller animatableId={morph} />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-4 text-left">
-                            <div className="my-4">
-                              <span>Translate</span>
-                              {/* @ts-expect-error Async Server Component */}
-                              <Controller animatableId={control.translationId} subfield="x" />
-                              {/* @ts-expect-error Async Server Component */}
-                              <Controller animatableId={control.translationId} subfield="y" />
+                              {control.morphTargets && (
+                                <div className="my-2">
+                                  <span>Morphs</span>
+                                  {control.morphTargets.map((morph: string) => {
+                                    return (
+                                      <div className="p-2 text-left" key={morph}>
+                                        {/* @ts-expect-error Async Server Component */}
+                                        <Controller animatableId={morph} />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            <div className="my-4">
-                              <span>Scale</span>
-                              {/* @ts-expect-error Async Server Component */}
-                              <Controller animatableId={control.scaleId} subfield="x" />
-                              {/* @ts-expect-error Async Server Component */}
-                              <Controller animatableId={control.scaleId} subfield="y" />
-                            </div>
-                            {control.morphTargets && (
-                              <div className="my-4">
-                                <span>Morphs</span>
-                                {control.morphTargets.map((morph: string) => {
-                                  return (
-                                    <div className="p-2 text-left" key={morph}>
-                                      {/* @ts-expect-error Async Server Component */}
-                                      <Controller animatableId={morph} />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </DisclosurePanel>
-              </>
-            )}
-          </Disclosure>
+                          )}
+                        </DisclosurePanel>
+                      </>
+                    )}
+                  </Disclosure>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </Suspense>
