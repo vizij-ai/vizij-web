@@ -1,6 +1,8 @@
+import { useVizijStore } from "vizij";
 import Hugo from "../assets/Hugo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import { useShallow } from "zustand/shallow";
 
 export function HugoVizij() {
   const HugoBounds = {
@@ -13,7 +15,13 @@ export function HugoVizij() {
       y: 5,
     },
   };
-  return <HardCodedVizij glb={Hugo} bounds={HugoBounds} />;
+  const vals = [
+    {
+      name: "Black_S",
+      value: { r: 0, g: 0, b: 0 },
+    },
+  ];
+  return <HardCodedVizij glb={Hugo} bounds={HugoBounds} values={vals} />;
 }
 
 export function HugoVizijWithControls() {
@@ -31,6 +39,7 @@ export function HugoVizijWithControls() {
     {
       display: "Main Color",
       name: "Black_S",
+      initial: { r: 0, g: 0, b: 0 },
     },
     {
       display: "Inner Eye Color",

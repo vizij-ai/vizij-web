@@ -1,4 +1,4 @@
-import { RawVector2 } from "@semio/utils";
+import { RawValue, RawVector2 } from "@semio/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
 import {
@@ -17,6 +17,7 @@ type axis = "x" | "y" | "z";
 export type AnimatableLookup = {
   display: string;
   name: string;
+  initial?: RawValue;
   allow?: {
     translate?: axis[];
     scale?: axis[];
@@ -63,6 +64,7 @@ function InnerHardCodedVizijWithControls({
   const [rootId, setRootId] = useState<string | undefined>("");
 
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const setValue = useVizijStore(useShallow((state) => state.setValue));
   const world = useVizijStore(useShallow((state) => state.world));
   const activeAnimatables = useVizijStore(useShallow((state) => state.animatables));
 
@@ -71,6 +73,9 @@ function InnerHardCodedVizijWithControls({
       .map((mat) => {
         let foundMat = Object.values(activeAnimatables).find((anim) => anim.name == mat.name);
         if (foundMat !== undefined) {
+          if (mat.initial) {
+            setValue(foundMat.id, "default", mat.initial);
+          }
           return {
             ...mat,
             id: foundMat.id,
@@ -213,14 +218,14 @@ function InnerHardCodedVizijWithControls({
                                   {control.translationId !== undefined &&
                                     control.allow.translate.map((allowableAxis) => {
                                       return (
-                                        <>
+                                        <div key={allowableAxis}>
                                           {/* @ts-expect-error Async Server Component */}
                                           <Controller
                                             key={allowableAxis}
                                             animatableId={control.translationId ?? ""}
                                             subfield={allowableAxis}
                                           />
-                                        </>
+                                        </div>
                                       );
                                     })}
                                 </div>
@@ -232,14 +237,14 @@ function InnerHardCodedVizijWithControls({
                                     <span>Rotate</span>
                                     {control.allow.rotate.map((allowableAxis) => {
                                       return (
-                                        <>
+                                        <div key={allowableAxis}>
                                           {/* @ts-expect-error Async Server Component */}
                                           <Controller
                                             key={allowableAxis}
                                             animatableId={control.rotateId ?? ""}
                                             subfield={allowableAxis}
                                           />
-                                        </>
+                                        </div>
                                       );
                                     })}
                                   </div>
@@ -249,14 +254,14 @@ function InnerHardCodedVizijWithControls({
                                   <span>Scale</span>
                                   {control.allow.scale.map((allowableAxis) => {
                                     return (
-                                      <>
+                                      <div key={allowableAxis}>
                                         {/* @ts-expect-error Async Server Component */}
                                         <Controller
                                           key={allowableAxis}
                                           animatableId={control.scaleId ?? ""}
                                           subfield={allowableAxis}
                                         />
-                                      </>
+                                      </div>
                                     );
                                   })}
                                 </div>

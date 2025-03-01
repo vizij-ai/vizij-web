@@ -1,4 +1,4 @@
-import { RawVector2 } from "@semio/utils";
+import { RawValue, RawVector2 } from "@semio/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, VizijContext, Vizij } from "vizij";
 import { useShallow } from "zustand/shallow";
@@ -6,16 +6,19 @@ import { useShallow } from "zustand/shallow";
 function InnerHardCodedVizij({
   glb,
   bounds,
+  values,
 }: {
   glb: string;
   bounds: {
     center: RawVector2;
     size: RawVector2;
   };
+  values?: { name: string; value: RawValue }[];
 }) {
   const [rootId, setRootId] = useState<string | undefined>("");
 
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const setVal = useVizijStore(useShallow((state) => state.setValue));
 
   useEffect(() => {
     const loadVizij = async () => {
@@ -23,6 +26,12 @@ function InnerHardCodedVizij({
       const root = Object.values(world).find((e) => e.type === "group" && e.rootBounds);
       addWorldElements(world, animatables, true);
       setRootId((root as Group | undefined)?.id);
+      values?.forEach((v) => {
+        let foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
+        if (foundVal) {
+          setVal(foundVal.id, "default", v.value);
+        }
+      });
     };
 
     loadVizij();
@@ -38,12 +47,14 @@ function InnerHardCodedVizij({
 export function HardCodedVizij({
   glb,
   bounds,
+  values,
 }: {
   glb: string;
   bounds: {
     center: RawVector2;
     size: RawVector2;
   };
+  values?: { name: string; value: RawValue }[];
 }) {
   const hardCodedStore = useMemo(() => createVizijStore(), []);
 
@@ -51,7 +62,7 @@ export function HardCodedVizij({
     <>
       {/* @ts-expect-error Async Server Component */}
       <VizijContext.Provider value={hardCodedStore}>
-        <InnerHardCodedVizij glb={glb} bounds={bounds} />
+        <InnerHardCodedVizij glb={glb} bounds={bounds} values={values} />
       </VizijContext.Provider>
     </>
   );
