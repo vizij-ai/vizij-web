@@ -51,7 +51,11 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
         <div>
           <p>
             The face below is a replica face of the{" "}
-            <a href="" target="_blank" className="underline hover:text-gray-200">
+            <a
+              href="https://en.wikipedia.org/wiki/Baxter_(robot)"
+              target="_blank"
+              className="underline hover:text-gray-200"
+            >
               Baxter
             </a>{" "}
             robot.
@@ -66,7 +70,11 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
         <div>
           <p>
             The face below is a replica face of the{" "}
-            <a href="" target="_blank" className="underline hover:text-gray-200">
+            <a
+              href="https://www.media.mit.edu/projects/jibo-research-platform/overview/"
+              target="_blank"
+              className="underline hover:text-gray-200"
+            >
               Jibo
             </a>{" "}
             robot.
@@ -80,12 +88,20 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
       return (
         <div>
           <p>
-            The face below is a replica face of{" "}
-            <a href="" target="_blank" className="underline hover:text-gray-200">
-              Tiago
+            The face below is a replica face of the{" "}
+            <a
+              href="https://pal-robotics.com/robot/tiago-head/"
+              target="_blank"
+              className="underline hover:text-gray-200"
+            >
+              Tiago Head
             </a>{" "}
-            robot by
-            <a href="" target="_blank" className="underline hover:text-gray-200">
+            robot by{" "}
+            <a
+              href="https://pal-robotics.com/"
+              target="_blank"
+              className="underline hover:text-gray-200"
+            >
               PAL Robotics
             </a>
             .
@@ -100,7 +116,7 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
       return (
         <div>
           <p>
-            The face below is the face for the
+            The face below is the face for the{" "}
             <a href="https://quori.org" target="_blank" className="underline hover:text-gray-200">
               Quori robot
             </a>{" "}
