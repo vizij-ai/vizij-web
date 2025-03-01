@@ -11,9 +11,8 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Abi":
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Abi</h3> */}
           <p>
-            The below vizij is a replica face of{" "}
+            The face below is a replica face of{" "}
             <a
               href="https://www.dromeda.com.au/product"
               target="_blank"
@@ -31,9 +30,8 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Hugo":
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
           <p>
-            The Hugo face below is the forthcoming default{" "}
+            The face below is the forthcoming default{" "}
             <a
               href="https://peerbots.org"
               target="_blank"
@@ -41,7 +39,7 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
             >
               Peerbots
             </a>{" "}
-            screen-based face.
+            screen-based face named Hugo.
           </p>
           <div>
             <HugoVizijWithControls />
@@ -51,8 +49,13 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Baxter":
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
-          <p>Baxter</p>
+          <p>
+            The face below is a replica face of the{" "}
+            <a href="" target="_blank" className="underline hover:text-gray-200">
+              Baxter
+            </a>{" "}
+            robot.
+          </p>
           <div>
             <BaxterVizijWithControls />
           </div>
@@ -61,8 +64,13 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Jibo":
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
-          <p>Jibo</p>
+          <p>
+            The face below is a replica face of the{" "}
+            <a href="" target="_blank" className="underline hover:text-gray-200">
+              Jibo
+            </a>{" "}
+            robot.
+          </p>
           <div>
             <JiboVizijWithControls />
           </div>
@@ -71,8 +79,17 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     case "Tiago":
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Hugo</h3> */}
-          <p>Tiago</p>
+          <p>
+            The face below is a replica face of{" "}
+            <a href="" target="_blank" className="underline hover:text-gray-200">
+              Tiago
+            </a>{" "}
+            robot by
+            <a href="" target="_blank" className="underline hover:text-gray-200">
+              PAL Robotics
+            </a>
+            .
+          </p>
           <div>
             <TiagoVizijWithControls />
           </div>
@@ -82,8 +99,12 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
     default:
       return (
         <div>
-          {/* <h3 className="text-xl text-white font-bold m-2">Meet Quori</h3> */}
-          <p>Quori .... </p>
+          <p>
+            The face below is the face for the
+            <a href="https://quori.org" target="_blank" className="underline hover:text-gray-200">
+              Quori robot
+            </a>{" "}
+          </p>
           <div>
             <QuoriVizijWithControls />
           </div>
@@ -106,7 +127,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Quori");
           }}
         >
-          Meet Quori
+          Select Quori
         </button>
         <button
           className={
@@ -117,7 +138,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Hugo");
           }}
         >
-          Meet Hugo
+          Select Hugo
         </button>
         <button
           className={
@@ -128,7 +149,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Abi");
           }}
         >
-          Meet Abi
+          Select Abi
         </button>
         <button
           className={
@@ -139,7 +160,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Baxter");
           }}
         >
-          Meet Baxter
+          Select Baxter
         </button>
         <button
           className={
@@ -150,7 +171,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Jibo");
           }}
         >
-          Meet Jibo
+          Select Jibo
         </button>
         <button
           className={
@@ -161,7 +182,7 @@ export function VizijControlDemo() {
             setSelectedRobot("Tiago");
           }}
         >
-          Meet Tiago
+          Select Tiago
         </button>
       </div>
       <div>

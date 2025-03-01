@@ -50,65 +50,102 @@ export function HugoVizijWithControls() {
     {
       display: "Mouth",
       name: "Mouth",
+      allow: {
+        translate: ["x", "y"],
+        scale: ["x", "y"],
+        morphs: true,
+      },
     },
     {
-      display: "Left Eye (Face perspective)",
+      display: "Left Eye",
       name: "L_Eye",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
-      display: "Left Eye Pupil",
-      name: "L_EyeHighlight1",
-    },
-    {
-      display: "Left Eye Pupil Reflection",
-      name: "L_EyeHighlight2",
+      display: "Right Eye",
+      name: "R_Eye",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
       display: "Left Eye Top Eyelid",
       name: "Plane005",
-    },
-    {
-      display: "Left Eye Bottom Eyelid",
-      name: "L_Eye009",
-    },
-    {
-      display: "Right Eye (Face perspective)",
-      name: "R_Eye",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
     },
     {
       display: "Right Eye Top Eyelid",
       name: "Plane006",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
+    },
+    {
+      display: "Left Eye Bottom Eyelid",
+      name: "L_Eye009",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
     },
     {
       display: "Right Eye Bottom Eyelid",
       name: "R_Eye009",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
+    },
+    {
+      display: "Left Eye Pupil",
+      name: "L_EyeHighlight1",
+      allow: { scale: ["x", "y"] },
+    },
+    {
+      display: "Left Eye Pupil Reflection",
+      name: "L_EyeHighlight2",
+      allow: { scale: ["x", "y"] },
+    },
+    {
+      display: "Right Eye Pupil",
+      name: "R_EyeHighlight1",
+      allow: { scale: ["x", "y"] },
+    },
+    {
+      display: "Right Eye Pupil Reflection",
+      name: "R_EyeHighlight2",
+      allow: { scale: ["x", "y"] },
+    },
+    {
+      display: "Left Eyebrow",
+      name: "L_Brow",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        scale: ["x"],
+      },
+    },
+    {
+      display: "Right Eyebrow",
+      name: "R_Brow",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        scale: ["x"],
+      },
     },
     {
       display: "Face",
       name: "Circle",
-    },
-  ];
-
-  const HugoMorphables = [
-    {
-      display: "Left Eyelid",
-      name: "Plane005",
-    },
-    {
-      display: "Right Eyelid",
-      name: "Plane006",
-    },
-    {
-      display: "Left Brow",
-      name: "L_Brow",
-    },
-    {
-      display: "Right Brow",
-      name: "R_Brow",
-    },
-    {
-      display: "Flip Mouth",
-      name: "Mouth",
+      allow: { translate: ["x", "y"] },
     },
   ];
 
@@ -117,7 +154,6 @@ export function HugoVizijWithControls() {
       glb={Hugo}
       bounds={HugoBounds}
       materials={HugoMaterials}
-      morphables={HugoMorphables}
       movables={HugoMovables}
     />
   );

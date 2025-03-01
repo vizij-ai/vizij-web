@@ -39,15 +39,24 @@ export function AbiVizijWithControls() {
       name: "White",
     },
     {
-      display: "Pupil",
+      display: "Iris",
       name: "Pink",
     },
   ];
 
   const AbiMovables = [
+    { display: "Eyes", name: "Eyes", allow: { translate: ["x", "y"] } },
+    { display: "Left Eye Pupil", name: "L_Eye_Pupil", allow: { translate: ["x", "y"] } },
+    { display: "Right Eye Pupil", name: "R_Eye_Pupil", allow: { translate: ["x", "y"] } },
     {
-      display: "Pupils",
-      name: "Eyes",
+      display: "Left Eye Top Eyelid",
+      name: "LT_Lid",
+      allow: { translate: ["y"], rotate: ["z"], morphs: true },
+    },
+    {
+      display: "Right Eye Top Eyelid",
+      name: "RT_Lid",
+      allow: { translate: ["y"], rotate: ["z"], morphs: true },
     },
   ];
 
@@ -56,7 +65,6 @@ export function AbiVizijWithControls() {
       glb={Abi}
       bounds={AbiBounds}
       materials={AbiMaterials}
-      morphables={[]}
       movables={AbiMovables}
     />
   );

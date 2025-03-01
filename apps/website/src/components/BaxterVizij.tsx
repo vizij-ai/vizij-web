@@ -38,40 +38,57 @@ export function BaxterVizijWithControls() {
     {
       display: "Eyes",
       name: "Eyes",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
       display: "Left Pupil",
       name: "L_Pupil",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
       display: "Right Pupil",
       name: "R_Pupil",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
       display: "Left Eyebrow",
       name: "L_Brow",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
     },
     {
       display: "Right Eyebrow",
       name: "R_Brow",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
     },
     {
       display: "Left Eyelid",
       name: "L_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
     },
     {
       display: "Right Eyelid",
       name: "R_Lid",
-    },
-  ];
-  const BaxterMorphables = [
-    {
-      display: "Left Eyelid",
-      name: "L_Lid",
-    },
-    {
-      display: "Right Eyelid",
-      name: "R_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
     },
   ];
 
@@ -81,7 +98,6 @@ export function BaxterVizijWithControls() {
       bounds={BaxterBounds}
       materials={BaxterMaterials}
       movables={BaxterMovables}
-      morphables={BaxterMorphables}
     />
   );
 }

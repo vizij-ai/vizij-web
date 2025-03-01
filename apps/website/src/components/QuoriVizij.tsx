@@ -42,54 +42,89 @@ export function QuoriVizijWithControls() {
 
   const QuoriMovables = [
     {
-      display: "Mouth",
-      name: "Plane",
-    },
-    {
       display: "Left Eye",
       name: "L_Eye",
-    },
-    {
-      display: "Left Eye Highlight",
-      name: "L_EyeHighlight",
-    },
-    {
-      display: "Left Eye Top Eyelid",
-      name: "LT_Lid",
-    },
-    {
-      display: "Left Eye Bottom Eyelid",
-      name: "LB_Lid",
+      allow: {
+        translate: ["x", "y"],
+      },
     },
     {
       display: "Right Eye",
       name: "R_Eye",
+      allow: {
+        translate: ["x", "y"],
+      },
+    },
+    {
+      display: "Left Eye Highlight",
+      name: "L_EyeHighlight",
+      allow: {
+        scale: ["x", "y"],
+      },
     },
     {
       display: "Right Eye Highlight",
       name: "R_EyeHighlight",
+      allow: {
+        scale: ["x", "y"],
+      },
     },
     {
-      display: "Right Eye Top Eyelid",
-      name: "RT_Lid",
+      display: "Left Eye Bottom Eyelid",
+      name: "LB_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
     },
     {
-      display: "Right Eye Bottom Eyelid",
-      name: "RB_Lid",
-    },
-  ];
-  const QuoriMorphables = [
-    {
-      display: "Mouth",
-      name: "Plane",
+      display: "Left Eye Bottom Eyelid Curve",
+      name: "LB_LidCurve",
+      allow: {
+        scale: ["y"],
+      },
     },
     {
       display: "Left Eye Top Eyelid",
       name: "LT_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
+    },
+    {
+      display: "Right Eye Bottom Eyelid",
+      name: "RB_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+      },
+    },
+    {
+      display: "Right Eye Bottom Eyelid Curve",
+      name: "RB_LidCurve",
+      allow: {
+        scale: ["y"],
+      },
     },
     {
       display: "Right Eye Top Eyelid",
       name: "RT_Lid",
+      allow: {
+        translate: ["y"],
+        rotate: ["z"],
+        morphs: true,
+      },
+    },
+    {
+      display: "Mouth",
+      name: "Plane",
+      allow: {
+        translate: ["x", "y"],
+        scale: ["x", "y"],
+        morphs: true,
+      },
     },
   ];
 
@@ -98,7 +133,6 @@ export function QuoriVizijWithControls() {
       glb={Quori}
       bounds={QuoriBounds}
       materials={QuoriMaterials}
-      morphables={QuoriMorphables}
       movables={QuoriMovables}
     />
   );

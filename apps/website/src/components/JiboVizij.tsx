@@ -36,7 +36,9 @@ export function JiboVizijWithControls() {
     { display: "Background Shadow", name: "Gray_4" },
     { display: "Background", name: "Material" },
   ];
-  const JiboMovables = [{ display: "Ball", name: "Ball_Anim" }];
+  const JiboMovables = [
+    { display: "Ball", name: "Ball_Anim", allow: { translate: ["x", "y"], scale: ["y"] } },
+  ];
 
   return (
     <HardCodedVizijWithControls
@@ -44,7 +46,6 @@ export function JiboVizijWithControls() {
       bounds={JiboBounds}
       materials={JiboMaterials}
       movables={JiboMovables}
-      morphables={[]}
     />
   );
 }

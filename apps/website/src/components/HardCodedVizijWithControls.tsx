@@ -12,9 +12,17 @@ import {
 } from "vizij";
 import { useShallow } from "zustand/shallow";
 
+type axis = "x" | "y" | "z";
+
 type AnimatableLookup = {
   display: string;
   name: string;
+  allow?: {
+    translate?: axis[];
+    scale?: axis[];
+    morphs?: boolean;
+    rotate?: axis[];
+  };
 };
 
 type IdentifiedMaterial = {
@@ -26,14 +34,16 @@ type IdentifiedMovable = {
   display: string;
   name: string;
   id: string;
-  translationId: string;
-  scaleId: string;
-};
-type IdentifiedMorphable = {
-  display: string;
-  name: string;
-  id: string;
-  morphTargets: string[];
+  allow?: {
+    translate?: axis[];
+    scale?: axis[];
+    rotate?: axis[];
+    morphs?: boolean;
+  };
+  translationId?: string;
+  scaleId?: string;
+  rotateId?: string;
+  morphTargets?: string[];
 };
 
 function InnerHardCodedVizijWithControls({
@@ -41,7 +51,6 @@ function InnerHardCodedVizijWithControls({
   bounds,
   materials,
   movables,
-  morphables,
 }: {
   glb: string;
   bounds: {
@@ -50,7 +59,6 @@ function InnerHardCodedVizijWithControls({
   };
   materials: AnimatableLookup[];
   movables: AnimatableLookup[];
-  morphables: AnimatableLookup[];
 }) {
   const [rootId, setRootId] = useState<string | undefined>("");
 
@@ -85,7 +93,13 @@ function InnerHardCodedVizijWithControls({
             id: foundShape.id,
             translationId: foundShape?.features.translation.value,
             ...("scale" in foundShape.features && foundShape?.features.scale?.value !== undefined
-              ? { scaleId: foundShape?.features.scale?.value }
+              ? { scaleId: foundShape?.features.scale.value }
+              : {}),
+            ...("rotation" in foundShape.features && foundShape.features.rotation !== undefined
+              ? { rotateId: foundShape.features.rotation.value }
+              : {}),
+            ...("morphTargets" in foundShape && foundShape.morphTargets !== undefined
+              ? { morphTargets: foundShape.morphTargets }
               : {}),
           };
         }
@@ -95,25 +109,6 @@ function InnerHardCodedVizijWithControls({
         return "id" in val && "translationId" in val && "scaleId" in val;
       }) as IdentifiedMovable[];
   }, [movables, world]);
-  const calculatedMorphables = useMemo(() => {
-    return morphables
-      .map((anim) => {
-        let foundAnim = Object.values(world).find((e) => e.name == anim.name);
-        if (foundAnim !== undefined) {
-          return {
-            ...anim,
-            id: foundAnim?.id,
-            ...("morphTargets" in foundAnim && foundAnim.morphTargets !== undefined
-              ? { morphTargets: foundAnim.morphTargets }
-              : {}),
-          };
-        }
-        return anim;
-      })
-      .filter((anim) => {
-        return "id" in anim && "morphTargets" in anim;
-      }) as IdentifiedMorphable[];
-  }, [morphables, world]);
 
   useEffect(() => {
     const loadVizij = async () => {
@@ -133,7 +128,7 @@ function InnerHardCodedVizijWithControls({
           <Vizij rootId={rootId ?? ""} namespace="default" />
         </div>
         <div className="max-h-70 md:max-h-120 overflow-scroll">
-          <Disclosure as={"div"} className={"p-4 mx-2"} defaultOpen>
+          <Disclosure as={"div"} className={"p-4 mx-2"}>
             {({ open }) => (
               <>
                 <DisclosureButton
@@ -178,10 +173,10 @@ function InnerHardCodedVizijWithControls({
                 <DisclosurePanel className="max-h-120 overflow-scroll">
                   {calculatedMaterials.map((material) => {
                     return (
-                      <div key={material?.id} className="m-1 p-1 text-left font-bold">
-                        <span>{material?.display}</span>
+                      <div key={material.id} className="m-1 p-1 text-left font-bold">
+                        <span>{material.display}</span>
                         {/* @ts-expect-error Async Server Component */}
-                        <Controller animatableId={material?.id} className="inline-block" />
+                        <Controller animatableId={material.id} className="inline-block" />
                       </div>
                     );
                   })}
@@ -189,7 +184,7 @@ function InnerHardCodedVizijWithControls({
               </>
             )}
           </Disclosure>
-          <Disclosure as={"div"} className={"p-4 mx-2"}>
+          <Disclosure as={"div"} className={"p-4 mx-2"} defaultOpen>
             {({ open }) => (
               <>
                 <DisclosureButton
@@ -236,80 +231,97 @@ function InnerHardCodedVizijWithControls({
                     return (
                       <div key={control?.id} className="m-1 p-1 text-left font-bold">
                         {control?.display}
-                        <div className="p-4 text-left">
-                          <div className="my-4">
-                            <span>Translate</span>
-                            {/* @ts-expect-error Async Server Component */}
-                            <Controller animatableId={control.translationId} />
+                        {control.allow ? (
+                          <div className="p-4 text-left">
+                            {control.translationId !== undefined && control.allow.translate && (
+                              <div className="my-4">
+                                <span>Translate</span>
+                                {control.allow.translate.map((allowableAxis) => {
+                                  return (
+                                    <Controller
+                                      key={allowableAxis}
+                                      animatableId={control.translationId}
+                                      subfield={allowableAxis}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {control.rotateId &&
+                              control.rotateId !== undefined &&
+                              control.allow.rotate && (
+                                <div className="my-4">
+                                  <span>Rotate</span>
+                                  {control.allow.rotate.map((allowableAxis) => {
+                                    return (
+                                      <Controller
+                                        key={allowableAxis}
+                                        animatableId={control.rotateId}
+                                        subfield={allowableAxis}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            {control.scaleId !== undefined && control.allow.scale && (
+                              <div className="my-4">
+                                <span>Scale</span>
+                                {control.allow.scale.map((allowableAxis) => {
+                                  return (
+                                    <Controller
+                                      key={allowableAxis}
+                                      animatableId={control.scaleId}
+                                      subfield={allowableAxis}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {control.morphTargets !== undefined && control.allow.morphs && (
+                              <div className="my-4">
+                                <span>Morphs</span>
+                                {control.morphTargets.map((morph: string) => {
+                                  return (
+                                    <div className="p-2 text-left" key={morph}>
+                                      {/* @ts-expect-error Async Server Component */}
+                                      <Controller animatableId={morph} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                          <div className="my-4">
-                            <span>Scale</span>
-                            {/* @ts-expect-error Async Server Component */}
-                            <Controller animatableId={control.scaleId} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </DisclosurePanel>
-              </>
-            )}
-          </Disclosure>
-          <Disclosure as={"div"} className={"p-4 mx-2"}>
-            {({ open }) => (
-              <>
-                <DisclosureButton
-                  className={
-                    "sticky top-0 font-bold text-xl uppercase block w-full p-1 cursor-pointer " +
-                    (open ? "bg-gray-800" : "bg-gray-600")
-                  }
-                >
-                  Morphs{" "}
-                  {open ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="h-4 w-4 inline-block ml-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m4.5 15.75 7.5-7.5 7.5 7.5"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="h-4 w-4 inline-block ml-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m19.5 8.25-7.5 7.5-7.5-7.5"
-                      />
-                    </svg>
-                  )}
-                </DisclosureButton>
-                <DisclosurePanel className="max-h-120 overflow-scroll">
-                  {calculatedMorphables.map((morphable) => {
-                    return (
-                      <div key={morphable.id} className="m-1 p-1 text-left font-bold">
-                        <span>{morphable.display}</span>
-                        {morphable.morphTargets.map((morph: string) => {
-                          return (
-                            <div className="p-2 text-left" key={morph}>
+                        ) : (
+                          <div className="p-4 text-left">
+                            <div className="my-4">
+                              <span>Translate</span>
                               {/* @ts-expect-error Async Server Component */}
-                              <Controller animatableId={morph} />
+                              <Controller animatableId={control.translationId} subfield="x" />
+                              {/* @ts-expect-error Async Server Component */}
+                              <Controller animatableId={control.translationId} subfield="y" />
                             </div>
-                          );
-                        })}
+                            <div className="my-4">
+                              <span>Scale</span>
+                              {/* @ts-expect-error Async Server Component */}
+                              <Controller animatableId={control.scaleId} subfield="x" />
+                              {/* @ts-expect-error Async Server Component */}
+                              <Controller animatableId={control.scaleId} subfield="y" />
+                            </div>
+                            {control.morphTargets && (
+                              <div className="my-4">
+                                <span>Morphs</span>
+                                {control.morphTargets.map((morph: string) => {
+                                  return (
+                                    <div className="p-2 text-left" key={morph}>
+                                      {/* @ts-expect-error Async Server Component */}
+                                      <Controller animatableId={morph} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -328,7 +340,6 @@ export function HardCodedVizijWithControls({
   bounds,
   materials,
   movables,
-  morphables,
 }: {
   glb: string;
   bounds: {
@@ -337,7 +348,6 @@ export function HardCodedVizijWithControls({
   };
   materials: AnimatableLookup[];
   movables: AnimatableLookup[];
-  morphables: AnimatableLookup[];
 }) {
   const hardCodedStore = useMemo(() => createVizijStore(), []);
 
@@ -350,7 +360,6 @@ export function HardCodedVizijWithControls({
           bounds={bounds}
           materials={materials}
           movables={movables}
-          morphables={morphables}
         />
       </VizijContext.Provider>
     </>

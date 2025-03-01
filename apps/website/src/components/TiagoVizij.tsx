@@ -33,19 +33,9 @@ export function TiagoVizijWithControls() {
     { display: "Background", name: "Material" },
   ];
   const TiagoMovables = [
-    { display: "Eyes", name: "Eyes" },
-    { display: "Left Eye", name: "L_Eye" },
-    { display: "Left Eye Pupil", name: "L_Eye_Pupil" },
-    { display: "Left Eye Top Eyelid", name: "LT_Lid" },
-    { display: "Right Eye", name: "R_Eye" },
-    { display: "Right Eye Pupil", name: "R_Eye_Pupil" },
-    { display: "Right Eye Top Eyelid", name: "RT_Lid" },
-    { display: "Mouth", name: "Mouth" },
-  ];
-  const TiagoMorphables = [
-    { display: "Mouth", name: "Mouth" },
-    { display: "Left Eye Top Eyelid", name: "LT_Lid" },
-    { display: "Right Eye Top Eyelid", name: "RT_Lid" },
+    { display: "Left Eye", name: "L_Eye", allow: { translate: ["x", "y"] } },
+    { display: "Right Eye", name: "R_Eye", allow: { translate: ["x", "y"] } },
+    { display: "Mouth", name: "Mouth", allow: { scale: ["x"], rotate: ["z"], morphs: true } },
   ];
 
   return (
@@ -54,7 +44,6 @@ export function TiagoVizijWithControls() {
       bounds={TiagoBounds}
       materials={TiagoMaterials}
       movables={TiagoMovables}
-      morphables={TiagoMorphables}
     />
   );
 }
