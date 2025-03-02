@@ -84,7 +84,7 @@ function App() {
           <div className="my-16">
             <a
               className="bg-semio-blue text-black rounded-md text-2xl font-bold  p-4 md:p-8 inline-block"
-              href=""
+              href="https://forms.gle/JNfjdyT8fY534DJJ8"
               target="_blank"
             >
               Sign Up To Learn More
