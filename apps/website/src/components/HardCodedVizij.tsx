@@ -35,7 +35,7 @@ function InnerHardCodedVizij({
     };
 
     loadVizij();
-  });
+  }, [bounds, glb, setVal, addWorldElements, values]);
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Vizij rootId={rootId ?? ""} namespace="default" />

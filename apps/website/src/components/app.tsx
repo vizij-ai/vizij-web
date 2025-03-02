@@ -23,40 +23,52 @@ function App() {
       <div className="w-full text-center text-black">
         <div className="w-full bg-white p-2 md:p-12">
           <h2 className="text-4xl font-bold my-2">Example Faces</h2>
-          <div className="grid md:grid-cols-3 md:m-8 md:p-4 text-left text-white">
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Quori</p>
-              <div className="">
+          <div className="grid md:grid-cols-3 sm:grid-cols-2 grid-cols-1 text-left text-white gap-2">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Quori
+              </p>
+              <div className="aspect-[4/3]">
                 <QuoriVizij />
               </div>
             </div>
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Hugo</p>
-              <div className="">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Hugo
+              </p>
+              <div className="aspect-[4/3]">
                 <HugoVizij />
               </div>
             </div>
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Abi</p>
-              <div className="">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Abi
+              </p>
+              <div className="aspect-[4/3]">
                 <AbiVizij />
               </div>
             </div>
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Baxter</p>
-              <div className="">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Baxter
+              </p>
+              <div className="aspect-[4/3]">
                 <BaxterVizij />
               </div>
             </div>
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Jibo</p>
-              <div className="">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Jibo
+              </p>
+              <div className="aspect-[4/3]">
                 <JiboVizij />
               </div>
             </div>
-            <div className="h-60 m-1 md:m-4 my-3 md:my-8 p-1 md:p-4 shadow-lg rounded-xl bg-black ">
-              <p className="text-lg font-bold m-1 p-2">Tiago</p>
-              <div className="">
+            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+                Tiago
+              </p>
+              <div className="aspect-[4/3]">
                 <TiagoVizij />
               </div>
             </div>

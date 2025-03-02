@@ -124,7 +124,7 @@ function InnerHardCodedVizijWithControls({
     };
 
     loadVizij();
-  });
+  }, [bounds, glb, addWorldElements]);
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="grid md:grid-cols-2">
@@ -177,10 +177,13 @@ function InnerHardCodedVizijWithControls({
                 <DisclosurePanel className="max-h-120 overflow-scroll">
                   {calculatedMaterials.map((material) => {
                     return (
-                      <div key={material.id} className="m-1 p-1 text-left font-bold">
-                        <span>{material.display}</span>
+                      <div
+                        key={material.id}
+                        className="m-1 p-1 text-left font-bold flex-row flex gap-2"
+                      >
                         {/* @ts-expect-error Async Server Component */}
                         <Controller animatableId={material.id} className="inline-block" />
+                        <span>{material.display}</span>
                       </div>
                     );
                   })}

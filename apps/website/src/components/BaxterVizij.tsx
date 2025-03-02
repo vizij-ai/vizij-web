@@ -6,10 +6,10 @@ export function BaxterVizij() {
   const BaxterBounds = {
     center: {
       x: 0,
-      y: 0,
+      y: -0.25,
     },
     size: {
-      x: 5,
+      x: 6,
       y: 5,
     },
   };
@@ -20,10 +20,10 @@ export function BaxterVizijWithControls() {
   const BaxterBounds = {
     center: {
       x: 0,
-      y: 0,
+      y: -0.25,
     },
     size: {
-      x: 5,
+      x: 6,
       y: 5,
     },
   };

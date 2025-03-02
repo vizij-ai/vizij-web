@@ -167,7 +167,7 @@ export function hexToRgbArray(color: string): [number, number, number] {
 }
 
 export function rawRGBToHex({ r, g, b }: RawRGB): string {
-  return Color({ r: r * 255, g: g * 255, b: b * 255 }).hex() as string;
+  return Color({ r, g, b }).hex() as string;
 }
 
 export function rawHSLToHex({ h, s, l }: RawHSL): string {
