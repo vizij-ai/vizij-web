@@ -15,9 +15,7 @@ function App() {
           <div className="">
             <img src={VizijLogo} alt="vizij logo" className="mx-auto h-32" />
           </div>
-          <p className="text-2xl text-white mt-2 md:mt-8">
-            A framework for defining, deforming, and deploying virtual faces.
-          </p>
+          <p className="text-2xl text-white mt-2 md:mt-8">A web-based framework for robot faces.</p>
         </div>
       </header>
       <div className="w-full text-center text-black">
