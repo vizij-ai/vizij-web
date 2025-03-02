@@ -2,7 +2,7 @@ import { type ReactNode, Suspense, memo, useContext, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Line, OrthographicCamera } from "@react-three/drei";
+import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/shallow";
 import { Renderable } from "./renderables";
 import { VizijContext } from "./context";
@@ -118,25 +118,25 @@ function InnerWorld({
   const [present, rootBounds] = useVizijStore(
     useShallow((state) => [
       state.world[rootId] !== undefined,
-      (state.world[rootId] as Group)?.rootBounds,
+      (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds,
     ]),
   );
+
   const { camera, size } = useThree((state) => ({
     camera: state.camera,
     size: state.size,
   }));
 
   useEffect(() => {
-    const width = rootBounds ? rootBounds.size.x : 1;
-    const height = rootBounds ? rootBounds.size.y : 1;
-
+    const width = rootBounds.size.x;
+    const height = rootBounds.size.y;
     if (
       camera &&
       parentSizing === undefined &&
       (camera as OrthographicCameraType).isOrthographicCamera
     ) {
       const zoom = Math.min(size.width / width, size.height / height);
-      const center = rootBounds?.center ?? { x: 0, y: 0 };
+      const center = rootBounds.center;
       if (camera.zoom !== zoom) {
         camera.zoom = zoom;
         camera.updateProjectionMatrix();
@@ -152,7 +152,7 @@ function InnerWorld({
       (camera as OrthographicCameraType).isOrthographicCamera
     ) {
       const zoom = Math.min(parentSizing.width / width, parentSizing.height / height);
-      const center = rootBounds?.center ?? { x: 0, y: 0 };
+      const center = rootBounds.center;
 
       (camera as OrthographicCameraType).left = (-0.5 * parentSizing.width) / zoom + center.x;
       (camera as OrthographicCameraType).right = (0.5 * parentSizing.width) / zoom + center.x;
@@ -162,15 +162,14 @@ function InnerWorld({
     }
   }, [rootBounds, camera, parentSizing, size]);
 
-  if (!present) {
-    console.log("not found");
-    return null;
-  }
-  console.log("rendering content");
-
   return (
     <ErrorBoundary fallback={null}>
-      <Renderable id={rootId} namespace={namespace} chain={[]} />
+      {present && <Renderable id={rootId} namespace={namespace} chain={[]} />}
+      {!present && (
+        <Text position={[0, 0, 0]} color="white" anchorX="center" anchorY="middle" fontSize={0.7}>
+          No Output
+        </Text>
+      )}
     </ErrorBoundary>
   );
 }
@@ -179,12 +178,8 @@ const World = memo(InnerWorld);
 
 function SafeAreaRenderer({ rootId }: { rootId: string }) {
   const rootBounds = useVizijStore(
-    useShallow((state) => (state.world[rootId] as Group)?.rootBounds),
+    useShallow((state) => (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds),
   );
-
-  if (!rootBounds) {
-    return null;
-  }
 
   const left = rootBounds.center.x - rootBounds.size.x / 2;
   const right = rootBounds.center.x + rootBounds.size.x / 2;
@@ -195,14 +190,19 @@ function SafeAreaRenderer({ rootId }: { rootId: string }) {
   return (
     <Line
       points={[
-        [left, top],
-        [right, top],
-        [right, bottom],
-        [left, bottom],
-        [left, top],
+        [left, top, 99],
+        [right, top, 99],
+        [right, bottom, 99],
+        [left, bottom, 99],
+        [left, top, 99],
       ]}
       color="red"
       lineWidth={2}
     />
   );
 }
+
+const defaultRootBounds = {
+  center: { x: 0, y: 0 },
+  size: { x: 5, y: 4 },
+};

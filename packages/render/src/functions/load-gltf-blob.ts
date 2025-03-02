@@ -14,7 +14,6 @@ export const loadGltfFromBlob = (
   namespaces: string[],
 ): Promise<[World, Record<string, AnimatableValue>]> => {
   return new Promise((resolve, reject) => {
-    console.log("in load from gltf");
     const loader = new GLTFLoader();
     loader.setDRACOLoader(new DRACOLoader());
 
