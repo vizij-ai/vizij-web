@@ -5,7 +5,7 @@ import { JiboVizij } from "./JiboVizij";
 import { QuoriVizij } from "./QuoriVizij";
 import { TiagoVizij } from "./TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
-import VizijLogo from "../assets/VIZIJ.png";
+import VizijLogo from "../assets/vizij.png";
 
 function App() {
   return (

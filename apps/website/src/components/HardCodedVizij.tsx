@@ -27,7 +27,7 @@ function InnerHardCodedVizij({
       addWorldElements(world, animatables, true);
       setRootId((root as Group | undefined)?.id);
       values?.forEach((v) => {
-        let foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
+        const foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
         if (foundVal) {
           setVal(foundVal.id, "default", v.value);
         }
@@ -35,10 +35,9 @@ function InnerHardCodedVizij({
     };
 
     loadVizij();
-  }, []);
+  });
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      {/* @ts-expect-error Async Server Component */}
       <Vizij rootId={rootId ?? ""} namespace="default" />
     </Suspense>
   );
@@ -60,7 +59,6 @@ export function HardCodedVizij({
 
   return (
     <>
-      {/* @ts-expect-error Async Server Component */}
       <VizijContext.Provider value={hardCodedStore}>
         <InnerHardCodedVizij glb={glb} bounds={bounds} values={values} />
       </VizijContext.Provider>

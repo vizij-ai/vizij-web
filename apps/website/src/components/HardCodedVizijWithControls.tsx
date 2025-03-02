@@ -71,7 +71,7 @@ function InnerHardCodedVizijWithControls({
   const calculatedMaterials = useMemo(() => {
     return materials
       .map((mat) => {
-        let foundMat = Object.values(activeAnimatables).find((anim) => anim.name == mat.name);
+        const foundMat = Object.values(activeAnimatables).find((anim) => anim.name == mat.name);
         if (foundMat !== undefined) {
           if (mat.initial) {
             setValue(foundMat.id, "default", mat.initial);
@@ -86,12 +86,12 @@ function InnerHardCodedVizijWithControls({
       .filter((mat) => {
         return "id" in mat;
       }) as IdentifiedMaterial[];
-  }, [materials, activeAnimatables]);
+  }, [materials, activeAnimatables, setValue]);
 
   const calculatedMovables = useMemo(() => {
     return movables
       .map((controllable) => {
-        let foundShape = Object.values(world).find((e) => e.name === controllable.name);
+        const foundShape = Object.values(world).find((e) => e.name === controllable.name);
         if (foundShape !== undefined) {
           return {
             ...controllable,
@@ -124,12 +124,11 @@ function InnerHardCodedVizijWithControls({
     };
 
     loadVizij();
-  }, []);
+  });
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="grid md:grid-cols-2">
         <div className="h-50 md:h-100 m-5 md:m-10">
-          {/* @ts-expect-error Async Server Component */}
           <Vizij rootId={rootId ?? ""} namespace="default" />
         </div>
         <div className="max-h-70 md:max-h-120 overflow-scroll mt-4">
@@ -219,7 +218,6 @@ function InnerHardCodedVizijWithControls({
                                     control.allow.translate.map((allowableAxis) => {
                                       return (
                                         <div key={allowableAxis}>
-                                          {/* @ts-expect-error Async Server Component */}
                                           <Controller
                                             key={allowableAxis}
                                             animatableId={control.translationId ?? ""}
@@ -238,7 +236,6 @@ function InnerHardCodedVizijWithControls({
                                     {control.allow.rotate.map((allowableAxis) => {
                                       return (
                                         <div key={allowableAxis}>
-                                          {/* @ts-expect-error Async Server Component */}
                                           <Controller
                                             key={allowableAxis}
                                             animatableId={control.rotateId ?? ""}
@@ -255,7 +252,6 @@ function InnerHardCodedVizijWithControls({
                                   {control.allow.scale.map((allowableAxis) => {
                                     return (
                                       <div key={allowableAxis}>
-                                        {/* @ts-expect-error Async Server Component */}
                                         <Controller
                                           key={allowableAxis}
                                           animatableId={control.scaleId ?? ""}
@@ -272,7 +268,6 @@ function InnerHardCodedVizijWithControls({
                                   {control.morphTargets.map((morph: string) => {
                                     return (
                                       <div className="p-2 text-left" key={morph}>
-                                        {/* @ts-expect-error Async Server Component */}
                                         <Controller animatableId={morph} />
                                       </div>
                                     );
@@ -284,17 +279,13 @@ function InnerHardCodedVizijWithControls({
                             <div className="p-1 text-left">
                               <div className="my-2">
                                 <span>Translate</span>
-                                {/* @ts-expect-error Async Server Component */}
-                                <Controller animatableId={control.translationId} subfield="x" />
-                                {/* @ts-expect-error Async Server Component */}
-                                <Controller animatableId={control.translationId} subfield="y" />
+                                <Controller animatableId={control.translationId!} subfield="x" />
+                                <Controller animatableId={control.translationId!} subfield="y" />
                               </div>
                               <div className="my-2">
                                 <span>Scale</span>
-                                {/* @ts-expect-error Async Server Component */}
-                                <Controller animatableId={control.scaleId} subfield="x" />
-                                {/* @ts-expect-error Async Server Component */}
-                                <Controller animatableId={control.scaleId} subfield="y" />
+                                <Controller animatableId={control.scaleId!} subfield="x" />
+                                <Controller animatableId={control.scaleId!} subfield="y" />
                               </div>
                               {control.morphTargets && (
                                 <div className="my-2">
@@ -302,7 +293,6 @@ function InnerHardCodedVizijWithControls({
                                   {control.morphTargets.map((morph: string) => {
                                     return (
                                       <div className="p-2 text-left" key={morph}>
-                                        {/* @ts-expect-error Async Server Component */}
                                         <Controller animatableId={morph} />
                                       </div>
                                     );
@@ -343,7 +333,6 @@ export function HardCodedVizijWithControls({
 
   return (
     <>
-      {/* @ts-expect-error Async Server Component */}
       <VizijContext.Provider value={hardCodedStore}>
         <InnerHardCodedVizijWithControls
           glb={glb}
