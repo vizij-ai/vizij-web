@@ -21,3 +21,4 @@ export * from "./overlapping-segments";
 export * from "./progress";
 export * from "./result";
 export * from "./regex";
+export * from "./map-deep-equal";
