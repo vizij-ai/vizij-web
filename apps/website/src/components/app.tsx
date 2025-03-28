@@ -6,6 +6,7 @@ import { QuoriVizij } from "./QuoriVizij";
 import { TiagoVizij } from "./TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
 import VizijLogo from "../assets/vizij.png";
+import { VizijVisemeDemo } from "./VizijVisemeDemo";
 
 function App() {
   return (
@@ -89,6 +90,11 @@ function App() {
           <h2 className="text-4xl my-4 font-bold">Modify & Control</h2>
           <p>Not only can you display a face, you can modify and control it as well.</p>
           <VizijControlDemo />
+        </div>
+        <div className="w-full bg-black p-12 text-white">
+          <h2 className="text-4xl my-4 font-bold">High Level Rigs For Multiple Faces</h2>
+          <p>Express visemes on different faces at the same time.</p>
+          <VizijVisemeDemo />
         </div>
         <div className="w-full bg-white text-black p-12">
           <div className="my-16">
