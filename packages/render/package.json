@@ -17,7 +17,6 @@
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@react-spring/web": "^9.7.5",
     "@react-three/drei": "^9.115.0",
     "@react-three/fiber": "^8.17.10",
     "@semio/ui": "*",
