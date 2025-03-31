@@ -80,20 +80,23 @@ export function VizijVisemeDemo() {
   return (
     <div className="my-8">
       <div>
-        <h4>Select Visemes</h4>
-        <select
-          onChange={(e) => {
-            setSelectedViseme(e.target.value as Viseme);
-          }}
-        >
+        <h4>Select Viseme</h4>
+        <div>
           {Object.keys(visemeMapper).map((v) => {
             return (
-              <option key={v} value={v}>
+              <button
+                className="m-2 p-2 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+                key={v}
+                value={v}
+                onClick={() => {
+                  setSelectedViseme(v as Viseme);
+                }}
+              >
                 {v}
-              </option>
+              </button>
             );
           })}
-        </select>
+        </div>
       </div>
       <div className="grid grid-cols-2">
         <div>
