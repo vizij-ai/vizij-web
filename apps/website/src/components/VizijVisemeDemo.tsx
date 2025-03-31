@@ -12,7 +12,7 @@ const visemeMapper: {
     morph: number;
   };
 } = {
-  sil: { x: 0, y: 0, morph: 0 },
+  sil: { x: 1, y: 1, morph: 0 },
   P: { x: 0.82, y: 0.37, morph: 0.2 },
   T: { x: 1, y: 2.77, morph: 0.35 },
   S: { x: 1.6, y: 2.2, morph: 0.2 },
@@ -54,10 +54,23 @@ export function VizijVisemeDemo() {
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
 
   const quoriVals = useMemo(() => {
-    return [];
+    const { x, y, morph } = visemeMapper[selectedViseme];
+    return [
+      {
+        name: "Plane scale",
+        value: { x: x, y: y, z: 1 },
+      },
+      { name: "Key 1", value: morph },
+    ];
   }, [selectedViseme]);
   const hugoVals = useMemo(() => {
+    const { x, y, morph } = visemeMapper[selectedViseme];
     return [
+      {
+        name: "Mouth scale",
+        value: { x: x, y: y, z: 1 },
+      },
+      { name: "Key 1", value: morph },
       {
         name: "Black_S",
         value: { r: 0, g: 0, b: 0 },
@@ -82,14 +95,18 @@ export function VizijVisemeDemo() {
           })}
         </select>
       </div>
-      <div>
+      <div className="grid grid-cols-2">
         <div>
-          Quori
-          <HardCodedVizij glb={Quori} bounds={QuoriBounds} values={quoriVals} />
+          <p>Quori</p>
+          <div>
+            <HardCodedVizij glb={Quori} bounds={QuoriBounds} values={quoriVals} />
+          </div>
         </div>
         <div>
-          Hugo
-          <HardCodedVizij glb={Hugo} bounds={HugoBounds} values={hugoVals} />
+          <p>Hugo</p>
+          <div>
+            <HardCodedVizij glb={Hugo} bounds={HugoBounds} values={hugoVals} />
+          </div>
         </div>
       </div>
     </div>
