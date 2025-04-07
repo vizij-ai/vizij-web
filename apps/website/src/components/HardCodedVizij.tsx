@@ -19,15 +19,16 @@ function InnerHardCodedVizij({
 
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
   const setVal = useVizijStore(useShallow((state) => state.setValue));
+  const animatables = useVizijStore((state) => state.animatables);
 
   useEffect(() => {
     const loadVizij = async () => {
-      const [world, animatables] = await loadGLTF(glb, ["default"], true, bounds);
-      const root = Object.values(world).find((e) => e.type === "group" && e.rootBounds);
-      addWorldElements(world, animatables, true);
+      const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
+      const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
+      addWorldElements(loadedWorld, loadedAnimatables, true);
       setRootId((root as Group | undefined)?.id);
       values?.forEach((v) => {
-        const foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
+        const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
         if (foundVal) {
           setVal(foundVal.id, "default", v.value);
         }
@@ -35,7 +36,16 @@ function InnerHardCodedVizij({
     };
 
     loadVizij();
-  }, [bounds, glb, setVal, addWorldElements, values]);
+  }, []);
+
+  useEffect(() => {
+    values?.forEach((v) => {
+      const foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
+      if (foundVal) {
+        setVal(foundVal.id, "default", v.value);
+      }
+    });
+  }, [values]);
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Vizij rootId={rootId ?? ""} namespace="default" />
