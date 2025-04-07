@@ -103,7 +103,7 @@ export function importMesh(
   const opacityAnimatable: AnimatableNumber = {
     id: crypto.randomUUID(),
     name: (mesh.material as MeshStandardMaterial).name
-      ? `${(mesh.material as MeshStandardMaterial).name} Opacity`
+      ? `${(mesh.material as MeshStandardMaterial).name} opacity`
       : `${mesh.name ?? "Mesh"} opacity`,
     type: "number",
     default: (mesh.material as MeshStandardMaterial).opacity,

@@ -23,7 +23,7 @@ export function importGeometry(
       };
       const animatableMorphValue: AnimatableNumber = {
         id: morphId,
-        name,
+        name: `${mesh.name ?? "Shape"} ${name}`,
         type: "number",
         default: mesh.morphTargetInfluences?.[index] ?? 0,
         constraints: {
