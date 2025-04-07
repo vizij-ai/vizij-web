@@ -60,7 +60,7 @@ export function VizijVisemeDemo() {
         name: "Plane scale",
         value: { x: x, y: y, z: 1 },
       },
-      { name: "Key 1", value: morph },
+      { name: "Plane Key 1", value: morph },
     ];
   }, [selectedViseme]);
   const hugoVals = useMemo(() => {
@@ -70,7 +70,7 @@ export function VizijVisemeDemo() {
         name: "Mouth scale",
         value: { x: x, y: y, z: 1 },
       },
-      { name: "Key 1", value: morph },
+      { name: "Mouth Key 1", value: morph },
       {
         name: "Black_S",
         value: { r: 0, g: 0, b: 0 },
