@@ -23,6 +23,7 @@
     "@semio/utils": "*",
     "@types/json-stable-stringify": "^1.0.36",
     "@use-gesture/react": "^10.3.1",
+    "clsx": "^2.1.1",
     "deep-equal": "^2.2.3",
     "fast-xml-parser": "^4.4.0",
     "immer": "^10.0.3",
