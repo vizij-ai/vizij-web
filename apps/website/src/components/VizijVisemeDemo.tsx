@@ -88,8 +88,8 @@ export function InnerVizijVisemeDemo() {
   });
 
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
-  const scaleX = useSpring(0);
-  const scaleY = useSpring(0);
+  const scaleX = useSpring(1);
+  const scaleY = useSpring(1);
   const mouthMorph = useSpring(0);
 
   scaleX.on("change", (latestVal) => {
