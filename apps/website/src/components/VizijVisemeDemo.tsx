@@ -136,7 +136,7 @@ export function InnerVizijVisemeDemo() {
     ) => {
       const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
       const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
-      addWorldElements(loadedWorld, loadedAnimatables, true);
+      addWorldElements(loadedWorld, loadedAnimatables, false);
 
       initialValues?.forEach((v: { name: string; value: RawValue }) => {
         const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
