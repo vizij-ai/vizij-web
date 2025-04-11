@@ -92,8 +92,8 @@ function App() {
           <VizijControlDemo />
         </div>
         <div className="w-full bg-black p-12 text-white">
-          <h2 className="text-4xl my-4 font-bold">High Level Rigs For Multiple Faces</h2>
-          <p>Express visemes on different faces at the same time.</p>
+          <h2 className="text-4xl my-4 font-bold">Express Visemes For Multiple Faces</h2>
+          <p>Express visemes on Quori and Hugo at the same time.</p>
           <VizijVisemeDemo />
         </div>
         <div className="w-full bg-white text-black p-12">

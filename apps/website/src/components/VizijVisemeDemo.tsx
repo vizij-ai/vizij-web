@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Hugo from "../assets/Hugo.glb";
 import Quori from "../assets/Quori.glb";
-import { HardCodedVizij } from "./HardCodedVizij";
+import { useSpring } from "motion/react";
+import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
+import { useShallow } from "zustand/shallow";
+import { RawValue, RawVector2 } from "@semio/utils";
 
 type Viseme = "sil" | "P" | "T" | "S" | "F" | "K" | "L" | "R" | "A" | "@" | "E" | "I" | "O" | "U";
 
@@ -49,34 +52,120 @@ const HugoBounds = {
     y: 5,
   },
 };
+// 24FPS
 
 export function VizijVisemeDemo() {
-  const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
+  const visemeDemoStore = useMemo(() => createVizijStore(), []);
 
-  const quoriVals = useMemo(() => {
-    const { x, y, morph } = visemeMapper[selectedViseme];
-    return [
-      {
-        name: "Plane scale",
-        value: { x: x, y: y, z: 1 },
+  return (
+    <>
+      <VizijContext.Provider value={visemeDemoStore}>
+        <InnerVizijVisemeDemo></InnerVizijVisemeDemo>;
+      </VizijContext.Provider>
+    </>
+  );
+}
+
+type VisemeRigMapping = {
+  rootId: string;
+  scaleId: string;
+  morphId: string;
+};
+
+export function InnerVizijVisemeDemo() {
+  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const setVal = useVizijStore(useShallow((state) => state.setValue));
+
+  const [hugoIDs, setHugoIDs] = useState<VisemeRigMapping>({
+    rootId: "",
+    scaleId: "",
+    morphId: "",
+  });
+  const [quoriIDs, setQuoriIDs] = useState<VisemeRigMapping>({
+    rootId: "",
+    scaleId: "",
+    morphId: "",
+  });
+
+  const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
+  const scaleX = useSpring(0);
+  const scaleY = useSpring(0);
+  const mouthMorph = useSpring(0);
+
+  scaleX.on("change", (latestVal) => {
+    setVal(quoriIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
+    setVal(hugoIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
+  });
+  scaleY.on("change", (latestVal) => {
+    setVal(quoriIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
+    setVal(hugoIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
+  });
+
+  mouthMorph.on("change", (latestVal) => {
+    setVal(quoriIDs.morphId, "default", latestVal);
+    setVal(hugoIDs.morphId, "default", latestVal);
+  });
+
+  const quoriSearch = {
+    scale: "Plane scale",
+    morph: "Plane Key 1",
+  };
+
+  const hugoSearch = {
+    scale: "Mouth scale",
+    morph: "Mouth Key 1",
+  };
+
+  const hugoInitialVals = [
+    {
+      name: "Black_S",
+      value: { r: 0, g: 0, b: 0 },
+    },
+  ];
+
+  useEffect(() => {
+    const loadVizij = async (
+      glb: string,
+      bounds: {
+        center: RawVector2;
+        size: RawVector2;
       },
-      { name: "Plane Key 1", value: morph },
-    ];
-  }, [selectedViseme]);
-  const hugoVals = useMemo(() => {
-    const { x, y, morph } = visemeMapper[selectedViseme];
-    return [
-      {
-        name: "Mouth scale",
-        value: { x: x, y: y, z: 1 },
-      },
-      { name: "Mouth Key 1", value: morph },
-      {
-        name: "Black_S",
-        value: { r: 0, g: 0, b: 0 },
-      },
-    ];
-  }, [selectedViseme]);
+      initialValues: { name: string; value: RawValue }[],
+      search: { scale: string; morph: string },
+      setter: React.Dispatch<React.SetStateAction<VisemeRigMapping>>,
+    ) => {
+      const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
+      const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
+      addWorldElements(loadedWorld, loadedAnimatables, true);
+
+      initialValues?.forEach((v: { name: string; value: RawValue }) => {
+        const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
+        if (foundVal) {
+          setVal(foundVal.id, "default", v.value);
+        }
+      });
+
+      const foundScale = Object.values(loadedAnimatables).find(
+        (anim) => anim.name === search.scale,
+      );
+      const foundScaleId = foundScale?.id;
+      const foundMorph = Object.values(loadedAnimatables).find(
+        (anim) => anim.name === search.morph,
+      );
+      const foundMorphId = foundMorph?.id;
+
+      setter({
+        rootId: (root as Group | undefined)?.id ?? "",
+        scaleId: foundScaleId ?? "",
+        morphId: foundMorphId ?? "",
+      });
+    };
+
+    loadVizij(Hugo, HugoBounds, hugoInitialVals, hugoSearch, setHugoIDs);
+
+    loadVizij(Quori, QuoriBounds, [], quoriSearch, setQuoriIDs);
+  }, []);
+
   return (
     <div className="my-8">
       <div>
@@ -85,11 +174,18 @@ export function VizijVisemeDemo() {
           {Object.keys(visemeMapper).map((v) => {
             return (
               <button
-                className="m-2 p-2 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+                className={
+                  "m-2 p-2 border border-white cursor-pointer rounded-md hover:bg-gray-800 " +
+                  (selectedViseme == v ? " bg-gray-700" : "")
+                }
                 key={v}
                 value={v}
                 onClick={() => {
                   setSelectedViseme(v as Viseme);
+                  const { x, y, morph } = visemeMapper[v as Viseme];
+                  scaleX.set(x);
+                  scaleY.set(y);
+                  mouthMorph.set(morph);
                 }}
               >
                 {v}
@@ -98,17 +194,24 @@ export function VizijVisemeDemo() {
           })}
         </div>
       </div>
+      <div>
+        <div>Or say something instead!</div>
+        <input type="text" className="bg-white text-black p-2 m-2" />
+        <button className="p-2 m-2 border border-white cursor-pointer rounded-md hover:bg-gray-800">
+          Speak!
+        </button>
+      </div>
       <div className="grid grid-cols-2">
         <div>
           <p>Quori</p>
           <div>
-            <HardCodedVizij glb={Quori} bounds={QuoriBounds} values={quoriVals} />
+            <Vizij rootId={quoriIDs.rootId} />
           </div>
         </div>
         <div>
           <p>Hugo</p>
           <div>
-            <HardCodedVizij glb={Hugo} bounds={HugoBounds} values={hugoVals} />
+            <Vizij rootId={hugoIDs.rootId} />
           </div>
         </div>
       </div>
