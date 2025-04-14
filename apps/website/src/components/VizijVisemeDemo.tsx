@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Hugo from "../assets/Hugo.glb";
 import Quori from "../assets/Quori.glb";
 import { useSpring } from "motion/react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { RawValue, RawVector2 } from "@semio/utils";
+import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
 
-type Viseme = "sil" | "P" | "T" | "S" | "F" | "K" | "L" | "R" | "A" | "@" | "E" | "I" | "O" | "U";
+import { accessKeyId, secretAccessKey } from "../aws_credentials.json";
+
+type Viseme = "sil" | "p" | "t" | "s" | "f" | "k" | "l" | "r" | "a" | "@" | "e" | "i" | "o" | "u";
 
 const visemeMapper: {
   [key in Viseme]: {
@@ -16,19 +19,19 @@ const visemeMapper: {
   };
 } = {
   sil: { x: 1, y: 1, morph: 0 },
-  P: { x: 0.82, y: 0.37, morph: 0.2 },
-  T: { x: 1, y: 2.77, morph: 0.35 },
-  S: { x: 1.6, y: 2.2, morph: 0.2 },
-  F: { x: 0.7, y: 3.18, morph: 0.9 },
-  K: { x: 1.2, y: 2.9, morph: 0.2 },
-  L: { x: 0.79, y: 3.7, morph: 0.35 },
-  R: { x: 0.85, y: 2.9, morph: 0.61 },
-  A: { x: 1.18, y: 5.14, morph: 0.5 },
+  p: { x: 0.82, y: 0.37, morph: 0.2 },
+  t: { x: 1, y: 2.77, morph: 0.35 },
+  s: { x: 1.6, y: 2.2, morph: 0.2 },
+  f: { x: 0.7, y: 3.18, morph: 0.9 },
+  k: { x: 1.2, y: 2.9, morph: 0.2 },
+  l: { x: 0.79, y: 3.7, morph: 0.35 },
+  r: { x: 0.85, y: 2.9, morph: 0.61 },
+  a: { x: 1.18, y: 5.14, morph: 0.5 },
   "@": { x: 0.95, y: 3.3, morph: 0.61 },
-  E: { x: 1, y: 5, morph: 0.37 },
-  I: { x: 1.7, y: 3.89, morph: 0.44 },
-  O: { x: 0.9, y: 6, morph: 0.5 },
-  U: { x: 0.56, y: 4.15, morph: 0.5 },
+  e: { x: 1, y: 5, morph: 0.37 },
+  i: { x: 1.7, y: 3.89, morph: 0.44 },
+  o: { x: 0.9, y: 6, morph: 0.5 },
+  u: { x: 0.56, y: 4.15, morph: 0.5 },
 };
 
 const QuoriBounds = {
@@ -73,6 +76,26 @@ type VisemeRigMapping = {
 };
 
 export function InnerVizijVisemeDemo() {
+  const textToSpeakInputRef = useRef<HTMLInputElement>(null);
+  const speechAudioRef = useRef<HTMLAudioElement>(null);
+
+  const [spokenSentences, setSpokenSentences] = useState<
+    { time: number; type: "sentence"; start: number; end: number; value: string }[]
+  >([]);
+  const [currentSpokenSentenceIndex, setCurrentSpokenSentenceIndex] = useState<number>(0);
+  const [spokenWords, setSpokenWords] = useState<
+    { time: number; type: "word"; start: number; end: number; value: string }[]
+  >([]);
+  const [currentSpokenWordIndex, setCurrentSpokenWordIndex] = useState<number>(0);
+  const [spokenVisemes, setSpokenVisemes] = useState<
+    { time: number; type: "viseme"; value: string }[]
+  >([]);
+  const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
+
+  const [timer, setTimer] = useState<number>(0);
+  const [playing, setPlaying] = useState<boolean>(false);
+  const [stateInterval, setStateInterval] = useState<NodeJS.Timer | undefined>();
+
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
@@ -166,6 +189,107 @@ export function InnerVizijVisemeDemo() {
     loadVizij(Quori, QuoriBounds, [], quoriSearch, setQuoriIDs);
   }, []);
 
+  useEffect(() => {
+    const updateTimer = () => {
+      setTimer((t) => t + 1);
+    };
+    if (playing) {
+      setStateInterval(setInterval(updateTimer, 1));
+    } else {
+      stateInterval !== undefined && clearInterval(stateInterval);
+    }
+    return () => {
+      stateInterval !== undefined && clearInterval(stateInterval);
+    };
+  }, [playing]);
+
+  useEffect(() => {
+    if (playing) {
+      spokenVisemes.some((v, ind) => {
+        if (v.time == timer) {
+          setCurrentSpokenVisemeIndex(ind);
+          const visemeToSet = v.value;
+          if (Object.keys(visemeMapper).includes(visemeToSet)) {
+            setSelectedViseme(visemeToSet);
+            const { x, y, morph } = visemeMapper[visemeToSet];
+            scaleX.set(x);
+            scaleY.set(y);
+            mouthMorph.set(morph);
+          }
+          // When this time is found, break
+          return true;
+        }
+      });
+
+      spokenWords.some((v, ind) => {
+        if (v.time == timer) {
+          setCurrentSpokenWordIndex(ind);
+          return true;
+        }
+      });
+      spokenSentences.some((v, ind) => {
+        if (v.time == timer) {
+          setCurrentSpokenSentenceIndex(ind);
+          return true;
+        }
+      });
+    } else {
+      setCurrentSpokenSentenceIndex(0);
+      setCurrentSpokenWordIndex(0);
+      setCurrentSpokenVisemeIndex(0);
+    }
+  }, [playing, timer, spokenVisemes]);
+
+  const awsCredentials = {
+    accessKeyId: accessKeyId,
+    secretAccessKey: secretAccessKey,
+  };
+
+  const pollyClientInstance = new PollyClient({
+    region: "us-east-1",
+    credentials: awsCredentials,
+  });
+
+  const getPollyResponse = async () => {
+    if (textToSpeakInputRef.current) {
+      const pollyQuery = new SynthesizeSpeechCommand({
+        Engine: "neural",
+        LanguageCode: "en-US",
+        OutputFormat: "json",
+        SpeechMarkTypes: ["sentence", "word", "viseme"],
+        Text: textToSpeakInputRef.current.value,
+        TextType: "text",
+        VoiceId: "Ruth",
+      });
+      const pollyResponse = await pollyClientInstance.send(pollyQuery);
+
+      console.log(pollyResponse);
+
+      const pollyResString = await pollyResponse.AudioStream?.transformToString();
+
+      if (pollyResString !== undefined) {
+        const lines = pollyResString.split("\n");
+        const parseableLines = lines.slice(0, lines.length - 2);
+        const vals = parseableLines.map((s) => {
+          console.log(s);
+          return JSON.parse(s);
+        });
+        console.log(vals);
+
+        setSpokenSentences(vals?.filter((s) => s.type == "sentence"));
+        setSpokenWords(vals?.filter((s) => s.type == "word"));
+        setSpokenVisemes(vals?.filter((s) => s.type == "viseme"));
+      }
+
+      // const pollyResByteArray = await pollyResponse.AudioStream?.transformToByteArray();
+      // if (pollyResByteArray && speechAudioRef.current) {
+      //   const audioBlob = new Blob([pollyResByteArray]);
+      //   speechAudioRef.current.src = URL.createObjectURL(audioBlob);
+      //   speechAudioRef.current.play();
+      // }
+    }
+  };
+
   return (
     <div className="my-8">
       <div>
@@ -196,10 +320,93 @@ export function InnerVizijVisemeDemo() {
       </div>
       <div>
         <div>Or say something instead!</div>
-        <input type="text" className="bg-white text-black p-2 m-2" />
-        <button className="p-2 m-2 border border-white cursor-pointer rounded-md hover:bg-gray-800">
+        <input
+          type="text"
+          className="bg-white text-black p-2 m-2"
+          ref={textToSpeakInputRef}
+          onKeyDown={(e) => {
+            if (e.key == "Enter") {
+              getPollyResponse();
+            }
+          }}
+        />
+        <button
+          className="p-2 m-2 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+          onClick={() => {
+            getPollyResponse();
+          }}
+        >
           Speak!
         </button>
+      </div>
+      <div>
+        <div className="m-4">
+          {spokenSentences.map((sent, ind) => {
+            return (
+              <div
+                key={ind}
+                className={
+                  "inline-block p-2 " +
+                  (currentSpokenSentenceIndex == ind ? " text-semio-blue" : "")
+                }
+              >
+                {sent.value}
+              </div>
+            );
+          })}
+        </div>
+        <div className="m-4">
+          {spokenWords.map((word, ind) => {
+            return (
+              <div
+                key={ind}
+                className={
+                  "inline-block p-2 " + (currentSpokenWordIndex == ind ? " text-semio-blue" : "")
+                }
+              >
+                {word.value}
+              </div>
+            );
+          })}
+        </div>
+        <div className="m-4">
+          {spokenVisemes.map((vis, ind) => {
+            return (
+              <div
+                key={ind}
+                className={
+                  "inline-block p-2 " + (currentSpokenVisemeIndex == ind ? " text-semio-blue" : "")
+                }
+              >
+                {vis.value}
+              </div>
+            );
+          })}
+        </div>
+        <audio ref={speechAudioRef} />
+        <button
+          className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+          onClick={() => {
+            speechAudioRef.current?.play();
+            setPlaying(true);
+          }}
+        >
+          Play
+        </button>
+        <button
+          className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+          onClick={() => {
+            if (speechAudioRef.current) {
+              speechAudioRef.current.pause();
+              speechAudioRef.current.currentTime = 0;
+            }
+            setPlaying(false);
+            setTimer(0);
+          }}
+        >
+          Stop
+        </button>
+        {/* {timer} */}
       </div>
       <div className="grid grid-cols-2">
         <div>
