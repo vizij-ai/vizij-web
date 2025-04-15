@@ -79,16 +79,12 @@ export function InnerVizijVisemeDemo() {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
   const speechAudioRef = useRef<HTMLAudioElement>(null);
 
-  const timeouts = useRef<NodeJS.Timeout[]>([]);
-
   const [spokenSentences, setSpokenSentences] = useState<
     { time: number; type: "sentence"; start: number; end: number; value: string }[]
   >([]);
-  const [currentSpokenSentenceIndex, setCurrentSpokenSentenceIndex] = useState<number>(0);
   const [spokenWords, setSpokenWords] = useState<
     { time: number; type: "word"; start: number; end: number; value: string }[]
   >([]);
-  const [currentSpokenWordIndex, setCurrentSpokenWordIndex] = useState<number>(0);
   const [spokenVisemes, setSpokenVisemes] = useState<
     { time: number; type: "viseme"; value: string }[]
   >([]);
