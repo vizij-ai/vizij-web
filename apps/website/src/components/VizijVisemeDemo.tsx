@@ -63,7 +63,7 @@ export function VizijVisemeDemo() {
   return (
     <>
       <VizijContext.Provider value={visemeDemoStore}>
-        <InnerVizijVisemeDemo></InnerVizijVisemeDemo>;
+        <InnerVizijVisemeDemo></InnerVizijVisemeDemo>
       </VizijContext.Provider>
     </>
   );
@@ -91,6 +91,26 @@ export function InnerVizijVisemeDemo() {
     { time: number; type: "viseme"; value: string }[]
   >([]);
   const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
+  const [spokenAudio, setSpokenAudio] = useState<string>("");
+
+  const spokenSentencesTimeIndexLookup = useMemo(() => {
+    return spokenSentences.reduce((obj: { [key: number]: number }, sent, ind) => {
+      obj[sent.time] = ind;
+      return obj;
+    }, {});
+  }, [spokenSentences]);
+  const spokenWordsTimeIndexLookup = useMemo(() => {
+    return spokenWords.reduce((obj: { [key: number]: number }, sent, ind) => {
+      obj[sent.time] = ind;
+      return obj;
+    }, {});
+  }, [spokenWords]);
+  const spokenVisemesTimeIndexLookup = useMemo(() => {
+    return spokenVisemes.reduce((obj: { [key: number]: number }, sent, ind) => {
+      obj[sent.time] = ind;
+      return obj;
+    }, {});
+  }, [spokenVisemes]);
 
   const [timer, setTimer] = useState<number>(0);
   const [playing, setPlaying] = useState<boolean>(false);
@@ -205,34 +225,18 @@ export function InnerVizijVisemeDemo() {
 
   useEffect(() => {
     if (playing) {
-      spokenVisemes.some((v, ind) => {
-        if (v.time == timer) {
-          setCurrentSpokenVisemeIndex(ind);
-          const visemeToSet = v.value;
-          if (Object.keys(visemeMapper).includes(visemeToSet)) {
-            setSelectedViseme(visemeToSet);
-            const { x, y, morph } = visemeMapper[visemeToSet];
-            scaleX.set(x);
-            scaleY.set(y);
-            mouthMorph.set(morph);
-          }
-          // When this time is found, break
-          return true;
+      const visemeLookup = spokenVisemesTimeIndexLookup[timer];
+      if (visemeLookup !== undefined) {
+        setCurrentSpokenVisemeIndex(visemeLookup);
+        const visemeToSet = spokenVisemes[visemeLookup].value;
+        if (Object.keys(visemeMapper).includes(visemeToSet)) {
+          setSelectedViseme(visemeToSet as Viseme);
         }
-      });
-
-      spokenWords.some((v, ind) => {
-        if (v.time == timer) {
-          setCurrentSpokenWordIndex(ind);
-          return true;
-        }
-      });
-      spokenSentences.some((v, ind) => {
-        if (v.time == timer) {
-          setCurrentSpokenSentenceIndex(ind);
-          return true;
-        }
-      });
+      }
+      const wordLookup = spokenWordsTimeIndexLookup[timer];
+      wordLookup !== undefined && setCurrentSpokenWordIndex(wordLookup);
+      const sentenceLookup = spokenSentencesTimeIndexLookup[timer];
+      sentenceLookup !== undefined && setCurrentSpokenSentenceIndex(sentenceLookup);
     } else {
       setCurrentSpokenSentenceIndex(0);
       setCurrentSpokenWordIndex(0);
@@ -263,32 +267,52 @@ export function InnerVizijVisemeDemo() {
       });
       const pollyResponse = await pollyClientInstance.send(pollyQuery);
 
-      console.log(pollyResponse);
-
       const pollyResString = await pollyResponse.AudioStream?.transformToString();
 
       if (pollyResString !== undefined) {
         const lines = pollyResString.split("\n");
         const parseableLines = lines.slice(0, lines.length - 2);
         const vals = parseableLines.map((s) => {
-          console.log(s);
           return JSON.parse(s);
         });
-        console.log(vals);
 
         setSpokenSentences(vals?.filter((s) => s.type == "sentence"));
         setSpokenWords(vals?.filter((s) => s.type == "word"));
         setSpokenVisemes(vals?.filter((s) => s.type == "viseme"));
       }
 
-      // const pollyResByteArray = await pollyResponse.AudioStream?.transformToByteArray();
-      // if (pollyResByteArray && speechAudioRef.current) {
-      //   const audioBlob = new Blob([pollyResByteArray]);
-      //   speechAudioRef.current.src = URL.createObjectURL(audioBlob);
-      //   speechAudioRef.current.play();
-      // }
+      const pollyAudioQuery = new SynthesizeSpeechCommand({
+        Engine: "neural",
+        LanguageCode: "en-US",
+        OutputFormat: "mp3",
+        Text: textToSpeakInputRef.current.value,
+        TextType: "text",
+        VoiceId: "Ruth",
+      });
+
+      const pollyAudioResponse = await pollyClientInstance.send(pollyAudioQuery);
+      console.log(pollyAudioResponse);
+
+      const pollyResByteArray = await pollyAudioResponse.AudioStream?.transformToByteArray();
+      console.log(pollyResByteArray);
+      if (pollyResByteArray !== undefined) {
+        const audioBlob = new Blob([pollyResByteArray], { type: "audio/mpeg" });
+
+        console.log(audioBlob);
+        const audioSrc = URL.createObjectURL(audioBlob);
+        console.log(audioSrc);
+
+        setSpokenAudio(audioSrc);
+      }
     }
   };
+
+  useEffect(() => {
+    const { x, y, morph } = visemeMapper[selectedViseme];
+    scaleX.set(x);
+    scaleY.set(y);
+    mouthMorph.set(morph);
+  }, [selectedViseme]);
 
   return (
     <div className="my-8">
@@ -306,10 +330,6 @@ export function InnerVizijVisemeDemo() {
                 value={v}
                 onClick={() => {
                   setSelectedViseme(v as Viseme);
-                  const { x, y, morph } = visemeMapper[v as Viseme];
-                  scaleX.set(x);
-                  scaleY.set(y);
-                  mouthMorph.set(morph);
                 }}
               >
                 {v}
@@ -318,7 +338,7 @@ export function InnerVizijVisemeDemo() {
           })}
         </div>
       </div>
-      <div>
+      <div className="pt-2 mt-2">
         <div>Or say something instead!</div>
         <input
           type="text"
@@ -383,30 +403,33 @@ export function InnerVizijVisemeDemo() {
             );
           })}
         </div>
-        <audio ref={speechAudioRef} />
-        <button
-          className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
-          onClick={() => {
-            speechAudioRef.current?.play();
-            setPlaying(true);
-          }}
-        >
-          Play
-        </button>
-        <button
-          className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
-          onClick={() => {
-            if (speechAudioRef.current) {
-              speechAudioRef.current.pause();
-              speechAudioRef.current.currentTime = 0;
-            }
-            setPlaying(false);
-            setTimer(0);
-          }}
-        >
-          Stop
-        </button>
-        {/* {timer} */}
+        {spokenAudio !== "" && (
+          <div>
+            <audio className="inline-block" ref={speechAudioRef} controls src={spokenAudio} />
+            <button
+              className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+              onClick={() => {
+                speechAudioRef.current?.play();
+                setPlaying(true);
+              }}
+            >
+              Play
+            </button>
+            <button
+              className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
+              onClick={() => {
+                if (speechAudioRef.current) {
+                  speechAudioRef.current.pause();
+                  speechAudioRef.current.currentTime = 0;
+                }
+                setPlaying(false);
+                setTimer(0);
+              }}
+            >
+              Stop
+            </button>
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2">
         <div>
