@@ -79,6 +79,8 @@ export function InnerVizijVisemeDemo() {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
   const speechAudioRef = useRef<HTMLAudioElement>(null);
 
+  const timeouts = useRef<NodeJS.Timeout[]>([]);
+
   const [spokenSentences, setSpokenSentences] = useState<
     { time: number; type: "sentence"; start: number; end: number; value: string }[]
   >([]);
@@ -93,28 +95,8 @@ export function InnerVizijVisemeDemo() {
   const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
   const [spokenAudio, setSpokenAudio] = useState<string>("");
 
-  const spokenSentencesTimeIndexLookup = useMemo(() => {
-    return spokenSentences.reduce((obj: { [key: number]: number }, sent, ind) => {
-      obj[sent.time] = ind;
-      return obj;
-    }, {});
-  }, [spokenSentences]);
-  const spokenWordsTimeIndexLookup = useMemo(() => {
-    return spokenWords.reduce((obj: { [key: number]: number }, sent, ind) => {
-      obj[sent.time] = ind;
-      return obj;
-    }, {});
-  }, [spokenWords]);
-  const spokenVisemesTimeIndexLookup = useMemo(() => {
-    return spokenVisemes.reduce((obj: { [key: number]: number }, sent, ind) => {
-      obj[sent.time] = ind;
-      return obj;
-    }, {});
-  }, [spokenVisemes]);
-
-  const [timer, setTimer] = useState<number>(0);
-  const [playing, setPlaying] = useState<boolean>(false);
-  const [stateInterval, setStateInterval] = useState<NodeJS.Timer | undefined>();
+  // const [timer, setTimer] = useState<number>(0);
+  // const [playing, setPlaying] = useState<boolean>(false);
 
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
   const setVal = useVizijStore(useShallow((state) => state.setValue));
@@ -209,41 +191,6 @@ export function InnerVizijVisemeDemo() {
     loadVizij(Quori, QuoriBounds, [], quoriSearch, setQuoriIDs);
   }, []);
 
-  useEffect(() => {
-    const updateTimer = () => {
-      setTimer((t) => t + 1);
-    };
-    if (playing) {
-      setStateInterval(setInterval(updateTimer, 1));
-    } else {
-      stateInterval !== undefined && clearInterval(stateInterval);
-    }
-    return () => {
-      stateInterval !== undefined && clearInterval(stateInterval);
-    };
-  }, [playing]);
-
-  useEffect(() => {
-    if (playing) {
-      const visemeLookup = spokenVisemesTimeIndexLookup[timer];
-      if (visemeLookup !== undefined) {
-        setCurrentSpokenVisemeIndex(visemeLookup);
-        const visemeToSet = spokenVisemes[visemeLookup].value;
-        if (Object.keys(visemeMapper).includes(visemeToSet)) {
-          setSelectedViseme(visemeToSet as Viseme);
-        }
-      }
-      const wordLookup = spokenWordsTimeIndexLookup[timer];
-      wordLookup !== undefined && setCurrentSpokenWordIndex(wordLookup);
-      const sentenceLookup = spokenSentencesTimeIndexLookup[timer];
-      sentenceLookup !== undefined && setCurrentSpokenSentenceIndex(sentenceLookup);
-    } else {
-      setCurrentSpokenSentenceIndex(0);
-      setCurrentSpokenWordIndex(0);
-      setCurrentSpokenVisemeIndex(0);
-    }
-  }, [playing, timer, spokenVisemes]);
-
   const awsCredentials = {
     accessKeyId: accessKeyId,
     secretAccessKey: secretAccessKey,
@@ -271,7 +218,7 @@ export function InnerVizijVisemeDemo() {
 
       if (pollyResString !== undefined) {
         const lines = pollyResString.split("\n");
-        const parseableLines = lines.slice(0, lines.length - 2);
+        const parseableLines = lines.slice(0, lines.length - 1);
         const vals = parseableLines.map((s) => {
           return JSON.parse(s);
         });
@@ -363,13 +310,7 @@ export function InnerVizijVisemeDemo() {
         <div className="m-4">
           {spokenSentences.map((sent, ind) => {
             return (
-              <div
-                key={ind}
-                className={
-                  "inline-block p-2 " +
-                  (currentSpokenSentenceIndex == ind ? " text-semio-blue" : "")
-                }
-              >
+              <div key={ind} className="inline-block p-2 ">
                 {sent.value}
               </div>
             );
@@ -378,12 +319,7 @@ export function InnerVizijVisemeDemo() {
         <div className="m-4">
           {spokenWords.map((word, ind) => {
             return (
-              <div
-                key={ind}
-                className={
-                  "inline-block p-2 " + (currentSpokenWordIndex == ind ? " text-semio-blue" : "")
-                }
-              >
+              <div key={ind} className="inline-block p-2 ">
                 {word.value}
               </div>
             );
@@ -410,12 +346,20 @@ export function InnerVizijVisemeDemo() {
               className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
               onClick={() => {
                 speechAudioRef.current?.play();
-                setPlaying(true);
+                spokenVisemes.forEach((v, ind) => {
+                  setTimeout(() => {
+                    if (Object.keys(visemeMapper).includes(v.value)) {
+                      setSelectedViseme(v.value as Viseme);
+                      setCurrentSpokenVisemeIndex(ind);
+                    }
+                    // Make the visemes express slightly before the sound
+                  }, v.time - 50);
+                });
               }}
             >
               Play
             </button>
-            <button
+            {/* <button
               className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
               onClick={() => {
                 if (speechAudioRef.current) {
@@ -427,7 +371,7 @@ export function InnerVizijVisemeDemo() {
               }}
             >
               Stop
-            </button>
+            </button> */}
           </div>
         )}
       </div>
