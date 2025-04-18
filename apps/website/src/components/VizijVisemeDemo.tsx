@@ -109,9 +109,9 @@ export function InnerVizijVisemeDemo() {
   });
 
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
-  const scaleX = useSpring(1);
-  const scaleY = useSpring(1);
-  const mouthMorph = useSpring(0);
+  const scaleX = useSpring(1, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
+  const scaleY = useSpring(1, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
+  const mouthMorph = useSpring(0, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
 
   scaleX.on("change", (latestVal) => {
     setVal(quoriIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
@@ -240,10 +240,7 @@ export function InnerVizijVisemeDemo() {
       console.log(pollyResByteArray);
       if (pollyResByteArray !== undefined) {
         const audioBlob = new Blob([pollyResByteArray], { type: "audio/mpeg" });
-
-        console.log(audioBlob);
         const audioSrc = URL.createObjectURL(audioBlob);
-        console.log(audioSrc);
 
         setSpokenAudio(audioSrc);
       }
@@ -252,9 +249,9 @@ export function InnerVizijVisemeDemo() {
 
   useEffect(() => {
     const { x, y, morph } = visemeMapper[selectedViseme];
-    scaleX.set(x);
-    scaleY.set(y);
-    mouthMorph.set(morph);
+    scaleX.jump(x);
+    scaleY.jump(y);
+    mouthMorph.jump(morph);
   }, [selectedViseme]);
 
   return (
@@ -337,7 +334,23 @@ export function InnerVizijVisemeDemo() {
         </div>
         {spokenAudio !== "" && (
           <div>
-            <audio className="inline-block" ref={speechAudioRef} controls src={spokenAudio} />
+            <audio
+              className="inline-block"
+              ref={speechAudioRef}
+              controls
+              src={spokenAudio}
+              onPlay={() => {
+                spokenVisemes.forEach((v, ind) => {
+                  setTimeout(() => {
+                    if (Object.keys(visemeMapper).includes(v.value)) {
+                      setSelectedViseme(v.value as Viseme);
+                      setCurrentSpokenVisemeIndex(ind);
+                    }
+                    // Make the visemes express slightly before the sound
+                  }, v.time - 50);
+                });
+              }}
+            />
             <button
               className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
               onClick={() => {
