@@ -5,7 +5,7 @@ import { useSpring } from "motion/react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { RawValue, RawVector2 } from "@semio/utils";
-import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
+import { PollyClient, SynthesizeSpeechCommand, VoiceId } from "@aws-sdk/client-polly";
 
 import { accessKeyId, secretAccessKey } from "../aws_credentials.json";
 
@@ -79,6 +79,22 @@ const HugoBounds = {
 };
 // 24FPS
 
+const PollyVoices: VoiceId[] = [
+  "Danielle",
+  "Gregory",
+  "Ivy",
+  "Joanna",
+  "Kendra",
+  "Kimberly",
+  "Salli",
+  "Joey",
+  "Justin",
+  "Kevin",
+  "Matthew",
+  "Ruth",
+  "Stephen",
+];
+
 export function VizijVisemeDemo() {
   const visemeDemoStore = useMemo(() => createVizijStore(), []);
 
@@ -100,6 +116,8 @@ type VisemeRigMapping = {
 export function InnerVizijVisemeDemo() {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
   const speechAudioRef = useRef<HTMLAudioElement>(null);
+
+  const [selectedVoice, setSelectedVoice] = useState<VoiceId>("Ruth");
 
   const [spokenSentences, setSpokenSentences] = useState<
     { time: number; type: "sentence"; start: number; end: number; value: string }[]
@@ -253,7 +271,7 @@ export function InnerVizijVisemeDemo() {
         OutputFormat: "mp3",
         Text: textToSpeakInputRef.current.value,
         TextType: "text",
-        VoiceId: "Ruth",
+        VoiceId: selectedVoice,
       });
 
       const pollyAudioResponse = await pollyClientInstance.send(pollyAudioQuery);
@@ -303,6 +321,23 @@ export function InnerVizijVisemeDemo() {
       </div>
       <div className="pt-2 mt-2">
         <div>Or say something instead!</div>
+        <span>Speak as:</span>
+        <select
+          className="bg-white text-black p-2 mx-2"
+          value={selectedVoice}
+          onChange={(e) => {
+            setSelectedVoice(e.target.value as VoiceId);
+          }}
+        >
+          {PollyVoices.map((pv) => {
+            return (
+              <option key={pv} value={pv}>
+                {pv}
+              </option>
+            );
+          })}
+        </select>
+        <label>And say:</label>
         <input
           type="text"
           className="bg-white text-black p-2 m-2"
