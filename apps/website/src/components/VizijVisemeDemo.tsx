@@ -109,9 +109,10 @@ export function InnerVizijVisemeDemo() {
   });
 
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
-  const scaleX = useSpring(1, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
-  const scaleY = useSpring(1, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
-  const mouthMorph = useSpring(0, { stiffness: 100, visualDuration: 0.1, bounce: 0.1 });
+  // { stiffness: 100, visualDuration: 0.1, bounce: 0.1 }
+  const scaleX = useSpring(1);
+  const scaleY = useSpring(1);
+  const mouthMorph = useSpring(0);
 
   scaleX.on("change", (latestVal) => {
     setVal(quoriIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
