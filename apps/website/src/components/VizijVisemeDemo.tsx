@@ -295,6 +295,13 @@ export function InnerVizijVisemeDemo() {
     mouthMorph.jump(morph);
   }, [selectedViseme]);
 
+  useEffect(() => {
+    setSpokenAudio("");
+    setSpokenSentences([]);
+    setSpokenWords([]);
+    setSpokenVisemes([]);
+  }, [selectedVoice]);
+
   return (
     <div className="my-8">
       <div>
