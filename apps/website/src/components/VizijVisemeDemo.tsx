@@ -374,36 +374,6 @@ export function InnerVizijVisemeDemo() {
                 });
               }}
             />
-            <button
-              className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
-              onClick={() => {
-                speechAudioRef.current?.play();
-                spokenVisemes.forEach((v, ind) => {
-                  setTimeout(() => {
-                    if (Object.keys(visemeMapper).includes(v.value)) {
-                      setSelectedViseme(v.value as Viseme);
-                      setCurrentSpokenVisemeIndex(ind);
-                    }
-                    // Make the visemes express slightly before the sound
-                  }, v.time - 50);
-                });
-              }}
-            >
-              Play
-            </button>
-            {/* <button
-              className="p-1 m-1 border border-white cursor-pointer rounded-md hover:bg-gray-800"
-              onClick={() => {
-                if (speechAudioRef.current) {
-                  speechAudioRef.current.pause();
-                  speechAudioRef.current.currentTime = 0;
-                }
-                setPlaying(false);
-                setTimer(0);
-              }}
-            >
-              Stop
-            </button> */}
           </div>
         )}
       </div>
