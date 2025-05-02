@@ -7,6 +7,7 @@ import { TiagoVizij } from "./TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
 import VizijLogo from "../assets/vizij.png";
 import { VizijVisemeDemo } from "./VizijVisemeDemo";
+import { VizijGazeDemo } from "./VizijGazeDemo";
 
 function App() {
   return (
@@ -95,6 +96,11 @@ function App() {
           <h2 className="text-4xl my-4 font-bold">Express Visemes For Multiple Faces</h2>
           <p>Express visemes on Quori and Hugo at the same time.</p>
           <VizijVisemeDemo />
+        </div>
+        <div className="w-full bg-black p-12 text-white">
+          <h2 className="text-4xl my-4 font-bold">Control Gaze For Multiple Faces</h2>
+          <p>Have Quori and Hugo look at a particular direction at the same time.</p>
+          <VizijGazeDemo />
         </div>
         <div className="w-full bg-white text-black p-12">
           <div className="my-16">
