@@ -5,9 +5,6 @@ import { useSpring } from "motion/react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { RawValue, RawVector2 } from "@semio/utils";
-import { PollyClient, SynthesizeSpeechCommand, VoiceId } from "@aws-sdk/client-polly";
-
-import { accessKeyId, secretAccessKey } from "../aws_credentials.json";
 
 type Viseme =
   | "sil"
@@ -79,7 +76,9 @@ const HugoBounds = {
 };
 // 24FPS
 
-const PollyVoices: VoiceId[] = [
+const apiURL = "http://127.0.0.1:5001/semio-vizij/us-central1/api";
+
+const PollyVoices: string[] = [
   "Danielle",
   "Gregory",
   "Ivy",
@@ -117,7 +116,7 @@ export function InnerVizijVisemeDemo() {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
   const speechAudioRef = useRef<HTMLAudioElement>(null);
 
-  const [selectedVoice, setSelectedVoice] = useState<VoiceId>("Ruth");
+  const [selectedVoice, setSelectedVoice] = useState<string>("Ruth");
 
   const [spokenSentences, setSpokenSentences] = useState<
     { time: number; type: "sentence"; start: number; end: number; value: string }[]
@@ -228,63 +227,40 @@ export function InnerVizijVisemeDemo() {
     loadVizij(Quori, QuoriBounds, [], quoriSearch, setQuoriIDs);
   }, []);
 
-  const awsCredentials = {
-    accessKeyId: accessKeyId,
-    secretAccessKey: secretAccessKey,
-  };
-
-  const pollyClientInstance = new PollyClient({
-    region: "us-east-1",
-    credentials: awsCredentials,
-  });
-
   const getPollyResponse = async () => {
     if (textToSpeakInputRef.current) {
-      const pollyQuery = new SynthesizeSpeechCommand({
-        Engine: "neural",
-        LanguageCode: "en-US",
-        OutputFormat: "json",
-        SpeechMarkTypes: ["sentence", "word", "viseme"],
-        Text: textToSpeakInputRef.current.value,
-        TextType: "text",
-        VoiceId: "Ruth",
+      const visemeResponse = await fetch(`${apiURL}/tts/get-visemes`, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          voice: selectedVoice,
+          text: textToSpeakInputRef.current.value,
+        }),
       });
-      const pollyResponse = await pollyClientInstance.send(pollyQuery);
+      const visemeVals = await visemeResponse.json();
+      console.log(visemeVals);
 
-      const pollyResString = await pollyResponse.AudioStream?.transformToString();
+      setSpokenSentences(visemeVals["sentences"]);
+      setSpokenWords(visemeVals["words"]);
+      setSpokenVisemes(visemeVals["visemes"]);
 
-      if (pollyResString !== undefined) {
-        const lines = pollyResString.split("\n");
-        const parseableLines = lines.slice(0, lines.length - 1);
-        const vals = parseableLines.map((s) => {
-          return JSON.parse(s);
-        });
-
-        setSpokenSentences(vals?.filter((s) => s.type == "sentence"));
-        setSpokenWords(vals?.filter((s) => s.type == "word"));
-        setSpokenVisemes(vals?.filter((s) => s.type == "viseme"));
-      }
-
-      const pollyAudioQuery = new SynthesizeSpeechCommand({
-        Engine: "neural",
-        LanguageCode: "en-US",
-        OutputFormat: "mp3",
-        Text: textToSpeakInputRef.current.value,
-        TextType: "text",
-        VoiceId: selectedVoice,
+      const audioResponse = await fetch(`${apiURL}/tts/get-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          voice: selectedVoice,
+          text: textToSpeakInputRef.current.value,
+        }),
       });
 
-      const pollyAudioResponse = await pollyClientInstance.send(pollyAudioQuery);
-      console.log(pollyAudioResponse);
-
-      const pollyResByteArray = await pollyAudioResponse.AudioStream?.transformToByteArray();
-      console.log(pollyResByteArray);
-      if (pollyResByteArray !== undefined) {
-        const audioBlob = new Blob([pollyResByteArray], { type: "audio/mpeg" });
-        const audioSrc = URL.createObjectURL(audioBlob);
-
-        setSpokenAudio(audioSrc);
-      }
+      const audioBlob = await audioResponse.blob();
+      const audioSrc = URL.createObjectURL(audioBlob);
+      setSpokenAudio(audioSrc);
     }
   };
 
@@ -333,7 +309,7 @@ export function InnerVizijVisemeDemo() {
           className="bg-white text-black p-2 mx-2"
           value={selectedVoice}
           onChange={(e) => {
-            setSelectedVoice(e.target.value as VoiceId);
+            setSelectedVoice(e.target.value);
           }}
         >
           {PollyVoices.map((pv) => {
