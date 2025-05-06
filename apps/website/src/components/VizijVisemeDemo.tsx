@@ -229,7 +229,7 @@ export function InnerVizijVisemeDemo() {
 
   const getPollyResponse = async () => {
     if (textToSpeakInputRef.current) {
-      const visemeResponse = await fetch(`${apiURL}/tts/get-visemes`, {
+      fetch(`${apiURL}/tts/get-visemes`, {
         method: "POST",
         mode: "cors",
         headers: {
@@ -239,15 +239,17 @@ export function InnerVizijVisemeDemo() {
           voice: selectedVoice,
           text: textToSpeakInputRef.current.value,
         }),
-      });
-      const visemeVals = await visemeResponse.json();
-      console.log(visemeVals);
+      })
+        .then((res) => {
+          return res.json();
+        })
+        .then((visemeVals) => {
+          setSpokenSentences(visemeVals["sentences"]);
+          setSpokenWords(visemeVals["words"]);
+          setSpokenVisemes(visemeVals["visemes"]);
+        });
 
-      setSpokenSentences(visemeVals["sentences"]);
-      setSpokenWords(visemeVals["words"]);
-      setSpokenVisemes(visemeVals["visemes"]);
-
-      const audioResponse = await fetch(`${apiURL}/tts/get-audio`, {
+      fetch(`${apiURL}/tts/get-audio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -256,11 +258,14 @@ export function InnerVizijVisemeDemo() {
           voice: selectedVoice,
           text: textToSpeakInputRef.current.value,
         }),
-      });
-
-      const audioBlob = await audioResponse.blob();
-      const audioSrc = URL.createObjectURL(audioBlob);
-      setSpokenAudio(audioSrc);
+      })
+        .then((res) => {
+          return res.blob();
+        })
+        .then((audioBlob) => {
+          const audioSrc = URL.createObjectURL(audioBlob);
+          setSpokenAudio(audioSrc);
+        });
     }
   };
 
