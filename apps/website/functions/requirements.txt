@@ -1,4 +1,6 @@
 blinker==1.9.0
+boto3==1.38.9
+botocore==1.38.9
 CacheControl==0.14.3
 cachetools==5.5.2
 certifi==2025.4.26
@@ -33,6 +35,7 @@ httplib2==0.22.0
 idna==3.10
 itsdangerous==2.2.0
 Jinja2==3.1.6
+jmespath==1.0.1
 MarkupSafe==3.0.2
 msgpack==1.1.0
 packaging==25.0
@@ -45,10 +48,14 @@ pyasn1_modules==0.4.2
 pycparser==2.22
 PyJWT==2.10.1
 pyparsing==3.2.3
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
 PyYAML==6.0.2
 requests==2.32.3
 rsa==4.9.1
+s3transfer==0.12.0
 setuptools==80.0.0
+six==1.17.0
 typing_extensions==4.13.2
 uritemplate==4.1.1
 urllib3==2.4.0
