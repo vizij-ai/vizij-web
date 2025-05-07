@@ -135,6 +135,7 @@ type IDLookup = {
 export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
@@ -390,6 +391,7 @@ export function InnerVizijGazeDemo() {
                 },
               })
               .then((mediaStream) => {
+                cameraStreamRef.current = mediaStream;
                 if (cameraVideoRef.current) {
                   cameraVideoRef.current.srcObject = mediaStream;
                   cameraVideoRef.current.onloadedmetadata = () => {
@@ -413,9 +415,14 @@ export function InnerVizijGazeDemo() {
           Load Camera
         </button>
         <button
+          className="cursor-pointer"
           onClick={() => {
             if (imageProcessingInterval !== null) {
               clearInterval(imageProcessingInterval);
+            }
+            if (cameraStreamRef.current) {
+              const currentTrack = cameraStreamRef.current.getVideoTracks()[0];
+              currentTrack.stop();
             }
             if (cameraVideoRef.current) {
               cameraVideoRef.current.srcObject = null;
