@@ -134,8 +134,8 @@ type IDLookup = {
 
 export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
-  // const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  // const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
@@ -162,9 +162,9 @@ export function InnerVizijGazeDemo() {
     root: "",
   });
 
-  // const [imageProcessingInterval, setImageProcessingInterval] = useState<NodeJS.Timeout | null>(
-  //   null,
-  // );
+  const [imageProcessingInterval, setImageProcessingInterval] = useState<NodeJS.Timeout | null>(
+    null,
+  );
 
   const convertDragToPercent = (dragVal: number, minDrag: number, maxDrag: number) => {
     return (dragVal - minDrag) / (maxDrag - minDrag);
@@ -378,7 +378,7 @@ export function InnerVizijGazeDemo() {
           </div>
         </div>
       </div>
-      {/* <div>
+      <div>
         <p>Or have them look at you!</p>
         <button
           className="m-2 p-2 border border-white cursor-pointer rounded-md hover:bg-gray-800 "
@@ -386,8 +386,8 @@ export function InnerVizijGazeDemo() {
             navigator.mediaDevices
               .getUserMedia({
                 video: {
-                  width: { ideal: 1280 },
-                  height: { ideal: 720 },
+                  width: { ideal: 1024 },
+                  height: { ideal: 768 },
                 },
               })
               .then((mediaStream) => {
@@ -432,7 +432,7 @@ export function InnerVizijGazeDemo() {
           Stop
         </button>
         <video ref={cameraVideoRef} className="mx-auto"></video>
-      </div> */}
+      </div>
     </div>
   );
 }

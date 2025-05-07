@@ -70,6 +70,18 @@ def get_visemes():
             "status": "An error occurred while getting the AWS Polly Audio and Visemes"
         })
 
+
+
+@app.post("/image-processing/get-salience")
+@cross_origin()
+def get_salience():
+    pass
+
+@app.post("/image-processing/get-gaze-location")
+@cross_origin()
+def get_gaze_location():
+    pass
+
 @https_fn.on_request(cors=options.CorsOptions(cors_origins=["*"], cors_methods=["get", "post"]))
 def api(req: https_fn.Request) -> https_fn.Response:
     with app.request_context(req.environ):
