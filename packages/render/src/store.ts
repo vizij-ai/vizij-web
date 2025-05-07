@@ -91,7 +91,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   setValue: (
     id: string,
     namespace: string,
-    value: RawValue | ((current: RawValue) => RawValue),
+    value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
   ) => {
     set(
       produce((state: VizijData) => {
@@ -99,10 +99,17 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         if (typeof value === "function") {
           const current: RawValue | undefined = state.values.get(lookupId);
           if (current !== undefined) {
-            state.values.set(lookupId, value(current));
+            if (value(current !== undefined)) {
+              state.values.set(lookupId, value(current));
+            }
           } else {
-            const defaultVal = state.animatables[id].default;
-            state.values.set(lookupId, value(defaultVal));
+            const animatableLookup = state.animatables[id];
+            const updatedValue = value(
+              animatableLookup !== undefined ? animatableLookup.default : undefined,
+            );
+            if (updatedValue !== undefined) {
+              state.values.set(lookupId, updatedValue);
+            }
           }
         } else {
           state.values.set(lookupId, value);

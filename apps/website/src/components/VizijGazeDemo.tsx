@@ -4,7 +4,7 @@ import Quori from "../assets/Quori.glb";
 import { useMotionValue, useTransform } from "motion/react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
-import { getLookup, instanceOfRawVector3, RawValue, RawVector2 } from "@semio/utils";
+import { instanceOfRawVector3, RawValue, RawVector2, RawVector3 } from "@semio/utils";
 import { motion } from "motion/react";
 
 const QuoriBounds = {
@@ -28,9 +28,6 @@ const HugoBounds = {
     y: 5,
   },
 };
-
-const QuoriEyeZ = -0.154551163315773;
-const HugoEyeZ = 0.06905446946620941;
 
 const HugoMapping = {
   x: [
@@ -139,7 +136,6 @@ export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
-  const vizijValues = useVizijStore(useShallow((state) => state.values));
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
@@ -156,7 +152,7 @@ export function InnerVizijGazeDemo() {
   const dragBoxPositionX = useMotionValue(0);
   const dragBoxPositionY = useMotionValue(draggableRange.y / 2);
   const lookingAtX = useTransform(() => dragBoxPositionX.get());
-  const lookingAtY = useTransform(() => dragBoxPositionY.get() - draggableRange.y / 2);
+  const lookingAtY = useTransform(() => -1 * (dragBoxPositionY.get() - draggableRange.y / 2));
 
   const [hugoIDs, setHugoIDs] = useState<IDLookup>({
     root: "",
@@ -165,101 +161,109 @@ export function InnerVizijGazeDemo() {
     root: "",
   });
 
-  const currentQuoriValuesRef = useRef<Record<string,RawValue>>({});
-
-  const quoriFeatures = useMemo(()=>{
-    let features: Record<string,AnimatedFeature> = {};
-    QuoriMapping.x.forEach(mappedValue=>{
-      features[mappedValue.name] = {value: quoriIDs[mappedValue.name], animated:true}
-    })
-  },[quoriIDs])
-
-  useFeatures(
-    "default",
-    quoriFeatures,
-    Object.keys(quoriFeatures).map(key=>[key,(value:RawValue)=>currentQuoriValuesRef.current[key]=value]).reduce();
-  )
-
   const [imageProcessingInterval, setImageProcessingInterval] = useState<NodeJS.Timeout | null>(
     null,
   );
 
+  const convertDragToPercent = (dragVal: number, minDrag: number, maxDrag: number) => {
+    return (dragVal - minDrag) / (maxDrag - minDrag);
+  };
+
+  const convertPercentToFace = (percentVal: number, faceFrom: number, faceTo: number) => {
+    return faceFrom + percentVal * Math.abs(faceFrom - faceTo);
+  };
+
   const convertDragToFace = (
     dragVal: number,
+    dragMin: number,
     dragMax: number,
     faceFrom: number,
     faceTo: number,
   ) => {
-    return ((dragVal + dragMax / 2) / dragMax) * (faceTo - faceFrom + faceFrom);
+    const p = convertDragToPercent(dragVal, dragMin, dragMax);
+    const f = convertPercentToFace(p, faceFrom, faceTo);
+    return f;
   };
 
   lookingAtX.on("change", (latestVal) => {
     QuoriMapping.x.map((eachMapping) => {
       const valToSet = convertDragToFace(
         latestVal,
-        draggableRange.x,
+        (-1 * draggableRange.x) / 2,
+        draggableRange.x / 2,
         eachMapping.from,
         eachMapping.to,
       );
-      const currentVals = currentQuoriValuesRef.current[eachMapping.name];
-      if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-        setVal(quoriIDs[eachMapping.name], "default", {
-          x: valToSet,
-          y: currentVals.y,
-          z: currentVals.z,
-        });
-      }
+      setVal(quoriIDs[eachMapping.name], "default", (currentVals) => {
+        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
+          return {
+            x: valToSet,
+            y: currentVals.y,
+            z: currentVals.z,
+          };
+        }
+        return currentVals;
+      });
     });
     HugoMapping.x.map((eachMapping) => {
       const valToSet = convertDragToFace(
         latestVal,
-        draggableRange.x,
+        (-1 * draggableRange.x) / 2,
+        draggableRange.x / 2,
         eachMapping.from,
         eachMapping.to,
       );
-      const currentVals = vizijValues.get(getLookup("default", hugoIDs[eachMapping.name]));
-      if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-        setVal(hugoIDs[eachMapping.name], "default", {
-          x: valToSet,
-          y: currentVals.y,
-          z: currentVals.z,
-        });
-      }
+      setVal(hugoIDs[eachMapping.name], "default", (currentVals) => {
+        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
+          return {
+            x: valToSet,
+            y: currentVals.y,
+            z: currentVals.z,
+          };
+        }
+        return currentVals;
+      });
     });
   });
 
   lookingAtY.on("change", (latestVal) => {
-    QuoriMapping.x.map((eachMapping) => {
+    QuoriMapping.y.map((eachMapping) => {
       const valToSet = convertDragToFace(
         latestVal,
-        draggableRange.y,
+        (-1 * draggableRange.y) / 2,
+        draggableRange.y / 2,
         eachMapping.from,
         eachMapping.to,
       );
-      const currentVals = vizijValues.get(getLookup("default", quoriIDs[eachMapping.name]));
-      if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-        setVal(quoriIDs[eachMapping.name], "default", {
-          x: currentVals.x,
-          y: valToSet,
-          z: currentVals.z,
-        });
-      }
+      setVal(quoriIDs[eachMapping.name], "default", (currentVals) => {
+        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
+          return {
+            x: currentVals.x,
+            y: valToSet,
+            z: currentVals.z,
+          };
+        }
+        return currentVals;
+      });
     });
-    HugoMapping.x.map((eachMapping) => {
+    HugoMapping.y.map((eachMapping) => {
       const valToSet = convertDragToFace(
         latestVal,
-        draggableRange.y,
+        (-1 * draggableRange.y) / 2,
+        draggableRange.y / 2,
         eachMapping.from,
         eachMapping.to,
       );
-      const currentVals = vizijValues.get(getLookup("default", hugoIDs[eachMapping.name]));
-      if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-        setVal(hugoIDs[eachMapping.name], "default", {
-          x: currentVals.x,
-          y: valToSet,
-          z: currentVals.z,
-        });
-      }
+      setVal(hugoIDs[eachMapping.name], "default", (currentVals) => {
+        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
+          return {
+            x: currentVals.x,
+            y: valToSet,
+            z: currentVals.z,
+          } as RawVector3;
+        }
+        return currentVals;
+      });
     });
   });
 

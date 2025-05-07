@@ -22,7 +22,7 @@ export interface VizijActions {
   setValue: (
     id: string,
     namespace: string,
-    value: RawValue | ((current: RawValue) => RawValue),
+    value: RawValue | ((current: RawValue | undefined) => RawValue),
   ) => void;
   setWorldElementName: (id: string, value: string) => void;
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => void;
