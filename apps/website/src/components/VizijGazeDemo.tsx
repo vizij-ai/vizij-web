@@ -81,6 +81,7 @@ type GazeRigMapping = {
 
 export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
@@ -109,6 +110,10 @@ export function InnerVizijGazeDemo() {
     rightEyeId: "",
     leftEyeId: "",
   });
+
+  const [imageProcessingInterval, setImageProcessingInterval] = useState<NodeJS.Timeout | null>(
+    null,
+  );
 
   const convertXYDragToXYFace = (
     xDrag: number,
@@ -331,6 +336,55 @@ export function InnerVizijGazeDemo() {
             <Vizij rootId={hugoIDs.rootId} />
           </div>
         </div>
+      </div>
+      <div>
+        <p>Or have them look at you!</p>
+        <button
+          className="m-2 p-2 border border-white cursor-pointer rounded-md hover:bg-gray-800 "
+          onClick={() => {
+            navigator.mediaDevices
+              .getUserMedia({
+                video: {
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                },
+              })
+              .then((mediaStream) => {
+                if (cameraVideoRef.current) {
+                  cameraVideoRef.current.srcObject = mediaStream;
+                  cameraVideoRef.current.onloadedmetadata = () => {
+                    cameraVideoRef.current?.play();
+                  };
+                }
+                const tracks = mediaStream.getVideoTracks();
+                const usedTrack = tracks[0];
+                const imgCapturer = new ImageCapture(usedTrack);
+
+                const intv = setInterval(() => {
+                  const img = imgCapturer.grabFrame();
+                  img.then((res: ImageBitmap) => {
+                    console.log(res);
+                  });
+                }, 1000);
+                setImageProcessingInterval(intv);
+              });
+          }}
+        >
+          Load Camera
+        </button>
+        <button
+          onClick={() => {
+            if (imageProcessingInterval !== null) {
+              clearInterval(imageProcessingInterval);
+            }
+            if (cameraVideoRef.current) {
+              cameraVideoRef.current.srcObject = null;
+            }
+          }}
+        >
+          Stop
+        </button>
+        <video ref={cameraVideoRef} className="mx-auto"></video>
       </div>
     </div>
   );
