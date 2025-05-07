@@ -88,11 +88,25 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setValue: (id: string, namespace: string, value: RawValue) => {
+  setValue: (
+    id: string,
+    namespace: string,
+    value: RawValue | ((current: RawValue) => RawValue),
+  ) => {
     set(
-      produce((state) => {
+      produce((state: VizijData) => {
         const lookupId = getLookup(namespace, id);
-        state.values.set(lookupId, value);
+        if (typeof value === "function") {
+          const current: RawValue | undefined = state.values.get(lookupId);
+          if (current !== undefined) {
+            state.values.set(lookupId, value(current));
+          } else {
+            const defaultVal = state.animatables[id].default;
+            state.values.set(lookupId, value(defaultVal));
+          }
+        } else {
+          state.values.set(lookupId, value);
+        }
       }),
     );
   },
