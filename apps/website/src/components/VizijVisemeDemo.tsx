@@ -76,7 +76,8 @@ const HugoBounds = {
 };
 // 24FPS
 
-const apiURL = "http://127.0.0.1:5001/semio-vizij/us-central1/api";
+// TODO fetch this from environment variables and/or firebase connection
+const apiURL = "https://us-central1-semio-vizij.cloudfunctions.net/api";
 
 const PollyVoices: string[] = [
   "Danielle",
