@@ -117,15 +117,10 @@ export function update(player: Player, coldStart: boolean): Player {
   }
 
   const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 0.01;
-  const boundsInsideViewport = p.viewport[0] <= p.bounds[0] || p.viewport[1] >= p.bounds[1];
 
-  if (
-    p.running &&
-    !boundsInsideViewport &&
-    (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)
-  ) {
+  if (p.running && (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)) {
     p.viewport = getFittedViewport(p.stamp, p.viewport);
-  } else if (p.running && !boundsInsideViewport && !newNearViewportCenter) {
+  } else if (p.running && !newNearViewportCenter) {
     // Give the current stamp a bit of oomph with the delta to make it move towards the goal faster.
     const oomphOffset = currentViewportCenter < p.stamp ? delta : 0;
     const idealViewport = getFittedViewport(p.stamp + oomphOffset, p.viewport);
