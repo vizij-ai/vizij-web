@@ -132,9 +132,14 @@ type IDLookup = {
   [key: string]: string;
 };
 
+const apiURL = "https://us-central1-semio-vizij.cloudfunctions.net/api";
+// const apiURL = "http://127.0.0.1:5001/semio-vizij/us-central1/api";
+// const apiURL = "http://127.0.0.1:5000";
+
 export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraLastFrameRef = useRef<HTMLImageElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
 
@@ -404,9 +409,50 @@ export function InnerVizijGazeDemo() {
 
                 const intv = setInterval(() => {
                   const img = imgCapturer.grabFrame();
-                  img.then((res: ImageBitmap) => {
-                    console.log(res);
-                  });
+                  img
+                    .then((res: ImageBitmap) => {
+                      let ocanvas = new OffscreenCanvas(res.width, res.height);
+                      let ctx = ocanvas.getContext("bitmaprenderer");
+                      if (ctx !== null) {
+                        ctx.transferFromImageBitmap(res);
+                      }
+                      return ocanvas.convertToBlob({ type: "image/png" });
+                    })
+                    .then((blob) => {
+                      if (cameraLastFrameRef.current) {
+                        cameraLastFrameRef.current.src = URL.createObjectURL(blob);
+                      }
+                      // let form = new FormData();
+                      // form.append("image", blob);
+                      // return form;
+                      return fetch(`${apiURL}/image-processing/get-salience`, {
+                        method: "POST",
+                        mode: "cors",
+                        body: blob,
+                      });
+                    })
+                    // .then((form_data) => {
+                    //   console.log("Making a request");
+                    //   console.log(form_data);
+                    //   return fetch(`${apiURL}/image-processing/get-salience`, {
+                    //     method: "POST",
+                    //     mode: "cors",
+                    //     headers: {
+                    //       "Content-Type": "multipart/form-data",
+                    //     },
+                    //     body: form_data,
+                    //   });
+                    // })
+                    .then((res) => {
+                      console.log(res);
+                      return res.json();
+                    })
+                    .then((result) => {
+                      console.log(result);
+                    })
+                    .catch((e) => {
+                      console.log(e);
+                    });
                 }, 1000);
                 setImageProcessingInterval(intv);
               });
@@ -431,7 +477,17 @@ export function InnerVizijGazeDemo() {
         >
           Stop
         </button>
-        <video ref={cameraVideoRef} className="mx-auto"></video>
+
+        <div className="flex">
+          <div className="p-4 w-1/2">
+            <p>Camera Feed</p>
+            <video ref={cameraVideoRef} className="mx-auto"></video>
+          </div>
+          <div className="p-4 w-1/2">
+            <p>Last Frame Processed</p>
+            <img ref={cameraLastFrameRef} className="mx-auto"></img>
+          </div>
+        </div>
       </div>
     </div>
   );

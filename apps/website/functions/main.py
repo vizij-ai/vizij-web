@@ -5,7 +5,7 @@ import json
 from firebase_admin import initialize_app
 from firebase_functions import https_fn, options
 from dotenv import load_dotenv
-from flask import jsonify, make_response
+from flask import jsonify, make_response, request
 from flask_cors import CORS, cross_origin
 
 load_dotenv()
@@ -24,7 +24,7 @@ def get_home():
 @cross_origin()
 def get_audio():
     try:
-        data = flask.request.get_json()
+        data = request.get_json()
         voice = data["voice"] if "voice" in data else "Ruth"
 
         audio_response = polly_client.synthesize_speech(VoiceId=voice,
@@ -43,13 +43,13 @@ def get_audio():
         print("Failed to get response from Polly")
         return jsonify({
             "status": "An error occurred while getting the AWS Polly Audio and Visemes"
-        })
+        }), 500
 
 @app.post("/tts/get-visemes")
 @cross_origin()
 def get_visemes():
     try:
-        data = flask.request.get_json()
+        data = request.get_json()
         voice = data["voice"] if "voice" in data else "Ruth"
 
         viseme_response = polly_client.synthesize_speech(VoiceId=voice, OutputFormat= "json",Text = data["text"],SpeechMarkTypes= ["sentence", "word", "viseme"],Engine = 'neural')
@@ -68,14 +68,21 @@ def get_visemes():
         print("Failed to get response from Polly")
         return jsonify({
             "status": "An error occurred while getting the AWS Polly Audio and Visemes"
-        })
+        }), 500
 
 
 
 @app.post("/image-processing/get-salience")
 @cross_origin()
 def get_salience():
-    pass
+    try:
+        return jsonify({
+            "status": "Successfully processed image"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "An error occurred while processing the image"
+        }), 500
 
 @app.post("/image-processing/get-gaze-location")
 @cross_origin()
@@ -86,3 +93,6 @@ def get_gaze_location():
 def api(req: https_fn.Request) -> https_fn.Response:
     with app.request_context(req.environ):
         return app.full_dispatch_request()
+
+if __name__=="__main__":
+    app.run(debug=True)
