@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 import flask
 import boto3
 import os
@@ -7,6 +9,7 @@ from firebase_functions import https_fn, options
 from dotenv import load_dotenv
 from flask import jsonify, make_response, request
 from flask_cors import CORS, cross_origin
+from salience import get_salience_heatmap_from_image
 
 load_dotenv()
 
@@ -76,9 +79,22 @@ def get_visemes():
 @cross_origin()
 def get_salience():
     try:
-        return jsonify({
-            "status": "Successfully processed image"
-        }), 200
+        if "image" not in request.files:
+            return jsonify({
+                "status": "Did not receive image as part of formdata/files with name 'image'"
+            }), 400
+
+        image = request.files["image"]
+        image_data = image.read()
+        image_array = np.frombuffer(image_data, np.uint8)
+        im = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+        output = get_salience_heatmap_from_image(im)
+
+        _, buffer = cv2.imencode('.png', output)
+        response = make_response(buffer.tobytes())
+
+        return response
     except Exception as e:
         return jsonify({
             "status": "An error occurred while processing the image"

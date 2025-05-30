@@ -140,6 +140,7 @@ export function InnerVizijGazeDemo() {
   const gazeControllerRef = useRef<HTMLDivElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraLastFrameRef = useRef<HTMLImageElement>(null);
+  const responseFrameRef = useRef<HTMLImageElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
 
@@ -415,6 +416,8 @@ export function InnerVizijGazeDemo() {
                       let ctx = ocanvas.getContext("bitmaprenderer");
                       if (ctx !== null) {
                         ctx.transferFromImageBitmap(res);
+                      } else {
+                        throw Error("Couldn't convert image to blob");
                       }
                       return ocanvas.convertToBlob({ type: "image/png" });
                     })
@@ -422,33 +425,27 @@ export function InnerVizijGazeDemo() {
                       if (cameraLastFrameRef.current) {
                         cameraLastFrameRef.current.src = URL.createObjectURL(blob);
                       }
-                      // let form = new FormData();
-                      // form.append("image", blob);
-                      // return form;
+                      let form = new FormData();
+                      form.append("image", blob, "image");
+                      return form;
+                    })
+                    .then((form_data) => {
                       return fetch(`${apiURL}/image-processing/get-salience`, {
                         method: "POST",
                         mode: "cors",
-                        body: blob,
+                        body: form_data,
                       });
                     })
-                    // .then((form_data) => {
-                    //   console.log("Making a request");
-                    //   console.log(form_data);
-                    //   return fetch(`${apiURL}/image-processing/get-salience`, {
-                    //     method: "POST",
-                    //     mode: "cors",
-                    //     headers: {
-                    //       "Content-Type": "multipart/form-data",
-                    //     },
-                    //     body: form_data,
-                    //   });
-                    // })
                     .then((res) => {
+                      console.log("Received a response");
                       console.log(res);
-                      return res.json();
+                      return res.blob();
                     })
                     .then((result) => {
                       console.log(result);
+                      if (responseFrameRef.current) {
+                        responseFrameRef.current.src = URL.createObjectURL(result);
+                      }
                     })
                     .catch((e) => {
                       console.log(e);
@@ -486,6 +483,12 @@ export function InnerVizijGazeDemo() {
           <div className="p-4 w-1/2">
             <p>Last Frame Processed</p>
             <img ref={cameraLastFrameRef} className="mx-auto"></img>
+          </div>
+        </div>
+        <div className="flex">
+          <div className="p-4 w-1/2">
+            <p>Response Frame</p>
+            <img ref={responseFrameRef} className="mx-auto"></img>
           </div>
         </div>
       </div>
