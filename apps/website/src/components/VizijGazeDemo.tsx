@@ -430,22 +430,35 @@ export function InnerVizijGazeDemo() {
                       return form;
                     })
                     .then((form_data) => {
-                      return fetch(`${apiURL}/image-processing/get-salience`, {
+                      fetch(`${apiURL}/image-processing/get-salience`, {
                         method: "POST",
                         mode: "cors",
                         body: form_data,
-                      });
-                    })
-                    .then((res) => {
-                      console.log("Received a response");
-                      console.log(res);
-                      return res.blob();
-                    })
-                    .then((result) => {
-                      console.log(result);
-                      if (responseFrameRef.current) {
-                        responseFrameRef.current.src = URL.createObjectURL(result);
-                      }
+                      })
+                        .then((res) => {
+                          console.log("Received a response");
+                          console.log(res);
+                          return res.blob();
+                        })
+                        .then((result) => {
+                          console.log(result);
+                          if (responseFrameRef.current) {
+                            responseFrameRef.current.src = URL.createObjectURL(result);
+                          }
+                        });
+                      fetch(`${apiURL}/image-processing/get-gaze-location`, {
+                        method: "POST",
+                        mode: "cors",
+                        body: form_data,
+                      })
+                        .then((res) => {
+                          return res.json();
+                        })
+                        .then((result) => {
+                          console.log(result);
+                          dragBoxPositionX.set(result.x * draggableRange.x - draggableRange.x / 2);
+                          dragBoxPositionY.set(result.y * draggableRange.y);
+                        });
                     })
                     .catch((e) => {
                       console.log(e);

@@ -9,7 +9,7 @@ from firebase_functions import https_fn, options
 from dotenv import load_dotenv
 from flask import jsonify, make_response, request
 from flask_cors import CORS, cross_origin
-from salience import get_salience_heatmap_from_image
+from salience import get_image_with_gaze_location_rectangle, get_gaze_location_from_image
 
 load_dotenv()
 
@@ -45,7 +45,8 @@ def get_audio():
         print(e)
         print("Failed to get response from Polly")
         return jsonify({
-            "status": "An error occurred while getting the AWS Polly Audio and Visemes"
+            "status": "An error occurred while getting the AWS Polly Audio and Visemes",
+            "error": str(e)
         }), 500
 
 @app.post("/tts/get-visemes")
@@ -70,7 +71,8 @@ def get_visemes():
         print(e)
         print("Failed to get response from Polly")
         return jsonify({
-            "status": "An error occurred while getting the AWS Polly Audio and Visemes"
+            "status": "An error occurred while getting the AWS Polly Audio and Visemes",
+            "error": str(e)
         }), 500
 
 
@@ -89,7 +91,7 @@ def get_salience():
         image_array = np.frombuffer(image_data, np.uint8)
         im = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        output = get_salience_heatmap_from_image(im)
+        output = get_image_with_gaze_location_rectangle(im)
 
         _, buffer = cv2.imencode('.png', output)
         response = make_response(buffer.tobytes())
@@ -97,13 +99,37 @@ def get_salience():
         return response
     except Exception as e:
         return jsonify({
-            "status": "An error occurred while processing the image"
+            "status": "An error occurred while processing the image",
+            "error": str(e)
         }), 500
 
 @app.post("/image-processing/get-gaze-location")
 @cross_origin()
 def get_gaze_location():
-    pass
+    try:
+        if "image" not in request.files:
+            return jsonify({
+                "status": "Did not receive image as part of formdata/files with name 'image'"
+            }), 400
+
+        image = request.files["image"]
+        image_data = image.read()
+        image_array = np.frombuffer(image_data, np.uint8)
+        im = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+        point = get_gaze_location_from_image(im)
+
+        return jsonify({
+            "status:": "Got gaze location in image",
+            "x": point["x"],
+            "y": point["y"]
+        })
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "status": "An error occurred while processing the image",
+            "error": str(e)
+        }), 500
 
 @https_fn.on_request(cors=options.CorsOptions(cors_origins=["*"], cors_methods=["get", "post"]))
 def api(req: https_fn.Request) -> https_fn.Response:
