@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useShallow } from "zustand/shallow";
 import { clsx } from "clsx";
 import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
-import { ColorPickerPopover, SliderNumberField } from "@semio/ui";
+import { ColorPickerPopover, SliderNumberField, Size } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 
 function InnerController({
@@ -27,6 +27,7 @@ function InnerController({
     return (
       <div className={clsx("flex flex-col w-full", className)}>
         <SliderNumberField
+          size={Size.Sm}
           value={(rawValue ?? animatable.default) as number}
           onChange={(v) => {
             setValue(animatableId, namespace ?? "default", v);
@@ -103,6 +104,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -121,6 +123,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -139,6 +142,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -156,6 +160,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         strictText
         strictSlider
