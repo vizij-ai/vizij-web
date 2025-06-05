@@ -173,3 +173,13 @@ export function rawRGBToHex({ r, g, b }: RawRGB): string {
 export function rawHSLToHex({ h, s, l }: RawHSL): string {
   return Color({ h, s, l }).hex() as string;
 }
+
+export function randomHexString(
+  constrainLuminosity?: number,
+  constrainSaturation?: number,
+): string {
+  const h = Math.floor(Math.random() * 255);
+  const s = Math.floor(constrainSaturation ? constrainSaturation * 100 : Math.random() * 100);
+  const l = Math.floor(constrainLuminosity ? constrainLuminosity * 100 : Math.random() * 100);
+  return Color({ h, s, l }).hex() as string;
+}
