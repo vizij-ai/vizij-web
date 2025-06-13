@@ -14,7 +14,8 @@ export type RawTime = number;
  * @property _previousTime - The last update time in milliseconds
  * @property _currentTime - The current time in milliseconds
  * @property stamp - Current normalized time position [0, 1]
- * @property timescale - Playback speed multiplier (negative for reverse)
+ * @property speed - Playback speed multiplier (always positive)
+ * @property direction - Playback direction ("forward" or "reverse")
  * @property bounds - Constrains playback to a [start, end] range within [0, 1]
  * @property playback - Animation behavior at bounds ("loop"|"bounce"|"once")
  * @property viewport - Visible time range as [start, end] within [0, 1]
@@ -25,7 +26,8 @@ export interface Player {
   _previousTime: RawTime;
   _currentTime: RawTime;
   stamp: number;
-  timescale: number;
+  speed: number;
+  direction: "forward" | "reverse";
   bounds: [number, number];
   playback: "loop" | "bounce" | "once";
   viewport: [number, number];
@@ -73,8 +75,11 @@ export function update(player: Player, coldStart: boolean): Player {
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
   const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
-  // Compute the time delta between the two raw times, multiplied by the timescale
-  const delta = ((p._currentTime - p._previousTime) * p.timescale) / duration;
+  // Calculate effective timescale from speed and direction
+  const effectiveTimescale = p.speed * (p.direction === "forward" ? 1 : -1);
+
+  // Compute the time delta between the two raw times, multiplied by the effective timescale
+  const delta = ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
@@ -91,7 +96,7 @@ export function update(player: Player, coldStart: boolean): Player {
       p.stamp = start;
     } else if (p.playback === "bounce") {
       p.stamp = end;
-      p.timescale *= -1;
+      p.direction = p.direction === "forward" ? "reverse" : "forward";
     } else {
       p.stamp = start;
       p.running = false;
@@ -100,13 +105,12 @@ export function update(player: Player, coldStart: boolean): Player {
   } else if (currentInBounds && updatedStamp < start) {
     if (p.playback === "loop") {
       p.stamp = start;
-      if (p.timescale < 0) {
-        // p.timescale = -1 * p.timescale;
+      if (p.direction === "reverse") {
         p.running = false;
       }
     } else if (p.playback === "bounce") {
       p.stamp = start;
-      p.timescale *= -1;
+      p.direction = p.direction === "forward" ? "reverse" : "forward";
     } else {
       p.stamp = start;
       p.running = false;
@@ -158,18 +162,33 @@ export function setViewport(player: Player, viewport: [number, number]): Player 
 }
 
 /**
- * Creates a copy of the provided timer, but updated with a timescale based on the speed provided.
+ * Creates a copy of the provided timer, but updated with speed and direction.
  * @param timer - the timer to be updated
- * @param speed - the speed of playback desired (defaults to 1)
+ * @param speed - the speed of playback desired (defaults to current speed)
+ * @param direction - the direction of playback desired (defaults to current direction)
  * @returns the updated timer
  */
-export function play(player: Player, speed?: number): Player {
+export function play(player: Player, speed?: number, direction?: "forward" | "reverse"): Player {
   const p = { ...player };
   p.running = true;
-  p.timescale = speed ?? 1;
+  if (speed !== undefined) p.speed = Math.abs(speed); // Ensure speed is positive
+  if (direction !== undefined) p.direction = direction;
 
-  // If playback mode is 'once' and playing again, reset stamp to the beginning of the bounds
-  if (p.playback === "once" && p.stamp === p.bounds[1]) {
+  // If playback mode is 'once' and playing again, reset stamp to the appropriate bound
+  if (p.playback === "once") {
+    if (p.direction === "forward" && p.stamp === p.bounds[1]) {
+      p.stamp = p.bounds[0];
+    } else if (p.direction === "reverse" && p.stamp === p.bounds[0]) {
+      p.stamp = p.bounds[1];
+    }
+  }
+
+  // If direction is reverse and stamp is at/near the start, move to end to have somewhere to play from
+  // If direction is forward and stamp is at/near the end, move to start to have somewhere to play from
+  const tolerance = 0.001; // Small tolerance for floating point comparison
+  if (p.direction === "reverse" && p.stamp <= p.bounds[0] + tolerance) {
+    p.stamp = p.bounds[1];
+  } else if (p.direction === "forward" && p.stamp >= p.bounds[1] - tolerance) {
     p.stamp = p.bounds[0];
   }
 
@@ -177,14 +196,13 @@ export function play(player: Player, speed?: number): Player {
 }
 
 /**
- * Creates a copy of the provided timer, but updated with a timescale of 0 (paused)
+ * Creates a copy of the provided timer, but paused
  * @param timer - the timer to be updated
  * @returns the updated timer
  */
 export function pause(player: Player): Player {
   const p = { ...player };
   p.running = false;
-  p.timescale = 0;
 
   return p;
 }
@@ -220,7 +238,8 @@ export function setDuration(player: Player, duration: number): Player {
  * - Not running
  * - Current timestamp
  * - Zero stamp position
- * - No timescale
+ * - Normal speed (1x)
+ * - Forward direction
  * - Full bounds [0, 1]
  * - Loop playback
  * - Full viewport [0, 1]
@@ -232,7 +251,8 @@ export function newPlayer(): Player {
     _previousTime: now(),
     _currentTime: now(),
     stamp: 0,
-    timescale: 0,
+    speed: 1,
+    direction: "forward",
     bounds: [0, 1],
     playback: "loop",
     viewport: [0, 1],
@@ -262,3 +282,48 @@ const getFittedViewport = (
     return [1 - viewportWidth, 1];
   }
 };
+
+/**
+ * Sets the playback speed without affecting direction.
+ * @param player - the player to be updated
+ * @param speed - the new speed (always positive)
+ * @returns the updated player
+ */
+export function setSpeed(player: Player, speed: number): Player {
+  const p = { ...player };
+  p.speed = Math.abs(speed); // Ensure speed is positive
+  return p;
+}
+
+/**
+ * Sets the playback direction without affecting speed.
+ * @param player - the player to be updated
+ * @param direction - the new direction
+ * @returns the updated player
+ */
+export function setDirection(player: Player, direction: "forward" | "reverse"): Player {
+  const p = { ...player };
+  p.direction = direction;
+  return p;
+}
+
+/**
+ * Reverses the current playback direction.
+ * @param player - the player to be updated
+ * @returns the updated player
+ */
+export function reverse(player: Player): Player {
+  const p = { ...player };
+  p.direction = p.direction === "forward" ? "reverse" : "forward";
+  return p;
+}
+
+/**
+ * Gets the effective timescale (speed * direction multiplier) for backwards compatibility.
+ * @param player - the player to get timescale from
+ * @returns the effective timescale
+ * @deprecated Use speed and direction properties instead
+ */
+export function getTimescale(player: Player): number {
+  return player.speed * (player.direction === "forward" ? 1 : -1);
+}

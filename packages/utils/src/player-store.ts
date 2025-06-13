@@ -23,6 +23,9 @@ import {
   setViewport,
   update,
   seek,
+  setSpeed,
+  setDirection,
+  reverse,
 } from "./player";
 
 /* This code is not currently used, but it is a first attempt to move the rapidly-changing
@@ -47,12 +50,16 @@ export interface PlayerData {
 export interface PlayerActions {
   /** Updates the total duration of the animation */
   updateDuration: (duration: number) => void;
-  /** Updates the playback speed multiplier */
-  updateTimescale: (speed: number) => void;
+  /** Updates the playback speed */
+  updateSpeed: (speed: number) => void;
+  /** Updates the playback direction */
+  updateDirection: (direction: "forward" | "reverse") => void;
+  /** Reverses the current playback direction */
+  reverseDirection: () => void;
   /** Resets the player to initial state or specified time */
   resetPlayer: (time?: number) => void;
   /** Plays the animation */
-  playPlayer: (speed?: number) => void;
+  playPlayer: (speed?: number, direction?: "forward" | "reverse") => void;
   /** Pauses the animation */
   pausePlayer: () => void;
   /** Updates the timer */
@@ -67,6 +74,8 @@ export interface PlayerActions {
   updatePlayerViewportCenter: (time?: number) => void;
   /** Updates one bound of the player viewport */
   updatePlayerViewportBound: (bound: "start" | "end", time: number) => void;
+  /** Update the player playback style */
+  updatePlaybackStyle: (style: "loop" | "bounce" | "once") => void;
 }
 
 export type PlayerStoreSetter = (
@@ -91,21 +100,31 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       }),
     );
   },
-  // Set the timescale of the animation playback
-  updateTimescale: (speed: number) => {
-    set(
-      produce((state: PlayerData) => {
-        state.player.timescale = speed;
-      }),
-    );
+  // Set the speed of the animation playback
+  updateSpeed: (speed: number) => {
+    set((state: PlayerData) => ({
+      player: setSpeed(state.player, speed),
+    }));
+  },
+  // Set the direction of the animation playback
+  updateDirection: (direction: "forward" | "reverse") => {
+    set((state: PlayerData) => ({
+      player: setDirection(state.player, direction),
+    }));
+  },
+  // Reverse the current direction of the animation playback
+  reverseDirection: () => {
+    set((state: PlayerData) => ({
+      player: reverse(state.player),
+    }));
   },
   // Set the time of the animation
   resetPlayer: (time?: number) => {
     set((state: PlayerData) => ({ player: reset(state.player, time) }));
   },
   // Play the animation
-  playPlayer: (speed?: number) => {
-    set((state: PlayerData) => ({ player: play(state.player, speed) }));
+  playPlayer: (speed?: number, direction?: "forward" | "reverse") => {
+    set((state: PlayerData) => ({ player: play(state.player, speed, direction) }));
   },
   // Pause the animation
   pausePlayer: () => {
@@ -176,6 +195,13 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
         };
       }
     });
+  },
+  updatePlaybackStyle: (style: "loop" | "bounce" | "once") => {
+    set(
+      produce((state: PlayerData) => {
+        state.player.playback = style;
+      }),
+    );
   },
 });
 
