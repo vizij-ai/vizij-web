@@ -26,6 +26,8 @@ import {
   setSpeed,
   setDirection,
   reverse,
+  setBounce,
+  setLooping,
 } from "./player";
 
 /* This code is not currently used, but it is a first attempt to move the rapidly-changing
@@ -74,8 +76,10 @@ export interface PlayerActions {
   updatePlayerViewportCenter: (time?: number) => void;
   /** Updates one bound of the player viewport */
   updatePlayerViewportBound: (bound: "start" | "end", time: number) => void;
-  /** Update the player playback style */
-  updatePlaybackStyle: (style: "loop" | "bounce" | "once") => void;
+  /** Update the player bounce setting */
+  updateBounce: (bounce: boolean) => void;
+  /** Update the player looping setting */
+  updateLooping: (looping: boolean) => void;
 }
 
 export type PlayerStoreSetter = (
@@ -196,12 +200,15 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       }
     });
   },
-  updatePlaybackStyle: (style: "loop" | "bounce" | "once") => {
-    set(
-      produce((state: PlayerData) => {
-        state.player.playback = style;
-      }),
-    );
+  updateBounce: (bounce: boolean) => {
+    set((state: PlayerData) => ({
+      player: setBounce(state.player, bounce),
+    }));
+  },
+  updateLooping: (looping: boolean) => {
+    set((state: PlayerData) => ({
+      player: setLooping(state.player, looping),
+    }));
   },
 });
 

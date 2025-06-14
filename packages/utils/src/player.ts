@@ -15,9 +15,11 @@ export type RawTime = number;
  * @property _currentTime - The current time in milliseconds
  * @property stamp - Current normalized time position [0, 1]
  * @property speed - Playback speed multiplier (always positive)
- * @property direction - Playback direction ("forward" or "reverse")
+ * @property direction - Initial playback direction ("forward" or "reverse")
+ * @property _currentDirection - Current actual movement direction during bouncing
  * @property bounds - Constrains playback to a [start, end] range within [0, 1]
- * @property playback - Animation behavior at bounds ("loop"|"bounce"|"once")
+ * @property bounce - Whether to reverse direction when reaching bounds
+ * @property looping - Whether to continue playing after reaching bounds
  * @property viewport - Visible time range as [start, end] within [0, 1]
  * @property duration - Total animation duration in milliseconds
  */
@@ -28,8 +30,11 @@ export interface Player {
   stamp: number;
   speed: number;
   direction: "forward" | "reverse";
+  _currentDirection: "forward" | "reverse";
+  _bounced: boolean;
   bounds: [number, number];
-  playback: "loop" | "bounce" | "once";
+  bounce: boolean;
+  looping: boolean;
   viewport: [number, number];
   duration: number;
 }
@@ -46,6 +51,8 @@ export function reset(player: Player, stamp?: number): Player {
   p._currentTime = nowVal;
   p._previousTime = nowVal;
   p.stamp = stamp ? stamp : 0;
+  p._currentDirection = p.direction;
+  p._bounced = false;
   return p;
 }
 
@@ -71,52 +78,71 @@ export function update(player: Player, coldStart: boolean): Player {
   p._previousTime = coldStart ? t : p._currentTime;
   p._currentTime = t;
 
-  const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
   const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
-  // Calculate effective timescale from speed and direction
-  const effectiveTimescale = p.speed * (p.direction === "forward" ? 1 : -1);
+  // Calculate effective timescale from speed and current direction
+  const effectiveTimescale = p.speed * (p._currentDirection === "forward" ? 1 : -1);
 
   // Compute the time delta between the two raw times, multiplied by the effective timescale
   const delta = ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
-  const [start, end] = currentInBounds ? p.bounds : [0, 1];
+  const [start, end] = p.bounds;
 
   let attachOverride = false;
 
-  // If the updated stamp is past the viewport center (depending on the direction of playback),
-  // but still in the viewport, then adjust the viewport to center around the updated stamp.
+  // Check if player is moving toward the bounded region
+  const movingTowardBounds =
+    (p.stamp < start && p._currentDirection === "forward") ||
+    (p.stamp > end && p._currentDirection === "reverse");
 
-  // Adjust for bounds
+  // Apply boundary logic when crossing boundaries, unless moving toward bounds from outside
   if (updatedStamp > end) {
-    if (p.playback === "loop") {
-      p.stamp = start;
-    } else if (p.playback === "bounce") {
-      p.stamp = end;
-      p.direction = p.direction === "forward" ? "reverse" : "forward";
+    if (movingTowardBounds) {
+      // Player is outside bounds moving toward them - allow natural movement
+      p.stamp = updatedStamp;
     } else {
-      p.stamp = start;
-      p.running = false;
-    }
-    attachOverride = true;
-  } else if (currentInBounds && updatedStamp < start) {
-    if (p.playback === "loop") {
-      p.stamp = start;
-      if (p.direction === "reverse") {
+      // Player is crossing out of bounds or moving further away - apply boundary logic
+      if (p.bounce && (p.looping || !p._bounced)) {
+        // Bounce: reverse current direction and clamp to boundary
+        p.stamp = end;
+        p._currentDirection = p._currentDirection === "forward" ? "reverse" : "forward";
+        p._bounced = true;
+      } else if (p.looping) {
+        // Loop without bounce: return to start
+        p.stamp = start;
+      } else {
+        // No loop, no bounce: stop at boundary
+        p.stamp = end;
         p.running = false;
       }
-    } else if (p.playback === "bounce") {
-      p.stamp = start;
-      p.direction = p.direction === "forward" ? "reverse" : "forward";
-    } else {
-      p.stamp = start;
-      p.running = false;
+      attachOverride = true;
     }
-    attachOverride = true;
+  } else if (updatedStamp < start) {
+    if (movingTowardBounds) {
+      // Player is outside bounds moving toward them - allow natural movement
+      p.stamp = updatedStamp;
+    } else {
+      // Player is crossing out of bounds or moving further away - apply boundary logic
+      if (p.bounce && (p.looping || !p._bounced)) {
+        // Bounce: reverse current direction and clamp to boundary
+        p.stamp = start;
+        p._currentDirection = p._currentDirection === "forward" ? "reverse" : "forward";
+        p._bounced = true;
+      } else if (p.looping) {
+        // Loop without bounce: return to end
+        p.stamp = end;
+      } else {
+        // No loop, no bounce: stop at boundary
+        p.stamp = start;
+        p.running = false;
+      }
+      attachOverride = true;
+    }
   } else {
+    // Normal movement within or entering bounds
     p.stamp = updatedStamp;
   }
 
@@ -172,10 +198,15 @@ export function play(player: Player, speed?: number, direction?: "forward" | "re
   const p = { ...player };
   p.running = true;
   if (speed !== undefined) p.speed = Math.abs(speed); // Ensure speed is positive
-  if (direction !== undefined) p.direction = direction;
+  if (direction !== undefined) {
+    p.direction = direction;
+  }
+  // Always reset current direction to match direction when starting playback
+  p._currentDirection = p.direction;
+  p._bounced = false; // Reset bounce state when starting
 
-  // If playback mode is 'once' and playing again, reset stamp to the appropriate bound
-  if (p.playback === "once") {
+  // If not looping and not bouncing, reset stamp to the appropriate bound when starting
+  if (!p.looping && !p.bounce) {
     if (p.direction === "forward" && p.stamp === p.bounds[1]) {
       p.stamp = p.bounds[0];
     } else if (p.direction === "reverse" && p.stamp === p.bounds[0]) {
@@ -183,14 +214,19 @@ export function play(player: Player, speed?: number, direction?: "forward" | "re
     }
   }
 
-  // If direction is reverse and stamp is at/near the start, move to end to have somewhere to play from
-  // If direction is forward and stamp is at/near the end, move to start to have somewhere to play from
+  // Only jump to opposite boundary if we're AT a boundary that blocks further progress in the current direction
+  // This allows playing from outside bounds toward the bounds naturally
   const tolerance = 0.001; // Small tolerance for floating point comparison
-  if (p.direction === "reverse" && p.stamp <= p.bounds[0] + tolerance) {
-    p.stamp = p.bounds[1];
-  } else if (p.direction === "forward" && p.stamp >= p.bounds[1] - tolerance) {
+
+  // If going forward and we're exactly at the end boundary, jump to start
+  if (p._currentDirection === "forward" && Math.abs(p.stamp - p.bounds[1]) <= tolerance) {
     p.stamp = p.bounds[0];
   }
+  // If going reverse and we're exactly at the start boundary, jump to end
+  else if (p._currentDirection === "reverse" && Math.abs(p.stamp - p.bounds[0]) <= tolerance) {
+    p.stamp = p.bounds[1];
+  }
+  // Otherwise, don't jump - let it play naturally from current position toward/through bounds
 
   return p;
 }
@@ -241,7 +277,7 @@ export function setDuration(player: Player, duration: number): Player {
  * - Normal speed (1x)
  * - Forward direction
  * - Full bounds [0, 1]
- * - Loop playback
+ * - Looping enabled, bounce disabled
  * - Full viewport [0, 1]
  * - 1000ms duration
  */
@@ -253,8 +289,11 @@ export function newPlayer(): Player {
     stamp: 0,
     speed: 1,
     direction: "forward",
+    _currentDirection: "forward",
+    _bounced: false,
     bounds: [0, 1],
-    playback: "loop",
+    bounce: false,
+    looping: true,
     viewport: [0, 1],
     duration: 1000,
   };
@@ -304,6 +343,8 @@ export function setSpeed(player: Player, speed: number): Player {
 export function setDirection(player: Player, direction: "forward" | "reverse"): Player {
   const p = { ...player };
   p.direction = direction;
+  p._currentDirection = direction; // Also update current direction
+  p._bounced = false; // Reset bounce state when direction changes
   return p;
 }
 
@@ -314,7 +355,10 @@ export function setDirection(player: Player, direction: "forward" | "reverse"): 
  */
 export function reverse(player: Player): Player {
   const p = { ...player };
-  p.direction = p.direction === "forward" ? "reverse" : "forward";
+  const newDirection = p.direction === "forward" ? "reverse" : "forward";
+  p.direction = newDirection;
+  p._currentDirection = newDirection;
+  p._bounced = false; // Reset bounce state when direction changes
   return p;
 }
 
@@ -322,8 +366,32 @@ export function reverse(player: Player): Player {
  * Gets the effective timescale (speed * direction multiplier) for backwards compatibility.
  * @param player - the player to get timescale from
  * @returns the effective timescale
- * @deprecated Use speed and direction properties instead
+ * @deprecated Use speed and _currentDirection properties instead
  */
 export function getTimescale(player: Player): number {
-  return player.speed * (player.direction === "forward" ? 1 : -1);
+  return player.speed * (player._currentDirection === "forward" ? 1 : -1);
+}
+
+/**
+ * Sets the bounce behavior for the player.
+ * @param player - the player to be updated
+ * @param bounce - whether to bounce at boundaries
+ * @returns the updated player
+ */
+export function setBounce(player: Player, bounce: boolean): Player {
+  const p = { ...player };
+  p.bounce = bounce;
+  return p;
+}
+
+/**
+ * Sets the looping behavior for the player.
+ * @param player - the player to be updated
+ * @param looping - whether to loop at boundaries
+ * @returns the updated player
+ */
+export function setLooping(player: Player, looping: boolean): Player {
+  const p = { ...player };
+  p.looping = looping;
+  return p;
 }
