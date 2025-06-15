@@ -32,6 +32,7 @@ export interface Player {
   direction: "forward" | "reverse";
   _currentDirection: "forward" | "reverse";
   _bounced: boolean;
+  _enteredBounds: boolean;
   bounds: [number, number];
   bounce: boolean;
   looping: boolean;
@@ -53,6 +54,7 @@ export function reset(player: Player, stamp?: number): Player {
   p.stamp = stamp ? stamp : 0;
   p._currentDirection = p.direction;
   p._bounced = false;
+  p._enteredBounds = false;
   return p;
 }
 
@@ -78,8 +80,14 @@ export function update(player: Player, coldStart: boolean): Player {
   p._previousTime = coldStart ? t : p._currentTime;
   p._currentTime = t;
 
+  const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
   const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
+
+  // Check if player has entered the specified bounds
+  if (currentInBounds && !p._enteredBounds) {
+    p._enteredBounds = true;
+  }
 
   // Calculate effective timescale from speed and current direction
   const effectiveTimescale = p.speed * (p._currentDirection === "forward" ? 1 : -1);
@@ -89,7 +97,10 @@ export function update(player: Player, coldStart: boolean): Player {
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
-  const [start, end] = p.bounds;
+
+  // Use full range [0, 1] as bounds when outside specified bounds and haven't entered them yet
+  // Otherwise use the actual bounds
+  const [start, end] = !p._enteredBounds && !currentInBounds ? [0, 1] : p.bounds;
 
   let attachOverride = false;
 
@@ -204,6 +215,7 @@ export function play(player: Player, speed?: number, direction?: "forward" | "re
   // Always reset current direction to match direction when starting playback
   p._currentDirection = p.direction;
   p._bounced = false; // Reset bounce state when starting
+  p._enteredBounds = false; // Reset bounds entry state when starting
 
   // If not looping and not bouncing, reset stamp to the appropriate bound when starting
   if (!p.looping && !p.bounce) {
@@ -291,6 +303,7 @@ export function newPlayer(): Player {
     direction: "forward",
     _currentDirection: "forward",
     _bounced: false,
+    _enteredBounds: false,
     bounds: [0, 1],
     bounce: false,
     looping: true,
@@ -345,6 +358,7 @@ export function setDirection(player: Player, direction: "forward" | "reverse"): 
   p.direction = direction;
   p._currentDirection = direction; // Also update current direction
   p._bounced = false; // Reset bounce state when direction changes
+  p._enteredBounds = false; // Reset bounds entry state when direction changes
   return p;
 }
 
@@ -359,6 +373,7 @@ export function reverse(player: Player): Player {
   p.direction = newDirection;
   p._currentDirection = newDirection;
   p._bounced = false; // Reset bounce state when direction changes
+  p._enteredBounds = false; // Reset bounds entry state when direction changes
   return p;
 }
 

@@ -30,6 +30,7 @@ describe("Player", () => {
       expect(player.direction).toBe("forward");
       expect(player._currentDirection).toBe("forward");
       expect(player._bounced).toBe(false);
+      expect(player._enteredBounds).toBe(false);
       expect(player.bounds).toEqual([0, 1]);
       expect(player.bounce).toBe(false);
       expect(player.looping).toBe(true);
@@ -269,6 +270,7 @@ describe("Player", () => {
       const resetPlayer = reset(modifiedPlayer);
       expect(resetPlayer._currentDirection).toBe("forward");
       expect(resetPlayer._bounced).toBe(false);
+      expect(resetPlayer._enteredBounds).toBe(false);
     });
   });
 
@@ -502,6 +504,7 @@ describe("Player", () => {
         ...customBounceLoopPlayer,
         stamp: 0.85, // Past custom end boundary
         _currentDirection: "forward" as const,
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
       const updatedPlayer = update(playerAtCustomEnd, false);
@@ -607,6 +610,7 @@ describe("Player", () => {
       const playerAtEndBoundary = {
         ...startedPlayer,
         stamp: 0.65, // Past end boundary
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterBoundaryHit = update(playerAtEndBoundary, false);
       expect(afterBoundaryHit.stamp).toBe(0.6); // Clamped to boundary
@@ -627,13 +631,13 @@ describe("Player", () => {
       const loopStarted = play(outsideLoopPlayer, undefined, "forward");
       expect(loopStarted.stamp).toBe(0.1); // No jump
 
-      // When reaching end boundary, should loop back to start
+      // When reaching end of full range boundary, should loop back to start of full range (since not entered bounds yet)
       const loopPlayerAtEnd = {
         ...loopStarted,
-        stamp: 0.85, // Past end boundary
+        stamp: 1.1, // Past end of full range [0,1]
       };
       const afterLoop = update(loopPlayerAtEnd, false);
-      expect(afterLoop.stamp).toBe(0.3); // Looped to start of bounds
+      expect(afterLoop.stamp).toBe(0); // Looped to start of full range [0,1], not specified bounds
       expect(afterLoop._currentDirection).toBe("forward"); // Direction unchanged
       expect(afterLoop.running).toBe(true); // Still running
     });
@@ -679,11 +683,12 @@ describe("Player", () => {
       expect(startedReverse._currentDirection).toBe("reverse");
       expect(startedReverse.running).toBe(true);
 
-      // Scenario 3: Verify boundary logic only applies when actually crossing bounds
+      // Verify boundary logic only applies when actually crossing bounds
       const crossingPlayer = {
         ...boundedPlayer,
         stamp: 0.85, // Past end boundary, simulating having crossed it
         _currentDirection: "forward" as const,
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
 
@@ -716,6 +721,7 @@ describe("Player", () => {
       const playerAtEnd = {
         ...startedPlayer,
         stamp: 0.85, // Past end boundary
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
         running: true,
       };
       const afterBounce = update(playerAtEnd, false);
@@ -742,6 +748,7 @@ describe("Player", () => {
       const playerAtEndAgain = {
         ...resumedPlayer,
         stamp: 0.85, // Past end boundary again
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterSecondBounce = update(playerAtEndAgain, false);
       expect(afterSecondBounce.stamp).toBe(0.8); // Bounced
@@ -752,11 +759,199 @@ describe("Player", () => {
       const playerAtStart = {
         ...afterSecondBounce,
         stamp: 0.15, // Past start boundary
+        _enteredBounds: true, // Should have entered bounds to be using specified bounds
       };
       const afterSecondAttempt = update(playerAtStart, false);
       expect(afterSecondAttempt.stamp).toBe(0.2); // Stopped at boundary
       expect(afterSecondAttempt._currentDirection).toBe("reverse"); // Direction unchanged
       expect(afterSecondAttempt.running).toBe(false); // Stopped (no more bounces allowed)
+    });
+
+    it("uses full range as bounds when starting outside specified bounds", () => {
+      // Test the new behavior: use [0,1] as bounds until entering specified bounds
+      const customBoundsPlayer = setBounds(setBounce(setLooping(player, false), false), [0.3, 0.7]);
+
+      // Start outside bounds going forward (before bounds)
+      const testPlayer = {
+        ...customBoundsPlayer,
+        stamp: 0.1, // Before bounds [0.3, 0.7]
+        _currentDirection: "forward" as const,
+        _bounced: false,
+        _enteredBounds: false,
+        running: false,
+      };
+
+      // Start playing - should use [0,1] as effective bounds
+      const startedPlayer = play(testPlayer);
+      expect(startedPlayer._enteredBounds).toBe(false);
+
+      // Simulate moving towards the actual bounds - should use [0,1] bounds
+      const movingTowardBounds = {
+        ...startedPlayer,
+        stamp: 0.2, // Still outside specified bounds
+        running: true,
+      };
+      const beforeEntering = update(movingTowardBounds, false);
+      expect(beforeEntering._enteredBounds).toBe(false); // Still hasn't entered
+
+      // Simulate entering the specified bounds
+      const enteringBounds = {
+        ...beforeEntering,
+        stamp: 0.35, // Now inside bounds [0.3, 0.7]
+      };
+      const afterEntering = update(enteringBounds, false);
+      expect(afterEntering._enteredBounds).toBe(true); // Should mark as entered
+
+      // Now simulate going past the end of specified bounds - should use specified bounds
+      const pastSpecifiedEnd = {
+        ...afterEntering,
+        stamp: 0.75, // Past end of specified bounds
+      };
+      const afterSpecifiedBoundary = update(pastSpecifiedEnd, false);
+      expect(afterSpecifiedBoundary.stamp).toBe(0.7); // Should stop at specified boundary, not [0,1] boundary
+      expect(afterSpecifiedBoundary.running).toBe(false); // Should stop (no loop, no bounce)
+
+      // Test starting outside bounds going reverse (after bounds)
+      const reverseBoundsPlayer = setBounds(setBounce(setLooping(player, true), false), [0.2, 0.6]);
+      const reverseTestPlayer = {
+        ...reverseBoundsPlayer,
+        stamp: 0.8, // After bounds [0.2, 0.6]
+        _currentDirection: "reverse" as const,
+        _bounced: false,
+        _enteredBounds: false,
+        running: true,
+      };
+
+      // Should use [0,1] as bounds until entering specified bounds
+      const reverseUpdate = update(reverseTestPlayer, false);
+      expect(reverseUpdate._enteredBounds).toBe(false); // Still outside
+
+      // Simulate entering specified bounds from the high end
+      const enteringFromHigh = {
+        ...reverseUpdate,
+        stamp: 0.55, // Now inside bounds [0.2, 0.6]
+      };
+      const afterEnteringFromHigh = update(enteringFromHigh, false);
+      expect(afterEnteringFromHigh._enteredBounds).toBe(true); // Should mark as entered
+
+      // Test that it now uses specified bounds
+      const pastSpecifiedStart = {
+        ...afterEnteringFromHigh,
+        stamp: 0.15, // Past start of specified bounds
+      };
+      const afterSpecifiedStartBoundary = update(pastSpecifiedStart, false);
+      expect(afterSpecifiedStartBoundary.stamp).toBe(0.6); // Should loop to end of specified bounds
+      expect(afterSpecifiedStartBoundary.running).toBe(true); // Should continue (looping enabled)
+    });
+
+    it("comprehensive test: full-range bounds behavior with all settings", () => {
+      // Test the complete behavior: use [0,1] until entering bounds, then switch to specified bounds
+
+      // Scenario 1: No bounce, no loop - should stop at [0,1] boundaries before entering bounds
+      const noBounceNoLoopPlayer = setBounds(
+        setBounce(setLooping(player, false), false),
+        [0.4, 0.6],
+      );
+
+      const testPlayer1 = {
+        ...noBounceNoLoopPlayer,
+        stamp: 0.1, // Outside bounds
+        _currentDirection: "forward" as const,
+        _enteredBounds: false,
+        running: true,
+      };
+
+      // Simulate hitting end of full range [0,1] while outside bounds
+      const hitFullRangeEnd = {
+        ...testPlayer1,
+        stamp: 1.1, // Past end of [0,1]
+      };
+      const stoppedAtFullRange = update(hitFullRangeEnd, false);
+      expect(stoppedAtFullRange.stamp).toBe(1); // Should stop at end of [0,1], not [0.4,0.6]
+      expect(stoppedAtFullRange.running).toBe(false); // Should stop
+      expect(stoppedAtFullRange._enteredBounds).toBe(false); // Never entered specified bounds
+
+      // Scenario 2: Bounce + loop - should bounce within [0,1] then switch to bounds behavior
+      const bounceLoopPlayer = setBounds(setBounce(setLooping(player, true), true), [0.3, 0.7]);
+
+      const testPlayer2 = {
+        ...bounceLoopPlayer,
+        stamp: 0.05, // Outside bounds, near start of [0,1]
+        _currentDirection: "reverse" as const,
+        _enteredBounds: false,
+        running: true,
+      };
+
+      // Should bounce at start of [0,1], not at start of [0.3,0.7]
+      const hitFullRangeStart = {
+        ...testPlayer2,
+        stamp: -0.1, // Past start of [0,1]
+      };
+      const bouncedAtFullRange = update(hitFullRangeStart, false);
+      expect(bouncedAtFullRange.stamp).toBe(0); // Should bounce at start of [0,1]
+      expect(bouncedAtFullRange._currentDirection).toBe("forward"); // Should reverse direction
+      expect(bouncedAtFullRange._enteredBounds).toBe(false); // Still outside specified bounds
+
+      // Now simulate entering the specified bounds
+      const enteringSpecifiedBounds = {
+        ...bouncedAtFullRange,
+        stamp: 0.35, // Inside [0.3, 0.7]
+      };
+      const afterEntering = update(enteringSpecifiedBounds, false);
+      expect(afterEntering._enteredBounds).toBe(true); // Should mark as entered
+
+      // Now should use specified bounds for bouncing
+      const hitSpecifiedEnd = {
+        ...afterEntering,
+        stamp: 0.75, // Past end of [0.3, 0.7]
+      };
+      const bouncedAtSpecified = update(hitSpecifiedEnd, false);
+      expect(bouncedAtSpecified.stamp).toBe(0.7); // Should bounce at end of [0.3, 0.7], not [0,1]
+      expect(bouncedAtSpecified._currentDirection).toBe("reverse"); // Should reverse direction
+
+      // Scenario 3: Loop only - should loop within [0,1] then switch to bounds behavior
+      const loopOnlyPlayer = setBounds(setBounce(setLooping(player, true), false), [0.2, 0.8]);
+
+      const testPlayer3 = {
+        ...loopOnlyPlayer,
+        stamp: 0.9, // Outside bounds, near end of [0,1]
+        _currentDirection: "forward" as const,
+        _enteredBounds: false,
+        running: true,
+      };
+
+      // Should loop at end of [0,1], not at end of [0.2, 0.8]
+      const hitFullRangeEndLoop = {
+        ...testPlayer3,
+        stamp: 1.1, // Past end of [0,1]
+      };
+      const loopedAtFullRange = update(hitFullRangeEndLoop, false);
+      expect(loopedAtFullRange.stamp).toBe(0); // Should loop to start of [0,1]
+      expect(loopedAtFullRange._currentDirection).toBe("forward"); // Direction unchanged
+      expect(loopedAtFullRange._enteredBounds).toBe(false); // Still outside specified bounds
+
+      // Scenario 4: Verify bounds entry detection works at exact boundaries
+      const exactBoundsPlayer = setBounds(player, [0.25, 0.75]);
+
+      // Test entering at exact start boundary
+      const atExactStart = {
+        ...exactBoundsPlayer,
+        stamp: 0.25, // Exactly at start boundary
+        _enteredBounds: false,
+        running: true,
+      };
+      const afterExactStart = update(atExactStart, false);
+      expect(afterExactStart._enteredBounds).toBe(true); // Should detect entry
+
+      // Test entering at exact end boundary
+      const atExactEnd = {
+        ...exactBoundsPlayer,
+        stamp: 0.75, // Exactly at end boundary
+        _enteredBounds: false,
+        running: true,
+      };
+      const afterExactEnd = update(atExactEnd, false);
+      expect(afterExactEnd._enteredBounds).toBe(true); // Should detect entry
     });
   });
 });
