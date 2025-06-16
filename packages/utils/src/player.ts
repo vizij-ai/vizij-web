@@ -3,6 +3,11 @@
  */
 export type RawTime = number;
 
+export enum PlayerDirection {
+  Reverse = "reverse",
+  Forward = "forward",
+}
+
 /**
  * A timer implementation for managing animation playback.
  *
@@ -15,7 +20,7 @@ export type RawTime = number;
  * @property _currentTime - The current time in milliseconds
  * @property stamp - Current normalized time position [0, 1]
  * @property speed - Playback speed multiplier (always positive)
- * @property direction - Initial playback direction ("forward" or "reverse")
+ * @property direction - Initial playback direction (PlayerDirection.Forward or PlayerDirection.Reverse)
  * @property _currentDirection - Current actual movement direction during bouncing
  * @property bounds - Constrains playback to a [start, end] range within [0, 1]
  * @property bounce - Whether to reverse direction when reaching bounds
@@ -29,8 +34,8 @@ export interface Player {
   _currentTime: RawTime;
   stamp: number;
   speed: number;
-  direction: "forward" | "reverse";
-  _currentDirection: "forward" | "reverse";
+  direction: PlayerDirection;
+  _currentDirection: PlayerDirection;
   _bounced: boolean;
   _enteredBounds: boolean;
   bounds: [number, number];
@@ -72,7 +77,7 @@ export function now(): RawTime {
  * @param timer - the timer to be updated
  * @returns the updated timer
  */
-export function update(player: Player, coldStart: boolean): Player {
+export function updated(player: Player, coldStart: boolean): Player {
   const p = { ...player };
   const duration = p.duration;
 
@@ -90,7 +95,7 @@ export function update(player: Player, coldStart: boolean): Player {
   }
 
   // Calculate effective timescale from speed and current direction
-  const effectiveTimescale = p.speed * (p._currentDirection === "forward" ? 1 : -1);
+  const effectiveTimescale = p.speed * (p._currentDirection === PlayerDirection.Forward ? 1 : -1);
 
   // Compute the time delta between the two raw times, multiplied by the effective timescale
   const delta = ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
@@ -106,8 +111,8 @@ export function update(player: Player, coldStart: boolean): Player {
 
   // Check if player is moving toward the bounded region
   const movingTowardBounds =
-    (p.stamp < start && p._currentDirection === "forward") ||
-    (p.stamp > end && p._currentDirection === "reverse");
+    (p.stamp < start && p._currentDirection === PlayerDirection.Forward) ||
+    (p.stamp > end && p._currentDirection === PlayerDirection.Reverse);
 
   // Apply boundary logic when crossing boundaries, unless moving toward bounds from outside
   if (updatedStamp > end) {
@@ -119,7 +124,10 @@ export function update(player: Player, coldStart: boolean): Player {
       if (p.bounce && (p.looping || !p._bounced)) {
         // Bounce: reverse current direction and clamp to boundary
         p.stamp = end;
-        p._currentDirection = p._currentDirection === "forward" ? "reverse" : "forward";
+        p._currentDirection =
+          p._currentDirection === PlayerDirection.Forward
+            ? PlayerDirection.Reverse
+            : PlayerDirection.Forward;
         p._bounced = true;
       } else if (p.looping) {
         // Loop without bounce: return to start
@@ -140,7 +148,10 @@ export function update(player: Player, coldStart: boolean): Player {
       if (p.bounce && (p.looping || !p._bounced)) {
         // Bounce: reverse current direction and clamp to boundary
         p.stamp = start;
-        p._currentDirection = p._currentDirection === "forward" ? "reverse" : "forward";
+        p._currentDirection =
+          p._currentDirection === PlayerDirection.Forward
+            ? PlayerDirection.Reverse
+            : PlayerDirection.Forward;
         p._bounced = true;
       } else if (p.looping) {
         // Loop without bounce: return to end
@@ -180,7 +191,7 @@ export function update(player: Player, coldStart: boolean): Player {
  * @param bounds - the new bounds in the range [0, 1]
  * @returns the updated player
  */
-export function setBounds(player: Player, bounds: [number, number]): Player {
+export function withBounds(player: Player, bounds: [number, number]): Player {
   const p = { ...player };
   p.bounds = bounds;
   return p;
@@ -192,7 +203,7 @@ export function setBounds(player: Player, bounds: [number, number]): Player {
  * @param viewport - the new viewport in the range [0, 1]
  * @returns the updated player
  */
-export function setViewport(player: Player, viewport: [number, number]): Player {
+export function withViewport(player: Player, viewport: [number, number]): Player {
   const p = { ...player };
   p.viewport = viewport;
   return p;
@@ -205,7 +216,11 @@ export function setViewport(player: Player, viewport: [number, number]): Player 
  * @param direction - the direction of playback desired (defaults to current direction)
  * @returns the updated timer
  */
-export function play(player: Player, speed?: number, direction?: "forward" | "reverse"): Player {
+export function play(
+  player: Player,
+  speed?: number,
+  direction?: PlayerDirection.Forward | PlayerDirection.Reverse,
+): Player {
   const p = { ...player };
   p.running = true;
   if (speed !== undefined) p.speed = Math.abs(speed); // Ensure speed is positive
@@ -219,9 +234,9 @@ export function play(player: Player, speed?: number, direction?: "forward" | "re
 
   // If not looping and not bouncing, reset stamp to the appropriate bound when starting
   if (!p.looping && !p.bounce) {
-    if (p.direction === "forward" && p.stamp === p.bounds[1]) {
+    if (p.direction === PlayerDirection.Forward && p.stamp === p.bounds[1]) {
       p.stamp = p.bounds[0];
-    } else if (p.direction === "reverse" && p.stamp === p.bounds[0]) {
+    } else if (p.direction === PlayerDirection.Reverse && p.stamp === p.bounds[0]) {
       p.stamp = p.bounds[1];
     }
   }
@@ -231,11 +246,17 @@ export function play(player: Player, speed?: number, direction?: "forward" | "re
   const tolerance = 0.001; // Small tolerance for floating point comparison
 
   // If going forward and we're exactly at the end boundary, jump to start
-  if (p._currentDirection === "forward" && Math.abs(p.stamp - p.bounds[1]) <= tolerance) {
+  if (
+    p._currentDirection === PlayerDirection.Forward &&
+    Math.abs(p.stamp - p.bounds[1]) <= tolerance
+  ) {
     p.stamp = p.bounds[0];
   }
   // If going reverse and we're exactly at the start boundary, jump to end
-  else if (p._currentDirection === "reverse" && Math.abs(p.stamp - p.bounds[0]) <= tolerance) {
+  else if (
+    p._currentDirection === PlayerDirection.Reverse &&
+    Math.abs(p.stamp - p.bounds[0]) <= tolerance
+  ) {
     p.stamp = p.bounds[1];
   }
   // Otherwise, don't jump - let it play naturally from current position toward/through bounds
@@ -273,7 +294,7 @@ export function seek(player: Player, stamp: number): Player {
  * @param duration - the new duration
  * @returns the updated player
  */
-export function setDuration(player: Player, duration: number): Player {
+export function withDuration(player: Player, duration: number): Player {
   const p = { ...player };
   p.duration = duration;
   return p;
@@ -300,8 +321,8 @@ export function newPlayer(): Player {
     _currentTime: now(),
     stamp: 0,
     speed: 1,
-    direction: "forward",
-    _currentDirection: "forward",
+    direction: PlayerDirection.Forward,
+    _currentDirection: PlayerDirection.Forward,
     _bounced: false,
     _enteredBounds: false,
     bounds: [0, 1],
@@ -338,12 +359,16 @@ const getFittedViewport = (
 /**
  * Sets the playback speed without affecting direction.
  * @param player - the player to be updated
- * @param speed - the new speed (always positive)
+ * @param speed - the new speed (must be positive)
  * @returns the updated player
  */
-export function setSpeed(player: Player, speed: number): Player {
+export function withSpeed(player: Player, speed: number): Player {
   const p = { ...player };
-  p.speed = Math.abs(speed); // Ensure speed is positive
+  if (speed < 0) {
+    // If speed is negative, throw an error
+    throw new Error("Speed must be a positive number.");
+  }
+  p.speed = speed;
   return p;
 }
 
@@ -353,7 +378,10 @@ export function setSpeed(player: Player, speed: number): Player {
  * @param direction - the new direction
  * @returns the updated player
  */
-export function setDirection(player: Player, direction: "forward" | "reverse"): Player {
+export function withDirection(
+  player: Player,
+  direction: PlayerDirection.Forward | PlayerDirection.Reverse,
+): Player {
   const p = { ...player };
   p.direction = direction;
   p._currentDirection = direction; // Also update current direction
@@ -367,9 +395,10 @@ export function setDirection(player: Player, direction: "forward" | "reverse"): 
  * @param player - the player to be updated
  * @returns the updated player
  */
-export function reverse(player: Player): Player {
+export function reversed(player: Player): Player {
   const p = { ...player };
-  const newDirection = p.direction === "forward" ? "reverse" : "forward";
+  const newDirection =
+    p.direction === PlayerDirection.Forward ? PlayerDirection.Reverse : PlayerDirection.Forward;
   p.direction = newDirection;
   p._currentDirection = newDirection;
   p._bounced = false; // Reset bounce state when direction changes
@@ -384,7 +413,7 @@ export function reverse(player: Player): Player {
  * @deprecated Use speed and _currentDirection properties instead
  */
 export function getTimescale(player: Player): number {
-  return player.speed * (player._currentDirection === "forward" ? 1 : -1);
+  return player.speed * (player._currentDirection === PlayerDirection.Forward ? 1 : -1);
 }
 
 /**
@@ -393,7 +422,7 @@ export function getTimescale(player: Player): number {
  * @param bounce - whether to bounce at boundaries
  * @returns the updated player
  */
-export function setBounce(player: Player, bounce: boolean): Player {
+export function withBounce(player: Player, bounce: boolean): Player {
   const p = { ...player };
   p.bounce = bounce;
   return p;
@@ -405,7 +434,7 @@ export function setBounce(player: Player, bounce: boolean): Player {
  * @param looping - whether to loop at boundaries
  * @returns the updated player
  */
-export function setLooping(player: Player, looping: boolean): Player {
+export function withLooping(player: Player, looping: boolean): Player {
   const p = { ...player };
   p.looping = looping;
   return p;
