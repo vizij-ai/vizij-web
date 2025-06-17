@@ -14,6 +14,7 @@
     "build": "tsup src/index.tsx --format esm,cjs --dts src/index.tsx --external react",
     "dev": "tsup src/index.tsx --format esm,cjs --watch --dts src/index.tsx --external react",
     "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
