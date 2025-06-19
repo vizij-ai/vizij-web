@@ -19,10 +19,16 @@ import {
   reset,
   play,
   pause,
-  setBounds,
-  setViewport,
-  update,
+  withBounds,
+  withViewport,
+  updated,
   seek,
+  withSpeed,
+  withDirection,
+  reversed,
+  withBounce,
+  withLooping,
+  PlayerDirection,
 } from "./player";
 
 /* This code is not currently used, but it is a first attempt to move the rapidly-changing
@@ -47,12 +53,16 @@ export interface PlayerData {
 export interface PlayerActions {
   /** Updates the total duration of the animation */
   updateDuration: (duration: number) => void;
-  /** Updates the playback speed multiplier */
-  updateTimescale: (speed: number) => void;
+  /** Updates the playback speed */
+  updateSpeed: (speed: number) => void;
+  /** Updates the playback direction */
+  updateDirection: (direction: PlayerDirection) => void;
+  /** Reverses the current playback direction */
+  reverseDirection: () => void;
   /** Resets the player to initial state or specified time */
   resetPlayer: (time?: number) => void;
   /** Plays the animation */
-  playPlayer: (speed?: number) => void;
+  playPlayer: (speed?: number, direction?: PlayerDirection) => void;
   /** Pauses the animation */
   pausePlayer: () => void;
   /** Updates the timer */
@@ -67,6 +77,10 @@ export interface PlayerActions {
   updatePlayerViewportCenter: (time?: number) => void;
   /** Updates one bound of the player viewport */
   updatePlayerViewportBound: (bound: "start" | "end", time: number) => void;
+  /** Update the player bounce setting */
+  updateBounce: (bounce: boolean) => void;
+  /** Update the player looping setting */
+  updateLooping: (looping: boolean) => void;
 }
 
 export type PlayerStoreSetter = (
@@ -91,21 +105,31 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       }),
     );
   },
-  // Set the timescale of the animation playback
-  updateTimescale: (speed: number) => {
-    set(
-      produce((state: PlayerData) => {
-        state.player.timescale = speed;
-      }),
-    );
+  // Set the speed of the animation playback
+  updateSpeed: (speed: number) => {
+    set((state: PlayerData) => ({
+      player: withSpeed(state.player, speed),
+    }));
+  },
+  // Set the direction of the animation playback
+  updateDirection: (direction: PlayerDirection) => {
+    set((state: PlayerData) => ({
+      player: withDirection(state.player, direction),
+    }));
+  },
+  // Reverse the current direction of the animation playback
+  reverseDirection: () => {
+    set((state: PlayerData) => ({
+      player: reversed(state.player),
+    }));
   },
   // Set the time of the animation
   resetPlayer: (time?: number) => {
     set((state: PlayerData) => ({ player: reset(state.player, time) }));
   },
   // Play the animation
-  playPlayer: (speed?: number) => {
-    set((state: PlayerData) => ({ player: play(state.player, speed) }));
+  playPlayer: (speed?: number, direction?: PlayerDirection) => {
+    set((state: PlayerData) => ({ player: play(state.player, speed, direction) }));
   },
   // Pause the animation
   pausePlayer: () => {
@@ -114,13 +138,13 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   // Update the timer
   updatePlayer: (coldStart?: boolean) => {
     set((state: PlayerData) => ({
-      player: update(state.player, coldStart ?? false),
+      player: updated(state.player, coldStart ?? false),
     }));
   },
   // Set the player bounds
   updatePlayerBounds: (start: number, end: number) => {
     set((state: PlayerData) => ({
-      player: setBounds(state.player, [start, end]),
+      player: withBounds(state.player, [start, end]),
     }));
   },
   updatePlayerBound: (bound: "start" | "end", time?: number) => {
@@ -128,19 +152,19 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
       const t = time ?? state.player.stamp;
       if (bound === "start" && state.player.bounds[1] <= t) {
         return {
-          player: setBounds(state.player, [state.player.bounds[1], t]),
+          player: withBounds(state.player, [state.player.bounds[1], t]),
         };
       } else if (bound === "end" && state.player.bounds[0] >= t) {
         return {
-          player: setBounds(state.player, [t, state.player.bounds[0]]),
+          player: withBounds(state.player, [t, state.player.bounds[0]]),
         };
       } else if (bound === "start") {
         return {
-          player: setBounds(state.player, [t, state.player.bounds[1]]),
+          player: withBounds(state.player, [t, state.player.bounds[1]]),
         };
       } else {
         return {
-          player: setBounds(state.player, [state.player.bounds[0], t]),
+          player: withBounds(state.player, [state.player.bounds[0], t]),
         };
       }
     });
@@ -148,7 +172,7 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   // Set the player viewport
   updatePlayerViewport: (start: number, end: number) => {
     set((state: PlayerData) => ({
-      player: setViewport(state.player, [start, end]),
+      player: withViewport(state.player, [start, end]),
     }));
   },
   updatePlayerViewportCenter: (time?: number) => {
@@ -160,22 +184,32 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
     set((state: PlayerData) => {
       if (bound === "start" && state.player.viewport[1] <= time) {
         return {
-          player: setViewport(state.player, [state.player.viewport[1], time]),
+          player: withViewport(state.player, [state.player.viewport[1], time]),
         };
       } else if (bound === "end" && state.player.viewport[0] >= time) {
         return {
-          player: setViewport(state.player, [time, state.player.viewport[0]]),
+          player: withViewport(state.player, [time, state.player.viewport[0]]),
         };
       } else if (bound === "start") {
         return {
-          player: setViewport(state.player, [time, state.player.viewport[1]]),
+          player: withViewport(state.player, [time, state.player.viewport[1]]),
         };
       } else {
         return {
-          player: setViewport(state.player, [state.player.viewport[0], time]),
+          player: withViewport(state.player, [state.player.viewport[0], time]),
         };
       }
     });
+  },
+  updateBounce: (bounce: boolean) => {
+    set((state: PlayerData) => ({
+      player: withBounce(state.player, bounce),
+    }));
+  },
+  updateLooping: (looping: boolean) => {
+    set((state: PlayerData) => ({
+      player: withLooping(state.player, looping),
+    }));
   },
 });
 
