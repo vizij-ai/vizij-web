@@ -5,6 +5,8 @@ import { useSpring } from "motion/react";
 import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { RawValue, RawVector2 } from "@semio/utils";
+import { useWasm } from "../hooks/useWasm";
+import { uniqueId } from "lodash";
 
 type Viseme =
   | "sil"
@@ -114,6 +116,10 @@ type VisemeRigMapping = {
 };
 
 export function InnerVizijVisemeDemo() {
+  const wasm = useWasm(null);
+  if (wasm.isLoaded) {
+    console.log("loaded wasm");
+  }
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
   const speechAudioRef = useRef<HTMLAudioElement>(null);
 
@@ -131,8 +137,15 @@ export function InnerVizijVisemeDemo() {
   const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
   const [spokenAudio, setSpokenAudio] = useState<string>("");
 
-  // const [timer, setTimer] = useState<number>(0);
-  // const [playing, setPlaying] = useState<boolean>(false);
+  const [vizemeOffset, setVizemeOffset] = useState<number>(-50);
+  const [transitionType, setTransitionType] = useState<string>("spring");
+
+  const [activePlayerId, setActivePlayerId] = useState<number | null>(null);
+  const [animationDuration, setAnimationDuration] = useState<number>(0);
+
+  const animationFrameRef = useRef<number>();
+  const startTimeRef = useRef<number>();
+  const lastFrameTimeRef = useRef<number>();
 
   const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
   const setVal = useVizijStore(useShallow((state) => state.setValue));
@@ -245,9 +258,126 @@ export function InnerVizijVisemeDemo() {
           return res.json();
         })
         .then((visemeVals) => {
+          console.log("Viseme Vals", visemeVals);
           setSpokenSentences(visemeVals["sentences"]);
           setSpokenWords(visemeVals["words"]);
           setSpokenVisemes(visemeVals["visemes"]);
+          return visemeVals["visemes"];
+        })
+        .then((processedVisemes) => {
+          const timedSetVals = processedVisemes.map(
+            (v: { time: number; type: "viseme"; value: string }) => {
+              const lookup = visemeMapper[v.value as Viseme];
+              return {
+                time: v.time,
+                scaleX: lookup.x,
+                scaleY: lookup.y,
+                morph: lookup.morph,
+              };
+            },
+          );
+          console.log("processed visemes", processedVisemes);
+          const finalViz = processedVisemes.reduce(
+            (
+              prev: { time: number; scaleX: number; scaleY: number; morph: number },
+              current: { time: number; scaleX: number; scaleY: number; morph: number },
+            ) => {
+              return prev && prev.time > current.time ? prev : current;
+            },
+          );
+          const duration = finalViz.time;
+          setAnimationDuration(duration);
+          console.log("duration", duration);
+          const scaleXPoints = timedSetVals.map(
+            (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
+              return {
+                id: uniqueId(),
+                stamp: v.time / duration,
+                value: v.scaleX,
+              };
+            },
+          );
+          const scaleYPoints = timedSetVals.map(
+            (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
+              return {
+                id: uniqueId(),
+                stamp: v.time / duration,
+                value: v.scaleY,
+              };
+            },
+          );
+          const morphPoints = timedSetVals.map(
+            (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
+              return {
+                id: uniqueId(),
+                stamp: v.time / duration,
+                value: v.morph,
+              };
+            },
+          );
+
+          const tracks = [
+            {
+              id: uniqueId(),
+              name: "X",
+              points: scaleXPoints,
+              animatableId: uniqueId(),
+            },
+            {
+              id: uniqueId(),
+              name: "Y",
+              points: scaleYPoints,
+              animatableId: uniqueId(),
+            },
+            {
+              id: uniqueId(),
+              name: "Morph",
+              points: morphPoints,
+              animatableId: uniqueId(),
+            },
+          ];
+
+          const transitions = [];
+          for (const track of tracks) {
+            for (let i = 0; i < track.points.length - 1; i++) {
+              const p1 = track.points[i];
+              const p2 = track.points[i + 1];
+              const transition = {
+                id: uniqueId(),
+                keypoints: [p1.id, p2.id],
+                variant: transitionType,
+                parameters: [],
+              };
+              transitions.push(transition);
+            }
+          }
+
+          const animation = {
+            id: "Test Animation",
+            name: "Speak",
+            tracks: tracks,
+            groups: {
+              dataType: Map,
+              value: [],
+            },
+            transitions: {
+              dataType: Map,
+              value: transitions.map((t) => [t.id, t]),
+            },
+            duration: duration,
+          };
+          const animationString = JSON.stringify(animation);
+          console.log("Loading animation:", animation);
+          const animationId = wasm.loadAnimation(animationString);
+          console.log("Loaded animation:", wasm.exportAnimation(animationId));
+          const activePlayerId = wasm.createPlayer();
+          setActivePlayerId(activePlayerId);
+
+          // Add instance
+          wasm.addInstance(activePlayerId, animationId);
+          const initialUpdate = wasm.update(0);
+          wasm.play(activePlayerId);
+          console.log("Initial values", initialUpdate);
         });
 
       fetch(`${apiURL}/tts/get-audio`, {
@@ -268,6 +398,7 @@ export function InnerVizijVisemeDemo() {
           setSpokenAudio(audioSrc);
         });
     }
+
   };
 
   useEffect(() => {
@@ -283,6 +414,74 @@ export function InnerVizijVisemeDemo() {
     setSpokenWords([]);
     setSpokenVisemes([]);
   }, [selectedVoice]);
+
+  const runAnimationLoop = (timestamp: number) => {
+    if (startTimeRef.current === undefined) {
+      startTimeRef.current = timestamp;
+      lastFrameTimeRef.current = timestamp;
+    }
+
+    const elapsedTime = timestamp - startTimeRef.current;
+    const deltaSinceLastFrame = timestamp - (lastFrameTimeRef.current ?? timestamp);
+
+    if (deltaSinceLastFrame >= 1000 / 30) {
+      // 30fps
+      lastFrameTimeRef.current = timestamp;
+      const updatedValues = wasm.update(deltaSinceLastFrame/1000);
+      const t = wasm.getPlayerTime(activePlayerId)
+      // console.log(`[${elapsedTime.toFixed(2)}ms], ${t} delta ${(deltaSinceLastFrame/1000).toFixed(3)} Animation values:`, updatedValues);
+      if (updatedValues && updatedValues.size > 0) {
+        const instanceValues = updatedValues.values().next().value; // this is a Map
+
+        if (instanceValues instanceof Map) {
+          const valX = instanceValues.get("X")?.Float;
+          const valY = instanceValues.get("Y")?.Float;
+          const valMorph = instanceValues.get("Morph")?.Float;
+          // console.log(valX, valY, valMorph);
+          if (valX !== undefined) {
+            scaleX.jump(valX);
+          }
+          if (valY !== undefined) {
+            scaleY.jump(valY);
+          }
+          if (valMorph !== undefined) {
+            mouthMorph.jump(valMorph);
+          }
+        }
+      }
+    }
+
+    if (elapsedTime < animationDuration) {
+      animationFrameRef.current = requestAnimationFrame(runAnimationLoop);
+    } else {
+      startTimeRef.current = undefined;
+      lastFrameTimeRef.current = undefined;
+    }
+  };
+
+  const handlePlay = () => {
+    // existing logic
+    wasm.seek(activePlayerId, vizemeOffset / -1000);
+    spokenVisemes.forEach((v, ind) => {
+      setTimeout(() => {
+        if (Object.keys(visemeMapper).includes(v.value)) {
+          // setSelectedViseme(v.value as Viseme);
+          setCurrentSpokenVisemeIndex(ind);
+        }
+        // Make the visemes express slightly before the sound
+      }, v.time + vizemeOffset);
+    });
+
+    // new animation loop logic
+    if (wasm.isLoaded && activePlayerId !== null) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      startTimeRef.current = undefined;
+      lastFrameTimeRef.current = undefined;
+      animationFrameRef.current = requestAnimationFrame(runAnimationLoop);
+    }
+  };
 
   return (
     <div className="my-8">
@@ -346,6 +545,33 @@ export function InnerVizijVisemeDemo() {
           Speak!
         </button>
       </div>
+      <div className="pt-2 mt-2">
+        <label>Vizeme Offset</label>
+        <input
+          type="range"
+          min="-200"
+          max="0"
+          value={vizemeOffset}
+          onChange={(e) => setVizemeOffset(parseInt(e.target.value))}
+          className="m-2"
+        />
+        <span>{vizemeOffset}ms</span>
+      </div>
+      <div className="pt-2 mt-2">
+        <label>Transition Type</label>
+        <select
+          className="bg-white text-black p-2 mx-2"
+          value={transitionType}
+          onChange={(e) => setTransitionType(e.target.value)}
+        >
+          {/* <option value="linear">Linear</option>
+          <option value="bezier">Bezier</option>
+          <option value="step">Step</option> */}
+          <option value="cubic">Cubic</option>
+          {/* <option value="spring">Spring</option>
+          <option value="ease_in_out">EaseInOut</option> */}
+        </select>
+      </div>
       <div>
         <div className="m-4">
           {spokenSentences.map((sent, ind) => {
@@ -386,17 +612,7 @@ export function InnerVizijVisemeDemo() {
               ref={speechAudioRef}
               controls
               src={spokenAudio}
-              onPlay={() => {
-                spokenVisemes.forEach((v, ind) => {
-                  setTimeout(() => {
-                    if (Object.keys(visemeMapper).includes(v.value)) {
-                      setSelectedViseme(v.value as Viseme);
-                      setCurrentSpokenVisemeIndex(ind);
-                    }
-                    // Make the visemes express slightly before the sound
-                  }, v.time - 50);
-                });
-              }}
+              onPlay={handlePlay}
             />
           </div>
         )}
