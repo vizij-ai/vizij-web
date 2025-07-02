@@ -1,17 +1,20 @@
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
+import { clsx } from "clsx";
 import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
-import { ColorPickerPopover, SliderNumberField } from "@semio/ui";
+import { ColorPickerPopover, SliderNumberField, Size } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 
 function InnerController({
   animatableId,
   namespace,
   subfield,
+  className,
 }: {
   animatableId: string;
   namespace?: string;
   subfield?: string;
+  className?: string;
 }) {
   const setValue = useVizijStore(useShallow((state) => state.setValue));
   const animatable = useVizijStore(useShallow((state) => state.animatables[animatableId]));
@@ -22,8 +25,9 @@ function InnerController({
 
   if (animatable.type === "number") {
     return (
-      <div className="flex flex-col w-full">
+      <div className={clsx("flex flex-col w-full", className)}>
         <SliderNumberField
+          size={Size.Sm}
           value={(rawValue ?? animatable.default) as number}
           onChange={(v) => {
             setValue(animatableId, namespace ?? "default", v);
@@ -35,7 +39,7 @@ function InnerController({
     );
   } else if (animatable.type === "vector3" && !subfield) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={clsx("flex flex-col gap-2", className)}>
         {["x", "y", "z"].map((axis) => {
           return (
             <InnerController
@@ -50,7 +54,7 @@ function InnerController({
     );
   } else if (animatable.type === "vector2" && !subfield) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={clsx("flex flex-col gap-2", className)}>
         {["x", "y"].map((axis) => {
           return (
             <InnerController
@@ -65,7 +69,7 @@ function InnerController({
     );
   } else if (animatable.type === "euler" && !subfield) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={clsx("flex flex-col gap-2", className)}>
         {["x", "y", "z"].map((axis) => {
           return (
             <InnerController
@@ -80,7 +84,7 @@ function InnerController({
     );
   } else if (animatable.type === "rgb" && !subfield) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className={clsx("flex flex-col gap-2", className)}>
         <ColorPickerPopover
           value={
             rawValue
@@ -100,6 +104,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -118,6 +123,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -136,6 +142,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         onChange={(v) => {
           setValue(animatableId, namespace ?? "default", {
@@ -153,6 +160,7 @@ function InnerController({
     return (
       <SliderNumberField
         label={axis}
+        size={Size.Sm}
         value={currentVec[axis]}
         strictText
         strictSlider

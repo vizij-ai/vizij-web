@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@semio/ui/dist/styles.css";
+
+@source "../src";
+
+@layer components {
+}
+
+@layer utilities {
+}

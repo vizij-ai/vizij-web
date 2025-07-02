@@ -181,7 +181,6 @@ function InnerHardCodedVizijWithControls({
                         key={material.id}
                         className="m-1 p-1 text-left font-bold flex-row flex gap-2"
                       >
-                        {/* @ts-expect-error Async Server Component */}
                         <Controller animatableId={material.id} className="inline-block" />
                         <span>{material.display}</span>
                       </div>
