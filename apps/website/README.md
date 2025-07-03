@@ -1,5 +1,9 @@
 # Vizij Site
 
+## Temporary Note:
+
+The player has not been integrated properly yet and the wasm module must be pasted into `apps/vizij-site/animation-player/pkg` before the player can be used.
+
 This site was built with the Vite + React TS template. This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

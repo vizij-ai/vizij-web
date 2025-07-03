@@ -6,7 +6,6 @@ import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext }
 import { useShallow } from "zustand/shallow";
 import { RawValue, RawVector2 } from "@semio/utils";
 import { useWasm } from "../hooks/useWasm";
-import { uniqueId } from "lodash";
 
 type Viseme =
   | "sil"
@@ -138,7 +137,7 @@ export function InnerVizijVisemeDemo() {
   const [spokenAudio, setSpokenAudio] = useState<string>("");
 
   const [vizemeOffset, setVizemeOffset] = useState<number>(-50);
-  const [transitionType, setTransitionType] = useState<string>("spring");
+  const [transitionType, setTransitionType] = useState<string>("cubic");
 
   const [activePlayerId, setActivePlayerId] = useState<number | null>(null);
   const [animationDuration, setAnimationDuration] = useState<number>(0);
@@ -291,7 +290,7 @@ export function InnerVizijVisemeDemo() {
           const scaleXPoints = timedSetVals.map(
             (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
               return {
-                id: uniqueId(),
+                id: crypto.randomUUID(),
                 stamp: v.time / duration,
                 value: v.scaleX,
               };
@@ -300,7 +299,7 @@ export function InnerVizijVisemeDemo() {
           const scaleYPoints = timedSetVals.map(
             (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
               return {
-                id: uniqueId(),
+                id: crypto.randomUUID(),
                 stamp: v.time / duration,
                 value: v.scaleY,
               };
@@ -309,7 +308,7 @@ export function InnerVizijVisemeDemo() {
           const morphPoints = timedSetVals.map(
             (v: { time: number; scaleX: number; scaleY: number; morph: number }) => {
               return {
-                id: uniqueId(),
+                id: crypto.randomUUID(),
                 stamp: v.time / duration,
                 value: v.morph,
               };
@@ -318,22 +317,22 @@ export function InnerVizijVisemeDemo() {
 
           const tracks = [
             {
-              id: uniqueId(),
+              id: crypto.randomUUID(),
               name: "X",
               points: scaleXPoints,
-              animatableId: uniqueId(),
+              animatableId: "X",
             },
             {
-              id: uniqueId(),
+              id: crypto.randomUUID(),
               name: "Y",
               points: scaleYPoints,
-              animatableId: uniqueId(),
+              animatableId: "Y",
             },
             {
-              id: uniqueId(),
+              id: crypto.randomUUID(),
               name: "Morph",
               points: morphPoints,
-              animatableId: uniqueId(),
+              animatableId: "Morph",
             },
           ];
 
@@ -343,10 +342,10 @@ export function InnerVizijVisemeDemo() {
               const p1 = track.points[i];
               const p2 = track.points[i + 1];
               const transition = {
-                id: uniqueId(),
+                id: crypto.randomUUID(),
                 keypoints: [p1.id, p2.id],
                 variant: transitionType,
-                parameters: [],
+                parameters: {},
               };
               transitions.push(transition);
             }
@@ -362,7 +361,7 @@ export function InnerVizijVisemeDemo() {
             },
             transitions: {
               dataType: Map,
-              value: transitions.map((t) => [t.id, t]),
+              value: transitions.map((t) => t),
             },
             duration: duration,
           };
@@ -432,12 +431,13 @@ export function InnerVizijVisemeDemo() {
       // console.log(`[${elapsedTime.toFixed(2)}ms], ${t} delta ${(deltaSinceLastFrame/1000).toFixed(3)} Animation values:`, updatedValues);
       if (updatedValues && updatedValues.size > 0) {
         const instanceValues = updatedValues.values().next().value; // this is a Map
+        console.log(instanceValues);
 
         if (instanceValues instanceof Map) {
           const valX = instanceValues.get("X")?.Float;
           const valY = instanceValues.get("Y")?.Float;
           const valMorph = instanceValues.get("Morph")?.Float;
-          // console.log(valX, valY, valMorph);
+          console.log(valX, valY, valMorph);
           if (valX !== undefined) {
             scaleX.jump(valX);
           }
@@ -564,12 +564,12 @@ export function InnerVizijVisemeDemo() {
           value={transitionType}
           onChange={(e) => setTransitionType(e.target.value)}
         >
-          {/* <option value="linear">Linear</option>
+          <option value="linear">Linear</option>
           <option value="bezier">Bezier</option>
-          <option value="step">Step</option> */}
+          <option value="step">Step</option>
           <option value="cubic">Cubic</option>
-          {/* <option value="spring">Spring</option>
-          <option value="ease_in_out">EaseInOut</option> */}
+          <option value="spring">Spring</option>
+          <option value="ease_in_out">EaseInOut</option>
         </select>
       </div>
       <div>
