@@ -66,10 +66,17 @@ export function InnerVizijVisemeDemo() {
     setSpokenVisemes,
   } = usePollyTTS();
 
+  const motionValues = useMemo(
+    () => [
+      { name: "X", motionValue: scaleX },
+      { name: "Y", motionValue: scaleY },
+      { name: "Morph", motionValue: mouthMorph },
+    ],
+    [scaleX, scaleY, mouthMorph],
+  );
+
   const { setAnimationDuration, loadAnimation, play } = useWasmAnimationPlayer(
-    scaleX,
-    scaleY,
-    mouthMorph,
+    motionValues,
   );
 
   useEffect(() => {

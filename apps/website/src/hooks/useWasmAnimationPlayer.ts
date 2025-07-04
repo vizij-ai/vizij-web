@@ -3,9 +3,7 @@ import { useWasm } from "./useWasm";
 import { MotionValue } from "motion";
 
 export const useWasmAnimationPlayer = (
-  scaleX: MotionValue,
-  scaleY: MotionValue,
-  mouthMorph: MotionValue,
+  motionValues: { name: string; motionValue: MotionValue }[],
 ) => {
   const wasm = useWasm(null);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
@@ -51,15 +49,7 @@ export const useWasmAnimationPlayer = (
         setIsLoadingAnimation(false);
       }
     },
-    [
-      wasm.isLoaded,
-      wasm.loadAnimation,
-      wasm.exportAnimation,
-      wasm.createPlayer,
-      wasm.addInstance,
-      isLoadingAnimation,
-      activePlayerId,
-    ],
+    [wasm, isLoadingAnimation, activePlayerId],
   );
 
   const runAnimationLoop = (timestamp: number) => {
@@ -79,18 +69,12 @@ export const useWasmAnimationPlayer = (
         const instanceValues = updatedValues.get(activePlayerId); // Get the specific player's values
 
         if (instanceValues instanceof Map) {
-          const valX = instanceValues.get("X")?.Float;
-          const valY = instanceValues.get("Y")?.Float;
-          const valMorph = instanceValues.get("Morph")?.Float;
-          if (valX !== undefined) {
-            scaleX.jump(valX);
-          }
-          if (valY !== undefined) {
-            scaleY.jump(valY);
-          }
-          if (valMorph !== undefined) {
-            mouthMorph.jump(valMorph);
-          }
+          motionValues.forEach(({ name, motionValue }) => {
+            const val = instanceValues.get(name)?.Float;
+            if (val !== undefined) {
+              motionValue.jump(val);
+            }
+          });
         }
       }
     }
