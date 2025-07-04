@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef, useEffect, useState, useCallback } from "react";
 import wasminit, { WasmAnimationEngine, create_test_animation } from "animation-player";
 
@@ -5,11 +6,11 @@ import wasminit, { WasmAnimationEngine, create_test_animation } from "animation-
  * Pure WASM wrapper hook that loads the module and provides direct access to engine methods
  * without modifying them. Handles memory management and cleanup.
  */
-export function useWasm(config = null) {
-  const engineRef = useRef(null);
+export function useWasm(config: any = null) {
+  const engineRef = useRef<WasmAnimationEngine | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize WASM module
   useEffect(() => {
@@ -33,7 +34,7 @@ export function useWasm(config = null) {
 
         engineRef.current = engine;
         setIsLoaded(true);
-      } catch (err) {
+      } catch (err: any) {
         if (mounted) {
           setError(err.message);
           console.error("WASM initialization failed:", err);
@@ -58,52 +59,52 @@ export function useWasm(config = null) {
   }, [config]);
 
   // Direct WASM method wrappers - these don't modify the underlying methods
-  const loadAnimation = useCallback((animationJson) => {
+  const loadAnimation = useCallback((animationJson: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.load_animation(animationJson);
   }, []);
 
-  const createPlayer = useCallback((playerId) => {
+  const createPlayer = useCallback(() => {
     if (!engineRef.current) throw new Error("WASM not loaded");
-    return engineRef.current.create_player(playerId);
+    return engineRef.current.create_player();
   }, []);
 
-  const addInstance = useCallback((playerId, animationId) => {
+  const addInstance = useCallback((playerId: string, animationId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.add_instance(playerId, animationId);
   }, []);
 
-  const play = useCallback((playerId) => {
+  const play = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.play(playerId);
   }, []);
 
-  const pause = useCallback((playerId) => {
+  const pause = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.pause(playerId);
   }, []);
 
-  const stop = useCallback((playerId) => {
+  const stop = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.stop(playerId);
   }, []);
 
-  const seek = useCallback((playerId, timeSeconds) => {
+  const seek = useCallback((playerId: string, timeSeconds: number) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.seek(playerId, timeSeconds);
   }, []);
 
-  const update = useCallback((frameDeltaSeconds) => {
+  const update = useCallback((frameDeltaSeconds: number) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.update(frameDeltaSeconds);
   }, []);
 
-  const getPlayerState = useCallback((playerId) => {
+  const getPlayerState = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.get_player_state(playerId);
   }, []);
 
-  const getPlayerTime = useCallback((playerId) => {
+  const getPlayerTime = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.get_player_time(playerId);
   }, []);
@@ -113,7 +114,7 @@ export function useWasm(config = null) {
     return engineRef.current.animation_ids();
   }, []);
 
-  const getPlayerProgress = useCallback((playerId) => {
+  const getPlayerProgress = useCallback((playerId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.get_player_progress(playerId);
   }, []);
@@ -123,24 +124,24 @@ export function useWasm(config = null) {
     return engineRef.current.get_player_ids();
   }, []);
 
-  const updatePlayerConfig = useCallback((playerId, configJson) => {
+  const updatePlayerConfig = useCallback((playerId: string, configJson: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.update_player_config(playerId, configJson);
   }, []);
 
-  const exportAnimation = useCallback((animationId) => {
+  const exportAnimation = useCallback((animationId: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     const animationJson = engineRef.current.export_animation(animationId);
     return JSON.parse(animationJson);
   }, []);
 
-  const bakeAnimation = useCallback((animationId, configJson) => {
+  const bakeAnimation = useCallback((animationId: string, configJson: string) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     const bakedJson = engineRef.current.bake_animation(animationId, configJson);
     return JSON.parse(bakedJson);
   }, []);
 
-  const getDerivatives = useCallback((playerId, derivativeWidthMs = 1.0) => {
+  const getDerivatives = useCallback((playerId: string, derivativeWidthMs = 1.0) => {
     if (!engineRef.current) throw new Error("WASM not loaded");
     return engineRef.current.get_derivatives(playerId, derivativeWidthMs);
   }, []);
