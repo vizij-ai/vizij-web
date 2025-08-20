@@ -128,6 +128,48 @@ export function InnerVizijExpressionsDemo() {
   };
 
   useEffect(() => {
+    console.log("Expression weights changed:", expressionWeightVector);
+
+    // Compute weighted average of all expressions
+    let blendedX = 0;
+    let blendedY = 0;
+    let blendedMorph = 0;
+    let totalWeight = 0;
+
+    // For each expression with a non-zero weight, add its contribution
+    Object.entries(expressionWeightVector).forEach(([expression, weight]) => {
+      if (weight > 0) {
+        const expressionData = expressionMapper[expression as Expression];
+        blendedX += expressionData.x * weight;
+        blendedY += expressionData.y * weight;
+        blendedMorph += expressionData.morph * weight;
+        totalWeight += weight;
+      }
+    });
+
+    // If no expressions are active, use neutral as default
+    if (totalWeight === 0) {
+      const neutralData = expressionMapper.neutral;
+      blendedX = neutralData.x;
+      blendedY = neutralData.y;
+      blendedMorph = neutralData.morph;
+    } else {
+      // Normalize by total weight to get proper average
+      blendedX /= totalWeight;
+      blendedY /= totalWeight;
+      blendedMorph /= totalWeight;
+    }
+
+    console.log("Blended result:", { x: blendedX, y: blendedY, morph: blendedMorph });
+
+    // Apply the blended values to motion values
+    scaleX.set(blendedX);
+    scaleY.set(blendedY);
+    mouthMorph.set(blendedMorph);
+
+  }, [expressionWeightVector, scaleX, scaleY, mouthMorph]);
+
+  useEffect(() => {
     if (spokenVisemes.length > 0) {
       const timedSetVals = spokenVisemes.map((v) => {
         const lookup = visemeMapper[v.value as Viseme];
@@ -218,9 +260,9 @@ export function InnerVizijExpressionsDemo() {
               type="range"
               min="0"
               max="100"
-              value={expressionWeightVector[v as Expression]}
+              value={expressionWeightVector[v as Expression] * 100}
               onChange={(e) => {
-                const newValue = parseInt(e.target.value);
+                const newValue = parseInt(e.target.value) / 100;
                 setExpressionWeightVector(prev => ({
                   ...prev,
                   [v as Expression]: newValue
@@ -228,7 +270,7 @@ export function InnerVizijExpressionsDemo() {
               }}
               className="m-2"
             />
-            <span>{expressionWeightVector[v as Expression]}%</span>
+            <span>{Math.round(expressionWeightVector[v as Expression] * 100)}%</span>
           </div>
         ))}
       </div>
