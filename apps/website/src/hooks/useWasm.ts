@@ -146,11 +146,6 @@ export function useWasm(config: any = null) {
     return engineRef.current.get_derivatives(playerId, derivativeWidthMs);
   }, []);
 
-  const getMetrics = useCallback(() => {
-    if (!engineRef.current) throw new Error("WASM not loaded");
-    return engineRef.current.get_metrics();
-  }, []);
-
   // Test animation helper
   const getTestAnimationData = useCallback(() => {
     return create_test_animation();
@@ -181,7 +176,6 @@ export function useWasm(config: any = null) {
     exportAnimation,
     bakeAnimation,
     getDerivatives,
-    getMetrics,
     getTestAnimationData,
   };
 }
