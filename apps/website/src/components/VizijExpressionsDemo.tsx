@@ -46,9 +46,18 @@ export function InnerVizijExpressionsDemo() {
     return initialWeights;
   });
 
+  // Store current viseme-driven motion values
+  const [currentVisemeExpression, setCurrentVisemeExpression] = useState({ x: 1, y: 1, morph: 0 });
+
+  // Motion values for final output (what drives the characters)
   const scaleX = useSpring(1);
   const scaleY = useSpring(1);
   const mouthMorph = useSpring(0);
+
+  // Separate motion values for viseme animation (driven by speech)
+  const visemeScaleX = useSpring(1);
+  const visemeScaleY = useSpring(1);
+  const visemeMouthMorph = useSpring(0);
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
@@ -76,11 +85,11 @@ export function InnerVizijExpressionsDemo() {
 
   const motionValues = useMemo(
     () => [
-      { name: "X", motionValue: scaleX },
-      { name: "Y", motionValue: scaleY },
-      { name: "Morph", motionValue: mouthMorph },
+      { name: "X", motionValue: visemeScaleX },
+      { name: "Y", motionValue: visemeScaleY },
+      { name: "Morph", motionValue: visemeMouthMorph },
     ],
-    [scaleX, scaleY, mouthMorph],
+    [visemeScaleX, visemeScaleY, visemeMouthMorph],
   );
 
   const { setAnimationDuration, loadAnimation, play } = useWasmAnimationPlayer(
@@ -116,6 +125,27 @@ export function InnerVizijExpressionsDemo() {
     };
   }, [scaleX, scaleY, mouthMorph, quoriIDs.scaleId, quoriIDs.morphId, hugoIDs.scaleId, hugoIDs.morphId, setVal]);
 
+  // Separate effect to track viseme motion values
+  useEffect(() => {
+    const unsubscribeVisemeX = visemeScaleX.on("change", (latestVal) => {
+      setCurrentVisemeExpression(prev => ({ ...prev, x: latestVal }));
+    });
+
+    const unsubscribeVisemeY = visemeScaleY.on("change", (latestVal) => {
+      setCurrentVisemeExpression(prev => ({ ...prev, y: latestVal }));
+    });
+
+    const unsubscribeVisemeMorph = visemeMouthMorph.on("change", (latestVal) => {
+      setCurrentVisemeExpression(prev => ({ ...prev, morph: latestVal }));
+    });
+
+    return () => {
+      unsubscribeVisemeX();
+      unsubscribeVisemeY();
+      unsubscribeVisemeMorph();
+    };
+  }, [visemeScaleX, visemeScaleY, visemeMouthMorph, setCurrentVisemeExpression]);
+
   useEffect(() => {
     setSpokenAudio("");
     setSpokenSentences([]);
@@ -127,8 +157,10 @@ export function InnerVizijExpressionsDemo() {
     await getTTSData(text, selectedVoice);
   };
 
+  // Blending effect that combines expression weights with current viseme values
   useEffect(() => {
     console.log("Expression weights changed:", expressionWeightVector);
+    console.log("Current viseme expression:", currentVisemeExpression);
 
     // Compute weighted average of all expressions
     let blendedX = 0;
@@ -147,7 +179,7 @@ export function InnerVizijExpressionsDemo() {
       }
     });
 
-    // If no expressions are active, use neutral as default
+    // If no expressions are active, use neutral as default base
     if (totalWeight === 0) {
       const neutralData = expressionMapper.neutral;
       blendedX = neutralData.x;
@@ -160,14 +192,20 @@ export function InnerVizijExpressionsDemo() {
       blendedMorph /= totalWeight;
     }
 
-    console.log("Blended result:", { x: blendedX, y: blendedY, morph: blendedMorph });
+    // Blend the expression result with current viseme values
+    // Use simple average blending (you can adjust the weights as needed)
+    const finalX = (blendedX + currentVisemeExpression.x) / 2;
+    const finalY = (blendedY + currentVisemeExpression.y) / 2;
+    const finalMorph = (blendedMorph + currentVisemeExpression.morph) / 2;
 
-    // Apply the blended values to motion values
-    scaleX.set(blendedX);
-    scaleY.set(blendedY);
-    mouthMorph.set(blendedMorph);
+    console.log("Final blended result:", { x: finalX, y: finalY, morph: finalMorph });
 
-  }, [expressionWeightVector, scaleX, scaleY, mouthMorph]);
+    // Apply the final blended values to motion values
+    scaleX.set(finalX);
+    scaleY.set(finalY);
+    mouthMorph.set(finalMorph);
+
+  }, [expressionWeightVector, currentVisemeExpression, scaleX, scaleY, mouthMorph]);
 
   useEffect(() => {
     if (spokenVisemes.length > 0) {
