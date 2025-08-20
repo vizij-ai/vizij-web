@@ -7,6 +7,7 @@ import { TiagoVizij } from "./TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
 import VizijLogo from "../assets/vizij.png";
 import { VizijVisemeDemo } from "./VizijVisemeDemo";
+import { VizijExpressionsDemo } from "./VizijExpressionsDemo";
 import { VizijGazeDemo } from "./VizijGazeDemo";
 
 function App() {
@@ -96,6 +97,11 @@ function App() {
           <h2 className="text-4xl my-4 font-bold">Express Visemes For Multiple Faces</h2>
           <p>Express visemes on Quori and Hugo at the same time.</p>
           <VizijVisemeDemo />
+        </div>
+        <div className="w-full bg-black p-12 text-white">
+          <h2 className="text-4xl my-4 font-bold">Expression Blending For Multiple Faces</h2>
+          <p>Blend Expressions and Speech on Quori and Hugo at the same time.</p>
+          <VizijExpressionsDemo />
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">Control Gaze For Multiple Faces</h2>

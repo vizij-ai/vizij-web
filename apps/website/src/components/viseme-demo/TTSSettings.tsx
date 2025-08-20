@@ -5,9 +5,10 @@ interface TTSSettingsProps {
   selectedVoice: string;
   onVoiceChange: (voice: string) => void;
   onSpeak: (text: string) => void;
+  message?: string;
 }
 
-export const TTSSettings = ({ selectedVoice, onVoiceChange, onSpeak }: TTSSettingsProps) => {
+export const TTSSettings = ({ selectedVoice, onVoiceChange, onSpeak, message }: TTSSettingsProps ) => {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
 
   const handleSpeak = () => {
@@ -16,9 +17,13 @@ export const TTSSettings = ({ selectedVoice, onVoiceChange, onSpeak }: TTSSettin
     }
   };
 
+  if (message === undefined)
+    message = "Or say something instead!";
+
+
   return (
     <div className="pt-2 mt-2">
-      <div>Or say something instead!</div>
+      <div>{message}</div>
       <span>Speak as:</span>
       <select
         className="bg-white text-black p-2 mx-2"
