@@ -1,0 +1,23 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: vizij-web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: vizij-web/package-lock.json
+      - run: npm ci
+      - run: npm run --workspace @vizij/animation-react build
+      - run: npm run --workspace demo-animation build

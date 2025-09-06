@@ -1,0 +1,18 @@
+# installs & caches
+/node_modules/
+**/.vite/
+**/.turbo/        # if you ever use turbo
+**/dist/
+
+# env
+.env
+.env.*.local
+
+# tarballs from npm pack
+*.tgz
+
+# common editor cruft
+.DS_Store
+*.log
+.idea/
+.vscode/
