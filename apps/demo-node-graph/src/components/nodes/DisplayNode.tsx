@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph, type ValueJSON } from "@vizij/node-graph-react";
+import { useNodeGraph } from "@vizij/node-graph-react";
+import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -7,14 +8,6 @@ const handleStyle: React.CSSProperties = {
   background: "#444",
   border: "2px solid #222",
 };
-
-function displayValue(v?: ValueJSON): string {
-  if (!v) return "N/A";
-  if ("float" in v) return v.float.toFixed(2);
-  if ("bool" in v) return v.bool ? "true" : "false";
-  if ("vec3" in v) return `[${v.vec3.map((n: number) => n.toFixed(2)).join(", ")}]`;
-  return "N/A";
-}
 
 const DisplayNode = ({ id, data }: NodeProps<{ label?: string }>) => {
   const { outputs } = useNodeGraph();
@@ -26,7 +19,7 @@ const DisplayNode = ({ id, data }: NodeProps<{ label?: string }>) => {
       <div style={{ textAlign: "center" }}>
         <strong>{data.label ?? "Value"}</strong>
         <div style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>
-          {displayValue(value)}
+          {displayValue(value, 2)}
         </div>
       </div>
     </div>

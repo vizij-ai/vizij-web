@@ -11,18 +11,15 @@ import { loadGraphFromLocalStorage } from "./lib/persistence";
 
 export default function App() {
   const { nodes, edges, setGraph } = useGraphStore();
-  console.log("Hello App")
 
   // load saved graph (your current behavior)
   useEffect(() => {
     const saved = loadGraphFromLocalStorage();
     if (saved) setGraph(saved);
   }, [setGraph]);
-  console.log("Hello App 2")
 
   // build GraphSpec whenever editor state changes
   const spec = useMemo(() => nodesToSpec(nodes, edges), [nodes, edges]);
-  console.log("Hello App 3")
 
   return (
     <NodeGraphProvider spec={spec} autostart>

@@ -9,30 +9,30 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-/** Convention: inputs[0]=A, inputs[1]=B */
-const BinaryOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inputs?: string[] }>) => {
+const RemapNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], in_min?: number, in_max?: number, out_min?: number, out_max?: number }>) => {
   const { outputs } = useNodeGraph();
 
   const value = outputs?.[id];
-  const a = outputs?.[data.inputs?.[0] ?? ""];
-  const b = outputs?.[data.inputs?.[1] ?? ""];
+  const input = outputs?.[data.inputs?.[0] ?? ""];
+  const in_min = data.in_min ?? 0;
+  const in_max = data.in_max ?? 1;
+  const out_min = data.out_min ?? 0;
+  const out_max = data.out_max ?? 1;
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 170, position: "relative" }}>
-      <Handle type="target" id="a" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
-      <div style={{ position: "absolute", top: 20, left: -40, fontSize: "0.8em", color: "#aaa" }}>
-        A: {displayValue(a)}
-      </div>
-
-      <Handle type="target" id="b" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
-      <div style={{ position: "absolute", top: 50, left: -40, fontSize: "0.8em", color: "#aaa" }}>
-        B: {displayValue(b)}
+      <Handle type="target" id="in" position={Position.Left} style={{ ...handleStyle, top: 40 }} />
+      <div style={{ position: "absolute", top: 35, left: -40, fontSize: "0.8em", color: "#aaa" }}>
+        In: {displayValue(input)}
       </div>
 
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
 
       <div style={{ textAlign: "center" }}>
-        <strong>{data.label ?? `A ${data.op} B`}</strong>
+        <strong>{data.label ?? "Remap"}</strong>
+        <div style={{ fontSize: "0.7em", color: "#aaa" }}>
+            from [{in_min}, {in_max}] to [{out_min}, {out_max}]
+        </div>
         <div style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>
           {displayValue(value)}
         </div>
@@ -41,4 +41,4 @@ const BinaryOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inpu
   );
 };
 
-export default BinaryOpNode;
+export default RemapNode;

@@ -1,50 +1,95 @@
-import type { Node as RFNode, Edge as RFEdge } from 'reactflow';
-import type { GraphSpec } from '../schema/graph';
+import { type Node as RFNode, type Edge as RFEdge } from "reactflow";
 
-type GraphNodeSpec = GraphSpec['nodes'][number];
-type NodeParams = GraphNodeSpec['params'];
+// Define the structure for the graph specification for the engine
+interface NodeParams {
+  [key: string]: any;
+}
 
+interface GraphNodeSpec {
+  id: string;
+  type: string;
+  params: NodeParams;
+  inputs: string[];
+}
 
+export interface GraphSpec {
+  nodes: GraphNodeSpec[];
+}
+
+// This function converts React Flow nodes and edges to the GraphSpec format.
 export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
-  const spec: GraphSpec = { nodes: [] };
-  const allowedTypes = new Set<GraphNodeSpec['type']>(['constant', 'add', 'subtract', 'time', 'oscillator', 'slider']);
-  const validNodes = nodes.filter(n => allowedTypes.has(n.type as GraphNodeSpec['type']));
-  const validIds = new Set(validNodes.map(n => n.id));
-  const filteredEdges = edges.filter(e => validIds.has(e.source) && validIds.has(e.target));
+  // Filter out UI-only nodes that are not meant for the engine
+  const engineNodes = nodes.filter(n => n.type !== 'output');
+  const engineNodeIds = new Set(engineNodes.map(n => n.id));
+  const engineEdges = edges.filter(e => engineNodeIds.has(e.source) && engineNodeIds.has(e.target));
 
-  for (const node of validNodes) {
-    const inputEdges = filteredEdges.filter(e => e.target === node.id);
-    
-    // This is a simplified way to handle inputs. 
-    // For nodes with specific input ports like 'frequency', we map them directly.
-    // For an 'Add' node, the order is determined by sorting the handles.
+  const spec: GraphSpec = { nodes: [] };
+
+  for (const node of engineNodes) {
+    const { type, data, id } = node;
+
+    const inputEdges = engineEdges.filter(e => e.target === id);
     const inputs = inputEdges
       .sort((a, b) => (a.targetHandle || '').localeCompare(b.targetHandle || ''))
       .map(e => e.source);
 
-    const params: NodeParams = {
-        value: node.data.value,
-        frequency: node.data.frequency,
-        phase: node.data.phase,
-        min: node.data.min,
-        max: node.data.max,
-    };
+    const params: NodeParams = {};
+    const { op } = data;
 
-    // If an input is connected to a specific parameter handle, set it directly
-    const freqEdge = inputEdges.find(e => e.targetHandle === 'frequency');
-    if (freqEdge) {
-        // This assumes the source of the frequency is another node's output.
-        // The engine would need to be adapted to handle this, as it currently only accepts f64 params.
-        // For now, we demonstrate the wiring, but the engine will use the param value.
+    switch (type) {
+      case 'constant':
+      case 'slider':
+        params.value = data.value ?? 0;
+        break;
+      case 'oscillator':
+        params.frequency = data.frequency ?? 1;
+        params.phase = data.phase ?? 0;
+        break;
+      case 'clamp':
+        params.min = data.min ?? 0;
+        params.max = data.max ?? 1;
+        break;
+      case 'remap':
+        params.in_min = data.in_min ?? 0;
+        params.in_max = data.in_max ?? 1;
+        params.out_min = data.out_min ?? 0;
+        params.out_max = data.out_max ?? 1;
+        break;
+      case 'multiply':
+      case 'divide':
+        params.op = type;
+        break;
+      case 'add':
+      case 'subtract':
+      case 'power':
+      case 'log':
+      case 'greaterthan':
+      case 'lessthan':
+      case 'equal':
+      case 'notequal':
+      case 'and':
+      case 'or':
+      case 'xor':
+      case 'not':
+      case 'sin':
+      case 'cos':
+      case 'tan':
+      case 'vec3add':
+      case 'vec3subtract':
+      case 'vec3multiply':
+        if (op) params.op = op;
+        break;
     }
 
     const nodeSpec: GraphNodeSpec = {
-      id: node.id,
-      type: node.type as GraphNodeSpec['type'],
-      params: params,
+      id,
+      type: type || 'unknown',
+      params,
       inputs,
     };
+
     spec.nodes.push(nodeSpec);
   }
+
   return spec;
 };

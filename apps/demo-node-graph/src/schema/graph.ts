@@ -25,6 +25,9 @@ export const NodeType = z.enum([
     "equal",
     "notequal",
     "if",
+    // Ranges
+    "clamp",
+    "remap",
     // Vector
     "vec3",
     "vec3split",
@@ -32,6 +35,10 @@ export const NodeType = z.enum([
     "vec3subtract",
     "vec3multiply",
     "vec3scale",
+    "vec3normalize",
+    "vec3dot",
+    "vec3cross",
+    "vec3length",
     "output"
 ]);
 
@@ -41,6 +48,13 @@ export const NodeParams = z.object({
   phase: z.number().optional(),
   min: z.number().optional(),
   max: z.number().optional(),
+  in_min: z.number().optional(),
+  in_max: z.number().optional(),
+  out_min: z.number().optional(),
+  out_max: z.number().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  z: z.number().optional(),
 });
 
 export const NodeSpec = z.object({

@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph, type ValueJSON } from "@vizij/node-graph-react";
+import { useNodeGraph } from "@vizij/node-graph-react";
+import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -7,13 +8,6 @@ const handleStyle: React.CSSProperties = {
   background: "#444",
   border: "2px solid #222",
 };
-
-function displayValue(v?: ValueJSON): string {
-  if (!v) return "N/A";
-  if ("float" in v) return v.float.toFixed(3);
-  if ("bool" in v) return v.bool ? "true" : "false";
-  return "N/A";
-}
 
 const UnaryOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inputs?: string[] }>) => {
   const { outputs } = useNodeGraph();

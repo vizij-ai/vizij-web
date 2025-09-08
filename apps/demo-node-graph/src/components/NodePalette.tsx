@@ -34,7 +34,8 @@ const NodePalette = () => {
   const mathNodes = ['Add', 'Subtract', 'Multiply', 'Divide', 'Power', 'Log', 'Sin', 'Cos', 'Tan', 'Oscillator'];
   const logicNodes = ['And', 'Or', 'Not', 'Xor'];
   const conditionalNodes = ['GreaterThan', 'LessThan', 'Equal', 'NotEqual', 'If'];
-  const vectorNodes = ['Vec3', 'Vec3Split', 'Vec3Add', 'Vec3Subtract', 'Vec3Multiply', 'Vec3Scale'];
+  const rangeNodes = ['Clamp', 'Remap'];
+  const vectorNodes = ['Vec3', 'Vec3Split', 'Vec3Add', 'Vec3Subtract', 'Vec3Multiply', 'Vec3Scale', 'Vec3Normalize', 'Vec3Dot', 'Vec3Cross', 'Vec3Length'];
   const outputNodes = ['Output'];
 
   return (
@@ -44,6 +45,7 @@ const NodePalette = () => {
       <NodeCategory title="Math" types={mathNodes} />
       <NodeCategory title="Logic" types={logicNodes} />
       <NodeCategory title="Conditional" types={conditionalNodes} />
+      <NodeCategory title="Ranges" types={rangeNodes} />
       <NodeCategory title="Vector" types={vectorNodes} />
       <NodeCategory title="Output" types={outputNodes} />
     </aside>

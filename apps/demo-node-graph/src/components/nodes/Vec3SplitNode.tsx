@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph, valueAsVec3, type ValueJSON } from "@vizij/node-graph-react";
+import { useNodeGraph, valueAsVec3 } from "@vizij/node-graph-react";
+import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -7,14 +8,6 @@ const handleStyle: React.CSSProperties = {
   background: "#444",
   border: "2px solid #222",
 };
-
-function displayValue(v?: ValueJSON): string {
-  if (!v) return "N/A";
-  if ("float" in v) return v.float.toFixed(3);
-  if ("bool" in v) return v.bool ? "true" : "false";
-  if ("vec3" in v) return `[${v.vec3.map((n: number) => n.toFixed(3)).join(", ")}]`;
-  return "N/A";
-}
 
 const Vec3SplitNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>) => {
   const { outputs } = useNodeGraph();

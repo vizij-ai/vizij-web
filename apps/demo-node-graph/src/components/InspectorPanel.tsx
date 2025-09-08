@@ -1,13 +1,6 @@
 import useGraphStore from "../state/useGraphStore";
-import { useNodeGraph, valueAsNumber, valueAsBool } from "@vizij/node-graph-react";
-
-function displayValue(v: any): string {
-  if (!v) return "N/A";
-  if ("float" in v) return v.float.toFixed(3);
-  if ("bool" in v) return v.bool ? "true" : "false";
-  if ("vec3" in v) return `[${v.vec3.map((n: number) => n.toFixed(3)).join(", ")}]`;
-  return "N/A";
-}
+import { useNodeGraph, valueAsNumber } from "@vizij/node-graph-react";
+import { displayValue } from "../lib/display";
 
 const InspectorPanel = () => {
   const { nodes, edges, setNodeData } = useGraphStore();

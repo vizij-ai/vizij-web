@@ -33,11 +33,17 @@ export const nodeTypeRegistry: Record<string, NodeTypeSpec> = {
   equal: { inputs: [{ name: 'a', type: 'float' }, { name: 'b', type: 'float' }], outputs: [{ name: 'out', type: 'bool' }] },
   notequal: { inputs: [{ name: 'a', type: 'float' }, { name: 'b', type: 'float' }], outputs: [{ name: 'out', type: 'bool' }] },
   if: { inputs: [{ name: 'cond', type: 'bool' }, { name: 'then', type: 'any' }, { name: 'else', type: 'any' }], outputs: [{ name: 'out', type: 'any' }] },
+  clamp: { inputs: [{ name: 'in', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },
+  remap: { inputs: [{ name: 'in', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },
   vec3: { inputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }, { name: 'z', type: 'float' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3split: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }, { name: 'z', type: 'float' }] },
   vec3add: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3subtract: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3multiply: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3scale: { inputs: [{ name: 'in', type: 'vector' }, { name: 'scale', type: 'float' }], outputs: [{ name: 'out', type: 'vector' }] },
+  vec3normalize: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
+  vec3dot: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'float' }] },
+  vec3cross: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
+  vec3length: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'out', type: 'float' }] },
   output: { inputs: [], outputs: [] }, // Dynamic inputs
 };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import ReactFlow, { Background, Controls, MiniMap } from "reactflow";
+import ReactFlow, { Background, Controls, MiniMap, ReactFlowProvider, useReactFlow } from "reactflow";
 import "reactflow/dist/style.css";
 import useGraphStore from "../state/useGraphStore";
 import SliderNode from "./nodes/SliderNode";
@@ -9,12 +9,15 @@ import OscillatorNode from "./nodes/OscillatorNode";
 import BinaryOpNode from "./nodes/BinaryOpNode";
 import UnaryOpNode from "./nodes/UnaryOpNode";
 import IfNode from "./nodes/IfNode";
+import ClampNode from "./nodes/ClampNode";
+import RemapNode from "./nodes/RemapNode";
 import Vec3Node from "./nodes/Vec3Node";
 import Vec3SplitNode from "./nodes/Vec3SplitNode";
 import Vec3AddNode from "./nodes/Vec3AddNode";
 import Vec3SubtractNode from "./nodes/Vec3SubtractNode";
 import Vec3MultiplyNode from "./nodes/Vec3MultiplyNode";
 import Vec3ScaleNode from "./nodes/Vec3ScaleNode";
+import VectorOpNode from "./nodes/VectorOpNode";
 import OutputNode from "./nodes/OutputNode";
 
 const nodeTypes = {
@@ -40,20 +43,27 @@ const nodeTypes = {
   cos: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "cos" }} />,
   tan: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "tan" }} />,
   if: IfNode,
+  clamp: ClampNode,
+  remap: RemapNode,
   vec3: Vec3Node,
   vec3split: Vec3SplitNode,
   vec3add: Vec3AddNode,
   vec3subtract: Vec3SubtractNode,
   vec3multiply: Vec3MultiplyNode,
   vec3scale: Vec3ScaleNode,
+  vec3normalize: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "normalize" }} />,
+  vec3dot: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "dot" }} />,
+  vec3cross: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "cross", label: "Vector Cross" }} />,
+  vec3length: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length" }} />,
   output: OutputNode,
 };
 
 let id = 0;
 const getId = () => `dndnode_${id++}`;
 
-const GraphCanvas = () => {
+const GraphCanvasInner = () => {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } = useGraphStore();
+  const { project } = useReactFlow();
 
   useEffect(() => {
     let maxId = -1;
@@ -77,11 +87,11 @@ const GraphCanvas = () => {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
-      const position = { x: event.clientX - 240, y: event.clientY }; // account for palette width
+      const position = project({ x: event.clientX, y: event.clientY });
       const newNode = { id: getId(), type: type.toLowerCase(), position, data: { label: `${type}` } };
       addNode(newNode);
     },
-    [addNode]
+    [addNode, project]
   );
 
   return (
@@ -119,5 +129,11 @@ const GraphCanvas = () => {
     </div>
   );
 };
+
+const GraphCanvas = () => (
+  <ReactFlowProvider>
+    <GraphCanvasInner />
+  </ReactFlowProvider>
+);
 
 export default GraphCanvas;
