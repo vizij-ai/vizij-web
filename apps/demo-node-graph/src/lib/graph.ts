@@ -55,6 +55,14 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
         params.out_min = data.out_min ?? 0;
         params.out_max = data.out_max ?? 1;
         break;
+      case 'inversekinematics':
+        params.bone1 = data.bone1 ?? 1;
+        params.bone2 = data.bone2 ?? 1;
+        params.bone3 = data.bone3 ?? 0.5;
+        break;
+      case 'vec3split':
+        params.index = data.index ?? 0;
+        break;
       case 'multiply':
       case 'divide':
         params.op = type;

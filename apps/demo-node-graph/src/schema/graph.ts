@@ -39,6 +39,7 @@ export const NodeType = z.enum([
     "vec3dot",
     "vec3cross",
     "vec3length",
+    "inversekinematics",
     "output"
 ]);
 

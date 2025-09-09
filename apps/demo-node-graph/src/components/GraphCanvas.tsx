@@ -19,6 +19,7 @@ import Vec3MultiplyNode from "./nodes/Vec3MultiplyNode";
 import Vec3ScaleNode from "./nodes/Vec3ScaleNode";
 import VectorOpNode from "./nodes/VectorOpNode";
 import OutputNode from "./nodes/OutputNode";
+import InverseKinematicsNode from "./nodes/InverseKinematicsNode";
 
 const nodeTypes = {
   slider: SliderNode,
@@ -55,6 +56,7 @@ const nodeTypes = {
   vec3dot: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "dot" }} />,
   vec3cross: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "cross", label: "Vector Cross" }} />,
   vec3length: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length" }} />,
+  inversekinematics: InverseKinematicsNode,
   output: OutputNode,
 };
 

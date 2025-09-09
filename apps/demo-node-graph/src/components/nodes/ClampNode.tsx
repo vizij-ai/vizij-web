@@ -19,9 +19,19 @@ const ClampNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], 
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 170, position: "relative" }}>
-      <Handle type="target" id="in" position={Position.Left} style={{ ...handleStyle, top: 40 }} />
-      <div style={{ position: "absolute", top: 35, left: -40, fontSize: "0.8em", color: "#aaa" }}>
+      <Handle type="target" id="in" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
+      <div style={{ position: "absolute", top: 20, left: -40, fontSize: "0.8em", color: "#aaa" }}>
         In: {displayValue(input)}
+      </div>
+
+      <Handle type="target" id="min" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
+      <div style={{ position: "absolute", top: 50, left: -40, fontSize: "0.8em", color: "#aaa" }}>
+        Min: {min.toFixed(2)}
+      </div>
+
+      <Handle type="target" id="max" position={Position.Left} style={{ ...handleStyle, top: 85 }} />
+      <div style={{ position: "absolute", top: 80, left: -40, fontSize: "0.8em", color: "#aaa" }}>
+        Max: {max.toFixed(2)}
       </div>
 
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />

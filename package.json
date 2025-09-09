@@ -1,7 +1,7 @@
 {
   "name": "vizij-web",
   "private": true,
-  "workspaces": ["packages/*/*", "apps/*"],
+  "workspaces": ["packages/*/*", "apps/*", "../vizij-rs/npm/@vizij/*"],
   "scripts": {
     "dev:animation": "npm run --workspace demo-animation dev",
     "build:animation": "npm run --workspace @vizij/animation-react build && npm run --workspace demo-animation build",

@@ -36,7 +36,7 @@ export const nodeTypeRegistry: Record<string, NodeTypeSpec> = {
   clamp: { inputs: [{ name: 'in', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },
   remap: { inputs: [{ name: 'in', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },
   vec3: { inputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }, { name: 'z', type: 'float' }], outputs: [{ name: 'out', type: 'vector' }] },
-  vec3split: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }, { name: 'z', type: 'float' }] },
+  vec3split: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'out', type: 'float' }] },
   vec3add: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3subtract: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3multiply: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
@@ -45,5 +45,6 @@ export const nodeTypeRegistry: Record<string, NodeTypeSpec> = {
   vec3dot: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'float' }] },
   vec3cross: { inputs: [{ name: 'a', type: 'vector' }, { name: 'b', type: 'vector' }], outputs: [{ name: 'out', type: 'vector' }] },
   vec3length: { inputs: [{ name: 'in', type: 'vector' }], outputs: [{ name: 'out', type: 'float' }] },
+    inversekinematics: { inputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }, { name: 'theta', type: 'float' }, { name: 'bone1', type: 'float' }, { name: 'bone2', type: 'float' }, { name: 'bone3', type: 'float' }], outputs: [{ name: 'out', type: 'vector' }] },
   output: { inputs: [], outputs: [] }, // Dynamic inputs
 };

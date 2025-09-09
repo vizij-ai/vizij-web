@@ -1,14 +1,15 @@
 import { create } from 'zustand';
-import { addEdge, applyNodeChanges, applyEdgeChanges } from 'reactflow';
-import type {
-  Connection,
-  Edge,
-  EdgeChange,
-  Node,
-  NodeChange,
-  OnNodesChange,
-  OnEdgesChange,
-  NodeProps
+import {
+  addEdge,
+  applyNodeChanges,
+  applyEdgeChanges,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type OnNodesChange,
+  type OnEdgesChange,
 } from 'reactflow';
 import { nodeTypeRegistry } from '../lib/node-types';
 
@@ -54,6 +55,13 @@ const useGraphStore = create<RFState>((set, get) => ({
     const targetNode = get().nodes.find(n => n.id === target);
 
     if (!sourceNode || !targetNode) return;
+
+    if (targetNode.type === 'output') {
+        set({
+            edges: addEdge({ ...connection, animated: true }, get().edges),
+        });
+        return;
+    }
 
     const sourceSpec = nodeTypeRegistry[sourceNode.type!];
     const targetSpec = nodeTypeRegistry[targetNode.type!];

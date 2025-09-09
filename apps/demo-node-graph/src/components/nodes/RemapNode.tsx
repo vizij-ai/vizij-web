@@ -21,9 +21,29 @@ const RemapNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], 
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 170, position: "relative" }}>
-      <Handle type="target" id="in" position={Position.Left} style={{ ...handleStyle, top: 40 }} />
-      <div style={{ position: "absolute", top: 35, left: -40, fontSize: "0.8em", color: "#aaa" }}>
+      <Handle type="target" id="in" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
+      <div style={{ position: "absolute", top: 20, left: -70, fontSize: "0.8em", color: "#aaa" }}>
         In: {displayValue(input)}
+      </div>
+
+      <Handle type="target" id="in_min" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
+      <div style={{ position: "absolute", top: 50, left: -70, fontSize: "0.8em", color: "#aaa" }}>
+        In Min: {in_min.toFixed(2)}
+      </div>
+
+      <Handle type="target" id="in_max" position={Position.Left} style={{ ...handleStyle, top: 85 }} />
+      <div style={{ position: "absolute", top: 80, left: -70, fontSize: "0.8em", color: "#aaa" }}>
+        In Max: {in_max.toFixed(2)}
+      </div>
+
+      <Handle type="target" id="out_min" position={Position.Left} style={{ ...handleStyle, top: 115 }} />
+      <div style={{ position: "absolute", top: 110, left: -70, fontSize: "0.8em", color: "#aaa" }}>
+        Out Min: {out_min.toFixed(2)}
+      </div>
+
+      <Handle type="target" id="out_max" position={Position.Left} style={{ ...handleStyle, top: 145 }} />
+      <div style={{ position: "absolute", top: 140, left: -70, fontSize: "0.8em", color: "#aaa" }}>
+        Out Max: {out_max.toFixed(2)}
       </div>
 
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
