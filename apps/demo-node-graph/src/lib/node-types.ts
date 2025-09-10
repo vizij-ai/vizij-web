@@ -1,4 +1,4 @@
-import { ValueType } from '../schema/graph';
+export type ValueType = 'float' | 'bool' | 'vector' | 'any';
 
 export interface PortType {
   name: string;
@@ -13,6 +13,7 @@ export interface NodeTypeSpec {
 export const nodeTypeRegistry: Record<string, NodeTypeSpec> = {
   constant: { inputs: [], outputs: [{ name: 'out', type: 'float' }] },
   slider: { inputs: [], outputs: [{ name: 'out', type: 'float' }] },
+  multislider: { inputs: [], outputs: [{ name: 'o1', type: 'float' }, { name: 'o2', type: 'float' }, { name: 'o3', type: 'float' }] },
   time: { inputs: [], outputs: [{ name: 'out', type: 'float' }] },
   add: { inputs: [{ name: 'a', type: 'float' }, { name: 'b', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },
   subtract: { inputs: [{ name: 'a', type: 'float' }, { name: 'b', type: 'float' }], outputs: [{ name: 'out', type: 'float' }] },

@@ -39,7 +39,7 @@ const NodeCategory = ({ title, types }: { title: string, types: string[] }) => {
 };
 
 const NodePalette = () => {
-  const sourceNodes = ['Constant', 'Slider', 'Time'];
+  const sourceNodes = ['Constant', 'Slider', 'MultiSlider', 'Time'];
   const mathNodes = ['Add', 'Subtract', 'Multiply', 'Divide', 'Power', 'Log', 'Sin', 'Cos', 'Tan', 'Oscillator'];
   const logicNodes = ['And', 'Or', 'Not', 'Xor'];
   const conditionalNodes = ['GreaterThan', 'LessThan', 'Equal', 'NotEqual', 'If'];
@@ -62,4 +62,3 @@ const NodePalette = () => {
 };
 
 export default NodePalette;
-

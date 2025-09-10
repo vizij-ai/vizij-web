@@ -12,7 +12,7 @@ import { init,
   type Value,
 } from "@vizij/node-graph-wasm";
 
-type Outputs = Record<string, ValueJSON> | null;
+type Outputs = Record<string, Record<string, ValueJSON>> | null;
 
 type Ctx = {
   ready: boolean;
@@ -138,28 +138,58 @@ export const useNodeGraph = () => {
    (handy for UI components)
 ----------------------------------------------------------- */
 
-export function valueAsNumber(v?: ValueJSON): number | undefined {
-  if (!v) return undefined;
-  if ("float" in v) return v.float;
-  if ("bool" in v) return v.bool ? 1 : 0;
-  if ("vec3" in v) return v.vec3[0];
+export function valueAsNumber(v?: unknown): number | undefined {
+  let val: ValueJSON | undefined;
+  if (v && typeof v === "object") {
+    const obj: any = v;
+    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+      val = obj as ValueJSON;
+    } else {
+      const map = obj as Record<string, ValueJSON>;
+      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+    }
+  }
+  if (!val) return undefined;
+  if ("float" in val) return val.float;
+  if ("bool" in val) return val.bool ? 1 : 0;
+  if ("vec3" in val) return val.vec3[0];
   return undefined;
 }
 
 export function valueAsVec3(
-  v?: ValueJSON
+  v?: unknown
 ): [number, number, number] | undefined {
-  if (!v) return undefined;
-  if ("vec3" in v) return v.vec3;
-  if ("float" in v) return [v.float, v.float, v.float];
-  if ("bool" in v) return v.bool ? [1, 1, 1] : [0, 0, 0];
+  let val: ValueJSON | undefined;
+  if (v && typeof v === "object") {
+    const obj: any = v;
+    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+      val = obj as ValueJSON;
+    } else {
+      const map = obj as Record<string, ValueJSON>;
+      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+    }
+  }
+  if (!val) return undefined;
+  if ("vec3" in val) return val.vec3;
+  if ("float" in val) return [val.float, val.float, val.float];
+  if ("bool" in val) return val.bool ? [1, 1, 1] : [0, 0, 0];
   return undefined;
 }
 
-export function valueAsBool(v?: ValueJSON): boolean | undefined {
-  if (!v) return undefined;
-  if ("bool" in v) return v.bool;
-  if ("float" in v) return v.float !== 0;
-  if ("vec3" in v) return v.vec3.some((x: number) => x !== 0);
+export function valueAsBool(v?: unknown): boolean | undefined {
+  let val: ValueJSON | undefined;
+  if (v && typeof v === "object") {
+    const obj: any = v;
+    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+      val = obj as ValueJSON;
+    } else {
+      const map = obj as Record<string, ValueJSON>;
+      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+    }
+  }
+  if (!val) return undefined;
+  if ("bool" in val) return val.bool;
+  if ("float" in val) return val.float !== 0;
+  if ("vec3" in val) return val.vec3.some((x: number) => x !== 0);
   return undefined;
 }

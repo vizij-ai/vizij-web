@@ -32,7 +32,7 @@ const InspectorPanel = () => {
       <hr style={{ borderColor: "#444" }} />
       {selectedNodes.length > 0 ? (
         selectedNodes.map((node) => {
-          const out = outputs?.[node.id]; // node's current output
+          const out = outputs?.[node.id]?.out; // default output
           return (
             <div key={node.id}>
               <h3>{node.data.label ?? node.type}</h3>

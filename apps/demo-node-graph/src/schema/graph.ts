@@ -14,6 +14,7 @@ export const NodeType = z.enum([
     "time", 
     "oscillator", 
     "slider",
+    "multislider",
     // Logic
     "and",
     "or",

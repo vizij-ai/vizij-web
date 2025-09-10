@@ -20,9 +20,11 @@ import Vec3ScaleNode from "./nodes/Vec3ScaleNode";
 import VectorOpNode from "./nodes/VectorOpNode";
 import OutputNode from "./nodes/OutputNode";
 import InverseKinematicsNode from "./nodes/InverseKinematicsNode";
+import MultiSliderNode from "./nodes/MultiSliderNode";
 
 const nodeTypes = {
   slider: SliderNode,
+  multislider: MultiSliderNode,
   constant: ConstantNode,
   time: DisplayNode,
   oscillator: OscillatorNode,
