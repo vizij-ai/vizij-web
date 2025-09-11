@@ -9,11 +9,11 @@ type Data = { label?: string; op: string; inputs?: string[] };
 
 const UnaryOpNodeBase = ({ id, data }: NodeProps<Data>) => {
   const value = useNodeOutput(id, "out");
-  const inputValue = useConnectedValue(id, "a", "out");
+  const inputValue = useConnectedValue(id, "in", "out");
 
   return (
     <NodeChrome title={data.label ?? `${data.op} In`} width={150}>
-      <TargetPort id="a" top={38} label={`In: ${displayValue(inputValue)}`} />
+      <TargetPort id="in" top={38} label={`In: ${displayValue(inputValue)}`} />
       <SourcePort />
       <ValueDisplay>{displayValue(value)}</ValueDisplay>
     </NodeChrome>

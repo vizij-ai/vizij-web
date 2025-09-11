@@ -16,16 +16,16 @@ type MultiSliderData = {
 
 const MultiSliderNodeBase = ({ id, data }: NodeProps<MultiSliderData>) => {
   // Read-only: values are edited in the InspectorPanel
-  const o1 = useNodeOutput(id, "o1");
-  const o2 = useNodeOutput(id, "o2");
-  const o3 = useNodeOutput(id, "o3");
+  const o1 = useNodeOutput(id, "x");
+  const o2 = useNodeOutput(id, "y");
+  const o3 = useNodeOutput(id, "z");
 
   return (
     <div style={{ padding: 16, minWidth: 240, background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", position: "relative" }}>
       {/* Outputs */}
-      <Handle type="source" id="o1" position={Position.Right} style={{ ...handleStyle, top: 24 }} />
-      <Handle type="source" id="o2" position={Position.Right} style={{ ...handleStyle, top: 64 }} />
-      <Handle type="source" id="o3" position={Position.Right} style={{ ...handleStyle, top: 104 }} />
+      <Handle type="source" id="x" position={Position.Right} style={{ ...handleStyle, top: 24 }} />
+      <Handle type="source" id="y" position={Position.Right} style={{ ...handleStyle, top: 64 }} />
+      <Handle type="source" id="z" position={Position.Right} style={{ ...handleStyle, top: 104 }} />
 
       <div style={{ marginBottom: 8, textAlign: "center" }}>
         <strong>{data.label ?? "MultiSlider"}</strong>

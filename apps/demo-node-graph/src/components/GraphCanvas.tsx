@@ -21,6 +21,8 @@ import VectorOpNode from "./nodes/VectorOpNode";
 import OutputNode from "./nodes/OutputNode";
 import InverseKinematicsNode from "./nodes/InverseKinematicsNode";
 import MultiSliderNode from "./nodes/MultiSliderNode";
+import PowerNode from "./nodes/PowerNode";
+import LogNode from "./nodes/LogNode";
 
 const nodeTypes = {
   slider: SliderNode,
@@ -32,8 +34,8 @@ const nodeTypes = {
   subtract: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "-" }} />,
   multiply: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "*" }} />,
   divide: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "/" }} />,
-  power: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "^" }} />,
-  log: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "log" }} />,
+  power: PowerNode,
+  log: LogNode,
   greaterthan: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: ">" }} />,
   lessthan: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "<" }} />,
   equal: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "==" }} />,
@@ -55,7 +57,7 @@ const nodeTypes = {
   vec3multiply: Vec3MultiplyNode,
   vec3scale: Vec3ScaleNode,
   vec3normalize: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "normalize" }} />,
-  vec3dot: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "dot" }} />,
+  vec3dot: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "dot", label: "Vector Dot" }} />,
   vec3cross: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "cross", label: "Vector Cross" }} />,
   vec3length: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length" }} />,
   inversekinematics: InverseKinematicsNode,

@@ -10,34 +10,37 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-type Vec3ScaleData = { label?: string; inputs?: string[] };
+type PowerData = { label?: string; inputs?: string[] };
 
-const Vec3ScaleNodeBase = ({ id, data }: NodeProps<Vec3ScaleData>) => {
+const PowerNodeBase = ({ id, data }: NodeProps<PowerData>) => {
   const value = useNodeOutput(id, "out");
-
-  const inputVecValue = useNodeOutput(data.inputs?.[0], "out");
-  const inputScaleValue = useNodeOutput(data.inputs?.[1], "out");
+  const baseVal = useNodeOutput(data.inputs?.[0], "out");
+  const expVal = useNodeOutput(data.inputs?.[1], "out");
 
   return (
-    <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 200, position: "relative" }}>
-      <Handle type="target" id="v" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
-      <div style={{ position: "absolute", top: 20, left: -60, fontSize: "0.8em", color: "#aaa" }}>Vec: {displayValue(inputVecValue)}</div>
-      <Handle type="target" id="scalar" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
-      <div style={{ position: "absolute", top: 50, left: -60, fontSize: "0.8em", color: "#aaa" }}>
-        Scalar: {displayValue(inputScaleValue)}
+    <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 180, position: "relative" }}>
+      <Handle type="target" id="base" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
+      <div style={{ position: "absolute", top: 20, left: -60, fontSize: "0.8em", color: "#aaa" }}>
+        Base: {displayValue(baseVal)}
       </div>
+
+      <Handle type="target" id="exp" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
+      <div style={{ position: "absolute", top: 50, left: -60, fontSize: "0.8em", color: "#aaa" }}>
+        Exponent: {displayValue(expVal)}
+      </div>
+
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
 
       <div style={{ textAlign: "center" }}>
-        <strong>{data.label ?? "Vector Scale"}</strong>
+        <strong>{data.label ?? "Power"}</strong>
         <div style={{ fontSize: "1.2em", fontWeight: "bold", margin: "5px 0" }}>{displayValue(value)}</div>
       </div>
     </div>
   );
 };
 
-const Vec3ScaleNode = React.memo(
-  Vec3ScaleNodeBase,
+const PowerNode = React.memo(
+  PowerNodeBase,
   (prev, next) =>
     prev.id === next.id &&
     (prev.data.label ?? "") === (next.data.label ?? "") &&
@@ -45,4 +48,4 @@ const Vec3ScaleNode = React.memo(
     (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
 );
 
-export default Vec3ScaleNode;
+export default PowerNode;

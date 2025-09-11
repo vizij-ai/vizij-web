@@ -9,13 +9,13 @@ type Data = { label?: string; op: string; inputs?: string[] };
 
 const BinaryOpNodeBase = ({ id, data }: NodeProps<Data>) => {
   const value = useNodeOutput(id, "out");
-  const a = useConnectedValue(id, "a", "out");
-  const b = useConnectedValue(id, "b", "out");
+  const a = useConnectedValue(id, "lhs", "out");
+  const b = useConnectedValue(id, "rhs", "out");
 
   return (
-    <NodeChrome title={data.label ?? `A ${data.op} B`} width={170}>
-      <TargetPort id="a" top={25} label={`A: ${displayValue(a)}`} />
-      <TargetPort id="b" top={55} label={`B: ${displayValue(b)}`} />
+    <NodeChrome title={data.label ?? `LHS ${data.op} RHS`} width={170}>
+      <TargetPort id="lhs" top={25} label={`LHS: ${displayValue(a)}`} />
+      <TargetPort id="rhs" top={55} label={`RHS: ${displayValue(b)}`} />
       <SourcePort />
       <ValueDisplay>{displayValue(value)}</ValueDisplay>
     </NodeChrome>

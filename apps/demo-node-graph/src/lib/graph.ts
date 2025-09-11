@@ -29,6 +29,11 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
   for (const node of nodes) {
     const { type, data, id } = node;
 
+    // Skip purely visual nodes that should not be sent to the engine
+    if ((type ?? "").toLowerCase() === "viewer") {
+      continue;
+    }
+
     const inputs: Record<string, InputConnection> = {};
     const inputEdges = edges.filter(e => e.target === id);
 

@@ -20,7 +20,7 @@ const IfNodeBase = ({ id, data }: NodeProps<IfData>) => {
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 170, position: "relative" }}>
-      <Handle type="target" id="condition" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
+      <Handle type="target" id="cond" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
       <div style={{ position: "absolute", top: 20, left: -70, fontSize: "0.8em", color: "#aaa" }}>
         Condition: {displayValue(cond)}
       </div>
