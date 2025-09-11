@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -44,6 +45,10 @@ const MultiSliderNodeBase = ({ id, data }: NodeProps<MultiSliderData>) => {
       <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8 }}>
         <div style={{ textAlign: "right", color: "#aaa" }}>Z</div>
         <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o3)}</div>
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <NodeSeriesPanel samples={{ x: o1, y: o2, z: o3 }} />
       </div>
     </div>
   );

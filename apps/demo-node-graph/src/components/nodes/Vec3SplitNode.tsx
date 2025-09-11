@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -33,6 +34,9 @@ const Vec3SplitNodeBase = ({ id, data }: NodeProps<SplitData>) => {
 
       <div style={{ textAlign: "center" }}>
         <strong>{data.label ?? "Split Vector"}</strong>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <NodeSeriesPanel samples={{ x, y, z }} />
       </div>
     </div>
   );

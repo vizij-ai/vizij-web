@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -24,6 +25,7 @@ const SliderNodeBase = ({ id, data }: NodeProps<SliderData>) => {
         <div style={{ fontSize: "1.5em", fontWeight: "bold", marginTop: 8 }}>
           {displayValue(out)}
         </div>
+      <NodeSeriesPanel samples={{ out }} />
       </div>
     </div>
   );

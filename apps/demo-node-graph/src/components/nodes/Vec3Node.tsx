@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 import { useConnectedValue } from "../../lib/hooks";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -31,6 +32,7 @@ const Vec3Node = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>
         <strong>{data.label ?? "Vector"}</strong>
         <div style={{ fontSize: "1.2em", fontWeight: "bold", margin: "5px 0" }}>{displayValue(value)}</div>
       </div>
+      <NodeSeriesPanel samples={{ out: value }} />
     </div>
   );
 };

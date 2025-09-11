@@ -2,6 +2,7 @@ import React from "react";
 import type { NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { NodeChrome, TargetPort, SourcePort, ValueDisplay } from "./shared/ui";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 import { displayValue } from "../../lib/display";
 import { useConnectedValue } from "../../lib/hooks";
 
@@ -16,6 +17,7 @@ const UnaryOpNodeBase = ({ id, data }: NodeProps<Data>) => {
       <TargetPort id="in" top={38} label={`In: ${displayValue(inputValue)}`} />
       <SourcePort />
       <ValueDisplay>{displayValue(value)}</ValueDisplay>
+      <NodeSeriesPanel samples={{ out: value }} />
     </NodeChrome>
   );
 };

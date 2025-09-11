@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -32,6 +33,7 @@ const Vec3ScaleNodeBase = ({ id, data }: NodeProps<Vec3ScaleData>) => {
         <strong>{data.label ?? "Vector Scale"}</strong>
         <div style={{ fontSize: "1.2em", fontWeight: "bold", margin: "5px 0" }}>{displayValue(value)}</div>
       </div>
+      <NodeSeriesPanel samples={{ out: value }} />
     </div>
   );
 };

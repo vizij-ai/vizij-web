@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -48,6 +49,7 @@ const RemapNodeBase = ({ id, data }: NodeProps<RemapData>) => {
       </div>
 
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
+      <NodeSeriesPanel samples={{ out: value }} />
 
       <div style={{ textAlign: "center" }}>
         <strong>{data.label ?? "Remap"}</strong>

@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput, valueAsNumber } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -31,6 +32,7 @@ const OscillatorNodeBase = ({ id, data }: NodeProps<OscData>) => {
       <div style={{ position: "absolute", top: 20, left: -60, fontSize: "0.8em", color: "#aaa" }}>
         Freq: {freq.toFixed(2)}
       </div>
+      <NodeSeriesPanel samples={{ out }} />
 
       <Handle type="target" id="phase" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
       <div style={{ position: "absolute", top: 50, left: -60, fontSize: "0.8em", color: "#aaa" }}>

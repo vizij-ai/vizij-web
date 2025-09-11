@@ -2,6 +2,7 @@ import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import NodeSeriesPanel from "./shared/NodeSeriesPanel";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -36,6 +37,7 @@ const VectorOpNodeBase = ({ id, data }: NodeProps<VectorOpData>) => {
           {displayValue(value)}
         </div>
       </div>
+      <NodeSeriesPanel samples={{ out: value }} />
     </div>
   );
 };
