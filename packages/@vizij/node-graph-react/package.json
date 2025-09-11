@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "types": "dist/index.d.ts",
   "files": ["dist", "README.md"],
   "scripts": {

@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
+import { useConnectedValue } from "../../lib/hooks";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -10,12 +11,11 @@ const handleStyle: React.CSSProperties = {
 };
 
 const Vec3Node = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>) => {
-  const { outputs } = useNodeGraph();
-  const value = outputs?.[id];
+  const value = useNodeOutput(id, "out");
 
-  const inputXValue = outputs?.[data.inputs?.[0] ?? ""];
-  const inputYValue = outputs?.[data.inputs?.[1] ?? ""];
-  const inputZValue = outputs?.[data.inputs?.[2] ?? ""];
+  const inputXValue = useConnectedValue(id, "x", "out");
+  const inputYValue = useConnectedValue(id, "y", "out");
+  const inputZValue = useConnectedValue(id, "z", "out");
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 200, position: "relative" }}>

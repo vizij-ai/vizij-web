@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,13 +10,13 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const IfNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>) => {
-  const { outputs } = useNodeGraph();
+type IfData = { label?: string; inputs?: string[] };
 
-  const value = outputs?.[id];
-  const cond = outputs?.[data.inputs?.[0] ?? ""];
-  const thenVal = outputs?.[data.inputs?.[1] ?? ""];
-  const elseVal = outputs?.[data.inputs?.[2] ?? ""];
+const IfNodeBase = ({ id, data }: NodeProps<IfData>) => {
+  const value = useNodeOutput(id, "out");
+  const cond = useNodeOutput(data.inputs?.[0], "out");
+  const thenVal = useNodeOutput(data.inputs?.[1], "out");
+  const elseVal = useNodeOutput(data.inputs?.[2], "out");
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 170, position: "relative" }}>
@@ -45,5 +46,15 @@ const IfNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>) 
     </div>
   );
 };
+
+const IfNode = React.memo(
+  IfNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "") &&
+    (prev.data.inputs?.[2] ?? "") === (next.data.inputs?.[2] ?? "")
+);
 
 export default IfNode;

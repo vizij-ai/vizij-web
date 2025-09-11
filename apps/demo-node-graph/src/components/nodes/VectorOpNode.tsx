@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,12 +10,13 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const VectorOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inputs?: string[] }>) => {
-  const { outputs } = useNodeGraph();
-  const value = outputs?.[id];
+type VectorOpData = { label?: string; op: string; inputs?: string[] };
 
-  const inputAValue = outputs?.[data.inputs?.[0] ?? ""];
-  const inputBValue = outputs?.[data.inputs?.[1] ?? ""];
+const VectorOpNodeBase = ({ id, data }: NodeProps<VectorOpData>) => {
+  const value = useNodeOutput(id, "out");
+
+  const inputAValue = useNodeOutput(data.inputs?.[0], "out");
+  const inputBValue = useNodeOutput(data.inputs?.[1], "out");
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 180, position: "relative" }}>
@@ -37,5 +39,15 @@ const VectorOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inpu
     </div>
   );
 };
+
+const VectorOpNode = React.memo(
+  VectorOpNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    prev.data.op === next.data.op &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
+);
 
 export default VectorOpNode;

@@ -1,8 +1,7 @@
 import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import useGraphStore from "../../state/useGraphStore";
-import { useNodeGraph } from "@vizij/node-graph-react";
-import type { ValueJSON } from "@vizij/node-graph-wasm";
+import { useNodeOutput } from "@vizij/node-graph-react";
+import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
   width: 12,
@@ -11,44 +10,15 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-function fromValueJSON(v?: ValueJSON): number | undefined {
-  if (!v) return undefined;
-  if ("float" in v) return v.float;
-  if ("bool" in v) return v.bool ? 1 : 0;
-  if ("vec3" in v) return v.vec3[0];
-  return undefined;
-}
-
 type MultiSliderData = {
   label?: string;
-  min?: number;
-  max?: number;
-  x?: number;
-  y?: number;
-  z?: number;
 };
 
-const MultiSliderNode = ({ id, data }: NodeProps<MultiSliderData>) => {
-  const { setNodeData } = useGraphStore();
-  const { outputs, setParam } = useNodeGraph();
-
-  const o1 = outputs?.[id]?.o1;
-  const o2 = outputs?.[id]?.o2;
-  const o3 = outputs?.[id]?.o3;
-
-  const x = fromValueJSON(o1) ?? (typeof data.x === "number" ? data.x : 0);
-  const y = fromValueJSON(o2) ?? (typeof data.y === "number" ? data.y : 0);
-  const z = fromValueJSON(o3) ?? (typeof data.z === "number" ? data.z : 0);
-
-  const min = typeof data.min === "number" ? data.min : 0;
-  const max = typeof data.max === "number" ? data.max : 1;
-  const step = (max - min) / 100 || 0.01;
-
-  const handleChange = (axis: "x" | "y" | "z") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const n = parseFloat(e.target.value);
-    setNodeData(id, { ...data, [axis]: n });
-    setParam(id, axis, n);
-  };
+const MultiSliderNodeBase = ({ id, data }: NodeProps<MultiSliderData>) => {
+  // Read-only: values are edited in the InspectorPanel
+  const o1 = useNodeOutput(id, "o1");
+  const o2 = useNodeOutput(id, "o2");
+  const o3 = useNodeOutput(id, "o3");
 
   return (
     <div style={{ padding: 16, minWidth: 240, background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", position: "relative" }}>
@@ -57,29 +27,33 @@ const MultiSliderNode = ({ id, data }: NodeProps<MultiSliderData>) => {
       <Handle type="source" id="o2" position={Position.Right} style={{ ...handleStyle, top: 64 }} />
       <Handle type="source" id="o3" position={Position.Right} style={{ ...handleStyle, top: 104 }} />
 
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 8, textAlign: "center" }}>
         <strong>{data.label ?? "MultiSlider"}</strong>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 60px", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <div style={{ textAlign: "right", color: "#aaa" }}>X</div>
-        <input type="range" min={min} max={max} step={step} value={x} onChange={handleChange("x")} />
-        <div style={{ textAlign: "right" }}>{x.toFixed(2)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o1)}</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 60px", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <div style={{ textAlign: "right", color: "#aaa" }}>Y</div>
-        <input type="range" min={min} max={max} step={step} value={y} onChange={handleChange("y")} />
-        <div style={{ textAlign: "right" }}>{y.toFixed(2)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o2)}</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 60px", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8 }}>
         <div style={{ textAlign: "right", color: "#aaa" }}>Z</div>
-        <input type="range" min={min} max={max} step={step} value={z} onChange={handleChange("z")} />
-        <div style={{ textAlign: "right" }}>{z.toFixed(2)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o3)}</div>
       </div>
     </div>
   );
 };
+
+const MultiSliderNode = React.memo(
+  MultiSliderNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "")
+);
 
 export default MultiSliderNode;

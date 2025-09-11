@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph, valueAsNumber } from "@vizij/node-graph-react";
+import { useNodeOutput, valueAsNumber } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -13,13 +14,14 @@ const handleStyle: React.CSSProperties = {
  * Convention: inputs[0] = frequency, inputs[1] = phase.
  * Falls back to data.frequency / data.phase if no input is connected.
  */
-const OscillatorNode = ({ id, data }: NodeProps<{ inputs?: string[]; frequency?: number; phase?: number }>) => {
-  const { outputs } = useNodeGraph();
+type OscData = { inputs?: string[]; frequency?: number; phase?: number };
 
-  const out = outputs?.[id];
+const OscillatorNodeBase = ({ id, data }: NodeProps<OscData>) => {
+  const out = useNodeOutput(id, "out");
 
-  const freqIn = outputs?.[data.inputs?.[0] ?? ""];
-  const phaseIn = outputs?.[data.inputs?.[1] ?? ""];
+  const freqIn = useNodeOutput(data.inputs?.[0], "out");
+  const phaseIn = useNodeOutput(data.inputs?.[1], "out");
+
   const freq = valueAsNumber(freqIn) ?? data.frequency ?? 1.0;
   const phase = valueAsNumber(phaseIn) ?? data.phase ?? 0.0;
 
@@ -46,5 +48,15 @@ const OscillatorNode = ({ id, data }: NodeProps<{ inputs?: string[]; frequency?:
     </div>
   );
 };
+
+const OscillatorNode = React.memo(
+  OscillatorNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.frequency ?? 0) === (next.data.frequency ?? 0) &&
+    (prev.data.phase ?? 0) === (next.data.phase ?? 0) &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
+);
 
 export default OscillatorNode;

@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,11 +10,11 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const ClampNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], min?: number, max?: number }>) => {
-  const { outputs } = useNodeGraph();
+type ClampData = { label?: string; inputs?: string[]; min?: number; max?: number };
 
-  const value = outputs?.[id];
-  const input = outputs?.[data.inputs?.[0] ?? ""];
+const ClampNodeBase = ({ id, data }: NodeProps<ClampData>) => {
+  const value = useNodeOutput(id, "out");
+  const input = useNodeOutput(data.inputs?.[0], "out");
   const min = data.min ?? 0;
   const max = data.max ?? 1;
 
@@ -48,5 +49,15 @@ const ClampNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], 
     </div>
   );
 };
+
+const ClampNode = React.memo(
+  ClampNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.min ?? 0) === (next.data.min ?? 0) &&
+    (prev.data.max ?? 1) === (next.data.max ?? 1) &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "")
+);
 
 export default ClampNode;

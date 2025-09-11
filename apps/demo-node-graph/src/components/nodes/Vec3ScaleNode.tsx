@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,12 +10,13 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const Vec3ScaleNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[] }>) => {
-  const { outputs } = useNodeGraph();
-  const value = outputs?.[id];
+type Vec3ScaleData = { label?: string; inputs?: string[] };
 
-  const inputVecValue = outputs?.[data.inputs?.[0] ?? ""];
-  const inputScaleValue = outputs?.[data.inputs?.[1] ?? ""];
+const Vec3ScaleNodeBase = ({ id, data }: NodeProps<Vec3ScaleData>) => {
+  const value = useNodeOutput(id, "out");
+
+  const inputVecValue = useNodeOutput(data.inputs?.[0], "out");
+  const inputScaleValue = useNodeOutput(data.inputs?.[1], "out");
 
   return (
     <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 200, position: "relative" }}>
@@ -33,5 +35,14 @@ const Vec3ScaleNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string
     </div>
   );
 };
+
+const Vec3ScaleNode = React.memo(
+  Vec3ScaleNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
+);
 
 export default Vec3ScaleNode;

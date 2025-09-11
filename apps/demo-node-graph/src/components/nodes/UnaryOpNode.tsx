@@ -1,31 +1,32 @@
-import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import React from "react";
+import type { NodeProps } from "reactflow";
+import { useNodeOutput } from "@vizij/node-graph-react";
+import { NodeChrome, TargetPort, SourcePort, ValueDisplay } from "./shared/ui";
 import { displayValue } from "../../lib/display";
+import { useConnectedValue } from "../../lib/hooks";
 
-const handleStyle: React.CSSProperties = {
-  width: 12,
-  height: 12,
-  background: "#444",
-  border: "2px solid #222",
-};
+type Data = { label?: string; op: string; inputs?: string[] };
 
-const UnaryOpNode = ({ id, data }: NodeProps<{ label?: string; op: string; inputs?: string[] }>) => {
-  const { outputs } = useNodeGraph();
-  const value = outputs?.[id];
-  const inputValue = outputs?.[data.inputs?.[0] ?? ""];
+const UnaryOpNodeBase = ({ id, data }: NodeProps<Data>) => {
+  const value = useNodeOutput(id, "out");
+  const inputValue = useConnectedValue(id, "a", "out");
 
   return (
-    <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 150, position: "relative" }}>
-      <Handle type="target" id="a" position={Position.Left} style={{ ...handleStyle, top: 38 }} />
-      <div style={{ position: "absolute", top: 33, left: -40, fontSize: "0.8em", color: "#aaa" }}>In: {displayValue(inputValue)}</div>
-      <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
-
-      <div style={{ textAlign: "center" }}>
-        <strong>{data.label ?? `${data.op} In`}</strong>
-        <div style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0" }}>{displayValue(value)}</div>
-      </div>
-    </div>
+    <NodeChrome title={data.label ?? `${data.op} In`} width={150}>
+      <TargetPort id="a" top={38} label={`In: ${displayValue(inputValue)}`} />
+      <SourcePort />
+      <ValueDisplay>{displayValue(value)}</ValueDisplay>
+    </NodeChrome>
   );
 };
+
+const UnaryOpNode = React.memo(
+  UnaryOpNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    prev.data.label === next.data.label &&
+    prev.data.op === next.data.op &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "")
+);
 
 export default UnaryOpNode;

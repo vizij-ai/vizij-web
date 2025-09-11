@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -10,8 +10,7 @@ const handleStyle: React.CSSProperties = {
 };
 
 const DisplayNode = ({ id, data }: NodeProps<{ label?: string }>) => {
-  const { outputs } = useNodeGraph();
-  const value = outputs?.[id];
+  const value = useNodeOutput(id, "out");
 
   return (
     <div style={{ padding: "10px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555" }}>

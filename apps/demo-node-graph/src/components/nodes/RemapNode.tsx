@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,11 +10,11 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const RemapNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], in_min?: number, in_max?: number, out_min?: number, out_max?: number }>) => {
-  const { outputs } = useNodeGraph();
+type RemapData = { label?: string; inputs?: string[]; in_min?: number; in_max?: number; out_min?: number; out_max?: number };
 
-  const value = outputs?.[id];
-  const input = outputs?.[data.inputs?.[0] ?? ""];
+const RemapNodeBase = ({ id, data }: NodeProps<RemapData>) => {
+  const value = useNodeOutput(id, "out");
+  const input = useNodeOutput(data.inputs?.[0], "out");
   const in_min = data.in_min ?? 0;
   const in_max = data.in_max ?? 1;
   const out_min = data.out_min ?? 0;
@@ -61,4 +62,15 @@ const RemapNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], 
   );
 };
 
+const RemapNode = React.memo(
+  RemapNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.in_min ?? 0) === (next.data.in_min ?? 0) &&
+    (prev.data.in_max ?? 1) === (next.data.in_max ?? 1) &&
+    (prev.data.out_min ?? 0) === (next.data.out_min ?? 0) &&
+    (prev.data.out_max ?? 1) === (next.data.out_max ?? 1) &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "")
+);
 export default RemapNode;

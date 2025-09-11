@@ -1,5 +1,6 @@
+import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useNodeGraph } from "@vizij/node-graph-react";
+import { useNodeOutput } from "@vizij/node-graph-react";
 import { displayValue } from "../../lib/display";
 
 const handleStyle: React.CSSProperties = {
@@ -9,13 +10,13 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-const InverseKinematicsNode = ({ id, data }: NodeProps<{ label?: string; inputs?: string[], bone1?: number, bone2?: number, bone3?: number }>) => {
-  const { outputs } = useNodeGraph();
+type IKData = { label?: string; inputs?: string[]; bone1?: number; bone2?: number; bone3?: number };
 
-  const value = outputs?.[id];
-  const x = outputs?.[data.inputs?.[0] ?? ""];
-  const y = outputs?.[data.inputs?.[1] ?? ""];
-  const theta = outputs?.[data.inputs?.[2] ?? ""];
+const InverseKinematicsNodeBase = ({ id, data }: NodeProps<IKData>) => {
+  const value = useNodeOutput(id, "out");
+  const x = useNodeOutput(data.inputs?.[0], "out");
+  const y = useNodeOutput(data.inputs?.[1], "out");
+  const theta = useNodeOutput(data.inputs?.[2], "out");
 
   const bone1len = data.bone1 ?? 1;
   const bone2len = data.bone2 ?? 1;
@@ -67,5 +68,18 @@ const InverseKinematicsNode = ({ id, data }: NodeProps<{ label?: string; inputs?
     </div>
   );
 };
+
+const InverseKinematicsNode = React.memo(
+  InverseKinematicsNodeBase,
+  (prev, next) =>
+    prev.id === next.id &&
+    (prev.data.label ?? "") === (next.data.label ?? "") &&
+    (prev.data.bone1 ?? 1) === (next.data.bone1 ?? 1) &&
+    (prev.data.bone2 ?? 1) === (next.data.bone2 ?? 1) &&
+    (prev.data.bone3 ?? 0.5) === (next.data.bone3 ?? 0.5) &&
+    (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "") &&
+    (prev.data.inputs?.[2] ?? "") === (next.data.inputs?.[2] ?? "")
+);
 
 export default InverseKinematicsNode;

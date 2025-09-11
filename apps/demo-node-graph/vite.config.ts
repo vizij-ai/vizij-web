@@ -8,12 +8,13 @@ export default defineConfig({
     preserveSymlinks: true,
   },
   server: {
-    // Un-ignore this linked dep inside node_modules
+    // Un-ignore these linked deps inside node_modules
     watch: {
-      // anymatch supports negation; first ignore, then unignore our package
+      // anymatch supports negation; first ignore, then unignore our packages
       ignored: [
         "**/node_modules/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph-react/**",
       ],
     },
     headers: {
@@ -24,5 +25,9 @@ export default defineConfig({
   optimizeDeps: {
     // Prevent pre-bundling the wasm ESM shim in dev; let Vite handle it directly
     exclude: ["@vizij/node-graph-wasm"],
+    // Force Vite to include the React binding so named exports (e.g. useNodeOutput) are available
+    include: ["@vizij/node-graph-react"],
+    // Ensure re-optimization when config changes or local package updates
+    force: true,
   },
 });

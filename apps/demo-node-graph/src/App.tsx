@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { NodeGraphProvider } from "@vizij/node-graph-react"; // new provider
 import useGraphStore from "./state/useGraphStore";
 import GraphCanvas from "./components/GraphCanvas";
@@ -18,11 +18,27 @@ export default function App() {
     if (saved) setGraph(saved);
   }, [setGraph]);
 
-  // build GraphSpec whenever editor state changes
-  const spec = useMemo(() => nodesToSpec(nodes, edges), [nodes, edges]);
+  // Build GraphSpec with stable identity to avoid unnecessary provider reloads
+  // (e.g., selection/drag causing nodes array identity changes). This prevents
+  // clobbering live setParam updates while editing in the Inspector.
+  const specCacheRef = useRef<{ json: string; spec: ReturnType<typeof nodesToSpec> | null }>({
+    json: "",
+    spec: null,
+  });
+
+  const spec = useMemo(() => {
+    const next = nodesToSpec(nodes, edges);
+    const json = JSON.stringify(next);
+    const prev = specCacheRef.current;
+    if (prev.spec && prev.json === json) {
+      return prev.spec;
+    }
+    specCacheRef.current = { json, spec: next };
+    return next;
+  }, [nodes, edges]);
 
   return (
-    <NodeGraphProvider spec={spec} autostart>
+    <NodeGraphProvider spec={spec} autostart updateHz={30}>
       <div className="app">
         <NodePalette />
         <main style={{ display: "grid", gridTemplateRows: "auto 1fr" }}>
