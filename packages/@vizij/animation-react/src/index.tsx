@@ -14,6 +14,7 @@ import {
   type StoredAnimation,
   type Inputs,
   type Outputs,
+  type Config,
 } from "@vizij/animation-wasm";
 
 /* Local fallback Value type to avoid tight compile-time coupling on the wasm package types.
@@ -106,15 +107,42 @@ export const AnimationProvider: React.FC<{
 
   /** Throttle UI notifications (Hz). Default: notify every frame while autostarting */
   updateHz?: number;
-}> = ({ children, animations, instances, prebind, autostart = true, updateHz }) => {
+
+  /** Optional engine configuration for Engine constructor. Changing this re-initializes the Engine. */
+  engineConfig?: Config;
+
+  /** Optional callback to receive raw Outputs each update (includes events). */
+  onOutputs?: (out: Outputs) => void;
+}> = ({ children, animations, instances, prebind, autostart = true, updateHz, engineConfig, onOutputs }) => {
   const engineRef = useRef<Engine | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const lastNotifyRef = useRef<number>(0);
+  const onOutputsRef = useRef<typeof onOutputs | undefined>(onOutputs);
+  useEffect(() => {
+    onOutputsRef.current = onOutputs;
+  }, [onOutputs]);
 
   // Track the identity of loaded animations to avoid redundant reloads
   const animsCacheRef = useRef<{ json: string; count: number } | null>(null);
   const animIdsRef = useRef<number[]>([]);
+
+  // Identity keys for animations and instances to drive engine re-init on shape changes
+  const animKey = useMemo(() => {
+    try {
+      return JSON.stringify(Array.isArray(animations) ? animations : [animations]);
+    } catch {
+      return String(Math.random());
+    }
+  }, [animations]);
+
+  const instKey = useMemo(() => {
+    try {
+      return JSON.stringify(instances ?? []);
+    } catch {
+      return String(Math.random());
+    }
+  }, [instances]);
 
   const [ready, setReady] = useState(false);
 
@@ -159,14 +187,23 @@ export const AnimationProvider: React.FC<{
   }, []);
 
   const applyOutputs = (out: Outputs | undefined) => {
-    if (!out || !Array.isArray(out.changes) || out.changes.length === 0) return;
-    const changedKeys: string[] = [];
-    for (const ch of out.changes) {
-      valuesRef.current[ch.key] = ch.value;
-      changedKeys.push(ch.key);
+    if (!out) return;
+    if (Array.isArray(out.changes) && out.changes.length > 0) {
+      const changedKeys: string[] = [];
+      for (const ch of out.changes) {
+        valuesRef.current[ch.key] = ch.value;
+        changedKeys.push(ch.key);
+      }
+      // Notify per-key subscribers
+      changedKeys.forEach(notifyKey);
     }
-    // Notify per-key subscribers
-    changedKeys.forEach(notifyKey);
+    // Forward full Outputs (including events) to consumer if provided
+    try {
+      onOutputsRef.current?.(out);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("Animation onOutputs callback error", e);
+    }
   };
 
   const normalizeAnimations = (anims: StoredAnimation[] | StoredAnimation): StoredAnimation[] => {
@@ -197,14 +234,22 @@ export const AnimationProvider: React.FC<{
           const pid = eng.createPlayer(spec.playerName);
           const animIndex = spec.animIndex ?? 0;
           const aid = animIdsRef.current[animIndex] ?? animIdsRef.current[0] ?? 0;
-          eng.addInstance(pid, (aid as unknown) as number, spec.cfg);
+          const cfgFinal = {
+            weight: 1,
+            time_scale: 1,
+            start_offset: 0,
+            enabled: true,
+            ...(spec.cfg as any ?? {}),
+          };
+          eng.addInstance(pid, (aid as unknown) as number, cfgFinal as any);
           nextPlayers[spec.playerName] = pid as unknown as number;
         }
       } else {
         // Default: one player "default" using first animation (index 0)
         const pid = eng.createPlayer("default");
         const aid0 = animIdsRef.current[0] ?? 0;
-        eng.addInstance(pid, (aid0 as unknown) as number, undefined);
+        const cfgDefault = { weight: 1, time_scale: 1, start_offset: 0, enabled: true };
+        eng.addInstance(pid, (aid0 as unknown) as number, cfgDefault as any);
         nextPlayers["default"] = pid as unknown as number;
       }
       setPlayers(nextPlayers);
@@ -221,7 +266,12 @@ export const AnimationProvider: React.FC<{
 
       if (cancelled) return;
 
-      const eng = new Engine();
+      // Reset value cache and internal identity caches before creating a new engine
+      valuesRef.current = {};
+      animsCacheRef.current = null;
+      animIdsRef.current = [];
+
+      const eng = new Engine(engineConfig);
       engineRef.current = eng;
 
       if (prebind) {
@@ -236,8 +286,6 @@ export const AnimationProvider: React.FC<{
       const list = normalizeAnimations(animations);
       loadAnimationsAndInstances(eng, list, instances);
 
-      // Seed a zero-step to populate any immediate outputs
-      applyOutputs(eng.update(0.0));
 
       setReady(true);
 
@@ -274,17 +322,10 @@ export const AnimationProvider: React.FC<{
       rafRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autostart, updateHz, prebind]);
+  }, [autostart, updateHz, prebind, engineConfig, animKey, instKey]);
 
-  // Reload if animations/instances identity changes (keep same Engine)
-  useEffect(() => {
-    if (!ready || !engineRef.current) return;
-    const eng = engineRef.current;
-    const list = normalizeAnimations(animations);
-    loadAnimationsAndInstances(eng, list, instances);
-    // Refresh outputs after reload
-    applyOutputs(eng.update(0.0));
-  }, [animations, instances, ready, loadAnimationsAndInstances]);
+  // Reload effect removed: engine re-inits on animations/instances identity changes via animKey/instKey.
+  // Keeping a second reload here caused duplicate players and inert transport.
 
   const step = useCallback((dt: number, inputs?: Inputs) => {
     const eng = engineRef.current;
@@ -349,85 +390,3 @@ export function useAnimTarget(key?: string): Value | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
 }
 
-/* -----------------------------------------------------------
-   Value helpers for UI
------------------------------------------------------------ */
-
-export function valueAsNumber(v?: Value): number | undefined {
-  if (!v) return undefined;
-  switch (v.type) {
-    case "Scalar":
-      return v.data;
-    case "Bool":
-      return v.data ? 1 : 0;
-    case "Vec2":
-      return v.data[0];
-    case "Vec3":
-      return v.data[0];
-    case "Vec4":
-      return v.data[0];
-    case "Color":
-      return v.data[0]; // R
-    case "Quat":
-      return v.data[3]; // w
-    case "Transform":
-      return v.data.translation[0];
-    case "Text":
-      return Number.isFinite(Number(v.data)) ? Number(v.data) : undefined;
-    default:
-      return undefined;
-  }
-}
-
-export function valueAsVec3(v?: Value): [number, number, number] | undefined {
-  if (!v) return undefined;
-  switch (v.type) {
-    case "Vec3":
-      return v.data;
-    case "Scalar":
-      return [v.data, v.data, v.data];
-    case "Bool":
-      return v.data ? [1, 1, 1] : [0, 0, 0];
-    case "Transform":
-      return v.data.translation;
-    case "Color":
-      return [v.data[0], v.data[1], v.data[2]];
-    case "Vec2":
-      return [v.data[0], v.data[1], 0];
-    case "Vec4":
-      return [v.data[0], v.data[1], v.data[2]];
-    case "Quat":
-      return [v.data[0], v.data[1], v.data[2]];
-    default:
-      return undefined;
-  }
-}
-
-export function valueAsBool(v?: Value): boolean | undefined {
-  if (!v) return undefined;
-  switch (v.type) {
-    case "Bool":
-      return v.data;
-    case "Scalar":
-      return v.data !== 0;
-    case "Vec2":
-      return v.data[0] !== 0 || v.data[1] !== 0;
-    case "Vec3":
-      return v.data[0] !== 0 || v.data[1] !== 0 || v.data[2] !== 0;
-    case "Vec4":
-      return v.data[0] !== 0 || v.data[1] !== 0 || v.data[2] !== 0 || v.data[3] !== 0;
-    case "Color":
-      return v.data.some((c: number) => c !== 0);
-    case "Quat":
-      return !(v.data[0] === 0 && v.data[1] === 0 && v.data[2] === 0 && v.data[3] === 1);
-    case "Transform":
-      return (
-        v.data.translation.some((x: number) => x !== 0) ||
-        v.data.scale.some((x: number) => x !== 0 && x !== 1)
-      );
-    case "Text":
-      return String(v.data).length > 0;
-    default:
-      return undefined;
-  }
-}

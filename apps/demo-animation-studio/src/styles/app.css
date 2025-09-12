@@ -1,0 +1,89 @@
+/* App layout: responsive 3-column grid with scrollable sidebars and safe shrinking */
+.app-root {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr; /* EngineBar, TransportBar, content */
+  background: #111315;
+  color: #eaeaea;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr minmax(260px, 360px);
+  gap: 8px;
+  padding: 8px;
+  align-items: start;
+  min-width: 0; /* allow columns to shrink */
+}
+
+/* Columns */
+.col-left,
+.col-main,
+.col-right {
+  min-width: 0; /* critical to avoid horizontal clipping */
+}
+
+.col-left,
+.col-right {
+  overflow-y: auto; /* allow independent scrolling for sidebars */
+  max-height: calc(100vh - 120px); /* approx: bars + padding; keeps content visible */
+}
+
+/* Panels inside columns should also allow shrinking */
+.panel {
+  min-width: 0;
+}
+
+/* Code spans in tables (e.g., Prebind preview) should wrap gracefully */
+.panel code {
+  word-break: break-all;
+}
+
+/* Responsive: collapse right inspector below main */
+@media (max-width: 1100px) {
+  .app-grid {
+    grid-template-columns: minmax(240px, 340px) 1fr;
+    grid-template-areas:
+      "left main"
+      "right main";
+  }
+  .col-left { grid-area: left; }
+  .col-main { grid-area: main; }
+  .col-right { grid-area: right; }
+
+  .col-left,
+  .col-right {
+    max-height: calc(100vh - 140px);
+  }
+}
+
+/* Narrow: stack all columns vertically */
+@media (max-width: 800px) {
+  .app-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "left"
+      "right";
+  }
+  .col-main { grid-area: main; }
+  .col-left { grid-area: left; }
+  .col-right { grid-area: right; }
+
+  .col-left,
+  .col-right {
+    max-height: unset; /* let them flow */
+  }
+}
+
+/* Toolbar styling helpers (optional) */
+.toolbar {
+  border-bottom: 1px solid #2a2d31;
+  background: #14171a;
+}
+
+/* Utility to ensure inputs shrink within flex rows */
+.input-flex {
+  flex: 1 1 auto;
+  min-width: 0;
+}

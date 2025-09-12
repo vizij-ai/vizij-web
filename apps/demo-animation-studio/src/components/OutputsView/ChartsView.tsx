@@ -1,0 +1,187 @@
+import React, { useEffect, useMemo, useRef } from "react";
+import type { Value } from "@vizij/animation-wasm";
+
+type Sample = { t: number; v: Value };
+type History = Record<string, Sample[]>;
+
+function valueToSeries(v: Value): number[] | null {
+  switch (v.type) {
+    case "Scalar":
+      return [v.data];
+    case "Bool":
+      return [v.data ? 1 : 0];
+    case "Vec2":
+      return v.data;
+    case "Vec3":
+      return v.data;
+    case "Vec4":
+      return v.data;
+    case "Color":
+      return v.data;
+    case "Quat":
+      // Show w component by default
+      return v.data;
+    case "Transform":
+      // Focus on translation only for MVP
+      return [...v.data.translation, ...v.data.rotation];
+    case "Text":
+      return null;
+    default:
+      return null;
+  }
+}
+
+const seriesColors = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee", "#a78bfa", "#f87171", "#38bdf8"];
+
+function drawChart(ctx: CanvasRenderingContext2D, w: number, h: number, samples: Sample[], windowSec: number) {
+  const now = performance.now() / 1000;
+  const startT = now - windowSec;
+
+  // Build aligned series arrays per component index
+  const time: number[] = [];
+  const components: number[][] = [];
+
+  for (const s of samples) {
+    if (s.t < startT) continue;
+    const ser = valueToSeries(s.v);
+    if (!ser) continue;
+    if (components.length < ser.length) {
+      for (let i = components.length; i < ser.length; i++) components.push([]);
+    }
+    time.push(s.t);
+    for (let i = 0; i < components.length; i++) {
+      components[i].push(ser[i] ?? NaN);
+    }
+  }
+
+  // Clear
+  ctx.clearRect(0, 0, w, h);
+
+  // Axes style
+  ctx.strokeStyle = "#2a2d31";
+  ctx.lineWidth = 1;
+  // X axis baseline
+  ctx.beginPath();
+  ctx.moveTo(0, h - 0.5);
+  ctx.lineTo(w, h - 0.5);
+  ctx.stroke();
+
+  if (time.length === 0) return;
+
+  // Determine time domain
+  const tMin = Math.min(startT, time[0]);
+  const tMax = now;
+  const tSpan = Math.max(0.001, tMax - tMin);
+
+  // Compute per-series y domain
+  const yMins: number[] = [];
+  const yMaxs: number[] = [];
+  for (const comp of components) {
+    let mn = Infinity;
+    let mx = -Infinity;
+    for (const v of comp) {
+      if (!Number.isFinite(v)) continue;
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+    }
+    if (!Number.isFinite(mn) || !Number.isFinite(mx)) {
+      mn = 0;
+      mx = 1;
+    }
+    if (mn === mx) {
+      // Expand degenerate range
+      mn -= 0.5;
+      mx += 0.5;
+    }
+    yMins.push(mn);
+    yMaxs.push(mx);
+  }
+
+  // Draw each series
+  components.forEach((comp, idx) => {
+    const col = seriesColors[idx % seriesColors.length];
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < comp.length; i++) {
+      const t = time[i];
+      const v = comp[i];
+      if (!Number.isFinite(v)) continue;
+
+      const x = ((t - tMin) / tSpan) * w;
+      // Normalize y using this component's range
+      const vMin = yMins[idx];
+      const vMax = yMaxs[idx];
+      const yNorm = (v - vMin) / (vMax - vMin);
+      const y = h - yNorm * (h - 2) - 1;
+
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  });
+}
+
+function ChartCanvas({ samples, windowSec }: { samples: Sample[]; windowSec: number }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let raf = 0;
+    const render = () => {
+      const dpr = (window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawChart(ctx, rect.width, rect.height, samples, windowSec);
+      raf = requestAnimationFrame(render);
+    };
+    raf = requestAnimationFrame(render);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [samples, windowSec]);
+
+  return <canvas ref={ref} style={{ width: "100%", height: 160, display: "block", background: "#0f1113", borderRadius: 8, border: "1px solid #2a2d31" }} />;
+}
+
+export default function ChartsView({
+  history,
+  windowSec = 10,
+}: {
+  history: History;
+  windowSec?: number;
+}) {
+  const entries = useMemo(() => Object.entries(history), [history]);
+
+  if (entries.length === 0) {
+    return (
+      <div style={{ opacity: 0.7, fontSize: 12, padding: 12 }}>
+        No numeric history yet. Start playback to populate charts.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, padding: 12 }}>
+      {entries.map(([key, samples]) => (
+        <div key={key} style={{ display: "grid", gap: 6 }}>
+          <div style={{ fontSize: 12, opacity: 0.75 }}>{key}</div>
+          <ChartCanvas samples={samples} windowSec={windowSec} />
+        </div>
+      ))}
+    </div>
+  );
+}
