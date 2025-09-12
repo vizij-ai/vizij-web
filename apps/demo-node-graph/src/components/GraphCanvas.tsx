@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useCallback, useEffect } from "react";
 import ReactFlow, { Background, Controls, MiniMap, ReactFlowProvider, useReactFlow } from "reactflow";
 import "reactflow/dist/style.css";

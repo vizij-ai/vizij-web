@@ -20,6 +20,7 @@ export type RFState = {
   onEdgesChange: OnEdgesChange;
   onConnect: (connection: Connection) => void;
   addNode: (node: Node) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setNodeData: (nodeId: string, data: any) => void;
   setGraph: (graph: Pick<RFState, 'nodes' | 'edges'>) => void;
 };
@@ -90,6 +91,7 @@ const useGraphStore = create<RFState>((set, get) => ({
         nodes: [...get().nodes, node]
     });
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setNodeData: (nodeId: string, data: any) => {
     set({
       nodes: get().nodes.map(n => {

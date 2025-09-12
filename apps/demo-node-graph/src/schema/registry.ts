@@ -24,6 +24,7 @@ type RegistryLite = {
 let _registryPromise: Promise<RegistryLite> | null = null;
 
 async function getNodeSchemasAny(): Promise<RegistryLite> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const gw = GraphWasm as any;
   if (typeof gw.getNodeSchemas === "function") {
     // Wrapper export path
