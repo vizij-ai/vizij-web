@@ -9,6 +9,7 @@ import PlayersPanel, { InstanceSpec } from "./components/PlayersPanel";
 import EventsLog from "./components/EventsLog";
 import LatestValues from "./components/OutputsView/LatestValues";
 import ChartsView from "./components/OutputsView/ChartsView";
+import PlayerCard from "./components/PlayerCard";
 import ConfigPanel from "./components/ConfigPanel";
 import PrebindPanel, { PrebindRule, makeResolver } from "./components/PrebindPanel";
 import SessionPanel, { SessionState } from "./components/SessionPanel";
@@ -281,22 +282,21 @@ function StudioShell({
     return { canonicalKeys: canonical, resolvedKeys: resolved };
   }, [animations, rules]);
 
+  // Authoritative state from provider
+  const animApi = useAnimation() as any;
+  const playersInfo = animApi.listPlayers?.() ?? [];
+  const animationsInfo = animApi.listAnimations?.() ?? [];
+  const [newPlayerName, setNewPlayerName] = useState<string>("");
+
   return (
     <div style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}>
       <EngineBar updateHz={updateHz} setUpdateHz={setUpdateHz} />
-      <TransportBar />
       <div className="app-grid">
         {/* Left Sidebar (placeholders) */}
         <div className="col-left">
           <ConfigPanel value={engineCfg} onChange={setEngineCfg} />
           <AnimationsPanel preset={presets as any} animations={animations} setAnimations={setAnimations} />
           {/* <PrebindPanel keys={canonicalKeys} rules={rules} setRules={setRules} /> */}
-          <PlayersPanel
-            instances={instances}
-            setInstances={setInstances}
-            animationsCount={animations.length}
-            animationNames={animations.map((a: any, i: number) => a?.name ?? `anim_${i}`)}
-          />
           <SessionPanel
             value={{
               animations,
@@ -318,8 +318,43 @@ function StudioShell({
         </div>
 
         {/* Main Content */}
-        <div className="col-main" style={{ background: "#121417", border: "1px solid #2a2d31", borderRadius: 8 }}>
-          <LatestValues keys={resolvedKeys} />
+        <div className="col-main" style={{ background: "#121417", border: "1px solid #2a2d31", borderRadius: 8, padding: 8 }}>
+          {/* Add Player */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", marginBottom: 8, background: "#16191d", border: "1px solid #2a2d31", borderRadius: 6 }}>
+            <b style={{ marginRight: 8 }}>Add Player</b>
+            <input
+              placeholder="player name"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={() => {
+                const name = newPlayerName.trim();
+                if (!name) return;
+                animApi.addPlayer?.(name);
+                setNewPlayerName("");
+              }}
+            >
+              Add
+            </button>
+          </div>
+
+          {playersInfo.length === 0 ? (
+            <div style={{ opacity: 0.7, fontSize: 12, padding: 12 }}>No players yet. Use "Add Player" above or create an instance to auto-create one.</div>
+          ) : (
+            playersInfo.map((p: any) => (
+              <div key={p.id} style={{ marginBottom: 12 }}>
+                <PlayerCard
+                  player={p}
+                  animations={animationsInfo}
+                  resolvedKeys={resolvedKeys}
+                  history={history}
+                  historyWindowSec={historyWindowSec}
+                />
+              </div>
+            ))
+          )}
           <div style={{ padding: "0 12px 8px", display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ opacity: 0.75, fontSize: 12 }}>History window (s):</span>
             <input
@@ -331,7 +366,6 @@ function StudioShell({
               style={{ width: 80 }}
             />
           </div>
-          <ChartsView history={history} windowSec={historyWindowSec} />
         </div>
 
         {/* Right Inspector (placeholder) */}
@@ -364,10 +398,18 @@ export default function App() {
   const [historyWindowSec, setHistoryWindowSec] = useState<number>(10);
   const [rules, setRules] = useState<PrebindRule[]>([]);
 
+  const initialAnimations = useMemo<StoredAnimation[]>(() => [presets as any], []);
+  const initialInstances = useMemo<InstanceSpec[]>(
+    () => [
+      { playerName: "default", animIndex: 0, cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 } },
+    ],
+    []
+  );
+
   return (
     <AnimationProvider
-      animations={animations}
-      instances={instances}
+      animations={initialAnimations}
+      instances={initialInstances}
       // prebind={makeResolver(rules)}
       autostart
       updateHz={updateHz}
@@ -381,13 +423,14 @@ export default function App() {
           setHistory((prev: History) => {
             const next: History = { ...prev };
             for (const ch of out.changes) {
-              const arr = next[ch.key] ? next[ch.key].slice() : [];
+              const key = `${(ch.player as unknown) as number}:${ch.key}`;
+              const arr = next[key] ? next[key].slice() : [];
               arr.push({ t: tSec, v: ch.value as Value });
               const cutoff = tSec - keep;
               // prune old samples
               let idx = 0;
               while (idx < arr.length && arr[idx].t < cutoff) idx++;
-              next[ch.key] = idx > 0 ? arr.slice(idx) : arr;
+              next[key] = idx > 0 ? arr.slice(idx) : arr;
             }
             return next;
           });

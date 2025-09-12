@@ -15,6 +15,10 @@ import {
   type Inputs,
   type Outputs,
   type Config,
+  type InstanceUpdate,
+  type AnimationInfo,
+  type PlayerInfo,
+  type InstanceInfo,
 } from "@vizij/animation-wasm";
 
 /* Local fallback Value type to avoid tight compile-time coupling on the wasm package types.
@@ -68,11 +72,50 @@ type Ctx = {
   /** Snapshot accessor for latest Value of a given resolved target key */
   getKeySnapshot: (key: string) => Value | undefined;
 
+  /** Subscribe to per-player key changes */
+  subscribeToPlayerKey: (player: string | number, key: string, cb: () => void) => () => void;
+
+  /** Snapshot accessor for per-player key */
+  getPlayerKeySnapshot: (player: string | number, key: string) => Value | undefined;
+
+  /** Get latest values grouped by player name */
+  getLatestValuesByPlayer: () => Record<string, Record<string, Value>>;
+
   /** Manual step; useful when autostart=false */
   step: (dt: number, inputs?: Inputs) => void;
 
   /** Reload animations and instances at runtime */
   reload: (animations: StoredAnimation[] | StoredAnimation, instances?: InstanceSpec[]) => void;
+
+  /** Append one or more animations without resetting existing state; returns new AnimIds (numbers) */
+  addAnimations: (animations: StoredAnimation[] | StoredAnimation) => number[];
+
+  /** Ensure a player exists with this name; returns PlayerId (number) */
+  addPlayer: (name: string) => number;
+
+  /** Add one or more instances to players; resolves animation by index or explicit id */
+  addInstances: (
+    specs: { playerName: string; animIndexOrId: number; cfg?: unknown }[]
+  ) => { playerName: string; instId: number }[];
+
+  /** Get instance ids for a given player (local cache; prefer listInstances for engine truth) */
+  getInstances: (playerName: string) => number[];
+
+  /** Apply instance-level updates immediately */
+  updateInstances: (updates: InstanceUpdate[]) => void;
+
+  /** Enumerate engine state (authoritative) */
+  listAnimations: () => AnimationInfo[];
+  listPlayers: () => PlayerInfo[];
+  listInstances: (player: string | number) => InstanceInfo[];
+
+  /** Keys currently associated with a player's instances */
+  listPlayerKeys: (player: string | number) => string[];
+
+  /** Removals */
+  removePlayer: (player: string | number) => boolean;
+  removeInstances: (specs: { playerName: string; instId: number }[]) => { playerName: string; instId: number }[];
+  unloadAnimations: (animIds: number[]) => number[];
 
   /** Optional: expose player name to id mapping for controls */
   players: Record<string, number>;
@@ -152,6 +195,9 @@ export const AnimationProvider: React.FC<{
   // External store for per-key Values
   const valuesRef = useRef<Record<string, Value>>({});
   const subscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const valuesByPlayerRef = useRef<Record<number, Record<string, Value>>>({});
+  const playerSubscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const instancesRef = useRef<Record<string, number[]>>({});
 
   const notifyKey = (key: string) => {
     const subs = subscribersRef.current.get(key);
@@ -163,6 +209,22 @@ export const AnimationProvider: React.FC<{
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("Animation notify callback error", e);
+      }
+    });
+  };
+
+  const makeSubKey = (playerId: number, key: string) => `${playerId}|${key}`;
+
+  const notifyPlayerKey = (playerId: number, key: string) => {
+    const sk = makeSubKey(playerId, key);
+    const subs = playerSubscribersRef.current.get(sk);
+    if (!subs || subs.size === 0) return;
+    [...subs].forEach((cb) => {
+      try {
+        cb();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Animation notify player-key callback error", e);
       }
     });
   };
@@ -191,10 +253,16 @@ export const AnimationProvider: React.FC<{
     if (Array.isArray(out.changes) && out.changes.length > 0) {
       const changedKeys: string[] = [];
       for (const ch of out.changes) {
+        // Legacy merged store (kept for backward compat)
         valuesRef.current[ch.key] = ch.value;
         changedKeys.push(ch.key);
+        // Per-player store
+        const pid = (ch.player as unknown) as number;
+        if (!valuesByPlayerRef.current[pid]) valuesByPlayerRef.current[pid] = {};
+        valuesByPlayerRef.current[pid][ch.key] = ch.value;
+        notifyPlayerKey(pid, ch.key);
       }
-      // Notify per-key subscribers
+      // Notify per-key subscribers (legacy)
       changedKeys.forEach(notifyKey);
     }
     // Forward full Outputs (including events) to consumer if provided
@@ -241,16 +309,19 @@ export const AnimationProvider: React.FC<{
             enabled: true,
             ...(spec.cfg as any ?? {}),
           };
-          eng.addInstance(pid, (aid as unknown) as number, cfgFinal as any);
+          const iid = eng.addInstance(pid, (aid as unknown) as number, cfgFinal as any) as unknown as number;
           nextPlayers[spec.playerName] = pid as unknown as number;
+          if (!instancesRef.current[spec.playerName]) instancesRef.current[spec.playerName] = [];
+          instancesRef.current[spec.playerName].push(iid);
         }
       } else {
         // Default: one player "default" using first animation (index 0)
         const pid = eng.createPlayer("default");
         const aid0 = animIdsRef.current[0] ?? 0;
         const cfgDefault = { weight: 1, time_scale: 1, start_offset: 0, enabled: true };
-        eng.addInstance(pid, (aid0 as unknown) as number, cfgDefault as any);
+        const iid0 = eng.addInstance(pid, (aid0 as unknown) as number, cfgDefault as any) as unknown as number;
         nextPlayers["default"] = pid as unknown as number;
+        instancesRef.current["default"] = [iid0];
       }
       setPlayers(nextPlayers);
     },
@@ -270,6 +341,7 @@ export const AnimationProvider: React.FC<{
       valuesRef.current = {};
       animsCacheRef.current = null;
       animIdsRef.current = [];
+      instancesRef.current = {};
 
       const eng = new Engine(engineConfig);
       engineRef.current = eng;
@@ -286,6 +358,23 @@ export const AnimationProvider: React.FC<{
       const list = normalizeAnimations(animations);
       loadAnimationsAndInstances(eng, list, instances);
 
+      // Initial authoritative refresh from engine
+      try {
+        const playersInfo = (eng.listPlayers() as unknown) as PlayerInfo[];
+        const nextPlayers: Record<string, number> = {};
+        playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+        setPlayers(nextPlayers);
+        // Pre-populate instancesRef
+        const temp: Record<string, number[]> = {};
+        for (const pi of playersInfo) {
+          const insts = (eng.listInstances((pi.id as unknown) as number) as unknown) as InstanceInfo[];
+          temp[pi.name] = insts.map((ii) => (ii.id as unknown) as number);
+        }
+        instancesRef.current = temp;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Engine state refresh failed during init", e);
+      }
 
       setReady(true);
 
@@ -339,20 +428,338 @@ export const AnimationProvider: React.FC<{
       if (!eng) return;
       loadAnimationsAndInstances(eng, normalizeAnimations(anims), insts);
       applyOutputs(eng.update(0.0));
+      // Refresh players/instances from engine after reload
+      try {
+        const playersInfo = (eng.listPlayers() as unknown) as PlayerInfo[];
+        const nextPlayers: Record<string, number> = {};
+        playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+        setPlayers(nextPlayers);
+        const temp: Record<string, number[]> = {};
+        for (const pi of playersInfo) {
+          const insts2 = (eng.listInstances((pi.id as unknown) as number) as unknown) as InstanceInfo[];
+          temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+        }
+        instancesRef.current = temp;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Engine state refresh failed after reload", e);
+      }
     },
     [loadAnimationsAndInstances]
   );
+
+  const addPlayer = useCallback((name: string) => {
+    const eng = engineRef.current;
+    if (!eng) return -1;
+    if (players[name] !== undefined) return players[name];
+    const pid = eng.createPlayer(name) as unknown as number;
+    setPlayers((prev) => ({ ...prev, [name]: pid }));
+    if (!instancesRef.current[name]) instancesRef.current[name] = [];
+    return pid;
+  }, [players]);
+
+  const addAnimations = useCallback((anims: StoredAnimation[] | StoredAnimation) => {
+    const eng = engineRef.current;
+    if (!eng) return [];
+    const list = normalizeAnimations(anims);
+    const newIds: number[] = [];
+    for (const a of list) {
+      const id = eng.loadAnimation(a, { format: "stored" });
+      animIdsRef.current.push((id as unknown) as number);
+      newIds.push((id as unknown) as number);
+    }
+    // Update cache snapshot (best-effort)
+    try {
+      const prev = animsCacheRef.current ? JSON.parse(animsCacheRef.current.json) : [];
+      const merged = [...prev, ...list];
+      animsCacheRef.current = { json: JSON.stringify(merged), count: merged.length };
+    } catch {
+      // ignore
+    }
+    applyOutputs(eng.update(0.0));
+    // Refresh engine state
+    try {
+      const playersInfo = (eng.listPlayers() as unknown) as PlayerInfo[];
+      const nextPlayers: Record<string, number> = {};
+      playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+      setPlayers(nextPlayers);
+      const temp: Record<string, number[]> = {};
+      for (const pi of playersInfo) {
+        const insts2 = (eng.listInstances((pi.id as unknown) as number) as unknown) as InstanceInfo[];
+        temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+      }
+      instancesRef.current = temp;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("Engine state refresh failed after addAnimations", e);
+    }
+    return newIds;
+  }, []);
+
+  const addInstances = useCallback((specs: { playerName: string; animIndexOrId: number; cfg?: unknown }[]) => {
+    const eng = engineRef.current;
+    if (!eng || !specs || specs.length === 0) return [];
+    const results: { playerName: string; instId: number }[] = [];
+    const nextPlayers = { ...players };
+    for (const spec of specs) {
+      let pid = nextPlayers[spec.playerName];
+      if (pid === undefined) {
+        pid = eng.createPlayer(spec.playerName) as unknown as number;
+        nextPlayers[spec.playerName] = pid;
+        if (!instancesRef.current[spec.playerName]) instancesRef.current[spec.playerName] = [];
+      }
+      const idx = spec.animIndexOrId;
+      const aid =
+        idx >= 0 && idx < animIdsRef.current.length
+          ? animIdsRef.current[idx]
+          : (idx as number);
+      const cfgFinal = {
+        weight: 1,
+        time_scale: 1,
+        start_offset: 0,
+        enabled: true,
+        ...(spec.cfg as any ?? {}),
+      };
+      const instId = eng.addInstance(pid as any, (aid as unknown) as number, cfgFinal as any) as unknown as number;
+      instancesRef.current[spec.playerName].push(instId);
+      results.push({ playerName: spec.playerName, instId });
+    }
+    setPlayers(nextPlayers);
+    applyOutputs(eng.update(0.0));
+    // Refresh engine state
+    try {
+      const playersInfo = (eng.listPlayers() as unknown) as PlayerInfo[];
+      const tempPlayers: Record<string, number> = {};
+      playersInfo.forEach((pi) => (tempPlayers[pi.name] = (pi.id as unknown) as number));
+      setPlayers(tempPlayers);
+      const temp: Record<string, number[]> = {};
+      for (const pi of playersInfo) {
+        const insts2 = (eng.listInstances((pi.id as unknown) as number) as unknown) as InstanceInfo[];
+        temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+      }
+      instancesRef.current = temp;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("Engine state refresh failed after addInstances", e);
+    }
+    return results;
+  }, [players]);
+
+  const getInstances = useCallback((playerName: string) => {
+    return instancesRef.current[playerName]?.slice() ?? [];
+  }, []);
+
+  const updateInstances = useCallback((updates: InstanceUpdate[]) => {
+    const eng = engineRef.current;
+    if (!eng || !updates || updates.length === 0) return;
+    applyOutputs(eng.update(0.0, { instance_updates: updates }));
+  }, []);
+
+  const resolvePlayerId = useCallback(
+    (player: string | number): number | undefined => {
+      if (typeof player === "number") return player;
+      return players[player];
+    },
+    [players]
+  );
+
+  const subscribeToPlayerKey = useCallback(
+    (player: string | number, key: string, cb: () => void) => {
+      const pid = resolvePlayerId(player);
+      if (pid === undefined) return () => {};
+      const sk = makeSubKey(pid, key);
+      let set = playerSubscribersRef.current.get(sk);
+      if (!set) {
+        set = new Set();
+        playerSubscribersRef.current.set(sk, set);
+      }
+      set.add(cb);
+      return () => {
+        const s = playerSubscribersRef.current.get(sk);
+        if (!s) return;
+        s.delete(cb);
+        if (s.size === 0) playerSubscribersRef.current.delete(sk);
+      };
+    },
+    [resolvePlayerId]
+  );
+
+  const getPlayerKeySnapshot = useCallback(
+    (player: string | number, key: string): Value | undefined => {
+      const pid = resolvePlayerId(player);
+      if (pid === undefined) return undefined;
+      return valuesByPlayerRef.current[pid]?.[key];
+    },
+    [resolvePlayerId]
+  );
+
+  const getLatestValuesByPlayer = useCallback(() => {
+    // Build { playerName: { key: value } }
+    const result: Record<string, Record<string, Value>> = {};
+    const nameById = Object.fromEntries(Object.entries(players).map(([n, id]) => [String(id), n]));
+    for (const [idStr, kv] of Object.entries(valuesByPlayerRef.current)) {
+      const name = nameById[idStr] ?? idStr;
+      result[name] = { ...(kv as Record<string, Value>) };
+    }
+    return result;
+  }, [players]);
+
+  const listAnimations = useCallback((): AnimationInfo[] => {
+    const eng = engineRef.current;
+    if (!eng) return [];
+    try {
+      return eng.listAnimations();
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const listPlayers = useCallback((): PlayerInfo[] => {
+    const eng = engineRef.current;
+    if (!eng) return [];
+    try {
+      return eng.listPlayers();
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const listInstances = useCallback((player: string | number): InstanceInfo[] => {
+    const eng = engineRef.current;
+    if (!eng) return [];
+    const pid = resolvePlayerId(player);
+    if (pid === undefined) return [];
+    try {
+      return eng.listInstances(pid as any);
+    } catch {
+      return [];
+    }
+  }, [resolvePlayerId]);
+
+  const listPlayerKeys = useCallback((player: string | number): string[] => {
+    const eng = engineRef.current;
+    if (!eng) return [];
+    const pid = resolvePlayerId(player);
+    if (pid === undefined) return [];
+    try {
+      // @ts-ignore exposed by wasm wrapper
+      return eng.listPlayerKeys(pid as any);
+    } catch {
+      return [];
+    }
+  }, [resolvePlayerId]);
+
+  const removePlayer = useCallback((player: string | number): boolean => {
+    const eng = engineRef.current;
+    if (!eng) return false;
+    const pid = resolvePlayerId(player);
+    if (pid === undefined) return false;
+    const ok = eng.removePlayer(pid as any);
+    applyOutputs(eng.update(0.0));
+    // Refresh state
+    try {
+      const playersInfo = eng.listPlayers();
+      const nextPlayers: Record<string, number> = {};
+      playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+      setPlayers(nextPlayers);
+      const temp: Record<string, number[]> = {};
+      for (const pi of playersInfo) {
+        const insts2 = eng.listInstances((pi.id as unknown) as number);
+        temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+      }
+      instancesRef.current = temp;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("Engine state refresh failed after removePlayer", e);
+    }
+    return ok;
+  }, [resolvePlayerId]);
+
+  const removeInstances = useCallback((specs: { playerName: string; instId: number }[]) => {
+    const eng = engineRef.current;
+    if (!eng || specs.length === 0) return [];
+    const results: { playerName: string; instId: number }[] = [];
+    for (const s of specs) {
+      const pid = players[s.playerName];
+      if (pid === undefined) continue;
+      const ok = eng.removeInstance(pid as any, (s.instId as unknown) as number);
+      if (ok) {
+        results.push({ playerName: s.playerName, instId: s.instId });
+      }
+    }
+    applyOutputs(eng.update(0.0));
+    // Refresh
+    try {
+      const playersInfo = eng.listPlayers();
+      const nextPlayers: Record<string, number> = {};
+      playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+      setPlayers(nextPlayers);
+      const temp: Record<string, number[]> = {};
+      for (const pi of playersInfo) {
+        const insts2 = eng.listInstances((pi.id as unknown) as number);
+        temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+      }
+      instancesRef.current = temp;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("Engine state refresh failed after removeInstances", e);
+    }
+    return results;
+  }, [players]);
+
+  const unloadAnimations = useCallback((animIds: number[]) => {
+    const eng = engineRef.current;
+    if (!eng || animIds.length === 0) return [];
+    const removed: number[] = [];
+    for (const aid of animIds) {
+      const ok = eng.unloadAnimation((aid as unknown) as number);
+      if (ok) removed.push(aid);
+    }
+    applyOutputs(eng.update(0.0));
+    // Refresh
+    try {
+      const playersInfo = eng.listPlayers();
+      const nextPlayers: Record<string, number> = {};
+      playersInfo.forEach((pi) => (nextPlayers[pi.name] = (pi.id as unknown) as number));
+      const temp: Record<string, number[]> = {};
+      for (const pi of playersInfo) {
+        const insts2 = eng.listInstances((pi.id as unknown) as number);
+        temp[pi.name] = insts2.map((ii) => (ii.id as unknown) as number);
+      }
+      setPlayers(nextPlayers);
+      instancesRef.current = temp;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("Engine state refresh failed after unloadAnimations", e);
+    }
+    return removed;
+  }, []);
 
   const ctx: Ctx = useMemo(
     () => ({
       ready,
       subscribeToKey,
       getKeySnapshot,
+      subscribeToPlayerKey,
+      getPlayerKeySnapshot,
+      getLatestValuesByPlayer,
       step,
       reload,
+      addAnimations,
+      addPlayer,
+      addInstances,
+      getInstances,
+      updateInstances,
+      listAnimations,
+      listPlayers,
+      listInstances,
+      listPlayerKeys,
+      removePlayer,
+      removeInstances,
+      unloadAnimations,
       players,
     }),
-    [ready, subscribeToKey, getKeySnapshot, step, reload, players]
+    [ready, subscribeToKey, getKeySnapshot, subscribeToPlayerKey, getPlayerKeySnapshot, getLatestValuesByPlayer, step, reload, players, listAnimations, listPlayers, listInstances, removePlayer, unloadAnimations, removeInstances, addAnimations, addPlayer, addInstances, updateInstances, getInstances]
   );
 
   return <AnimationCtx.Provider value={ctx}>{children}</AnimationCtx.Provider>;
@@ -389,4 +796,3 @@ export function useAnimTarget(key?: string): Value | undefined {
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
 }
-

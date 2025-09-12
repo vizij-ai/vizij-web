@@ -4,6 +4,8 @@ import { useAnimation } from "@vizij/animation-react";
 export type InstanceSpec = {
   playerName: string;
   animIndex?: number;
+  /** Runtime instance id returned from engine.addInstance; optional and populated when created via UI */
+  instId?: number;
   cfg?: {
     weight?: number;
     time_scale?: number;
@@ -23,7 +25,8 @@ export default function PlayersPanel({
   animationsCount?: number;
   animationNames?: string[];
 }) {
-  const { players } = useAnimation();
+  const animApi = useAnimation() as any;
+  const { players } = animApi;
   const playerNames = useMemo(() => Object.keys(players), [players]);
 
   const [newPlayer, setNewPlayer] = useState<string>("");
@@ -33,19 +36,26 @@ export default function PlayersPanel({
     const name = newPlayer.trim();
     if (!name) return;
     const idx = Math.min(Math.max(0, Number(newAnimIndex) || 0), Math.max(0, animationsCount - 1));
-    const next = [
-      ...instances,
-      {
-        playerName: name,
-        animIndex: idx,
-        cfg: {
-          enabled: true,
-          weight: 1,
-          time_scale: 1,
-          start_offset: 0,
-        },
+    const spec = {
+      playerName: name,
+      animIndex: idx,
+      cfg: {
+        enabled: true,
+        weight: 1,
+        time_scale: 1,
+        start_offset: 0,
       },
-    ];
+    } as InstanceSpec;
+
+    // Add to runtime (does not reset engine or players)
+    const created = (animApi.addInstances?.([
+      { playerName: spec.playerName, animIndexOrId: spec.animIndex ?? 0, cfg: spec.cfg }
+    ]) ?? []) as { playerName: string; instId: number }[];
+    if (created && created.length > 0 && typeof created[0].instId === "number") {
+      spec.instId = created[0].instId;
+    }
+
+    const next = [...instances, spec];
     setInstances(next);
     setNewPlayer("");
     setNewAnimIndex(0);
@@ -70,6 +80,31 @@ export default function PlayersPanel({
     const next = instances.slice();
     next[i] = { ...next[i], cfg: { ...next[i].cfg, ...patch } };
     setInstances(next);
+  };
+
+  const applyInstanceToRuntime = (i: number) => {
+    const inst = instances[i];
+    if (!inst) return;
+    const pid = players[inst.playerName];
+    if (pid === undefined) return;
+    // Prefer the tracked instId if available; otherwise fall back to most recent for this player
+    const instId = typeof inst.instId === "number"
+      ? inst.instId
+      : (() => {
+          const ids: number[] = animApi.getInstances?.(inst.playerName) ?? [];
+          return ids.length > 0 ? ids[ids.length - 1] : undefined;
+        })();
+    if (instId === undefined) return;
+    animApi.updateInstances?.([
+      {
+        player: pid,
+        inst: instId,
+        weight: inst.cfg?.weight,
+        time_scale: inst.cfg?.time_scale,
+        start_offset: inst.cfg?.start_offset,
+        enabled: inst.cfg?.enabled,
+      },
+    ]);
   };
 
   return (
@@ -179,7 +214,8 @@ export default function PlayersPanel({
                   <span style={{ opacity: 0.8 }}>Enabled</span>
                 </label>
 
-                <div style={{ marginLeft: "auto" }}>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                  <button onClick={() => applyInstanceToRuntime(i)}>Apply To Runtime</button>
                   <button onClick={() => removeInstance(i)}>Remove</button>
                 </div>
               </div>
