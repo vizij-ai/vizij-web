@@ -6,8 +6,9 @@ import MultiSeriesChart from "./MultiSeriesChart";
  * Convert a single ValueJSON into one or more numeric series samples.
  * - float -> { [label]: number }
  * - bool  -> { [label]: 0|1 }
- * - vec3  -> { x:number, y:number, z:number } (label is split into x/y/z)
- * The 'label' parameter is used only for scalar/boolean values; vec3 uses x/y/z fixed labels.
+ * - vec3  -> { x:number, y:number, z:number } (fixed labels)
+ * - vector -> { `${label}[0]`: v0, `${label}[1]`: v1, ... } (arbitrary length)
+ * The 'label' parameter is used for scalar/bool/vector; vec3 uses x/y/z fixed labels.
  */
 function valueToSamples(v?: ValueJSON, label: string = "out"): Record<string, number> {
   if (!v) return {};
@@ -16,6 +17,15 @@ function valueToSamples(v?: ValueJSON, label: string = "out"): Record<string, nu
   if ("vec3" in v) {
     const [x, y, z] = v.vec3;
     return { x, y, z };
+  }
+  if ("vector" in v) {
+    const acc: Record<string, number> = {};
+    const arr = v.vector;
+    for (let i = 0; i < arr.length; i++) {
+      const n = arr[i];
+      acc[`${label}[${i}]`] = typeof n === "number" && Number.isFinite(n) ? n : NaN;
+    }
+    return acc;
   }
   return {};
 }

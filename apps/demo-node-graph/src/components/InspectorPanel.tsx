@@ -65,6 +65,30 @@ const InspectorPanel = () => {
     setParam(nodeId, key, value);
   };
 
+  // Helpers to parse vector input from a string (comma/space separated, or JSON array)
+  const parseVector = (text: string): number[] | null => {
+    const trimmed = text?.trim?.() ?? "";
+    if (!trimmed) return [];
+    // Try JSON first
+    try {
+      const j = JSON.parse(trimmed);
+      if (Array.isArray(j)) {
+        const out = j
+          .map((x) => (typeof x === "number" ? x : parseFloat(String(x))))
+          .filter((n) => Number.isFinite(n));
+        return out;
+      }
+    } catch {
+      // ignore
+    }
+    // Fallback: split by commas/whitespace
+    const parts = trimmed.split(/[\s,]+/).filter(Boolean);
+    const nums = parts
+      .map((p) => parseFloat(p))
+      .filter((n) => Number.isFinite(n));
+    return nums;
+  };
+
   return (
     <div style={{ borderLeft: "1px solid #444", padding: 15, overflowY: "auto" }}>
       <h2 style={{ marginTop: 0 }}>Inspector</h2>
@@ -282,6 +306,107 @@ const InspectorPanel = () => {
                         marginTop: 5,
                       }}
                     />
+                  </div>
+                </div>
+              ) : node.type === "vectorconstant" ? (
+                <div>
+                  <div>
+                    <label>value (vector)</label>
+                    <textarea
+                      value={getDraft(node.id, "value", Array.isArray(node.data.value) ? JSON.stringify(node.data.value) : "")}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setDraft(node.id, "value", text);
+                        const vec = parseVector(text);
+                        if (vec) {
+                          // live update engine with vector param
+                          setParam(node.id, "value", vec);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const vec = parseVector(e.target.value);
+                        if (vec) {
+                          setNodeData(node.id, { value: vec });
+                        }
+                        clearDraft(node.id, "value");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                          const el = e.target as HTMLTextAreaElement;
+                          const vec = parseVector(el.value);
+                          if (vec) {
+                            setNodeData(node.id, { value: vec });
+                            setParam(node.id, "value", vec);
+                          }
+                          clearDraft(node.id, "value");
+                        }
+                      }}
+                      rows={3}
+                      style={{
+                        width: "100%",
+                        background: "#1e1e1e",
+                        border: "1px solid #555",
+                        color: "#f0f0f0",
+                        borderRadius: 4,
+                        padding: 6,
+                        marginTop: 5,
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                      }}
+                      placeholder="e.g. 1, 2, 3 or [1,2,3] or 1 2 3"
+                    />
+                    <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
+                      Tip: Enter numbers separated by commas or spaces, or a JSON array. Ctrl/Cmd/Shift+Enter to commit.
+                    </div>
+                  </div>
+                </div>
+              ) : node.type === "split" ? (
+                <div>
+                  <div>
+                    <label>sizes (vector of segment lengths)</label>
+                    <textarea
+                      value={getDraft(node.id, "sizes", Array.isArray(node.data.sizes) ? JSON.stringify(node.data.sizes) : "")}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setDraft(node.id, "sizes", text);
+                        const vec = parseVector(text);
+                        if (vec) {
+                          setParam(node.id, "sizes", vec);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const vec = parseVector(e.target.value);
+                        if (vec) {
+                          setNodeData(node.id, { sizes: vec });
+                        }
+                        clearDraft(node.id, "sizes");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                          const el = e.target as HTMLTextAreaElement;
+                          const vec = parseVector(el.value);
+                          if (vec) {
+                            setNodeData(node.id, { sizes: vec });
+                            setParam(node.id, "sizes", vec);
+                          }
+                          clearDraft(node.id, "sizes");
+                        }
+                      }}
+                      rows={3}
+                      style={{
+                        width: "100%",
+                        background: "#1e1e1e",
+                        border: "1px solid #555",
+                        color: "#f0f0f0",
+                        borderRadius: 4,
+                        padding: 6,
+                        marginTop: 5,
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                      }}
+                      placeholder="e.g. 3,4 or [3,4] or 2 5"
+                    />
+                    <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
+                      Sum of sizes must equal input length; otherwise each part becomes NaNs of requested size.
+                    </div>
                   </div>
                 </div>
               ) : (

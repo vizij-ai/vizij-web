@@ -12,14 +12,12 @@ import UnaryOpNode from "./nodes/UnaryOpNode";
 import IfNode from "./nodes/IfNode";
 import ClampNode from "./nodes/ClampNode";
 import RemapNode from "./nodes/RemapNode";
-import Vec3Node from "./nodes/Vec3Node";
-import Vec3SplitNode from "./nodes/Vec3SplitNode";
-import Vec3AddNode from "./nodes/Vec3AddNode";
-import Vec3SubtractNode from "./nodes/Vec3SubtractNode";
-import Vec3MultiplyNode from "./nodes/Vec3MultiplyNode";
-import Vec3ScaleNode from "./nodes/Vec3ScaleNode";
 import VectorOpNode from "./nodes/VectorOpNode";
 import OutputNode from "./nodes/OutputNode";
+import VectorConstantNode from "./nodes/VectorConstantNode";
+import VectorIndexNode from "./nodes/VectorIndexNode";
+import JoinNode from "./nodes/JoinNode";
+import SplitNode from "./nodes/SplitNode";
 import InverseKinematicsNode from "./nodes/InverseKinematicsNode";
 import MultiSliderNode from "./nodes/MultiSliderNode";
 import PowerNode from "./nodes/PowerNode";
@@ -51,16 +49,28 @@ const nodeTypes = {
   if: IfNode,
   clamp: ClampNode,
   remap: RemapNode,
-  vec3: Vec3Node,
-  vec3split: Vec3SplitNode,
-  vec3add: Vec3AddNode,
-  vec3subtract: Vec3SubtractNode,
-  vec3multiply: Vec3MultiplyNode,
-  vec3scale: Vec3ScaleNode,
-  vec3normalize: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "normalize" }} />,
-  vec3dot: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "dot", label: "Vector Dot" }} />,
   vec3cross: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "cross", label: "Vector Cross" }} />,
-  vec3length: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length" }} />,
+  // New generic vector nodes
+  vectorconstant: VectorConstantNode,
+  vectoradd: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "+", label: "Vector Add" }} />,
+  vectorsubtract: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "-", label: "Vector Subtract" }} />,
+  vectormultiply: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "*", label: "Vector Multiply" }} />,
+  vectornormalize: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "normalize", label: "Vector Normalize" }} />,
+  vectordot: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "dot", label: "Vector Dot" }} />,
+  vectorlength: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length", label: "Vector Length" }} />,
+  vectorindex: VectorIndexNode,
+
+  // Join/Split
+  join: JoinNode,
+  split: SplitNode,
+
+  // Reducers (vector -> scalar)
+  vectormin: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "min", label: "Vector Min" }} />,
+  vectormax: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "max", label: "Vector Max" }} />,
+  vectormean: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "mean", label: "Vector Mean" }} />,
+  vectormedian: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "median", label: "Vector Median" }} />,
+  vectormode: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "mode", label: "Vector Mode" }} />,
+
   inversekinematics: InverseKinematicsNode,
   output: OutputNode,
 };

@@ -116,6 +116,15 @@ export const NodeGraphProvider: React.FC<{
       const bv = b.vec3;
       return av[0] === bv[0] && av[1] === bv[1] && av[2] === bv[2];
     }
+    if ("vector" in a && "vector" in b) {
+      const av = a.vector;
+      const bv = b.vector;
+      if (av.length !== bv.length) return false;
+      for (let i = 0; i < av.length; i++) {
+        if (av[i] !== bv[i]) return false;
+      }
+      return true;
+    }
     return false;
   };
 
@@ -338,7 +347,7 @@ export function valueAsNumber(v?: unknown): number | undefined {
   let val: ValueJSON | undefined;
   if (v && typeof v === "object") {
     const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
@@ -349,6 +358,7 @@ export function valueAsNumber(v?: unknown): number | undefined {
   if ("float" in val) return val.float;
   if ("bool" in val) return val.bool ? 1 : 0;
   if ("vec3" in val) return val.vec3[0];
+  if ("vector" in val) return val.vector[0] ?? 0;
   return undefined;
 }
 
@@ -358,7 +368,7 @@ export function valueAsVec3(
   let val: ValueJSON | undefined;
   if (v && typeof v === "object") {
     const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
@@ -367,8 +377,28 @@ export function valueAsVec3(
   }
   if (!val) return undefined;
   if ("vec3" in val) return val.vec3;
+  if ("vector" in val) return [val.vector[0] ?? 0, val.vector[1] ?? 0, val.vector[2] ?? 0];
   if ("float" in val) return [val.float, val.float, val.float];
   if ("bool" in val) return val.bool ? [1, 1, 1] : [0, 0, 0];
+  return undefined;
+}
+
+export function valueAsVector(v?: unknown): number[] | undefined {
+  let val: ValueJSON | undefined;
+  if (v && typeof v === "object") {
+    const obj: any = v;
+    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
+      val = obj as ValueJSON;
+    } else {
+      const map = obj as Record<string, ValueJSON>;
+      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+    }
+  }
+  if (!val) return undefined;
+  if ("vector" in val) return val.vector.slice();
+  if ("vec3" in val) return [val.vec3[0], val.vec3[1], val.vec3[2]];
+  if ("float" in val) return [val.float];
+  if ("bool" in val) return val.bool ? [1] : [0];
   return undefined;
 }
 
@@ -376,7 +406,7 @@ export function valueAsBool(v?: unknown): boolean | undefined {
   let val: ValueJSON | undefined;
   if (v && typeof v === "object") {
     const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj) {
+    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
@@ -387,5 +417,6 @@ export function valueAsBool(v?: unknown): boolean | undefined {
   if ("bool" in val) return val.bool;
   if ("float" in val) return val.float !== 0;
   if ("vec3" in val) return val.vec3.some((x: number) => x !== 0);
+  if ("vector" in val) return val.vector.some((x: number) => x !== 0);
   return undefined;
 }

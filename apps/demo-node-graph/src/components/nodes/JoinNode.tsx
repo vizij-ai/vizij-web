@@ -12,28 +12,28 @@ const handleStyle: React.CSSProperties = {
   border: "2px solid #222",
 };
 
-type VectorOpData = { label?: string; op: string; inputs?: string[] };
+type JoinData = { label?: string; inputs?: string[] };
 
-const VectorOpNodeBase = ({ id, data }: NodeProps<VectorOpData>) => {
+const JoinNodeBase = ({ id, data }: NodeProps<JoinData>) => {
   const value = useNodeOutput(id, "out");
-
-  const inputAValue = useConnectedValue(id, "a", "out");
-  const inputBValue = useConnectedValue(id, "b", "out");
+  // Show connected previews using graph connections (not node.data.inputs)
+  const inA = useConnectedValue(id, "a", "out");
+  const inB = useConnectedValue(id, "b", "out");
 
   return (
-    <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 180, position: "relative" }}>
+    <div style={{ padding: "15px 20px", background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", width: 190, position: "relative" }}>
       <Handle type="target" id="a" position={Position.Left} style={{ ...handleStyle, top: 25 }} />
       <div style={{ position: "absolute", top: 20, left: -50, fontSize: "0.8em", color: "#aaa" }}>
-        A: {displayValue(inputAValue)}
+        A: {displayValue(inA)}
       </div>
       <Handle type="target" id="b" position={Position.Left} style={{ ...handleStyle, top: 55 }} />
       <div style={{ position: "absolute", top: 50, left: -50, fontSize: "0.8em", color: "#aaa" }}>
-        B: {displayValue(inputBValue)}
+        B: {displayValue(inB)}
       </div>
       <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
 
       <div style={{ textAlign: "center" }}>
-        <strong>{data.label ?? `A ${data.op} B`}</strong>
+        <strong>{data.label ?? "Join"}</strong>
         <div style={{ fontSize: "1.2em", fontWeight: "bold", margin: "5px 0" }}>
           {displayValue(value)}
         </div>
@@ -43,14 +43,13 @@ const VectorOpNodeBase = ({ id, data }: NodeProps<VectorOpData>) => {
   );
 };
 
-const VectorOpNode = React.memo(
-  VectorOpNodeBase,
+const JoinNode = React.memo(
+  JoinNodeBase,
   (prev, next) =>
     prev.id === next.id &&
-    prev.data.op === next.data.op &&
     (prev.data.label ?? "") === (next.data.label ?? "") &&
     (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
     (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
 );
 
-export default VectorOpNode;
+export default JoinNode;

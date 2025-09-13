@@ -1,40 +1,63 @@
 import { useMemo } from "react";
 import useGraphStore from "../state/useGraphStore";
-import { useNodeOutput } from "@vizij/node-graph-react";
-import type { ValueJSON } from "@vizij/node-graph-wasm";
+import { useNodeGraph } from "@vizij/node-graph-react";
 
 /**
- * Resolve the connected source (nodeId, portKey) for a given target node/handle,
- * then subscribe to that specific port using useNodeOutput.
+ * Returns the connected source value for a given node's target handle.
+ * Example: useConnectedValue(targetNodeId, "a", "out")
  *
- * - If no edge is connected to the target handle, returns undefined.
- * - If the source handle is unspecified, defaults to "out".
- *
- * This avoids depending on node.data.inputs and instead uses the actual graph edges.
+ * - Finds the edge whose target == targetNodeId and targetHandle == handleId
+ * - Looks up the source node's output map in the graph runtime
+ * - Returns outputs[sourceId]?.[outputKey]
  */
+import type { ValueJSON } from "@vizij/node-graph-wasm";
+
 export function useConnectedValue(
-  targetNodeId: string | undefined,
-  targetHandle: string,
-  defaultPortKey: string = "out"
+  targetNodeId: string,
+  handleId: string,
+  outputKey: string = "out"
 ): ValueJSON | undefined {
-  const edges = useGraphStore((s) => s.edges);
+  const { edges } = useGraphStore();
+  const { outputs } = useNodeGraph();
 
-  const { sourceNodeId, sourcePortKey } = useMemo(() => {
-    if (!targetNodeId) {
-      return { sourceNodeId: undefined, sourcePortKey: defaultPortKey };
-    }
+  const val = useMemo(() => {
     const edge = edges.find(
-      (e) => e.target === targetNodeId && e.targetHandle === targetHandle
+      (e) => e.target === targetNodeId && (e.targetHandle ?? "out") === handleId
     );
-    if (!edge) {
-      return { sourceNodeId: undefined, sourcePortKey: defaultPortKey };
-    }
-    return {
-      sourceNodeId: edge.source,
-      sourcePortKey: edge.sourceHandle ?? defaultPortKey,
-    };
-  }, [edges, targetNodeId, targetHandle, defaultPortKey]);
+    if (!edge) return undefined;
+    const srcOutputs = outputs?.[edge.source] as Record<string, ValueJSON> | undefined;
+    return srcOutputs ? srcOutputs[outputKey] : undefined;
+  }, [edges, outputs, targetNodeId, handleId, outputKey]);
 
-  // Safe to call with undefined; hook will no-op subscribe and return undefined
-  return useNodeOutput(sourceNodeId, sourcePortKey);
+  return val;
+}
+
+/**
+ * Get all connected values for a list of handles on a target node.
+ * Returns a map from handleId to the connected value (if any).
+ */
+export function useConnectedValues(
+  targetNodeId: string,
+  handleIds: string[],
+  outputKey: string = "out"
+): Record<string, ValueJSON | undefined> {
+  const { edges } = useGraphStore();
+  const { outputs } = useNodeGraph();
+
+  const map = useMemo(() => {
+    const result: Record<string, ValueJSON | undefined> = {};
+    for (const h of handleIds) {
+      const edge = edges.find(
+        (e) => e.target === targetNodeId && (e.targetHandle ?? "out") === h
+      );
+      if (!edge) continue;
+      const srcOutputs = outputs?.[edge.source] as Record<string, ValueJSON> | undefined;
+      if (srcOutputs) {
+        result[h] = srcOutputs[outputKey];
+      }
+    }
+    return result;
+  }, [edges, outputs, targetNodeId, handleIds, outputKey]);
+
+  return map;
 }

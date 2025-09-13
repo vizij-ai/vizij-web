@@ -68,7 +68,6 @@ const NodePalette = () => {
         }
         setNameMap(map);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn('Node schema registry not available yet; falling back to type names.', e);
       }
     })();
@@ -83,7 +82,29 @@ const NodePalette = () => {
   const logicNodes = ['And', 'Or', 'Not', 'Xor'];
   const conditionalNodes = ['GreaterThan', 'LessThan', 'Equal', 'NotEqual', 'If'];
   const rangeNodes = ['Clamp', 'Remap'];
-  const vectorNodes = ['Vec3', 'Vec3Split', 'Vec3Add', 'Vec3Subtract', 'Vec3Multiply', 'Vec3Scale', 'Vec3Normalize', 'Vec3Dot', 'Vec3Cross', 'Vec3Length', 'InverseKinematics'];
+  const vectorNodes = [
+    // Vector-first nodes
+    'Join',
+    'Split',
+    'VectorConstant',
+    'VectorAdd',
+    'VectorSubtract',
+    'VectorMultiply',
+    'VectorScale',
+    'VectorNormalize',
+    'VectorDot',
+    'VectorLength',
+    'VectorIndex',
+    // Reducers
+    'VectorMin',
+    'VectorMax',
+    'VectorMean',
+    'VectorMedian',
+    'VectorMode',
+    // 3D-specific kept
+    'Vec3Cross',
+    'InverseKinematics',
+  ];
   const outputNodes = ['Output'];
 
   return (
