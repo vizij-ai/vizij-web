@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Hugo from "../assets/Hugo.glb";
 import Quori from "../assets/Quori.glb";
 import { useMotionValue, useTransform } from "motion/react";
@@ -9,14 +9,10 @@ import {
   useVizijStore,
   Vizij,
   VizijContext,
+  useVizijStoreGetter,
 } from "vizij";
 import { useShallow } from "zustand/shallow";
-import {
-  instanceOfRawVector3,
-  RawValue,
-  RawVector2,
-  RawVector3,
-} from "@semio/utils";
+import { RawValue, RawVector2, RawVector3, getLookup } from "@semio/utils";
 import { motion } from "motion/react";
 
 const QuoriBounds = {
@@ -159,6 +155,22 @@ export function InnerVizijGazeDemo() {
   );
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
+  const getState = useVizijStoreGetter();
+  const updateAxis = useCallback(
+    (id: string | undefined, axis: "x" | "y" | "z", next: number) => {
+      if (!id) return;
+      const stateGetter = getState();
+      const lookup = getLookup("default", id);
+      const current = stateGetter.values.get(lookup) as RawVector3 | undefined;
+      const base =
+        current ??
+        (stateGetter.animatables[id]?.default as RawVector3 | undefined);
+      if (base) {
+        setVal(id, "default", { ...base, [axis]: next });
+      }
+    },
+    [getState, setVal],
+  );
 
   const draggableGazeBlockSize = useMemo(() => {
     return { x: 75, y: 75 };
@@ -226,16 +238,11 @@ export function InnerVizijGazeDemo() {
         eachMapping.from,
         eachMapping.to,
       );
-      setVal(quoriIDs[eachMapping.name], "default", (currentVals) => {
-        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-          return {
-            x: valToSet,
-            y: currentVals.y,
-            z: currentVals.z,
-          };
-        }
-        return currentVals;
-      });
+      updateAxis(
+        quoriIDs[eachMapping.name],
+        eachMapping.applyTo as "x" | "y",
+        valToSet,
+      );
     });
     HugoMapping.x.map((eachMapping) => {
       const valToSet = convertDragToFace(
@@ -245,16 +252,11 @@ export function InnerVizijGazeDemo() {
         eachMapping.from,
         eachMapping.to,
       );
-      setVal(hugoIDs[eachMapping.name], "default", (currentVals) => {
-        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-          return {
-            x: valToSet,
-            y: currentVals.y,
-            z: currentVals.z,
-          };
-        }
-        return currentVals;
-      });
+      updateAxis(
+        hugoIDs[eachMapping.name],
+        eachMapping.applyTo as "x" | "y",
+        valToSet,
+      );
     });
   });
 
@@ -267,16 +269,11 @@ export function InnerVizijGazeDemo() {
         eachMapping.from,
         eachMapping.to,
       );
-      setVal(quoriIDs[eachMapping.name], "default", (currentVals) => {
-        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-          return {
-            x: currentVals.x,
-            y: valToSet,
-            z: currentVals.z,
-          };
-        }
-        return currentVals;
-      });
+      updateAxis(
+        quoriIDs[eachMapping.name],
+        eachMapping.applyTo as "x" | "y",
+        valToSet,
+      );
     });
     HugoMapping.y.map((eachMapping) => {
       const valToSet = convertDragToFace(
@@ -286,16 +283,11 @@ export function InnerVizijGazeDemo() {
         eachMapping.from,
         eachMapping.to,
       );
-      setVal(hugoIDs[eachMapping.name], "default", (currentVals) => {
-        if (currentVals !== undefined && instanceOfRawVector3(currentVals)) {
-          return {
-            x: currentVals.x,
-            y: valToSet,
-            z: currentVals.z,
-          } as RawVector3;
-        }
-        return currentVals;
-      });
+      updateAxis(
+        hugoIDs[eachMapping.name],
+        eachMapping.applyTo as "x" | "y",
+        valToSet,
+      );
     });
   });
 

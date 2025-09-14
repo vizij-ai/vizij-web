@@ -917,3 +917,10 @@ export function useAnimTarget(key?: string): Value | undefined {
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
 }
+
+export function valueAsNumber(v: Value | undefined): number | undefined {
+  if (!v) return undefined;
+  if (v.type === "Scalar") return v.data as number;
+  if (v.type === "Bool") return v.data ? 1 : 0;
+  return undefined;
+}

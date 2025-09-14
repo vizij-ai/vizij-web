@@ -18,6 +18,8 @@ export default tseslint.config([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      // Ensure TypeScript-ESLint resolves the tsconfig from this package dir
+      parserOptions: { tsconfigRootDir: new URL(".", import.meta.url) },
     },
   },
 ]);

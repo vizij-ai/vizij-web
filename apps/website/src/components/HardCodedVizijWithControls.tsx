@@ -203,10 +203,9 @@ function InnerHardCodedVizijWithControls({
                         key={material.id}
                         className="m-1 p-1 text-left font-bold flex-row flex gap-2"
                       >
-                        <Controller
-                          animatableId={material.id}
-                          className="inline-block"
-                        />
+                        <div className="inline-block">
+                          <Controller animatableId={material.id} />
+                        </div>
                         <span>{material.display}</span>
                       </div>
                     );

@@ -3,7 +3,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import wasminit, {
   WasmAnimationEngine,
   create_test_animation,
-} from "animation-player";
+} from "../../animation-player/pkg";
 
 /**
  * Pure WASM wrapper hook that loads the module and provides direct access to engine methods
