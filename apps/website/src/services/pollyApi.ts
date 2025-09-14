@@ -1,8 +1,20 @@
 import { apiURL } from "../config/tts";
 
 export interface VisemeData {
-  sentences: { time: number; type: "sentence"; start: number; end: number; value: string }[];
-  words: { time: number; type: "word"; start: number; end: number; value: string }[];
+  sentences: {
+    time: number;
+    type: "sentence";
+    start: number;
+    end: number;
+    value: string;
+  }[];
+  words: {
+    time: number;
+    type: "word";
+    start: number;
+    end: number;
+    value: string;
+  }[];
   visemes: { time: number; type: "viseme"; value: string }[];
 }
 
@@ -33,7 +45,10 @@ export const fetchVisemeData = async (
     }),
   }).then((res) => res.blob());
 
-  const [visemeData, audioBlob] = await Promise.all([visemesPromise, audioPromise]);
+  const [visemeData, audioBlob] = await Promise.all([
+    visemesPromise,
+    audioPromise,
+  ]);
 
   return { visemeData, audioBlob };
 };

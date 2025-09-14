@@ -18,7 +18,9 @@ function App() {
           <div className="">
             <img src={VizijLogo} alt="vizij logo" className="mx-auto h-32" />
           </div>
-          <p className="text-2xl text-white mt-2 md:mt-8">A web-based framework for robot faces.</p>
+          <p className="text-2xl text-white mt-2 md:mt-8">
+            A web-based framework for robot faces.
+          </p>
         </div>
       </header>
       <div className="w-full text-center text-black">
@@ -90,22 +92,35 @@ function App() {
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">Modify & Control</h2>
-          <p>Not only can you display a face, you can modify and control it as well.</p>
+          <p>
+            Not only can you display a face, you can modify and control it as
+            well.
+          </p>
           <VizijControlDemo />
         </div>
         <div className="w-full bg-black p-12 text-white">
-          <h2 className="text-4xl my-4 font-bold">Express Visemes For Multiple Faces</h2>
+          <h2 className="text-4xl my-4 font-bold">
+            Express Visemes For Multiple Faces
+          </h2>
           <p>Express visemes on Quori and Hugo at the same time.</p>
           <VizijVisemeDemo />
         </div>
         <div className="w-full bg-black p-12 text-white">
-          <h2 className="text-4xl my-4 font-bold">Expression Blending For Multiple Faces</h2>
-          <p>Blend Expressions and Speech on Quori and Hugo at the same time.</p>
+          <h2 className="text-4xl my-4 font-bold">
+            Expression Blending For Multiple Faces
+          </h2>
+          <p>
+            Blend Expressions and Speech on Quori and Hugo at the same time.
+          </p>
           <VizijExpressionsDemo />
         </div>
         <div className="w-full bg-black p-12 text-white">
-          <h2 className="text-4xl my-4 font-bold">Control Gaze For Multiple Faces</h2>
-          <p>Have Quori and Hugo look at a particular direction at the same time.</p>
+          <h2 className="text-4xl my-4 font-bold">
+            Control Gaze For Multiple Faces
+          </h2>
+          <p>
+            Have Quori and Hugo look at a particular direction at the same time.
+          </p>
           <VizijGazeDemo />
         </div>
         <div className="w-full bg-white text-black p-12">

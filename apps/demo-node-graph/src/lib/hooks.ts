@@ -15,17 +15,20 @@ import type { ValueJSON } from "@vizij/node-graph-wasm";
 export function useConnectedValue(
   targetNodeId: string,
   handleId: string,
-  outputKey: string = "out"
+  outputKey: string = "out",
 ): ValueJSON | undefined {
   const { edges } = useGraphStore();
   const { outputs } = useNodeGraph();
 
   const val = useMemo(() => {
     const edge = edges.find(
-      (e) => e.target === targetNodeId && (e.targetHandle ?? "out") === handleId
+      (e) =>
+        e.target === targetNodeId && (e.targetHandle ?? "out") === handleId,
     );
     if (!edge) return undefined;
-    const srcOutputs = outputs?.[edge.source] as Record<string, ValueJSON> | undefined;
+    const srcOutputs = outputs?.[edge.source] as
+      | Record<string, ValueJSON>
+      | undefined;
     return srcOutputs ? srcOutputs[outputKey] : undefined;
   }, [edges, outputs, targetNodeId, handleId, outputKey]);
 
@@ -39,7 +42,7 @@ export function useConnectedValue(
 export function useConnectedValues(
   targetNodeId: string,
   handleIds: string[],
-  outputKey: string = "out"
+  outputKey: string = "out",
 ): Record<string, ValueJSON | undefined> {
   const { edges } = useGraphStore();
   const { outputs } = useNodeGraph();
@@ -48,10 +51,12 @@ export function useConnectedValues(
     const result: Record<string, ValueJSON | undefined> = {};
     for (const h of handleIds) {
       const edge = edges.find(
-        (e) => e.target === targetNodeId && (e.targetHandle ?? "out") === h
+        (e) => e.target === targetNodeId && (e.targetHandle ?? "out") === h,
       );
       if (!edge) continue;
-      const srcOutputs = outputs?.[edge.source] as Record<string, ValueJSON> | undefined;
+      const srcOutputs = outputs?.[edge.source] as
+        | Record<string, ValueJSON>
+        | undefined;
       if (srcOutputs) {
         result[h] = srcOutputs[outputKey];
       }

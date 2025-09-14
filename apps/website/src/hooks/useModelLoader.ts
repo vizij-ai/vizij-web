@@ -22,7 +22,9 @@ export const useModelLoader = (
   const [isLoaded, setIsLoaded] = useState(false);
   const loadedModelRef = useRef<string | null>(null);
 
-  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const addWorldElements = useVizijStore(
+    useShallow((state) => state.addWorldElements),
+  );
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
   // Create stable references for the parameters
@@ -40,12 +42,21 @@ export const useModelLoader = (
     setIsLoading(true);
 
     try {
-      const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
-      const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
+      const [loadedWorld, loadedAnimatables] = await loadGLTF(
+        glb,
+        ["default"],
+        true,
+        bounds,
+      );
+      const root = Object.values(loadedWorld).find(
+        (e) => e.type === "group" && e.rootBounds,
+      );
       addWorldElements(loadedWorld, loadedAnimatables, false);
 
       initialValues?.forEach((v: { name: string; value: RawValue }) => {
-        const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
+        const foundVal = Object.values(loadedAnimatables).find(
+          (anim) => anim.name == v.name,
+        );
         if (foundVal) {
           setVal(foundVal.id, "default", v.value);
         }
@@ -73,7 +84,16 @@ export const useModelLoader = (
     } finally {
       setIsLoading(false);
     }
-  }, [glb, modelKey, addWorldElements, setVal, isLoading, search, bounds, initialValues]);
+  }, [
+    glb,
+    modelKey,
+    addWorldElements,
+    setVal,
+    isLoading,
+    search,
+    bounds,
+    initialValues,
+  ]);
 
   useEffect(() => {
     // Only load if we haven't loaded this exact configuration before

@@ -225,7 +225,9 @@ export function instanceOfRawString(object: any): object is RawString {
 }
 
 export function instanceOfRawVector3(object: any): object is RawVector3 {
-  return object.x !== undefined && object.y !== undefined && object.z !== undefined;
+  return (
+    object.x !== undefined && object.y !== undefined && object.z !== undefined
+  );
 }
 
 export function instanceOfRawVector2(object: any): object is RawVector2 {
@@ -233,22 +235,30 @@ export function instanceOfRawVector2(object: any): object is RawVector2 {
 }
 
 export function instanceOfRawEuler(object: any): object is RawEuler {
-  return object.x !== undefined && object.y !== undefined && object.z !== undefined;
+  return (
+    object.x !== undefined && object.y !== undefined && object.z !== undefined
+  );
 }
 
 export function instanceOfRawColor(object: any): object is RawColor {
   return (
-    (object.r !== undefined && object.g !== undefined && object.b !== undefined) ||
+    (object.r !== undefined &&
+      object.g !== undefined &&
+      object.b !== undefined) ||
     (object.h !== undefined && object.s !== undefined && object.l !== undefined)
   );
 }
 
 export function instanceOfRawRGB(object: any): object is RawRGB {
-  return object.r !== undefined && object.g !== undefined && object.b !== undefined;
+  return (
+    object.r !== undefined && object.g !== undefined && object.b !== undefined
+  );
 }
 
 export function instanceOfRawHSL(object: any): object is RawHSL {
-  return object.h !== undefined && object.s !== undefined && object.l !== undefined;
+  return (
+    object.h !== undefined && object.s !== undefined && object.l !== undefined
+  );
 }
 
 export function isRawObject(value: any) {

@@ -117,7 +117,11 @@ function VizijWithControlSwitch({ robot }: { robot: string }) {
         <div>
           <p>
             The face below is the face for the{" "}
-            <a href="https://quori.org" target="_blank" className="underline hover:text-gray-200">
+            <a
+              href="https://quori.org"
+              target="_blank"
+              className="underline hover:text-gray-200"
+            >
               Quori robot
             </a>{" "}
           </p>
@@ -137,7 +141,8 @@ export function VizijControlDemo() {
         <button
           className={
             "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
-            (selectedRobot === "Quori" && " bg-semio-blue border-0 text-gray-900")
+            (selectedRobot === "Quori" &&
+              " bg-semio-blue border-0 text-gray-900")
           }
           onClick={() => {
             setSelectedRobot("Quori");
@@ -148,7 +153,8 @@ export function VizijControlDemo() {
         <button
           className={
             "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
-            (selectedRobot === "Hugo" && " bg-semio-blue border-0 text-gray-900")
+            (selectedRobot === "Hugo" &&
+              " bg-semio-blue border-0 text-gray-900")
           }
           onClick={() => {
             setSelectedRobot("Hugo");
@@ -170,7 +176,8 @@ export function VizijControlDemo() {
         <button
           className={
             "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
-            (selectedRobot === "Baxter" && " bg-semio-blue border-0 text-gray-900")
+            (selectedRobot === "Baxter" &&
+              " bg-semio-blue border-0 text-gray-900")
           }
           onClick={() => {
             setSelectedRobot("Baxter");
@@ -181,7 +188,8 @@ export function VizijControlDemo() {
         <button
           className={
             "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
-            (selectedRobot === "Jibo" && " bg-semio-blue border-0 text-gray-900")
+            (selectedRobot === "Jibo" &&
+              " bg-semio-blue border-0 text-gray-900")
           }
           onClick={() => {
             setSelectedRobot("Jibo");
@@ -192,7 +200,8 @@ export function VizijControlDemo() {
         <button
           className={
             "p-4 m-2 rounded-xl bg-gray-900 border border-white cursor-pointer font-bold " +
-            (selectedRobot === "Tiago" && " bg-semio-blue border-0 text-gray-900")
+            (selectedRobot === "Tiago" &&
+              " bg-semio-blue border-0 text-gray-900")
           }
           onClick={() => {
             setSelectedRobot("Tiago");

@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useCallback, useEffect } from "react";
-import ReactFlow, { Background, Controls, MiniMap, ReactFlowProvider, useReactFlow } from "reactflow";
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  useReactFlow,
+} from "reactflow";
 import "reactflow/dist/style.css";
 import useGraphStore from "../state/useGraphStore";
 import SliderNode from "./nodes/SliderNode";
@@ -35,7 +41,9 @@ const nodeTypes = {
   divide: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "/" }} />,
   power: PowerNode,
   log: LogNode,
-  greaterthan: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: ">" }} />,
+  greaterthan: (p: any) => (
+    <BinaryOpNode {...p} data={{ ...p.data, op: ">" }} />
+  ),
   lessthan: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "<" }} />,
   equal: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "==" }} />,
   notequal: (p: any) => <BinaryOpNode {...p} data={{ ...p.data, op: "!=" }} />,
@@ -49,15 +57,44 @@ const nodeTypes = {
   if: IfNode,
   clamp: ClampNode,
   remap: RemapNode,
-  vec3cross: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "cross", label: "Vector Cross" }} />,
+  vec3cross: (p: any) => (
+    <VectorOpNode
+      {...p}
+      data={{ ...p.data, op: "cross", label: "Vector Cross" }}
+    />
+  ),
   // New generic vector nodes
   vectorconstant: VectorConstantNode,
-  vectoradd: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "+", label: "Vector Add" }} />,
-  vectorsubtract: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "-", label: "Vector Subtract" }} />,
-  vectormultiply: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "*", label: "Vector Multiply" }} />,
-  vectornormalize: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "normalize", label: "Vector Normalize" }} />,
-  vectordot: (p: any) => <VectorOpNode {...p} data={{ ...p.data, op: "dot", label: "Vector Dot" }} />,
-  vectorlength: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "length", label: "Vector Length" }} />,
+  vectoradd: (p: any) => (
+    <VectorOpNode {...p} data={{ ...p.data, op: "+", label: "Vector Add" }} />
+  ),
+  vectorsubtract: (p: any) => (
+    <VectorOpNode
+      {...p}
+      data={{ ...p.data, op: "-", label: "Vector Subtract" }}
+    />
+  ),
+  vectormultiply: (p: any) => (
+    <VectorOpNode
+      {...p}
+      data={{ ...p.data, op: "*", label: "Vector Multiply" }}
+    />
+  ),
+  vectornormalize: (p: any) => (
+    <UnaryOpNode
+      {...p}
+      data={{ ...p.data, op: "normalize", label: "Vector Normalize" }}
+    />
+  ),
+  vectordot: (p: any) => (
+    <VectorOpNode {...p} data={{ ...p.data, op: "dot", label: "Vector Dot" }} />
+  ),
+  vectorlength: (p: any) => (
+    <UnaryOpNode
+      {...p}
+      data={{ ...p.data, op: "length", label: "Vector Length" }}
+    />
+  ),
   vectorindex: VectorIndexNode,
 
   // Join/Split
@@ -65,11 +102,30 @@ const nodeTypes = {
   split: SplitNode,
 
   // Reducers (vector -> scalar)
-  vectormin: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "min", label: "Vector Min" }} />,
-  vectormax: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "max", label: "Vector Max" }} />,
-  vectormean: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "mean", label: "Vector Mean" }} />,
-  vectormedian: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "median", label: "Vector Median" }} />,
-  vectormode: (p: any) => <UnaryOpNode {...p} data={{ ...p.data, op: "mode", label: "Vector Mode" }} />,
+  vectormin: (p: any) => (
+    <UnaryOpNode {...p} data={{ ...p.data, op: "min", label: "Vector Min" }} />
+  ),
+  vectormax: (p: any) => (
+    <UnaryOpNode {...p} data={{ ...p.data, op: "max", label: "Vector Max" }} />
+  ),
+  vectormean: (p: any) => (
+    <UnaryOpNode
+      {...p}
+      data={{ ...p.data, op: "mean", label: "Vector Mean" }}
+    />
+  ),
+  vectormedian: (p: any) => (
+    <UnaryOpNode
+      {...p}
+      data={{ ...p.data, op: "median", label: "Vector Median" }}
+    />
+  ),
+  vectormode: (p: any) => (
+    <UnaryOpNode
+      {...p}
+      data={{ ...p.data, op: "mode", label: "Vector Mode" }}
+    />
+  ),
 
   inversekinematics: InverseKinematicsNode,
   output: OutputNode,
@@ -79,7 +135,8 @@ let id = 0;
 const getId = () => `dndnode_${id++}`;
 
 const GraphCanvasInner = () => {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } = useGraphStore();
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
+    useGraphStore();
   const { project } = useReactFlow();
 
   useEffect(() => {
@@ -105,10 +162,15 @@ const GraphCanvasInner = () => {
       if (!type) return;
 
       const position = project({ x: event.clientX, y: event.clientY });
-      const newNode = { id: getId(), type: type.toLowerCase(), position, data: { label: `${type}` } };
+      const newNode = {
+        id: getId(),
+        type: type.toLowerCase(),
+        position,
+        data: { label: `${type}` },
+      };
       addNode(newNode);
     },
-    [addNode, project]
+    [addNode, project],
   );
 
   return (
@@ -137,9 +199,12 @@ const GraphCanvasInner = () => {
             borderRadius: 8,
           }}
         >
-          <div><strong>Legend</strong></div>
+          <div>
+            <strong>Legend</strong>
+          </div>
           <div style={{ marginTop: 5 }}>
-            <span style={{ color: "#00aaff" }}>Animated Edge</span>: Indicates data flow
+            <span style={{ color: "#00aaff" }}>Animated Edge</span>: Indicates
+            data flow
           </div>
         </div>
       </ReactFlow>

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Git pre-push hook for vizij-web: format, lint, typecheck, tests, and optional builds
+set -euo pipefail
+
+if [[ "${SKIP_GIT_HOOKS:-0}" == "1" ]]; then
+  echo "[vizij-web pre-push] SKIP_GIT_HOOKS=1 -> skipping checks"
+  exit 0
+fi
+
+echo "[vizij-web pre-push] Prettier check"
+if command -v prettier &>/dev/null; then
+  prettier --check .
+else
+  npx -y prettier --check .
+fi
+
+echo "[vizij-web pre-push] ESLint (all workspaces with a lint script)"
+npm -ws --if-present run lint
+
+echo "[vizij-web pre-push] Typecheck (all workspaces with a typecheck script)"
+npm -ws --if-present run typecheck
+
+echo "[vizij-web pre-push] Unit tests (all workspaces with a test script)"
+npm -ws --if-present run test
+
+# Optional: run builds to catch bundling/tsconfigs issues early
+if [[ "${HOOK_RUN_WEB_BUILD:-0}" == "1" ]]; then
+  echo "[vizij-web pre-push] Build (all workspaces with a build script)"
+  npm -ws --if-present run build
+fi
+
+echo "[vizij-web pre-push] OK"

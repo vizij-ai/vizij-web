@@ -64,7 +64,8 @@ export function useFeatures(
         const defaultValue = animatableValueInfo.default as RawValue;
         const lookupKey = getLookup(namespace, animatableValueInfo.id);
         const unsubscribe = store.subscribe(
-          (state) => (state.values.get(lookupKey as string) ?? defaultValue) as RawValue,
+          (state) =>
+            (state.values.get(lookupKey as string) ?? defaultValue) as RawValue,
           cb,
           { equalityFn: shallow, fireImmediately: true },
         );

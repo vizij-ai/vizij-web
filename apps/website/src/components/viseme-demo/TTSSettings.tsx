@@ -8,7 +8,12 @@ interface TTSSettingsProps {
   message?: string;
 }
 
-export const TTSSettings = ({ selectedVoice, onVoiceChange, onSpeak, message }: TTSSettingsProps ) => {
+export const TTSSettings = ({
+  selectedVoice,
+  onVoiceChange,
+  onSpeak,
+  message,
+}: TTSSettingsProps) => {
   const textToSpeakInputRef = useRef<HTMLInputElement>(null);
 
   const handleSpeak = () => {
@@ -17,9 +22,7 @@ export const TTSSettings = ({ selectedVoice, onVoiceChange, onSpeak, message }: 
     }
   };
 
-  if (message === undefined)
-    message = "Or say something instead!";
-
+  if (message === undefined) message = "Or say something instead!";
 
   return (
     <div className="pt-2 mt-2">

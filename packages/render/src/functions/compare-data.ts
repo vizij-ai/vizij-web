@@ -34,7 +34,11 @@ export function compareData(
     console.log("Keys in generated world and world data match in length");
   }
   if (!arraysEqual(world1Keys, world2Keys)) {
-    console.error("Keys in generated world and world data do not match", world1Keys, world2Keys);
+    console.error(
+      "Keys in generated world and world data do not match",
+      world1Keys,
+      world2Keys,
+    );
   } else {
     console.log("Keys in generated world and world data match");
   }
@@ -69,7 +73,9 @@ export function compareData(
       animatableValues2Keys.length,
     );
   } else {
-    console.log("Keys in generated animatables and animated values match in length");
+    console.log(
+      "Keys in generated animatables and animated values match in length",
+    );
   }
   if (!arraysEqual(animatableValues1Keys, animatableValues2Keys)) {
     console.error(
@@ -83,7 +89,9 @@ export function compareData(
 }
 
 const arraysEqual = (a: string[], b: string[]): boolean => {
-  return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
+  return (
+    a.every((item) => b.includes(item)) && b.every((item) => a.includes(item))
+  );
 };
 
 // function store(

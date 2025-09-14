@@ -14,7 +14,9 @@
  * ```
  */
 export const numberToDurationString = (duration: number): string => {
-  let milliseconds: number | string = Math.floor((duration % 1000) / 10).toString();
+  let milliseconds: number | string = Math.floor(
+    (duration % 1000) / 10,
+  ).toString();
   let seconds: number | string = Math.floor((duration / 1000) % 60);
   let minutes: number | string = Math.floor((duration / (1000 * 60)) % 60);
 

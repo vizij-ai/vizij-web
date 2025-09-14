@@ -2,9 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Hugo from "../assets/Hugo.glb";
 import Quori from "../assets/Quori.glb";
 import { useMotionValue, useTransform } from "motion/react";
-import { createVizijStore, Group, loadGLTF, useVizijStore, Vizij, VizijContext } from "vizij";
+import {
+  createVizijStore,
+  Group,
+  loadGLTF,
+  useVizijStore,
+  Vizij,
+  VizijContext,
+} from "vizij";
 import { useShallow } from "zustand/shallow";
-import { instanceOfRawVector3, RawValue, RawVector2, RawVector3 } from "@semio/utils";
+import {
+  instanceOfRawVector3,
+  RawValue,
+  RawVector2,
+  RawVector3,
+} from "@semio/utils";
 import { motion } from "motion/react";
 
 const QuoriBounds = {
@@ -142,11 +154,15 @@ export function InnerVizijGazeDemo() {
   const cameraLastFrameRef = useRef<HTMLImageElement>(null);
   const responseFrameRef = useRef<HTMLImageElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const addWorldElements = useVizijStore(
+    useShallow((state) => state.addWorldElements),
+  );
 
   const setVal = useVizijStore(useShallow((state) => state.setValue));
 
-  const draggableGazeBlockSize = { x: 75, y: 75 };
+  const draggableGazeBlockSize = useMemo(() => {
+    return { x: 75, y: 75 };
+  }, []);
   const draggableRange = useMemo(() => {
     const h = gazeControllerRef.current?.clientHeight ?? 300;
     const w = gazeControllerRef.current?.clientWidth ?? 300;
@@ -159,7 +175,9 @@ export function InnerVizijGazeDemo() {
   const dragBoxPositionX = useMotionValue(0);
   const dragBoxPositionY = useMotionValue(draggableRange.y / 2);
   const lookingAtX = useTransform(() => dragBoxPositionX.get());
-  const lookingAtY = useTransform(() => -1 * (dragBoxPositionY.get() - draggableRange.y / 2));
+  const lookingAtY = useTransform(
+    () => -1 * (dragBoxPositionY.get() - draggableRange.y / 2),
+  );
 
   const [hugoIDs, setHugoIDs] = useState<IDLookup>({
     root: "",
@@ -168,15 +186,22 @@ export function InnerVizijGazeDemo() {
     root: "",
   });
 
-  const [imageProcessingInterval, setImageProcessingInterval] = useState<NodeJS.Timeout | null>(
-    null,
-  );
+  const [imageProcessingInterval, setImageProcessingInterval] =
+    useState<NodeJS.Timeout | null>(null);
 
-  const convertDragToPercent = (dragVal: number, minDrag: number, maxDrag: number) => {
+  const convertDragToPercent = (
+    dragVal: number,
+    minDrag: number,
+    maxDrag: number,
+  ) => {
     return (dragVal - minDrag) / (maxDrag - minDrag);
   };
 
-  const convertPercentToFace = (percentVal: number, faceFrom: number, faceTo: number) => {
+  const convertPercentToFace = (
+    percentVal: number,
+    faceFrom: number,
+    faceTo: number,
+  ) => {
     return faceFrom + percentVal * Math.abs(faceFrom - faceTo);
   };
 
@@ -274,12 +299,14 @@ export function InnerVizijGazeDemo() {
     });
   });
 
-  const hugoInitialVals = [
-    {
-      name: "Black_S",
-      value: { r: 0, g: 0, b: 0 },
-    },
-  ];
+  const hugoInitialVals = useMemo(() => {
+    return [
+      {
+        name: "Black_S",
+        value: { r: 0, g: 0, b: 0 },
+      },
+    ];
+  }, []);
 
   useEffect(() => {
     const loadVizij = async (
@@ -292,12 +319,21 @@ export function InnerVizijGazeDemo() {
       search: string[],
       setter: React.Dispatch<React.SetStateAction<IDLookup>>,
     ) => {
-      const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
-      const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
+      const [loadedWorld, loadedAnimatables] = await loadGLTF(
+        glb,
+        ["default"],
+        true,
+        bounds,
+      );
+      const root = Object.values(loadedWorld).find(
+        (e) => e.type === "group" && e.rootBounds,
+      );
       addWorldElements(loadedWorld, loadedAnimatables, false);
 
       initialValues?.forEach((v: { name: string; value: RawValue }) => {
-        const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
+        const foundVal = Object.values(loadedAnimatables).find(
+          (anim) => anim.name == v.name,
+        );
         if (foundVal) {
           setVal(foundVal.id, "default", v.value);
         }
@@ -305,7 +341,9 @@ export function InnerVizijGazeDemo() {
 
       const foundVals = Object.fromEntries(
         search.map((query) => {
-          const foundShape = Object.values(loadedAnimatables).find((anim) => anim.name === query);
+          const foundShape = Object.values(loadedAnimatables).find(
+            (anim) => anim.name === query,
+          );
           const foundId = foundShape?.id;
           return [query, foundId ?? ""];
         }),
@@ -318,16 +356,22 @@ export function InnerVizijGazeDemo() {
     };
 
     const hugoSearch = Array.from(
-      new Set([...HugoMapping.x.map((v) => v.name), ...HugoMapping.y.map((v) => v.name)]),
+      new Set([
+        ...HugoMapping.x.map((v) => v.name),
+        ...HugoMapping.y.map((v) => v.name),
+      ]),
     );
     const quoriSearch = Array.from(
-      new Set([...QuoriMapping.x.map((v) => v.name), ...QuoriMapping.y.map((v) => v.name)]),
+      new Set([
+        ...QuoriMapping.x.map((v) => v.name),
+        ...QuoriMapping.y.map((v) => v.name),
+      ]),
     );
 
     loadVizij(Hugo, HugoBounds, hugoInitialVals, hugoSearch, setHugoIDs);
 
     loadVizij(Quori, QuoriBounds, [], quoriSearch, setQuoriIDs);
-  }, []);
+  }, [addWorldElements, hugoInitialVals, setVal]);
 
   return (
     <div className="my-8">
@@ -412,8 +456,11 @@ export function InnerVizijGazeDemo() {
                   const img = imgCapturer.grabFrame();
                   img
                     .then((res: ImageBitmap) => {
-                      let ocanvas = new OffscreenCanvas(res.width, res.height);
-                      let ctx = ocanvas.getContext("bitmaprenderer");
+                      const ocanvas = new OffscreenCanvas(
+                        res.width,
+                        res.height,
+                      );
+                      const ctx = ocanvas.getContext("bitmaprenderer");
                       if (ctx !== null) {
                         ctx.transferFromImageBitmap(res);
                       } else {
@@ -423,9 +470,10 @@ export function InnerVizijGazeDemo() {
                     })
                     .then((blob) => {
                       if (cameraLastFrameRef.current) {
-                        cameraLastFrameRef.current.src = URL.createObjectURL(blob);
+                        cameraLastFrameRef.current.src =
+                          URL.createObjectURL(blob);
                       }
-                      let form = new FormData();
+                      const form = new FormData();
                       form.append("image", blob, "image");
                       return form;
                     })
@@ -443,7 +491,8 @@ export function InnerVizijGazeDemo() {
                         .then((result) => {
                           console.log(result);
                           if (responseFrameRef.current) {
-                            responseFrameRef.current.src = URL.createObjectURL(result);
+                            responseFrameRef.current.src =
+                              URL.createObjectURL(result);
                           }
                         });
                       fetch(`${apiURL}/image-processing/get-gaze-location`, {
@@ -456,7 +505,9 @@ export function InnerVizijGazeDemo() {
                         })
                         .then((result) => {
                           console.log(result);
-                          dragBoxPositionX.set(result.x * draggableRange.x - draggableRange.x / 2);
+                          dragBoxPositionX.set(
+                            result.x * draggableRange.x - draggableRange.x / 2,
+                          );
                           dragBoxPositionY.set(result.y * draggableRange.y);
                         });
                     })

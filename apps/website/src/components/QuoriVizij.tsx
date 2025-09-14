@@ -1,6 +1,9 @@
 import Quori from "../assets/Quori.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import {
+  AnimatableLookup,
+  HardCodedVizijWithControls,
+} from "./HardCodedVizijWithControls";
 
 export function QuoriVizij() {
   const QuoriBounds = {

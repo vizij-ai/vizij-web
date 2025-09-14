@@ -40,7 +40,10 @@ type Ctx = {
   subscribeToNode: (nodeId: string, cb: () => void) => () => void;
 
   /** Snapshot accessor for a single port on a node */
-  getNodeOutputSnapshot: (nodeId: string | undefined, key?: string) => ValueJSON | undefined;
+  getNodeOutputSnapshot: (
+    nodeId: string | undefined,
+    key?: string,
+  ) => ValueJSON | undefined;
 };
 
 const NodeGraphCtx = createContext<Ctx | null>(null);
@@ -102,11 +105,14 @@ export const NodeGraphProvider: React.FC<{
       if (!nodeId) return undefined;
       return outputsRef.current[nodeId]?.[key];
     },
-    []
+    [],
   );
 
   // Equality helpers
-  const equalValue = (a: ValueJSON | undefined, b: ValueJSON | undefined): boolean => {
+  const equalValue = (
+    a: ValueJSON | undefined,
+    b: ValueJSON | undefined,
+  ): boolean => {
     if (a === b) return true;
     if (!a || !b) return false;
     if ("float" in a && "float" in b) return a.float === b.float;
@@ -130,7 +136,7 @@ export const NodeGraphProvider: React.FC<{
 
   const equalNodeOutputs = (
     prev: Record<string, ValueJSON> | undefined,
-    next: Record<string, ValueJSON> | undefined
+    next: Record<string, ValueJSON> | undefined,
   ): boolean => {
     if (prev === next) return true;
     if (!prev || !next) return false;
@@ -143,7 +149,9 @@ export const NodeGraphProvider: React.FC<{
     return true;
   };
 
-  const buildAndNotifyOutputs = (raw: Record<string, Record<string, ValueJSON>>) => {
+  const buildAndNotifyOutputs = (
+    raw: Record<string, Record<string, ValueJSON>>,
+  ) => {
     const prev = outputsRef.current;
     const next: Record<string, Record<string, ValueJSON>> = {};
     const changedNodes: string[] = [];
@@ -204,7 +212,7 @@ export const NodeGraphProvider: React.FC<{
         g.step(dt);
 
         const now = performance.now();
-        const interval = updateHz && updateHz > 0 ? (1000 / updateHz) : 0;
+        const interval = updateHz && updateHz > 0 ? 1000 / updateHz : 0;
 
         if (!interval || now - lastNotifyRef.current >= interval) {
           const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
@@ -234,7 +242,10 @@ export const NodeGraphProvider: React.FC<{
     graphRef.current.loadGraph(spec);
     specRef.current = spec;
     // refresh outputs immediately
-    const out = graphRef.current.evalAll() as Record<string, Record<string, ValueJSON>>;
+    const out = graphRef.current.evalAll() as Record<
+      string,
+      Record<string, ValueJSON>
+    >;
     buildAndNotifyOutputs(out);
   }, [spec, ready]);
 
@@ -278,15 +289,14 @@ export const NodeGraphProvider: React.FC<{
   };
 
   return (
-    <NodeGraphCtx.Provider value={ctxValue}>
-      {children}
-    </NodeGraphCtx.Provider>
+    <NodeGraphCtx.Provider value={ctxValue}>{children}</NodeGraphCtx.Provider>
   );
 };
 
 export const useNodeGraph = () => {
   const ctx = useContext(NodeGraphCtx);
-  if (!ctx) throw new Error("useNodeGraph must be used within NodeGraphProvider");
+  if (!ctx)
+    throw new Error("useNodeGraph must be used within NodeGraphProvider");
   return ctx;
 };
 
@@ -294,7 +304,10 @@ export const useNodeGraph = () => {
    Selector hooks for fine-grained subscriptions
 ----------------------------------------------------------- */
 
-export function useNodeOutput(nodeId?: string, key: string = "out"): ValueJSON | undefined {
+export function useNodeOutput(
+  nodeId?: string,
+  key: string = "out",
+): ValueJSON | undefined {
   const { subscribeToNode, getNodeOutputSnapshot } = useNodeGraph();
 
   const subscribe = useCallback(
@@ -302,18 +315,20 @@ export function useNodeOutput(nodeId?: string, key: string = "out"): ValueJSON |
       if (!nodeId) return () => {};
       return subscribeToNode(nodeId, cb);
     },
-    [subscribeToNode, nodeId]
+    [subscribeToNode, nodeId],
   );
 
   const getSnapshot = useCallback(
     () => getNodeOutputSnapshot(nodeId, key),
-    [getNodeOutputSnapshot, nodeId, key]
+    [getNodeOutputSnapshot, nodeId, key],
   );
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
 }
 
-export function useNodeOutputs(nodeId?: string): Record<string, ValueJSON> | undefined {
+export function useNodeOutputs(
+  nodeId?: string,
+): Record<string, ValueJSON> | undefined {
   const { subscribeToNode, getNodeOutputSnapshot } = useNodeGraph();
 
   const subscribe = useCallback(
@@ -321,7 +336,7 @@ export function useNodeOutputs(nodeId?: string): Record<string, ValueJSON> | und
       if (!nodeId) return () => {};
       return subscribeToNode(nodeId, cb);
     },
-    [subscribeToNode, nodeId]
+    [subscribeToNode, nodeId],
   );
 
   const getSnapshot = useCallback(() => {
@@ -351,7 +366,8 @@ export function valueAsNumber(v?: unknown): number | undefined {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
-      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+      val =
+        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
     }
   }
   if (!val) return undefined;
@@ -362,9 +378,7 @@ export function valueAsNumber(v?: unknown): number | undefined {
   return undefined;
 }
 
-export function valueAsVec3(
-  v?: unknown
-): [number, number, number] | undefined {
+export function valueAsVec3(v?: unknown): [number, number, number] | undefined {
   let val: ValueJSON | undefined;
   if (v && typeof v === "object") {
     const obj: any = v;
@@ -372,12 +386,14 @@ export function valueAsVec3(
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
-      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+      val =
+        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
     }
   }
   if (!val) return undefined;
   if ("vec3" in val) return val.vec3;
-  if ("vector" in val) return [val.vector[0] ?? 0, val.vector[1] ?? 0, val.vector[2] ?? 0];
+  if ("vector" in val)
+    return [val.vector[0] ?? 0, val.vector[1] ?? 0, val.vector[2] ?? 0];
   if ("float" in val) return [val.float, val.float, val.float];
   if ("bool" in val) return val.bool ? [1, 1, 1] : [0, 0, 0];
   return undefined;
@@ -391,7 +407,8 @@ export function valueAsVector(v?: unknown): number[] | undefined {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
-      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+      val =
+        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
     }
   }
   if (!val) return undefined;
@@ -410,7 +427,8 @@ export function valueAsBool(v?: unknown): boolean | undefined {
       val = obj as ValueJSON;
     } else {
       const map = obj as Record<string, ValueJSON>;
-      val = map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
+      val =
+        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
     }
   }
   if (!val) return undefined;

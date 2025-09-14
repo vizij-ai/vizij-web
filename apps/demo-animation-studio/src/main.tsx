@@ -10,5 +10,5 @@ const root = createRoot(el);
 root.render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

@@ -8,7 +8,10 @@ export function iterateOrExtract(data: any, cb: (data: any) => void): void {
   }
 }
 
-export async function iterateOrExtractAsync(data: any, cb: (data: any) => Promise<void>) {
+export async function iterateOrExtractAsync(
+  data: any,
+  cb: (data: any) => Promise<void>,
+) {
   if (Array.isArray(data)) {
     await Promise.all(data.map(async (item) => await cb(item)));
   } else {
@@ -29,6 +32,8 @@ export function processTuple(val: string | null | undefined): number[] {
     .map((num) => parseFloat(num));
 }
 
-export function namespaceArrayToRefs<T>(namespaces: string[]): Record<string, RefObject<T>> {
+export function namespaceArrayToRefs<T>(
+  namespaces: string[],
+): Record<string, RefObject<T>> {
   return namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<T>() }), {});
 }

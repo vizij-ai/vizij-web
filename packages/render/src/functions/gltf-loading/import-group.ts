@@ -1,5 +1,10 @@
 import { Object3D, Group, Mesh } from "three";
-import { AnimatableEuler, AnimatableValue, AnimatableVector3, RawVector2 } from "@semio/utils";
+import {
+  AnimatableEuler,
+  AnimatableValue,
+  AnimatableVector3,
+  RawVector2,
+} from "@semio/utils";
 import { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
@@ -14,7 +19,12 @@ export function importGroup(
     center: RawVector2;
     size: RawVector2;
   },
-): [World, Record<string, AnimatableValue>, string, Record<string, [string, string, boolean]>] {
+): [
+  World,
+  Record<string, AnimatableValue>,
+  string,
+  Record<string, [string, string, boolean]>,
+] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
   let newColorLookup: Record<string, [string, string, boolean]> = {};
@@ -32,7 +42,10 @@ export function importGroup(
       units: "m",
     },
   };
-  animatables = { ...animatables, [translationAnimatable.id]: translationAnimatable };
+  animatables = {
+    ...animatables,
+    [translationAnimatable.id]: translationAnimatable,
+  };
 
   const rotationAnimatable: AnimatableEuler = {
     id: crypto.randomUUID(),
@@ -63,21 +76,24 @@ export function importGroup(
 
   group.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
-      const [newWorldItems, newAnimatables, childId, newMeshColors] = importMesh(
-        child as Mesh,
-        namespaces,
-        { ...colorLookup, ...newColorLookup },
-      );
+      const [newWorldItems, newAnimatables, childId, newMeshColors] =
+        importMesh(child as Mesh, namespaces, {
+          ...colorLookup,
+          ...newColorLookup,
+        });
       newColorLookup = { ...newColorLookup, ...newMeshColors };
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
-    } else if ((child as Group).isGroup || (child.isObject3D && child.children.length !== 0)) {
-      const [newWorldItems, newAnimatables, childId, newMeshColors] = importGroup(
-        child as Group,
-        namespaces,
-        { ...colorLookup, ...newColorLookup },
-      );
+    } else if (
+      (child as Group).isGroup ||
+      (child.isObject3D && child.children.length !== 0)
+    ) {
+      const [newWorldItems, newAnimatables, childId, newMeshColors] =
+        importGroup(child as Group, namespaces, {
+          ...colorLookup,
+          ...newColorLookup,
+        });
       newColorLookup = { ...newColorLookup, ...newMeshColors };
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };

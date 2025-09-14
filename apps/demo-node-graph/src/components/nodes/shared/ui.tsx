@@ -2,7 +2,6 @@ import React from "react";
 import { Handle, Position } from "reactflow";
 import { handleStyle } from "./constants";
 
-
 export const NodeChrome = React.memo(function NodeChrome({
   title,
   width = 170,
@@ -37,7 +36,14 @@ export const ValueDisplay = React.memo(function ValueDisplay({
   children?: React.ReactNode;
 }) {
   return (
-    <div style={{ fontSize: "1.5em", fontWeight: "bold", margin: "5px 0", textAlign: "center" }}>
+    <div
+      style={{
+        fontSize: "1.5em",
+        fontWeight: "bold",
+        margin: "5px 0",
+        textAlign: "center",
+      }}
+    >
       {children}
     </div>
   );
@@ -56,9 +62,22 @@ export const TargetPort = React.memo(function TargetPort({
 }) {
   return (
     <>
-      <Handle type="target" id={id} position={Position.Left} style={{ ...handleStyle, top }} />
+      <Handle
+        type="target"
+        id={id}
+        position={Position.Left}
+        style={{ ...handleStyle, top }}
+      />
       {label !== undefined && (
-        <div style={{ position: "absolute", top: top - 5, left: labelLeft, fontSize: "0.8em", color: "#aaa" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: top - 5,
+            left: labelLeft,
+            fontSize: "0.8em",
+            color: "#aaa",
+          }}
+        >
           {label}
         </div>
       )}
@@ -67,5 +86,11 @@ export const TargetPort = React.memo(function TargetPort({
 });
 
 export const SourcePort = React.memo(function SourcePort() {
-  return <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />;
+  return (
+    <Handle
+      type="source"
+      position={Position.Right}
+      style={{ ...handleStyle }}
+    />
+  );
 });

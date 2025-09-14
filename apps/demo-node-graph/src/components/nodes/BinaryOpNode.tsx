@@ -31,7 +31,7 @@ const BinaryOpNode = React.memo(
     prev.data.label === next.data.label &&
     prev.data.op === next.data.op &&
     (prev.data.inputs?.[0] ?? "") === (next.data.inputs?.[0] ?? "") &&
-    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? "")
+    (prev.data.inputs?.[1] ?? "") === (next.data.inputs?.[1] ?? ""),
 );
 
 export default BinaryOpNode;

@@ -1,6 +1,9 @@
 import Abi from "../assets/Abi.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import {
+  AnimatableLookup,
+  HardCodedVizijWithControls,
+} from "./HardCodedVizijWithControls";
 
 export function AbiVizij() {
   const AbiBounds = {
@@ -46,8 +49,16 @@ export function AbiVizijWithControls() {
 
   const AbiMovables: AnimatableLookup[] = [
     { display: "Eyes", name: "Eyes", allow: { translate: ["x", "y"] } },
-    { display: "Left Eye Pupil", name: "L_Eye_Pupil", allow: { translate: ["x", "y"] } },
-    { display: "Right Eye Pupil", name: "R_Eye_Pupil", allow: { translate: ["x", "y"] } },
+    {
+      display: "Left Eye Pupil",
+      name: "L_Eye_Pupil",
+      allow: { translate: ["x", "y"] },
+    },
+    {
+      display: "Right Eye Pupil",
+      name: "R_Eye_Pupil",
+      allow: { translate: ["x", "y"] },
+    },
     {
       display: "Left Eye Top Eyelid",
       name: "LT_Lid",

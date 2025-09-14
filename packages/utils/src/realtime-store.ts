@@ -52,7 +52,9 @@ export type RealtimeStoreSetter = (
     | Partial<RealtimeData & RealtimeActions>
     | ((
         state: RealtimeData & RealtimeActions,
-      ) => (RealtimeData & RealtimeActions) | Partial<RealtimeData & RealtimeActions>),
+      ) =>
+        | (RealtimeData & RealtimeActions)
+        | Partial<RealtimeData & RealtimeActions>),
   replace?: false | undefined,
 ) => void;
 

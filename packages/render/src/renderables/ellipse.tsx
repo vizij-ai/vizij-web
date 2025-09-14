@@ -25,15 +25,24 @@ export interface RenderedEllipseProps {
   chain: string[];
 }
 
-function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): ReactNode {
+function InnerRenderedEllipse({
+  id,
+  namespace,
+  chain,
+}: RenderedEllipseProps): ReactNode {
   const ellipseRef = useRef<Mesh>() as RefObject<Mesh>;
-  const materialRef = useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
+  const materialRef =
+    useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
   const lineRef = useRef<Mesh>() as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
-  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
+  const onElementClick = useVizijStore(
+    useShallow((state) => state.onElementClick),
+  );
 
-  const ellipse = useVizijStore(useShallow((state) => state.world[id] as Ellipse));
+  const ellipse = useVizijStore(
+    useShallow((state) => state.world[id] as Ellipse),
+  );
   const refIsNull = !ellipse.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
@@ -58,16 +67,32 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
   useFeatures(namespace, ellipse.features, {
     translation: (pos: RawValue) => {
       if (ellipseRef.current?.position && instanceOfRawVector3(pos)) {
-        ellipseRef.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+        ellipseRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          pos.z as number,
+        );
       } else if (ellipseRef.current?.position && instanceOfRawVector2(pos)) {
         const currentZ = ellipseRef.current.position.z;
-        ellipseRef.current!.position.set(pos.x as number, pos.y as number, currentZ);
+        ellipseRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          currentZ,
+        );
       }
       if (lineRef.current?.position && instanceOfRawVector3(pos)) {
-        lineRef.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+        lineRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          pos.z as number,
+        );
       } else if (lineRef.current?.position && instanceOfRawVector2(pos)) {
         const currentZ = lineRef.current.position.z;
-        lineRef.current!.position.set(pos.x as number, pos.y as number, currentZ);
+        lineRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          currentZ,
+        );
       }
     },
     rotation: (rot: RawValue) => {
@@ -85,7 +110,10 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
       }
     },
     fillOpacity: (op: RawValue) => {
-      if (materialRef.current?.opacity !== undefined && instanceOfRawNumber(op)) {
+      if (
+        materialRef.current?.opacity !== undefined &&
+        instanceOfRawNumber(op)
+      ) {
         materialRef.current.opacity = op;
         if (op < 1.0) {
           materialRef.current.transparent = true;
@@ -110,10 +138,19 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
       if (ellipseRef.current && instanceOfRawNumber(height)) {
         ellipseRef.current.scale.set(ellipseRef.current.scale.x, height, 1);
       }
-      if (ellipseRef.current && lineRef.current && instanceOfRawNumber(height)) {
+      if (
+        ellipseRef.current &&
+        lineRef.current &&
+        instanceOfRawNumber(height)
+      ) {
         const offset =
-          (strokeOffsetRef.current * strokeWidthRef.current) / 2 + strokeOffsetRef.current * -1;
-        lineRef.current.scale.set(ellipseRef.current.scale.x + offset, height + offset, 1);
+          (strokeOffsetRef.current * strokeWidthRef.current) / 2 +
+          strokeOffsetRef.current * -1;
+        lineRef.current.scale.set(
+          ellipseRef.current.scale.x + offset,
+          height + offset,
+          1,
+        );
       }
     },
     width: (width: RawValue) => {
@@ -122,8 +159,13 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
       }
       if (ellipseRef.current && lineRef.current && instanceOfRawNumber(width)) {
         const offset =
-          (strokeOffsetRef.current * strokeWidthRef.current) / 2 + strokeOffsetRef.current * -1;
-        lineRef.current.scale.set(width + offset, ellipseRef.current.scale.y + offset, 1);
+          (strokeOffsetRef.current * strokeWidthRef.current) / 2 +
+          strokeOffsetRef.current * -1;
+        lineRef.current.scale.set(
+          width + offset,
+          ellipseRef.current.scale.y + offset,
+          1,
+        );
       }
     },
     strokeOpacity: (strokeOpacity: RawValue) => {
@@ -140,10 +182,18 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
     strokeColor: (strokeColor: RawValue) => {
       if (lineRef.current?.material.color) {
         if (instanceOfRawRGB(strokeColor)) {
-          lineRef.current.material.color.setRGB(strokeColor.r, strokeColor.g, strokeColor.b);
+          lineRef.current.material.color.setRGB(
+            strokeColor.r,
+            strokeColor.g,
+            strokeColor.b,
+          );
           lineRef.current.material.needsUpdate = true;
         } else if (instanceOfRawHSL(strokeColor)) {
-          lineRef.current.material.color.setHSL(strokeColor.h, strokeColor.s, strokeColor.l);
+          lineRef.current.material.color.setHSL(
+            strokeColor.h,
+            strokeColor.s,
+            strokeColor.l,
+          );
           lineRef.current.material.needsUpdate = true;
         }
       }
@@ -152,7 +202,9 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
       if (lineRef.current?.material && ellipseRef.current) {
         if (instanceOfRawNumber(strokeWidth)) {
           strokeWidthRef.current = strokeWidth;
-          const offset = (strokeWidth * strokeOffsetRef.current) / 2 + strokeOffsetRef.current * -1;
+          const offset =
+            (strokeWidth * strokeOffsetRef.current) / 2 +
+            strokeOffsetRef.current * -1;
           lineRef.current.scale.set(
             ellipseRef.current.scale.x + offset,
             ellipseRef.current.scale.y + offset,
@@ -167,7 +219,8 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
       if (lineRef.current?.material && ellipseRef.current) {
         if (instanceOfRawNumber(strokeOffset)) {
           strokeOffsetRef.current = strokeOffset;
-          const offset = (strokeOffset * strokeWidthRef.current) / 2 + strokeOffset * -1;
+          const offset =
+            (strokeOffset * strokeWidthRef.current) / 2 + strokeOffset * -1;
           lineRef.current.scale.set(
             ellipseRef.current.scale.x + offset,
             ellipseRef.current.scale.y + offset,
@@ -178,7 +231,9 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
     },
   });
 
-  const setReference = useVizijStore(useShallow((state: VizijActions) => state.setReference));
+  const setReference = useVizijStore(
+    useShallow((state: VizijActions) => state.setReference),
+  );
 
   const points = useMemo(() => {
     // Compute a line based on a set of 100 points around the circle
@@ -196,7 +251,8 @@ function InnerRenderedEllipse({ id, namespace, chain }: RenderedEllipseProps): R
   }, []);
 
   useEffect(() => {
-    if (ellipseRef.current && refIsNull) setReference(ellipse.id, namespace, ellipseRef);
+    if (ellipseRef.current && refIsNull)
+      setReference(ellipse.id, namespace, ellipseRef);
   }, [ellipse.id, namespace, ellipseRef, setReference, refIsNull]);
 
   return (

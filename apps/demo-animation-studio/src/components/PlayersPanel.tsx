@@ -35,7 +35,10 @@ export default function PlayersPanel({
   const addInstance = () => {
     const name = newPlayer.trim();
     if (!name) return;
-    const idx = Math.min(Math.max(0, Number(newAnimIndex) || 0), Math.max(0, animationsCount - 1));
+    const idx = Math.min(
+      Math.max(0, Number(newAnimIndex) || 0),
+      Math.max(0, animationsCount - 1),
+    );
     const spec = {
       playerName: name,
       animIndex: idx,
@@ -49,9 +52,17 @@ export default function PlayersPanel({
 
     // Add to runtime (does not reset engine or players)
     const created = (animApi.addInstances?.([
-      { playerName: spec.playerName, animIndexOrId: spec.animIndex ?? 0, cfg: spec.cfg }
+      {
+        playerName: spec.playerName,
+        animIndexOrId: spec.animIndex ?? 0,
+        cfg: spec.cfg,
+      },
     ]) ?? []) as { playerName: string; instId: number }[];
-    if (created && created.length > 0 && typeof created[0].instId === "number") {
+    if (
+      created &&
+      created.length > 0 &&
+      typeof created[0].instId === "number"
+    ) {
       spec.instId = created[0].instId;
     }
 
@@ -75,7 +86,7 @@ export default function PlayersPanel({
 
   const updateCfg = (
     i: number,
-    patch: Partial<NonNullable<InstanceSpec["cfg"]>>
+    patch: Partial<NonNullable<InstanceSpec["cfg"]>>,
   ) => {
     const next = instances.slice();
     next[i] = { ...next[i], cfg: { ...next[i].cfg, ...patch } };
@@ -88,12 +99,13 @@ export default function PlayersPanel({
     const pid = players[inst.playerName];
     if (pid === undefined) return;
     // Prefer the tracked instId if available; otherwise fall back to most recent for this player
-    const instId = typeof inst.instId === "number"
-      ? inst.instId
-      : (() => {
-          const ids: number[] = animApi.getInstances?.(inst.playerName) ?? [];
-          return ids.length > 0 ? ids[ids.length - 1] : undefined;
-        })();
+    const instId =
+      typeof inst.instId === "number"
+        ? inst.instId
+        : (() => {
+            const ids: number[] = animApi.getInstances?.(inst.playerName) ?? [];
+            return ids.length > 0 ? ids[ids.length - 1] : undefined;
+          })();
     if (instId === undefined) return;
     animApi.updateInstances?.([
       {
@@ -108,10 +120,18 @@ export default function PlayersPanel({
   };
 
   return (
-    <section style={{ background: "#16191d", border: "1px solid #2a2d31", borderRadius: 8, padding: 10 }}>
+    <section
+      style={{
+        background: "#16191d",
+        border: "1px solid #2a2d31",
+        borderRadius: 8,
+        padding: 10,
+      }}
+    >
       <b>Players & Instances</b>
       <div style={{ opacity: 0.75, fontSize: 12, marginBottom: 8 }}>
-        Create players and attach animation instances. Editing this list triggers a reload in the provider.
+        Create players and attach animation instances. Editing this list
+        triggers a reload in the provider.
       </div>
 
       <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
@@ -125,7 +145,9 @@ export default function PlayersPanel({
           />
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 70, opacity: 0.75, fontSize: 12 }}>Animation</span>
+          <span style={{ width: 70, opacity: 0.75, fontSize: 12 }}>
+            Animation
+          </span>
           <select
             value={newAnimIndex}
             onChange={(e) => setNewAnimIndex(Number(e.target.value))}
@@ -148,23 +170,39 @@ export default function PlayersPanel({
           Tip: Use the Transport bar to select a player and control playback.
         </div>
         {instances.length === 0 ? (
-          <div style={{ opacity: 0.7, fontSize: 12 }}>No instances configured.</div>
+          <div style={{ opacity: 0.7, fontSize: 12 }}>
+            No instances configured.
+          </div>
         ) : (
           instances.map((inst, i) => (
-            <div key={i} style={{ padding: 8, border: "1px solid #2a2d31", borderRadius: 6, background: "#1a1d21" }}>
+            <div
+              key={i}
+              style={{
+                padding: 8,
+                border: "1px solid #2a2d31",
+                borderRadius: 6,
+                background: "#1a1d21",
+              }}
+            >
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <label>
-                  <span style={{ opacity: 0.75, fontSize: 12 }}>Player</span><br />
+                  <span style={{ opacity: 0.75, fontSize: 12 }}>Player</span>
+                  <br />
                   <input
                     value={inst.playerName}
-                    onChange={(e) => updateInstance(i, { playerName: e.target.value })}
+                    onChange={(e) =>
+                      updateInstance(i, { playerName: e.target.value })
+                    }
                   />
                 </label>
                 <label>
-                  <span style={{ opacity: 0.75, fontSize: 12 }}>Animation</span><br />
+                  <span style={{ opacity: 0.75, fontSize: 12 }}>Animation</span>
+                  <br />
                   <select
                     value={inst.animIndex ?? 0}
-                    onChange={(e) => updateInstance(i, { animIndex: Number(e.target.value) })}
+                    onChange={(e) =>
+                      updateInstance(i, { animIndex: Number(e.target.value) })
+                    }
                   >
                     {Array.from({ length: animationsCount }).map((_, j) => (
                       <option key={j} value={j}>
@@ -174,54 +212,79 @@ export default function PlayersPanel({
                   </select>
                 </label>
                 <label>
-                  <span style={{ opacity: 0.75, fontSize: 12 }}>Weight</span><br />
+                  <span style={{ opacity: 0.75, fontSize: 12 }}>Weight</span>
+                  <br />
                   <input
                     type="number"
                     step="0.05"
                     min={0}
                     max={1}
                     value={inst.cfg?.weight ?? 1}
-                    onChange={(e) => updateCfg(i, { weight: Number(e.target.value) })}
+                    onChange={(e) =>
+                      updateCfg(i, { weight: Number(e.target.value) })
+                    }
                     style={{ width: 80 }}
                   />
                 </label>
                 <label>
-                  <span style={{ opacity: 0.75, fontSize: 12 }}>TimeScale</span><br />
+                  <span style={{ opacity: 0.75, fontSize: 12 }}>TimeScale</span>
+                  <br />
                   <input
                     type="number"
                     step="0.1"
                     value={inst.cfg?.time_scale ?? 1}
-                    onChange={(e) => updateCfg(i, { time_scale: Number(e.target.value) })}
+                    onChange={(e) =>
+                      updateCfg(i, { time_scale: Number(e.target.value) })
+                    }
                     style={{ width: 90 }}
                   />
                 </label>
                 <label>
-                  <span style={{ opacity: 0.75, fontSize: 12 }}>StartOffset</span><br />
+                  <span style={{ opacity: 0.75, fontSize: 12 }}>
+                    StartOffset
+                  </span>
+                  <br />
                   <input
                     type="number"
                     step="0.1"
                     value={inst.cfg?.start_offset ?? 0}
-                    onChange={(e) => updateCfg(i, { start_offset: Number(e.target.value) })}
+                    onChange={(e) =>
+                      updateCfg(i, { start_offset: Number(e.target.value) })
+                    }
                     style={{ width: 100 }}
                   />
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 16 }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginTop: 16,
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={inst.cfg?.enabled ?? true}
-                    onChange={(e) => updateCfg(i, { enabled: e.target.checked })}
+                    onChange={(e) =>
+                      updateCfg(i, { enabled: e.target.checked })
+                    }
                   />
                   <span style={{ opacity: 0.8 }}>Enabled</span>
                 </label>
 
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                  <button onClick={() => applyInstanceToRuntime(i)}>Apply To Runtime</button>
+                  <button onClick={() => applyInstanceToRuntime(i)}>
+                    Apply To Runtime
+                  </button>
                   <button onClick={() => removeInstance(i)}>Remove</button>
                 </div>
               </div>
 
               <div style={{ opacity: 0.7, fontSize: 12, marginTop: 6 }}>
-                Runtime players: {playerNames.length > 0 ? playerNames.join(", ") : "(none created yet)"}
+                Runtime players:{" "}
+                {playerNames.length > 0
+                  ? playerNames.join(", ")
+                  : "(none created yet)"}
               </div>
             </div>
           ))

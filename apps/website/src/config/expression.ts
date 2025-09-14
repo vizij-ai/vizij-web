@@ -1,4 +1,10 @@
-export type Expression = "neutral" | "smile" | "frown" | "surprise" | "anger" | "disgust";
+export type Expression =
+  | "neutral"
+  | "smile"
+  | "frown"
+  | "surprise"
+  | "anger"
+  | "disgust";
 
 export const expressionMapper: {
   [key in Expression]: {

@@ -14,12 +14,14 @@ This README describes the current API and should be treated as the canonical sta
 Within the monorepo:
 
 - Build the WASM package (if not already built):
+
   ```bash
   # from vizij-rs/
   node scripts/build-animation-wasm.mjs
   ```
 
 - Build the npm wrapper:
+
   ```bash
   # from vizij-rs/npm/@vizij/animation-wasm
   npm run build
@@ -32,6 +34,7 @@ Within the monorepo:
   ```
 
 In a separate app (after publishing to npm), install:
+
 ```bash
 npm i @vizij/animation-react @vizij/animation-wasm react react-dom
 ```
@@ -42,27 +45,33 @@ Load a StoredAnimation and display a live scalar value.
 
 ```tsx
 import React from "react";
-import { AnimationProvider, useAnimTarget, valueAsNumber } from "@vizij/animation-react";
+import {
+  AnimationProvider,
+  useAnimTarget,
+  valueAsNumber,
+} from "@vizij/animation-react";
 
 // Minimal StoredAnimation (recommended format)
 const anim = {
   name: "Scalar Ramp",
   duration: 2000, // ms
-  tracks: [{
-    id: "t0",
-    name: "Scalar",
-    animatableId: "demo/scalar",
-    points: [
-      { id: "k0", stamp: 0.0, value: 0 },
-      { id: "k1", stamp: 1.0, value: 1 },
-    ],
-  }],
-  groups: {}
+  tracks: [
+    {
+      id: "t0",
+      name: "Scalar",
+      animatableId: "demo/scalar",
+      points: [
+        { id: "k0", stamp: 0.0, value: 0 },
+        { id: "k1", stamp: 1.0, value: 1 },
+      ],
+    },
+  ],
+  groups: {},
 };
 
 function Panel() {
-  const value = useAnimTarget("demo/scalar");       // subscribe by resolved key
-  const num = valueAsNumber(value);                 // helper to coerce Value -> number
+  const value = useAnimTarget("demo/scalar"); // subscribe by resolved key
+  const num = valueAsNumber(value); // helper to coerce Value -> number
   return <div>Value: {num !== undefined ? num.toFixed(3) : "…"}</div>;
 }
 
@@ -70,7 +79,7 @@ export default function App() {
   return (
     <AnimationProvider
       animations={anim}
-      prebind={(path) => path}   // identity mapping: canonical path -> key
+      prebind={(path) => path} // identity mapping: canonical path -> key
       autostart
       updateHz={60}
     >
@@ -116,12 +125,15 @@ Context shape (via `useAnimation()`):
 
 ```ts
 type Ctx = {
-  ready: boolean;                               // Provider is initialized
+  ready: boolean; // Provider is initialized
   subscribeToKey(key: string, cb: () => void): () => void;
   getKeySnapshot(key: string): Value | undefined;
-  step(dt: number, inputs?: Inputs): void;      // Manual stepping if autostart=false
-  reload(anims: StoredAnimation[] | StoredAnimation, instances?: InstanceSpec[]): void;
-  players: Record<string, number>;              // Optional player name -> PlayerId map
+  step(dt: number, inputs?: Inputs): void; // Manual stepping if autostart=false
+  reload(
+    anims: StoredAnimation[] | StoredAnimation,
+    instances?: InstanceSpec[],
+  ): void;
+  players: Record<string, number>; // Optional player name -> PlayerId map
 };
 ```
 
@@ -148,7 +160,11 @@ const v = useAnimTarget("robot/Arm.rotation");
 Helpers to coerce the engine Value union to simple types for UI.
 
 ```ts
-import { valueAsNumber, valueAsVec3, valueAsBool } from "@vizij/animation-react";
+import {
+  valueAsNumber,
+  valueAsVec3,
+  valueAsBool,
+} from "@vizij/animation-react";
 
 const n: number | undefined = valueAsNumber(value);
 const v3: [number, number, number] | undefined = valueAsVec3(value);
@@ -167,11 +183,14 @@ export type Value =
   | { type: "Vec4"; data: [number, number, number, number] }
   | { type: "Quat"; data: [number, number, number, number] }
   | { type: "Color"; data: [number, number, number, number] }
-  | { type: "Transform"; data: {
-      translation: [number, number, number];
-      rotation: [number, number, number, number]; // (x,y,z,w)
-      scale: [number, number, number];
-    } }
+  | {
+      type: "Transform";
+      data: {
+        translation: [number, number, number];
+        rotation: [number, number, number, number]; // (x,y,z,w)
+        scale: [number, number, number];
+      };
+    }
   | { type: "Bool"; data: boolean }
   | { type: "Text"; data: string };
 ```
@@ -187,7 +206,13 @@ Load multiple clips and create named players bound to specific animations:
   animations={[animA, animB]}
   instances={[
     { playerName: "walk", animIndex: 0 },
-    { playerName: "wave", animIndex: 1, cfg: { /* future instance cfg */ } },
+    {
+      playerName: "wave",
+      animIndex: 1,
+      cfg: {
+        /* future instance cfg */
+      },
+    },
   ]}
   prebind={(path) => path}
 />
@@ -220,6 +245,7 @@ If `prebind` is omitted, the engine will emit changes keyed to canonical paths; 
   - Displays a live scalar value using `useAnimTarget` and `valueAsNumber`
 
 Build with:
+
 ```bash
 # from vizij-web/apps/demo-animation
 npm run build

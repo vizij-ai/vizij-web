@@ -75,7 +75,9 @@ export class Result<T, E = Error> {
    * @returns A new Result with the mapped success value or the original error
    */
   map<U>(fn: (value: T) => U): Result<U, E> {
-    return this.isOk() ? Result.Ok(fn(this.value as T)) : Result.Err(this.error as E);
+    return this.isOk()
+      ? Result.Ok(fn(this.value as T))
+      : Result.Err(this.error as E);
   }
 
   /**
@@ -85,7 +87,9 @@ export class Result<T, E = Error> {
    * @returns A new Result with the mapped error value or the original success value
    */
   mapErr<F>(fn: (error: E) => F): Result<T, F> {
-    return this.isOk() ? Result.Ok(this.value as T) : Result.Err(fn(this.error as E));
+    return this.isOk()
+      ? Result.Ok(this.value as T)
+      : Result.Err(fn(this.error as E));
   }
 
   /**
@@ -132,7 +136,9 @@ export class Result<T, E = Error> {
    */
   unwrap(): T {
     if (this.isErr()) {
-      throw new Error(`Tried to unwrap an Err value${this.error ? `: ${String(this.error)}` : ""}`);
+      throw new Error(
+        `Tried to unwrap an Err value${this.error ? `: ${String(this.error)}` : ""}`,
+      );
     }
     return this.value as T;
   }

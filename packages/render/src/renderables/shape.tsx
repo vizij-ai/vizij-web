@@ -1,4 +1,12 @@
-import { type Ref, RefObject, ReactNode, memo, useRef, useMemo, useEffect } from "react";
+import {
+  type Ref,
+  RefObject,
+  ReactNode,
+  memo,
+  useRef,
+  useMemo,
+  useEffect,
+} from "react";
 import * as THREE from "three";
 import {
   MeshBasicMaterial,
@@ -32,12 +40,18 @@ export interface RenderedShapeProps {
   chain: string[];
 }
 
-function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): ReactNode {
+function InnerRenderedShape({
+  id,
+  namespace,
+  chain,
+}: RenderedShapeProps): ReactNode {
   const refGroup = useRef<THREE.Group>() as RefObject<THREE.Group>;
   const ref = useRef<THREE.Mesh>() as RefObject<THREE.Mesh>;
   const shape = useVizijStore(useShallow((state) => state.world[id] as Shape));
 
-  const refs = useVizijStore(useShallow((state) => (state.world[id] as Shape).refs));
+  const refs = useVizijStore(
+    useShallow((state) => (state.world[id] as Shape).refs),
+  );
   const refIsNull = !refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
@@ -84,10 +98,14 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
         {},
       );
       const initialInfluences = shape.morphTargets.map(() => 0);
-      const morphFeatureHandlers: Record<string, (value: RawValue) => void> = {};
+      const morphFeatureHandlers: Record<string, (value: RawValue) => void> =
+        {};
       shape.morphTargets.forEach((target, i) => {
         morphFeatureHandlers[target] = (value: RawValue) => {
-          if (ref.current?.morphTargetInfluences && instanceOfRawNumber(value)) {
+          if (
+            ref.current?.morphTargetInfluences &&
+            instanceOfRawNumber(value)
+          ) {
             ref.current!.morphTargetInfluences![i] = value;
           }
         };
@@ -104,10 +122,18 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
     {
       translation: (pos: RawValue) => {
         if (ref.current?.position && instanceOfRawVector3(pos)) {
-          ref.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+          ref.current!.position.set(
+            pos.x as number,
+            pos.y as number,
+            pos.z as number,
+          );
         }
         if (refGroup.current?.position && instanceOfRawVector3(pos)) {
-          refGroup.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+          refGroup.current!.position.set(
+            pos.x as number,
+            pos.y as number,
+            pos.z as number,
+          );
         }
       },
       rotation: (rot: RawValue) => {
@@ -128,7 +154,10 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
         }
       },
       opacity: (op: RawValue) => {
-        if (material.current?.opacity !== undefined && instanceOfRawNumber(op)) {
+        if (
+          material.current?.opacity !== undefined &&
+          instanceOfRawNumber(op)
+        ) {
           material.current.opacity = op;
           if (op < 1.0) {
             material.current.transparent = true;
@@ -143,12 +172,22 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
           ((material.current as MeshStandardMaterial) || undefined)?.color &&
           instanceOfRawRGB(color)
         ) {
-          (material.current as MeshStandardMaterial).color.setRGB(color.r, color.g, color.b);
-          if (((material.current as MeshStandardMaterial) || undefined)?.color) {
+          (material.current as MeshStandardMaterial).color.setRGB(
+            color.r,
+            color.g,
+            color.b,
+          );
+          if (
+            ((material.current as MeshStandardMaterial) || undefined)?.color
+          ) {
             (material.current as MeshStandardMaterial).needsUpdate = true;
           }
         } else if (material.current && instanceOfRawHSL(color)) {
-          (material.current as MeshStandardMaterial).color.setHSL(color.h, color.s, color.l);
+          (material.current as MeshStandardMaterial).color.setHSL(
+            color.h,
+            color.s,
+            color.l,
+          );
         }
       },
       ...morphTargetSettings[2],
@@ -157,7 +196,9 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
   );
   // const showAxes = useSceneStore(useShallow((state) => id === state.selectedWorldElement));
   const setReference = useVizijStore(useShallow((state) => state.setReference));
-  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
+  const onElementClick = useVizijStore(
+    useShallow((state) => state.onElementClick),
+  );
 
   useEffect(() => {
     if (ref.current && refIsNull) setReference(shape.id, namespace, ref);
@@ -214,7 +255,12 @@ function InnerRenderedShape({ id, namespace, chain }: RenderedShapeProps): React
         />
       )}
       {shape.children?.map((child) => (
-        <Renderable key={child} id={child} namespace={namespace} chain={[...chain, id]} />
+        <Renderable
+          key={child}
+          id={child}
+          namespace={namespace}
+          chain={[...chain, id]}
+        />
       ))}
     </mesh>
   );

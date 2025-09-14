@@ -23,7 +23,11 @@ export interface Progress {
  * @param message - The message to set on the progress object. Default is undefined.
  * @returns The new progress object.
  */
-export function incrementProgress(progress: Progress, message?: string, increment = 1): Progress {
+export function incrementProgress(
+  progress: Progress,
+  message?: string,
+  increment = 1,
+): Progress {
   return {
     ...progress,
     current: progress.current + increment,
@@ -85,19 +89,25 @@ export function composeProgressiveResult<T extends { id: string }>(
   progressiveResults: ProgressiveResult<T[] | T | undefined | null>[],
   expectedIds?: string[],
 ): ProgressiveResult<(T | undefined | null)[]> {
-  const fullProgress = composeProgress(progressiveResults.map((pr) => pr.progress));
+  const fullProgress = composeProgress(
+    progressiveResults.map((pr) => pr.progress),
+  );
   let fullResult: Result<(T | undefined | null)[]>;
   if (progressiveResults.some((res) => res.result?.isErr() ?? true)) {
     fullResult = Result.ErrFromStr("There was an error");
   } else {
-    const metas: (T | undefined | null)[] = progressiveResults.flatMap((res) => {
-      const innerRes = res.result?.unwrap();
-      if (Array.isArray(innerRes)) return innerRes;
-      return [innerRes];
-    });
+    const metas: (T | undefined | null)[] = progressiveResults.flatMap(
+      (res) => {
+        const innerRes = res.result?.unwrap();
+        if (Array.isArray(innerRes)) return innerRes;
+        return [innerRes];
+      },
+    );
 
     if (expectedIds) {
-      const data = expectedIds.map((id) => metas.find((m) => "id" in (m || {}) && m?.id === id));
+      const data = expectedIds.map((id) =>
+        metas.find((m) => "id" in (m || {}) && m?.id === id),
+      );
       if (
         fullProgress.current >= fullProgress.total &&
         data.some((m) => m === undefined || m === null)

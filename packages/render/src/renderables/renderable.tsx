@@ -24,7 +24,11 @@ export interface RenderableProps {
  * from the state. It then resolves the namespaces and renders the appropriate component based on the type.
  * Supported types include "body", "shape", and various joint types.
  */
-export function InnerRenderable({ id, namespace, chain }: RenderableProps): ReactNode {
+export function InnerRenderable({
+  id,
+  namespace,
+  chain,
+}: RenderableProps): ReactNode {
   const type = useVizijStore(useShallow((state) => state.world[id].type));
   const refs = useVizijStore(useShallow((state) => state.world[id].refs));
 
@@ -47,13 +51,41 @@ export function InnerRenderable({ id, namespace, chain }: RenderableProps): Reac
       {resolvedNamespaces.map((ns) => {
         switch (type) {
           case "group":
-            return <RenderedGroup key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
+            return (
+              <RenderedGroup
+                key={`${ns}.${id}`}
+                id={id}
+                namespace={ns}
+                chain={chain}
+              />
+            );
           case "ellipse":
-            return <RenderedEllipse key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
+            return (
+              <RenderedEllipse
+                key={`${ns}.${id}`}
+                id={id}
+                namespace={ns}
+                chain={chain}
+              />
+            );
           case "rectangle":
-            return <RenderedRectangle key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
+            return (
+              <RenderedRectangle
+                key={`${ns}.${id}`}
+                id={id}
+                namespace={ns}
+                chain={chain}
+              />
+            );
           case "shape":
-            return <RenderedShape key={`${ns}.${id}`} id={id} namespace={ns} chain={chain} />;
+            return (
+              <RenderedShape
+                key={`${ns}.${id}`}
+                id={id}
+                namespace={ns}
+                chain={chain}
+              />
+            );
           default:
             return null;
         }

@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useRef } from "react";
 export type InstanceSpan = {
   id: number;
   start: number; // seconds in player time
-  end: number;   // seconds in player time (>= start)
+  end: number; // seconds in player time (>= start)
   color?: string;
   label?: string;
 };
@@ -17,9 +17,9 @@ export default function Timeline({
   onSeek,
   height = 36,
 }: {
-  length: number;            // seconds, full player length (computed by engine)
-  time: number;              // seconds, current playhead
-  windowStart?: number;      // seconds
+  length: number; // seconds, full player length (computed by engine)
+  time: number; // seconds, current playhead
+  windowStart?: number; // seconds
   windowEnd?: number | null; // seconds or null for open-ended
   instances: InstanceSpan[];
   onSeek?: (t: number) => void;
@@ -28,9 +28,13 @@ export default function Timeline({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const safeLen = length > 0 ? length : 1;
 
-  const clamp = (v: number, mn: number, mx: number) => Math.max(mn, Math.min(mx, v));
+  const clamp = (v: number, mn: number, mx: number) =>
+    Math.max(mn, Math.min(mx, v));
 
-  const pct = useCallback((t: number) => `${clamp(t / safeLen, 0, 1) * 100}%`, [safeLen]);
+  const pct = useCallback(
+    (t: number) => `${clamp(t / safeLen, 0, 1) * 100}%`,
+    [safeLen],
+  );
 
   const onClick = useCallback(
     (e: React.MouseEvent) => {
@@ -41,7 +45,7 @@ export default function Timeline({
       const t = norm * safeLen;
       onSeek(t);
     },
-    [onSeek, safeLen]
+    [onSeek, safeLen],
   );
 
   const playheadLeft = useMemo(() => pct(time), [pct, time]);
@@ -85,7 +89,7 @@ export default function Timeline({
       })}
 
       {/* Window overlay */}
-      {(typeof windowStart === "number") && (
+      {typeof windowStart === "number" && (
         <div
           style={{
             position: "absolute",

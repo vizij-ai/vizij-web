@@ -6,6 +6,8 @@ export function useDeep<S, U>(selector: (state: S) => U): (state: S) => U {
 
   return (state) => {
     const next = selector(state);
-    return deepEqual(prev.current, next) ? (prev.current as U) : (prev.current = next);
+    return deepEqual(prev.current, next)
+      ? (prev.current as U)
+      : (prev.current = next);
   };
 }

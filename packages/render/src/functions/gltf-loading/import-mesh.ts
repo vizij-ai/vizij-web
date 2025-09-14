@@ -25,7 +25,12 @@ export function importMesh(
   mesh: Mesh,
   namespaces: string[],
   colorLookup: Record<string, [string, string, boolean]>,
-): [World, Record<string, AnimatableValue>, string, Record<string, [string, string, boolean]>] {
+): [
+  World,
+  Record<string, AnimatableValue>,
+  string,
+  Record<string, [string, string, boolean]>,
+] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
   let newColorLookup: Record<string, [string, string, boolean]> = {};
@@ -42,7 +47,10 @@ export function importMesh(
       units: "m",
     },
   };
-  animatables = { ...animatables, [translationAnimatable.id]: translationAnimatable };
+  animatables = {
+    ...animatables,
+    [translationAnimatable.id]: translationAnimatable,
+  };
 
   const rotationAnimatable: AnimatableEuler = {
     id: crypto.randomUUID(),
@@ -82,10 +90,13 @@ export function importMesh(
     color.copy((mesh.material as MeshPhysicalMaterial).emissive);
     useEmissive = true;
   }
-  const colorName: string | undefined = (mesh.material as MeshStandardMaterial).name;
+  const colorName: string | undefined = (mesh.material as MeshStandardMaterial)
+    .name;
   const colorAnimatable: AnimatableColor = {
     id: crypto.randomUUID(),
-    name: (mesh.material as MeshStandardMaterial).name ?? `${mesh.name ?? "Mesh"} color`,
+    name:
+      (mesh.material as MeshStandardMaterial).name ??
+      `${mesh.name ?? "Mesh"} color`,
     type: "rgb",
     default: { r: color.r, g: color.g, b: color.b },
     constraints: {
@@ -130,23 +141,30 @@ export function importMesh(
     animatables = { ...animatables, [colorAnimatable.id]: colorAnimatable };
     animatables = { ...animatables, [opacityAnimatable.id]: opacityAnimatable };
     if (colorName) {
-      newColorLookup[colorName] = [colorAnimatable.id, opacityAnimatable.id, useEmissive];
+      newColorLookup[colorName] = [
+        colorAnimatable.id,
+        opacityAnimatable.id,
+        useEmissive,
+      ];
       console.log(mesh.material, colorAnimatable, opacityAnimatable);
     }
   }
 
-  const [geometryFeatures, geometryAnimatables, morphTargets] = importGeometry(mesh.geometry, mesh);
+  const [geometryFeatures, geometryAnimatables, morphTargets] = importGeometry(
+    mesh.geometry,
+    mesh,
+  );
   animatables = { ...animatables, ...geometryAnimatables };
 
   const children: string[] = [];
 
   mesh.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
-      const [newWorldItems, newAnimatables, childId, newMeshColors] = importMesh(
-        child as Mesh,
-        namespaces,
-        { ...colorLookup, ...newColorLookup },
-      );
+      const [newWorldItems, newAnimatables, childId, newMeshColors] =
+        importMesh(child as Mesh, namespaces, {
+          ...colorLookup,
+          ...newColorLookup,
+        });
       newColorLookup = { ...newColorLookup, ...newMeshColors };
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };

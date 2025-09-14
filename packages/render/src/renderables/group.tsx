@@ -25,7 +25,11 @@ export interface RenderedGroupProps {
   chain: string[];
 }
 
-function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): ReactNode {
+function InnerRenderedGroup({
+  id,
+  namespace,
+  chain,
+}: RenderedGroupProps): ReactNode {
   const ref = useRef<THREE.Group>() as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
   const refIsNull = !group.refs[namespace]?.current;
@@ -52,7 +56,11 @@ function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): React
   useFeatures(namespace, group.features, {
     translation: (pos: RawValue) => {
       if (ref.current?.position && instanceOfRawVector3(pos)) {
-        ref.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+        ref.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          pos.z as number,
+        );
       } else if (ref.current?.position && instanceOfRawVector2(pos)) {
         const currentZ = ref.current.position.z;
         ref.current!.position.set(pos.x as number, pos.y as number, currentZ);
@@ -81,7 +89,9 @@ function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): React
     },
   });
 
-  const setReference = useVizijStore(useShallow((state: VizijActions) => state.setReference));
+  const setReference = useVizijStore(
+    useShallow((state: VizijActions) => state.setReference),
+  );
 
   useEffect(() => {
     if (ref.current && refIsNull) {
@@ -92,7 +102,12 @@ function InnerRenderedGroup({ id, namespace, chain }: RenderedGroupProps): React
   return (
     <group ref={ref} uuid={`${namespace}.${group.id}`} userData={userData}>
       {group.children.map((child) => (
-        <Renderable key={child} id={child} namespace={namespace} chain={[...chain, id]} />
+        <Renderable
+          key={child}
+          id={child}
+          namespace={namespace}
+          chain={[...chain, id]}
+        />
       ))}
     </group>
   );

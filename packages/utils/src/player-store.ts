@@ -129,7 +129,9 @@ export const PlayerSlice = (set: PlayerStoreSetter) => ({
   },
   // Play the animation
   playPlayer: (speed?: number, direction?: PlayerDirection) => {
-    set((state: PlayerData) => ({ player: play(state.player, speed, direction) }));
+    set((state: PlayerData) => ({
+      player: play(state.player, speed, direction),
+    }));
   },
   // Pause the animation
   pausePlayer: () => {

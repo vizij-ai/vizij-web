@@ -31,9 +31,24 @@ function valueToSeries(v: Value): number[] | null {
   }
 }
 
-const seriesColors = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee", "#a78bfa", "#f87171", "#38bdf8"];
+const seriesColors = [
+  "#60a5fa",
+  "#34d399",
+  "#fbbf24",
+  "#f472b6",
+  "#22d3ee",
+  "#a78bfa",
+  "#f87171",
+  "#38bdf8",
+];
 
-function drawChart(ctx: CanvasRenderingContext2D, w: number, h: number, samples: Sample[], windowSec: number) {
+function drawChart(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  samples: Sample[],
+  windowSec: number,
+) {
   const now = performance.now() / 1000;
   const startT = now - windowSec;
 
@@ -127,7 +142,13 @@ function drawChart(ctx: CanvasRenderingContext2D, w: number, h: number, samples:
   });
 }
 
-function ChartCanvas({ samples, windowSec }: { samples: Sample[]; windowSec: number }) {
+function ChartCanvas({
+  samples,
+  windowSec,
+}: {
+  samples: Sample[];
+  windowSec: number;
+}) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -138,9 +159,12 @@ function ChartCanvas({ samples, windowSec }: { samples: Sample[]; windowSec: num
 
     let raf = 0;
     const render = () => {
-      const dpr = (window.devicePixelRatio || 1);
+      const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
-      if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
+      if (
+        canvas.width !== Math.floor(rect.width * dpr) ||
+        canvas.height !== Math.floor(rect.height * dpr)
+      ) {
         canvas.width = Math.floor(rect.width * dpr);
         canvas.height = Math.floor(rect.height * dpr);
       }
@@ -154,7 +178,19 @@ function ChartCanvas({ samples, windowSec }: { samples: Sample[]; windowSec: num
     };
   }, [samples, windowSec]);
 
-  return <canvas ref={ref} style={{ width: "100%", height: 160, display: "block", background: "#0f1113", borderRadius: 8, border: "1px solid #2a2d31" }} />;
+  return (
+    <canvas
+      ref={ref}
+      style={{
+        width: "100%",
+        height: 160,
+        display: "block",
+        background: "#0f1113",
+        borderRadius: 8,
+        border: "1px solid #2a2d31",
+      }}
+    />
+  );
 }
 
 export default function ChartsView({
@@ -175,7 +211,14 @@ export default function ChartsView({
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, padding: 12 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gap: 12,
+        padding: 12,
+      }}
+    >
       {entries.map(([key, samples]) => (
         <div key={key} style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: 12, opacity: 0.75 }}>{key}</div>

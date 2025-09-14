@@ -87,7 +87,8 @@ export function updated(player: Player, coldStart: boolean): Player {
 
   const currentInBounds = p.stamp >= p.bounds[0] && p.stamp <= p.bounds[1];
   const currentViewportCenter = (p.viewport[1] + p.viewport[0]) / 2;
-  const nearViewportCenterCurrent = Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  const nearViewportCenterCurrent =
+    Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
   // Check if player has entered the specified bounds
   if (currentInBounds && !p._enteredBounds) {
@@ -95,17 +96,20 @@ export function updated(player: Player, coldStart: boolean): Player {
   }
 
   // Calculate effective timescale from speed and current direction
-  const effectiveTimescale = p.speed * (p._currentDirection === PlayerDirection.Forward ? 1 : -1);
+  const effectiveTimescale =
+    p.speed * (p._currentDirection === PlayerDirection.Forward ? 1 : -1);
 
   // Compute the time delta between the two raw times, multiplied by the effective timescale
-  const delta = ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
+  const delta =
+    ((p._currentTime - p._previousTime) * effectiveTimescale) / duration;
 
   // Apply the time delta
   const updatedStamp = p.stamp + delta;
 
   // Use full range [0, 1] as bounds when outside specified bounds and haven't entered them yet
   // Otherwise use the actual bounds
-  const [start, end] = !p._enteredBounds && !currentInBounds ? [0, 1] : p.bounds;
+  const [start, end] =
+    !p._enteredBounds && !currentInBounds ? [0, 1] : p.bounds;
 
   let attachOverride = false;
 
@@ -168,9 +172,13 @@ export function updated(player: Player, coldStart: boolean): Player {
     p.stamp = updatedStamp;
   }
 
-  const newNearViewportCenter = Math.abs(p.stamp - currentViewportCenter) < 0.01;
+  const newNearViewportCenter =
+    Math.abs(p.stamp - currentViewportCenter) < 0.01;
 
-  if (p.running && (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)) {
+  if (
+    p.running &&
+    (nearViewportCenterCurrent || newNearViewportCenter || attachOverride)
+  ) {
     p.viewport = getFittedViewport(p.stamp, p.viewport);
   } else if (p.running && !newNearViewportCenter) {
     // Give the current stamp a bit of oomph with the delta to make it move towards the goal faster.
@@ -203,7 +211,10 @@ export function withBounds(player: Player, bounds: [number, number]): Player {
  * @param viewport - the new viewport in the range [0, 1]
  * @returns the updated player
  */
-export function withViewport(player: Player, viewport: [number, number]): Player {
+export function withViewport(
+  player: Player,
+  viewport: [number, number],
+): Player {
   const p = { ...player };
   p.viewport = viewport;
   return p;
@@ -236,7 +247,10 @@ export function play(
   if (!p.looping && !p.bounce) {
     if (p.direction === PlayerDirection.Forward && p.stamp === p.bounds[1]) {
       p.stamp = p.bounds[0];
-    } else if (p.direction === PlayerDirection.Reverse && p.stamp === p.bounds[0]) {
+    } else if (
+      p.direction === PlayerDirection.Reverse &&
+      p.stamp === p.bounds[0]
+    ) {
       p.stamp = p.bounds[1];
     }
   }
@@ -398,7 +412,9 @@ export function withDirection(
 export function reversed(player: Player): Player {
   const p = { ...player };
   const newDirection =
-    p.direction === PlayerDirection.Forward ? PlayerDirection.Reverse : PlayerDirection.Forward;
+    p.direction === PlayerDirection.Forward
+      ? PlayerDirection.Reverse
+      : PlayerDirection.Forward;
   p.direction = newDirection;
   p._currentDirection = newDirection;
   p._bounced = false; // Reset bounce state when direction changes
@@ -413,7 +429,10 @@ export function reversed(player: Player): Player {
  * @deprecated Use speed and _currentDirection properties instead
  */
 export function getTimescale(player: Player): number {
-  return player.speed * (player._currentDirection === PlayerDirection.Forward ? 1 : -1);
+  return (
+    player.speed *
+    (player._currentDirection === PlayerDirection.Forward ? 1 : -1)
+  );
 }
 
 /**

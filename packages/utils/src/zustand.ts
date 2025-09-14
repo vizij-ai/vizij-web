@@ -16,7 +16,9 @@ export interface StoreSubscribeWithSelector<T> {
      * @param listener - Callback called with the new and previous state values
      * @returns Unsubscribe function
      */
-    (listener: (selectedState: T, previousSelectedState: T) => void): () => void;
+    (
+      listener: (selectedState: T, previousSelectedState: T) => void,
+    ): () => void;
 
     /**
      * Subscribe to changes in a selected portion of the state

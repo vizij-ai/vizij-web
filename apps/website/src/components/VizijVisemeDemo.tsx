@@ -5,7 +5,12 @@ import { useSpring } from "motion/react";
 import { createVizijStore, useVizijStore, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { Viseme, visemeMapper } from "../config/viseme";
-import { HugoBounds, QuoriBounds, hugoSearch, quoriSearch } from "../config/models";
+import {
+  HugoBounds,
+  QuoriBounds,
+  hugoSearch,
+  quoriSearch,
+} from "../config/models";
 import { useModelLoader } from "../hooks/useModelLoader";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { useWasmAnimationPlayer } from "../hooks/useWasmAnimationPlayer";
@@ -33,7 +38,8 @@ export function VizijVisemeDemo() {
 
 export function InnerVizijVisemeDemo() {
   const [selectedVoice, setSelectedVoice] = useState<string>("Ruth");
-  const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
+  const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] =
+    useState<number>(0);
   const [vizemeOffset, setVizemeOffset] = useState<number>(-50);
   const [transitionType, setTransitionType] = useState<string>("cubic");
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
@@ -51,8 +57,18 @@ export function InnerVizijVisemeDemo() {
   const quoriSearchMemo = useMemo(() => quoriSearch, []);
   const emptyInitialVals = useMemo(() => [], []);
 
-  const { rigMapping: hugoIDs } = useModelLoader(Hugo, hugoBoundsMemo, hugoInitialValsMemo, hugoSearchMemo);
-  const { rigMapping: quoriIDs } = useModelLoader(Quori, quoriBoundsMemo, emptyInitialVals, quoriSearchMemo);
+  const { rigMapping: hugoIDs } = useModelLoader(
+    Hugo,
+    hugoBoundsMemo,
+    hugoInitialValsMemo,
+    hugoSearchMemo,
+  );
+  const { rigMapping: quoriIDs } = useModelLoader(
+    Quori,
+    quoriBoundsMemo,
+    emptyInitialVals,
+    quoriSearchMemo,
+  );
 
   const {
     spokenSentences,
@@ -75,22 +91,37 @@ export function InnerVizijVisemeDemo() {
     [scaleX, scaleY, mouthMorph],
   );
 
-  const { setAnimationDuration, loadAnimation, play } = useWasmAnimationPlayer(
-    motionValues,
-  );
+  const { setAnimationDuration, loadAnimation, play } =
+    useWasmAnimationPlayer(motionValues);
 
   useEffect(() => {
     const unsubscribeScaleX = scaleX.on("change", (latestVal) => {
       if (quoriIDs.scaleId && hugoIDs.scaleId) {
-        setVal(quoriIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
-        setVal(hugoIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
+        setVal(quoriIDs.scaleId, "default", {
+          x: latestVal,
+          y: scaleY.get(),
+          z: 1,
+        });
+        setVal(hugoIDs.scaleId, "default", {
+          x: latestVal,
+          y: scaleY.get(),
+          z: 1,
+        });
       }
     });
 
     const unsubscribeScaleY = scaleY.on("change", (latestVal) => {
       if (quoriIDs.scaleId && hugoIDs.scaleId) {
-        setVal(quoriIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
-        setVal(hugoIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
+        setVal(quoriIDs.scaleId, "default", {
+          x: scaleX.get(),
+          y: latestVal,
+          z: 1,
+        });
+        setVal(hugoIDs.scaleId, "default", {
+          x: scaleX.get(),
+          y: latestVal,
+          z: 1,
+        });
       }
     });
 
@@ -106,7 +137,16 @@ export function InnerVizijVisemeDemo() {
       unsubscribeScaleY();
       unsubscribeMouthMorph();
     };
-  }, [scaleX, scaleY, mouthMorph, quoriIDs.scaleId, quoriIDs.morphId, hugoIDs.scaleId, hugoIDs.morphId, setVal]);
+  }, [
+    scaleX,
+    scaleY,
+    mouthMorph,
+    quoriIDs.scaleId,
+    quoriIDs.morphId,
+    hugoIDs.scaleId,
+    hugoIDs.morphId,
+    setVal,
+  ]);
 
   useEffect(() => {
     const { x, y, morph } = visemeMapper[selectedViseme];
@@ -120,7 +160,13 @@ export function InnerVizijVisemeDemo() {
     setSpokenSentences([]);
     setSpokenWords([]);
     setSpokenVisemes([]);
-  }, [selectedVoice, setSpokenAudio, setSpokenSentences, setSpokenWords, setSpokenVisemes]);
+  }, [
+    selectedVoice,
+    setSpokenAudio,
+    setSpokenSentences,
+    setSpokenWords,
+    setSpokenVisemes,
+  ]);
 
   const handleSpeak = async (text: string) => {
     await getTTSData(text, selectedVoice);
@@ -161,9 +207,24 @@ export function InnerVizijVisemeDemo() {
       }));
 
       const tracks = [
-        { id: crypto.randomUUID(), name: "X", points: scaleXPoints, animatableId: "X" },
-        { id: crypto.randomUUID(), name: "Y", points: scaleYPoints, animatableId: "Y" },
-        { id: crypto.randomUUID(), name: "Morph", points: morphPoints, animatableId: "Morph" },
+        {
+          id: crypto.randomUUID(),
+          name: "X",
+          points: scaleXPoints,
+          animatableId: "X",
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Y",
+          points: scaleYPoints,
+          animatableId: "Y",
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Morph",
+          points: morphPoints,
+          animatableId: "Morph",
+        },
       ];
 
       const transitions = [];

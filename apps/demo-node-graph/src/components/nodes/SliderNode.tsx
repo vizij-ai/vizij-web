@@ -18,14 +18,26 @@ const SliderNodeBase = ({ id, data }: NodeProps<SliderData>) => {
   const out = useNodeOutput(id, "out");
 
   return (
-    <div style={{ padding: 20, minWidth: 200, background: "#2a2a2a", borderRadius: 8, border: "1px solid #555" }}>
-      <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
+    <div
+      style={{
+        padding: 20,
+        minWidth: 200,
+        background: "#2a2a2a",
+        borderRadius: 8,
+        border: "1px solid #555",
+      }}
+    >
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ ...handleStyle }}
+      />
       <div style={{ textAlign: "center" }}>
         <strong>{data.label ?? "Slider"}</strong>
         <div style={{ fontSize: "1.5em", fontWeight: "bold", marginTop: 8 }}>
           {displayValue(out)}
         </div>
-      <NodeSeriesPanel samples={{ out }} />
+        <NodeSeriesPanel samples={{ out }} />
       </div>
     </div>
   );
@@ -34,8 +46,7 @@ const SliderNodeBase = ({ id, data }: NodeProps<SliderData>) => {
 const SliderNode = React.memo(
   SliderNodeBase,
   (prev, next) =>
-    prev.id === next.id &&
-    (prev.data.label ?? "") === (next.data.label ?? "")
+    prev.id === next.id && (prev.data.label ?? "") === (next.data.label ?? ""),
 );
 
 export default SliderNode;

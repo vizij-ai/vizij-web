@@ -4,6 +4,7 @@ A monorepo for all TypeScript/React packages and web apps that power the Vizij â
 It hosts the model, view (canvas renderer), React controller utilities, thin WASM wrappers, and showcase apps.
 
 ## Structure
+
 ```txt
 packages/
   @vizij/model/            # TS types + JSON Schema validation + IO helpers
@@ -19,7 +20,9 @@ apps/
 ```
 
 ## Getting Started
+
 - Requires Node LTS and pnpm.
+
 ```bash
 corepack enable
 pnpm i
@@ -29,7 +32,9 @@ pnpm -r dev   # run local dev servers where available
 ```
 
 ## Releasing
+
 We use **Changesets** to version and publish only the packages that changed.
+
 ```bash
 pnpm changeset            # choose bump types
 pnpm changeset version    # update versions/changelogs
@@ -38,10 +43,42 @@ pnpm -r publish --access public
 
 CI publishes with npm provenance via GitHub Actions. NPM token is stored as an org secret and only exposed to the release workflow.
 
+## Developer Git Hooks
+
+We use local Git hooks to catch formatting, lint, type and test issues before code lands.
+
+Install (one-time per clone):
+
+```bash
+bash scripts/install-git-hooks.sh
+```
+
+What runs
+
+- pre-commit
+  - Prettier check over the repo
+  - ESLint for all workspaces that define a "lint" script
+- pre-push
+  - Prettier check
+  - ESLint (workspaces with "lint")
+  - Typecheck (workspaces with "typecheck")
+  - Unit tests (workspaces with "test")
+  - Optional builds (all workspaces with "build") when you set:
+    `bash
+export HOOK_RUN_WEB_BUILD=1
+`
+    Bypass temporarily (not recommended):
+
+```bash
+export SKIP_GIT_HOOKS=1
+```
+
 ## Contributing
+
 - Open an issue first for major changes.
 - Keep packages self-contained with clear READMEs.
 - Tests: Vitest; Lint: ESLint/Prettier; Types: strict TS.
 
 ## License
+
 Apache-2.0

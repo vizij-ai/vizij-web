@@ -36,7 +36,7 @@ async function getNodeSchemasAny(): Promise<RegistryLite> {
     return JSON.parse(raw) as RegistryLite;
   }
   throw new Error(
-    "@vizij/node-graph-wasm does not expose getNodeSchemas or get_node_schemas_json; ensure you are using the updated package."
+    "@vizij/node-graph-wasm does not expose getNodeSchemas or get_node_schemas_json; ensure you are using the updated package.",
   );
 }
 
@@ -54,7 +54,7 @@ export function loadRegistry(): Promise<RegistryLite> {
  * Find the NodeSignature for a given type_id (lowercase NodeType string).
  */
 export async function getNodeSignature(
-  typeId: string
+  typeId: string,
 ): Promise<NodeSignatureLite | undefined> {
   const reg = await loadRegistry();
   return reg.nodes.find((n: NodeSignatureLite) => n.type_id === typeId);
@@ -67,7 +67,7 @@ export async function getNodeSignature(
 export async function getPortLabel(
   typeId: string,
   portId: string,
-  io: "inputs" | "outputs"
+  io: "inputs" | "outputs",
 ): Promise<string | undefined> {
   const sig = await getNodeSignature(typeId);
   if (!sig) return undefined;

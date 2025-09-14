@@ -13,7 +13,12 @@
  * // Use in SVG: <path d={path} />
  * ```
  */
-function getHexagonPath(x: number, y: number, size: number, height: number): string {
+function getHexagonPath(
+  x: number,
+  y: number,
+  size: number,
+  height: number,
+): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,
     `${x.toString()},${(y - size / 2).toString()}`,
@@ -41,7 +46,12 @@ function getHexagonPath(x: number, y: number, size: number, height: number): str
  * @param height - Total height of the line including endpoints
  * @returns SVG path string for the degenerate hexagon
  */
-function getDegenerateHexagonPath(x: number, y: number, size: number, height: number): string {
+function getDegenerateHexagonPath(
+  x: number,
+  y: number,
+  size: number,
+  height: number,
+): string {
   const path = [
     `${x.toString()},${(y - height / 2).toString()}`,
     `${x.toString()},${(y - size / 2).toString()}`,

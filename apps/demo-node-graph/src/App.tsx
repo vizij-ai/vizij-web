@@ -21,7 +21,10 @@ export default function App() {
   // Build GraphSpec with stable identity to avoid unnecessary provider reloads
   // (e.g., selection/drag causing nodes array identity changes). This prevents
   // clobbering live setParam updates while editing in the Inspector.
-  const specCacheRef = useRef<{ json: string; spec: ReturnType<typeof nodesToSpec> | null }>({
+  const specCacheRef = useRef<{
+    json: string;
+    spec: ReturnType<typeof nodesToSpec> | null;
+  }>({
     json: "",
     spec: null,
   });

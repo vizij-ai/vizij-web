@@ -10,7 +10,9 @@
  * const matrix = eulerToRotationMatrix([0, Math.PI/2, 0]);
  * ```
  */
-export function eulerToRotationMatrix(euler: [number, number, number]): number[][] {
+export function eulerToRotationMatrix(
+  euler: [number, number, number],
+): number[][] {
   const [z, y, x] = euler;
 
   const cz = Math.cos(z);
@@ -116,7 +118,9 @@ export function eulerToQuaternion(
  * @param q - A quaternion as [w, x, y, z]
  * @returns Euler angles as [z, y, x] in radians
  */
-export function quaternionToEuler(q: [number, number, number, number]): [number, number, number] {
+export function quaternionToEuler(
+  q: [number, number, number, number],
+): [number, number, number] {
   const [w, x, y, z] = q;
 
   // Roll (x-axis rotation)
@@ -216,9 +220,17 @@ export function quaternionSlerp(
 
     // Normalize the result
     const length = Math.sqrt(
-      result[0] * result[0] + result[1] * result[1] + result[2] * result[2] + result[3] * result[3],
+      result[0] * result[0] +
+        result[1] * result[1] +
+        result[2] * result[2] +
+        result[3] * result[3],
     );
-    return [result[0] / length, result[1] / length, result[2] / length, result[3] / length];
+    return [
+      result[0] / length,
+      result[1] / length,
+      result[2] / length,
+      result[3] / length,
+    ];
   }
 
   // Calculate the angle between the quaternions

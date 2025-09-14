@@ -25,7 +25,10 @@ export interface VizijActions {
     value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
   ) => void;
   setWorldElementName: (id: string, value: string) => void;
-  setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => void;
+  setVizij: (
+    scene: World,
+    animatables: Record<string, AnimatableValue>,
+  ) => void;
   setSlot: (
     parentId: string,
     parentNamespace: string,
@@ -42,7 +45,11 @@ export interface VizijActions {
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => void;
   getExportableBodies: (filterIds?: string[]) => Group[];
   updateElementSelection: (selection: Selection, chain: string[]) => void;
-  onElementClick: (selection: Selection, chain: string[], event: ThreeEvent<MouseEvent>) => void;
+  onElementClick: (
+    selection: Selection,
+    chain: string[],
+    event: ThreeEvent<MouseEvent>,
+  ) => void;
   clearSelection: () => void;
   setOrigin: (
     id: string,
@@ -50,21 +57,33 @@ export interface VizijActions {
   ) => void;
   setAxis: (id: string, axis: THREE.Vector3) => void;
   setTags: (id: string, tags: string[]) => void;
-  setStaticFeature: (id: string, feature: RenderableFeature, value: RawValue) => void;
+  setStaticFeature: (
+    id: string,
+    feature: RenderableFeature,
+    value: RawValue,
+  ) => void;
   setAnimatableValue: (id: string, value: AnimatableValue) => void;
   setParent: (id: string, parent: string) => void;
   setChild: (id: string, child: string) => void;
   setChildren: (id: string, children: string[]) => void;
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => void;
   setMaterial: (id: string, material: string) => void;
-  setReference: (id: string, namespace: string, object: RefObject<Group | Mesh>) => void;
+  setReference: (
+    id: string,
+    namespace: string,
+    object: RefObject<Group | Mesh>,
+  ) => void;
   createGroup: (root: boolean) => void;
   createAnimatable: (
     elementId: string,
     featureName: string,
     value: Partial<AnimatableValue>,
   ) => void;
-  createStatic: (elementId: string, featureName: string, value: RawValue) => void;
+  createStatic: (
+    elementId: string,
+    featureName: string,
+    value: RawValue,
+  ) => void;
 }
 
 export type VizijStoreSetter = (

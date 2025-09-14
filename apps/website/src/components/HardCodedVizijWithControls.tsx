@@ -1,6 +1,10 @@
 import { RawValue, RawVector2 } from "@semio/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
 import {
   createVizijStore,
   Group,
@@ -63,15 +67,21 @@ function InnerHardCodedVizijWithControls({
 }) {
   const [rootId, setRootId] = useState<string | undefined>("");
 
-  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const addWorldElements = useVizijStore(
+    useShallow((state) => state.addWorldElements),
+  );
   const setValue = useVizijStore(useShallow((state) => state.setValue));
   const world = useVizijStore(useShallow((state) => state.world));
-  const activeAnimatables = useVizijStore(useShallow((state) => state.animatables));
+  const activeAnimatables = useVizijStore(
+    useShallow((state) => state.animatables),
+  );
 
   const calculatedMaterials = useMemo(() => {
     return materials
       .map((mat) => {
-        const foundMat = Object.values(activeAnimatables).find((anim) => anim.name == mat.name);
+        const foundMat = Object.values(activeAnimatables).find(
+          (anim) => anim.name == mat.name,
+        );
         if (foundMat !== undefined) {
           if (mat.initial) {
             setValue(foundMat.id, "default", mat.initial);
@@ -91,19 +101,24 @@ function InnerHardCodedVizijWithControls({
   const calculatedMovables = useMemo(() => {
     return movables
       .map((controllable) => {
-        const foundShape = Object.values(world).find((e) => e.name === controllable.name);
+        const foundShape = Object.values(world).find(
+          (e) => e.name === controllable.name,
+        );
         if (foundShape !== undefined) {
           return {
             ...controllable,
             id: foundShape.id,
             translationId: foundShape?.features.translation.value,
-            ...("scale" in foundShape.features && foundShape?.features.scale?.value !== undefined
+            ...("scale" in foundShape.features &&
+            foundShape?.features.scale?.value !== undefined
               ? { scaleId: foundShape?.features.scale.value }
               : {}),
-            ...("rotation" in foundShape.features && foundShape.features.rotation !== undefined
+            ...("rotation" in foundShape.features &&
+            foundShape.features.rotation !== undefined
               ? { rotateId: foundShape.features.rotation.value }
               : {}),
-            ...("morphTargets" in foundShape && foundShape.morphTargets !== undefined
+            ...("morphTargets" in foundShape &&
+            foundShape.morphTargets !== undefined
               ? { morphTargets: foundShape.morphTargets }
               : {}),
           };
@@ -117,8 +132,15 @@ function InnerHardCodedVizijWithControls({
 
   useEffect(() => {
     const loadVizij = async () => {
-      const [world, animatables] = await loadGLTF(glb, ["default"], true, bounds);
-      const root = Object.values(world).find((e) => e.type === "group" && e.rootBounds);
+      const [world, animatables] = await loadGLTF(
+        glb,
+        ["default"],
+        true,
+        bounds,
+      );
+      const root = Object.values(world).find(
+        (e) => e.type === "group" && e.rootBounds,
+      );
       addWorldElements(world, animatables, true);
       setRootId((root as Group | undefined)?.id);
     };
@@ -181,7 +203,10 @@ function InnerHardCodedVizijWithControls({
                         key={material.id}
                         className="m-1 p-1 text-left font-bold flex-row flex gap-2"
                       >
-                        <Controller animatableId={material.id} className="inline-block" />
+                        <Controller
+                          animatableId={material.id}
+                          className="inline-block"
+                        />
                         <span>{material.display}</span>
                       </div>
                     );
@@ -192,14 +217,20 @@ function InnerHardCodedVizijWithControls({
           </Disclosure>
           <div className={"px-4 py-2 mx-2"}>
             <span
-              className={"sticky top-0 font-bold text-xl uppercase block w-full p-1 bg-gray-800"}
+              className={
+                "sticky top-0 font-bold text-xl uppercase block w-full p-1 bg-gray-800"
+              }
             >
               Control
             </span>
             <div className="max-h-120 overflow-scroll">
               {calculatedMovables.map((control) => {
                 return (
-                  <Disclosure as="div" key={control?.id} className="m-1 p-1 text-left font-bold">
+                  <Disclosure
+                    as="div"
+                    key={control?.id}
+                    className="m-1 p-1 text-left font-bold"
+                  >
                     {({ open }) => (
                       <>
                         <DisclosureButton
@@ -217,17 +248,21 @@ function InnerHardCodedVizijWithControls({
                                 <div className="my-2">
                                   <span>Translate</span>
                                   {control.translationId !== undefined &&
-                                    control.allow.translate.map((allowableAxis) => {
-                                      return (
-                                        <div key={allowableAxis}>
-                                          <Controller
-                                            key={allowableAxis}
-                                            animatableId={control.translationId ?? ""}
-                                            subfield={allowableAxis}
-                                          />
-                                        </div>
-                                      );
-                                    })}
+                                    control.allow.translate.map(
+                                      (allowableAxis) => {
+                                        return (
+                                          <div key={allowableAxis}>
+                                            <Controller
+                                              key={allowableAxis}
+                                              animatableId={
+                                                control.translationId ?? ""
+                                              }
+                                              subfield={allowableAxis}
+                                            />
+                                          </div>
+                                        );
+                                      },
+                                    )}
                                 </div>
                               )}
                               {control.rotateId &&
@@ -235,66 +270,96 @@ function InnerHardCodedVizijWithControls({
                                 control.allow.rotate && (
                                   <div className="my-2">
                                     <span>Rotate</span>
-                                    {control.allow.rotate.map((allowableAxis) => {
-                                      return (
-                                        <div key={allowableAxis}>
-                                          <Controller
-                                            key={allowableAxis}
-                                            animatableId={control.rotateId ?? ""}
-                                            subfield={allowableAxis}
-                                          />
-                                        </div>
-                                      );
-                                    })}
+                                    {control.allow.rotate.map(
+                                      (allowableAxis) => {
+                                        return (
+                                          <div key={allowableAxis}>
+                                            <Controller
+                                              key={allowableAxis}
+                                              animatableId={
+                                                control.rotateId ?? ""
+                                              }
+                                              subfield={allowableAxis}
+                                            />
+                                          </div>
+                                        );
+                                      },
+                                    )}
                                   </div>
                                 )}
-                              {control.scaleId !== undefined && control.allow.scale && (
-                                <div className="my-2">
-                                  <span>Scale</span>
-                                  {control.allow.scale.map((allowableAxis) => {
-                                    return (
-                                      <div key={allowableAxis}>
-                                        <Controller
-                                          key={allowableAxis}
-                                          animatableId={control.scaleId ?? ""}
-                                          subfield={allowableAxis}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                              {control.morphTargets !== undefined && control.allow.morphs && (
-                                <div className="my-2">
-                                  <span>Morphs</span>
-                                  {control.morphTargets.map((morph: string) => {
-                                    return (
-                                      <div className="p-2 text-left" key={morph}>
-                                        <Controller animatableId={morph} />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              {control.scaleId !== undefined &&
+                                control.allow.scale && (
+                                  <div className="my-2">
+                                    <span>Scale</span>
+                                    {control.allow.scale.map(
+                                      (allowableAxis) => {
+                                        return (
+                                          <div key={allowableAxis}>
+                                            <Controller
+                                              key={allowableAxis}
+                                              animatableId={
+                                                control.scaleId ?? ""
+                                              }
+                                              subfield={allowableAxis}
+                                            />
+                                          </div>
+                                        );
+                                      },
+                                    )}
+                                  </div>
+                                )}
+                              {control.morphTargets !== undefined &&
+                                control.allow.morphs && (
+                                  <div className="my-2">
+                                    <span>Morphs</span>
+                                    {control.morphTargets.map(
+                                      (morph: string) => {
+                                        return (
+                                          <div
+                                            className="p-2 text-left"
+                                            key={morph}
+                                          >
+                                            <Controller animatableId={morph} />
+                                          </div>
+                                        );
+                                      },
+                                    )}
+                                  </div>
+                                )}
                             </div>
                           ) : (
                             <div className="p-1 text-left">
                               <div className="my-2">
                                 <span>Translate</span>
-                                <Controller animatableId={control.translationId!} subfield="x" />
-                                <Controller animatableId={control.translationId!} subfield="y" />
+                                <Controller
+                                  animatableId={control.translationId!}
+                                  subfield="x"
+                                />
+                                <Controller
+                                  animatableId={control.translationId!}
+                                  subfield="y"
+                                />
                               </div>
                               <div className="my-2">
                                 <span>Scale</span>
-                                <Controller animatableId={control.scaleId!} subfield="x" />
-                                <Controller animatableId={control.scaleId!} subfield="y" />
+                                <Controller
+                                  animatableId={control.scaleId!}
+                                  subfield="x"
+                                />
+                                <Controller
+                                  animatableId={control.scaleId!}
+                                  subfield="y"
+                                />
                               </div>
                               {control.morphTargets && (
                                 <div className="my-2">
                                   <span>Morphs</span>
                                   {control.morphTargets.map((morph: string) => {
                                     return (
-                                      <div className="p-2 text-left" key={morph}>
+                                      <div
+                                        className="p-2 text-left"
+                                        key={morph}
+                                      >
                                         <Controller animatableId={morph} />
                                       </div>
                                     );

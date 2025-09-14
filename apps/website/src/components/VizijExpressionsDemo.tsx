@@ -6,7 +6,12 @@ import { createVizijStore, useVizijStore, VizijContext } from "vizij";
 import { useShallow } from "zustand/shallow";
 import { Viseme, visemeMapper } from "../config/viseme";
 import { Expression, expressionMapper } from "../config/expression";
-import { HugoBounds, QuoriBounds, hugoSearch, quoriSearch } from "../config/models";
+import {
+  HugoBounds,
+  QuoriBounds,
+  hugoSearch,
+  quoriSearch,
+} from "../config/models";
 import { useModelLoader } from "../hooks/useModelLoader";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { useWasmAnimationPlayer } from "../hooks/useWasmAnimationPlayer";
@@ -33,13 +38,21 @@ export function VizijExpressionsDemo() {
 
 export function InnerVizijExpressionsDemo() {
   const [selectedVoice, setSelectedVoice] = useState<string>("Ruth");
-  const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] = useState<number>(0);
+  const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] =
+    useState<number>(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [vizemeOffset, _setVizemeOffset] = useState<number>(-50);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [transitionType, _setTransitionType] = useState<string>("cubic");
 
   // Initialize expression weight vector with 0 for each expression
-  const [expressionWeightVector, setExpressionWeightVector] = useState<Record<Expression, number>>(() => {
-    const initialWeights: Record<Expression, number> = {} as Record<Expression, number>;
+  const [expressionWeightVector, setExpressionWeightVector] = useState<
+    Record<Expression, number>
+  >(() => {
+    const initialWeights: Record<Expression, number> = {} as Record<
+      Expression,
+      number
+    >;
     Object.keys(expressionMapper).forEach((expression) => {
       initialWeights[expression as Expression] = 0;
     });
@@ -47,7 +60,11 @@ export function InnerVizijExpressionsDemo() {
   });
 
   // Store current viseme-driven motion values
-  const [currentVisemeExpression, setCurrentVisemeExpression] = useState({ x: 1, y: 1, morph: 0 });
+  const [currentVisemeExpression, setCurrentVisemeExpression] = useState({
+    x: 1,
+    y: 1,
+    morph: 0,
+  });
 
   // Motion values for final output (what drives the characters)
   const scaleX = useSpring(1);
@@ -68,8 +85,18 @@ export function InnerVizijExpressionsDemo() {
   const quoriSearchMemo = useMemo(() => quoriSearch, []);
   const emptyInitialVals = useMemo(() => [], []);
 
-  const { rigMapping: hugoIDs } = useModelLoader(Hugo, hugoBoundsMemo, hugoInitialValsMemo, hugoSearchMemo);
-  const { rigMapping: quoriIDs } = useModelLoader(Quori, quoriBoundsMemo, emptyInitialVals, quoriSearchMemo);
+  const { rigMapping: hugoIDs } = useModelLoader(
+    Hugo,
+    hugoBoundsMemo,
+    hugoInitialValsMemo,
+    hugoSearchMemo,
+  );
+  const { rigMapping: quoriIDs } = useModelLoader(
+    Quori,
+    quoriBoundsMemo,
+    emptyInitialVals,
+    quoriSearchMemo,
+  );
 
   const {
     spokenSentences,
@@ -92,22 +119,37 @@ export function InnerVizijExpressionsDemo() {
     [visemeScaleX, visemeScaleY, visemeMouthMorph],
   );
 
-  const { setAnimationDuration, loadAnimation, play } = useWasmAnimationPlayer(
-    motionValues,
-  );
+  const { setAnimationDuration, loadAnimation, play } =
+    useWasmAnimationPlayer(motionValues);
 
   useEffect(() => {
     const unsubscribeScaleX = scaleX.on("change", (latestVal) => {
       if (quoriIDs.scaleId && hugoIDs.scaleId) {
-        setVal(quoriIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
-        setVal(hugoIDs.scaleId, "default", { x: latestVal, y: scaleY.get(), z: 1 });
+        setVal(quoriIDs.scaleId, "default", {
+          x: latestVal,
+          y: scaleY.get(),
+          z: 1,
+        });
+        setVal(hugoIDs.scaleId, "default", {
+          x: latestVal,
+          y: scaleY.get(),
+          z: 1,
+        });
       }
     });
 
     const unsubscribeScaleY = scaleY.on("change", (latestVal) => {
       if (quoriIDs.scaleId && hugoIDs.scaleId) {
-        setVal(quoriIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
-        setVal(hugoIDs.scaleId, "default", { x: scaleX.get(), y: latestVal, z: 1 });
+        setVal(quoriIDs.scaleId, "default", {
+          x: scaleX.get(),
+          y: latestVal,
+          z: 1,
+        });
+        setVal(hugoIDs.scaleId, "default", {
+          x: scaleX.get(),
+          y: latestVal,
+          z: 1,
+        });
       }
     });
 
@@ -123,35 +165,58 @@ export function InnerVizijExpressionsDemo() {
       unsubscribeScaleY();
       unsubscribeMouthMorph();
     };
-  }, [scaleX, scaleY, mouthMorph, quoriIDs.scaleId, quoriIDs.morphId, hugoIDs.scaleId, hugoIDs.morphId, setVal]);
+  }, [
+    scaleX,
+    scaleY,
+    mouthMorph,
+    quoriIDs.scaleId,
+    quoriIDs.morphId,
+    hugoIDs.scaleId,
+    hugoIDs.morphId,
+    setVal,
+  ]);
 
   // Separate effect to track viseme motion values
   useEffect(() => {
     const unsubscribeVisemeX = visemeScaleX.on("change", (latestVal) => {
-      setCurrentVisemeExpression(prev => ({ ...prev, x: latestVal }));
+      setCurrentVisemeExpression((prev) => ({ ...prev, x: latestVal }));
     });
 
     const unsubscribeVisemeY = visemeScaleY.on("change", (latestVal) => {
-      setCurrentVisemeExpression(prev => ({ ...prev, y: latestVal }));
+      setCurrentVisemeExpression((prev) => ({ ...prev, y: latestVal }));
     });
 
-    const unsubscribeVisemeMorph = visemeMouthMorph.on("change", (latestVal) => {
-      setCurrentVisemeExpression(prev => ({ ...prev, morph: latestVal }));
-    });
+    const unsubscribeVisemeMorph = visemeMouthMorph.on(
+      "change",
+      (latestVal) => {
+        setCurrentVisemeExpression((prev) => ({ ...prev, morph: latestVal }));
+      },
+    );
 
     return () => {
       unsubscribeVisemeX();
       unsubscribeVisemeY();
       unsubscribeVisemeMorph();
     };
-  }, [visemeScaleX, visemeScaleY, visemeMouthMorph, setCurrentVisemeExpression]);
+  }, [
+    visemeScaleX,
+    visemeScaleY,
+    visemeMouthMorph,
+    setCurrentVisemeExpression,
+  ]);
 
   useEffect(() => {
     setSpokenAudio("");
     setSpokenSentences([]);
     setSpokenWords([]);
     setSpokenVisemes([]);
-  }, [selectedVoice, setSpokenAudio, setSpokenSentences, setSpokenWords, setSpokenVisemes]);
+  }, [
+    selectedVoice,
+    setSpokenAudio,
+    setSpokenSentences,
+    setSpokenWords,
+    setSpokenVisemes,
+  ]);
 
   const handleSpeak = async (text: string) => {
     await getTTSData(text, selectedVoice);
@@ -198,14 +263,23 @@ export function InnerVizijExpressionsDemo() {
     const finalY = (blendedY + currentVisemeExpression.y) / 2;
     const finalMorph = (blendedMorph + currentVisemeExpression.morph) / 2;
 
-    console.log("Final blended result:", { x: finalX, y: finalY, morph: finalMorph });
+    console.log("Final blended result:", {
+      x: finalX,
+      y: finalY,
+      morph: finalMorph,
+    });
 
     // Apply the final blended values to motion values
     scaleX.set(finalX);
     scaleY.set(finalY);
     mouthMorph.set(finalMorph);
-
-  }, [expressionWeightVector, currentVisemeExpression, scaleX, scaleY, mouthMorph]);
+  }, [
+    expressionWeightVector,
+    currentVisemeExpression,
+    scaleX,
+    scaleY,
+    mouthMorph,
+  ]);
 
   useEffect(() => {
     if (spokenVisemes.length > 0) {
@@ -243,9 +317,24 @@ export function InnerVizijExpressionsDemo() {
       }));
 
       const tracks = [
-        { id: crypto.randomUUID(), name: "X", points: scaleXPoints, animatableId: "X" },
-        { id: crypto.randomUUID(), name: "Y", points: scaleYPoints, animatableId: "Y" },
-        { id: crypto.randomUUID(), name: "Morph", points: morphPoints, animatableId: "Morph" },
+        {
+          id: crypto.randomUUID(),
+          name: "X",
+          points: scaleXPoints,
+          animatableId: "X",
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Y",
+          points: scaleYPoints,
+          animatableId: "Y",
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Morph",
+          points: morphPoints,
+          animatableId: "Morph",
+        },
       ];
 
       const transitions = [];
@@ -288,31 +377,33 @@ export function InnerVizijExpressionsDemo() {
 
   return (
     <div className="my-8">
-    <div>
-      <h4>Select Expressions</h4>
       <div>
-        {Object.keys(expressionMapper).map((v) => (
-          <div key={v} className="pt-2 mt-2">
-            <label>{v}</label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={expressionWeightVector[v as Expression] * 100}
-              onChange={(e) => {
-                const newValue = parseInt(e.target.value) / 100;
-                setExpressionWeightVector(prev => ({
-                  ...prev,
-                  [v as Expression]: newValue
-                }));
-              }}
-              className="m-2"
-            />
-            <span>{Math.round(expressionWeightVector[v as Expression] * 100)}%</span>
-          </div>
-        ))}
+        <h4>Select Expressions</h4>
+        <div>
+          {Object.keys(expressionMapper).map((v) => (
+            <div key={v} className="pt-2 mt-2">
+              <label>{v}</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={expressionWeightVector[v as Expression] * 100}
+                onChange={(e) => {
+                  const newValue = parseInt(e.target.value) / 100;
+                  setExpressionWeightVector((prev) => ({
+                    ...prev,
+                    [v as Expression]: newValue,
+                  }));
+                }}
+                className="m-2"
+              />
+              <span>
+                {Math.round(expressionWeightVector[v as Expression] * 100)}%
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
       <TTSSettings
         selectedVoice={selectedVoice}
         onVoiceChange={setSelectedVoice}

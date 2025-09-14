@@ -25,15 +25,24 @@ export interface RenderedRectangleProps {
   chain: string[];
 }
 
-function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps): ReactNode {
+function InnerRenderedRectangle({
+  id,
+  namespace,
+  chain,
+}: RenderedRectangleProps): ReactNode {
   const rectangleRef = useRef<Mesh>() as RefObject<Mesh>;
-  const materialRef = useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
+  const materialRef =
+    useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
   const lineRef = useRef<Mesh>() as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
-  const onElementClick = useVizijStore(useShallow((state) => state.onElementClick));
+  const onElementClick = useVizijStore(
+    useShallow((state) => state.onElementClick),
+  );
 
-  const rectangle = useVizijStore(useShallow((state) => state.world[id] as Rectangle));
+  const rectangle = useVizijStore(
+    useShallow((state) => state.world[id] as Rectangle),
+  );
   const refIsNull = !rectangle.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
@@ -58,16 +67,32 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
   useFeatures(namespace, rectangle.features, {
     translation: (pos: RawValue) => {
       if (rectangleRef.current?.position && instanceOfRawVector3(pos)) {
-        rectangleRef.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+        rectangleRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          pos.z as number,
+        );
       } else if (rectangleRef.current?.position && instanceOfRawVector2(pos)) {
         const currentZ = rectangleRef.current.position.z;
-        rectangleRef.current!.position.set(pos.x as number, pos.y as number, currentZ);
+        rectangleRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          currentZ,
+        );
       }
       if (lineRef.current?.position && instanceOfRawVector3(pos)) {
-        lineRef.current!.position.set(pos.x as number, pos.y as number, pos.z as number);
+        lineRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          pos.z as number,
+        );
       } else if (lineRef.current?.position && instanceOfRawVector2(pos)) {
         const currentZ = lineRef.current.position.z;
-        lineRef.current!.position.set(pos.x as number, pos.y as number, currentZ);
+        lineRef.current!.position.set(
+          pos.x as number,
+          pos.y as number,
+          currentZ,
+        );
       }
     },
     rotation: (rot: RawValue) => {
@@ -85,7 +110,10 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
       }
     },
     fillOpacity: (op: RawValue) => {
-      if (materialRef.current?.opacity !== undefined && instanceOfRawNumber(op)) {
+      if (
+        materialRef.current?.opacity !== undefined &&
+        instanceOfRawNumber(op)
+      ) {
         materialRef.current.opacity = op;
         if (op < 1.0) {
           materialRef.current.transparent = true;
@@ -110,20 +138,38 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
       if (rectangleRef.current && instanceOfRawNumber(height)) {
         rectangleRef.current.scale.set(rectangleRef.current.scale.x, height, 1);
       }
-      if (rectangleRef.current && lineRef.current && instanceOfRawNumber(height)) {
+      if (
+        rectangleRef.current &&
+        lineRef.current &&
+        instanceOfRawNumber(height)
+      ) {
         const offset =
-          (strokeOffsetRef.current * strokeWidthRef.current) / 2 + strokeOffsetRef.current * -1;
-        lineRef.current.scale.set(rectangleRef.current.scale.x + offset, height + offset, 1);
+          (strokeOffsetRef.current * strokeWidthRef.current) / 2 +
+          strokeOffsetRef.current * -1;
+        lineRef.current.scale.set(
+          rectangleRef.current.scale.x + offset,
+          height + offset,
+          1,
+        );
       }
     },
     width: (width: RawValue) => {
       if (rectangleRef.current && instanceOfRawNumber(width)) {
         rectangleRef.current.scale.set(width, rectangleRef.current.scale.y, 1);
       }
-      if (rectangleRef.current && lineRef.current && instanceOfRawNumber(width)) {
+      if (
+        rectangleRef.current &&
+        lineRef.current &&
+        instanceOfRawNumber(width)
+      ) {
         const offset =
-          (strokeOffsetRef.current * strokeWidthRef.current) / 2 + strokeOffsetRef.current * -1;
-        lineRef.current.scale.set(width + offset, rectangleRef.current.scale.y + offset, 1);
+          (strokeOffsetRef.current * strokeWidthRef.current) / 2 +
+          strokeOffsetRef.current * -1;
+        lineRef.current.scale.set(
+          width + offset,
+          rectangleRef.current.scale.y + offset,
+          1,
+        );
       }
     },
     strokeOpacity: (strokeOpacity: RawValue) => {
@@ -140,10 +186,18 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
     strokeColor: (strokeColor: RawValue) => {
       if (lineRef.current?.material.color) {
         if (instanceOfRawRGB(strokeColor)) {
-          lineRef.current.material.color.setRGB(strokeColor.r, strokeColor.g, strokeColor.b);
+          lineRef.current.material.color.setRGB(
+            strokeColor.r,
+            strokeColor.g,
+            strokeColor.b,
+          );
           lineRef.current.material.needsUpdate = true;
         } else if (instanceOfRawHSL(strokeColor)) {
-          lineRef.current.material.color.setHSL(strokeColor.h, strokeColor.s, strokeColor.l);
+          lineRef.current.material.color.setHSL(
+            strokeColor.h,
+            strokeColor.s,
+            strokeColor.l,
+          );
           lineRef.current.material.needsUpdate = true;
         }
       }
@@ -152,7 +206,9 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
       if (lineRef.current?.material && rectangleRef.current) {
         if (instanceOfRawNumber(strokeWidth)) {
           strokeWidthRef.current = strokeWidth;
-          const offset = (strokeWidth * strokeOffsetRef.current) / 2 + strokeOffsetRef.current * -1;
+          const offset =
+            (strokeWidth * strokeOffsetRef.current) / 2 +
+            strokeOffsetRef.current * -1;
           lineRef.current.scale.set(
             rectangleRef.current.scale.x + offset,
             rectangleRef.current.scale.y + offset,
@@ -167,7 +223,8 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
       if (lineRef.current?.material && rectangleRef.current) {
         if (instanceOfRawNumber(strokeOffset)) {
           strokeOffsetRef.current = strokeOffset;
-          const offset = (strokeOffset * strokeWidthRef.current) / 2 + strokeOffset * -1;
+          const offset =
+            (strokeOffset * strokeWidthRef.current) / 2 + strokeOffset * -1;
           lineRef.current.scale.set(
             rectangleRef.current.scale.x + offset,
             rectangleRef.current.scale.y + offset,
@@ -178,7 +235,9 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
     },
   });
 
-  const setReference = useVizijStore(useShallow((state: VizijActions) => state.setReference));
+  const setReference = useVizijStore(
+    useShallow((state: VizijActions) => state.setReference),
+  );
 
   const points = useMemo(() => {
     return [
@@ -191,7 +250,8 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
   }, []);
 
   useEffect(() => {
-    if (rectangleRef.current && refIsNull) setReference(rectangle.id, namespace, rectangleRef);
+    if (rectangleRef.current && refIsNull)
+      setReference(rectangle.id, namespace, rectangleRef);
   }, [rectangle.id, namespace, rectangleRef, setReference, refIsNull]);
 
   return (
@@ -201,7 +261,11 @@ function InnerRenderedRectangle({ id, namespace, chain }: RenderedRectangleProps
         userData={userData}
         args={[1, 1]}
         onClick={(e) => {
-          onElementClick({ id, type: "rectangle", namespace }, [...chain, id], e);
+          onElementClick(
+            { id, type: "rectangle", namespace },
+            [...chain, id],
+            e,
+          );
         }}
       >
         <meshStandardMaterial attach="material" ref={materialRef} />

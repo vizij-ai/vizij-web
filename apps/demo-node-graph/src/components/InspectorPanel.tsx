@@ -12,7 +12,9 @@ const InspectorPanel = () => {
   const timeVal = valueAsNumber(outputs?.time);
 
   // Local drafts so inputs don't immediately revert to node.data while typing
-  const [drafts, setDrafts] = React.useState<Record<string, Record<string, string>>>({});
+  const [drafts, setDrafts] = React.useState<
+    Record<string, Record<string, string>>
+  >({});
 
   const setDraft = (nodeId: string, key: string, v: string) => {
     setDrafts((prev) => ({
@@ -90,10 +92,13 @@ const InspectorPanel = () => {
   };
 
   return (
-    <div style={{ borderLeft: "1px solid #444", padding: 15, overflowY: "auto" }}>
+    <div
+      style={{ borderLeft: "1px solid #444", padding: 15, overflowY: "auto" }}
+    >
       <h2 style={{ marginTop: 0 }}>Inspector</h2>
       <div>
-        <strong>Time:</strong> {timeVal !== undefined ? `${timeVal.toFixed(2)}s` : "—"}
+        <strong>Time:</strong>{" "}
+        {timeVal !== undefined ? `${timeVal.toFixed(2)}s` : "—"}
       </div>
       <hr style={{ borderColor: "#444" }} />
       {selectedNodes.length > 0 ? (
@@ -117,7 +122,9 @@ const InspectorPanel = () => {
                     return (
                       <div key={edge.id} style={{ marginBottom: 5 }}>
                         <span style={{ color: "#aaa" }}>
-                          {edge.targetHandle ? `${edge.targetHandle.toUpperCase()}: ` : ""}
+                          {edge.targetHandle
+                            ? `${edge.targetHandle.toUpperCase()}: `
+                            : ""}
                         </span>
                         {edge.source} ({displayValue(srcVal)})
                       </div>
@@ -135,9 +142,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "value", node.data.value ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "value", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "value", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "value", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "value", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "value", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "value",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -154,9 +172,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "min", node.data.min ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "min", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "min", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "min", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "min", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "min", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "min",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -173,9 +202,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "max", node.data.max ?? 1)}
-                      onChange={(e) => onParamLive(node.id, "max", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "max", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "max", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "max", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "max", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "max",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -195,9 +235,18 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "x", node.data.x ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "x", e.target.value)}
+                      onChange={(e) =>
+                        onParamLive(node.id, "x", e.target.value)
+                      }
                       onBlur={(e) => commitParam(node.id, "x", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "x", (e.target as HTMLInputElement).value); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "x",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -214,9 +263,18 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "y", node.data.y ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "y", e.target.value)}
+                      onChange={(e) =>
+                        onParamLive(node.id, "y", e.target.value)
+                      }
                       onBlur={(e) => commitParam(node.id, "y", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "y", (e.target as HTMLInputElement).value); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "y",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -233,9 +291,18 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "z", node.data.z ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "z", e.target.value)}
+                      onChange={(e) =>
+                        onParamLive(node.id, "z", e.target.value)
+                      }
                       onBlur={(e) => commitParam(node.id, "z", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "z", (e.target as HTMLInputElement).value); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "z",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -252,9 +319,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "min", node.data.min ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "min", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "min", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "min", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "min", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "min", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "min",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -271,9 +349,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "max", node.data.max ?? 1)}
-                      onChange={(e) => onParamLive(node.id, "max", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "max", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "max", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "max", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "max", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "max",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -293,9 +382,20 @@ const InspectorPanel = () => {
                     <input
                       type="number"
                       value={getDraft(node.id, "value", node.data.value ?? 0)}
-                      onChange={(e) => onParamLive(node.id, "value", e.target.value)}
-                      onBlur={(e) => commitParam(node.id, "value", e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, "value", (e.target as HTMLInputElement).value); }}
+                      onChange={(e) =>
+                        onParamLive(node.id, "value", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        commitParam(node.id, "value", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          commitParam(
+                            node.id,
+                            "value",
+                            (e.target as HTMLInputElement).value,
+                          );
+                      }}
                       style={{
                         width: "100%",
                         background: "#1e1e1e",
@@ -313,7 +413,13 @@ const InspectorPanel = () => {
                   <div>
                     <label>value (vector)</label>
                     <textarea
-                      value={getDraft(node.id, "value", Array.isArray(node.data.value) ? JSON.stringify(node.data.value) : "")}
+                      value={getDraft(
+                        node.id,
+                        "value",
+                        Array.isArray(node.data.value)
+                          ? JSON.stringify(node.data.value)
+                          : "",
+                      )}
                       onChange={(e) => {
                         const text = e.target.value;
                         setDraft(node.id, "value", text);
@@ -331,7 +437,10 @@ const InspectorPanel = () => {
                         clearDraft(node.id, "value");
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                        if (
+                          e.key === "Enter" &&
+                          (e.ctrlKey || e.metaKey || e.shiftKey)
+                        ) {
                           const el = e.target as HTMLTextAreaElement;
                           const vec = parseVector(el.value);
                           if (vec) {
@@ -350,12 +459,14 @@ const InspectorPanel = () => {
                         borderRadius: 4,
                         padding: 6,
                         marginTop: 5,
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                       }}
                       placeholder="e.g. 1, 2, 3 or [1,2,3] or 1 2 3"
                     />
                     <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                      Tip: Enter numbers separated by commas or spaces, or a JSON array. Ctrl/Cmd/Shift+Enter to commit.
+                      Tip: Enter numbers separated by commas or spaces, or a
+                      JSON array. Ctrl/Cmd/Shift+Enter to commit.
                     </div>
                   </div>
                 </div>
@@ -364,7 +475,13 @@ const InspectorPanel = () => {
                   <div>
                     <label>sizes (vector of segment lengths)</label>
                     <textarea
-                      value={getDraft(node.id, "sizes", Array.isArray(node.data.sizes) ? JSON.stringify(node.data.sizes) : "")}
+                      value={getDraft(
+                        node.id,
+                        "sizes",
+                        Array.isArray(node.data.sizes)
+                          ? JSON.stringify(node.data.sizes)
+                          : "",
+                      )}
                       onChange={(e) => {
                         const text = e.target.value;
                         setDraft(node.id, "sizes", text);
@@ -381,7 +498,10 @@ const InspectorPanel = () => {
                         clearDraft(node.id, "sizes");
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                        if (
+                          e.key === "Enter" &&
+                          (e.ctrlKey || e.metaKey || e.shiftKey)
+                        ) {
                           const el = e.target as HTMLTextAreaElement;
                           const vec = parseVector(el.value);
                           if (vec) {
@@ -400,18 +520,23 @@ const InspectorPanel = () => {
                         borderRadius: 4,
                         padding: 6,
                         marginTop: 5,
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                       }}
                       placeholder="e.g. 3,4 or [3,4] or 2 5"
                     />
                     <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                      Sum of sizes must equal input length; otherwise each part becomes NaNs of requested size.
+                      Sum of sizes must equal input length; otherwise each part
+                      becomes NaNs of requested size.
                     </div>
                   </div>
                 </div>
               ) : (
                 Object.entries(node.data)
-                  .filter(([key]) => key !== "label" && key !== "op" && key !== "inputs")
+                  .filter(
+                    ([key]) =>
+                      key !== "label" && key !== "op" && key !== "inputs",
+                  )
                   .map(([key, value]) => (
                     <div key={key}>
                       <label>{key}</label>
@@ -419,16 +544,29 @@ const InspectorPanel = () => {
                         <input
                           type="checkbox"
                           checked={value}
-                          onChange={(e) => onBoolParamChange(node.id, key, e.target.checked)}
+                          onChange={(e) =>
+                            onBoolParamChange(node.id, key, e.target.checked)
+                          }
                           style={{ marginLeft: 10 }}
                         />
                       ) : (
                         <input
                           type="number"
                           value={getDraft(node.id, key, value)}
-                          onChange={(e) => onParamLive(node.id, key, e.target.value)}
-                          onBlur={(e) => commitParam(node.id, key, e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") commitParam(node.id, key, (e.target as HTMLInputElement).value); }}
+                          onChange={(e) =>
+                            onParamLive(node.id, key, e.target.value)
+                          }
+                          onBlur={(e) =>
+                            commitParam(node.id, key, e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter")
+                              commitParam(
+                                node.id,
+                                key,
+                                (e.target as HTMLInputElement).value,
+                              );
+                          }}
                           style={{
                             width: "100%",
                             background: "#1e1e1e",

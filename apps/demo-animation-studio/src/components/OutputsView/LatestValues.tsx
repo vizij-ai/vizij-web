@@ -19,23 +19,23 @@ function ValueCard({ label, keyPath }: { label: string; keyPath: string }) {
         return display;
       case "Vec2":
         console.log(v.type);
-        display = String(v.data.map((x)=>x.toFixed(3)).join(" \n"));
+        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
         return display;
       case "Vec3":
         console.log(v.type);
-        display = String(v.data.map((x)=>x.toFixed(3)).join(" \n"));
+        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
         return display;
       case "Vec4":
         console.log(v.type);
-        display = String(v.data.map((x)=>x.toFixed(3)).join(" \n"));
+        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
         return display;
       case "Color":
         console.log(v.type);
-        display = String(v.data.map((x)=>x.toFixed(3)).join(" \n"));
+        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
         return display;
       case "Quat":
         console.log(v.type);
-        display =String(v.data.map((x)=>x.toFixed(3)).join(" \n")); // w
+        display = String(v.data.map((x) => x.toFixed(3)).join(" \n")); // w
         return display;
       case "Transform":
         console.log(v.type);
@@ -52,11 +52,21 @@ function ValueCard({ label, keyPath }: { label: string; keyPath: string }) {
   }
   const display = GetDisplay(v);
 
-
   return (
-    <div style={{ background: "#1a1d21", border: "1px solid #2a2d31", borderRadius: 8, padding: 12 }}>
-      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 600, wordBreak: "break-word" }}>{display}</div>
+    <div
+      style={{
+        background: "#1a1d21",
+        border: "1px solid #2a2d31",
+        borderRadius: 8,
+        padding: 12,
+      }}
+    >
+      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 600, wordBreak: "break-word" }}>
+        {display}
+      </div>
     </div>
   );
 }
@@ -71,7 +81,14 @@ export default function LatestValues({ keys }: { keys: string[] }) {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, padding: 12 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 12,
+        padding: 12,
+      }}
+    >
       {keys.map((k) => (
         <ValueCard key={k} label={k} keyPath={k} />
       ))}

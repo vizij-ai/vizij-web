@@ -29,7 +29,12 @@ export async function loadGLTF(
 
   const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
 
-  return traverseThree(modelData.scene, actualizedNamespaces, aggressiveImport, rootBounds);
+  return traverseThree(
+    modelData.scene,
+    actualizedNamespaces,
+    aggressiveImport,
+    rootBounds,
+  );
 }
 
 export async function loadGLTFFromBlob(
@@ -55,9 +60,17 @@ export async function loadGLTFFromBlob(
         "", // Base path for resolving external resources
         (gltf: GLTF) => {
           // Create a scene and add the loaded GLTF model
-          const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
+          const actualizedNamespaces =
+            namespaces.length > 0 ? namespaces : ["default"];
           // console.log("actualizedNamespaces", actualizedNamespaces);
-          resolve(traverseThree(gltf.scene, actualizedNamespaces, aggressiveImport, rootBounds));
+          resolve(
+            traverseThree(
+              gltf.scene,
+              actualizedNamespaces,
+              aggressiveImport,
+              rootBounds,
+            ),
+          );
         },
         (error: ErrorEvent) => {
           reject(new Error(`Error loading GLTF: ${error.message}`));

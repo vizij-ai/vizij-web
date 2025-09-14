@@ -1,6 +1,9 @@
 import Hugo from "../assets/Hugo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import {
+  AnimatableLookup,
+  HardCodedVizijWithControls,
+} from "./HardCodedVizijWithControls";
 
 export function HugoVizij() {
   const HugoBounds = {

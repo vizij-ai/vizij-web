@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  AnimationProvider,
-  useAnimation,
-} from "@vizij/animation-react";
+import { AnimationProvider, useAnimation } from "@vizij/animation-react";
 import presets from "./presets";
 import AnimationsPanel from "./components/AnimationsPanel";
 import PlayersPanel, { InstanceSpec } from "./components/PlayersPanel";
@@ -11,9 +8,18 @@ import LatestValues from "./components/OutputsView/LatestValues";
 import ChartsView from "./components/OutputsView/ChartsView";
 import PlayerCard from "./components/PlayerCard";
 import ConfigPanel from "./components/ConfigPanel";
-import PrebindPanel, { PrebindRule, makeResolver } from "./components/PrebindPanel";
+import PrebindPanel, {
+  PrebindRule,
+  makeResolver,
+} from "./components/PrebindPanel";
 import SessionPanel, { SessionState } from "./components/SessionPanel";
-import type { StoredAnimation, Config, CoreEvent, Outputs, Value } from "@vizij/animation-wasm";
+import type {
+  StoredAnimation,
+  Config,
+  CoreEvent,
+  Outputs,
+  Value,
+} from "@vizij/animation-wasm";
 import { init, abi_version } from "@vizij/animation-wasm";
 import "./styles/app.css";
 
@@ -24,7 +30,13 @@ type History = Record<string, Sample[]>;
    Engine status and throttle (MVP)
 ----------------------------------------------------------- */
 
-function EngineBar({ updateHz, setUpdateHz }: { updateHz: number; setUpdateHz: (hz: number) => void; }) {
+function EngineBar({
+  updateHz,
+  setUpdateHz,
+}: {
+  updateHz: number;
+  setUpdateHz: (hz: number) => void;
+}) {
   // console.log("Setting up engine bar");
   const [abi, setAbi] = useState<number | null>(null);
   const [initing, setIniting] = useState(true);
@@ -47,19 +59,32 @@ function EngineBar({ updateHz, setUpdateHz }: { updateHz: number; setUpdateHz: (
   }, []);
 
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 12px", borderBottom: "1px solid #2a2d31", background: "#14171a" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "center",
+        padding: "6px 12px",
+        borderBottom: "1px solid #2a2d31",
+        background: "#14171a",
+      }}
+    >
       <b>Engine</b>
       <div style={{ opacity: 0.8, fontSize: 12 }}>
         ABI: {abi ?? "—"} {initing ? "(init…)" : ""}
       </div>
       <label style={{ marginLeft: "auto" }}>
-        <span style={{ opacity: 0.75, fontSize: 12, marginRight: 6 }}>updateHz</span>
+        <span style={{ opacity: 0.75, fontSize: 12, marginRight: 6 }}>
+          updateHz
+        </span>
         <input
           type="number"
           min={0}
           step={1}
           value={updateHz}
-          onChange={(e) => setUpdateHz(Math.max(0, Number(e.target.value) || 0))}
+          onChange={(e) =>
+            setUpdateHz(Math.max(0, Number(e.target.value) || 0))
+          }
           style={{ width: 80 }}
         />
       </label>
@@ -106,7 +131,15 @@ function TransportBar() {
   };
 
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #2a2d31" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "center",
+        padding: "8px 12px",
+        borderBottom: "1px solid #2a2d31",
+      }}
+    >
       <b>Transport</b>
       <label>
         Player:&nbsp;
@@ -116,18 +149,29 @@ function TransportBar() {
           disabled={!ready || playerNames.length === 0}
         >
           {playerNames.map((n) => (
-            <option key={n} value={n}>{n}</option>
+            <option key={n} value={n}>
+              {n}
+            </option>
           ))}
         </select>
       </label>
 
-      <button onClick={() => send({ Play: { player: pid! } })} disabled={!ready || pid === undefined}>
+      <button
+        onClick={() => send({ Play: { player: pid! } })}
+        disabled={!ready || pid === undefined}
+      >
         Play
       </button>
-      <button onClick={() => send({ Pause: { player: pid! } })} disabled={!ready || pid === undefined}>
+      <button
+        onClick={() => send({ Pause: { player: pid! } })}
+        disabled={!ready || pid === undefined}
+      >
         Pause
       </button>
-      <button onClick={() => send({ Stop: { player: pid! } })} disabled={!ready || pid === undefined}>
+      <button
+        onClick={() => send({ Stop: { player: pid! } })}
+        disabled={!ready || pid === undefined}
+      >
         Stop
       </button>
 
@@ -143,7 +187,10 @@ function TransportBar() {
           disabled={!ready || pid === undefined}
         />
         &nbsp;
-        <button onClick={() => send({ SetSpeed: { player: pid!, speed } })} disabled={!ready || pid === undefined}>
+        <button
+          onClick={() => send({ SetSpeed: { player: pid!, speed } })}
+          disabled={!ready || pid === undefined}
+        >
           Apply
         </button>
       </label>
@@ -202,7 +249,9 @@ function TransportBar() {
           type="number"
           step="0.1"
           value={winEnd}
-          onChange={(e) => setWinEnd(e.target.value === "" ? "" : Number(e.target.value))}
+          onChange={(e) =>
+            setWinEnd(e.target.value === "" ? "" : Number(e.target.value))
+          }
           style={{ width: 90 }}
           disabled={!ready || pid === undefined}
         />
@@ -229,7 +278,6 @@ function TransportBar() {
     </div>
   );
 }
-
 
 /* -----------------------------------------------------------
    Layout scaffolding (Toolbar + Panels + Main)
@@ -278,7 +326,9 @@ function StudioShell({
     }
     const canonical = Array.from(set);
     const resolver = makeResolver(rules);
-    const resolved = Array.from(new Set(canonical.map((k) => String(resolver(k)))));
+    const resolved = Array.from(
+      new Set(canonical.map((k) => String(resolver(k)))),
+    );
     return { canonicalKeys: canonical, resolvedKeys: resolved };
   }, [animations, rules]);
 
@@ -289,13 +339,19 @@ function StudioShell({
   const [newPlayerName, setNewPlayerName] = useState<string>("");
 
   return (
-    <div style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}>
+    <div
+      style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}
+    >
       <EngineBar updateHz={updateHz} setUpdateHz={setUpdateHz} />
       <div className="app-grid">
         {/* Left Sidebar (placeholders) */}
         <div className="col-left">
           <ConfigPanel value={engineCfg} onChange={setEngineCfg} />
-          <AnimationsPanel preset={presets as any} animations={animations} setAnimations={setAnimations} />
+          <AnimationsPanel
+            preset={presets as any}
+            animations={animations}
+            setAnimations={setAnimations}
+          />
           {/* <PrebindPanel keys={canonicalKeys} rules={rules} setRules={setRules} /> */}
           <SessionPanel
             value={{
@@ -318,9 +374,28 @@ function StudioShell({
         </div>
 
         {/* Main Content */}
-        <div className="col-main" style={{ background: "#121417", border: "1px solid #2a2d31", borderRadius: 8, padding: 8 }}>
+        <div
+          className="col-main"
+          style={{
+            background: "#121417",
+            border: "1px solid #2a2d31",
+            borderRadius: 8,
+            padding: 8,
+          }}
+        >
           {/* Add Player */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", marginBottom: 8, background: "#16191d", border: "1px solid #2a2d31", borderRadius: 6 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              padding: "8px 12px",
+              marginBottom: 8,
+              background: "#16191d",
+              border: "1px solid #2a2d31",
+              borderRadius: 6,
+            }}
+          >
             <b style={{ marginRight: 8 }}>Add Player</b>
             <input
               placeholder="player name"
@@ -341,7 +416,10 @@ function StudioShell({
           </div>
 
           {playersInfo.length === 0 ? (
-            <div style={{ opacity: 0.7, fontSize: 12, padding: 12 }}>No players yet. Use "Add Player" above or create an instance to auto-create one.</div>
+            <div style={{ opacity: 0.7, fontSize: 12, padding: 12 }}>
+              No players yet. Use "Add Player" above or create an instance to
+              auto-create one.
+            </div>
           ) : (
             playersInfo.map((p: any) => (
               <div key={p.id} style={{ marginBottom: 12 }}>
@@ -355,23 +433,44 @@ function StudioShell({
               </div>
             ))
           )}
-          <div style={{ padding: "0 12px 8px", display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ opacity: 0.75, fontSize: 12 }}>History window (s):</span>
+          <div
+            style={{
+              padding: "0 12px 8px",
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <span style={{ opacity: 0.75, fontSize: 12 }}>
+              History window (s):
+            </span>
             <input
               type="number"
               min={1}
               step={1}
               value={historyWindowSec}
-              onChange={(e) => setHistoryWindowSec(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) =>
+                setHistoryWindowSec(Math.max(1, Number(e.target.value) || 1))
+              }
               style={{ width: 80 }}
             />
           </div>
         </div>
 
         {/* Right Inspector (placeholder) */}
-        <div className="col-right" style={{ background: "#16191d", border: "1px solid #2a2d31", borderRadius: 8, padding: 10 }}>
+        <div
+          className="col-right"
+          style={{
+            background: "#16191d",
+            border: "1px solid #2a2d31",
+            borderRadius: 8,
+            padding: 10,
+          }}
+        >
           <b>Inspector</b>
-          <div style={{ opacity: 0.75, fontSize: 12 }}>MVP placeholder (focused target details)</div>
+          <div style={{ opacity: 0.75, fontSize: 12 }}>
+            MVP placeholder (focused target details)
+          </div>
           <section style={{ marginTop: 12 }}>
             <EventsLog items={events} />
           </section>
@@ -387,9 +486,15 @@ function StudioShell({
 
 export default function App() {
   // console.log("Setting up app");
-  const [animations, setAnimations] = useState<StoredAnimation[]>([presets as any]);
+  const [animations, setAnimations] = useState<StoredAnimation[]>([
+    presets as any,
+  ]);
   const [instances, setInstances] = useState<InstanceSpec[]>([
-    { playerName: "default", animIndex: 0, cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 } },
+    {
+      playerName: "default",
+      animIndex: 0,
+      cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 },
+    },
   ]);
   const [updateHz, setUpdateHz] = useState<number>(30);
   const [engineCfg, setEngineCfg] = useState<Config | undefined>(undefined);
@@ -398,12 +503,19 @@ export default function App() {
   const [historyWindowSec, setHistoryWindowSec] = useState<number>(10);
   const [rules, setRules] = useState<PrebindRule[]>([]);
 
-  const initialAnimations = useMemo<StoredAnimation[]>(() => [presets as any], []);
+  const initialAnimations = useMemo<StoredAnimation[]>(
+    () => [presets as any],
+    [],
+  );
   const initialInstances = useMemo<InstanceSpec[]>(
     () => [
-      { playerName: "default", animIndex: 0, cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 } },
+      {
+        playerName: "default",
+        animIndex: 0,
+        cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 },
+      },
     ],
-    []
+    [],
   );
 
   return (
@@ -423,7 +535,7 @@ export default function App() {
           setHistory((prev: History) => {
             const next: History = { ...prev };
             for (const ch of out.changes) {
-              const key = `${(ch.player as unknown) as number}:${ch.key}`;
+              const key = `${ch.player as unknown as number}:${ch.key}`;
               const arr = next[key] ? next[key].slice() : [];
               arr.push({ t: tSec, v: ch.value as Value });
               const cutoff = tSec - keep;

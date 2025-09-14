@@ -1,6 +1,9 @@
 import JiboGLB from "../assets/Jibo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
-import { AnimatableLookup, HardCodedVizijWithControls } from "./HardCodedVizijWithControls";
+import {
+  AnimatableLookup,
+  HardCodedVizijWithControls,
+} from "./HardCodedVizijWithControls";
 
 export function JiboVizij() {
   const JiboBounds = {
@@ -37,7 +40,11 @@ export function JiboVizijWithControls() {
     { display: "Background", name: "Material" },
   ];
   const JiboMovables: AnimatableLookup[] = [
-    { display: "Ball", name: "Ball_Anim", allow: { translate: ["x", "y"], scale: ["y"] } },
+    {
+      display: "Ball",
+      name: "Ball_Anim",
+      allow: { translate: ["x", "y"], scale: ["y"] },
+    },
   ];
 
   return (

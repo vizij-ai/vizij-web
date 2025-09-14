@@ -16,7 +16,9 @@
  * console.log(result); // Output: [[1, 4], [5, 7]]
  * ```
  */
-export function overlappingSegments(original: [number, number][]): [number, number][] {
+export function overlappingSegments(
+  original: [number, number][],
+): [number, number][] {
   const output: [number, number][] = [];
   original
     .toSorted((a, b) => (a[0] === b[0] ? a[1] - b[1] : a[0] - b[0]))

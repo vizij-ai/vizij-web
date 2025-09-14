@@ -57,7 +57,9 @@ export default function PrebindPanel({
       mapping.push({ path: p, key: String(k) });
       collisions.set(String(k), (collisions.get(String(k)) ?? 0) + 1);
     }
-    const dupKeys = new Set<string>([...collisions.entries()].filter(([, n]) => n > 1).map(([k]) => k));
+    const dupKeys = new Set<string>(
+      [...collisions.entries()].filter(([, n]) => n > 1).map(([k]) => k),
+    );
     return { mapping, dupKeys };
   }, [keys, rules]);
 
@@ -66,7 +68,13 @@ export default function PrebindPanel({
     const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     setRules([
       ...rules,
-      { id, enabled: true, kind: newKind, pattern: newPattern, replacement: newReplacement || "$&" },
+      {
+        id,
+        enabled: true,
+        kind: newKind,
+        pattern: newPattern,
+        replacement: newReplacement || "$&",
+      },
     ]);
     setNewPattern("");
     setNewReplacement("");
@@ -78,9 +86,7 @@ export default function PrebindPanel({
   };
 
   const updateRule = (id: string, patch: Partial<PrebindRule>) => {
-    setRules(
-      rules.map((r) => (r.id === id ? { ...r, ...patch } : r))
-    );
+    setRules(rules.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
 
   const moveRule = (id: string, dir: -1 | 1) => {
@@ -95,28 +101,54 @@ export default function PrebindPanel({
   };
 
   return (
-    <section style={{ background: "#16191d", border: "1px solid #2a2d31", borderRadius: 8, padding: 10 }}>
+    <section
+      style={{
+        background: "#16191d",
+        border: "1px solid #2a2d31",
+        borderRadius: 8,
+        padding: 10,
+      }}
+    >
       <b>Prebind Manager</b>
       <div style={{ opacity: 0.75, fontSize: 12, marginBottom: 8 }}>
-        Map canonical target paths to user-friendly keys. Rules apply in order; first match wins.
-        Collisions are highlighted. Leave empty to use identity mapping.
+        Map canonical target paths to user-friendly keys. Rules apply in order;
+        first match wins. Collisions are highlighted. Leave empty to use
+        identity mapping.
       </div>
 
       {/* Rule editor */}
       <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select value={newKind} onChange={(e) => setNewKind(e.target.value as any)}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <select
+            value={newKind}
+            onChange={(e) => setNewKind(e.target.value as any)}
+          >
             <option value="exact">Exact</option>
             <option value="regex">Regex</option>
           </select>
           <input
-            placeholder={newKind === "exact" ? "path (e.g. studio/vec3)" : "regex (e.g. ^studio/(.+)$)"}
+            placeholder={
+              newKind === "exact"
+                ? "path (e.g. studio/vec3)"
+                : "regex (e.g. ^studio/(.+)$)"
+            }
             value={newPattern}
             onChange={(e) => setNewPattern(e.target.value)}
             style={{ flex: 1, minWidth: 0 }}
           />
           <input
-            placeholder={newKind === "regex" ? "replacement (e.g. my/$1)" : "replacement key"}
+            placeholder={
+              newKind === "regex"
+                ? "replacement (e.g. my/$1)"
+                : "replacement key"
+            }
             value={newReplacement}
             onChange={(e) => setNewReplacement(e.target.value)}
             style={{ flex: 1, minWidth: 0 }}
@@ -127,29 +159,73 @@ export default function PrebindPanel({
         {rules.length > 0 && (
           <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
             {rules.map((r, i) => (
-              <div key={r.id} style={{ display: "grid", gap: 6, border: "1px solid #2a2d31", borderRadius: 6, padding: 8, background: "#1a1d21" }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <input type="checkbox" checked={r.enabled} onChange={(e) => updateRule(r.id, { enabled: e.target.checked })} />
+              <div
+                key={r.id}
+                style={{
+                  display: "grid",
+                  gap: 6,
+                  border: "1px solid #2a2d31",
+                  borderRadius: 6,
+                  padding: 8,
+                  background: "#1a1d21",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <label
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={(e) =>
+                        updateRule(r.id, { enabled: e.target.checked })
+                      }
+                    />
                     <span style={{ opacity: 0.8, fontSize: 12 }}>Enabled</span>
                   </label>
-                  <select value={r.kind} onChange={(e) => updateRule(r.id, { kind: e.target.value as any })}>
+                  <select
+                    value={r.kind}
+                    onChange={(e) =>
+                      updateRule(r.id, { kind: e.target.value as any })
+                    }
+                  >
                     <option value="exact">Exact</option>
                     <option value="regex">Regex</option>
                   </select>
                   <input
                     value={r.pattern}
-                    onChange={(e) => updateRule(r.id, { pattern: e.target.value })}
+                    onChange={(e) =>
+                      updateRule(r.id, { pattern: e.target.value })
+                    }
                     style={{ flex: 1, minWidth: 0 }}
                   />
                   <input
                     value={r.replacement}
-                    onChange={(e) => updateRule(r.id, { replacement: e.target.value })}
+                    onChange={(e) =>
+                      updateRule(r.id, { replacement: e.target.value })
+                    }
                     style={{ flex: 1, minWidth: 0 }}
                   />
                   <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                    <button onClick={() => moveRule(r.id, -1)} disabled={i === 0}>↑</button>
-                    <button onClick={() => moveRule(r.id, +1)} disabled={i === rules.length - 1}>↓</button>
+                    <button
+                      onClick={() => moveRule(r.id, -1)}
+                      disabled={i === 0}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => moveRule(r.id, +1)}
+                      disabled={i === rules.length - 1}
+                    >
+                      ↓
+                    </button>
                     <button onClick={() => removeRule(r.id)}>Remove</button>
                   </div>
                 </div>
@@ -161,7 +237,14 @@ export default function PrebindPanel({
 
       {/* Preview */}
       <div style={{ display: "grid", gap: 6 }}>
-        <div style={{ fontWeight: 600, display: "flex", gap: 8, alignItems: "center" }}>
+        <div
+          style={{
+            fontWeight: 600,
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+          }}
+        >
           <span>Preview</span>
           {preview.dupKeys.size > 0 && (
             <span style={{ fontSize: 12, color: "#f87171" }}>
@@ -169,17 +252,49 @@ export default function PrebindPanel({
             </span>
           )}
         </div>
-        <div style={{ maxHeight: 220, overflow: "auto", border: "1px solid #2a2d31", borderRadius: 6 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <div
+          style={{
+            maxHeight: 220,
+            overflow: "auto",
+            border: "1px solid #2a2d31",
+            borderRadius: 6,
+          }}
+        >
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
+          >
             <thead>
               <tr style={{ background: "#0f1113" }}>
-                <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid #2a2d31" }}>Path</th>
-                <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid #2a2d31" }}>Key</th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: 6,
+                    borderBottom: "1px solid #2a2d31",
+                  }}
+                >
+                  Path
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: 6,
+                    borderBottom: "1px solid #2a2d31",
+                  }}
+                >
+                  Key
+                </th>
               </tr>
             </thead>
             <tbody>
               {preview.mapping.map(({ path, key }) => (
-                <tr key={path} style={{ background: preview.dupKeys.has(key) ? "#271b1b" : undefined }}>
+                <tr
+                  key={path}
+                  style={{
+                    background: preview.dupKeys.has(key)
+                      ? "#271b1b"
+                      : undefined,
+                  }}
+                >
                   <td style={{ padding: 6, borderBottom: "1px solid #2a2d31" }}>
                     <code style={{ wordBreak: "break-all" }}>{path}</code>
                   </td>

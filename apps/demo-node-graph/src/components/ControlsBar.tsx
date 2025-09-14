@@ -1,6 +1,9 @@
 import React from "react";
 import useGraphStore from "../state/useGraphStore";
-import { saveGraphToLocalStorage, loadGraphFromLocalStorage } from "../lib/persistence";
+import {
+  saveGraphToLocalStorage,
+  loadGraphFromLocalStorage,
+} from "../lib/persistence";
 import { useNodeGraph } from "@vizij/node-graph-react";
 
 export default function ControlsBar() {
@@ -12,15 +15,18 @@ export default function ControlsBar() {
   const tRef = React.useRef<number>(0);
   const [playing, setPlaying] = React.useState(false);
 
-  const loop = React.useCallback((ts: number) => {
-    const last = lastRef.current || ts;
-    const dt = (ts - last) / 1000;
-    lastRef.current = ts;
+  const loop = React.useCallback(
+    (ts: number) => {
+      const last = lastRef.current || ts;
+      const dt = (ts - last) / 1000;
+      lastRef.current = ts;
 
-    tRef.current += dt;
-    setTime(tRef.current);
-    rafRef.current = requestAnimationFrame(loop);
-  }, [setTime]);
+      tRef.current += dt;
+      setTime(tRef.current);
+      rafRef.current = requestAnimationFrame(loop);
+    },
+    [setTime],
+  );
 
   const play = React.useCallback(() => {
     if (playing) return;
@@ -35,10 +41,13 @@ export default function ControlsBar() {
     rafRef.current = null;
   }, []);
 
-  const step = React.useCallback((delta: number) => {
-    tRef.current += delta;
-    setTime(tRef.current);
-  }, [setTime]);
+  const step = React.useCallback(
+    (delta: number) => {
+      tRef.current += delta;
+      setTime(tRef.current);
+    },
+    [setTime],
+  );
 
   const reset = React.useCallback(() => {
     pause();
@@ -46,7 +55,12 @@ export default function ControlsBar() {
     setTime(0);
   }, [pause, setTime]);
 
-  React.useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+  React.useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
 
   const handleSave = () => saveGraphToLocalStorage({ nodes, edges });
   const handleLoad = () => {
@@ -55,12 +69,23 @@ export default function ControlsBar() {
   };
 
   return (
-    <div style={{ display: "flex", gap: 8, padding: 8, borderBottom: "1px solid #ddd" }}>
-      <button onClick={playing ? pause : play}>{playing ? "Pause" : "Play"}</button>
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        padding: 8,
+        borderBottom: "1px solid #ddd",
+      }}
+    >
+      <button onClick={playing ? pause : play}>
+        {playing ? "Pause" : "Play"}
+      </button>
       <button onClick={() => step(1 / 60)}>Step</button>
       <button onClick={reset}>Reset</button>
       <div style={{ marginLeft: "auto" }}>
-        <button onClick={handleSave} style={{ marginRight: 8 }}>Save</button>
+        <button onClick={handleSave} style={{ marginRight: 8 }}>
+          Save
+        </button>
         <button onClick={handleLoad}>Load</button>
       </div>
     </div>

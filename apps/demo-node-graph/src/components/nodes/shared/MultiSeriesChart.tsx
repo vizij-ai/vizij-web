@@ -102,7 +102,16 @@ export default function MultiSeriesChart({
       {keys.map((k, idx) => {
         const color = COLORS[idx % COLORS.length];
         return (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#aaa" }}>
+          <div
+            key={k}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 10,
+              color: "#aaa",
+            }}
+          >
             <span
               style={{
                 display: "inline-block",

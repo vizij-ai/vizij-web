@@ -13,12 +13,27 @@ const handleStyle: React.CSSProperties = {
 
 type VectorConstantData = { label?: string };
 
-const VectorConstantNodeBase = ({ id, data }: NodeProps<VectorConstantData>) => {
+const VectorConstantNodeBase = ({
+  id,
+  data,
+}: NodeProps<VectorConstantData>) => {
   const value = useNodeOutput(id, "out");
 
   return (
-    <div style={{ padding: 20, minWidth: 200, background: "#2a2a2a", borderRadius: 8, border: "1px solid #555" }}>
-      <Handle type="source" position={Position.Right} style={{ ...handleStyle }} />
+    <div
+      style={{
+        padding: 20,
+        minWidth: 200,
+        background: "#2a2a2a",
+        borderRadius: 8,
+        border: "1px solid #555",
+      }}
+    >
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ ...handleStyle }}
+      />
       <div style={{ textAlign: "center" }}>
         <strong>{data.label ?? "Vector Constant"}</strong>
         <div style={{ fontSize: "1.1em", fontWeight: "bold", marginTop: 8 }}>
@@ -33,8 +48,7 @@ const VectorConstantNodeBase = ({ id, data }: NodeProps<VectorConstantData>) => 
 const VectorConstantNode = React.memo(
   VectorConstantNodeBase,
   (prev, next) =>
-    prev.id === next.id &&
-    (prev.data.label ?? "") === (next.data.label ?? "")
+    prev.id === next.id && (prev.data.label ?? "") === (next.data.label ?? ""),
 );
 
 export default VectorConstantNode;

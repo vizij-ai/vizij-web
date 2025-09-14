@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Git pre-commit hook for vizij-web: format and lint all workspaces
+set -euo pipefail
+
+# Allow skipping on demand
+if [[ "${SKIP_GIT_HOOKS:-0}" == "1" ]]; then
+  echo "[vizij-web pre-commit] SKIP_GIT_HOOKS=1 -> skipping checks"
+  exit 0
+fi
+
+echo "[vizij-web pre-commit] Prettier check"
+# Use local prettier if present; fallback to npx
+if command -v prettier &>/dev/null; then
+  prettier --check .
+else
+  npx -y prettier --check .
+fi
+
+echo "[vizij-web pre-commit] ESLint (all workspaces with a lint script)"
+npm -ws --if-present run lint
+
+echo "[vizij-web pre-commit] OK"

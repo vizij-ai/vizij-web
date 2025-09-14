@@ -10,7 +10,10 @@ import MultiSeriesChart from "./MultiSeriesChart";
  * - vector -> { `${label}[0]`: v0, `${label}[1]`: v1, ... } (arbitrary length)
  * The 'label' parameter is used for scalar/bool/vector; vec3 uses x/y/z fixed labels.
  */
-function valueToSamples(v?: ValueJSON, label: string = "out"): Record<string, number> {
+function valueToSamples(
+  v?: ValueJSON,
+  label: string = "out",
+): Record<string, number> {
   if (!v) return {};
   if ("float" in v) return { [label]: v.float };
   if ("bool" in v) return { [label]: v.bool ? 1 : 0 };
@@ -23,7 +26,8 @@ function valueToSamples(v?: ValueJSON, label: string = "out"): Record<string, nu
     const arr = v.vector;
     for (let i = 0; i < arr.length; i++) {
       const n = arr[i];
-      acc[`${label}[${i}]`] = typeof n === "number" && Number.isFinite(n) ? n : NaN;
+      acc[`${label}[${i}]`] =
+        typeof n === "number" && Number.isFinite(n) ? n : NaN;
     }
     return acc;
   }
@@ -93,13 +97,27 @@ export default function NodeSeriesPanel({
 
   return (
     <div style={{ marginTop: 8 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#ccc", cursor: "pointer" }}>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 12,
+          color: "#ccc",
+          cursor: "pointer",
+        }}
+      >
         <input type="checkbox" checked={open} onChange={onToggle} />
         Show Graph
       </label>
       {open && (
         <div style={{ marginTop: 6 }}>
-          <MultiSeriesChart series={seriesForChart} width={width} height={height} maxPoints={maxPoints} />
+          <MultiSeriesChart
+            series={seriesForChart}
+            width={width}
+            height={height}
+            maxPoints={maxPoints}
+          />
         </div>
       )}
     </div>

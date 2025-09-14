@@ -22,29 +22,82 @@ const MultiSliderNodeBase = ({ id, data }: NodeProps<MultiSliderData>) => {
   const o3 = useNodeOutput(id, "z");
 
   return (
-    <div style={{ padding: 16, minWidth: 240, background: "#2a2a2a", borderRadius: 8, border: "1px solid #555", position: "relative" }}>
+    <div
+      style={{
+        padding: 16,
+        minWidth: 240,
+        background: "#2a2a2a",
+        borderRadius: 8,
+        border: "1px solid #555",
+        position: "relative",
+      }}
+    >
       {/* Outputs */}
-      <Handle type="source" id="x" position={Position.Right} style={{ ...handleStyle, top: 24 }} />
-      <Handle type="source" id="y" position={Position.Right} style={{ ...handleStyle, top: 64 }} />
-      <Handle type="source" id="z" position={Position.Right} style={{ ...handleStyle, top: 104 }} />
+      <Handle
+        type="source"
+        id="x"
+        position={Position.Right}
+        style={{ ...handleStyle, top: 24 }}
+      />
+      <Handle
+        type="source"
+        id="y"
+        position={Position.Right}
+        style={{ ...handleStyle, top: 64 }}
+      />
+      <Handle
+        type="source"
+        id="z"
+        position={Position.Right}
+        style={{ ...handleStyle, top: 104 }}
+      />
 
       <div style={{ marginBottom: 8, textAlign: "center" }}>
         <strong>{data.label ?? "MultiSlider"}</strong>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "28px 1fr",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
         <div style={{ textAlign: "right", color: "#aaa" }}>X</div>
-        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o1)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>
+          {displayValue(o1)}
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "28px 1fr",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
         <div style={{ textAlign: "right", color: "#aaa" }}>Y</div>
-        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o2)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>
+          {displayValue(o2)}
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "28px 1fr",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         <div style={{ textAlign: "right", color: "#aaa" }}>Z</div>
-        <div style={{ textAlign: "left", fontWeight: 600 }}>{displayValue(o3)}</div>
+        <div style={{ textAlign: "left", fontWeight: 600 }}>
+          {displayValue(o3)}
+        </div>
       </div>
 
       <div style={{ marginTop: 8 }}>
@@ -57,8 +110,7 @@ const MultiSliderNodeBase = ({ id, data }: NodeProps<MultiSliderData>) => {
 const MultiSliderNode = React.memo(
   MultiSliderNodeBase,
   (prev, next) =>
-    prev.id === next.id &&
-    (prev.data.label ?? "") === (next.data.label ?? "")
+    prev.id === next.id && (prev.data.label ?? "") === (next.data.label ?? ""),
 );
 
 export default MultiSliderNode;

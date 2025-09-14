@@ -1,7 +1,13 @@
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
 import { clsx } from "clsx";
-import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "@semio/utils";
+import {
+  getLookup,
+  RawEuler,
+  RawRGB,
+  RawValue,
+  RawVector3,
+} from "@semio/utils";
 import { ColorPickerPopover, SliderNumberField, Size } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 
@@ -17,7 +23,9 @@ function InnerController({
   className?: string;
 }) {
   const setValue = useVizijStore(useShallow((state) => state.setValue));
-  const animatable = useVizijStore(useShallow((state) => state.animatables[animatableId]));
+  const animatable = useVizijStore(
+    useShallow((state) => state.animatables[animatableId]),
+  );
   const lookupId = getLookup(namespace ?? "default", animatableId);
   const rawValue: RawValue | undefined = useVizijStore(
     useShallow((state) => state.values.get(lookupId)),
@@ -92,15 +100,24 @@ function InnerController({
               : convertRGBRange(animatable.default as RawRGB, "255")
           }
           onChange={(v) => {
-            setValue(animatableId, namespace ?? "default", convertRGBRange(v, "1"));
+            setValue(
+              animatableId,
+              namespace ?? "default",
+              convertRGBRange(v, "1"),
+            );
           }}
         />
       </div>
     );
-  } else if (animatable.type === "vector3" && subfield && ["x", "y", "z"].includes(subfield)) {
+  } else if (
+    animatable.type === "vector3" &&
+    subfield &&
+    ["x", "y", "z"].includes(subfield)
+  ) {
     const axis = subfield as "x" | "y" | "z";
     const currentVec: RawVector3 =
-      (rawValue as RawVector3 | undefined) ?? (animatable.default as RawVector3);
+      (rawValue as RawVector3 | undefined) ??
+      (animatable.default as RawVector3);
     return (
       <SliderNumberField
         label={axis}
@@ -116,10 +133,15 @@ function InnerController({
         max={animatable.constraints.max?.[vectorIndexLookup[axis]] ?? undefined}
       />
     );
-  } else if (animatable.type === "vector2" && subfield && ["x", "y"].includes(subfield)) {
+  } else if (
+    animatable.type === "vector2" &&
+    subfield &&
+    ["x", "y"].includes(subfield)
+  ) {
     const axis = subfield as "x" | "y";
     const currentVec: RawVector3 =
-      (rawValue as RawVector3 | undefined) ?? (animatable.default as RawVector3);
+      (rawValue as RawVector3 | undefined) ??
+      (animatable.default as RawVector3);
     return (
       <SliderNumberField
         label={axis}
@@ -135,7 +157,11 @@ function InnerController({
         max={animatable.constraints.max?.[vectorIndexLookup[axis]] ?? undefined}
       />
     );
-  } else if (animatable.type === "euler" && subfield && ["x", "y", "z"].includes(subfield)) {
+  } else if (
+    animatable.type === "euler" &&
+    subfield &&
+    ["x", "y", "z"].includes(subfield)
+  ) {
     const axis = subfield as "x" | "y" | "z";
     const currentVec: RawEuler =
       (rawValue as RawEuler | undefined) ?? (animatable.default as RawEuler);
@@ -154,9 +180,14 @@ function InnerController({
         max={animatable.constraints.max?.[vectorIndexLookup[axis]] ?? undefined}
       />
     );
-  } else if (animatable.type === "rgb" && subfield && ["r", "g", "b"].includes(subfield)) {
+  } else if (
+    animatable.type === "rgb" &&
+    subfield &&
+    ["r", "g", "b"].includes(subfield)
+  ) {
     const axis = subfield as "r" | "g" | "b";
-    const currentVec: RawRGB = (rawValue as RawRGB | undefined) ?? (animatable.default as RawRGB);
+    const currentVec: RawRGB =
+      (rawValue as RawRGB | undefined) ?? (animatable.default as RawRGB);
     return (
       <SliderNumberField
         label={axis}

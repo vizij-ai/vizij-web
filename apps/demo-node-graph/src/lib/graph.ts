@@ -34,17 +34,17 @@ export interface GraphSpec {
  * Type guard for number arrays to avoid 'any' casts.
  */
 const isNumberArray = (v: unknown): v is number[] =>
-  Array.isArray(v) && v.every(x => typeof x === "number");
+  Array.isArray(v) && v.every((x) => typeof x === "number");
 
 /**
  * Create a shallow copy of an object without the specified keys.
  */
 const omit = <
   T extends Record<string, unknown>,
-  K extends readonly (keyof T)[]
+  K extends readonly (keyof T)[],
 >(
   obj: T,
-  keys: K
+  keys: K,
 ): Omit<T, K[number]> => {
   const result = { ...obj };
   for (const key of keys) {
@@ -69,7 +69,7 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
     const lowerType = (type || "unknown").toLowerCase();
 
     const inputs: Record<string, InputConnection> = {};
-    const inputEdges = edges.filter(e => e.target === id);
+    const inputEdges = edges.filter((e) => e.target === id);
 
     for (const edge of inputEdges) {
       if (edge.targetHandle) {

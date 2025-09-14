@@ -25,11 +25,21 @@ const preset = {
       name: "Scalar Ramp",
       animatableId: "studio/scalar",
       points: [
-        { id: "s0", stamp: 0.0, value: 0, transitions: { out: { x: 0.35, y: 0.0 } } },
+        {
+          id: "s0",
+          stamp: 0.0,
+          value: 0,
+          transitions: { out: { x: 0.35, y: 0.0 } },
+        },
         { id: "s1", stamp: 0.5, value: 0.25 },
-        { id: "s2", stamp: 1.0, value: 1, transitions: { in: { x: 0.7, y: 1.0 } } }
+        {
+          id: "s2",
+          stamp: 1.0,
+          value: 1,
+          transitions: { in: { x: 0.7, y: 1.0 } },
+        },
       ],
-      settings: { color: "#60a5fa" }
+      settings: { color: "#60a5fa" },
     },
 
     // Vec2 L-shape then back
@@ -41,9 +51,9 @@ const preset = {
         { id: "v2_0", stamp: 0.0, value: { x: 0, y: 0 } },
         { id: "v2_1", stamp: 0.33, value: { x: 1, y: 0 } },
         { id: "v2_2", stamp: 0.66, value: { x: 1, y: 1 } },
-        { id: "v2_3", stamp: 1.0, value: { x: 0, y: 1 } }
+        { id: "v2_3", stamp: 1.0, value: { x: 0, y: 1 } },
       ],
-      settings: { color: "#34d399" }
+      settings: { color: "#34d399" },
     },
 
     // Vec3 triangle path
@@ -56,9 +66,9 @@ const preset = {
         { id: "v3_1", stamp: 0.25, value: { x: 1, y: 0, z: 0 } },
         { id: "v3_2", stamp: 0.5, value: { x: 1, y: 1, z: 0 } },
         { id: "v3_3", stamp: 0.75, value: { x: 0, y: 1, z: 1 } },
-        { id: "v3_4", stamp: 1.0, value: { x: 0, y: 0, z: 0 } }
+        { id: "v3_4", stamp: 1.0, value: { x: 0, y: 0, z: 0 } },
       ],
-      settings: { color: "#fbbf24" }
+      settings: { color: "#fbbf24" },
     },
 
     // Quat via Euler (RPY) sweep around yaw
@@ -67,11 +77,21 @@ const preset = {
       name: "Rotation Yaw",
       animatableId: "studio/quat_euler",
       points: [
-        { id: "q0", stamp: 0.0, value: { r: 0.0, p: 0.0, y: 0.0 }, transitions: { out: { x: 0.3, y: 0.0 } } },
+        {
+          id: "q0",
+          stamp: 0.0,
+          value: { r: 0.0, p: 0.0, y: 0.0 },
+          transitions: { out: { x: 0.3, y: 0.0 } },
+        },
         { id: "q1", stamp: 0.5, value: { r: 0.0, p: 0.0, y: Math.PI } },
-        { id: "q2", stamp: 1.0, value: { r: 0.0, p: 0.0, y: Math.PI * 2 }, transitions: { in: { x: 0.7, y: 1.0 } } }
+        {
+          id: "q2",
+          stamp: 1.0,
+          value: { r: 0.0, p: 0.0, y: Math.PI * 2 },
+          transitions: { in: { x: 0.7, y: 1.0 } },
+        },
       ],
-      settings: { color: "#f472b6" }
+      settings: { color: "#f472b6" },
     },
 
     // Color ramp RGB across time (0..1)
@@ -82,9 +102,9 @@ const preset = {
       points: [
         { id: "c0", stamp: 0.0, value: { r: 1, g: 0, b: 0 } },
         { id: "c1", stamp: 0.5, value: { r: 0, g: 1, b: 0 } },
-        { id: "c2", stamp: 1.0, value: { r: 0, g: 0, b: 1 } }
+        { id: "c2", stamp: 1.0, value: { r: 0, g: 0, b: 1 } },
       ],
-      settings: { color: "#38bdf8" }
+      settings: { color: "#38bdf8" },
     },
 
     // Transform: translation (Vec3)
@@ -95,9 +115,9 @@ const preset = {
       points: [
         { id: "tt0", stamp: 0.0, value: { x: 0, y: 0, z: 0 } },
         { id: "tt1", stamp: 0.5, value: { x: 1, y: 1, z: 0 } },
-        { id: "tt2", stamp: 1.0, value: { x: 0, y: 0, z: 1 } }
+        { id: "tt2", stamp: 1.0, value: { x: 0, y: 0, z: 1 } },
       ],
-      settings: { color: "#22d3ee" }
+      settings: { color: "#22d3ee" },
     },
 
     // Transform: rotation (Euler)
@@ -108,9 +128,9 @@ const preset = {
       points: [
         { id: "tr0", stamp: 0.0, value: { r: 0.0, p: 0.0, y: 0.0 } },
         { id: "tr1", stamp: 0.5, value: { r: 0.0, p: Math.PI * 0.5, y: 0.0 } },
-        { id: "tr2", stamp: 1.0, value: { r: 0.0, p: 0.0, y: Math.PI } }
+        { id: "tr2", stamp: 1.0, value: { r: 0.0, p: 0.0, y: Math.PI } },
       ],
-      settings: { color: "#a78bfa" }
+      settings: { color: "#a78bfa" },
     },
 
     // Transform: scale (Vec3)
@@ -121,9 +141,9 @@ const preset = {
       points: [
         { id: "ts0", stamp: 0.0, value: { x: 1, y: 1, z: 1 } },
         { id: "ts1", stamp: 0.5, value: { x: 2, y: 1, z: 0.5 } },
-        { id: "ts2", stamp: 1.0, value: { x: 1, y: 1, z: 1 } }
+        { id: "ts2", stamp: 1.0, value: { x: 1, y: 1, z: 1 } },
       ],
-      settings: { color: "#f87171" }
+      settings: { color: "#f87171" },
     },
 
     // Bool toggling
@@ -136,9 +156,9 @@ const preset = {
         { id: "b1", stamp: 0.25, value: true },
         { id: "b2", stamp: 0.5, value: false },
         { id: "b3", stamp: 0.75, value: true },
-        { id: "b4", stamp: 1.0, value: false }
+        { id: "b4", stamp: 1.0, value: false },
       ],
-      settings: { color: "#fde047" }
+      settings: { color: "#fde047" },
     },
 
     // Text changes
@@ -150,12 +170,12 @@ const preset = {
         { id: "t0", stamp: 0.0, value: "start" },
         { id: "t1", stamp: 0.33, value: "middle" },
         { id: "t2", stamp: 0.66, value: "almost" },
-        { id: "t3", stamp: 1.0, value: "end" }
+        { id: "t3", stamp: 1.0, value: "end" },
       ],
-      settings: { color: "#d4d4d8" }
-    }
+      settings: { color: "#d4d4d8" },
+    },
   ],
-  groups: {}
+  groups: {},
 };
 
 export default preset;

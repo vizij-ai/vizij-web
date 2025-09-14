@@ -14,12 +14,12 @@ const anim = {
       animatableId: "demo/scalar",
       points: [
         { id: "k0", stamp: 0.0, value: 0 },
-        { id: "k1", stamp: 1.0, value: 1 }
+        { id: "k1", stamp: 1.0, value: 1 },
       ],
-      settings: { color: "#ffffff" }
-    }
+      settings: { color: "#ffffff" },
+    },
   ],
-  groups: {}
+  groups: {},
 };
 
 export default anim;

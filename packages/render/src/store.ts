@@ -9,7 +9,12 @@ import { type RawValue, type AnimatableValue, getLookup } from "@semio/utils";
 import { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
 import { removeFromTree } from "./actions/remove-children";
-import { VizijData, VizijActions, VizijStoreGetter, VizijStoreSetter } from "./store-types";
+import {
+  VizijData,
+  VizijActions,
+  VizijStoreGetter,
+  VizijStoreSetter,
+} from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
 import { RenderableFeature } from "./types/renderable-feature";
 import { StaticFeature, GroupFeature, Selection } from "./types";
@@ -38,13 +43,19 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  onElementClick: (selection: Selection, _chain: string[], event: ThreeEvent<MouseEvent>) => {
+  onElementClick: (
+    selection: Selection,
+    _chain: string[],
+    event: ThreeEvent<MouseEvent>,
+  ) => {
     const { id, namespace, type } = selection;
     set(
       produce((state: VizijData) => {
         if (
           event.metaKey &&
-          !state.elementSelection.find((e) => e.id === id && e.namespace === namespace)
+          !state.elementSelection.find(
+            (e) => e.id === id && e.namespace === namespace,
+          )
         ) {
           state.elementSelection.push(selection);
         } else if (event.metaKey) {
@@ -71,7 +82,10 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     } else {
       const bodies = Object.values(worldData)
         .filter(
-          (entry) => entry.type === "group" && entry.rootBounds && filterIds.includes(entry.id),
+          (entry) =>
+            entry.type === "group" &&
+            entry.rootBounds &&
+            filterIds.includes(entry.id),
         )
         .map((entry) => {
           const firstNs = Object.keys(entry.refs)[0];
@@ -105,7 +119,9 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
           } else {
             const animatableLookup = state.animatables[id];
             const updatedValue = value(
-              animatableLookup !== undefined ? animatableLookup.default : undefined,
+              animatableLookup !== undefined
+                ? animatableLookup.default
+                : undefined,
             );
             if (updatedValue !== undefined) {
               state.values.set(lookupId, updatedValue);
@@ -155,7 +171,10 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setOrigin: (id: string, origin: { translation?: THREE.Vector3; rotation?: THREE.Vector3 }) => {
+  setOrigin: (
+    id: string,
+    origin: { translation?: THREE.Vector3; rotation?: THREE.Vector3 },
+  ) => {
     const { translation, rotation } = origin;
     set(
       produce((state) => {
@@ -189,7 +208,11 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setStaticFeature: (id: string, feature: RenderableFeature, value: RawValue) => {
+  setStaticFeature: (
+    id: string,
+    feature: RenderableFeature,
+    value: RawValue,
+  ) => {
     set(
       produce((state: VizijData) => {
         if (!state.world[id].features) {
@@ -198,7 +221,8 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         const entry = state.world[id];
         switch (entry.type) {
           case "group":
-            (entry.features[feature as GroupFeature] as StaticFeature).value = value;
+            (entry.features[feature as GroupFeature] as StaticFeature).value =
+              value;
             state.world[id] = entry;
             break;
           default:
@@ -207,7 +231,11 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  createAnimatable: (elementId: string, featureName: string, value: Partial<AnimatableValue>) => {
+  createAnimatable: (
+    elementId: string,
+    featureName: string,
+    value: Partial<AnimatableValue>,
+  ) => {
     set(
       produce((state) => {
         console.log("Creating animatable", elementId, featureName, value);
@@ -242,7 +270,12 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setSlot: (parentId: string, parentNamespace: string, childId: string, childNamespace: string) => {
+  setSlot: (
+    parentId: string,
+    parentNamespace: string,
+    childId: string,
+    childNamespace: string,
+  ) => {
     set(
       produce((state) => {
         const parentLookupId = getLookup(parentNamespace, parentId);
@@ -277,7 +310,11 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       animatables,
     });
   },
-  addWorldElements(world: World, animatables: Record<string, AnimatableValue>, replace?: boolean) {
+  addWorldElements(
+    world: World,
+    animatables: Record<string, AnimatableValue>,
+    replace?: boolean,
+  ) {
     if (replace) {
       set({ world, animatables });
     } else {
@@ -292,13 +329,19 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       preferences: { ...state.preferences, ...preferences },
     }));
   },
-  setReference: (id: string, namespace: string, ref: RefObject<Group | Mesh>) => {
+  setReference: (
+    id: string,
+    namespace: string,
+    ref: RefObject<Group | Mesh>,
+  ) => {
     set(
       produce((state: VizijData) => {
         console.log("in store", id, namespace, ref.current);
-        (state.world[id].refs[namespace] as MutableRefObject<Group>).current = ref.current as Group;
+        (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
+          ref.current as Group;
         if (ref.current?.children && state.world[id].refs[namespace].current) {
-          state.world[id].refs[namespace].current.children = ref.current.children;
+          state.world[id].refs[namespace].current.children =
+            ref.current.children;
         }
       }),
     );

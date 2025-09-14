@@ -2,7 +2,9 @@ import { useState } from "react";
 import { fetchVisemeData, VisemeData } from "../services/pollyApi";
 
 export const usePollyTTS = () => {
-  const [spokenSentences, setSpokenSentences] = useState<VisemeData["sentences"]>([]);
+  const [spokenSentences, setSpokenSentences] = useState<
+    VisemeData["sentences"]
+  >([]);
   const [spokenWords, setSpokenWords] = useState<VisemeData["words"]>([]);
   const [spokenVisemes, setSpokenVisemes] = useState<VisemeData["visemes"]>([]);
   const [spokenAudio, setSpokenAudio] = useState<string>("");

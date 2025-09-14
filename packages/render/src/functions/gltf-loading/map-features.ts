@@ -1,9 +1,16 @@
 import { type AnimatableValue } from "@semio/utils";
-import { AnimatedFeature, StaticFeature, StoredAnimatedFeature } from "../../types/feature";
+import {
+  AnimatedFeature,
+  StaticFeature,
+  StoredAnimatedFeature,
+} from "../../types/feature";
 
 export function mapFeatures(
   features: Record<string, StoredAnimatedFeature | StaticFeature>,
-): [Record<string, AnimatedFeature | StaticFeature>, Record<string, AnimatableValue>] {
+): [
+  Record<string, AnimatedFeature | StaticFeature>,
+  Record<string, AnimatableValue>,
+] {
   const animatableValues: Record<string, AnimatableValue> = {};
   const mappedFeatures: Record<string, AnimatedFeature | StaticFeature> = {};
 

@@ -38,7 +38,8 @@ export const SpokenTextDisplay = ({
           <div
             key={ind}
             className={
-              "inline-block p-2 " + (currentSpokenVisemeIndex === ind ? " text-semio-blue" : "")
+              "inline-block p-2 " +
+              (currentSpokenVisemeIndex === ind ? " text-semio-blue" : "")
             }
           >
             {vis.value}
@@ -47,7 +48,12 @@ export const SpokenTextDisplay = ({
       </div>
       {spokenAudio !== "" && (
         <div className="m-2">
-          <audio className="inline-block" controls src={spokenAudio} onPlay={onPlay} />
+          <audio
+            className="inline-block"
+            controls
+            src={spokenAudio}
+            onPlay={onPlay}
+          />
         </div>
       )}
     </div>

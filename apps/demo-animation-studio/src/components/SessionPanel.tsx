@@ -23,7 +23,9 @@ export default function SessionPanel({
   const [text, setText] = useState("");
 
   const doExport = () => {
-    const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(value, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.download = "vizij-animation-session.json";
@@ -36,7 +38,9 @@ export default function SessionPanel({
     fileRef.current?.click();
   };
 
-  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = async (
+    e,
+  ) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const txt = await f.text();
@@ -47,11 +51,15 @@ export default function SessionPanel({
     try {
       const parsed = JSON.parse(text);
       // Minimal validation
-      if (!Array.isArray(parsed.animations)) throw new Error("Missing animations[]");
-      if (!Array.isArray(parsed.instances)) throw new Error("Missing instances[]");
+      if (!Array.isArray(parsed.animations))
+        throw new Error("Missing animations[]");
+      if (!Array.isArray(parsed.instances))
+        throw new Error("Missing instances[]");
       if (!Array.isArray(parsed.rules)) throw new Error("Missing rules[]");
-      if (typeof parsed.updateHz !== "number") throw new Error("Missing updateHz");
-      if (typeof parsed.historyWindowSec !== "number") throw new Error("Missing historyWindowSec");
+      if (typeof parsed.updateHz !== "number")
+        throw new Error("Missing updateHz");
+      if (typeof parsed.historyWindowSec !== "number")
+        throw new Error("Missing historyWindowSec");
       onImport(parsed as SessionState);
     } catch (e: any) {
       alert("Import failed: " + (e?.message ?? String(e)));
@@ -59,10 +67,18 @@ export default function SessionPanel({
   };
 
   return (
-    <section style={{ background: "#16191d", border: "1px solid #2a2d31", borderRadius: 8, padding: 10 }}>
+    <section
+      style={{
+        background: "#16191d",
+        border: "1px solid #2a2d31",
+        borderRadius: 8,
+        padding: 10,
+      }}
+    >
       <b>Session</b>
       <div style={{ opacity: 0.75, fontSize: 12, marginBottom: 8 }}>
-        Export or import the demo session (animations, instances, engine config, prebind rules, chart prefs).
+        Export or import the demo session (animations, instances, engine config,
+        prebind rules, chart prefs).
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={doExport}>Export JSON</button>
@@ -80,7 +96,15 @@ export default function SessionPanel({
           placeholder="Paste session JSON here or use Open File…"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          style={{ width: "100%", minHeight: 140, background: "#0f1113", color: "#eaeaea", border: "1px solid #2a2d31", borderRadius: 6, padding: 8 }}
+          style={{
+            width: "100%",
+            minHeight: 140,
+            background: "#0f1113",
+            color: "#eaeaea",
+            border: "1px solid #2a2d31",
+            borderRadius: 6,
+            padding: 8,
+          }}
         />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={doApply}>Apply Import</button>

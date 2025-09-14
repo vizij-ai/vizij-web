@@ -33,7 +33,8 @@ export function traverseThree(
   if (!aggressiveImport) {
     group.traverse((child) => {
       if (child.userData?.gltfExtensions?.RobotData) {
-        const data = child.userData.gltfExtensions.RobotData as StoredRenderable;
+        const data = child.userData.gltfExtensions
+          .RobotData as StoredRenderable;
         let loadedData: RenderableBase;
         let mappedFeatures: Record<string, AnimatedFeature | StaticFeature>;
         let animatableValues: Record<string, AnimatableValue>;
@@ -43,7 +44,10 @@ export function traverseThree(
           case "group":
             loadedData = {
               ...data,
-              refs: namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<Group>() }), {}),
+              refs: namespaces.reduce(
+                (acc, ns) => ({ ...acc, [ns]: createRef<Group>() }),
+                {},
+              ),
             } as VizijGroup;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isGroupFeatures(mappedFeatures);
@@ -55,7 +59,10 @@ export function traverseThree(
             loadedData = {
               ...data,
               geometry: (child as Mesh).geometry,
-              refs: namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }), {}),
+              refs: namespaces.reduce(
+                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
+                {},
+              ),
             } as Shape;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isShapeFeatures(mappedFeatures);
@@ -66,7 +73,10 @@ export function traverseThree(
           case "ellipse":
             loadedData = {
               ...data,
-              refs: namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }), {}),
+              refs: namespaces.reduce(
+                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
+                {},
+              ),
             } as Ellipse;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isEllipseFeatures(mappedFeatures);
@@ -77,7 +87,10 @@ export function traverseThree(
           case "rectangle":
             loadedData = {
               ...data,
-              refs: namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }), {}),
+              refs: namespaces.reduce(
+                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
+                {},
+              ),
             } as Rectangle;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isRectangleFeatures(mappedFeatures);
@@ -92,7 +105,11 @@ export function traverseThree(
     });
   } else if (rootBounds) {
     // Using an aggressive import that converts all three elements into their direct vizij counterparts
-    const [newWorldData, newAnimatableData] = importScene(group, namespaces, rootBounds!);
+    const [newWorldData, newAnimatableData] = importScene(
+      group,
+      namespaces,
+      rootBounds!,
+    );
     Object.assign(worldData, newWorldData);
     Object.assign(animatableData, newAnimatableData);
   } else {
@@ -104,7 +121,9 @@ export function traverseThree(
   return [worldData, animatableData];
 }
 
-function isGroupFeatures(value: unknown): asserts value is VizijGroup["features"] {
+function isGroupFeatures(
+  value: unknown,
+): asserts value is VizijGroup["features"] {
   if (!value || typeof value !== "object") {
     throw new Error("Expected object");
   }
@@ -122,20 +141,32 @@ function isShapeFeatures(value: unknown): asserts value is Shape["features"] {
   }
 }
 
-function isEllipseFeatures(value: unknown): asserts value is Ellipse["features"] {
+function isEllipseFeatures(
+  value: unknown,
+): asserts value is Ellipse["features"] {
   if (!value || typeof value !== "object") {
     throw new Error("Expected object");
   }
-  if (!["translation", "rotation", "height", "width"].every((key) => key in value)) {
-    throw new Error("Expected translation, rotation, width, and height keys in features");
+  if (
+    !["translation", "rotation", "height", "width"].every((key) => key in value)
+  ) {
+    throw new Error(
+      "Expected translation, rotation, width, and height keys in features",
+    );
   }
 }
 
-function isRectangleFeatures(value: unknown): asserts value is Rectangle["features"] {
+function isRectangleFeatures(
+  value: unknown,
+): asserts value is Rectangle["features"] {
   if (!value || typeof value !== "object") {
     throw new Error("Expected object");
   }
-  if (!["translation", "rotation", "height", "width"].every((key) => key in value)) {
-    throw new Error("Expected translation, rotation, width, and height keys in features");
+  if (
+    !["translation", "rotation", "height", "width"].every((key) => key in value)
+  ) {
+    throw new Error(
+      "Expected translation, rotation, width, and height keys in features",
+    );
   }
 }

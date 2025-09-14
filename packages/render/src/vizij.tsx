@@ -46,14 +46,22 @@ export function Vizij({
   if (ctx) {
     return (
       <Canvas shadows={false} style={style} className={className}>
-        <MemoizedInnerVizij rootId={rootId} namespace={namespace} showSafeArea={showSafeArea} />
+        <MemoizedInnerVizij
+          rootId={rootId}
+          namespace={namespace}
+          showSafeArea={showSafeArea}
+        />
       </Canvas>
     );
   } else {
     return (
       <VizijContext.Provider value={useDefaultVizijStore}>
         <Canvas style={style} className={className}>
-          <MemoizedInnerVizij rootId={rootId} namespace={namespace} showSafeArea={showSafeArea} />
+          <MemoizedInnerVizij
+            rootId={rootId}
+            namespace={namespace}
+            showSafeArea={showSafeArea}
+          />
         </Canvas>
       </VizijContext.Provider>
     );
@@ -77,20 +85,30 @@ export function InnerVizij({
   container,
   showSafeArea,
 }: InnerVizijProps) {
-  const sceneParentSizing: { width: number; height: number } | undefined = container
-    ? {
-        width: container.width * container.resolution,
-        height: container.height * container.resolution,
-      }
-    : undefined;
+  const sceneParentSizing: { width: number; height: number } | undefined =
+    container
+      ? {
+          width: container.width * container.resolution,
+          height: container.height * container.resolution,
+        }
+      : undefined;
 
   return (
     <>
       <ambientLight intensity={Math.PI / 2} />
       {/* <color attach="background" args={["white"]} /> */}
-      <OrthographicCamera makeDefault position={[0, 0, 100]} near={0.1} far={101} />
+      <OrthographicCamera
+        makeDefault
+        position={[0, 0, 100]}
+        near={0.1}
+        far={101}
+      />
       <Suspense fallback={null}>
-        <World rootId={rootId} namespace={namespace} parentSizing={sceneParentSizing} />
+        <World
+          rootId={rootId}
+          namespace={namespace}
+          parentSizing={sceneParentSizing}
+        />
       </Suspense>
       {showSafeArea && <SafeAreaRenderer rootId={rootId} />}
     </>
@@ -151,13 +169,20 @@ function InnerWorld({
       parentSizing !== undefined &&
       (camera as OrthographicCameraType).isOrthographicCamera
     ) {
-      const zoom = Math.min(parentSizing.width / width, parentSizing.height / height);
+      const zoom = Math.min(
+        parentSizing.width / width,
+        parentSizing.height / height,
+      );
       const center = rootBounds.center;
 
-      (camera as OrthographicCameraType).left = (-0.5 * parentSizing.width) / zoom + center.x;
-      (camera as OrthographicCameraType).right = (0.5 * parentSizing.width) / zoom + center.x;
-      (camera as OrthographicCameraType).top = (0.5 * parentSizing.height) / zoom + center.y;
-      (camera as OrthographicCameraType).bottom = (-0.5 * parentSizing.height) / zoom + center.y;
+      (camera as OrthographicCameraType).left =
+        (-0.5 * parentSizing.width) / zoom + center.x;
+      (camera as OrthographicCameraType).right =
+        (0.5 * parentSizing.width) / zoom + center.x;
+      (camera as OrthographicCameraType).top =
+        (0.5 * parentSizing.height) / zoom + center.y;
+      (camera as OrthographicCameraType).bottom =
+        (-0.5 * parentSizing.height) / zoom + center.y;
       (camera as OrthographicCameraType).updateProjectionMatrix();
     }
   }, [rootBounds, camera, parentSizing, size]);
@@ -166,7 +191,13 @@ function InnerWorld({
     <ErrorBoundary fallback={null}>
       {present && <Renderable id={rootId} namespace={namespace} chain={[]} />}
       {!present && (
-        <Text position={[0, 0, 0]} color="white" anchorX="center" anchorY="middle" fontSize={0.7}>
+        <Text
+          position={[0, 0, 0]}
+          color="white"
+          anchorX="center"
+          anchorY="middle"
+          fontSize={0.7}
+        >
           No Output
         </Text>
       )}
@@ -178,7 +209,10 @@ const World = memo(InnerWorld);
 
 function SafeAreaRenderer({ rootId }: { rootId: string }) {
   const rootBounds = useVizijStore(
-    useShallow((state) => (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds),
+    useShallow(
+      (state) =>
+        (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds,
+    ),
   );
 
   const left = rootBounds.center.x - rootBounds.size.x / 2;

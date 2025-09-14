@@ -1,6 +1,13 @@
 import { RawValue, RawVector2 } from "@semio/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { createVizijStore, Group, loadGLTF, useVizijStore, VizijContext, Vizij } from "vizij";
+import {
+  createVizijStore,
+  Group,
+  loadGLTF,
+  useVizijStore,
+  VizijContext,
+  Vizij,
+} from "vizij";
 import { useShallow } from "zustand/shallow";
 
 function InnerHardCodedVizij({
@@ -17,18 +24,29 @@ function InnerHardCodedVizij({
 }) {
   const [rootId, setRootId] = useState<string | undefined>("");
 
-  const addWorldElements = useVizijStore(useShallow((state) => state.addWorldElements));
+  const addWorldElements = useVizijStore(
+    useShallow((state) => state.addWorldElements),
+  );
   const setVal = useVizijStore(useShallow((state) => state.setValue));
   const animatables = useVizijStore((state) => state.animatables);
 
   useEffect(() => {
     const loadVizij = async () => {
-      const [loadedWorld, loadedAnimatables] = await loadGLTF(glb, ["default"], true, bounds);
-      const root = Object.values(loadedWorld).find((e) => e.type === "group" && e.rootBounds);
+      const [loadedWorld, loadedAnimatables] = await loadGLTF(
+        glb,
+        ["default"],
+        true,
+        bounds,
+      );
+      const root = Object.values(loadedWorld).find(
+        (e) => e.type === "group" && e.rootBounds,
+      );
       addWorldElements(loadedWorld, loadedAnimatables, true);
       setRootId((root as Group | undefined)?.id);
       values?.forEach((v) => {
-        const foundVal = Object.values(loadedAnimatables).find((anim) => anim.name == v.name);
+        const foundVal = Object.values(loadedAnimatables).find(
+          (anim) => anim.name == v.name,
+        );
         if (foundVal) {
           setVal(foundVal.id, "default", v.value);
         }
@@ -36,16 +54,18 @@ function InnerHardCodedVizij({
     };
 
     loadVizij();
-  }, []);
+  }, [addWorldElements, bounds, glb, setVal, values]);
 
   useEffect(() => {
     values?.forEach((v) => {
-      const foundVal = Object.values(animatables).find((anim) => anim.name == v.name);
+      const foundVal = Object.values(animatables).find(
+        (anim) => anim.name == v.name,
+      );
       if (foundVal) {
         setVal(foundVal.id, "default", v.value);
       }
     });
-  }, [values]);
+  }, [animatables, setVal, values]);
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Vizij rootId={rootId ?? ""} namespace="default" />

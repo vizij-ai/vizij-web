@@ -27,7 +27,8 @@ export const loadGltfFromBlob = (
         "", // Base path for resolving external resources
         (gltf: GLTF) => {
           // Create a scene and add the loaded GLTF model
-          const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
+          const actualizedNamespaces =
+            namespaces.length > 0 ? namespaces : ["default"];
           // console.log("actualizedNamespaces", actualizedNamespaces);
           resolve(traverseThree(gltf.scene, actualizedNamespaces));
         },

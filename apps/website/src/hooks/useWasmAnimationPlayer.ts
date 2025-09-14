@@ -15,6 +15,7 @@ export const useWasmAnimationPlayer = (
   const lastLoadedAnimationRef = useRef<string | null>(null);
 
   const loadAnimation = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (animation: any) => {
       if (!wasm.isLoaded || isLoadingAnimation) {
         return null;
@@ -59,7 +60,8 @@ export const useWasmAnimationPlayer = (
     }
 
     const elapsedTime = timestamp - startTimeRef.current;
-    const deltaSinceLastFrame = timestamp - (lastFrameTimeRef.current ?? timestamp);
+    const deltaSinceLastFrame =
+      timestamp - (lastFrameTimeRef.current ?? timestamp);
 
     if (deltaSinceLastFrame >= 1000 / 60) {
       // 30fps

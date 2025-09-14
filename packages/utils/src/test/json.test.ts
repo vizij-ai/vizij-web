@@ -40,8 +40,12 @@ describe("JSON Map handling", () => {
     const json = stringifyMapped(nested);
     const result = parseToMapped(json);
     expect(result).toBeInstanceOf(Map);
-    expect((result as Map<string, Map<string, string>>).get("outer")).toBeInstanceOf(Map);
-    expect((result as Map<string, Map<string, string>>).get("outer")?.get("inner")).toBe("value");
+    expect(
+      (result as Map<string, Map<string, string>>).get("outer"),
+    ).toBeInstanceOf(Map);
+    expect(
+      (result as Map<string, Map<string, string>>).get("outer")?.get("inner"),
+    ).toBe("value");
   });
 
   it("should handle regular objects alongside Maps", () => {
