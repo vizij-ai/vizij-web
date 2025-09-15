@@ -6,4 +6,9 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()] as PluginOption[],
   assetsInclude: ["**/*.glb"],
+  server: {
+    fs: {
+      allow: ["../../../"],
+    },
+  },
 });

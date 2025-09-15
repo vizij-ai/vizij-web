@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:animation": "npm run --workspace demo-animation-studio dev",
+    "dev:website": "npm run --workspace vizij-site dev",
     "build:animation": "npm run --workspace @vizij/animation-react build && npm run --workspace demo-animation-studio build",
     "dev:graph": "npm run --workspace demo-node-graph dev",
     "build:graph": "npm run --workspace @vizij/node-graph-react build && npm run --workspace demo-node-graph build",

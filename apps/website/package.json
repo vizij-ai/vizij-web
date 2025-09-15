@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "animation-player": "file:./animation-player/pkg",
+    "@vizij/animation-react": "*",
     "@aws-sdk/client-polly": "^3.787.0",
     "@headlessui/react": "^2.2.0",
     "d3-interpolate": "^3.0.1",
@@ -28,6 +28,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/d3-interpolate": "^3.0.4",
     "@eslint/config-array": "^0.19.2",
     "@eslint/js": "^9.19.0",
     "@eslint/object-schema": "^2.1.6",

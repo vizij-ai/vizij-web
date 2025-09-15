@@ -7,6 +7,8 @@ interface SpokenTextDisplayProps {
   currentSpokenVisemeIndex: number;
   spokenAudio: string;
   onPlay: () => void;
+  onPause: () => void;
+  onEnded: () => void;
 }
 
 export const SpokenTextDisplay = ({
@@ -16,6 +18,8 @@ export const SpokenTextDisplay = ({
   currentSpokenVisemeIndex,
   spokenAudio,
   onPlay,
+  onPause,
+  onEnded,
 }: SpokenTextDisplayProps) => {
   return (
     <div className="m-4">
@@ -53,6 +57,8 @@ export const SpokenTextDisplay = ({
             controls
             src={spokenAudio}
             onPlay={onPlay}
+            onPause={onPause}
+            onEnded={onEnded}
           />
         </div>
       )}
