@@ -41,7 +41,7 @@ export default function App() {
   }, [nodes, edges]);
 
   return (
-    <NodeGraphProvider spec={spec} autostart updateHz={30}>
+    <NodeGraphProvider spec={spec} autostart={false} updateHz={30}>
       <div className="app">
         <NodePalette />
         <main style={{ display: "grid", gridTemplateRows: "auto 1fr" }}>

@@ -24,17 +24,17 @@ import {
 /* Local fallback Value type to avoid tight compile-time coupling on the wasm package types.
    Matches vizij-animation-core tagged union: { type, data } */
 export type Value =
-  | { type: "Scalar"; data: number }
+  | { type: "Float"; data: number }
   | { type: "Vec2"; data: [number, number] }
   | { type: "Vec3"; data: [number, number, number] }
   | { type: "Vec4"; data: [number, number, number, number] }
   | { type: "Quat"; data: [number, number, number, number] }
-  | { type: "Color"; data: [number, number, number, number] }
+  | { type: "ColorRgba"; data: [number, number, number, number] }
   | {
       type: "Transform";
       data: {
-        translation: [number, number, number];
-        rotation: [number, number, number, number];
+        pos: [number, number, number];
+        rot: [number, number, number, number];
         scale: [number, number, number];
       };
     }
@@ -920,7 +920,7 @@ export function useAnimTarget(key?: string): Value | undefined {
 
 export function valueAsNumber(v: Value | undefined): number | undefined {
   if (!v) return undefined;
-  if (v.type === "Scalar") return v.data as number;
+  if (v.type === "Float") return v.data as number;
   if (v.type === "Bool") return v.data ? 1 : 0;
   return undefined;
 }

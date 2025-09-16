@@ -46,6 +46,81 @@ type Ctx = {
   ) => ValueJSON | undefined;
 };
 
+/**
+ * Normalize a Value or user-provided shorthand into the ValueJSON shape expected by the wasm API.
+ * Accepts:
+ *  - number -> { float }
+ *  - boolean -> { bool }
+ *  - string -> { text }
+ *  - array of numbers -> { vec3 } when len==3 else { vector }
+ *  - already tagged ValueJSON -> returned as-is
+ */
+function normalizeValueForWasm(v: unknown): Value | ValueJSON {
+  if (typeof v === "number") return { float: v };
+  if (typeof v === "boolean") return { bool: v };
+  if (typeof v === "string") return { text: v };
+  if (Array.isArray(v) && v.every((x) => typeof x === "number")) {
+    if (v.length === 3) return { vec3: [v[0], v[1], v[2]] };
+    return { vector: (v as number[]).slice() };
+  }
+  // If it's already a ValueJSON-like object, return it as any.
+  return v as Value;
+}
+
+/**
+ * Normalize an entire GraphSpec (or JSON string) replacing shorthand `params.value`
+ * entries (plain numbers, bools, arrays) with the adjacently-tagged ValueJSON form.
+ * Accepts either an object GraphSpec or a JSON string.
+ */
+function normalizeSpecForWasm(spec: GraphSpec | string): GraphSpec | string {
+  try {
+    let obj: any =
+      typeof spec === "string"
+        ? JSON.parse(spec)
+        : JSON.parse(JSON.stringify(spec));
+    if (Array.isArray(obj.nodes)) {
+      for (const node of obj.nodes) {
+        // Ensure node has a `type` field (wasm/Rust expects "type" in JSON).
+        // Accept "kind" as an alias, and normalize strings to lowercase.
+        if (!node.type && node.kind) {
+          if (typeof node.kind === "string") {
+            node.type = node.kind.toLowerCase();
+          } else {
+            node.type = node.kind;
+          }
+        } else if (node.type && typeof node.type === "string") {
+          node.type = node.type.toLowerCase();
+        }
+
+        // Normalize common shorthand forms in params.value into tagged ValueJSON
+        if (node && node.params && node.params.hasOwnProperty("value")) {
+          const raw = node.params.value;
+          if (typeof raw === "number") node.params.value = { float: raw };
+          else if (typeof raw === "boolean") node.params.value = { bool: raw };
+          else if (typeof raw === "string") node.params.value = { text: raw };
+          else if (
+            Array.isArray(raw) &&
+            raw.every((x: any) => typeof x === "number")
+          ) {
+            if (raw.length === 3) node.params.value = { vec3: raw };
+            else node.params.value = { vector: raw };
+          } // otherwise assume user provided a correct tagged object
+
+          // If still missing a type after aliasing, default to "constant" to be defensive.
+          if (!node.type) {
+            node.type = "constant";
+          }
+        }
+      }
+    }
+    // Preserve the original type: return string if input was string, else return object
+    return typeof spec === "string" ? JSON.stringify(obj) : obj;
+  } catch (e) {
+    // If parsing fails just return original spec; wasm will still report errors
+    return spec;
+  }
+}
+
 const NodeGraphCtx = createContext<Ctx | null>(null);
 
 export const NodeGraphProvider: React.FC<{
@@ -191,8 +266,29 @@ export const NodeGraphProvider: React.FC<{
 
       const g = new Graph();
       graphRef.current = g;
-      g.loadGraph(spec);
-      specRef.current = spec;
+      {
+        // Normalize spec before passing to wasm. Always pass a JSON string to the wasm loader.
+        const normalized = normalizeSpecForWasm(spec);
+        const toLoad =
+          typeof normalized === "string"
+            ? normalized
+            : JSON.stringify(normalized);
+        console.debug("node-graph: loading normalized spec (initial):", toLoad);
+        try {
+          // Log parsed object for debugging (temporary)
+          console.log(
+            "node-graph: normalized spec object (initial):",
+            JSON.parse(toLoad),
+          );
+        } catch (e) {
+          console.warn(
+            "node-graph: failed to parse normalized spec for logging",
+            e,
+          );
+        }
+        g.loadGraph(toLoad);
+        specRef.current = spec;
+      }
 
       // seed outputs immediately
       const initial = g.evalAll() as Record<string, Record<string, ValueJSON>>;
@@ -239,8 +335,30 @@ export const NodeGraphProvider: React.FC<{
   useEffect(() => {
     if (!ready || !graphRef.current) return;
     if (specRef.current === spec) return;
-    graphRef.current.loadGraph(spec);
-    specRef.current = spec;
+    {
+      const normalized = normalizeSpecForWasm(spec);
+      const toLoad =
+        typeof normalized === "string"
+          ? normalized
+          : JSON.stringify(normalized);
+      console.debug(
+        "node-graph: loading normalized spec (effect reload):",
+        toLoad,
+      );
+      try {
+        console.log(
+          "node-graph: normalized spec object (effect reload):",
+          JSON.parse(toLoad),
+        );
+      } catch (e) {
+        console.warn(
+          "node-graph: failed to parse normalized spec for logging (effect reload)",
+          e,
+        );
+      }
+      graphRef.current.loadGraph(toLoad);
+      specRef.current = spec;
+    }
     // refresh outputs immediately
     const out = graphRef.current.evalAll() as Record<
       string,
@@ -253,7 +371,9 @@ export const NodeGraphProvider: React.FC<{
   const setParam = useCallback((nodeId: string, key: string, value: Value) => {
     const g = graphRef.current;
     if (!g) return;
-    g.setParam(nodeId, key, value);
+    // Normalize the value before passing to wasm
+    const normalized = normalizeValueForWasm(value);
+    g.setParam(nodeId, key, normalized as any);
     // reflect change immediately
     const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
     buildAndNotifyOutputs(out);
@@ -262,8 +382,30 @@ export const NodeGraphProvider: React.FC<{
   const reload = useCallback((newSpec: GraphSpec | string) => {
     const g = graphRef.current;
     if (!g) return;
-    g.loadGraph(newSpec);
-    specRef.current = newSpec;
+    {
+      const normalized = normalizeSpecForWasm(newSpec);
+      const toLoad =
+        typeof normalized === "string"
+          ? normalized
+          : JSON.stringify(normalized);
+      console.debug(
+        "node-graph: loading normalized spec (reload API):",
+        toLoad,
+      );
+      try {
+        console.log(
+          "node-graph: normalized spec object (reload API):",
+          JSON.parse(toLoad),
+        );
+      } catch (e) {
+        console.warn(
+          "node-graph: failed to parse normalized spec for logging (reload API)",
+          e,
+        );
+      }
+      g.loadGraph(toLoad);
+      specRef.current = newSpec;
+    }
     const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
     buildAndNotifyOutputs(out);
   }, []);
