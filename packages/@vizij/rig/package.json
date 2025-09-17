@@ -1,0 +1,21 @@
+{
+  "name": "@vizij/rig",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@vizij/config": "*",
+    "@semio/utils": "*",
+    "react": "^18.0.0",
+    "vizij": "*",
+    "zustand": "^5.0.0"
+  }
+}

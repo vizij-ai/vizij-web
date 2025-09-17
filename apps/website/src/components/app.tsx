@@ -1,9 +1,9 @@
-import { AbiVizij } from "./AbiVizij";
-import { BaxterVizij } from "./BaxterVizij";
-import { HugoVizij } from "./HugoVizij";
-import { JiboVizij } from "./JiboVizij";
-import { QuoriVizij } from "./QuoriVizij";
-import { TiagoVizij } from "./TiagoVizij";
+import { AbiVizij } from "./faces/AbiVizij";
+import { BaxterVizij } from "./faces/BaxterVizij";
+import { HugoVizij } from "./faces/HugoVizij";
+import { JiboVizij } from "./faces/JiboVizij";
+import { QuoriVizij } from "./faces/QuoriVizij";
+import { TiagoVizij } from "./faces/TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
 import VizijLogo from "../assets/vizij.png";
 import { VizijVisemeDemo } from "./VizijVisemeDemo";

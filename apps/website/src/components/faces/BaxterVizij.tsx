@@ -1,4 +1,4 @@
-import BaxterGLB from "../assets/Baxter.glb";
+import BaxterGLB from "../../assets/Baxter.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

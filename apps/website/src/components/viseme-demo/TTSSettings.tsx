@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { PollyVoices } from "../../config/tts";
+import { PollyVoices } from "@vizij/config";
 
 interface TTSSettingsProps {
   selectedVoice: string;

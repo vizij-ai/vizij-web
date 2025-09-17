@@ -1,4 +1,4 @@
-import { apiURL } from "../config/tts";
+import { apiURL } from "@vizij/config";
 
 export interface VisemeData {
   sentences: {

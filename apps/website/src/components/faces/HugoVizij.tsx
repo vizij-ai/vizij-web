@@ -1,4 +1,4 @@
-import Hugo from "../assets/Hugo.glb";
+import Hugo from "../../assets/Hugo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

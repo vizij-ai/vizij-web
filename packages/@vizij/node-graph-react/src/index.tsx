@@ -10,6 +10,7 @@ import React, {
 import {
   init,
   Graph,
+  normalizeGraphSpec,
   type GraphSpec,
   type ValueJSON,
   type Value,
@@ -137,7 +138,20 @@ export const NodeGraphProvider: React.FC<{
 
       const g = new Graph();
       graphRef.current = g;
-      g.loadGraph(spec);
+
+      let normalized: GraphSpec;
+      try {
+        normalized = await normalizeGraphSpec(spec);
+      } catch (err) {
+        console.error("Failed to normalize graph spec", err);
+        normalized =
+          typeof spec === "string"
+            ? (JSON.parse(spec) as GraphSpec)
+            : (spec as GraphSpec);
+      }
+      if (cancelled) return;
+
+      g.loadGraph(normalized);
       specRef.current = spec;
 
       // seed outputs immediately
@@ -185,11 +199,31 @@ export const NodeGraphProvider: React.FC<{
   useEffect(() => {
     if (!ready || !graphRef.current) return;
     if (specRef.current === spec) return;
-    graphRef.current.loadGraph(spec);
-    specRef.current = spec;
-    // refresh outputs immediately
-    const out = graphRef.current.evalAll();
-    buildAndNotifyOutputs(out.nodes);
+
+    let cancelled = false;
+    (async () => {
+      let normalized: GraphSpec;
+      try {
+        normalized = await normalizeGraphSpec(spec);
+      } catch (err) {
+        console.error("Failed to normalize graph spec", err);
+        normalized =
+          typeof spec === "string"
+            ? (JSON.parse(spec) as GraphSpec)
+            : (spec as GraphSpec);
+      }
+      if (cancelled || !graphRef.current) return;
+
+      graphRef.current.loadGraph(normalized);
+      specRef.current = spec;
+      // refresh outputs immediately
+      const out = graphRef.current.evalAll();
+      buildAndNotifyOutputs(out.nodes);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [spec, ready]);
 
   // Context API with stable callbacks
@@ -205,10 +239,25 @@ export const NodeGraphProvider: React.FC<{
   const reload = useCallback((newSpec: GraphSpec | string) => {
     const g = graphRef.current;
     if (!g) return;
-    g.loadGraph(newSpec);
-    specRef.current = newSpec;
-    const out = g.evalAll();
-    buildAndNotifyOutputs(out.nodes);
+
+    (async () => {
+      let normalized: GraphSpec;
+      try {
+        normalized = await normalizeGraphSpec(newSpec);
+      } catch (err) {
+        console.error("Failed to normalize graph spec", err);
+        normalized =
+          typeof newSpec === "string"
+            ? (JSON.parse(newSpec) as GraphSpec)
+            : (newSpec as GraphSpec);
+      }
+      if (graphRef.current !== g) return;
+
+      g.loadGraph(normalized);
+      specRef.current = newSpec;
+      const out = g.evalAll();
+      buildAndNotifyOutputs(out.nodes);
+    })();
   }, []);
 
   const setTime = useCallback((t: number) => {
@@ -358,11 +407,11 @@ export function valueAsVector(
   }
   if ("enum" in val) return valueAsVector(val.enum.value);
   if ("array" in val)
-    return val.array.flatMap((entry) => valueAsVector(entry) ?? []);
+    return val.array.flatMap((entry: any) => valueAsVector(entry) ?? []);
   if ("list" in val)
-    return val.list.flatMap((entry) => valueAsVector(entry) ?? []);
+    return val.list.flatMap((entry: any) => valueAsVector(entry) ?? []);
   if ("tuple" in val)
-    return val.tuple.flatMap((entry) => valueAsVector(entry) ?? []);
+    return val.tuple.flatMap((entry: any) => valueAsVector(entry) ?? []);
   if ("float" in val) return [val.float];
   if ("bool" in val) return val.bool ? [1] : [0];
   return undefined;

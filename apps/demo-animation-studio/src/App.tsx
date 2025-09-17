@@ -531,7 +531,7 @@ export default function App() {
         if (out && Array.isArray(out.changes) && out.changes.length > 0) {
           const tSec = performance.now() / 1000;
           const keep = Math.max(historyWindowSec, 10);
-          console.log(out.changes);
+          // console.log(out.changes);
           setHistory((prev: History) => {
             const next: History = { ...prev };
             for (const ch of out.changes) {

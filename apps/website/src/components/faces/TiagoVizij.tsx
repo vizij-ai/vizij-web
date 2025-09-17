@@ -1,4 +1,4 @@
-import TiagoGLB from "../assets/Tiago.glb";
+import TiagoGLB from "../../assets/Tiago.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

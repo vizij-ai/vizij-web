@@ -1,4 +1,4 @@
-import Abi from "../assets/Abi.glb";
+import Abi from "../../assets/Abi.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

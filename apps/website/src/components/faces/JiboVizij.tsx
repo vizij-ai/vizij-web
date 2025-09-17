@@ -1,4 +1,4 @@
-import JiboGLB from "../assets/Jibo.glb";
+import JiboGLB from "../../assets/Jibo.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

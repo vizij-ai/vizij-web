@@ -7,28 +7,25 @@ import {
   valueAsNumber,
   Value,
 } from "@vizij/animation-react";
-import { createVizijStore, useVizijStore, VizijContext } from "vizij";
-import { useShallow } from "zustand/shallow";
-import { Viseme, visemeMapper } from "../config/viseme";
-import { Expression, expressionMapper } from "../config/expression";
+import { createVizijStore, VizijContext } from "vizij";
 import {
-  HugoBounds,
-  QuoriBounds,
-  hugoSearch,
-  quoriSearch,
-} from "../config/models";
-import { useModelLoader } from "../hooks/useModelLoader";
+  Viseme,
+  visemeMapper,
+  Expression,
+  expressionMapper,
+  expressionPoses,
+  VizijStandardControlVector,
+  Pose,
+  VizijLowRig,
+  HugoLowLevelRig,
+  QuoriLowLevelRig,
+} from "@vizij/config";
+import { useRiggedModelLoader } from "@vizij/rig";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { TTSSettings } from "./viseme-demo/TTSSettings";
 import { SpokenTextDisplay } from "./viseme-demo/SpokenTextDisplay";
 import { CharacterView } from "./viseme-demo/CharacterView";
-
-const hugoInitialVals = [
-  {
-    name: "Black_S",
-    value: { r: 0, g: 0, b: 0 },
-  },
-];
+import { useBlendTree } from "./viseme-demo/BlendTree";
 
 function usePlayerValue(
   player: number | string,
@@ -77,17 +74,9 @@ export function InnerVizijExpressionsDemo() {
   const [transitionType] = useState<string>("cubic");
   const [isPlaying, setIsPlaying] = useState(false);
   const [activePlayerId, setActivePlayerId] = useState<number | null>(null);
+  const debug = false;
 
-  const {
-    step,
-    addAnimations,
-    addPlayer,
-    addInstances,
-    listInstances,
-    removeInstances,
-  } = useAnimation();
-
-  const [expressionWeightVector, setExpressionWeightVector] = useState<
+  const [expressionWeights, setExpressionWeightVector] = useState<
     Record<Expression, number>
   >(() => {
     const initialWeights: Record<Expression, number> = {} as Record<
@@ -100,26 +89,15 @@ export function InnerVizijExpressionsDemo() {
     return initialWeights;
   });
 
-  const setVal = useVizijStore(useShallow((state) => state.setValue));
+  const neutralPose = expressionPoses.neutral;
 
-  const hugoBoundsMemo = useMemo(() => HugoBounds, []);
-  const hugoInitialValsMemo = useMemo(() => hugoInitialVals, []);
-  const hugoSearchMemo = useMemo(() => hugoSearch, []);
-  const quoriBoundsMemo = useMemo(() => QuoriBounds, []);
-  const quoriSearchMemo = useMemo(() => quoriSearch, []);
-  const emptyInitialVals = useMemo(() => [], []);
-
-  const { rigMapping: hugoIDs } = useModelLoader(
+  const { rig: hugoRig, isLoading: hugoLoading } = useRiggedModelLoader(
     Hugo,
-    hugoBoundsMemo,
-    hugoInitialValsMemo,
-    hugoSearchMemo,
+    HugoLowLevelRig,
   );
-  const { rigMapping: quoriIDs } = useModelLoader(
+  const { rig: quoriRig, isLoading: quoriLoading } = useRiggedModelLoader(
     Quori,
-    quoriBoundsMemo,
-    emptyInitialVals,
-    quoriSearchMemo,
+    QuoriLowLevelRig,
   );
 
   const {
@@ -134,8 +112,22 @@ export function InnerVizijExpressionsDemo() {
     setSpokenVisemes,
   } = usePollyTTS();
 
+  const {
+    step,
+    addAnimations,
+    addPlayer,
+    addInstances,
+    listInstances,
+    removeInstances,
+    players,
+    ready,
+  } = useAnimation();
+
   const rafRef = useRef<number>();
   const lastTimeRef = useRef<number>(performance.now());
+  const lastVisemesKeyRef = useRef<string | null>(null);
+  const animationDurationRef = useRef<number>(0);
+  const stopTimeoutRef = useRef<number>();
 
   const animationLoop = useCallback(
     (time: number) => {
@@ -151,73 +143,68 @@ export function InnerVizijExpressionsDemo() {
     if (isPlaying) {
       lastTimeRef.current = performance.now();
       rafRef.current = requestAnimationFrame(animationLoop);
-    } else {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
+    } else if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
     }
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [isPlaying, animationLoop]);
 
+  useEffect(() => {
+    return () => {
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const currentPlayerId = activePlayerId ?? "expressionPlayer";
-  const visemeScaleX = valueAsNumber(usePlayerValue(currentPlayerId, "X"));
-  const visemeScaleY = valueAsNumber(usePlayerValue(currentPlayerId, "Y"));
-  const visemeMouthMorph = valueAsNumber(
-    usePlayerValue(currentPlayerId, "Morph"),
+  const visemeScaleXVal =
+    valueAsNumber(usePlayerValue(currentPlayerId, "X")) ?? 1;
+  const visemeScaleYVal =
+    valueAsNumber(usePlayerValue(currentPlayerId, "Y")) ?? 1;
+  const visemeMouthMorphVal =
+    valueAsNumber(usePlayerValue(currentPlayerId, "Morph")) ?? 0;
+
+  const visemePose = useMemo(
+    () =>
+      Pose.createWith(VizijStandardControlVector, {
+        "mouth.x_scale": visemeScaleXVal,
+        "mouth.y_scale": visemeScaleYVal,
+        "mouth.morph": visemeMouthMorphVal,
+      }),
+    [visemeScaleXVal, visemeScaleYVal, visemeMouthMorphVal],
   );
 
-  useEffect(() => {
-    let blendedX = 0;
-    let blendedY = 0;
-    let blendedMorph = 0;
-    let totalWeight = 0;
+  const inputPoses = useMemo(() => {
+    const res = Object.entries(expressionWeights)
+      .filter((expressionWeight) => expressionWeight[1] > 0)
+      // .filter(([_, weight]) => weight > 0)
+      .map(([expression, weight]) => ({
+        pose: expressionPoses[expression as Expression],
+        weight,
+      }));
 
-    Object.entries(expressionWeightVector).forEach(([expression, weight]) => {
-      if (weight > 0) {
-        const expressionData = expressionMapper[expression as Expression];
-        blendedX += expressionData.x * weight;
-        blendedY += expressionData.y * weight;
-        blendedMorph += expressionData.morph * weight;
-        totalWeight += weight;
-      }
-    });
-
-    if (totalWeight === 0) {
-      const neutralData = expressionMapper.neutral;
-      blendedX = neutralData.x;
-      blendedY = neutralData.y;
-      blendedMorph = neutralData.morph;
-    } else {
-      blendedX /= totalWeight;
-      blendedY /= totalWeight;
-      blendedMorph /= totalWeight;
+    if (debug) {
+      console.log("Input changed::", res);
     }
+    return res;
+  }, [expressionWeights, debug]);
 
-    const finalX = (blendedX + (visemeScaleX ?? 1)) / 2;
-    const finalY = (blendedY + (visemeScaleY ?? 1)) / 2;
-    const finalMorph = (blendedMorph + (visemeMouthMorph ?? 0)) / 2;
+  const outputRigs: VizijLowRig[] = useMemo(() => {
+    if (!quoriRig || !hugoRig) return [];
+    return [quoriRig, hugoRig];
+  }, [quoriRig, hugoRig]);
 
-    if (quoriIDs.scaleId && hugoIDs.scaleId) {
-      setVal(quoriIDs.scaleId, "default", { x: finalX, y: finalY, z: 1 });
-      setVal(hugoIDs.scaleId, "default", { x: finalX, y: finalY, z: 1 });
-    }
-    if (quoriIDs.morphId && hugoIDs.morphId) {
-      setVal(quoriIDs.morphId, "default", finalMorph);
-      setVal(hugoIDs.morphId, "default", finalMorph);
-    }
-  }, [
-    expressionWeightVector,
-    visemeScaleX,
-    visemeScaleY,
-    visemeMouthMorph,
-    quoriIDs.scaleId,
-    hugoIDs.scaleId,
-    quoriIDs.morphId,
-    hugoIDs.morphId,
-    setVal,
-  ]);
+  useBlendTree({
+    inputPoses,
+    neutralPose,
+    visemePose,
+    outputRigs,
+    debug,
+  });
 
   useEffect(() => {
     setSpokenAudio("");
@@ -232,35 +219,61 @@ export function InnerVizijExpressionsDemo() {
     setSpokenVisemes,
   ]);
 
+  useEffect(() => {
+    if (!ready) return;
+    if (activePlayerId !== null) return;
+    const existingPlayer = players["expressionPlayer"];
+    if (existingPlayer !== undefined) {
+      setActivePlayerId(existingPlayer);
+      return;
+    }
+    const pid = addPlayer("expressionPlayer");
+    if (pid >= 0) {
+      setActivePlayerId(pid);
+    }
+  }, [ready, players, addPlayer, activePlayerId]);
+
   const handleSpeak = async (text: string) => {
     await getTTSData(text, selectedVoice);
   };
 
   useEffect(() => {
-    if (spokenVisemes.length > 0) {
-      const timedSetVals = spokenVisemes.map((v) => {
-        const lookup = visemeMapper[v.value as Viseme];
-        return {
-          time: v.time,
-          scaleX: lookup.x,
-          scaleY: lookup.y,
-          morph: lookup.morph,
-        };
-      });
+    if (!ready) return;
+    if (spokenVisemes.length === 0) return;
 
-      const finalViz = timedSetVals.reduce((prev, current) =>
-        prev && prev.time > current.time ? prev : current,
-      );
-      const duration = finalViz.time;
+    const key = JSON.stringify(spokenVisemes);
+    if (lastVisemesKeyRef.current === key) return;
+    lastVisemesKeyRef.current = key;
 
-      const createPoints = (key: "scaleX" | "scaleY" | "morph") =>
-        timedSetVals.map((v) => ({
-          id: crypto.randomUUID(),
-          stamp: v.time / duration,
-          value: v[key],
-        }));
+    const timedSetVals = spokenVisemes.map((v) => {
+      const lookup = visemeMapper[v.value as Viseme];
+      return {
+        time: v.time,
+        scaleX: lookup.x_scale,
+        scaleY: lookup.y_scale,
+        morph: lookup.morph,
+      };
+    });
 
-      const tracks = [
+    const finalViz = timedSetVals.reduce((prev, current) =>
+      prev && prev.time > current.time ? prev : current,
+    );
+    const duration = finalViz.time;
+    if (!(Number.isFinite(duration) && duration > 0)) return;
+
+    animationDurationRef.current = duration;
+
+    const createPoints = (key: "scaleX" | "scaleY" | "morph") =>
+      timedSetVals.map((v) => ({
+        id: crypto.randomUUID(),
+        stamp: v.time / duration,
+        value: v[key],
+      }));
+
+    const animation = {
+      id: "expression-viseme",
+      name: "Speak",
+      tracks: [
         {
           id: "X",
           name: "X",
@@ -279,40 +292,35 @@ export function InnerVizijExpressionsDemo() {
           points: createPoints("morph"),
           animatableId: "Morph",
         },
-      ];
+      ],
+      groups: {},
+      duration,
+      meta: { transitionType },
+    };
 
-      const animation = {
-        id: "Test Animation",
-        name: "Speak",
-        tracks,
-        groups: {},
-        duration,
-      };
+    if (activePlayerId === null) return;
 
-      const playerId = addPlayer("expressionPlayer");
-      setActivePlayerId(playerId);
-
-      const existingInstances = listInstances(playerId) as { id: number }[];
-      if (existingInstances.length > 0) {
-        removeInstances(
-          existingInstances.map((inst) => ({
-            playerName: "expressionPlayer",
-            instId: inst.id,
-          })),
-        );
-      }
-
-      const [animId] = addAnimations([animation]);
-      addInstances([{ playerName: "expressionPlayer", animIndexOrId: animId }]);
+    const existingInstances = listInstances(activePlayerId) as { id: number }[];
+    if (existingInstances.length > 0) {
+      removeInstances(
+        existingInstances.map((inst) => ({
+          playerName: "expressionPlayer",
+          instId: inst.id,
+        })),
+      );
     }
+
+    const [animId] = addAnimations([animation]);
+    addInstances([{ playerName: "expressionPlayer", animIndexOrId: animId }]);
   }, [
     spokenVisemes,
     transitionType,
     addAnimations,
-    addPlayer,
     addInstances,
     listInstances,
     removeInstances,
+    ready,
+    activePlayerId,
   ]);
 
   const handlePlay = () => {
@@ -332,8 +340,23 @@ export function InnerVizijExpressionsDemo() {
         { Play: { player: activePlayerId } },
       ],
     });
+
     setIsPlaying(true);
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+    }
+    if (animationDurationRef.current > 0) {
+      const timeout = Math.max(0, animationDurationRef.current - vizemeOffset);
+      stopTimeoutRef.current = window.setTimeout(
+        () => setIsPlaying(false),
+        timeout,
+      );
+    }
   };
+
+  if (hugoLoading || quoriLoading || !hugoRig || !quoriRig) {
+    return <div>Loading models...</div>;
+  }
 
   return (
     <div className="my-8">
@@ -347,7 +370,7 @@ export function InnerVizijExpressionsDemo() {
                 type="range"
                 min="0"
                 max="100"
-                value={expressionWeightVector[v as Expression] * 100}
+                value={expressionWeights[v as Expression] * 100}
                 onChange={(e) => {
                   const newValue = parseInt(e.target.value) / 100;
                   setExpressionWeightVector((prev) => ({
@@ -358,7 +381,7 @@ export function InnerVizijExpressionsDemo() {
                 className="m-2"
               />
               <span>
-                {Math.round(expressionWeightVector[v as Expression] * 100)}%
+                {Math.round(expressionWeights[v as Expression] * 100)}%
               </span>
             </div>
           ))}
@@ -377,12 +400,12 @@ export function InnerVizijExpressionsDemo() {
         currentSpokenVisemeIndex={currentSpokenVisemeIndex}
         spokenAudio={spokenAudio}
         onPlay={handlePlay}
-        onEnded={() => setIsPlaying(false)}
-        onPause={() => setIsPlaying(false)}
+        playControlOnly={true}
       />
-      <div className="flex justify-center items-center gap-20 py-4">
-        <CharacterView name="Quori" rootId={quoriIDs.rootId} />
-        <CharacterView name="Hugo" rootId={hugoIDs.rootId} />
+
+      <div className="flex justify-center items-center gap-20 py-6">
+        <CharacterView name="Quori" rootId={quoriRig.rootId} />
+        <CharacterView name="Hugo" rootId={hugoRig.rootId} />
       </div>
     </div>
   );

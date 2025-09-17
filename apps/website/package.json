@@ -1,5 +1,5 @@
 {
-  "name": "vizij-site",
+  "name": "vizij-website",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@vizij/animation-react": "*",
+    "@vizij/config": "*",
+    "@vizij/rig": "*",
     "@aws-sdk/client-polly": "^3.787.0",
     "@headlessui/react": "^2.2.0",
     "d3-interpolate": "^3.0.1",

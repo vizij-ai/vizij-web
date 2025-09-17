@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { AbiVizijWithControls } from "./AbiVizij";
-import { HugoVizijWithControls } from "./HugoVizij";
-import { QuoriVizijWithControls } from "./QuoriVizij";
-import { JiboVizijWithControls } from "./JiboVizij";
-import { BaxterVizijWithControls } from "./BaxterVizij";
-import { TiagoVizijWithControls } from "./TiagoVizij";
+import { AbiVizijWithControls } from "./faces/AbiVizij";
+import { HugoVizijWithControls } from "./faces/HugoVizij";
+import { QuoriVizijWithControls } from "./faces/QuoriVizij";
+import { JiboVizijWithControls } from "./faces/JiboVizij";
+import { BaxterVizijWithControls } from "./faces/BaxterVizij";
+import { TiagoVizijWithControls } from "./faces/TiagoVizij";
 
 function VizijWithControlSwitch({ robot }: { robot: string }) {
   switch (robot) {

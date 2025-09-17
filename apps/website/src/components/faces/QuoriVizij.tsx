@@ -1,4 +1,4 @@
-import Quori from "../assets/Quori.glb";
+import Quori from "../../assets/Quori.glb";
 import { HardCodedVizij } from "./HardCodedVizij";
 import {
   AnimatableLookup,

@@ -7,27 +7,20 @@ import {
   valueAsNumber,
   Value,
 } from "@vizij/animation-react";
-import { createVizijStore, useVizijStore, VizijContext } from "vizij";
-import { useShallow } from "zustand/shallow";
-import { Viseme, visemeMapper } from "../config/viseme";
+import { createVizijStore, VizijContext } from "vizij";
 import {
-  HugoBounds,
-  QuoriBounds,
-  hugoSearch,
-  quoriSearch,
-} from "../config/models";
-import { useModelLoader } from "../hooks/useModelLoader";
+  Viseme,
+  visemeMapper,
+  VizijStandardControlVector,
+  Pose,
+  HugoLowLevelRig,
+  QuoriLowLevelRig,
+} from "@vizij/config";
+import { useRiggedModelLoader } from "@vizij/rig";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { TTSSettings } from "./viseme-demo/TTSSettings";
 import { SpokenTextDisplay } from "./viseme-demo/SpokenTextDisplay";
 import { CharacterView } from "./viseme-demo/CharacterView";
-
-const hugoInitialVals = [
-  {
-    name: "Black_S",
-    value: { r: 0, g: 0, b: 0 },
-  },
-];
 
 function usePlayerValue(
   player: number | string,
@@ -73,7 +66,6 @@ export function InnerVizijVisemeDemo() {
   const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] =
     useState<number>(0);
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
-  const [isPlaying, setIsPlaying] = useState(false);
   const createdPlayerRef = useRef(false);
 
   const {
@@ -85,31 +77,11 @@ export function InnerVizijVisemeDemo() {
     addInstances,
     listInstances,
     removeInstances,
-    getPlayerKeySnapshot,
   } = useAnimation();
   const visemePid = players["visemePlayer"];
 
-  const setVal = useVizijStore(useShallow((state) => state.setValue));
-
-  const hugoBoundsMemo = useMemo(() => HugoBounds, []);
-  const hugoInitialValsMemo = useMemo(() => hugoInitialVals, []);
-  const hugoSearchMemo = useMemo(() => hugoSearch, []);
-  const quoriBoundsMemo = useMemo(() => QuoriBounds, []);
-  const quoriSearchMemo = useMemo(() => quoriSearch, []);
-  const emptyInitialVals = useMemo(() => [], []);
-
-  const { rigMapping: hugoIDs } = useModelLoader(
-    Hugo,
-    hugoBoundsMemo,
-    hugoInitialValsMemo,
-    hugoSearchMemo,
-  );
-  const { rigMapping: quoriIDs } = useModelLoader(
-    Quori,
-    quoriBoundsMemo,
-    emptyInitialVals,
-    quoriSearchMemo,
-  );
+  const { rig: hugoRig } = useRiggedModelLoader(Hugo, HugoLowLevelRig);
+  const { rig: quoriRig } = useRiggedModelLoader(Quori, QuoriLowLevelRig);
 
   const {
     spokenSentences,
@@ -123,57 +95,153 @@ export function InnerVizijVisemeDemo() {
     setSpokenVisemes,
   } = usePollyTTS();
 
-  const rafRef = useRef<number>();
-  const lastTimeRef = useRef<number>(performance.now());
   const lastVisemesKeyRef = useRef<string | null>(null);
 
-  const animationLoop = useCallback(
-    (time: number) => {
-      const dt = Math.max(0, (time - lastTimeRef.current) / 1000);
-      step(dt);
-      lastTimeRef.current = time;
-      rafRef.current = requestAnimationFrame(animationLoop);
+  // Playback controller: audio master clock drives animation via Seek
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [usePlayerForPose, setUsePlayerForPose] = useState(false);
+
+  const seekAnimToMs = useCallback(
+    (ms: number) => {
+      if (!ready) return;
+      if (visemePid === undefined || visemePid < 0) return;
+      step(0, { player_cmds: [{ Seek: { player: visemePid, time: ms } }] });
     },
-    [step],
+    [ready, visemePid, step],
   );
 
-  useEffect(() => {
-    if (isPlaying) {
-      lastTimeRef.current = performance.now();
-      rafRef.current = requestAnimationFrame(animationLoop);
-    } else {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
+  const updateIndexFromMs = useCallback(
+    (ms: number) => {
+      if (spokenVisemes.length === 0) {
+        setCurrentSpokenVisemeIndex(0);
+        return;
       }
+      let idx = 0;
+      for (let i = 0; i < spokenVisemes.length; i++) {
+        if (spokenVisemes[i].time <= ms) idx = i;
+        else break;
+      }
+      setCurrentSpokenVisemeIndex(idx);
+    },
+    [spokenVisemes],
+  );
+
+  const frame = useCallback(() => {
+    if (!audioRef.current) {
+      rafRef.current = requestAnimationFrame(frame);
+      return;
     }
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [isPlaying, animationLoop]);
+    const tMs = audioRef.current.currentTime || 0;
+    seekAnimToMs(tMs);
+    updateIndexFromMs(tMs);
+    rafRef.current = requestAnimationFrame(frame);
+  }, [seekAnimToMs, updateIndexFromMs]);
+
+  const startRAF = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(frame);
+  }, [frame]);
+
+  const stopRAF = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  const handleAudioRef = useCallback((el: HTMLAudioElement | null) => {
+    audioRef.current = el;
+  }, []);
+
+  const handleAudioPlay = useCallback(() => {
+    setIsPlaying(true);
+    setUsePlayerForPose(true);
+    startRAF();
+  }, [startRAF]);
+
+  const handleAudioPause = useCallback(() => {
+    setIsPlaying(false);
+    stopRAF();
+  }, [stopRAF]);
+
+  const handleAudioEnded = useCallback(() => {
+    setIsPlaying(false);
+    stopRAF();
+    setUsePlayerForPose(false);
+  }, [stopRAF]);
+
+  const handleAudioTimeUpdate = useCallback(
+    (tSec: number) => {
+      if (isPlaying) return;
+      const ms = Math.max(0, tSec * 1000);
+      seekAnimToMs(ms);
+      updateIndexFromMs(ms);
+      setUsePlayerForPose(true);
+    },
+    [isPlaying, seekAnimToMs, updateIndexFromMs],
+  );
+
+  const handleAudioSeeked = useCallback(
+    (tSec: number) => {
+      const ms = Math.max(0, tSec * 1000);
+      seekAnimToMs(ms);
+      updateIndexFromMs(ms);
+      setUsePlayerForPose(true);
+    },
+    [seekAnimToMs, updateIndexFromMs],
+  );
 
   const currentPlayerId = visemePid ?? "visemePlayer";
   const scaleX = valueAsNumber(usePlayerValue(currentPlayerId, "X"));
   const scaleY = valueAsNumber(usePlayerValue(currentPlayerId, "Y"));
   const mouthMorph = valueAsNumber(usePlayerValue(currentPlayerId, "Morph"));
 
-  useEffect(() => {
-    if (
-      quoriIDs.scaleId &&
-      hugoIDs.scaleId &&
-      scaleX !== undefined &&
-      scaleY !== undefined
-    ) {
-      setVal(quoriIDs.scaleId, "default", { x: scaleX, y: scaleY, z: 1 });
-      setVal(hugoIDs.scaleId, "default", { x: scaleX, y: scaleY, z: 1 });
-    }
-  }, [scaleX, scaleY, quoriIDs.scaleId, hugoIDs.scaleId, setVal]);
+  const lastAppliedRef = useRef<{ x: number; y: number; morph: number } | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (quoriIDs.morphId && hugoIDs.morphId && mouthMorph !== undefined) {
-      setVal(quoriIDs.morphId, "default", mouthMorph);
-      setVal(hugoIDs.morphId, "default", mouthMorph);
+    if (!hugoRig || !quoriRig) return;
+    const preview = visemeMapper[selectedViseme];
+    const next = usePlayerForPose
+      ? {
+          x: scaleX ?? 1,
+          y: scaleY ?? 1,
+          morph: mouthMorph ?? 0,
+        }
+      : {
+          x: preview.x_scale,
+          y: preview.y_scale,
+          morph: preview.morph,
+        };
+    const last = lastAppliedRef.current;
+    if (
+      last &&
+      last.x === next.x &&
+      last.y === next.y &&
+      last.morph === next.morph
+    ) {
+      return;
     }
-  }, [mouthMorph, quoriIDs.morphId, hugoIDs.morphId, setVal]);
+    lastAppliedRef.current = next;
+    const pose = Pose.createWith(VizijStandardControlVector, {
+      "mouth.x_scale": next.x,
+      "mouth.y_scale": next.y,
+      "mouth.morph": next.morph,
+    });
+    hugoRig.apply(pose);
+    quoriRig.apply(pose);
+  }, [
+    hugoRig,
+    quoriRig,
+    scaleX,
+    scaleY,
+    mouthMorph,
+    selectedViseme,
+    usePlayerForPose,
+  ]);
 
   useEffect(() => {
     if (!ready || createdPlayerRef.current) return;
@@ -188,78 +256,23 @@ export function InnerVizijVisemeDemo() {
   }, [ready, players, addPlayer]);
 
   useEffect(() => {
-    if (visemePid === undefined || visemePid < 0) return;
-
-    const { x, y, morph } = visemeMapper[selectedViseme];
-    const transitionDuration = 100;
-
-    const currentX = valueAsNumber(getPlayerKeySnapshot(visemePid, "X")) ?? 1;
-    const currentY = valueAsNumber(getPlayerKeySnapshot(visemePid, "Y")) ?? 1;
-    const currentMorph =
-      valueAsNumber(getPlayerKeySnapshot(visemePid, "Morph")) ?? 0;
-
-    const animation = {
-      id: `viseme-transition-${selectedViseme}`,
-      name: `Transition to ${selectedViseme}`,
-      duration: transitionDuration,
-      groups: {},
-      tracks: [
-        {
-          id: "X",
-          name: "X",
-          animatableId: "X",
-          points: [
-            { id: "p1", stamp: 0.0, value: currentX },
-            { id: "p2", stamp: 1.0, value: x },
-          ],
-        },
-        {
-          id: "Y",
-          name: "Y",
-          animatableId: "Y",
-          points: [
-            { id: "p1", stamp: 0.0, value: currentY },
-            { id: "p2", stamp: 1.0, value: y },
-          ],
-        },
-        {
-          id: "Morph",
-          name: "Morph",
-          animatableId: "Morph",
-          points: [
-            { id: "p1", stamp: 0.0, value: currentMorph },
-            { id: "p2", stamp: 1.0, value: morph },
-          ],
-        },
-      ],
-    };
-
-    const existingInstances = listInstances(visemePid) as { id: number }[];
-    if (existingInstances.length > 0) {
-      removeInstances(
-        existingInstances.map((inst) => ({
-          playerName: "visemePlayer",
-          instId: inst.id,
-        })),
-      );
+    // stop playback and reset
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+    }
+    stopRAF();
+    setIsPlaying(false);
+    setUsePlayerForPose(false);
+    setCurrentSpokenVisemeIndex(0);
+    if (visemePid !== undefined && visemePid >= 0) {
+      step(0, { player_cmds: [{ Seek: { player: visemePid, time: 0 } }] });
     }
 
-    const [animId] = addAnimations([animation]);
-    addInstances([{ playerName: "visemePlayer", animIndexOrId: animId }]);
-
-    step(0, { player_cmds: [{ Play: { player: visemePid } }] });
-  }, [
-    addAnimations,
-    addInstances,
-    getPlayerKeySnapshot,
-    listInstances,
-    removeInstances,
-    selectedViseme,
-    step,
-    visemePid,
-  ]);
-
-  useEffect(() => {
     setSpokenAudio("");
     setSpokenSentences([]);
     setSpokenWords([]);
@@ -270,6 +283,9 @@ export function InnerVizijVisemeDemo() {
     setSpokenSentences,
     setSpokenWords,
     setSpokenVisemes,
+    visemePid,
+    step,
+    stopRAF,
   ]);
 
   const handleSpeak = async (text: string) => {
@@ -289,8 +305,8 @@ export function InnerVizijVisemeDemo() {
       const lookup = visemeMapper[v.value as Viseme];
       return {
         time: v.time,
-        scaleX: lookup.x,
-        scaleY: lookup.y,
+        scaleX: lookup.x_scale,
+        scaleY: lookup.y_scale,
         morph: lookup.morph,
       };
     });
@@ -339,6 +355,7 @@ export function InnerVizijVisemeDemo() {
     }
 
     const [animId] = addAnimations([animation]);
+    console.log("Added animation", animation);
     addInstances([{ playerName: "visemePlayer", animIndexOrId: animId }]);
   }, [
     spokenVisemes,
@@ -349,24 +366,6 @@ export function InnerVizijVisemeDemo() {
     addInstances,
     removeInstances,
   ]);
-
-  const handlePlay = () => {
-    spokenVisemes.forEach((v, ind) => {
-      setTimeout(() => {
-        if (Object.keys(visemeMapper).includes(v.value)) {
-          setCurrentSpokenVisemeIndex(ind);
-        }
-      }, v.time);
-    });
-    if (visemePid === undefined || visemePid < 0) return;
-    step(0, {
-      player_cmds: [
-        { Seek: { player: visemePid, time: 0 } },
-        { Play: { player: visemePid } },
-      ],
-    });
-    setIsPlaying(true);
-  };
 
   return (
     <div className="my-8">
@@ -381,7 +380,17 @@ export function InnerVizijVisemeDemo() {
               }
               key={v}
               value={v}
-              onClick={() => setSelectedViseme(v as Viseme)}
+              onClick={() => {
+                setSelectedViseme(v as Viseme);
+                setUsePlayerForPose(false);
+                if (audioRef.current) {
+                  try {
+                    audioRef.current.pause();
+                  } catch {
+                    /* ignore */
+                  }
+                }
+              }}
             >
               {v}
             </button>
@@ -399,13 +408,16 @@ export function InnerVizijVisemeDemo() {
         spokenVisemes={spokenVisemes}
         currentSpokenVisemeIndex={currentSpokenVisemeIndex}
         spokenAudio={spokenAudio}
-        onPlay={handlePlay}
-        onEnded={() => setIsPlaying(false)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={handleAudioPlay}
+        onPause={handleAudioPause}
+        onEnded={handleAudioEnded}
+        onTimeUpdate={handleAudioTimeUpdate}
+        onSeeked={handleAudioSeeked}
+        onAudioRef={handleAudioRef}
       />
       <div className="flex justify-center items-center gap-20 py-4">
-        <CharacterView name="Quori" rootId={quoriIDs.rootId} />
-        <CharacterView name="Hugo" rootId={hugoIDs.rootId} />
+        <CharacterView name="Quori" rootId={quoriRig?.rootId ?? ""} />
+        <CharacterView name="Hugo" rootId={hugoRig?.rootId ?? ""} />
       </div>
     </div>
   );

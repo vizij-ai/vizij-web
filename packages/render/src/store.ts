@@ -336,7 +336,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   ) => {
     set(
       produce((state: VizijData) => {
-        console.log("in store", id, namespace, ref.current);
+        // console.log("in store", id, namespace, ref.current);
         (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
           ref.current as Group;
         if (ref.current?.children && state.world[id].refs[namespace].current) {
