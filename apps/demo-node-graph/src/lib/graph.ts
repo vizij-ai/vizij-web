@@ -1,10 +1,5 @@
-import { type Node as RFNode, type Edge as RFEdge } from "reactflow";
-
-/**
- * Define value types expected by the core.
- * These mirror the ValueJSON shape used by the engine.
- */
-type ValueJSON = { float: number } | { bool: boolean } | { vector: number[] };
+import type { Node as RFNode, Edge as RFEdge } from "reactflow";
+import type { ShapeJSON, ValueJSON } from "@vizij/node-graph-wasm";
 
 /**
  * Params object passed to the core.
@@ -24,6 +19,7 @@ interface GraphNodeSpec {
   type: string;
   params: NodeParams;
   inputs: Record<string, InputConnection>;
+  output_shapes: Record<string, ShapeJSON>;
 }
 
 export interface GraphSpec {
@@ -85,7 +81,16 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
     const baseParams: NodeParams = { ...data } as NodeParams;
 
     // Remove UI-only fields that the core doesn't need while keeping strong types
-    const params = omit(baseParams, ["label", "inputs"] as const);
+    const params = omit(baseParams, [
+      "label",
+      "inputs",
+      "output_shapes",
+    ] as const);
+
+    if (typeof params.path === "string") {
+      const trimmed = params.path.trim();
+      params.path = trimmed.length > 0 ? trimmed : undefined;
+    }
 
     // Coerce initial values to match core ValueJSON where needed
     if (lowerType === "vectorconstant") {
@@ -101,11 +106,18 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
     }
     // Split.sizes remains a plain number[] (NodeParams.sizes: Option<Vec<f64>>), no wrapping required
 
+    const outputShapes =
+      (data as any).output_shapes &&
+      typeof (data as any).output_shapes === "object"
+        ? ((data as any).output_shapes as Record<string, ShapeJSON>)
+        : {};
+
     const nodeSpec: GraphNodeSpec = {
       id,
       type: lowerType,
       params,
       inputs,
+      output_shapes: outputShapes,
     };
 
     spec.nodes.push(nodeSpec);

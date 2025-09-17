@@ -13,19 +13,14 @@ import {
   type GraphSpec,
   type ValueJSON,
   type Value,
+  type PortSnapshot,
+  type ShapeJSON,
 } from "@vizij/node-graph-wasm";
 
-/**
- * Internal shape produced by the engine:
- * Record<nodeId, Record<portKey, ValueJSON>>
- */
-type Outputs = Record<string, Record<string, ValueJSON>> | null;
+type Outputs = Record<string, Record<string, PortSnapshot>> | null;
 
 type Ctx = {
   ready: boolean;
-
-  // Legacy field (kept for compatibility but not updated per-frame to avoid global rerenders)
-  outputs: Outputs;
 
   /** Update a node parameter (e.g., "value", "frequency", "phase", "min", "max", "x", "y", "z") */
   setParam: (nodeId: string, key: string, value: Value) => void;
@@ -39,87 +34,16 @@ type Ctx = {
   /** Subscribe to changes for a given nodeId; used by selector hooks */
   subscribeToNode: (nodeId: string, cb: () => void) => () => void;
 
-  /** Snapshot accessor for a single port on a node */
+  /** Snapshot accessor for a single port keyed on a node */
   getNodeOutputSnapshot: (
     nodeId: string | undefined,
     key?: string,
-  ) => ValueJSON | undefined;
+  ) => PortSnapshot | undefined;
+  /** Snapshot accessor for a single port on a node */
+  getNodeOutput: (
+    nodeId: string | undefined,
+  ) => Record<string, PortSnapshot> | undefined;
 };
-
-/**
- * Normalize a Value or user-provided shorthand into the ValueJSON shape expected by the wasm API.
- * Accepts:
- *  - number -> { float }
- *  - boolean -> { bool }
- *  - string -> { text }
- *  - array of numbers -> { vec3 } when len==3 else { vector }
- *  - already tagged ValueJSON -> returned as-is
- */
-function normalizeValueForWasm(v: unknown): Value | ValueJSON {
-  if (typeof v === "number") return { float: v };
-  if (typeof v === "boolean") return { bool: v };
-  if (typeof v === "string") return { text: v };
-  if (Array.isArray(v) && v.every((x) => typeof x === "number")) {
-    if (v.length === 3) return { vec3: [v[0], v[1], v[2]] };
-    return { vector: (v as number[]).slice() };
-  }
-  // If it's already a ValueJSON-like object, return it as any.
-  return v as Value;
-}
-
-/**
- * Normalize an entire GraphSpec (or JSON string) replacing shorthand `params.value`
- * entries (plain numbers, bools, arrays) with the adjacently-tagged ValueJSON form.
- * Accepts either an object GraphSpec or a JSON string.
- */
-function normalizeSpecForWasm(spec: GraphSpec | string): GraphSpec | string {
-  try {
-    let obj: any =
-      typeof spec === "string"
-        ? JSON.parse(spec)
-        : JSON.parse(JSON.stringify(spec));
-    if (Array.isArray(obj.nodes)) {
-      for (const node of obj.nodes) {
-        // Ensure node has a `type` field (wasm/Rust expects "type" in JSON).
-        // Accept "kind" as an alias, and normalize strings to lowercase.
-        if (!node.type && node.kind) {
-          if (typeof node.kind === "string") {
-            node.type = node.kind.toLowerCase();
-          } else {
-            node.type = node.kind;
-          }
-        } else if (node.type && typeof node.type === "string") {
-          node.type = node.type.toLowerCase();
-        }
-
-        // Normalize common shorthand forms in params.value into tagged ValueJSON
-        if (node && node.params && node.params.hasOwnProperty("value")) {
-          const raw = node.params.value;
-          if (typeof raw === "number") node.params.value = { float: raw };
-          else if (typeof raw === "boolean") node.params.value = { bool: raw };
-          else if (typeof raw === "string") node.params.value = { text: raw };
-          else if (
-            Array.isArray(raw) &&
-            raw.every((x: any) => typeof x === "number")
-          ) {
-            if (raw.length === 3) node.params.value = { vec3: raw };
-            else node.params.value = { vector: raw };
-          } // otherwise assume user provided a correct tagged object
-
-          // If still missing a type after aliasing, default to "constant" to be defensive.
-          if (!node.type) {
-            node.type = "constant";
-          }
-        }
-      }
-    }
-    // Preserve the original type: return string if input was string, else return object
-    return typeof spec === "string" ? JSON.stringify(obj) : obj;
-  } catch (e) {
-    // If parsing fails just return original spec; wasm will still report errors
-    return spec;
-  }
-}
 
 const NodeGraphCtx = createContext<Ctx | null>(null);
 
@@ -140,10 +64,8 @@ export const NodeGraphProvider: React.FC<{
 
   const [ready, setReady] = useState(false);
   // Legacy outputs state for backward-compat nodes reading ctx.outputs
-  const [legacyOutputs, setLegacyOutputs] = useState<Outputs>(null);
-
   // External outputs store and subscribers (per nodeId)
-  const outputsRef = useRef<Record<string, Record<string, ValueJSON>>>({});
+  const outputsRef = useRef<Record<string, Record<string, PortSnapshot>>>({});
   const subscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
 
   const notifyNode = (nodeId: string) => {
@@ -183,78 +105,27 @@ export const NodeGraphProvider: React.FC<{
     [],
   );
 
-  // Equality helpers
-  const equalValue = (
-    a: ValueJSON | undefined,
-    b: ValueJSON | undefined,
-  ): boolean => {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if ("float" in a && "float" in b) return a.float === b.float;
-    if ("bool" in a && "bool" in b) return a.bool === b.bool;
-    if ("vec3" in a && "vec3" in b) {
-      const av = a.vec3;
-      const bv = b.vec3;
-      return av[0] === bv[0] && av[1] === bv[1] && av[2] === bv[2];
-    }
-    if ("vector" in a && "vector" in b) {
-      const av = a.vector;
-      const bv = b.vector;
-      if (av.length !== bv.length) return false;
-      for (let i = 0; i < av.length; i++) {
-        if (av[i] !== bv[i]) return false;
-      }
-      return true;
-    }
-    return false;
-  };
-
-  const equalNodeOutputs = (
-    prev: Record<string, ValueJSON> | undefined,
-    next: Record<string, ValueJSON> | undefined,
-  ): boolean => {
-    if (prev === next) return true;
-    if (!prev || !next) return false;
-    const prevKeys = Object.keys(prev);
-    const nextKeys = Object.keys(next);
-    if (prevKeys.length !== nextKeys.length) return false;
-    for (const k of nextKeys) {
-      if (!equalValue(prev[k], next[k])) return false;
-    }
-    return true;
-  };
+  const getNodeOutput = useCallback((nodeId?: string) => {
+    if (!nodeId) return undefined;
+    return outputsRef.current[nodeId];
+  }, []);
 
   const buildAndNotifyOutputs = (
-    raw: Record<string, Record<string, ValueJSON>>,
+    raw: Record<string, Record<string, PortSnapshot>>,
   ) => {
-    const prev = outputsRef.current;
-    const next: Record<string, Record<string, ValueJSON>> = {};
-    const changedNodes: string[] = [];
+    const previousKeys = new Set(Object.keys(outputsRef.current));
+    const next: Record<string, Record<string, PortSnapshot>> = {};
 
-    // Nodes present in new output
-    for (const nodeId of Object.keys(raw)) {
-      const prevNode = prev[nodeId];
-      const nextNodeRaw = raw[nodeId];
-      if (equalNodeOutputs(prevNode, nextNodeRaw)) {
-        next[nodeId] = prevNode;
-      } else {
-        next[nodeId] = nextNodeRaw;
-        changedNodes.push(nodeId);
-      }
-    }
-
-    // Nodes removed
-    for (const nodeId of Object.keys(prev)) {
-      if (!(nodeId in raw)) {
-        // drop from next; notify removal
-        changedNodes.push(nodeId);
-      }
+    for (const [nodeId, ports] of Object.entries(raw)) {
+      next[nodeId] = ports;
+      notifyNode(nodeId);
+      previousKeys.delete(nodeId);
     }
 
     outputsRef.current = next;
-    changedNodes.forEach(notifyNode);
-    // Keep legacy outputs updated to avoid breaking existing components while we migrate
-    setLegacyOutputs(next);
+
+    // Notify subscribers of nodes that no longer exist so they can clear state.
+    previousKeys.forEach((nodeId) => notifyNode(nodeId));
   };
 
   // init + construct + load spec + optional RAF loop
@@ -266,33 +137,12 @@ export const NodeGraphProvider: React.FC<{
 
       const g = new Graph();
       graphRef.current = g;
-      {
-        // Normalize spec before passing to wasm. Always pass a JSON string to the wasm loader.
-        const normalized = normalizeSpecForWasm(spec);
-        const toLoad =
-          typeof normalized === "string"
-            ? normalized
-            : JSON.stringify(normalized);
-        console.debug("node-graph: loading normalized spec (initial):", toLoad);
-        try {
-          // Log parsed object for debugging (temporary)
-          console.log(
-            "node-graph: normalized spec object (initial):",
-            JSON.parse(toLoad),
-          );
-        } catch (e) {
-          console.warn(
-            "node-graph: failed to parse normalized spec for logging",
-            e,
-          );
-        }
-        g.loadGraph(toLoad);
-        specRef.current = spec;
-      }
+      g.loadGraph(spec);
+      specRef.current = spec;
 
       // seed outputs immediately
-      const initial = g.evalAll() as Record<string, Record<string, ValueJSON>>;
-      buildAndNotifyOutputs(initial);
+      const initial = g.evalAll();
+      buildAndNotifyOutputs(initial.nodes);
 
       setReady(true);
 
@@ -311,8 +161,8 @@ export const NodeGraphProvider: React.FC<{
         const interval = updateHz && updateHz > 0 ? 1000 / updateHz : 0;
 
         if (!interval || now - lastNotifyRef.current >= interval) {
-          const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
-          buildAndNotifyOutputs(out);
+          const out = g.evalAll();
+          buildAndNotifyOutputs(out.nodes);
           lastNotifyRef.current = now;
         }
 
@@ -335,99 +185,48 @@ export const NodeGraphProvider: React.FC<{
   useEffect(() => {
     if (!ready || !graphRef.current) return;
     if (specRef.current === spec) return;
-    {
-      const normalized = normalizeSpecForWasm(spec);
-      const toLoad =
-        typeof normalized === "string"
-          ? normalized
-          : JSON.stringify(normalized);
-      console.debug(
-        "node-graph: loading normalized spec (effect reload):",
-        toLoad,
-      );
-      try {
-        console.log(
-          "node-graph: normalized spec object (effect reload):",
-          JSON.parse(toLoad),
-        );
-      } catch (e) {
-        console.warn(
-          "node-graph: failed to parse normalized spec for logging (effect reload)",
-          e,
-        );
-      }
-      graphRef.current.loadGraph(toLoad);
-      specRef.current = spec;
-    }
+    graphRef.current.loadGraph(spec);
+    specRef.current = spec;
     // refresh outputs immediately
-    const out = graphRef.current.evalAll() as Record<
-      string,
-      Record<string, ValueJSON>
-    >;
-    buildAndNotifyOutputs(out);
+    const out = graphRef.current.evalAll();
+    buildAndNotifyOutputs(out.nodes);
   }, [spec, ready]);
 
   // Context API with stable callbacks
   const setParam = useCallback((nodeId: string, key: string, value: Value) => {
     const g = graphRef.current;
     if (!g) return;
-    // Normalize the value before passing to wasm
-    const normalized = normalizeValueForWasm(value);
-    g.setParam(nodeId, key, normalized as any);
+    g.setParam(nodeId, key, value as any);
     // reflect change immediately
-    const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
-    buildAndNotifyOutputs(out);
+    const out = g.evalAll();
+    buildAndNotifyOutputs(out.nodes);
   }, []);
 
   const reload = useCallback((newSpec: GraphSpec | string) => {
     const g = graphRef.current;
     if (!g) return;
-    {
-      const normalized = normalizeSpecForWasm(newSpec);
-      const toLoad =
-        typeof normalized === "string"
-          ? normalized
-          : JSON.stringify(normalized);
-      console.debug(
-        "node-graph: loading normalized spec (reload API):",
-        toLoad,
-      );
-      try {
-        console.log(
-          "node-graph: normalized spec object (reload API):",
-          JSON.parse(toLoad),
-        );
-      } catch (e) {
-        console.warn(
-          "node-graph: failed to parse normalized spec for logging (reload API)",
-          e,
-        );
-      }
-      g.loadGraph(toLoad);
-      specRef.current = newSpec;
-    }
-    const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
-    buildAndNotifyOutputs(out);
+    g.loadGraph(newSpec);
+    specRef.current = newSpec;
+    const out = g.evalAll();
+    buildAndNotifyOutputs(out.nodes);
   }, []);
 
   const setTime = useCallback((t: number) => {
     const g = graphRef.current;
     if (!g) return;
     g.setTime(t);
-    const out = g.evalAll() as Record<string, Record<string, ValueJSON>>;
-    buildAndNotifyOutputs(out);
+    const out = g.evalAll();
+    buildAndNotifyOutputs(out.nodes);
   }, []);
 
   const ctxValue: Ctx = {
     ready,
-    // Expose legacy outputs to maintain backwards compatibility during migration.
-    // Selector hooks (useNodeOutput/useNodeOutputs) should be preferred for performance.
-    outputs: legacyOutputs,
     setParam,
     reload,
     setTime,
     subscribeToNode,
     getNodeOutputSnapshot,
+    getNodeOutput,
   };
 
   return (
@@ -449,7 +248,7 @@ export const useNodeGraph = () => {
 export function useNodeOutput(
   nodeId?: string,
   key: string = "out",
-): ValueJSON | undefined {
+): PortSnapshot | undefined {
   const { subscribeToNode, getNodeOutputSnapshot } = useNodeGraph();
 
   const subscribe = useCallback(
@@ -470,8 +269,8 @@ export function useNodeOutput(
 
 export function useNodeOutputs(
   nodeId?: string,
-): Record<string, ValueJSON> | undefined {
-  const { subscribeToNode, getNodeOutputSnapshot } = useNodeGraph();
+): Record<string, PortSnapshot> | undefined {
+  const { subscribeToNode, getNodeOutput } = useNodeGraph();
 
   const subscribe = useCallback(
     (cb: () => void) => {
@@ -483,14 +282,8 @@ export function useNodeOutputs(
 
   const getSnapshot = useCallback(() => {
     if (!nodeId) return undefined;
-    // Gather all ports by probing the last snapshot we saw. We don't cache keys here;
-    // consumers that need a specific port should use useNodeOutput for best performance.
-    // For simplicity, we reconstruct a shallow object aggregating known ports.
-    // We rely on getNodeOutputSnapshot to read by key when known ('out' common).
-    // Here, return only 'out' to avoid extra work; complex nodes should use per-port hook.
-    const out = getNodeOutputSnapshot(nodeId, "out");
-    return out ? { out } : undefined;
-  }, [getNodeOutputSnapshot, nodeId]);
+    return getNodeOutput(nodeId);
+  }, [getNodeOutput, nodeId]);
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
 }
@@ -500,83 +293,118 @@ export function useNodeOutputs(
    (handy for UI components)
 ----------------------------------------------------------- */
 
-export function valueAsNumber(v?: unknown): number | undefined {
-  let val: ValueJSON | undefined;
-  if (v && typeof v === "object") {
-    const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
-      val = obj as ValueJSON;
-    } else {
-      const map = obj as Record<string, ValueJSON>;
-      val =
-        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
-    }
-  }
+export function valueAsNumber(
+  v?: PortSnapshot | ValueJSON | null,
+): number | undefined {
+  const val = extractValueJSON(v);
   if (!val) return undefined;
   if ("float" in val) return val.float;
   if ("bool" in val) return val.bool ? 1 : 0;
   if ("vec3" in val) return val.vec3[0];
+  if ("vec4" in val) return val.vec4[0];
+  if ("quat" in val) return val.quat[0];
+  if ("color" in val) return val.color[0];
   if ("vector" in val) return val.vector[0] ?? 0;
+  if ("transform" in val) return val.transform.pos?.[0] ?? 0;
+  if ("enum" in val) return valueAsNumber(val.enum.value);
+  if ("array" in val) return valueAsNumber(val.array[0]);
+  if ("list" in val) return valueAsNumber(val.list[0]);
+  if ("tuple" in val) return valueAsNumber(val.tuple[0]);
   return undefined;
 }
 
-export function valueAsVec3(v?: unknown): [number, number, number] | undefined {
-  let val: ValueJSON | undefined;
-  if (v && typeof v === "object") {
-    const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
-      val = obj as ValueJSON;
-    } else {
-      const map = obj as Record<string, ValueJSON>;
-      val =
-        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
-    }
-  }
+export function valueAsVec3(
+  v?: PortSnapshot | ValueJSON | null,
+): [number, number, number] | undefined {
+  const val = extractValueJSON(v);
   if (!val) return undefined;
   if ("vec3" in val) return val.vec3;
+  if ("vec4" in val) return [val.vec4[0], val.vec4[1], val.vec4[2]];
+  if ("quat" in val) return [val.quat[0], val.quat[1], val.quat[2]];
+  if ("color" in val) return [val.color[0], val.color[1], val.color[2]];
   if ("vector" in val)
     return [val.vector[0] ?? 0, val.vector[1] ?? 0, val.vector[2] ?? 0];
+  if ("transform" in val) {
+    const pos = val.transform.pos ?? [0, 0, 0];
+    return [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
+  }
+  if ("enum" in val) return valueAsVec3(val.enum.value);
+  if ("array" in val) return valueAsVec3(val.array[0]);
+  if ("list" in val) return valueAsVec3(val.list[0]);
+  if ("tuple" in val) return valueAsVec3(val.tuple[0]);
   if ("float" in val) return [val.float, val.float, val.float];
   if ("bool" in val) return val.bool ? [1, 1, 1] : [0, 0, 0];
   return undefined;
 }
 
-export function valueAsVector(v?: unknown): number[] | undefined {
-  let val: ValueJSON | undefined;
-  if (v && typeof v === "object") {
-    const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
-      val = obj as ValueJSON;
-    } else {
-      const map = obj as Record<string, ValueJSON>;
-      val =
-        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
-    }
-  }
+export function valueAsVector(
+  v?: PortSnapshot | ValueJSON | null,
+): number[] | undefined {
+  const val = extractValueJSON(v);
   if (!val) return undefined;
   if ("vector" in val) return val.vector.slice();
   if ("vec3" in val) return [val.vec3[0], val.vec3[1], val.vec3[2]];
+  if ("vec4" in val)
+    return [val.vec4[0], val.vec4[1], val.vec4[2], val.vec4[3]];
+  if ("quat" in val)
+    return [val.quat[0], val.quat[1], val.quat[2], val.quat[3]];
+  if ("color" in val)
+    return [val.color[0], val.color[1], val.color[2], val.color[3]];
+  if ("transform" in val) {
+    const pos = val.transform.pos ?? [0, 0, 0];
+    const rot = val.transform.rot ?? [0, 0, 0, 1];
+    const scale = val.transform.scale ?? [1, 1, 1];
+    return [...pos, ...rot, ...scale];
+  }
+  if ("enum" in val) return valueAsVector(val.enum.value);
+  if ("array" in val)
+    return val.array.flatMap((entry) => valueAsVector(entry) ?? []);
+  if ("list" in val)
+    return val.list.flatMap((entry) => valueAsVector(entry) ?? []);
+  if ("tuple" in val)
+    return val.tuple.flatMap((entry) => valueAsVector(entry) ?? []);
   if ("float" in val) return [val.float];
   if ("bool" in val) return val.bool ? [1] : [0];
   return undefined;
 }
 
-export function valueAsBool(v?: unknown): boolean | undefined {
-  let val: ValueJSON | undefined;
-  if (v && typeof v === "object") {
-    const obj: any = v;
-    if ("float" in obj || "bool" in obj || "vec3" in obj || "vector" in obj) {
-      val = obj as ValueJSON;
-    } else {
-      const map = obj as Record<string, ValueJSON>;
-      val =
-        map.out ?? (Object.keys(map)[0] ? map[Object.keys(map)[0]] : undefined);
-    }
-  }
+export function valueAsBool(
+  v?: PortSnapshot | ValueJSON | null,
+): boolean | undefined {
+  const val = extractValueJSON(v);
   if (!val) return undefined;
   if ("bool" in val) return val.bool;
   if ("float" in val) return val.float !== 0;
-  if ("vec3" in val) return val.vec3.some((x: number) => x !== 0);
-  if ("vector" in val) return val.vector.some((x: number) => x !== 0);
+  if ("text" in val) return val.text.length > 0;
+  if ("vector" in val) return val.vector.some((x: any) => x !== 0);
+  if ("vec3" in val) return val.vec3.some((x: any) => x !== 0);
+  if ("vec4" in val) return val.vec4.some((x: any) => x !== 0);
+  if ("quat" in val) return val.quat.some((x: any) => x !== 0);
+  if ("color" in val) return val.color.some((x: any) => x !== 0);
+  if ("transform" in val)
+    return (
+      (val.transform.pos ?? []).some((x: any) => x !== 0) ||
+      (val.transform.rot ?? []).some((x: any) => x !== 0) ||
+      (val.transform.scale ?? []).some((x: any) => x !== 0)
+    );
+  if ("enum" in val) return valueAsBool(val.enum.value) ?? false;
+  if ("record" in val)
+    return Object.values(val.record).some((entry) => valueAsBool(entry));
+  if ("array" in val) return val.array.some((entry) => valueAsBool(entry));
+  if ("list" in val) return val.list.some((entry) => valueAsBool(entry));
+  if ("tuple" in val) return val.tuple.some((entry) => valueAsBool(entry));
+  return undefined;
+}
+
+function extractValueJSON(
+  v?: PortSnapshot | ValueJSON | null,
+): ValueJSON | undefined {
+  if (!v) return undefined;
+  if (typeof v === "object" && v !== null && "value" in v && "shape" in v) {
+    return (v as PortSnapshot).value;
+  }
+  if (typeof v === "object" && v !== null) {
+    return v as ValueJSON;
+  }
   return undefined;
 }

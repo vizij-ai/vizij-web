@@ -1,69 +1,56 @@
-# React + TypeScript + Vite
+# Demo Node Graph
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive React Flow editor demonstrating the Vizij node graph runtime.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Consumes `@vizij/node-graph-react` for evaluation, which delegates to the
+  `@vizij/node-graph-wasm` bindings.
+- Synchronises React Flow node data with the runtime spec via `nodesToSpec`.
+- Palette and inspector are schema-driven, pulling metadata from the wasm
+  registry so category names and port labels stay aligned with Rust.
 
-## Expanding the ESLint configuration
+## Local development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open http://localhost:5173 to load the editor. Use the inspector panel to adjust
+parameters or bind output nodes to typed paths.
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+## Building
 
-export default tseslint.config([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+npm run build
 ```
+
+The command bundles both the app and the linked wasm package.
+
+## Testing
+
+```bash
+npm run test
+```
+
+Vitest targets cover:
+
+- `nodesToSpec` serialization (paths, shapes, vector metadata)
+- Palette rendering from the schema registry
+- Value formatting for complex shapes (transforms, enums)
+
+End-to-end experiments can be run with Playwright:
+
+```bash
+npm run e2e
+```
+
+## Key Files
+
+- `src/lib/graph.ts` — React Flow ➜ runtime spec translation
+- `src/components/InspectorPanel.tsx` — parameter editing and typed path UI
+- `src/lib/display.ts` — value formatting helpers for inspector nodes
+- `src/__tests__/` — integration tests for serialization and UI widgets
+
+Refer to `vizij_docs/node-graph.md` for the full architecture walkthrough.

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { loadRegistry } from "../schema/registry";
+import React, { useMemo } from "react";
+import { useRegistry } from "../state/RegistryContext";
 
 const onDragStart = (event: React.DragEvent, nodeType: string) => {
   event.dataTransfer.setData("application/reactflow", nodeType);
@@ -9,11 +9,9 @@ const onDragStart = (event: React.DragEvent, nodeType: string) => {
 const NodeCategory = ({
   title,
   types,
-  nameForType,
 }: {
   title: string;
-  types: string[];
-  nameForType: (typeId: string) => string;
+  types: Array<{ id: string; label: string }>;
 }) => {
   const [isOpen, setIsOpen] = React.useState(true);
 
@@ -33,143 +31,138 @@ const NodeCategory = ({
         {title} {isOpen ? "▾" : "▸"}
       </h3>
       {isOpen &&
-        types.map((type) => {
-          const lower = type.toLowerCase();
-          const label = nameForType(lower);
-          return (
-            <div
-              key={type}
-              onDragStart={(event) => onDragStart(event, type)}
-              draggable
-              style={{
-                padding: "10px",
-                border: "1px solid #555",
-                borderRadius: "4px",
-                marginBottom: "10px",
-                cursor: "grab",
-                textAlign: "center",
-                background: "#2a2a2a",
-              }}
-            >
-              {label}
-            </div>
-          );
-        })}
+        types.map((type) => (
+          <div
+            key={type.id}
+            onDragStart={(event) => onDragStart(event, type.id)}
+            draggable
+            style={{
+              padding: "10px",
+              border: "1px solid #555",
+              borderRadius: "4px",
+              marginBottom: "10px",
+              cursor: "grab",
+              textAlign: "center",
+              background: "#2a2a2a",
+            }}
+          >
+            {type.label}
+          </div>
+        ))}
     </div>
   );
 };
 
 const NodePalette = () => {
-  // Schema-driven labels (optional enhancement)
-  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const { registry, loading, error } = useRegistry();
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const reg = await loadRegistry();
-        if (!mounted) return;
-        const map: Record<string, string> = {};
-        for (const n of reg.nodes) {
-          map[n.type_id] = n.name;
-        }
-        setNameMap(map);
-      } catch (e) {
-        console.warn(
-          "Node schema registry not available yet; falling back to type names.",
-          e,
-        );
+  const categories = useMemo(() => {
+    if (registry) {
+      const grouped = new Map<string, Array<{ id: string; label: string }>>();
+      for (const node of registry.nodes) {
+        const key = node.category || "Uncategorized";
+        const bucket = grouped.get(key) ?? [];
+        bucket.push({ id: node.type_id.toLowerCase(), label: node.name });
+        grouped.set(key, bucket);
       }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      return Array.from(grouped.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([title, entries]) => ({
+          title,
+          types: entries.sort((a, b) => a.label.localeCompare(b.label)),
+        }));
+    }
 
-  const nameForType = (typeId: string) => nameMap[typeId] ?? typeId;
-  const sourceNodes = ["Constant", "Slider", "MultiSlider", "Time"];
-  const mathNodes = [
-    "Add",
-    "Subtract",
-    "Multiply",
-    "Divide",
-    "Power",
-    "Log",
-    "Sin",
-    "Cos",
-    "Tan",
-    "Oscillator",
-  ];
-  const logicNodes = ["And", "Or", "Not", "Xor"];
-  const conditionalNodes = [
-    "GreaterThan",
-    "LessThan",
-    "Equal",
-    "NotEqual",
-    "If",
-  ];
-  const rangeNodes = ["Clamp", "Remap"];
-  const vectorNodes = [
-    // Vector-first nodes
-    "Join",
-    "Split",
-    "VectorConstant",
-    "VectorAdd",
-    "VectorSubtract",
-    "VectorMultiply",
-    "VectorScale",
-    "VectorNormalize",
-    "VectorDot",
-    "VectorLength",
-    "VectorIndex",
-    // Reducers
-    "VectorMin",
-    "VectorMax",
-    "VectorMean",
-    "VectorMedian",
-    "VectorMode",
-    // 3D-specific kept
-    "Vec3Cross",
-    "InverseKinematics",
-  ];
-  const outputNodes = ["Output"];
+    return [
+      {
+        title: "Sources",
+        types: [
+          { id: "constant", label: "Constant" },
+          { id: "slider", label: "Slider" },
+          { id: "multislider", label: "MultiSlider" },
+          { id: "time", label: "Time" },
+        ],
+      },
+      {
+        title: "Math",
+        types: [
+          { id: "add", label: "Add" },
+          { id: "subtract", label: "Subtract" },
+          { id: "multiply", label: "Multiply" },
+          { id: "divide", label: "Divide" },
+          { id: "power", label: "Power" },
+          { id: "log", label: "Log" },
+          { id: "sin", label: "Sin" },
+          { id: "cos", label: "Cos" },
+          { id: "tan", label: "Tan" },
+          { id: "oscillator", label: "Oscillator" },
+        ],
+      },
+      {
+        title: "Logic",
+        types: [
+          { id: "and", label: "And" },
+          { id: "or", label: "Or" },
+          { id: "not", label: "Not" },
+          { id: "xor", label: "Xor" },
+        ],
+      },
+      {
+        title: "Conditional",
+        types: [
+          { id: "greaterthan", label: "Greater Than" },
+          { id: "lessthan", label: "Less Than" },
+          { id: "equal", label: "Equal" },
+          { id: "notequal", label: "Not Equal" },
+          { id: "if", label: "If" },
+        ],
+      },
+      {
+        title: "Vector",
+        types: [
+          { id: "join", label: "Join" },
+          { id: "split", label: "Split" },
+          { id: "vectorconstant", label: "Vector Constant" },
+          { id: "vectoradd", label: "Vector Add" },
+          { id: "vectorsubtract", label: "Vector Subtract" },
+          { id: "vectormultiply", label: "Vector Multiply" },
+          { id: "vectorscale", label: "Vector Scale" },
+          { id: "vectornormalize", label: "Vector Normalize" },
+          { id: "vectordot", label: "Vector Dot" },
+          { id: "vectorlength", label: "Vector Length" },
+          { id: "vectorindex", label: "Vector Index" },
+          { id: "vectormin", label: "Vector Min" },
+          { id: "vectormax", label: "Vector Max" },
+          { id: "vectormean", label: "Vector Mean" },
+          { id: "vectormedian", label: "Vector Median" },
+          { id: "vectormode", label: "Vector Mode" },
+          { id: "vec3cross", label: "Vec3 Cross" },
+          { id: "inversekinematics", label: "Inverse Kinematics" },
+        ],
+      },
+      {
+        title: "Output",
+        types: [{ id: "output", label: "Output" }],
+      },
+    ];
+  }, [registry]);
 
   return (
     <aside
       style={{ borderRight: "1px solid #444", padding: 15, overflowY: "auto" }}
     >
       <h2 style={{ marginTop: 0 }}>Nodes</h2>
-      <NodeCategory
-        title="Sources"
-        types={sourceNodes}
-        nameForType={nameForType}
-      />
-      <NodeCategory title="Math" types={mathNodes} nameForType={nameForType} />
-      <NodeCategory
-        title="Logic"
-        types={logicNodes}
-        nameForType={nameForType}
-      />
-      <NodeCategory
-        title="Conditional"
-        types={conditionalNodes}
-        nameForType={nameForType}
-      />
-      <NodeCategory
-        title="Ranges"
-        types={rangeNodes}
-        nameForType={nameForType}
-      />
-      <NodeCategory
-        title="Vector"
-        types={vectorNodes}
-        nameForType={nameForType}
-      />
-      <NodeCategory
-        title="Output"
-        types={outputNodes}
-        nameForType={nameForType}
-      />
+      {loading ? (
+        <div style={{ fontSize: 12, color: "#9aa0a6" }}>Loading schema…</div>
+      ) : null}
+      {error ? (
+        <div style={{ fontSize: 12, color: "#ff6b6b" }}>
+          Failed to load schema: {error}
+        </div>
+      ) : null}
+      {categories.map((cat) => (
+        <NodeCategory key={cat.title} title={cat.title} types={cat.types} />
+      ))}
     </aside>
   );
 };

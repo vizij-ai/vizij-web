@@ -1,6 +1,6 @@
 import type { RFState } from "../state/useGraphStore";
 
-const LOCAL_STORAGE_KEY = "node-graph-ecs-graph2";
+const LOCAL_STORAGE_KEY = "node-graph-ecs-graph3";
 
 export function saveGraphToLocalStorage(
   graph: Pick<RFState, "nodes" | "edges">,

@@ -1,6 +1,6 @@
 // App.tsx
 import React, { useEffect, useMemo, useRef } from "react";
-import { NodeGraphProvider } from "@vizij/node-graph-react"; // new provider
+import { NodeGraphProvider } from "@vizij/node-graph-react";
 import useGraphStore from "./state/useGraphStore";
 import GraphCanvas from "./components/GraphCanvas";
 import ControlsBar from "./components/ControlsBar";
@@ -8,26 +8,21 @@ import InspectorPanel from "./components/InspectorPanel";
 import NodePalette from "./components/NodePalette";
 import { nodesToSpec } from "./lib/graph";
 import { loadGraphFromLocalStorage } from "./lib/persistence";
+import { RegistryProvider, useRegistry } from "./state/RegistryContext";
 
-export default function App() {
+const GraphApp: React.FC = () => {
+  const { registry, loading, error } = useRegistry();
   const { nodes, edges, setGraph } = useGraphStore();
 
-  // load saved graph (your current behavior)
   useEffect(() => {
     const saved = loadGraphFromLocalStorage();
     if (saved) setGraph(saved);
   }, [setGraph]);
 
-  // Build GraphSpec with stable identity to avoid unnecessary provider reloads
-  // (e.g., selection/drag causing nodes array identity changes). This prevents
-  // clobbering live setParam updates while editing in the Inspector.
   const specCacheRef = useRef<{
     json: string;
     spec: ReturnType<typeof nodesToSpec> | null;
-  }>({
-    json: "",
-    spec: null,
-  });
+  }>({ json: "", spec: null });
 
   const spec = useMemo(() => {
     const next = nodesToSpec(nodes, edges);
@@ -40,6 +35,26 @@ export default function App() {
     return next;
   }, [nodes, edges]);
 
+  if (loading) {
+    return <div style={{ padding: 24 }}>Loading node schema…</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 24, color: "#ff6b6b" }}>
+        Failed to load node schema: {error}
+      </div>
+    );
+  }
+
+  if (!registry) {
+    return (
+      <div style={{ padding: 24 }}>
+        Schema unavailable. Please try refreshing the page.
+      </div>
+    );
+  }
+
   return (
     <NodeGraphProvider spec={spec} autostart={false} updateHz={30}>
       <div className="app">
@@ -51,5 +66,13 @@ export default function App() {
         <InspectorPanel />
       </div>
     </NodeGraphProvider>
+  );
+};
+
+export default function App() {
+  return (
+    <RegistryProvider>
+      <GraphApp />
+    </RegistryProvider>
   );
 }
