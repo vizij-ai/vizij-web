@@ -80,11 +80,13 @@ export default function App() {
 - `setTime(t)`: set absolute evaluation time (seconds).
 - `subscribeToNode(nodeId, cb)`: low-level subscription helper.
 - `getNodeOutputSnapshot(nodeId, key)` / `getNodeOutput(nodeId)`: read the latest cached outputs.
+- `subscribeToWrites(cb)` / `getWrites()` / `clearWrites()`: observe and acknowledge write operations emitted via `Output` nodes (see `useGraphWrites`).
 
 ### Selector hooks
 
 - `useNodeOutput(nodeId, key = "out")` → `PortSnapshot | undefined`
 - `useNodeOutputs(nodeId)` → cloned map of `PortSnapshot`
+- `useGraphWrites()` → `WriteOpJSON[]`
 
 `PortSnapshot` matches the wasm result shape: `{ value: ValueJSON, shape: ShapeJSON }`.
 

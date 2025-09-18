@@ -16,6 +16,8 @@ import {
   type Value,
   type PortSnapshot,
   type ShapeJSON,
+  type WriteOpJSON,
+  type EvalResult,
 } from "@vizij/node-graph-wasm";
 
 type Outputs = Record<string, Record<string, PortSnapshot>> | null;
@@ -44,6 +46,18 @@ type Ctx = {
   getNodeOutput: (
     nodeId: string | undefined,
   ) => Record<string, PortSnapshot> | undefined;
+
+  /** Subscribe to write operations emitted during evaluation */
+  subscribeToWrites: (cb: () => void) => () => void;
+
+  /** Snapshot accessor returning the latest writes */
+  getWrites: () => WriteOpJSON[];
+
+  /** Clear the cached writes (useful once the host has consumed them) */
+  clearWrites: () => void;
+
+  /** Get the duration (seconds) of the most recent graph step */
+  getLastDt: () => number;
 };
 
 const NodeGraphCtx = createContext<Ctx | null>(null);
@@ -62,14 +76,18 @@ export const NodeGraphProvider: React.FC<{
   const lastTimeRef = useRef<number>(0);
   const lastNotifyRef = useRef<number>(0);
   const specRef = useRef<GraphSpec | string | null>(null);
+  const currentTimeRef = useRef<number>(0);
+  const lastDtRef = useRef<number>(0);
 
   const [ready, setReady] = useState(false);
   // Legacy outputs state for backward-compat nodes reading ctx.outputs
   // External outputs store and subscribers (per nodeId)
   const outputsRef = useRef<Record<string, Record<string, PortSnapshot>>>({});
   const subscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const writesRef = useRef<WriteOpJSON[]>([]);
+  const writeSubscribersRef = useRef<Set<() => void>>(new Set());
 
-  const notifyNode = (nodeId: string) => {
+  const notifyNode = useCallback((nodeId: string) => {
     const subs = subscribersRef.current.get(nodeId);
     if (!subs || subs.size === 0) return;
     // Clone to avoid mutation during iteration
@@ -81,7 +99,20 @@ export const NodeGraphProvider: React.FC<{
         console.error("NodeGraph notify callback error", e);
       }
     });
-  };
+  }, []);
+
+  const notifyWrites = useCallback(() => {
+    const subs = writeSubscribersRef.current;
+    if (!subs || subs.size === 0) return;
+    [...subs].forEach((cb) => {
+      try {
+        cb();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("NodeGraph writes callback error", e);
+      }
+    });
+  }, []);
 
   const subscribeToNode = useCallback((nodeId: string, cb: () => void) => {
     let set = subscribersRef.current.get(nodeId);
@@ -98,6 +129,14 @@ export const NodeGraphProvider: React.FC<{
     };
   }, []);
 
+  const subscribeToWrites = useCallback((cb: () => void) => {
+    const set = writeSubscribersRef.current;
+    set.add(cb);
+    return () => {
+      set.delete(cb);
+    };
+  }, []);
+
   const getNodeOutputSnapshot = useCallback(
     (nodeId?: string, key: string = "out") => {
       if (!nodeId) return undefined;
@@ -111,23 +150,48 @@ export const NodeGraphProvider: React.FC<{
     return outputsRef.current[nodeId];
   }, []);
 
-  const buildAndNotifyOutputs = (
-    raw: Record<string, Record<string, PortSnapshot>>,
-  ) => {
-    const previousKeys = new Set(Object.keys(outputsRef.current));
-    const next: Record<string, Record<string, PortSnapshot>> = {};
+  const publishWrites = useCallback(
+    (writes: WriteOpJSON[]) => {
+      writesRef.current = writes;
+      notifyWrites();
+    },
+    [notifyWrites],
+  );
 
-    for (const [nodeId, ports] of Object.entries(raw)) {
-      next[nodeId] = ports;
-      notifyNode(nodeId);
-      previousKeys.delete(nodeId);
-    }
+  const getWrites = useCallback(() => writesRef.current, []);
 
-    outputsRef.current = next;
+  const clearWrites = useCallback(() => {
+    if (writesRef.current.length === 0) return;
+    writesRef.current = [];
+    notifyWrites();
+  }, [notifyWrites]);
 
-    // Notify subscribers of nodes that no longer exist so they can clear state.
-    previousKeys.forEach((nodeId) => notifyNode(nodeId));
-  };
+  const buildAndNotifyOutputs = useCallback(
+    (raw: Record<string, Record<string, PortSnapshot>>) => {
+      const previousKeys = new Set(Object.keys(outputsRef.current));
+      const next: Record<string, Record<string, PortSnapshot>> = {};
+
+      for (const [nodeId, ports] of Object.entries(raw)) {
+        next[nodeId] = ports;
+        notifyNode(nodeId);
+        previousKeys.delete(nodeId);
+      }
+
+      outputsRef.current = next;
+
+      // Notify subscribers of nodes that no longer exist so they can clear state.
+      previousKeys.forEach((nodeId) => notifyNode(nodeId));
+    },
+    [notifyNode],
+  );
+
+  const applyEvalResult = useCallback(
+    (result: EvalResult) => {
+      buildAndNotifyOutputs(result.nodes);
+      publishWrites(result.writes ?? []);
+    },
+    [buildAndNotifyOutputs, publishWrites],
+  );
 
   // init + construct + load spec + optional RAF loop
   useEffect(() => {
@@ -153,10 +217,12 @@ export const NodeGraphProvider: React.FC<{
 
       g.loadGraph(normalized);
       specRef.current = spec;
+      currentTimeRef.current = 0;
+      lastDtRef.current = 0;
 
       // seed outputs immediately
       const initial = g.evalAll();
-      buildAndNotifyOutputs(initial.nodes);
+      applyEvalResult(initial);
 
       setReady(true);
 
@@ -169,6 +235,8 @@ export const NodeGraphProvider: React.FC<{
         const dt = (t - last) / 1000; // seconds
         lastTimeRef.current = t;
 
+        lastDtRef.current = dt;
+        currentTimeRef.current += dt;
         g.step(dt);
 
         const now = performance.now();
@@ -176,7 +244,7 @@ export const NodeGraphProvider: React.FC<{
 
         if (!interval || now - lastNotifyRef.current >= interval) {
           const out = g.evalAll();
-          buildAndNotifyOutputs(out.nodes);
+          applyEvalResult(out);
           lastNotifyRef.current = now;
         }
 
@@ -193,7 +261,7 @@ export const NodeGraphProvider: React.FC<{
     };
     // mount only; spec changes handled in the next effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autostart, updateHz]);
+  }, [autostart, updateHz, applyEvalResult]);
 
   // Reload graph if `spec` identity changes (keeps the same Graph instance)
   useEffect(() => {
@@ -217,56 +285,72 @@ export const NodeGraphProvider: React.FC<{
       graphRef.current.loadGraph(normalized);
       specRef.current = spec;
       // refresh outputs immediately
+      lastDtRef.current = 0;
       const out = graphRef.current.evalAll();
-      buildAndNotifyOutputs(out.nodes);
+      applyEvalResult(out);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [spec, ready]);
+  }, [spec, ready, applyEvalResult]);
 
   // Context API with stable callbacks
-  const setParam = useCallback((nodeId: string, key: string, value: Value) => {
-    const g = graphRef.current;
-    if (!g) return;
-    g.setParam(nodeId, key, value as any);
-    // reflect change immediately
-    const out = g.evalAll();
-    buildAndNotifyOutputs(out.nodes);
-  }, []);
-
-  const reload = useCallback((newSpec: GraphSpec | string) => {
-    const g = graphRef.current;
-    if (!g) return;
-
-    (async () => {
-      let normalized: GraphSpec;
-      try {
-        normalized = await normalizeGraphSpec(newSpec);
-      } catch (err) {
-        console.error("Failed to normalize graph spec", err);
-        normalized =
-          typeof newSpec === "string"
-            ? (JSON.parse(newSpec) as GraphSpec)
-            : (newSpec as GraphSpec);
-      }
-      if (graphRef.current !== g) return;
-
-      g.loadGraph(normalized);
-      specRef.current = newSpec;
+  const setParam = useCallback(
+    (nodeId: string, key: string, value: Value) => {
+      const g = graphRef.current;
+      if (!g) return;
+      g.setParam(nodeId, key, value as any);
+      lastDtRef.current = 0;
+      // reflect change immediately
       const out = g.evalAll();
-      buildAndNotifyOutputs(out.nodes);
-    })();
-  }, []);
+      applyEvalResult(out);
+    },
+    [applyEvalResult],
+  );
 
-  const setTime = useCallback((t: number) => {
-    const g = graphRef.current;
-    if (!g) return;
-    g.setTime(t);
-    const out = g.evalAll();
-    buildAndNotifyOutputs(out.nodes);
-  }, []);
+  const reload = useCallback(
+    (newSpec: GraphSpec | string) => {
+      const g = graphRef.current;
+      if (!g) return;
+
+      (async () => {
+        let normalized: GraphSpec;
+        try {
+          normalized = await normalizeGraphSpec(newSpec);
+        } catch (err) {
+          console.error("Failed to normalize graph spec", err);
+          normalized =
+            typeof newSpec === "string"
+              ? (JSON.parse(newSpec) as GraphSpec)
+              : (newSpec as GraphSpec);
+        }
+        if (graphRef.current !== g) return;
+
+        g.loadGraph(normalized);
+        specRef.current = newSpec;
+        currentTimeRef.current = 0;
+        lastDtRef.current = 0;
+        const out = g.evalAll();
+        applyEvalResult(out);
+      })();
+    },
+    [applyEvalResult],
+  );
+
+  const setTime = useCallback(
+    (t: number) => {
+      const g = graphRef.current;
+      if (!g) return;
+      g.setTime(t);
+      const prev = currentTimeRef.current;
+      lastDtRef.current = Math.max(0, t - prev);
+      currentTimeRef.current = t;
+      const out = g.evalAll();
+      applyEvalResult(out);
+    },
+    [applyEvalResult],
+  );
 
   const ctxValue: Ctx = {
     ready,
@@ -276,6 +360,10 @@ export const NodeGraphProvider: React.FC<{
     subscribeToNode,
     getNodeOutputSnapshot,
     getNodeOutput,
+    subscribeToWrites,
+    getWrites,
+    clearWrites,
+    getLastDt: () => lastDtRef.current,
   };
 
   return (
@@ -335,6 +423,19 @@ export function useNodeOutputs(
   }, [getNodeOutput, nodeId]);
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
+}
+
+export function useGraphWrites(): WriteOpJSON[] {
+  const { subscribeToWrites, getWrites } = useNodeGraph();
+
+  const subscribe = useCallback(
+    (cb: () => void) => subscribeToWrites(cb),
+    [subscribeToWrites],
+  );
+
+  const getSnapshot = useCallback(() => getWrites(), [getWrites]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /* -----------------------------------------------------------
@@ -439,9 +540,9 @@ export function valueAsBool(
   if ("enum" in val) return valueAsBool(val.enum.value) ?? false;
   if ("record" in val)
     return Object.values(val.record).some((entry) => valueAsBool(entry));
-  if ("array" in val) return val.array.some((entry) => valueAsBool(entry));
-  if ("list" in val) return val.list.some((entry) => valueAsBool(entry));
-  if ("tuple" in val) return val.tuple.some((entry) => valueAsBool(entry));
+  if ("array" in val) return val.array.some((entry: any) => valueAsBool(entry));
+  if ("list" in val) return val.list.some((entry: any) => valueAsBool(entry));
+  if ("tuple" in val) return val.tuple.some((entry: any) => valueAsBool(entry));
   return undefined;
 }
 

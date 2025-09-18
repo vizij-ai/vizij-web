@@ -1,7 +1,12 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { NodeGraphProvider, useNodeGraph, valueAsNumber } from "../index";
+import {
+  NodeGraphProvider,
+  useNodeGraph,
+  useGraphWrites,
+  valueAsNumber,
+} from "../index";
 import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
@@ -24,7 +29,13 @@ vi.mock("@vizij/node-graph-wasm", () => {
         },
       },
     },
-    writes: [],
+    writes: [
+      {
+        path: "robot/Head.Look",
+        value: { float: 0.5 },
+        shape: { id: "Scalar" },
+      },
+    ],
   };
 
   const makeInstance = (): MockGraphInstance => {
@@ -52,18 +63,24 @@ vi.mock("@vizij/node-graph-wasm", () => {
 });
 
 const TestConsumer: React.FC = () => {
-  const { ready, getNodeOutputSnapshot, setParam } = useNodeGraph();
+  const { ready, getNodeOutputSnapshot, setParam, clearWrites } =
+    useNodeGraph();
+  const writes = useGraphWrites();
   if (!ready) return <span>loading</span>;
   const snapshot = getNodeOutputSnapshot("const");
   const numeric = valueAsNumber(snapshot);
   return (
     <div>
       <span data-testid="value">{numeric}</span>
+      <span data-testid="writes-count">{writes.length}</span>
       <button
         onClick={() => setParam("out", "path", "robot/Head.Look")}
         data-testid="set-path"
       >
         set path
+      </button>
+      <button onClick={() => clearWrites()} data-testid="clear-writes">
+        clear writes
       </button>
     </div>
   );
@@ -103,9 +120,13 @@ describe("NodeGraphProvider", () => {
       </NodeGraphProvider>,
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("value").textContent).toBe("2"),
-    );
+    await waitFor(() => {
+      expect(screen.getByTestId("value").textContent).toBe("2");
+      expect(screen.getByTestId("writes-count").textContent).toBe("1");
+    });
+
+    fireEvent.click(screen.getByTestId("clear-writes"));
+    expect(screen.getByTestId("writes-count").textContent).toBe("0");
   });
 
   it("should forward path updates through setParam", async () => {

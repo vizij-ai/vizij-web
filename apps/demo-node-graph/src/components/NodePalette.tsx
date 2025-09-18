@@ -99,6 +99,14 @@ const NodePalette = () => {
         ],
       },
       {
+        title: "Transitions",
+        types: [
+          { id: "spring", label: "Spring" },
+          { id: "damp", label: "Damp" },
+          { id: "slew", label: "Slew" },
+        ],
+      },
+      {
         title: "Logic",
         types: [
           { id: "and", label: "And" },

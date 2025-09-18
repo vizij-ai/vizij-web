@@ -10,6 +10,7 @@ import "reactflow/dist/style.css";
 import useGraphStore from "../state/useGraphStore";
 import SchemaNode from "./nodes/SchemaNode";
 import { useRegistry } from "../state/RegistryContext";
+import { shallow } from "zustand/shallow";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -17,19 +18,34 @@ let id = 0;
 const getId = () => `dndnode_${id++}`;
 
 const GraphCanvasInner = () => {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
-    useGraphStore();
+  const { edges, onNodesChange, onEdgesChange, onConnect, addNode } =
+    useGraphStore(
+      (state) => ({
+        edges: state.edges,
+        onNodesChange: state.onNodesChange,
+        onEdgesChange: state.onEdgesChange,
+        onConnect: state.onConnect,
+        addNode: state.addNode,
+      }),
+      shallow,
+    );
+  const { nodes } = useGraphStore(
+    (state) => ({
+      nodes: state.nodes,
+    }),
+    shallow,
+  );
+
   const { registry } = useRegistry();
+
   const nodeTypes = useMemo(() => {
     const map: Record<string, any> = {};
-    nodes.forEach((node) => {
-      map[node.type] = SchemaNode;
-    });
     registry?.nodes.forEach((sig) => {
       map[sig.type_id.toLowerCase()] = SchemaNode;
     });
     return map;
-  }, [nodes, registry]);
+  }, [registry]);
+
   const { project } = useReactFlow();
 
   useEffect(() => {
@@ -55,15 +71,26 @@ const GraphCanvasInner = () => {
       if (!type) return;
 
       const position = project({ x: event.clientX, y: event.clientY });
+      const typeId = type.toLowerCase();
+      const signature = registry?.nodes.find(
+        (entry) => entry.type_id.toLowerCase() === typeId,
+      );
+      const defaults: Record<string, unknown> = {};
+      signature?.params?.forEach((param) => {
+        if (param.default_json !== undefined) {
+          defaults[param.id] = param.default_json;
+        }
+      });
+      const label = signature?.name ?? type;
       const newNode = {
         id: getId(),
-        type: type.toLowerCase(),
+        type: typeId,
         position,
-        data: { label: `${type}` },
+        data: { label, ...defaults },
       };
       addNode(newNode);
     },
-    [addNode, project],
+    [addNode, project, registry],
   );
 
   return (

@@ -5,35 +5,22 @@
  */
 
 import * as GraphWasm from "@vizij/node-graph-wasm";
-
-// Minimal local types (only the parts we need for labels)
-type PortSpecLite = { id: string; label: string };
-type NodeSignatureLite = {
-  type_id: string;
-  name: string;
-  category: string;
-  inputs: PortSpecLite[];
-  outputs: PortSpecLite[];
-};
-type RegistryLite = {
-  version: string;
-  nodes: NodeSignatureLite[];
-};
+import type { Registry, NodeSignature, PortSpec } from "@vizij/node-graph-wasm";
 
 // Lazy-loaded, shared registry promise
-let _registryPromise: Promise<RegistryLite> | null = null;
+let _registryPromise: Promise<Registry> | null = null;
 
-async function getNodeSchemasAny(): Promise<RegistryLite> {
+async function getNodeSchemasAny(): Promise<Registry> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const gw = GraphWasm as any;
   if (typeof gw.getNodeSchemas === "function") {
     // Wrapper export path
-    return (await gw.getNodeSchemas()) as RegistryLite;
+    return (await gw.getNodeSchemas()) as Registry;
   }
   if (typeof gw.get_node_schemas_json === "function") {
     // Raw wasm export path
     const raw = gw.get_node_schemas_json();
-    return JSON.parse(raw) as RegistryLite;
+    return JSON.parse(raw) as Registry;
   }
   throw new Error(
     "@vizij/node-graph-wasm does not expose getNodeSchemas or get_node_schemas_json; ensure you are using the updated package.",
@@ -43,7 +30,7 @@ async function getNodeSchemasAny(): Promise<RegistryLite> {
 /**
  * Ensure the node schema registry is loaded (once) and return it.
  */
-export function loadRegistry(): Promise<RegistryLite> {
+export function loadRegistry(): Promise<Registry> {
   if (!_registryPromise) {
     _registryPromise = getNodeSchemasAny();
   }
@@ -55,9 +42,9 @@ export function loadRegistry(): Promise<RegistryLite> {
  */
 export async function getNodeSignature(
   typeId: string,
-): Promise<NodeSignatureLite | undefined> {
+): Promise<NodeSignature | undefined> {
   const reg = await loadRegistry();
-  return reg.nodes.find((n: NodeSignatureLite) => n.type_id === typeId);
+  return reg.nodes.find((n: NodeSignature) => n.type_id === typeId);
 }
 
 /**
@@ -72,6 +59,6 @@ export async function getPortLabel(
   const sig = await getNodeSignature(typeId);
   if (!sig) return undefined;
   const list = io === "inputs" ? sig.inputs : sig.outputs;
-  const match = list.find((p: PortSpecLite) => p.id === portId);
+  const match = list.find((p: PortSpec) => p.id === portId);
   return match?.label;
 }

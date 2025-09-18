@@ -1,5 +1,10 @@
 import type { Node as RFNode, Edge as RFEdge } from "reactflow";
-import type { ShapeJSON, ValueJSON } from "@vizij/node-graph-wasm";
+import type {
+  ShapeJSON,
+  ValueJSON,
+  GraphSpec,
+  NodeType,
+} from "@vizij/node-graph-wasm";
 
 /**
  * Params object passed to the core.
@@ -16,14 +21,10 @@ interface InputConnection {
 
 interface GraphNodeSpec {
   id: string;
-  type: string;
+  type: NodeType;
   params: NodeParams;
   inputs: Record<string, InputConnection>;
   output_shapes: Record<string, ShapeJSON>;
-}
-
-export interface GraphSpec {
-  nodes: GraphNodeSpec[];
 }
 
 /**
@@ -68,13 +69,13 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
     const inputEdges = edges.filter((e) => e.target === id);
 
     for (const edge of inputEdges) {
-      if (edge.targetHandle) {
-        inputs[edge.targetHandle] = {
-          node_id: edge.source,
-          // Default to "out" when the source handle (output key) is unspecified
-          output_key: edge.sourceHandle ?? "out",
-        };
-      }
+      const targetHandle = edge.targetHandle ?? "in";
+      if (!targetHandle) continue;
+      inputs[targetHandle] = {
+        node_id: edge.source,
+        // Default to "out" when the source handle (output key) is unspecified
+        output_key: edge.sourceHandle ?? "out",
+      };
     }
 
     // Sanitize params: strip UI-only fields and coerce known param shapes for the core
@@ -112,10 +113,12 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
         ? ((data as any).output_shapes as Record<string, ShapeJSON>)
         : {};
 
+    const sanitizedParams = sanitizeParams(params);
+
     const nodeSpec: GraphNodeSpec = {
       id,
-      type: lowerType,
-      params,
+      type: lowerType as NodeType,
+      params: sanitizedParams,
       inputs,
       output_shapes: outputShapes,
     };
@@ -124,4 +127,14 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
   }
 
   return spec;
+};
+
+const sanitizeParams = (params: NodeParams): NodeParams => {
+  const entries = Object.entries(params).filter(
+    ([, value]) => value !== undefined,
+  );
+  if (entries.length === 0) {
+    return {};
+  }
+  return Object.fromEntries(entries) as NodeParams;
 };

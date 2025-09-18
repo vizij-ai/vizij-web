@@ -1,11 +1,16 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import useGraphStore from "../state/useGraphStore";
 import {
   useNodeGraph,
+  useGraphWrites,
   valueAsNumber,
-  type PortSnapshot,
 } from "@vizij/node-graph-react";
-import type { ParamSpec, Registry, ShapeJSON } from "@vizij/node-graph-wasm";
+import type {
+  PortSnapshot,
+  ParamSpec,
+  Registry,
+  ShapeJSON,
+} from "@vizij/node-graph-wasm";
 import { displayValue } from "../lib/display";
 import { useRegistry } from "../state/RegistryContext";
 
@@ -87,7 +92,10 @@ const InspectorPanel = () => {
   const { registry } = useRegistry();
   const { nodes, edges, setNodeData, renameNode, updateNodeType, removeEdge } =
     useGraphStore();
-  const { setParam, getNodeOutputSnapshot, getNodeOutput } = useNodeGraph();
+  const { setParam, getNodeOutputSnapshot, getNodeOutput, clearWrites } =
+    useNodeGraph();
+  const writes = useGraphWrites();
+  const spec = useGraphStore((state) => state.spec);
   const selectedNodes = nodes.filter((node) => node.selected);
 
   const timeVal = valueAsNumber(getNodeOutputSnapshot("time", "out"));
@@ -98,6 +106,14 @@ const InspectorPanel = () => {
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>(
     {},
   );
+  const [specExpanded, setSpecExpanded] = useState(false);
+  const specJson = useMemo(() => JSON.stringify(spec, null, 2), [spec]);
+  const handleCopySpec = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(specJson).catch(() => {
+      /* noop */
+    });
+  }, [specJson]);
 
   const setDraft = (nodeId: string, key: string, value: string) => {
     setDrafts((prev) => ({
@@ -285,6 +301,105 @@ const InspectorPanel = () => {
         <strong>Time:</strong>{" "}
         {timeVal !== undefined ? `${timeVal.toFixed(2)}s` : "—"}
       </div>
+      <section style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ marginBottom: 0 }}>Graph JSON</h3>
+          <button
+            onClick={() => setSpecExpanded((prev) => !prev)}
+            style={{
+              border: "1px solid #555",
+              background: "#2a2a2a",
+              color: "#f0f0f0",
+              borderRadius: 4,
+              padding: "4px 8px",
+              fontSize: 12,
+            }}
+          >
+            {specExpanded ? "Hide" : "Show"}
+          </button>
+          {specExpanded ? (
+            <button
+              onClick={handleCopySpec}
+              style={{
+                border: "1px solid #555",
+                background: "#2a2a2a",
+                color: "#f0f0f0",
+                borderRadius: 4,
+                padding: "4px 8px",
+                fontSize: 12,
+              }}
+            >
+              Copy
+            </button>
+          ) : null}
+        </div>
+        {specExpanded ? (
+          <pre
+            style={{
+              marginTop: 8,
+              background: "#1c1c1c",
+              borderRadius: 4,
+              border: "1px solid #333",
+              padding: 8,
+              fontSize: 11,
+              maxHeight: 260,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {specJson}
+          </pre>
+        ) : null}
+      </section>
+      <section style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 8 }}>Latest Writes</h3>
+        {writes.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9aa0a6" }}>
+            No writes yet — connect an Output node to emit typed paths.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {writes.map((write, idx) => (
+              <div
+                key={`${write.path}-${idx}`}
+                style={{
+                  padding: 8,
+                  border: "1px solid #333",
+                  borderRadius: 4,
+                  background: "#1c1c1c",
+                  fontSize: 12,
+                  color: "#d0d0d0",
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>{write.path}</div>
+                <div style={{ marginTop: 4 }}>
+                  {displayValue(write.value)}
+                  <span style={{ color: "#888", marginLeft: 6 }}>
+                    ({write.shape?.id ?? "Unknown"})
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {writes.length > 0 ? (
+          <button
+            onClick={() => clearWrites()}
+            style={{
+              marginTop: 10,
+              padding: "6px 12px",
+              background: "#2a2a2a",
+              border: "1px solid #555",
+              borderRadius: 4,
+              color: "#f0f0f0",
+              cursor: "pointer",
+            }}
+          >
+            Clear writes
+          </button>
+        ) : null}
+      </section>
       <hr style={{ borderColor: "#444" }} />
       {selectedNodes.length === 0 ? (
         <p>Select a node to inspect its parameters.</p>
@@ -454,11 +569,44 @@ const InspectorPanel = () => {
                       padding: "6px 8px",
                       borderRadius: 4,
                       background: "#1c1c1c",
+                      gap: 12,
+                      flexWrap: "wrap",
                     }}
                   >
-                    <span style={{ fontSize: 12 }}>
-                      {edge.source} → {edge.targetHandle ?? "in"}
-                    </span>
+                    <div style={{ fontSize: 12 }}>
+                      <div>
+                        {edge.source} → {edge.targetHandle ?? "in"}
+                      </div>
+                      {(() => {
+                        const snapshot = getNodeOutputSnapshot(
+                          edge.source,
+                          edge.sourceHandle ?? "out",
+                        );
+                        if (!snapshot) {
+                          return (
+                            <div style={{ color: "#9aa0a6", marginTop: 4 }}>
+                              No signal
+                            </div>
+                          );
+                        }
+                        return (
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{ color: "#9aa0a6" }}>
+                              Shape: {describeShape(snapshot.shape)}
+                            </span>
+                            <div
+                              style={{
+                                marginTop: 2,
+                                fontSize: 11,
+                                color: "#d0d0d0",
+                              }}
+                            >
+                              {displayValue(snapshot)}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <button
                       onClick={() => removeEdge(edge.id)}
                       style={{
@@ -467,7 +615,8 @@ const InspectorPanel = () => {
                         color: "#ff6b6b",
                         borderRadius: 4,
                         cursor: "pointer",
-                        padding: "2px 6px",
+                        padding: "4px 8px",
+                        fontSize: 12,
                       }}
                     >
                       Disconnect

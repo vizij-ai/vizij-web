@@ -19,6 +19,7 @@
     "d3-interpolate": "^3.0.1",
     "lodash": "^4.17.21",
     "motion": "^12.6.3",
+    "mathjs": "^13.2.2",
     "onnxruntime-web": "^1.21.1",
     "@semio/utils": "*",
     "@tailwindcss/vite": "^4.0.7",
