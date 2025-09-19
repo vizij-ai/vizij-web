@@ -31,6 +31,14 @@ type Ctx = {
   /** Replace/reload the graph spec at runtime */
   reload: (spec: GraphSpec | string) => void;
 
+  /** Stage a typed input value for the next evaluation tick (Optionally runs an immediate eval) */
+  stageInput: (
+    path: string,
+    value: Value,
+    declaredShape?: ShapeJSON,
+    immediateEval?: boolean,
+  ) => void;
+
   /** Set absolute time (seconds) for deterministic scrubbing or syncing */
   setTime: (t: number) => void;
 
@@ -86,6 +94,10 @@ export const NodeGraphProvider: React.FC<{
   const subscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
   const writesRef = useRef<WriteOpJSON[]>([]);
   const writeSubscribersRef = useRef<Set<() => void>>(new Set());
+  // Persist staged inputs across frames so Input nodes see them every eval epoch.
+  const stagedInputsRef = useRef<
+    Map<string, { value: Value; declared?: ShapeJSON }>
+  >(new Map());
 
   const notifyNode = useCallback((nodeId: string) => {
     const subs = subscribersRef.current.get(nodeId);
@@ -243,6 +255,25 @@ export const NodeGraphProvider: React.FC<{
         const interval = updateHz && updateHz > 0 ? 1000 / updateHz : 0;
 
         if (!interval || now - lastNotifyRef.current >= interval) {
+          // Re-stage host-driven inputs for this frame so Input nodes see them after advance_epoch.
+          try {
+            const count = stagedInputsRef.current.size;
+            // // eslint-disable-next-line no-console
+            // console.log("[node-graph-react] RAF re-stage", { count });
+            stagedInputsRef.current.forEach((entry, path) => {
+              // // eslint-disable-next-line no-console
+              // console.log("[node-graph-react] stageInput ->", { path, declared: entry.declared });
+              (g as any).stageInput(
+                path,
+                entry.value as any,
+                entry.declared as any,
+              );
+            });
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error("Error staging inputs in RAF loop", e);
+          }
+
           const out = g.evalAll();
           applyEvalResult(out);
           lastNotifyRef.current = now;
@@ -352,6 +383,41 @@ export const NodeGraphProvider: React.FC<{
     [applyEvalResult],
   );
 
+  const stageInput = useCallback(
+    (
+      path: string,
+      value: Value,
+      declaredShape?: ShapeJSON,
+      immediateEval: boolean = true,
+    ) => {
+      const g = graphRef.current;
+      if (!g) return;
+      try {
+        // Remember staged input so it persists across frames.
+        stagedInputsRef.current.set(path, { value, declared: declaredShape });
+
+        // Log staged payload for debugging
+        // // eslint-disable-next-line no-console
+        // console.log("[node-graph-react] stageInput()", { path, value, declaredShape, immediateEval });
+
+        // Stage the value for the next eval; declaredShape is optional.
+        (g as any).stageInput(path, value as any, declaredShape as any);
+
+        // Optionally reflect immediately in UI (will advance epoch once).
+        if (immediateEval) {
+          // // eslint-disable-next-line no-console
+          // console.log("[node-graph-react] immediate evalAll()");
+          const out = g.evalAll();
+          applyEvalResult(out);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("stageInput failed", e);
+      }
+    },
+    [applyEvalResult],
+  );
+
   const ctxValue: Ctx = {
     ready,
     setParam,
@@ -364,6 +430,7 @@ export const NodeGraphProvider: React.FC<{
     getWrites,
     clearWrites,
     getLastDt: () => lastDtRef.current,
+    stageInput,
   };
 
   return (

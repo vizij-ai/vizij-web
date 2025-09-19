@@ -47,6 +47,8 @@ export const NodeType = z.enum([
   "vectormedian",
   "vectormode",
   "inversekinematics",
+  "urdfikposition",
+  "urdfikpose",
   "output",
 ]);
 
@@ -67,6 +69,14 @@ export const NodeParams = z.object({
   bone1: z.number().optional(),
   bone2: z.number().optional(),
   bone3: z.number().optional(),
+  urdf_xml: z.string().optional(),
+  root_link: z.string().optional(),
+  tip_link: z.string().optional(),
+  seed: z.array(z.number()).optional(),
+  weights: z.array(z.number()).optional(),
+  max_iters: z.number().optional(),
+  tol_pos: z.number().optional(),
+  tol_rot: z.number().optional(),
   index: z.number().optional(),
   stiffness: z.number().optional(),
   damping: z.number().optional(),

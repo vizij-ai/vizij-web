@@ -271,6 +271,21 @@ export const nodeTypeRegistry: Record<string, NodeTypeSpec> = {
     ],
     outputs: [{ name: "out", type: "vector" }],
   },
+  urdfikposition: {
+    inputs: [
+      { name: "target_pos", type: "vector" },
+      { name: "seed", type: "vector" },
+    ],
+    outputs: [{ name: "out", type: "any" }],
+  },
+  urdfikpose: {
+    inputs: [
+      { name: "target_pos", type: "vector" },
+      { name: "target_rot", type: "vector" },
+      { name: "seed", type: "vector" },
+    ],
+    outputs: [{ name: "out", type: "any" }],
+  },
 
   // Output sink
   output: { inputs: [], outputs: [] }, // dynamic input routing; no outputs

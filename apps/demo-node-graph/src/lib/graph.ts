@@ -4,6 +4,7 @@ import type {
   ValueJSON,
   GraphSpec,
   NodeType,
+  SelectorSegmentJSON,
 } from "@vizij/node-graph-wasm";
 
 /**
@@ -17,6 +18,7 @@ type NodeParams = Record<string, unknown> & {
 interface InputConnection {
   node_id: string;
   output_key: string;
+  selector?: SelectorSegmentJSON[];
 }
 
 interface GraphNodeSpec {
@@ -95,7 +97,6 @@ export const nodesToSpec = (nodes: RFNode[], edges: RFEdge[]): GraphSpec => {
 
     // Coerce initial values to match core ValueJSON where needed
     if (lowerType === "vectorconstant") {
-      // Ensure vectors are encoded as { vector: [...] } to avoid accidental vec3 coercion
       if (isNumberArray(params.value)) {
         params.value = { vector: params.value };
       }

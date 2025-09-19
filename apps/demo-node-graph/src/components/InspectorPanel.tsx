@@ -24,7 +24,24 @@ const stringify = (value: unknown) =>
     ? value
     : JSON.stringify(value, (_key, val) => val ?? undefined, 2);
 
-const coerceParamValue = (param: ParamSpec, raw: string) => {
+interface ParamContext {
+  nodeType?: string;
+}
+
+const coerceParamValue = (
+  param: ParamSpec,
+  raw: string,
+  context: ParamContext = {},
+) => {
+  if (param.id === "urdf_xml") {
+    return { ui: raw, wasm: raw };
+  }
+
+  if (param.id === "root_link" || param.id === "tip_link") {
+    const trimmedLink = raw.trim();
+    return { ui: trimmedLink, wasm: trimmedLink };
+  }
+
   const trimmed = raw.trim();
   switch (param.ty) {
     case "float": {
@@ -59,7 +76,18 @@ const coerceParamValue = (param: ParamSpec, raw: string) => {
           const cleaned = vec
             .map((entry) => Number(entry))
             .filter((n) => Number.isFinite(n));
-          return { ui: cleaned, wasm: { vector: cleaned } };
+          if (
+            context.nodeType?.toLowerCase() === "vectorconstant" &&
+            cleaned.length === 3
+          ) {
+            const tuple = [cleaned[0], cleaned[1], cleaned[2]] as [
+              number,
+              number,
+              number,
+            ];
+            return { ui: { vec3: tuple }, wasm: { vec3: tuple } };
+          }
+          return { ui: { vector: cleaned }, wasm: { vector: cleaned } };
         }
       } catch {
         const cleaned = trimmed
@@ -67,7 +95,18 @@ const coerceParamValue = (param: ParamSpec, raw: string) => {
           .filter(Boolean)
           .map((entry) => Number(entry))
           .filter((n) => Number.isFinite(n));
-        return { ui: cleaned, wasm: { vector: cleaned } };
+        if (
+          context.nodeType?.toLowerCase() === "vectorconstant" &&
+          cleaned.length === 3
+        ) {
+          const tuple = [cleaned[0], cleaned[1], cleaned[2]] as [
+            number,
+            number,
+            number,
+          ];
+          return { ui: { vec3: tuple }, wasm: { vec3: tuple } };
+        }
+        return { ui: { vector: cleaned }, wasm: { vector: cleaned } };
       }
       return { error: "Enter a numeric array" };
     }
@@ -177,8 +216,24 @@ const InspectorPanel = () => {
     const defaults: Record<string, unknown> = {};
     signature?.params.forEach((param) => {
       if (param.default_json) {
-        defaults[param.id] = param.default_json;
-        setParam(nodeId, param.id, param.default_json as any);
+        if (
+          param.id === "urdf_xml" ||
+          param.id === "root_link" ||
+          param.id === "tip_link"
+        ) {
+          const textDefault =
+            typeof param.default_json === "object" &&
+            param.default_json &&
+            "text" in param.default_json &&
+            typeof (param.default_json as any).text === "string"
+              ? ((param.default_json as any).text as string)
+              : "";
+          defaults[param.id] = textDefault;
+          setParam(nodeId, param.id, textDefault as any);
+        } else {
+          defaults[param.id] = param.default_json;
+          setParam(nodeId, param.id, param.default_json as any);
+        }
       }
     });
     if (signature?.name) {
@@ -191,13 +246,66 @@ const InspectorPanel = () => {
 
   const renderParamEditor = (
     nodeId: string,
+    nodeType: string,
     param: ParamSpec,
     nodeData: Record<string, unknown>,
   ) => {
     const error = errors[nodeId]?.[param.id];
     const inputType = param.ty === "float" ? "number" : "text";
     const placeholder = param.ty === "vector" ? "e.g. 0, 1, 2" : "";
-    const value = draftValue(nodeId, param.id, stringify(nodeData?.[param.id]));
+    const nodeTypeLower = nodeType.toLowerCase();
+    const rawNodeValue = nodeData?.[param.id];
+    const fallbackValue = (() => {
+      if (param.id === "urdf_xml") {
+        if (typeof rawNodeValue === "string") return rawNodeValue;
+        if (
+          rawNodeValue &&
+          typeof rawNodeValue === "object" &&
+          "text" in rawNodeValue &&
+          typeof (rawNodeValue as any).text === "string"
+        ) {
+          return (rawNodeValue as any).text as string;
+        }
+        return "";
+      }
+      if (param.id === "root_link" || param.id === "tip_link") {
+        if (typeof rawNodeValue === "string") return rawNodeValue;
+        if (
+          rawNodeValue &&
+          typeof rawNodeValue === "object" &&
+          "text" in rawNodeValue &&
+          typeof (rawNodeValue as any).text === "string"
+        ) {
+          return (rawNodeValue as any).text as string;
+        }
+        return "";
+      }
+      if (param.ty === "vector" && nodeTypeLower === "vectorconstant") {
+        if (
+          rawNodeValue &&
+          typeof rawNodeValue === "object" &&
+          "vec3" in (rawNodeValue as any) &&
+          Array.isArray((rawNodeValue as any).vec3)
+        ) {
+          return ((rawNodeValue as any).vec3 as number[])
+            .map((num) => num.toString())
+            .join(", ");
+        }
+        if (
+          rawNodeValue &&
+          typeof rawNodeValue === "object" &&
+          "vector" in (rawNodeValue as any) &&
+          Array.isArray((rawNodeValue as any).vector)
+        ) {
+          return ((rawNodeValue as any).vector as number[])
+            .map((num) => num.toString())
+            .join(", ");
+        }
+      }
+      return stringify(rawNodeValue);
+    })();
+
+    const value = draftValue(nodeId, param.id, fallbackValue);
 
     if (param.ty === "bool") {
       const boolValue = value === "true" || value === "1";
@@ -221,6 +329,47 @@ const InspectorPanel = () => {
       );
     }
 
+    if (param.id === "urdf_xml") {
+      return (
+        <div key={`${nodeId}-${param.id}`} style={{ marginBottom: 10 }}>
+          <label>{param.label}</label>
+          <textarea
+            value={value}
+            onChange={(event) => setDraft(nodeId, param.id, event.target.value)}
+            onBlur={(event) => {
+              const result = coerceParamValue(param, event.target.value);
+              if (result.error) {
+                setError(nodeId, param.id, result.error);
+                return;
+              }
+              clearDraft(nodeId, param.id);
+              setError(nodeId, param.id);
+              setNodeData(nodeId, { [param.id]: result.ui ?? "" });
+              setParam(nodeId, param.id, result.wasm as any);
+            }}
+            rows={8}
+            style={{
+              width: "100%",
+              background: "#1e1e1e",
+              border: "1px solid #555",
+              color: "#f0f0f0",
+              borderRadius: 4,
+              padding: 5,
+              marginTop: 4,
+              fontFamily: "monospace",
+              fontSize: 12,
+              lineHeight: 1.4,
+            }}
+          />
+          {errors[nodeId]?.[param.id] ? (
+            <div style={{ color: "#ff6b6b", marginTop: 4 }}>
+              {errors[nodeId]?.[param.id]}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div key={`${nodeId}-${param.id}`} style={{ marginBottom: 10 }}>
         <label>{param.label}</label>
@@ -230,7 +379,9 @@ const InspectorPanel = () => {
           placeholder={placeholder}
           onChange={(event) => setDraft(nodeId, param.id, event.target.value)}
           onBlur={(event) => {
-            const result = coerceParamValue(param, event.target.value);
+            const result = coerceParamValue(param, event.target.value, {
+              nodeType,
+            });
             if (result.error) {
               setError(nodeId, param.id, result.error);
               return;
@@ -537,7 +688,12 @@ const InspectorPanel = () => {
               <h4>Parameters</h4>
               {signature?.params?.length ? (
                 signature.params.map((param) =>
-                  renderParamEditor(node.id, param, node.data as any),
+                  renderParamEditor(
+                    node.id,
+                    node.type ?? "",
+                    param,
+                    node.data as any,
+                  ),
                 )
               ) : (
                 <div style={{ fontSize: 12, color: "#9aa0a6" }}>

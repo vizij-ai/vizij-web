@@ -18,6 +18,73 @@ const cloneNodes = (nodes: Node[]): Node[] =>
 const cloneEdges = (edges: Edge[]): Edge[] =>
   edges.map((edge) => ({ ...edge }));
 
+const simpleUrdf = `
+<robot name="planar_arm">
+  <link name="base_link" />
+  <link name="link1" />
+  <link name="link2" />
+  <link name="link3" />
+  <link name="link4" />
+  <link name="link5" />
+  <link name="link6" />
+  <link name="tool" />
+
+  <joint name="joint1" type="revolute">
+    <parent link="base_link" />
+    <child link="link1" />
+    <origin xyz="0 0 0.1" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="joint2" type="revolute">
+    <parent link="link1" />
+    <child link="link2" />
+    <origin xyz="0.2 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="joint3" type="revolute">
+    <parent link="link2" />
+    <child link="link3" />
+    <origin xyz="0.2 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="joint4" type="revolute">
+    <parent link="link3" />
+    <child link="link4" />
+    <origin xyz="0.2 0 0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="joint5" type="revolute">
+    <parent link="link4" />
+    <child link="link5" />
+    <origin xyz="0.15 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="joint6" type="revolute">
+    <parent link="link5" />
+    <child link="link6" />
+    <origin xyz="0.1 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-3.1416" upper="3.1416" effort="1" velocity="1" />
+  </joint>
+
+  <joint name="tool_joint" type="fixed">
+    <parent link="link6" />
+    <child link="tool" />
+    <origin xyz="0.1 0 0" rpy="0 0 0" />
+  </joint>
+</robot>
+`;
+
 export const graphPresets: GraphPreset[] = [
   {
     id: "oscillator-basics",
@@ -200,6 +267,74 @@ export const graphPresets: GraphPreset[] = [
         source: "remap1",
         target: "out",
         targetHandle: "signal",
+        animated: true,
+      },
+    ]),
+  },
+  {
+    id: "urdf-ik-position",
+    name: "URDF IK Position",
+    description:
+      "Solves a simple 6-DOF arm against a target position using the new URDF IK node.",
+    nodes: cloneNodes([
+      {
+        id: "target_pos",
+        type: "vectorconstant",
+        position: { x: 0, y: 0 },
+        data: {
+          label: "Target Position",
+          value: { vec3: [0.35, 0.2, 0.45] },
+        },
+      },
+      {
+        id: "seed",
+        type: "vectorconstant",
+        position: { x: 0, y: 140 },
+        data: {
+          label: "Seed",
+          value: { vector: [0.3, -0.45, 0.35, 0.15, -0.2, 0.18] },
+        },
+      },
+      {
+        id: "ik",
+        type: "urdfikposition",
+        position: { x: 280, y: 60 },
+        data: {
+          label: "URDF IK",
+          urdf_xml: simpleUrdf.trim(),
+          root_link: "base_link",
+          tip_link: "tool",
+          max_iters: 200,
+          tol_pos: 0.001,
+        },
+      },
+      {
+        id: "out",
+        type: "output",
+        position: { x: 520, y: 60 },
+        data: { label: "Joint Angles", inputs: ["angles"] },
+      },
+    ]),
+    edges: cloneEdges([
+      {
+        id: "e-target-ik",
+        source: "target_pos",
+        target: "ik",
+        targetHandle: "target_pos",
+        animated: true,
+      },
+      {
+        id: "e-seed-ik",
+        source: "seed",
+        target: "ik",
+        targetHandle: "seed",
+        animated: true,
+      },
+      {
+        id: "e-ik-out",
+        source: "ik",
+        target: "out",
+        targetHandle: "angles",
         animated: true,
       },
     ]),
