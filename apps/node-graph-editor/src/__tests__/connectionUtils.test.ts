@@ -1,4 +1,4 @@
-/// <reference types="vitest" />
+import { test, expect } from "vitest";
 import { isConnectionCompatible } from "../utils/connectionUtils";
 
 test("compatible when types identical", () => {

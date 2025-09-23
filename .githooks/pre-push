@@ -21,7 +21,8 @@ echo "[vizij-web pre-push] Typecheck (all workspaces with a typecheck script)"
 npm -ws --if-present run typecheck
 
 echo "[vizij-web pre-push] Unit tests (all workspaces with a test script)"
-npm -ws --if-present run test
+# Run tests in CI/non-watch mode to avoid hanging interactive watch sessions.
+CI=1 npm -ws --if-present run test
 
 # Optional: run builds to catch bundling/tsconfigs issues early
 if [[ "${HOOK_RUN_WEB_BUILD:-0}" == "1" ]]; then

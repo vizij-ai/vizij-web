@@ -32,7 +32,12 @@ vi.mock("@vizij/node-graph-wasm", () => {
   const normalizeGraphSpec = vi.fn(async (spec: any) =>
     typeof spec === "string" ? JSON.parse(spec) : spec,
   );
-  return { init, Graph, normalizeGraphSpec };
+  return {
+    init,
+    createGraph: vi.fn(async (spec: any) => new Graph()),
+    Graph,
+    normalizeGraphSpec,
+  };
 });
 
 // Minimal spec (content isn't used by the mock Graph)
