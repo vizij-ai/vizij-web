@@ -7,11 +7,11 @@
     "../vizij-rs/npm/@vizij/*"
   ],
   "scripts": {
-    "dev:animation": "npm run --workspace demo-animation-studio dev",
     "dev:website": "npm run --workspace vizij-website dev",
+    "dev:animation": "npm run --workspace demo-animation-studio dev",
+    "dev:graph": "npm run --workspace vizij-node-graph-editor dev",
     "build:animation": "npm run --workspace @vizij/animation-react build && npm run --workspace demo-animation-studio build",
-    "dev:graph": "npm run --workspace demo-node-graph dev",
-    "build:graph": "npm run --workspace @vizij/node-graph-react build && npm run --workspace demo-node-graph build",
+    "build:graph": "npm run --workspace @vizij/node-graph-react build && npm run --workspace vizij-node-graph-editor build",
     "link:wasm": "npm link @vizij/animation-wasm @vizij/node-graph-wasm",
     "reset": "node -e \"const {execSync}=require('node:child_process');execSync('rm -rf node_modules package-lock.json');execSync('find apps -maxdepth 2 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find packages -maxdepth 3 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find . -type d -name .vite -prune -exec rm -rf {} +');\" && npm ci"
   }
