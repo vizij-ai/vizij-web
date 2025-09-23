@@ -11,8 +11,8 @@ export type GraphSpec = any;
 
 /**
  * Normalize a graph spec into the canonical shape used by the Graph runtime.
- * Delegates to the WASM package's normalizeGraphSpec.
+ * Delegates to the WASM package's normalizeGraphSpec (which is async).
  */
-export function normalizeSpec(spec: GraphSpec): GraphSpec {
-  return wasmNormalizeGraphSpec(spec);
+export async function normalizeSpec(spec: GraphSpec): Promise<GraphSpec> {
+  return await wasmNormalizeGraphSpec(spec);
 }

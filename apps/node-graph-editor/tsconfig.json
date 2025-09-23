@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["DOM", "ES2022"],
+    "jsx": "react-jsx",
+    "types": ["vitest"],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@vizij/node-graph-react": ["../../packages/@vizij/node-graph-react/src"],
+      "@vizij/node-graph-wasm": ["../../vizij-rs/npm/@vizij/node-graph-wasm"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "index.html"],
+  "references": []
+}

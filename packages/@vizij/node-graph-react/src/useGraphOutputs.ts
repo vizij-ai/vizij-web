@@ -55,8 +55,12 @@ export function useGraphOutputs<TSelected>(
 export function useNodeOutputs(nodeId: string) {
   return useGraphOutputs((snap) => {
     const evalResult = snap?.evalResult;
-    // Common evalResult shape: { nodes: { [nodeId]: { outputs: { ... } } } }
-    return evalResult?.nodes?.[nodeId]?.outputs ?? null;
+    // Support both shapes:
+    // - { nodes: { [nodeId]: { outputs: { ... } } } } (legacy)
+    // - { nodes: { [nodeId]: { ...ports } } } (canonical)
+    const byNode = evalResult?.nodes?.[nodeId];
+    if (!byNode) return null;
+    return (byNode as any)?.outputs ?? byNode;
   });
 }
 
@@ -68,7 +72,10 @@ export function useNodeOutputs(nodeId: string) {
 export function useNodeOutput(nodeId: string, key?: string) {
   return useGraphOutputs((snap) => {
     const evalResult = snap?.evalResult;
-    const outputs = evalResult?.nodes?.[nodeId]?.outputs ?? null;
+    // Support both shapes (see above)
+    const byNode = evalResult?.nodes?.[nodeId];
+    if (!byNode) return null;
+    const outputs = (byNode as any)?.outputs ?? byNode;
     if (outputs == null) return null;
     if (key == null) return outputs;
     return outputs?.[key] ?? null;

@@ -19,6 +19,7 @@ export function GraphProvider({
   autoStart = false,
   autoMode = "raf",
   updateHz = 60,
+  wasmInitInput,
 }: GraphProviderProps) {
   const [ready, setReady] = useState(false);
   const wasmModuleRef = useRef<any>(null);
@@ -40,6 +41,9 @@ export function GraphProvider({
   const intervalIdRef = useRef<any>(null);
   const playbackModeRef = useRef<PlaybackMode>("manual");
   const runningRef = useRef<boolean>(false);
+  const lastTimeRef = useRef<number | null>(null);
+  // Track last loaded spec hash to avoid redundant reloads even if prop identity changes
+  const lastSpecHashRef = useRef<string | null>(null);
 
   // Initialize WASM runtime once
   useEffect(() => {
@@ -48,9 +52,22 @@ export function GraphProvider({
       try {
         // Some wasm packages expose an init() that must be awaited.
         // The init() typically does not return the module object; we import the module namespace above.
-        await wasm.init?.();
+        await wasm.init?.(wasmInitInput);
         if (!mounted) return;
         wasmModuleRef.current = wasm;
+        // Expose runtime for debugging
+        try {
+          (window as any).__vizijRuntime = {
+            get graph() {
+              return graphRef.current;
+            },
+            get snapshot() {
+              return storeRef.current.getSnapshot();
+            },
+            eval: () => evalTick(),
+            load: (s: any) => runtimeRef.current?.loadGraph?.(s),
+          };
+        } catch {}
         setReady(true);
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -114,16 +131,87 @@ export function GraphProvider({
   // Eval tick - returns the eval result if available
   const evalTick = useCallback(() => {
     const graph = graphRef.current;
-    if (!graph) return null;
+    if (!graph) {
+      // eslint-disable-next-line no-console
+      console.warn("[GraphProvider] evalTick: no graph loaded");
+      return null;
+    }
     try {
       // Ensure staged inputs are applied first
       applyStagedInputs();
-      // Evaluate the graph
-      const res = graph.evalAll ? graph.evalAll() : graph.eval?.();
+
+      const mod = wasmModuleRef.current ?? wasm;
+      let res: any = null;
+
+      // Try instance methods
+      const candidates = [
+        "evalAll",
+        "eval",
+        "evaluate",
+        "compute",
+        "run",
+        "process",
+      ];
+      for (const m of candidates) {
+        const fn = (graph as any)[m];
+        if (typeof fn === "function") {
+          try {
+            res = fn.call(graph);
+            if (res != null) break;
+          } catch (e) {
+            // continue trying others
+          }
+        }
+      }
+
+      // Try module-level helpers that accept a graph handle
+      if (res == null && mod) {
+        const modCandidates = [
+          "evalAll",
+          "eval",
+          "evaluate",
+          "compute",
+          "run",
+          "process",
+          "evalGraph",
+          "eval_all",
+          "eval_graph",
+        ];
+        for (const m of modCandidates) {
+          const fn = (mod as any)[m];
+          if (typeof fn === "function") {
+            try {
+              res = fn(graph);
+              if (res != null) break;
+            } catch (e) {
+              // continue
+            }
+          }
+        }
+      }
+
+      if (res == null) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[GraphProvider] evalTick: no known eval method produced a result.",
+        );
+      }
+
       // Convert to JSON shape if available
       const json =
         typeof res?.toValueJSON === "function" ? res.toValueJSON?.() : res;
+
       publishEvalResult(json ?? res ?? null);
+
+      try {
+        const nodes = (json ?? res)?.nodes;
+        // eslint-disable-next-line no-console
+        console.info(
+          "[GraphProvider] evalTick result nodes keys:",
+          nodes ? Object.keys(nodes) : null,
+        );
+      } catch {}
+
       return json ?? res ?? null;
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -135,11 +223,27 @@ export function GraphProvider({
   // Playback loop implementations
   const startRaf = useCallback(() => {
     if (rafIdRef.current != null) return;
-    const loop = () => {
+    const loop = (ts?: number) => {
       if (!runningRef.current) {
         rafIdRef.current = null;
         return;
       }
+      // Advance time based on RAF delta if available
+      try {
+        const now =
+          typeof ts === "number"
+            ? ts
+            : typeof performance !== "undefined"
+              ? performance.now()
+              : Date.now();
+        const last = lastTimeRef.current ?? now;
+        const dt = Math.max(0, (now - last) / 1000);
+        lastTimeRef.current = now;
+        const g = graphRef.current;
+        if (g && typeof (g as any).step === "function") {
+          (g as any).step(dt);
+        }
+      } catch {}
       evalTick();
       rafIdRef.current =
         typeof window !== "undefined"
@@ -147,6 +251,8 @@ export function GraphProvider({
           : null;
     };
     runningRef.current = true;
+    lastTimeRef.current =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
     rafIdRef.current =
       typeof window !== "undefined" ? window.requestAnimationFrame(loop) : null;
   }, [evalTick]);
@@ -157,6 +263,7 @@ export function GraphProvider({
     }
     rafIdRef.current = null;
     runningRef.current = false;
+    lastTimeRef.current = null;
   }, []);
 
   const startInterval = useCallback(
@@ -166,6 +273,12 @@ export function GraphProvider({
       const ms = Math.max(1, Math.floor(1000 / Math.max(1, hz)));
       intervalIdRef.current = setInterval(() => {
         if (!runningRef.current) return;
+        try {
+          const g = graphRef.current;
+          if (g && typeof (g as any).step === "function") {
+            (g as any).step(1 / Math.max(1, hz));
+          }
+        } catch {}
         evalTick();
       }, ms);
     },
@@ -214,6 +327,9 @@ export function GraphProvider({
   );
 
   // Runtime API exposed to consumers
+  // Keep a ref to runtime for debug exposure
+  const runtimeRef = useRef<GraphRuntimeContextValue | null>(null);
+
   const runtime: GraphRuntimeContextValue = {
     graph: graphRef.current,
     getLastDt: () => 0,
@@ -226,7 +342,12 @@ export function GraphProvider({
       if (!module) {
         throw new Error("WASM runtime not ready");
       }
-      const normalized = normalizeSpec(spec);
+      const normalized = await normalizeSpec(spec);
+      // eslint-disable-next-line no-console
+      console.info(
+        "[GraphProvider] loadGraph(normalized) nodes:",
+        (normalized as any)?.nodes?.length ?? 0,
+      );
       // free existing graph if present
       if (graphRef.current && typeof graphRef.current.free === "function") {
         try {
@@ -237,34 +358,39 @@ export function GraphProvider({
         }
         graphRef.current = null;
       }
-      // WASM runtime: create a Graph instance - assume module.Graph or module.createGraph or module.loadGraph
-      const GraphCtor = module.Graph ?? module.createGraph ?? null;
+      // WASM runtime: create a Graph instance using the public API surface
       let g: Graph | null = null;
-      if (GraphCtor) {
-        // Some WASM bindings return constructors, others return factory functions
-        try {
-          g =
-            typeof GraphCtor === "function"
-              ? new (GraphCtor as any)(normalized)
-              : (GraphCtor as any)(normalized);
-        } catch (err) {
-          // Try factory-style
-          try {
-            g = module.loadGraph?.(normalized) ?? null;
-          } catch (err2) {
-            // eslint-disable-next-line no-console
-            console.error("Failed to construct Graph instance:", err, err2);
-            throw err2 ?? err;
-          }
+      try {
+        if (typeof (module as any).createGraph === "function") {
+          // Preferred: async factory that accepts a spec
+          g = await (module as any).createGraph(normalized);
+        } else if (typeof (module as any).Graph === "function") {
+          // Fallback: construct then load spec
+          const Ctor = (module as any).Graph;
+          g = new Ctor();
+          (g as any).loadGraph(normalized);
+        } else if (typeof (module as any).loadGraph === "function") {
+          // Legacy factory-style
+          g = (module as any).loadGraph(normalized);
+        } else {
+          throw new Error(
+            "Unable to find Graph constructor/factory on WASM module",
+          );
         }
-      } else if (module.loadGraph) {
-        g = module.loadGraph(normalized);
-      } else {
-        throw new Error(
-          "Unable to find Graph constructor/factory on WASM module",
-        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to construct/load Graph instance:", err);
+        throw err;
       }
       graphRef.current = g;
+      // Log available graph methods to debug API surface
+      try {
+        // eslint-disable-next-line no-console
+        console.info(
+          "[GraphProvider] Graph instance methods:",
+          Object.getOwnPropertyNames(Object.getPrototypeOf(g)),
+        );
+      } catch {}
       // After load, publish an initial empty eval result (consumer may call eval)
       publishEvalResult(null);
       return g;
@@ -386,13 +512,32 @@ export function GraphProvider({
   // If a spec prop is provided, load it when wasm runtime becomes ready or when spec changes
   useEffect(() => {
     if (!ready || spec == null) return;
+    // Skip if spec content is unchanged (prevents time reset on benign UI changes)
+    let currentHash = "";
+    try {
+      currentHash = JSON.stringify(spec);
+    } catch {
+      currentHash = String(spec);
+    }
+    if (lastSpecHashRef.current === currentHash) {
+      // eslint-disable-next-line no-console
+      console.info("[GraphProvider] spec unchanged (hash match) — skip reload");
+      return;
+    }
+    lastSpecHashRef.current = currentHash;
+
     let cancelled = false;
     (async () => {
       try {
         await runtime.loadGraph(spec);
         if (cancelled) return;
         // After loading, perform an initial eval to seed outputs/writes
-        evalTick();
+        const result = evalTick();
+        // eslint-disable-next-line no-console
+        console.info(
+          "[GraphProvider] initial eval after load:",
+          result ? "ok" : "null/empty",
+        );
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("GraphProvider: loadGraph failed", err);
@@ -437,6 +582,7 @@ export function GraphProvider({
   const ctxValue: GraphRuntimeContextValue = {
     ...runtime,
   };
+  runtimeRef.current = ctxValue;
 
   return (
     <GraphContext.Provider value={ctxValue}>{children}</GraphContext.Provider>
