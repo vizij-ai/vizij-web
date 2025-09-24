@@ -10,22 +10,25 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .vite coverage"
   },
   "dependencies": {
+    "@eslint/plugin-kit": "0.4.0",
+    "@vizij/node-graph-react": "^0.1.0",
+    "@vizij/node-graph-wasm": "^0.2.4",
     "react": "18.x",
     "react-dom": "18.x",
     "reactflow": "11.x",
-    "zustand": "^4.4.0",
-    "@vizij/node-graph-react": "file:../../packages/@vizij/node-graph-react",
-    "@vizij/node-graph-wasm": "file:../../vizij-rs/npm/@vizij/node-graph-wasm"
+    "zustand": "^4.4.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "typescript": "^5.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "eslint": "^8.0.0",
-    "vitest": "^1.3.0"
+    "typescript": "^5.0.0",
+    "vite": "^6.3.6",
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "vizij",

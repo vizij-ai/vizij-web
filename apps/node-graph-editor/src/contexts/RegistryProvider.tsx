@@ -5,7 +5,7 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import * as wasm from "@vizij/node-graph-wasm";
+import { init as initGraphWasm, getNodeSchemas } from "@vizij/node-graph-react";
 
 export type Registry = any;
 
@@ -240,12 +240,13 @@ export const RegistryProvider: React.FC<React.PropsWithChildren> = ({
 
     (async () => {
       try {
-        // Some wasm packages require init() to be awaited before other calls.
-        await wasm.init?.();
+        // Ensure the wasm module is initialised before requesting schemas
+        await initGraphWasm?.();
 
-        // Prefer getNodeSchemas (JS-friendly) and fall back to get_node_schemas_json.
-        if (typeof wasm.getNodeSchemas === "function") {
-          const r = await wasm.getNodeSchemas();
+        if (!mounted) return;
+
+        if (typeof getNodeSchemas === "function") {
+          const r = await getNodeSchemas();
           if (!mounted) return;
           setState((prev) => ({
             ...prev,
@@ -256,36 +257,12 @@ export const RegistryProvider: React.FC<React.PropsWithChildren> = ({
           return;
         }
 
-        if (typeof (wasm as any).get_node_schemas_json === "function") {
-          const json = await (wasm as any).get_node_schemas_json();
-          if (!mounted) return;
-          try {
-            const parsed = typeof json === "string" ? JSON.parse(json) : json;
-            setState((prev) => ({
-              ...prev,
-              registry: parsed,
-              loading: false,
-              error: null,
-            }));
-            return;
-          } catch (err: any) {
-            setState((prev) => ({
-              ...prev,
-              registry: null,
-              loading: false,
-              error: `Failed to parse schema JSON: ${err?.message ?? err}`,
-            }));
-            return;
-          }
-        }
-
-        // If neither exists, return a helpful error.
         setState((prev) => ({
           ...prev,
           registry: null,
           loading: false,
           error:
-            "@vizij/node-graph-wasm does not expose getNodeSchemas or get_node_schemas_json; ensure the package version includes schema exports.",
+            "@vizij/node-graph-react does not expose getNodeSchemas; ensure the package version includes schema exports.",
         }));
       } catch (err: any) {
         if (!mounted) return;

@@ -9,10 +9,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "dev": "tsc -p tsconfig.json --watch",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@vizij/animation-wasm": "^0.2.0",
+    "@vizij/animation-wasm": "^0.2.3",
     "react": "^18.2.0"
   },
   "peerDependencies": {

@@ -5,52 +5,38 @@ function ValueCard({ label, keyPath }: { label: string; keyPath: string }) {
   const v = useAnimTarget(keyPath);
   console.log(keyPath, v);
 
-  function GetDisplay(v: Value | undefined): React.ReactNode {
-    let display: React.ReactNode;
+  const display = React.useMemo(() => {
     if (!v) return undefined;
+
+    const formatVec = (vec: readonly number[]) =>
+      vec.map((x) => x.toFixed(3)).join(" \n");
+
     switch (v.type) {
-      case "Scalar":
-        console.log(v.type);
-        display = v.data.toFixed(3);
-        return display;
+      case "Float":
+        return v.data.toFixed(3);
       case "Bool":
-        console.log(v.type);
-        display = v.data ? "true" : "false";
-        return display;
+        return v.data ? "true" : "false";
       case "Vec2":
-        console.log(v.type);
-        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
-        return display;
       case "Vec3":
-        console.log(v.type);
-        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
-        return display;
       case "Vec4":
-        console.log(v.type);
-        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
-        return display;
-      case "Color":
-        console.log(v.type);
-        display = String(v.data.map((x) => x.toFixed(3)).join(" \n"));
-        return display;
       case "Quat":
-        console.log(v.type);
-        display = String(v.data.map((x) => x.toFixed(3)).join(" \n")); // w
-        return display;
-      case "Transform":
-        console.log(v.type);
-        display = String(v.data);
-        return display;
+        return formatVec(v.data);
+      case "ColorRgba":
+        return formatVec(v.data);
+      case "Transform": {
+        const { pos, rot, scale } = v.data;
+        return [
+          `pos: ${formatVec(pos)}`,
+          `rot: ${formatVec(rot)}`,
+          `scale: ${formatVec(scale)}`,
+        ].join("\n");
+      }
       case "Text":
-        console.log(v.type);
-        display = String(v.data);
-        return display;
+        return v.data;
       default:
-        display = "—";
-        return display;
+        return "—";
     }
-  }
-  const display = GetDisplay(v);
+  }, [v]);
 
   return (
     <div

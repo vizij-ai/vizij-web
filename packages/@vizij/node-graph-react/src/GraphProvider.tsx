@@ -72,6 +72,16 @@ export function GraphProvider({
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("Failed to init @vizij/node-graph-wasm:", err);
+        if (
+          err instanceof TypeError &&
+          typeof err.message === "string" &&
+          err.message.includes("Failed to fetch dynamically imported module")
+        ) {
+          // eslint-disable-next-line no-console
+          console.error(
+            "The Vite dev server could not resolve the wasm shim in pkg/. Exclude @vizij/node-graph-wasm from optimizeDeps and allow the pkg directory in server.fs.allow.",
+          );
+        }
       }
     })();
     return () => {

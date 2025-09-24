@@ -3,15 +3,26 @@
   "private": true,
   "workspaces": [
     "packages/*/*",
-    "apps/*",
-    "../vizij-rs/npm/@vizij/*"
+    "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev:website",
     "dev:website": "npm run --workspace vizij-website dev",
-    "dev:animation": "npm run --workspace demo-animation-studio dev",
-    "dev:graph": "npm run --workspace vizij-node-graph-editor dev",
-    "build:animation": "npm run --workspace @vizij/animation-react build && npm run --workspace demo-animation-studio build",
-    "build:graph": "npm run --workspace @vizij/node-graph-react build && npm run --workspace vizij-node-graph-editor build",
+    "dev:node-graph-editor": "npm run --workspace vizij-node-graph-editor dev",
+    "dev:animation-studio": "npm run --workspace demo-animation-studio dev",
+    "dev:animation": "npm run dev:animation-studio",
+    "dev:demo-animation": "npm run --workspace demo-animation dev",
+    "dev:demo-graph": "npm run --workspace demo-graph dev",
+    "build": "npm run build --workspaces --if-present",
+    "build:packages": "npm run build --workspace @vizij/animation-react && npm run build --workspace @vizij/node-graph-react && npm run build --workspace @vizij/config && npm run build --workspace @vizij/rig",
+    "build:apps": "npm run build --workspace vizij-website && npm run build --workspace vizij-node-graph-editor && npm run build --workspace demo-animation-studio && npm run build --workspace demo-animation && npm run build --workspace demo-graph",
+    "build:animation": "npm run build --workspace @vizij/animation-react && npm run build --workspace demo-animation-studio",
+    "build:graph": "npm run build --workspace @vizij/node-graph-react && npm run build --workspace vizij-node-graph-editor",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present && npm --prefix packages/render run clean && npm --prefix packages/utils run clean",
+    "clean:deep": "npm run reset",
     "link:wasm": "npm link @vizij/animation-wasm @vizij/node-graph-wasm",
     "reset": "node -e \"const {execSync}=require('node:child_process');execSync('rm -rf node_modules package-lock.json');execSync('find apps -maxdepth 2 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find packages -maxdepth 3 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find . -type d -name .vite -prune -exec rm -rf {} +');\" && npm ci"
   }

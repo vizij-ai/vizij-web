@@ -16,11 +16,14 @@
     "README.md"
   ],
   "scripts": {
+    "dev": "tsc -p tsconfig.json --watch",
     "build": "tsc -p tsconfig.json",
-    "test": "vitest --run"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest --run",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@vizij/node-graph-wasm": "^0.2.0",
+    "@vizij/node-graph-wasm": "^0.2.4",
     "react": "^18.2.0"
   },
   "peerDependencies": {

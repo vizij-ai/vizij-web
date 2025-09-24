@@ -17,8 +17,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@vizij/node-graph-react": ["../../packages/@vizij/node-graph-react/src"],
-      "@vizij/node-graph-wasm": ["../../vizij-rs/npm/@vizij/node-graph-wasm"]
+      "@vizij/node-graph-react": ["../../packages/@vizij/node-graph-react/src"]
     }
   },
   "include": ["src", "vite.config.ts", "index.html"],

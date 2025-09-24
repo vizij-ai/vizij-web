@@ -15,23 +15,39 @@ const __dirname = path.dirname(__filename);
 
 // Absolute path to the mono-repo root and the local wasm package folders we need to allow
 const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
-const localWasmPkg = path.resolve(
-  __dirname,
-  "../../vizij-rs/npm/@vizij/node-graph-wasm",
-);
-const localWasmPkgPkg = path.resolve(localWasmPkg, "pkg");
+// const localWasmPkg = path.resolve(
+//   __dirname,
+//   "../../vizij-rs/npm/@vizij/node-graph-wasm",
+// );
+// const localWasmPkgPkg = path.resolve(localWasmPkg, "pkg");
 
 export default defineConfig({
   plugins: [react()],
   root: ".",
+  resolve: {
+    // Avoid resolving symlinked workspaces to their real path; keeps node_modules URLs stable.
+    preserveSymlinks: true,
+  },
   server: {
     port: 5174,
     fs: {
       // Allow serving files from the repo root and the wasm package location (and pkg subdir)
-      allow: [repoRoot, localWasmPkg, localWasmPkgPkg],
+      // allow: [repoRoot, localWasmPkg, localWasmPkgPkg],
+      allow: [repoRoot],
+    },
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "!**/node_modules/@vizij/node-graph-wasm/**",
+      ],
     },
   },
   build: {
     outDir: "dist",
   },
+  optimizeDeps: {
+    // Keep the wasm shim out of the esbuild prebundle so its relative pkg/ URLs remain valid
+    exclude: ["@vizij/node-graph-wasm"],
+  },
+  assetsInclude: ["**/*.wasm"],
 });

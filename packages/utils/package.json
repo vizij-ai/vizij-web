@@ -16,7 +16,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
-    "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
+    "clean": "rm -rf dist .turbo tsconfig.tsbuildinfo"
   },
   "devDependencies": {
     "@semio/eslint-config": "*",

@@ -7,7 +7,8 @@
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["vite/client"]
   },
   "include": ["src"],
   "exclude": ["src/index.tsx"]
