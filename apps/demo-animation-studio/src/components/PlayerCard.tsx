@@ -10,7 +10,8 @@ import Timeline, { InstanceSpan } from "./Timeline";
 import ChartsView from "./OutputsView/ChartsView";
 
 type Sample = { t: number; v: Value };
-type History = Record<string, Sample[]>;
+type HistoryEntry = { value: Sample[]; derivative: Sample[] };
+type History = Record<string, HistoryEntry>;
 
 const instColors = [
   "rgba(96,165,250,0.35)", // blue
@@ -48,6 +49,80 @@ function usePlayerValue(
   return getSnapshot();
 }
 
+function usePlayerDerivative(
+  player: number | string,
+  key: string,
+): Value | undefined {
+  const { subscribeToPlayerDerivative, getPlayerDerivativeSnapshot } =
+    useAnimation() as any;
+
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      if (typeof subscribeToPlayerDerivative !== "function") return () => {};
+      return subscribeToPlayerDerivative(player, key, cb);
+    },
+    [subscribeToPlayerDerivative, player, key],
+  );
+
+  const getSnapshot = useCallback(() => {
+    if (typeof getPlayerDerivativeSnapshot !== "function") return undefined;
+    return getPlayerDerivativeSnapshot(player, key);
+  }, [getPlayerDerivativeSnapshot, player, key]);
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [_, setTick] = useState(0);
+  React.useEffect(() => {
+    const unsub = subscribe(() => setTick((x) => x + 1));
+    return unsub;
+  }, [subscribe]);
+
+  return getSnapshot();
+}
+
+function formatNumericArray(data: readonly number[] | number[]): string {
+  return data
+    .map((x) => (Number.isFinite(x) ? Number(x).toFixed(3) : String(x)))
+    .join(", ");
+}
+
+function formatValue(value: Value | undefined): string {
+  if (!value) return "—";
+  const { type, data } = value as Value & { data: any };
+
+  switch (type) {
+    case "Scalar":
+    case "Float":
+      return Number.isFinite(data) ? Number(data).toFixed(3) : String(data);
+    case "Bool":
+      return data ? "true" : "false";
+    case "Vec2":
+    case "Vec3":
+    case "Vec4":
+    case "Color":
+    case "ColorRgba":
+    case "Quat":
+      return Array.isArray(data) ? formatNumericArray(data) : String(data);
+    case "Transform": {
+      if (data && typeof data === "object") {
+        const pos = data.translation ?? data.pos;
+        const rot = data.rotation ?? data.rot;
+        const scale = data.scale;
+        const lines: string[] = [];
+        if (Array.isArray(pos)) lines.push(`pos: ${formatNumericArray(pos)}`);
+        if (Array.isArray(rot)) lines.push(`rot: ${formatNumericArray(rot)}`);
+        if (Array.isArray(scale))
+          lines.push(`scale: ${formatNumericArray(scale)}`);
+        return lines.length > 0 ? lines.join("\n") : JSON.stringify(data);
+      }
+      return JSON.stringify(data);
+    }
+    case "Text":
+      return String(data);
+    default:
+      return JSON.stringify(data ?? null);
+  }
+}
+
 function PlayerValueCell({
   playerId,
   keyName,
@@ -55,31 +130,10 @@ function PlayerValueCell({
   playerId: number;
   keyName: string;
 }) {
-  const v = usePlayerValue(playerId, keyName);
-  let display: React.ReactNode = "—";
-  if (v) {
-    switch (v.type) {
-      case "Scalar":
-        display = v.data.toFixed(3);
-        break;
-      case "Bool":
-        display = v.data ? "true" : "false";
-        break;
-      case "Vec2":
-      case "Vec3":
-      case "Vec4":
-      case "Color":
-      case "Quat":
-        display = String(v.data.map((x: number) => x.toFixed(3)).join(", "));
-        break;
-      case "Transform":
-        display = JSON.stringify(v.data);
-        break;
-      case "Text":
-        display = String(v.data);
-        break;
-    }
-  }
+  const value = usePlayerValue(playerId, keyName);
+  const derivative = usePlayerDerivative(playerId, keyName);
+  const valueDisplay = formatValue(value);
+  const derivativeDisplay = formatValue(derivative);
   return (
     <div
       style={{
@@ -87,13 +141,37 @@ function PlayerValueCell({
         border: "1px solid #2a2d31",
         borderRadius: 6,
         padding: 8,
+        display: "grid",
+        gap: 4,
       }}
     >
       <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 4 }}>
         {keyName}
       </div>
-      <div style={{ fontSize: 14, fontWeight: 600, wordBreak: "break-word" }}>
-        {display}
+      <div style={{ fontSize: 11, opacity: 0.65 }}>Value</div>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          wordBreak: "break-word",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {valueDisplay}
+      </div>
+      <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2 }}>
+        Derivative
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          wordBreak: "break-word",
+          whiteSpace: "pre-wrap",
+          color: "#9ca3af",
+        }}
+      >
+        {derivativeDisplay}
       </div>
     </div>
   );
@@ -203,12 +281,14 @@ export default function PlayerCard({
   const filteredHistory: History = useMemo(() => {
     const pref = `${player.id}:`;
     const out: History = {};
-    for (const [k, arr] of Object.entries(history)) {
+    for (const [k, entry] of Object.entries(history)) {
       if (!k.startsWith(pref)) continue;
       const keyOnly = k.substring(pref.length);
-      if (playerKeys.includes(keyOnly)) {
-        out[keyOnly] = arr;
-      }
+      if (!playerKeys.includes(keyOnly)) continue;
+      out[keyOnly] = {
+        value: entry.value.slice(),
+        derivative: entry.derivative.slice(),
+      };
     }
     return out;
   }, [history, player.id, playerKeys]);

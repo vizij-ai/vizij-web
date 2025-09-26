@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef } from "react";
 import type { Value } from "@vizij/animation-wasm";
 
 type Sample = { t: number; v: Value };
-type History = Record<string, Sample[]>;
+type HistoryEntry = { value: Sample[]; derivative: Sample[] };
+type History = Record<string, HistoryEntry>;
 
 function valueToSeries(v: Value): number[] | null {
   switch (v.type) {
     case "Scalar":
+    case "Float":
       return [v.data];
     case "Bool":
       return [v.data ? 1 : 0];
@@ -17,13 +19,22 @@ function valueToSeries(v: Value): number[] | null {
     case "Vec4":
       return v.data;
     case "Color":
+    case "ColorRgba":
       return v.data;
     case "Quat":
       // Show w component by default
       return v.data;
-    case "Transform":
-      // Focus on translation only for MVP
-      return [...v.data.translation, ...v.data.rotation];
+    case "Transform": {
+      // Focus on translation/rotation; include scale when available
+      const translation = (v.data as any).translation ?? (v.data as any).pos;
+      const rotation = (v.data as any).rotation ?? (v.data as any).rot;
+      const scale = (v.data as any).scale;
+      const series: number[] = [];
+      if (Array.isArray(translation)) series.push(...translation);
+      if (Array.isArray(rotation)) series.push(...rotation);
+      if (Array.isArray(scale)) series.push(...scale);
+      return series.length > 0 ? series : null;
+    }
     case "Text":
       return null;
     default:
@@ -48,6 +59,7 @@ function drawChart(
   h: number,
   samples: Sample[],
   windowSec: number,
+  dashed: boolean,
 ) {
   const now = performance.now() / 1000;
   const startT = now - windowSec;
@@ -117,6 +129,7 @@ function drawChart(
     const col = seriesColors[idx % seriesColors.length];
     ctx.strokeStyle = col;
     ctx.lineWidth = 1.5;
+    ctx.setLineDash(dashed ? [4, 3] : []);
     ctx.beginPath();
     let started = false;
     for (let i = 0; i < comp.length; i++) {
@@ -145,9 +158,11 @@ function drawChart(
 function ChartCanvas({
   samples,
   windowSec,
+  variant = "value",
 }: {
   samples: Sample[];
   windowSec: number;
+  variant?: "value" | "derivative";
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
@@ -169,14 +184,21 @@ function ChartCanvas({
         canvas.height = Math.floor(rect.height * dpr);
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawChart(ctx, rect.width, rect.height, samples, windowSec);
+      drawChart(
+        ctx,
+        rect.width,
+        rect.height,
+        samples,
+        windowSec,
+        variant === "derivative",
+      );
       raf = requestAnimationFrame(render);
     };
     raf = requestAnimationFrame(render);
     return () => {
       cancelAnimationFrame(raf);
     };
-  }, [samples, windowSec]);
+  }, [samples, windowSec, variant]);
 
   return (
     <canvas
@@ -219,10 +241,16 @@ export default function ChartsView({
         padding: 12,
       }}
     >
-      {entries.map(([key, samples]) => (
+      {entries.map(([key, entry]) => (
         <div key={key} style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: 12, opacity: 0.75 }}>{key}</div>
-          <ChartCanvas samples={samples} windowSec={windowSec} />
+          <ChartCanvas samples={entry.value} windowSec={windowSec} />
+          <div style={{ fontSize: 11, opacity: 0.55 }}>Derivative</div>
+          <ChartCanvas
+            samples={entry.derivative}
+            windowSec={windowSec}
+            variant="derivative"
+          />
         </div>
       ))}
     </div>

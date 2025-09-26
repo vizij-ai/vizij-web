@@ -71,6 +71,7 @@ When you need edits from the Rust workspace (`vizij-rs`) to flow straight into t
 3. To return to the published artifacts, run `npm install` (or `npm unlink @vizij/animation-wasm @vizij/node-graph-wasm`) to restore the versions from the lockfile.
 
 Gotchas to keep in mind:
+
 - Always rebuild before linking; stale `pkg/` output in `vizij-rs` can cause confusing runtime errors.
 - Keep crate/npm versions aligned. If the published packages move forward, bump local versions before linking to avoid ABI mismatches.
 - Relinking updates files inside `node_modules`, so rerun `npm run link:wasm` after switching branches or reinstalling dependencies.

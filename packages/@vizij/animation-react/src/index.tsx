@@ -72,6 +72,12 @@ type Ctx = {
   /** Snapshot accessor for latest Value of a given resolved target key */
   getKeySnapshot: (key: string) => Value | undefined;
 
+  /** Subscribe to derivative changes for a resolved target key */
+  subscribeToDerivativeKey: (key: string, cb: () => void) => () => void;
+
+  /** Snapshot accessor for latest derivative of a given resolved target key */
+  getKeyDerivativeSnapshot: (key: string) => Value | undefined;
+
   /** Subscribe to per-player key changes */
   subscribeToPlayerKey: (
     player: string | number,
@@ -85,8 +91,24 @@ type Ctx = {
     key: string,
   ) => Value | undefined;
 
+  /** Subscribe to per-player derivative changes */
+  subscribeToPlayerDerivative: (
+    player: string | number,
+    key: string,
+    cb: () => void,
+  ) => () => void;
+
+  /** Snapshot accessor for per-player derivatives */
+  getPlayerDerivativeSnapshot: (
+    player: string | number,
+    key: string,
+  ) => Value | undefined;
+
   /** Get latest values grouped by player name */
   getLatestValuesByPlayer: () => Record<string, Record<string, Value>>;
+
+  /** Get latest derivatives grouped by player name */
+  getLatestDerivativesByPlayer: () => Record<string, Record<string, Value>>;
 
   /** Manual step; useful when autostart=false */
   step: (dt: number, inputs?: Inputs) => void;
@@ -217,9 +239,19 @@ export const AnimationProvider: React.FC<{
 
   // External store for per-key Values
   const valuesRef = useRef<Record<string, Value>>({});
+  const derivativesRef = useRef<Record<string, Value>>({});
   const subscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const derivativeSubscribersRef = useRef<Map<string, Set<() => void>>>(
+    new Map(),
+  );
   const valuesByPlayerRef = useRef<Record<number, Record<string, Value>>>({});
+  const derivativesByPlayerRef = useRef<Record<number, Record<string, Value>>>(
+    {},
+  );
   const playerSubscribersRef = useRef<Map<string, Set<() => void>>>(new Map());
+  const playerDerivativeSubscribersRef = useRef<Map<string, Set<() => void>>>(
+    new Map(),
+  );
   const instancesRef = useRef<Record<string, number[]>>({});
 
   const notifyKey = (key: string) => {
@@ -236,6 +268,19 @@ export const AnimationProvider: React.FC<{
     });
   };
 
+  const notifyDerivativeKey = (key: string) => {
+    const subs = derivativeSubscribersRef.current.get(key);
+    if (!subs || subs.size === 0) return;
+    [...subs].forEach((cb) => {
+      try {
+        cb();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Animation derivative notify callback error", e);
+      }
+    });
+  };
+
   const makeSubKey = (playerId: number, key: string) => `${playerId}|${key}`;
 
   const notifyPlayerKey = (playerId: number, key: string) => {
@@ -248,6 +293,20 @@ export const AnimationProvider: React.FC<{
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("Animation notify player-key callback error", e);
+      }
+    });
+  };
+
+  const notifyPlayerDerivativeKey = (playerId: number, key: string) => {
+    const sk = makeSubKey(playerId, key);
+    const subs = playerDerivativeSubscribersRef.current.get(sk);
+    if (!subs || subs.size === 0) return;
+    [...subs].forEach((cb) => {
+      try {
+        cb();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Animation derivative player-key callback error", e);
       }
     });
   };
@@ -271,6 +330,28 @@ export const AnimationProvider: React.FC<{
     return valuesRef.current[key];
   }, []);
 
+  const subscribeToDerivativeKey = useCallback(
+    (key: string, cb: () => void) => {
+      let set = derivativeSubscribersRef.current.get(key);
+      if (!set) {
+        set = new Set();
+        derivativeSubscribersRef.current.set(key, set);
+      }
+      set.add(cb);
+      return () => {
+        const s = derivativeSubscribersRef.current.get(key);
+        if (!s) return;
+        s.delete(cb);
+        if (s.size === 0) derivativeSubscribersRef.current.delete(key);
+      };
+    },
+    [],
+  );
+
+  const getKeyDerivativeSnapshot = useCallback((key: string) => {
+    return derivativesRef.current[key];
+  }, []);
+
   const applyOutputs = (out: Outputs | undefined) => {
     if (!out) return;
     if (Array.isArray(out.changes) && out.changes.length > 0) {
@@ -278,16 +359,26 @@ export const AnimationProvider: React.FC<{
       for (const ch of out.changes) {
         // Legacy merged store (kept for backward compat)
         valuesRef.current[ch.key] = ch.value;
+        if (typeof ch.derivative !== "undefined") {
+          derivativesRef.current[ch.key] = ch.derivative as Value;
+        }
         changedKeys.push(ch.key);
         // Per-player store
         const pid = ch.player as unknown as number;
         if (!valuesByPlayerRef.current[pid])
           valuesByPlayerRef.current[pid] = {};
         valuesByPlayerRef.current[pid][ch.key] = ch.value;
+        if (!derivativesByPlayerRef.current[pid])
+          derivativesByPlayerRef.current[pid] = {};
+        if (typeof ch.derivative !== "undefined") {
+          derivativesByPlayerRef.current[pid][ch.key] = ch.derivative as Value;
+        }
         notifyPlayerKey(pid, ch.key);
+        notifyPlayerDerivativeKey(pid, ch.key);
       }
       // Notify per-key subscribers (legacy)
       changedKeys.forEach(notifyKey);
+      changedKeys.forEach(notifyDerivativeKey);
     }
     // Forward full Outputs (including events) to consumer if provided
     try {
@@ -380,9 +471,11 @@ export const AnimationProvider: React.FC<{
 
       // Reset value cache and internal identity caches before creating a new engine
       valuesRef.current = {};
+      derivativesRef.current = {};
       animsCacheRef.current = null;
       animIdsRef.current = [];
       instancesRef.current = {};
+      derivativesByPlayerRef.current = {};
 
       const eng = new Engine(engineConfig);
       engineRef.current = eng;
@@ -660,11 +753,41 @@ export const AnimationProvider: React.FC<{
     [resolvePlayerId],
   );
 
+  const subscribeToPlayerDerivative = useCallback(
+    (player: string | number, key: string, cb: () => void) => {
+      const pid = resolvePlayerId(player);
+      if (pid === undefined) return () => {};
+      const sk = makeSubKey(pid, key);
+      let set = playerDerivativeSubscribersRef.current.get(sk);
+      if (!set) {
+        set = new Set();
+        playerDerivativeSubscribersRef.current.set(sk, set);
+      }
+      set.add(cb);
+      return () => {
+        const s = playerDerivativeSubscribersRef.current.get(sk);
+        if (!s) return;
+        s.delete(cb);
+        if (s.size === 0) playerDerivativeSubscribersRef.current.delete(sk);
+      };
+    },
+    [resolvePlayerId],
+  );
+
   const getPlayerKeySnapshot = useCallback(
     (player: string | number, key: string): Value | undefined => {
       const pid = resolvePlayerId(player);
       if (pid === undefined) return undefined;
       return valuesByPlayerRef.current[pid]?.[key];
+    },
+    [resolvePlayerId],
+  );
+
+  const getPlayerDerivativeSnapshot = useCallback(
+    (player: string | number, key: string): Value | undefined => {
+      const pid = resolvePlayerId(player);
+      if (pid === undefined) return undefined;
+      return derivativesByPlayerRef.current[pid]?.[key];
     },
     [resolvePlayerId],
   );
@@ -676,6 +799,18 @@ export const AnimationProvider: React.FC<{
       Object.entries(players).map(([n, id]) => [String(id), n]),
     );
     for (const [idStr, kv] of Object.entries(valuesByPlayerRef.current)) {
+      const name = nameById[idStr] ?? idStr;
+      result[name] = { ...(kv as Record<string, Value>) };
+    }
+    return result;
+  }, [players]);
+
+  const getLatestDerivativesByPlayer = useCallback(() => {
+    const result: Record<string, Record<string, Value>> = {};
+    const nameById = Object.fromEntries(
+      Object.entries(players).map(([n, id]) => [String(id), n]),
+    );
+    for (const [idStr, kv] of Object.entries(derivativesByPlayerRef.current)) {
       const name = nameById[idStr] ?? idStr;
       result[name] = { ...(kv as Record<string, Value>) };
     }
@@ -839,9 +974,14 @@ export const AnimationProvider: React.FC<{
       ready,
       subscribeToKey,
       getKeySnapshot,
+      subscribeToDerivativeKey,
+      getKeyDerivativeSnapshot,
       subscribeToPlayerKey,
       getPlayerKeySnapshot,
+      subscribeToPlayerDerivative,
+      getPlayerDerivativeSnapshot,
       getLatestValuesByPlayer,
+      getLatestDerivativesByPlayer,
       step,
       reload,
       addAnimations,
@@ -862,9 +1002,14 @@ export const AnimationProvider: React.FC<{
       ready,
       subscribeToKey,
       getKeySnapshot,
+      subscribeToDerivativeKey,
+      getKeyDerivativeSnapshot,
       subscribeToPlayerKey,
       getPlayerKeySnapshot,
+      subscribeToPlayerDerivative,
+      getPlayerDerivativeSnapshot,
       getLatestValuesByPlayer,
+      getLatestDerivativesByPlayer,
       step,
       reload,
       players,
@@ -913,6 +1058,25 @@ export function useAnimTarget(key?: string): Value | undefined {
   const getSnapshot = useCallback(
     () => (key ? getKeySnapshot(key) : undefined),
     [getKeySnapshot, key],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
+}
+
+export function useAnimDerivative(key?: string): Value | undefined {
+  const { subscribeToDerivativeKey, getKeyDerivativeSnapshot } = useAnimation();
+
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      if (!key) return () => {};
+      return subscribeToDerivativeKey(key, cb);
+    },
+    [subscribeToDerivativeKey, key],
+  );
+
+  const getSnapshot = useCallback(
+    () => (key ? getKeyDerivativeSnapshot(key) : undefined),
+    [getKeyDerivativeSnapshot, key],
   );
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);

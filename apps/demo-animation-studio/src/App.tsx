@@ -24,7 +24,8 @@ import { init, abi_version } from "@vizij/animation-wasm";
 import "./styles/app.css";
 
 type Sample = { t: number; v: Value };
-type History = Record<string, Sample[]>;
+type HistoryEntry = { value: Sample[]; derivative: Sample[] };
+type History = Record<string, HistoryEntry>;
 
 /* -----------------------------------------------------------
    Engine status and throttle (MVP)
@@ -536,13 +537,33 @@ export default function App() {
             const next: History = { ...prev };
             for (const ch of out.changes) {
               const key = `${ch.player as unknown as number}:${ch.key}`;
-              const arr = next[key] ? next[key].slice() : [];
-              arr.push({ t: tSec, v: ch.value as Value });
+              const prevEntry = next[key];
+              const entry: HistoryEntry = prevEntry
+                ? {
+                    value: prevEntry.value.slice(),
+                    derivative: prevEntry.derivative.slice(),
+                  }
+                : { value: [], derivative: [] };
+
+              entry.value.push({ t: tSec, v: ch.value as Value });
+              if (typeof ch.derivative !== "undefined") {
+                entry.derivative.push({
+                  t: tSec,
+                  v: ch.derivative as Value,
+                });
+              }
+
               const cutoff = tSec - keep;
-              // prune old samples
-              let idx = 0;
-              while (idx < arr.length && arr[idx].t < cutoff) idx++;
-              next[key] = idx > 0 ? arr.slice(idx) : arr;
+              const prune = (samples: Sample[]) => {
+                let idx = 0;
+                while (idx < samples.length && samples[idx].t < cutoff) idx++;
+                return idx > 0 ? samples.slice(idx) : samples;
+              };
+
+              entry.value = prune(entry.value);
+              entry.derivative = prune(entry.derivative);
+
+              next[key] = entry;
             }
             return next;
           });
