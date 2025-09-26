@@ -1,5 +1,5 @@
 import { Object3D, Group } from "three";
-import { AnimatableValue, RawVector2 } from "@semio/utils";
+import { AnimatableValue, RawVector2 } from "utils";
 import { World } from "../../types";
 import { importGroup } from "./import-group";
 

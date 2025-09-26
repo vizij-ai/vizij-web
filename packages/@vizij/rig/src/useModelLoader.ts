@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { RawValue, RawVector2 } from "@semio/utils";
+import { RawValue, RawVector2 } from "utils";
 import { Group, loadGLTF, useVizijStore } from "vizij";
 import { useShallow } from "zustand/shallow";
 import {

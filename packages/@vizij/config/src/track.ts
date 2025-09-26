@@ -1,4 +1,4 @@
-import { RawColor, RawVector2, RawVector3 } from "@semio/utils";
+import { RawColor, RawVector2, RawVector3 } from "utils";
 
 // Track: just a pair name / track type
 export type Track = string;

@@ -39,6 +39,44 @@ In a separate app (after publishing to npm), install:
 npm i @vizij/animation-react @vizij/animation-wasm react react-dom
 ```
 
+### Vite configuration
+
+`@vizij/animation-react` automatically calls `init()` from `@vizij/animation-wasm`, which in turn loads the compiled `.wasm` file via a relative `import.meta.url`.
+Most bundlers handle this out of the box, but **Vite will break it if it prebundles the wasm shim into `.vite/deps`**. When that happens the relative URL points at a JS bundle and the wasm fetch returns HTML, causing `WebAssembly.instantiate()` to fail ("expected magic word 00 61 73 6d").
+
+To keep the WASM asset loading correctly—without making every app import it manually—add the following to your Vite config:
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    // Keep linked workspaces under node_modules so import.meta.url stays stable
+    preserveSymlinks: true,
+  },
+  server: {
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/animation-react/**",
+      ],
+    },
+  },
+  optimizeDeps: {
+    // Let Vite serve the wasm entry directly instead of prebundling it
+    exclude: ["@vizij/animation-wasm"],
+    include: ["@vizij/animation-react"],
+    force: true,
+  },
+});
+```
+
+With this setup the React provider can fetch the wasm binary on its own and consumers do not need to import the `.wasm` file directly.
+
 ## Quick Start
 
 Load a StoredAnimation and display a live scalar value.

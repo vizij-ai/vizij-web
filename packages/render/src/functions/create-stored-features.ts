@@ -1,5 +1,5 @@
 import { mapValues } from "lodash";
-import { AnimatableValue } from "@semio/utils";
+import { AnimatableValue } from "utils";
 import {
   Feature,
   StaticFeature,

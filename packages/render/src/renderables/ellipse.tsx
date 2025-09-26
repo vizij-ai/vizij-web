@@ -9,7 +9,7 @@ import {
   instanceOfRawEuler,
   instanceOfRawRGB,
   instanceOfRawHSL,
-} from "@semio/utils";
+} from "utils";
 import { Circle, Line } from "@react-three/drei";
 import { Mesh, MeshStandardMaterial } from "three";
 import { Line2 } from "three-stdlib";

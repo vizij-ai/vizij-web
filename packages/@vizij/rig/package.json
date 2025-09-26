@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@vizij/config": "*",
-    "@semio/utils": "*",
+    "utils": "*",
     "react": "^18.0.0",
     "vizij": "*",
     "zustand": "^5.0.0"

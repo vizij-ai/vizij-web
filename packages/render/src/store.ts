@@ -5,7 +5,7 @@ import { produce, enableMapSet } from "immer";
 import * as THREE from "three";
 import { ThreeEvent } from "@react-three/fiber";
 import { Group, Mesh } from "three";
-import { type RawValue, type AnimatableValue, getLookup } from "@semio/utils";
+import { type RawValue, type AnimatableValue, getLookup } from "utils";
 import { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
 import { removeFromTree } from "./actions/remove-children";
@@ -336,6 +336,9 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   ) => {
     set(
       produce((state: VizijData) => {
+        const test = 0;
+        let testy = 10 * test;
+        void testy;
         // console.log("in store", id, namespace, ref.current);
         (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
           ref.current as Group;

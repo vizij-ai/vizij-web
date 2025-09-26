@@ -14,7 +14,7 @@ import {
   AnimatableVector3,
   AnimatableColor,
   AnimatableNumber,
-} from "@semio/utils";
+} from "utils";
 import { World, Shape, ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";
@@ -146,7 +146,6 @@ export function importMesh(
         opacityAnimatable.id,
         useEmissive,
       ];
-      console.log(mesh.material, colorAnimatable, opacityAnimatable);
     }
   }
 

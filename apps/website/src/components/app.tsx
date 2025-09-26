@@ -1,14 +1,28 @@
-import { AbiVizij } from "./faces/AbiVizij";
-import { BaxterVizij } from "./faces/BaxterVizij";
-import { HugoVizij } from "./faces/HugoVizij";
-import { JiboVizij } from "./faces/JiboVizij";
-import { QuoriVizij } from "./faces/QuoriVizij";
-import { TiagoVizij } from "./faces/TiagoVizij";
 import { VizijControlDemo } from "./VizijControlDemo";
 import VizijLogo from "../assets/vizij.png";
 import { VizijVisemeDemo } from "./VizijVisemeDemo";
 import { VizijExpressionsDemo } from "./VizijExpressionsDemo";
 import { VizijGazeDemo } from "./VizijGazeDemo";
+import { ROBOT_PROFILES, RobotProfile } from "./robotProfiles";
+
+function ExampleFaceCard({
+  name,
+  Face,
+}: {
+  name: string;
+  Face: RobotProfile["Face"];
+}) {
+  return (
+    <div className="shadow-lg rounded-xl bg-black overflow-hidden">
+      <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
+        {name}
+      </p>
+      <div className="aspect-[4/3]">
+        <Face />
+      </div>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -27,54 +41,9 @@ function App() {
         <div className="w-full bg-white p-2 md:p-12">
           <h2 className="text-4xl font-bold my-2">Example Faces</h2>
           <div className="grid md:grid-cols-3 sm:grid-cols-2 grid-cols-1 text-left text-white gap-2">
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Quori
-              </p>
-              <div className="aspect-[4/3]">
-                <QuoriVizij />
-              </div>
-            </div>
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Hugo
-              </p>
-              <div className="aspect-[4/3]">
-                <HugoVizij />
-              </div>
-            </div>
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Abi
-              </p>
-              <div className="aspect-[4/3]">
-                <AbiVizij />
-              </div>
-            </div>
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Baxter
-              </p>
-              <div className="aspect-[4/3]">
-                <BaxterVizij />
-              </div>
-            </div>
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Jibo
-              </p>
-              <div className="aspect-[4/3]">
-                <JiboVizij />
-              </div>
-            </div>
-            <div className="shadow-lg rounded-xl bg-black overflow-hidden">
-              <p className="text-lg font-bold flex flex-row h-10 items-center px-4 bg-neutral-700">
-                Tiago
-              </p>
-              <div className="aspect-[4/3]">
-                <TiagoVizij />
-              </div>
-            </div>
+            {ROBOT_PROFILES.map(({ id, name, Face }) => (
+              <ExampleFaceCard key={id} name={name} Face={Face} />
+            ))}
           </div>
           <div className="my-10">
             <p>

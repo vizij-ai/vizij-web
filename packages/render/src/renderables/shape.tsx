@@ -24,7 +24,7 @@ import {
   instanceOfRawNumber,
   instanceOfRawRGB,
   instanceOfRawVector3,
-} from "@semio/utils";
+} from "utils";
 import { Shape } from "../types/shape";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { useFeatures } from "../hooks/use-features";

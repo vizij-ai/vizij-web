@@ -1,4 +1,4 @@
-import { RawValue, RawVector2 } from "@semio/utils";
+import { RawValue, RawVector2 } from "utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   Disclosure,

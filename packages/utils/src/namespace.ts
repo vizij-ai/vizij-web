@@ -50,3 +50,4 @@ export function getId(lookup: string): string {
     return lookup.split(".")[1];
   } else return lookup;
 }
+// still used

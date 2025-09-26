@@ -47,14 +47,11 @@ function usePlayerValue(
 
 export function VizijVisemeDemo() {
   const visemeDemoStore = useMemo(() => createVizijStore(), []);
+  const prebind = useCallback((path: string) => path, []);
 
   return (
     <VizijContext.Provider value={visemeDemoStore}>
-      <AnimationProvider
-        animations={[]}
-        autostart={false}
-        prebind={(path) => path}
-      >
+      <AnimationProvider animations={[]} autostart={false} prebind={prebind}>
         <InnerVizijVisemeDemo />
       </AnimationProvider>
     </VizijContext.Provider>
@@ -66,7 +63,6 @@ export function InnerVizijVisemeDemo() {
   const [currentSpokenVisemeIndex, setCurrentSpokenVisemeIndex] =
     useState<number>(0);
   const [selectedViseme, setSelectedViseme] = useState<Viseme>("sil");
-  const createdPlayerRef = useRef(false);
 
   const {
     ready,
@@ -105,8 +101,15 @@ export function InnerVizijVisemeDemo() {
 
   const seekAnimToMs = useCallback(
     (ms: number) => {
-      if (!ready) return;
-      if (visemePid === undefined || visemePid < 0) return;
+      if (!ready) {
+        console.log("Not Ready");
+        return;
+      }
+      if (visemePid === undefined || visemePid < 0) {
+        console.log("vpid", visemePid);
+        return;
+      }
+      console.log("vPid", visemePid);
       step(0, { player_cmds: [{ Seek: { player: visemePid, time: ms } }] });
     },
     [ready, visemePid, step],
@@ -129,11 +132,13 @@ export function InnerVizijVisemeDemo() {
   );
 
   const frame = useCallback(() => {
+    console.log("Frame");
     if (!audioRef.current) {
       rafRef.current = requestAnimationFrame(frame);
       return;
     }
     const tMs = audioRef.current.currentTime || 0;
+    console.log("Frame", tMs);
     seekAnimToMs(tMs);
     updateIndexFromMs(tMs);
     rafRef.current = requestAnimationFrame(frame);
@@ -231,6 +236,7 @@ export function InnerVizijVisemeDemo() {
       "mouth.y_scale": next.y,
       "mouth.morph": next.morph,
     });
+    console.log("Apply Pose", pose);
     hugoRig.apply(pose);
     quoriRig.apply(pose);
   }, [
@@ -244,15 +250,9 @@ export function InnerVizijVisemeDemo() {
   ]);
 
   useEffect(() => {
-    if (!ready || createdPlayerRef.current) return;
-    if (players["visemePlayer"] !== undefined) {
-      createdPlayerRef.current = true;
-      return;
-    }
-    const pid = addPlayer("visemePlayer");
-    if (pid >= 0) {
-      createdPlayerRef.current = true;
-    }
+    if (!ready) return;
+    if (players["visemePlayer"] !== undefined) return;
+    addPlayer("visemePlayer");
   }, [ready, players, addPlayer]);
 
   useEffect(() => {
@@ -296,7 +296,7 @@ export function InnerVizijVisemeDemo() {
     if (!ready) return;
     if (visemePid === undefined || visemePid < 0) return;
     if (spokenVisemes.length === 0) return;
-
+    console.log("Spoken Vizemes", spokenVisemes);
     const key = JSON.stringify(spokenVisemes);
     if (lastVisemesKeyRef.current === key) return;
     lastVisemesKeyRef.current = key;
@@ -353,9 +353,10 @@ export function InnerVizijVisemeDemo() {
         })),
       );
     }
+    console.log("Adding animation", animation);
 
     const [animId] = addAnimations([animation]);
-    console.log("Added animation", animation);
+    console.log("Added animation", animId);
     addInstances([{ playerName: "visemePlayer", animIndexOrId: animId }]);
   }, [
     spokenVisemes,

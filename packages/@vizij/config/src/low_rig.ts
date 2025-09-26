@@ -1,4 +1,4 @@
-import { RawValue, RawVector2, RawVector3 } from "@semio/utils";
+import { RawValue, RawVector2, RawVector3 } from "utils";
 import { Track, TrackValue, TrackValues } from "./track";
 import { Pose } from "./pose";
 

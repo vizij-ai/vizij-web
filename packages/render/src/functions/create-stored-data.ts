@@ -1,5 +1,5 @@
 import { omit } from "lodash";
-import { AnimatableValue } from "@semio/utils";
+import { AnimatableValue } from "utils";
 import { type Stored } from "../types/stored";
 import { type RenderableBase } from "../types/renderable-base";
 import { Feature } from "../types/feature";

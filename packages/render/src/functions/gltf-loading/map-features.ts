@@ -1,4 +1,4 @@
-import { type AnimatableValue } from "@semio/utils";
+import { type AnimatableValue } from "utils";
 import {
   AnimatedFeature,
   StaticFeature,

@@ -2,6 +2,7 @@
   "name": "vizij-web",
   "private": true,
   "workspaces": [
+    "packages/*",
     "packages/*/*",
     "apps/*"
   ],
@@ -13,8 +14,8 @@
     "dev:animation": "npm run dev:animation-studio",
     "dev:demo-animation": "npm run --workspace demo-animation dev",
     "dev:demo-graph": "npm run --workspace demo-graph dev",
-    "build": "npm run build --workspaces --if-present",
-    "build:packages": "npm run build --workspace @vizij/animation-react && npm run build --workspace @vizij/node-graph-react && npm run build --workspace @vizij/config && npm run build --workspace @vizij/rig",
+    "build": "npm run build --workspace utils && npm run build --workspaces --if-present",
+    "build:packages": "npm run build --workspace utils && npm run build --workspace vizij && npm run build --workspace @vizij/animation-react && npm run build --workspace @vizij/node-graph-react && npm run build --workspace @vizij/config && npm run build --workspace @vizij/rig",
     "build:apps": "npm run build --workspace vizij-website && npm run build --workspace vizij-node-graph-editor && npm run build --workspace demo-animation-studio && npm run build --workspace demo-animation && npm run build --workspace demo-graph",
     "build:animation": "npm run build --workspace @vizij/animation-react && npm run build --workspace demo-animation-studio",
     "build:graph": "npm run build --workspace @vizij/node-graph-react && npm run build --workspace vizij-node-graph-editor",
@@ -24,6 +25,6 @@
     "clean": "npm run clean --workspaces --if-present && npm --prefix packages/render run clean && npm --prefix packages/utils run clean",
     "clean:deep": "npm run reset",
     "link:wasm": "npm link @vizij/animation-wasm @vizij/node-graph-wasm",
-    "reset": "node -e \"const {execSync}=require('node:child_process');execSync('rm -rf node_modules package-lock.json');execSync('find apps -maxdepth 2 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find packages -maxdepth 3 -name node_modules -type d -prune -exec rm -rf {} +');execSync('find . -type d -name .vite -prune -exec rm -rf {} +');\" && npm ci"
+    "reset": "node -e \"const {execSync}=require('node:child_process'); execSync('rm -rf node_modules'); execSync('find apps -maxdepth 2 -name node_modules -type d -prune -exec rm -rf {} +'); execSync('find packages -maxdepth 3 -name node_modules -type d -prune -exec rm -rf {} +'); execSync('find . -type d -name .vite -prune -exec rm -rf {} +'); try{execSync('test -f package-lock.json')&&execSync('npm ci',{stdio:'inherit'})}catch(e){execSync('npm install --package-lock-only',{stdio:'inherit'});execSync('npm ci',{stdio:'inherit'})}\""
   }
 }

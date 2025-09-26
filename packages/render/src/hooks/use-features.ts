@@ -1,6 +1,6 @@
 import { useEffect, useContext } from "react";
 import { shallow } from "zustand/shallow";
-import { type RawValue, type AnimatableValue, getLookup } from "@semio/utils";
+import { type RawValue, type AnimatableValue, getLookup } from "utils";
 import { Feature } from "../types/feature";
 import { VizijContext } from "../context";
 

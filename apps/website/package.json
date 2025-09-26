@@ -15,7 +15,7 @@
   "dependencies": {
     "@aws-sdk/client-polly": "^3.787.0",
     "@headlessui/react": "^2.2.0",
-    "@semio/utils": "*",
+    "utils": "*",
     "@tailwindcss/vite": "^4.0.7",
     "@vizij/animation-react": "*",
     "@vizij/config": "*",

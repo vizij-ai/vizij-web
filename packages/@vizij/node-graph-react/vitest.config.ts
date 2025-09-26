@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    pool: "threads",
   },
   optimizeDeps: {
     exclude: ["@vizij/node-graph-wasm"], // ← important

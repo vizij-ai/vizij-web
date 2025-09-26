@@ -12,7 +12,7 @@ import {
   useVizijStoreGetter,
 } from "vizij";
 import { useShallow } from "zustand/shallow";
-import { RawValue, RawVector2, RawVector3, getLookup } from "@semio/utils";
+import { RawValue, RawVector2, RawVector3, getLookup } from "utils";
 import { motion } from "motion/react";
 
 const QuoriBounds = {

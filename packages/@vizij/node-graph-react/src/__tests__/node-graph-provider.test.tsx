@@ -11,7 +11,7 @@ import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
   loadGraph: Mock;
-  evalAll: Mock<[], EvalResult>;
+  evalAll: Mock<() => EvalResult>;
   setTime: Mock;
   step: Mock;
   setParam: Mock;

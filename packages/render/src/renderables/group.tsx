@@ -8,7 +8,7 @@ import {
   instanceOfRawNumber,
   instanceOfRawVector2,
   instanceOfRawVector3,
-} from "@semio/utils";
+} from "utils";
 import { useFeatures } from "../hooks/use-features";
 import { Group } from "../types/group";
 import { useVizijStore } from "../hooks/use-vizij-store";

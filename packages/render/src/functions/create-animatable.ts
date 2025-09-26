@@ -6,7 +6,7 @@ import {
   AnimatableNumber,
   AnimatableString,
   AnimatableVector3,
-} from "@semio/utils";
+} from "utils";
 
 export function createAnimatable(value: Partial<AnimatableValue>) {
   if (!value.type) {
