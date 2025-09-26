@@ -31,7 +31,7 @@ Vizij's web monorepo collects the TypeScript packages, React integrations, and s
 
 - Node.js 18 LTS or newer (Node 20 recommended).
 - npm 9+, which ships with current Node LTS builds.
-- For animation and node-graph runtimes: build the WASM artifacts from [`vizij-rs`](../vizij-rs) and `npm link` them (see `npm run link:wasm`).
+- For day-to-day work the published `@vizij/*` npm packages are enough. See [Local WASM Development](#local-wasm-development) if you need to iterate on the Rust crates directly.
 
 ## First-Time Setup
 
@@ -53,6 +53,28 @@ Vizij's web monorepo collects the TypeScript packages, React integrations, and s
    npm run dev:website
    ```
    or any workspace via `npm run dev --workspace <name>`.
+
+## Local WASM Development
+
+When you need edits from the Rust workspace (`vizij-rs`) to flow straight into the web apps, link the locally built WASM packages:
+
+1. In `vizij-rs`, build and register the global links:
+   ```bash
+   npm run link:wasm
+   ```
+   This rebuilds both WASM wrappers and exposes them via `npm link` (use `npm run watch:wasm:animation|graph` there if you want ongoing rebuilds).
+2. Back in this repo, link the packages into the monorepo:
+   ```bash
+   npm run link:wasm
+   ```
+   Existing dependencies stay intact—you do **not** need to delete `node_modules`. Simply restart any running Vite dev server so it picks up the new symlinks.
+3. To return to the published artifacts, run `npm install` (or `npm unlink @vizij/animation-wasm @vizij/node-graph-wasm`) to restore the versions from the lockfile.
+
+Gotchas to keep in mind:
+- Always rebuild before linking; stale `pkg/` output in `vizij-rs` can cause confusing runtime errors.
+- Keep crate/npm versions aligned. If the published packages move forward, bump local versions before linking to avoid ABI mismatches.
+- Relinking updates files inside `node_modules`, so rerun `npm run link:wasm` after switching branches or reinstalling dependencies.
+- Long-running dev servers cache module graphs—restart them whenever you toggle between linked and published packages.
 
 ## Root Scripts
 
