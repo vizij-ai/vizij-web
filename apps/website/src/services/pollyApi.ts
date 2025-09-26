@@ -1,28 +1,17 @@
-import { apiURL } from "@vizij/config";
+import type { VisemeData } from "@vizij/config";
 
-export interface VisemeData {
-  sentences: {
-    time: number;
-    type: "sentence";
-    start: number;
-    end: number;
-    value: string;
-  }[];
-  words: {
-    time: number;
-    type: "word";
-    start: number;
-    end: number;
-    value: string;
-  }[];
-  visemes: { time: number; type: "viseme"; value: string }[];
-}
+import { requireApiBase } from "./apiBase";
+
+const normalizeBase = (base: string): string => base.trim().replace(/\/$/, "");
 
 export const fetchVisemeData = async (
   text: string,
   voice: string,
+  base = requireApiBase(),
 ): Promise<{ visemeData: VisemeData; audioBlob: Blob }> => {
-  const visemesPromise = fetch(`${apiURL}/tts/get-visemes`, {
+  const apiBase = normalizeBase(base);
+
+  const visemesPromise = fetch(`${apiBase}/tts/get-visemes`, {
     method: "POST",
     mode: "cors",
     headers: {
@@ -34,7 +23,7 @@ export const fetchVisemeData = async (
     }),
   }).then((res) => res.json());
 
-  const audioPromise = fetch(`${apiURL}/tts/get-audio`, {
+  const audioPromise = fetch(`${apiBase}/tts/get-audio`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

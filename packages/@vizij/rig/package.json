@@ -22,10 +22,10 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo"
   },
   "dependencies": {
-    "@vizij/config": "*",
-    "utils": "*",
+    "@vizij/config": "workspace:*",
+    "@vizij/utils": "workspace:*",
     "react": "^18.0.0",
-    "vizij": "*",
+    "@vizij/render": "workspace:*",
     "zustand": "^5.0.0"
   }
 }

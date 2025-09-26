@@ -1,6 +1,6 @@
 import { RefObject } from "react";
 import { Group as ThreeGroup } from "three";
-import { RawVector2 } from "utils";
+import { RawVector2 } from "@vizij/utils";
 import { Feature } from "./feature";
 import { Stored } from "./stored";
 import { RenderableBase } from "./renderable-base";

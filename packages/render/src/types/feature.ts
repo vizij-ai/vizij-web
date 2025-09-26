@@ -1,4 +1,4 @@
-import type { AnimatableValue, RawValue } from "utils";
+import type { AnimatableValue, RawValue } from "@vizij/utils";
 
 /**
  * A wrapping type to reference an attribute that is animatable.

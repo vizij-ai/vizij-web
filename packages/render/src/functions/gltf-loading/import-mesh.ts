@@ -14,7 +14,7 @@ import {
   AnimatableVector3,
   AnimatableColor,
   AnimatableNumber,
-} from "utils";
+} from "@vizij/utils";
 import { World, Shape, ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";

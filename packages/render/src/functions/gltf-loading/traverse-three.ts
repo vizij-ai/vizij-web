@@ -1,7 +1,7 @@
 import { createRef } from "react";
 import * as THREE from "three";
 import { Group, Mesh } from "three";
-import { AnimatableValue, RawVector2 } from "utils";
+import { AnimatableValue, RawVector2 } from "@vizij/utils";
 import {
   World,
   RenderableBase,

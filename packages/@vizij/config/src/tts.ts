@@ -1,6 +1,3 @@
-// TODO fetch this from environment variables and/or firebase connection
-export const apiURL = "https://us-central1-semio-vizij.cloudfunctions.net/api";
-
 export const PollyVoices: string[] = [
   "Danielle",
   "Gregory",
@@ -16,3 +13,21 @@ export const PollyVoices: string[] = [
   "Ruth",
   "Stephen",
 ];
+
+export type VisemeData = {
+  sentences: Array<{
+    time: number;
+    type: "sentence";
+    start: number;
+    end: number;
+    value: string;
+  }>;
+  words: Array<{
+    time: number;
+    type: "word";
+    start: number;
+    end: number;
+    value: string;
+  }>;
+  visemes: Array<{ time: number; type: "viseme"; value: string }>;
+};

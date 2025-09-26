@@ -1,5 +1,5 @@
 import { DRACOLoader, GLTFLoader, GLTF } from "three-stdlib";
-import { AnimatableValue } from "utils";
+import { AnimatableValue } from "@vizij/utils";
 import { World } from "../types";
 import { traverseThree } from "./gltf-loading/traverse-three";
 

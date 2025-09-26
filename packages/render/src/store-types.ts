@@ -2,7 +2,7 @@ import { type RefObject } from "react";
 import * as THREE from "three";
 import { Group, Mesh } from "three";
 import { ThreeEvent } from "@react-three/fiber";
-import { RawValue, AnimatableValue } from "utils";
+import { RawValue, AnimatableValue } from "@vizij/utils";
 import { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {

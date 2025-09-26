@@ -1,7 +1,13 @@
 import { memo } from "react";
 import { useShallow } from "zustand/shallow";
 import { clsx } from "clsx";
-import { getLookup, RawEuler, RawRGB, RawValue, RawVector3 } from "utils";
+import {
+  getLookup,
+  RawEuler,
+  RawRGB,
+  RawValue,
+  RawVector3,
+} from "@vizij/utils";
 import { ColorPickerPopover, SliderNumberField, Size } from "@semio/ui";
 import { useVizijStore } from "../hooks/use-vizij-store";
 

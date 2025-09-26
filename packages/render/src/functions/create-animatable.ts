@@ -6,7 +6,7 @@ import {
   AnimatableNumber,
   AnimatableString,
   AnimatableVector3,
-} from "utils";
+} from "@vizij/utils";
 
 export function createAnimatable(value: Partial<AnimatableValue>) {
   if (!value.type) {

@@ -4,7 +4,7 @@ import {
   AnimatableValue,
   AnimatableVector3,
   RawVector2,
-} from "utils";
+} from "@vizij/utils";
 import { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";

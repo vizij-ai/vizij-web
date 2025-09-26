@@ -1,4 +1,4 @@
-import { Vizij } from "vizij";
+import { Vizij } from "@vizij/render";
 
 interface CharacterViewProps {
   name: string;

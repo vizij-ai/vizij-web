@@ -1,5 +1,5 @@
 {
-  "name": "utils",
+  "name": "@vizij/utils",
   "description": "Shared typescript utilities.",
   "version": "0.0.0",
   "main": "dist/index.js",

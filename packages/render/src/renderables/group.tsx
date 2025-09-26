@@ -8,7 +8,7 @@ import {
   instanceOfRawNumber,
   instanceOfRawVector2,
   instanceOfRawVector3,
-} from "utils";
+} from "@vizij/utils";
 import { useFeatures } from "../hooks/use-features";
 import { Group } from "../types/group";
 import { useVizijStore } from "../hooks/use-vizij-store";

@@ -1,5 +1,5 @@
 import { BufferGeometry, Mesh } from "three";
-import { AnimatableValue, AnimatableNumber } from "utils";
+import { AnimatableValue, AnimatableNumber } from "@vizij/utils";
 import { Feature } from "../../types";
 
 export function importGeometry(

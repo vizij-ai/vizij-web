@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { fetchVisemeData, VisemeData } from "../services/pollyApi";
+import type { VisemeData } from "@vizij/config";
+
+import { fetchVisemeData } from "../services/pollyApi";
 
 export const usePollyTTS = () => {
   const [spokenSentences, setSpokenSentences] = useState<

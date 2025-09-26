@@ -5,7 +5,7 @@ import { produce, enableMapSet } from "immer";
 import * as THREE from "three";
 import { ThreeEvent } from "@react-three/fiber";
 import { Group, Mesh } from "three";
-import { type RawValue, type AnimatableValue, getLookup } from "utils";
+import { type RawValue, type AnimatableValue, getLookup } from "@vizij/utils";
 import { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
 import { removeFromTree } from "./actions/remove-children";

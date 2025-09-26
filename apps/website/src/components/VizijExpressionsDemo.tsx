@@ -5,9 +5,8 @@ import {
   AnimationProvider,
   useAnimation,
   valueAsNumber,
-  Value,
 } from "@vizij/animation-react";
-import { createVizijStore, VizijContext } from "vizij";
+import { createVizijStore, VizijContext } from "@vizij/render";
 import {
   Viseme,
   visemeMapper,
@@ -26,29 +25,7 @@ import { TTSSettings } from "./viseme-demo/TTSSettings";
 import { SpokenTextDisplay } from "./viseme-demo/SpokenTextDisplay";
 import { CharacterView } from "./viseme-demo/CharacterView";
 import { useBlendTree } from "./viseme-demo/BlendTree";
-
-function usePlayerValue(
-  player: number | string,
-  key: string,
-): Value | undefined {
-  const { subscribeToPlayerKey, getPlayerKeySnapshot } = useAnimation();
-  const subscribe = useCallback(
-    (cb: () => void) => subscribeToPlayerKey(player, key, cb),
-    [subscribeToPlayerKey, player, key],
-  );
-  const getSnapshot = useCallback(
-    () => getPlayerKeySnapshot(player, key),
-    [getPlayerKeySnapshot, player, key],
-  );
-
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const unsub = subscribe(() => setTick((x) => x + 1));
-    return unsub;
-  }, [subscribe]);
-
-  return getSnapshot();
-}
+import { usePlayerValue } from "../hooks/usePlayerValue";
 
 export function VizijExpressionsDemo() {
   const visemeDemoStore = useMemo(() => createVizijStore(), []);
@@ -245,7 +222,14 @@ export function InnerVizijExpressionsDemo() {
     if (lastVisemesKeyRef.current === key) return;
     lastVisemesKeyRef.current = key;
 
-    const timedSetVals = spokenVisemes.map((v) => {
+    type TimedSetValue = {
+      time: number;
+      scaleX: number;
+      scaleY: number;
+      morph: number;
+    };
+
+    const timedSetVals = spokenVisemes.map<TimedSetValue>((v) => {
       const lookup = visemeMapper[v.value as Viseme];
       return {
         time: v.time,
@@ -255,15 +239,23 @@ export function InnerVizijExpressionsDemo() {
       };
     });
 
-    const finalViz = timedSetVals.reduce((prev, current) =>
-      prev && prev.time > current.time ? prev : current,
+    if (timedSetVals.length === 0) {
+      return;
+    }
+
+    const finalViz = timedSetVals.reduce<TimedSetValue>(
+      (prev, current) => (prev.time > current.time ? prev : current),
+      timedSetVals[0],
     );
     const duration = finalViz.time;
     if (!(Number.isFinite(duration) && duration > 0)) return;
 
     animationDurationRef.current = duration;
 
-    const createPoints = (key: "scaleX" | "scaleY" | "morph") =>
+    type TrackKey = "scaleX" | "scaleY" | "morph";
+    type TrackPoint = { id: string; stamp: number; value: number };
+
+    const createPoints = (key: TrackKey): TrackPoint[] =>
       timedSetVals.map((v) => ({
         id: crypto.randomUUID(),
         stamp: v.time / duration,

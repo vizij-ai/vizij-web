@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { RawValue, RawVector2 } from "utils";
-import { Group, loadGLTF, useVizijStore } from "vizij";
+import { RawValue, RawVector2 } from "@vizij/utils";
+import { Group, loadGLTF, useVizijStore } from "@vizij/render";
 import { useShallow } from "zustand/shallow";
 import {
   VizijMouthRigDeprecated as VizijOldRigDeprecated,
   LowLevelRigDefinition,
   VizijLowRig,
 } from "@vizij/config";
+
+const DEBUG = process.env.NODE_ENV !== "production";
 
 export const useModelLoader = (
   glb: string,
@@ -41,18 +43,24 @@ export const useModelLoader = (
   const modelKey = `${glb}-${rigKey}`;
 
   const loadVizij = useCallback(async () => {
-    console.log("useModelLoader - Loading model with key:", modelKey);
+    if (DEBUG) {
+      console.log("useModelLoader - Loading model with key:", modelKey);
+    }
     // Prevent loading if already loading or if this exact model configuration is already loaded
     if (isLoading || loadedModelRef.current === modelKey) {
-      console.log("useModelLoader - Skipping load:", {
-        isLoading,
-        loadedModel: loadedModelRef.current,
-        modelKey,
-      });
+      if (DEBUG) {
+        console.log("useModelLoader - Skipping load:", {
+          isLoading,
+          loadedModel: loadedModelRef.current,
+          modelKey,
+        });
+      }
       return;
     }
 
-    console.log("useModelLoader - Starting to load model...");
+    if (DEBUG) {
+      console.log("useModelLoader - Starting to load model...");
+    }
     setIsLoading(true);
 
     try {
@@ -129,7 +137,7 @@ export const useRiggedModelLoader = (
   glb: string,
   rigDef: LowLevelRigDefinition,
 ) => {
-  const debug = false;
+  const debug = DEBUG;
   const [rig, setRig] = useState<VizijLowRig>();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -195,7 +203,7 @@ export const useRiggedModelLoader = (
       );
       addWorldElements(loadedWorld, loadedAnimatables, false);
       if (debug) {
-        console.log("Model loaded successfully:", glb);
+        console.log("useRiggedModelLoader - Model loaded successfully:", glb);
       }
       rigDef.initialValues?.forEach((v: { name: string; value: RawValue }) => {
         const foundVal = Object.values(loadedAnimatables).find(

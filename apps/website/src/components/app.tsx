@@ -1,9 +1,26 @@
-import { VizijControlDemo } from "./VizijControlDemo";
+import { lazy, Suspense } from "react";
 import VizijLogo from "../assets/vizij.png";
-import { VizijVisemeDemo } from "./VizijVisemeDemo";
-import { VizijExpressionsDemo } from "./VizijExpressionsDemo";
-import { VizijGazeDemo } from "./VizijGazeDemo";
 import { ROBOT_PROFILES, RobotProfile } from "./robotProfiles";
+
+const VizijControlDemo = lazy(async () => ({
+  default: (await import("./VizijControlDemo")).VizijControlDemo,
+}));
+
+const VizijVisemeDemo = lazy(async () => ({
+  default: (await import("./VizijVisemeDemo")).VizijVisemeDemo,
+}));
+
+const VizijExpressionsDemo = lazy(async () => ({
+  default: (await import("./VizijExpressionsDemo")).VizijExpressionsDemo,
+}));
+
+const VizijGazeDemo = lazy(async () => ({
+  default: (await import("./VizijGazeDemo")).VizijGazeDemo,
+}));
+
+const DemoFallback = ({ label }: { label: string }) => (
+  <div className="py-8 text-center text-sm text-gray-500">Loading {label}…</div>
+);
 
 function ExampleFaceCard({
   name,
@@ -65,14 +82,18 @@ function App() {
             Not only can you display a face, you can modify and control it as
             well.
           </p>
-          <VizijControlDemo />
+          <Suspense fallback={<DemoFallback label="control demo" />}>
+            <VizijControlDemo />
+          </Suspense>
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">
             Express Visemes For Multiple Faces
           </h2>
           <p>Express visemes on Quori and Hugo at the same time.</p>
-          <VizijVisemeDemo />
+          <Suspense fallback={<DemoFallback label="viseme demo" />}>
+            <VizijVisemeDemo />
+          </Suspense>
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">
@@ -81,7 +102,9 @@ function App() {
           <p>
             Blend Expressions and Speech on Quori and Hugo at the same time.
           </p>
-          <VizijExpressionsDemo />
+          <Suspense fallback={<DemoFallback label="expressions demo" />}>
+            <VizijExpressionsDemo />
+          </Suspense>
         </div>
         <div className="w-full bg-black p-12 text-white">
           <h2 className="text-4xl my-4 font-bold">
@@ -90,7 +113,9 @@ function App() {
           <p>
             Have Quori and Hugo look at a particular direction at the same time.
           </p>
-          <VizijGazeDemo />
+          <Suspense fallback={<DemoFallback label="gaze demo" />}>
+            <VizijGazeDemo />
+          </Suspense>
         </div>
         <div className="w-full bg-white text-black p-12">
           <div className="my-16">

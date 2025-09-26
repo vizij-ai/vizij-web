@@ -1,4 +1,4 @@
-import { RawColor, RawVector2, RawVector3 } from "utils";
+import { RawColor, RawVector2, RawVector3 } from "@vizij/utils";
 
 // Track: just a pair name / track type
 export type Track = string;

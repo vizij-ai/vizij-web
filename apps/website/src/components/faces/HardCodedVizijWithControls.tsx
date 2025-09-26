@@ -1,4 +1,4 @@
-import { RawValue, RawVector2 } from "utils";
+import { RawValue, RawVector2 } from "@vizij/utils";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   Disclosure,
@@ -13,8 +13,7 @@ import {
   VizijContext,
   Vizij,
   Controller,
-} from "vizij";
-import { useShallow } from "zustand/shallow";
+} from "@vizij/render";
 
 type axis = "x" | "y" | "z";
 
@@ -67,14 +66,10 @@ function InnerHardCodedVizijWithControls({
 }) {
   const [rootId, setRootId] = useState<string | undefined>("");
 
-  const addWorldElements = useVizijStore(
-    useShallow((state) => state.addWorldElements),
-  );
-  const setValue = useVizijStore(useShallow((state) => state.setValue));
-  const world = useVizijStore(useShallow((state) => state.world));
-  const activeAnimatables = useVizijStore(
-    useShallow((state) => state.animatables),
-  );
+  const addWorldElements = useVizijStore((state) => state.addWorldElements);
+  const setValue = useVizijStore((state) => state.setValue);
+  const world = useVizijStore((state) => state.world);
+  const activeAnimatables = useVizijStore((state) => state.animatables);
 
   const calculatedMaterials = useMemo(() => {
     return materials

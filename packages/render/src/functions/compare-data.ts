@@ -1,5 +1,5 @@
 // import { mapValues } from "lodash";
-import { AnimatableValue } from "utils";
+import { AnimatableValue } from "@vizij/utils";
 // import stringify from "json-stable-stringify";
 import { World } from "../types/world";
 // import { Shape, StoredShape } from "../types/shape";

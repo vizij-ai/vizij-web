@@ -24,7 +24,7 @@ import {
   instanceOfRawNumber,
   instanceOfRawRGB,
   instanceOfRawVector3,
-} from "utils";
+} from "@vizij/utils";
 import { Shape } from "../types/shape";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { useFeatures } from "../hooks/use-features";

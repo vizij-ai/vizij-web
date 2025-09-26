@@ -10,9 +10,8 @@ import {
   Vizij,
   VizijContext,
   useVizijStoreGetter,
-} from "vizij";
-import { useShallow } from "zustand/shallow";
-import { RawValue, RawVector2, RawVector3, getLookup } from "utils";
+} from "@vizij/render";
+import { RawValue, RawVector2, RawVector3, getLookup } from "@vizij/utils";
 import { motion } from "motion/react";
 
 const QuoriBounds = {
@@ -150,11 +149,9 @@ export function InnerVizijGazeDemo() {
   const cameraLastFrameRef = useRef<HTMLImageElement>(null);
   const responseFrameRef = useRef<HTMLImageElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const addWorldElements = useVizijStore(
-    useShallow((state) => state.addWorldElements),
-  );
+  const addWorldElements = useVizijStore((state) => state.addWorldElements);
 
-  const setVal = useVizijStore(useShallow((state) => state.setValue));
+  const setVal = useVizijStore((state) => state.setValue);
   const getState = useVizijStoreGetter();
   const updateAxis = useCallback(
     (id: string | undefined, axis: "x" | "y" | "z", next: number) => {

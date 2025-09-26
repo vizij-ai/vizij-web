@@ -1,5 +1,5 @@
 {
-  "name": "vizij",
+  "name": "@vizij/render",
   "description": "Higher-level visualization and interaction components for robot and ai faces.",
   "version": "0.0.0",
   "main": "dist/index.js",
@@ -19,7 +19,7 @@
     "@react-three/drei": "^9.115.0",
     "@react-three/fiber": "^8.17.10",
     "@semio/ui": "*",
-    "utils": "*",
+    "@vizij/utils": "workspace:*",
     "@types/json-stable-stringify": "^1.0.36",
     "@use-gesture/react": "^10.3.1",
     "clsx": "^2.1.1",

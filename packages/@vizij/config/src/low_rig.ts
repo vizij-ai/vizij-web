@@ -1,4 +1,4 @@
-import { RawValue, RawVector2, RawVector3 } from "utils";
+import { RawValue, RawVector2, RawVector3 } from "@vizij/utils";
 import { Track, TrackValue, TrackValues } from "./track";
 import { Pose } from "./pose";
 

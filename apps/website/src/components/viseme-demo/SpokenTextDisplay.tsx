@@ -1,4 +1,4 @@
-import { VisemeData } from "../../services/pollyApi";
+import type { VisemeData } from "@vizij/config";
 
 interface SpokenTextDisplayProps {
   spokenSentences: VisemeData["sentences"];

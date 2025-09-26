@@ -9,7 +9,7 @@ import {
   instanceOfRawEuler,
   instanceOfRawRGB,
   instanceOfRawHSL,
-} from "utils";
+} from "@vizij/utils";
 import { Plane, Line } from "@react-three/drei";
 import { Mesh, MeshStandardMaterial } from "three";
 import { Line2 } from "three-stdlib";
