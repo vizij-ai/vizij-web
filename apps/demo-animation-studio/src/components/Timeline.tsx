@@ -8,12 +8,20 @@ export type InstanceSpan = {
   label?: string;
 };
 
+export type TimelineMarker = {
+  id: string | number;
+  time: number; // seconds in player time
+  color?: string;
+  label?: string;
+};
+
 export default function Timeline({
   length,
   time,
   windowStart,
   windowEnd,
   instances,
+  markers = [],
   onSeek,
   height = 36,
 }: {
@@ -22,6 +30,7 @@ export default function Timeline({
   windowStart?: number; // seconds
   windowEnd?: number | null; // seconds or null for open-ended
   instances: InstanceSpan[];
+  markers?: TimelineMarker[];
   onSeek?: (t: number) => void;
   height?: number;
 }) {
@@ -115,9 +124,36 @@ export default function Timeline({
           width: 2,
           background: "#f87171", // red-400
           transform: "translateX(-1px)",
+          zIndex: 3,
         }}
         title={`t=${time.toFixed(2)}s / ${safeLen.toFixed(2)}s`}
       />
+
+      {/* Keypoint markers */}
+      {markers.map((marker) => {
+        const left = pct(marker.time);
+        return (
+          <div
+            key={marker.id}
+            title={
+              marker.label
+                ? `${marker.label} @ ${marker.time.toFixed(2)}s`
+                : `${marker.time.toFixed(2)}s`
+            }
+            style={{
+              position: "absolute",
+              left,
+              top: 0,
+              bottom: 0,
+              width: 2,
+              background: marker.color ?? "rgba(255,255,255,0.65)",
+              opacity: 0.9,
+              transform: "translateX(-1px)",
+              zIndex: 2,
+            }}
+          />
+        );
+      })}
 
       {/* Ruler labels */}
       <div

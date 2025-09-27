@@ -1,11 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimationProvider, useAnimation } from "@vizij/animation-react";
 import presets from "./presets";
 import AnimationsPanel from "./components/AnimationsPanel";
 import PlayersPanel, { InstanceSpec } from "./components/PlayersPanel";
 import EventsLog from "./components/EventsLog";
-import LatestValues from "./components/OutputsView/LatestValues";
-import ChartsView from "./components/OutputsView/ChartsView";
 import PlayerCard from "./components/PlayerCard";
 import ConfigPanel from "./components/ConfigPanel";
 import PrebindPanel, {
@@ -13,6 +11,7 @@ import PrebindPanel, {
   makeResolver,
 } from "./components/PrebindPanel";
 import SessionPanel, { SessionState } from "./components/SessionPanel";
+import AnimationEditor from "./components/AnimationEditor";
 import type {
   StoredAnimation,
   Config,
@@ -338,6 +337,92 @@ function StudioShell({
   const animationsInfo = animApi.listAnimations?.() ?? [];
   const [newPlayerName, setNewPlayerName] = useState<string>("");
 
+  const animationSourcesById = useMemo(() => {
+    const map = new Map<number, StoredAnimation>();
+    if (!animations || animations.length === 0 || animationsInfo.length === 0) {
+      return map;
+    }
+
+    const usedSourceIdx = new Set<number>();
+
+    animationsInfo.forEach((info: any, idx: number) => {
+      if (idx < animations.length) {
+        const source = animations[idx];
+        if (source) {
+          map.set(info.id as number, source);
+          usedSourceIdx.add(idx);
+        }
+      }
+    });
+
+    const remainingInfo = animationsInfo.filter(
+      (info: any) => !map.has(info.id as number),
+    );
+    const remainingSources = animations
+      .map((anim, idx) => ({ anim, idx }))
+      .filter(({ idx }) => !usedSourceIdx.has(idx));
+
+    const takeMatchingSource = (info: any) => {
+      if (remainingSources.length === 0) return undefined;
+      const nameCandidates = [info.name, info.id]
+        .map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : null))
+        .filter(Boolean) as string[];
+      const duration = Number(info.duration_ms ?? info.duration ?? 0);
+      const trackCount = Number(info.track_count ?? info.tracks ?? 0);
+
+      const matchIdx = remainingSources.findIndex(({ anim }) => {
+        const animName =
+          (anim as any).name ?? (anim as any).id ?? undefined;
+        if (animName && nameCandidates.includes(String(animName))) return true;
+        const animDuration = Number((anim as any).duration ?? 0);
+        if (duration && Math.round(animDuration) === Math.round(duration)) {
+          const animTracks = Array.isArray((anim as any).tracks)
+            ? (anim as any).tracks.length
+            : 0;
+          if (!trackCount || animTracks === trackCount) return true;
+        }
+        return false;
+      });
+
+      const idx = matchIdx >= 0 ? matchIdx : 0;
+      const picked = remainingSources.splice(idx, 1)[0];
+      return picked?.anim;
+    };
+
+    remainingInfo.forEach((info: any) => {
+      const source = takeMatchingSource(info);
+      if (source) {
+        map.set(info.id as number, source as StoredAnimation);
+      }
+    });
+
+    return map;
+  }, [animations, animationsInfo]);
+
+  const applyEditedAnimations = useCallback(
+    (next: StoredAnimation[]): { ok: boolean; message?: string } => {
+      try {
+        const instSpecs = instances.map((inst) => ({
+          playerName: inst.playerName,
+          animIndex: inst.animIndex,
+          cfg: inst.cfg,
+        }));
+        animApi.reload?.(next, instSpecs);
+        setAnimations(next);
+        return {
+          ok: true,
+          message: "Animation applied and engine reloaded.",
+        };
+      } catch (e: any) {
+        return {
+          ok: false,
+          message: e?.message ?? String(e ?? "Unknown reload error"),
+        };
+      }
+    },
+    [animApi, instances, setAnimations],
+  );
+
   return (
     <div
       style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}
@@ -429,6 +514,7 @@ function StudioShell({
                   resolvedKeys={resolvedKeys}
                   history={history}
                   historyWindowSec={historyWindowSec}
+                  animationSourcesById={animationSourcesById}
                 />
               </div>
             ))
@@ -465,13 +551,16 @@ function StudioShell({
             border: "1px solid #2a2d31",
             borderRadius: 8,
             padding: 10,
+            display: "grid",
+            gap: 12,
           }}
         >
-          <b>Inspector</b>
-          <div style={{ opacity: 0.75, fontSize: 12 }}>
-            MVP placeholder (focused target details)
-          </div>
-          <section style={{ marginTop: 12 }}>
+          <AnimationEditor
+            animations={animations}
+            onApply={applyEditedAnimations}
+          />
+          <section>
+            <b>Events</b>
             <EventsLog items={events} />
           </section>
         </div>
