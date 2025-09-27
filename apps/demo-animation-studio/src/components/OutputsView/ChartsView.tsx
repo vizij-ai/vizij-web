@@ -124,6 +124,42 @@ function drawChart(
     yMaxs.push(mx);
   }
 
+  let globalMin = Number.isFinite(Math.min(...yMins)) ? Math.min(...yMins) : 0;
+  let globalMax = Number.isFinite(Math.max(...yMaxs)) ? Math.max(...yMaxs) : 1;
+  if (globalMin === globalMax) {
+    const delta = Math.abs(globalMin) > 1 ? Math.abs(globalMin) * 0.1 : 0.5;
+    globalMin -= delta;
+    globalMax += delta;
+  }
+  const span = Math.max(1e-6, globalMax - globalMin);
+
+  const zeroInRange = globalMin <= 0 && globalMax >= 0;
+  const zeroY = h - ((0 - globalMin) / span) * (h - 2) - 1;
+
+  if (zeroInRange) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(0, zeroY);
+    ctx.lineTo(w, zeroY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.fillStyle = "#9aa0a6";
+  ctx.font = "10px sans-serif";
+  ctx.textBaseline = "top";
+  ctx.fillText(globalMax.toFixed(2), 4, 4);
+  ctx.textBaseline = "bottom";
+  ctx.fillText(globalMin.toFixed(2), 4, h - 4);
+  if (zeroInRange) {
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("0.00", 4, zeroY - 2);
+  }
+  ctx.restore();
+
   // Draw each series
   components.forEach((comp, idx) => {
     const col = seriesColors[idx % seriesColors.length];
@@ -138,10 +174,8 @@ function drawChart(
       if (!Number.isFinite(v)) continue;
 
       const x = ((t - tMin) / tSpan) * w;
-      // Normalize y using this component's range
-      const vMin = yMins[idx];
-      const vMax = yMaxs[idx];
-      const yNorm = (v - vMin) / (vMax - vMin);
+      // Normalize y using shared global range so axis labels match
+      const yNorm = (v - globalMin) / span;
       const y = h - yNorm * (h - 2) - 1;
 
       if (!started) {

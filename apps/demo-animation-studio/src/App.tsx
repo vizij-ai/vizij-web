@@ -157,18 +157,21 @@ function TransportBar() {
       </label>
 
       <button
+        type="button"
         onClick={() => send({ Play: { player: pid! } })}
         disabled={!ready || pid === undefined}
       >
         Play
       </button>
       <button
+        type="button"
         onClick={() => send({ Pause: { player: pid! } })}
         disabled={!ready || pid === undefined}
       >
         Pause
       </button>
       <button
+        type="button"
         onClick={() => send({ Stop: { player: pid! } })}
         disabled={!ready || pid === undefined}
       >
@@ -188,6 +191,7 @@ function TransportBar() {
         />
         &nbsp;
         <button
+          type="button"
           onClick={() => send({ SetSpeed: { player: pid!, speed } })}
           disabled={!ready || pid === undefined}
         >
@@ -208,6 +212,7 @@ function TransportBar() {
         </select>
         &nbsp;
         <button
+          type="button"
           onClick={() => send({ SetLoopMode: { player: pid!, mode: loop } })}
           disabled={!ready || pid === undefined}
         >
@@ -227,6 +232,7 @@ function TransportBar() {
         />
         &nbsp;
         <button
+          type="button"
           onClick={() => send({ Seek: { player: pid!, time: seekTime } })}
           disabled={!ready || pid === undefined}
         >
@@ -257,6 +263,7 @@ function TransportBar() {
         />
         &nbsp;
         <button
+          type="button"
           onClick={() =>
             send({
               SetWindow: {
@@ -366,14 +373,15 @@ function StudioShell({
     const takeMatchingSource = (info: any) => {
       if (remainingSources.length === 0) return undefined;
       const nameCandidates = [info.name, info.id]
-        .map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : null))
+        .map((v) =>
+          typeof v === "string" || typeof v === "number" ? String(v) : null,
+        )
         .filter(Boolean) as string[];
       const duration = Number(info.duration_ms ?? info.duration ?? 0);
       const trackCount = Number(info.track_count ?? info.tracks ?? 0);
 
       const matchIdx = remainingSources.findIndex(({ anim }) => {
-        const animName =
-          (anim as any).name ?? (anim as any).id ?? undefined;
+        const animName = (anim as any).name ?? (anim as any).id ?? undefined;
         if (animName && nameCandidates.includes(String(animName))) return true;
         const animDuration = Number((anim as any).duration ?? 0);
         if (duration && Math.round(animDuration) === Math.round(duration)) {
@@ -490,6 +498,7 @@ function StudioShell({
               style={{ flex: 1 }}
             />
             <button
+              type="button"
               onClick={() => {
                 const name = newPlayerName.trim();
                 if (!name) return;

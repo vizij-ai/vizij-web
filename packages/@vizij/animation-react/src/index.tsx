@@ -19,6 +19,10 @@ import {
   type AnimationInfo,
   type PlayerInfo,
   type InstanceInfo,
+  type AnimId,
+  type BakingConfig,
+  type BakedAnimationData,
+  type BakedAnimationBundle,
 } from "@vizij/animation-wasm";
 
 /* Local fallback Value type to avoid tight compile-time coupling on the wasm package types.
@@ -150,6 +154,16 @@ type Ctx = {
     specs: { playerName: string; instId: number }[],
   ) => { playerName: string; instId: number }[];
   unloadAnimations: (animIds: number[]) => number[];
+
+  /** Baking helpers */
+  bakeAnimation: (
+    animIndexOrId: number,
+    cfg?: BakingConfig,
+  ) => BakedAnimationData | null;
+  bakeAnimationWithDerivatives: (
+    animIndexOrId: number,
+    cfg?: BakingConfig,
+  ) => BakedAnimationBundle | null;
 
   /** Optional: expose player name to id mapping for controls */
   players: Record<string, number>;
@@ -407,6 +421,18 @@ export const AnimationProvider: React.FC<{
     return Array.isArray(anims) ? anims : [anims];
   };
 
+  const resolveAnimId = useCallback(
+    (animIndexOrId: number): AnimId | undefined => {
+      if (Number.isInteger(animIndexOrId) && animIndexOrId >= 0) {
+        const byIndex = animIdsRef.current[animIndexOrId];
+        if (typeof byIndex !== "undefined") return byIndex as AnimId;
+      }
+      if (typeof animIndexOrId === "number") return animIndexOrId as AnimId;
+      return undefined;
+    },
+    [],
+  );
+
   const loadAnimationsAndInstances = useCallback(
     (eng: Engine, animList: StoredAnimation[], insts?: InstanceSpec[]) => {
       // Check if identical to previous load
@@ -576,6 +602,59 @@ export const AnimationProvider: React.FC<{
     (anims: StoredAnimation[] | StoredAnimation, insts?: InstanceSpec[]) => {
       const eng = engineRef.current;
       if (!eng) return;
+      // Clean out existing players/instances before loading fresh animations
+      try {
+        const playersInfo = eng.listPlayers() as unknown as PlayerInfo[];
+        for (const playerInfo of playersInfo) {
+          const playerId = playerInfo.id as unknown as number;
+          try {
+            const instInfos = eng.listInstances(
+              playerId,
+            ) as unknown as InstanceInfo[];
+            for (const instInfo of instInfos) {
+              try {
+                eng.removeInstance(playerId, instInfo.id as unknown as number);
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn("Failed to remove instance during reload", e);
+              }
+            }
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("Failed to enumerate instances during reload", e);
+          }
+          try {
+            eng.removePlayer(playerId as any);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("Failed to remove player during reload", e);
+          }
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Engine state cleanup failed before reload", e);
+      }
+
+      if (animIdsRef.current.length > 0) {
+        for (const animId of animIdsRef.current) {
+          try {
+            eng.unloadAnimation(animId as unknown as number);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("Failed to unload animation during reload", e);
+          }
+        }
+      }
+
+      valuesRef.current = {};
+      derivativesRef.current = {};
+      valuesByPlayerRef.current = {};
+      derivativesByPlayerRef.current = {};
+      instancesRef.current = {};
+      animsCacheRef.current = null;
+      animIdsRef.current = [];
+      setPlayers({});
+
       loadAnimationsAndInstances(eng, normalizeAnimations(anims), insts);
       applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh players/instances from engine after reload
@@ -737,6 +816,43 @@ export const AnimationProvider: React.FC<{
       eng.updateValuesAndDerivatives(0.0, { instance_updates: updates }),
     );
   }, []);
+
+  const bakeAnimation = useCallback(
+    (animIndexOrId: number, cfg?: BakingConfig): BakedAnimationData | null => {
+      const eng = engineRef.current;
+      if (!eng) return null;
+      const animId = resolveAnimId(animIndexOrId);
+      if (typeof animId === "undefined") return null;
+      try {
+        return eng.bakeAnimation(animId as number, cfg);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Animation bakeAnimation failed", e);
+        return null;
+      }
+    },
+    [resolveAnimId],
+  );
+
+  const bakeAnimationWithDerivatives = useCallback(
+    (
+      animIndexOrId: number,
+      cfg?: BakingConfig,
+    ): BakedAnimationBundle | null => {
+      const eng = engineRef.current;
+      if (!eng) return null;
+      const animId = resolveAnimId(animIndexOrId);
+      if (typeof animId === "undefined") return null;
+      try {
+        return eng.bakeAnimationWithDerivatives(animId as number, cfg);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Animation bakeAnimationWithDerivatives failed", e);
+        return null;
+      }
+    },
+    [resolveAnimId],
+  );
 
   const resolvePlayerId = useCallback(
     (player: string | number): number | undefined => {
@@ -961,6 +1077,11 @@ export const AnimationProvider: React.FC<{
       const ok = eng.unloadAnimation(aid as unknown as number);
       if (ok) removed.push(aid);
     }
+    if (removed.length > 0) {
+      animIdsRef.current = animIdsRef.current.filter(
+        (id) => !removed.includes(id as number),
+      );
+    }
     applyOutputs(eng.updateValuesAndDerivatives(0.0));
     // Refresh
     try {
@@ -1010,6 +1131,8 @@ export const AnimationProvider: React.FC<{
       removePlayer,
       removeInstances,
       unloadAnimations,
+      bakeAnimation,
+      bakeAnimationWithDerivatives,
       players,
     }),
     [
@@ -1038,6 +1161,8 @@ export const AnimationProvider: React.FC<{
       addInstances,
       updateInstances,
       getInstances,
+      bakeAnimation,
+      bakeAnimationWithDerivatives,
     ],
   );
 

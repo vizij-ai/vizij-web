@@ -2,18 +2,32 @@ import React, { useCallback, useMemo, useRef } from "react";
 
 export type InstanceSpan = {
   id: number;
-  start: number; // seconds in player time
-  end: number; // seconds in player time (>= start)
+  start: number;
+  end: number;
   color?: string;
   label?: string;
 };
 
 export type TimelineMarker = {
   id: string | number;
-  time: number; // seconds in player time
+  time: number;
   color?: string;
   label?: string;
 };
+
+type TimelineProps = {
+  length: number;
+  time: number;
+  windowStart?: number;
+  windowEnd?: number | null;
+  instances: InstanceSpan[];
+  markers?: TimelineMarker[];
+  onSeek?: (t: number) => void;
+  height?: number;
+  startTime?: number;
+};
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 export default function Timeline({
   length,
@@ -24,25 +38,22 @@ export default function Timeline({
   markers = [],
   onSeek,
   height = 36,
-}: {
-  length: number; // seconds, full player length (computed by engine)
-  time: number; // seconds, current playhead
-  windowStart?: number; // seconds
-  windowEnd?: number | null; // seconds or null for open-ended
-  instances: InstanceSpan[];
-  markers?: TimelineMarker[];
-  onSeek?: (t: number) => void;
-  height?: number;
-}) {
+  startTime = 0,
+}: TimelineProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const safeLen = length > 0 ? length : 1;
+  const origin = Number.isFinite(startTime) ? startTime : 0;
+  const spanRaw = length - origin;
+  const span = spanRaw > 0 ? spanRaw : Math.max(length, 1);
 
   const clamp = (v: number, mn: number, mx: number) =>
     Math.max(mn, Math.min(mx, v));
 
-  const pct = useCallback(
-    (t: number) => `${clamp(t / safeLen, 0, 1) * 100}%`,
-    [safeLen],
+  const toPct = useCallback(
+    (t: number) => {
+      const norm = (t - origin) / span;
+      return `${clamp01(norm) * 100}%`;
+    },
+    [origin, span],
   );
 
   const onClick = useCallback(
@@ -51,13 +62,23 @@ export default function Timeline({
       const rect = containerRef.current.getBoundingClientRect();
       const x = clamp(e.clientX - rect.left, 0, rect.width);
       const norm = rect.width > 0 ? x / rect.width : 0;
-      const t = norm * safeLen;
-      onSeek(t);
+      const nextTime = origin + norm * span;
+      onSeek(nextTime);
     },
-    [onSeek, safeLen],
+    [onSeek, origin, span],
   );
 
-  const playheadLeft = useMemo(() => pct(time), [pct, time]);
+  const playheadLeft = useMemo(() => toPct(time), [toPct, time]);
+
+  const overlayStart = typeof windowStart === "number" ? windowStart : origin;
+  const overlayEnd = (() => {
+    if (typeof windowEnd === "number") return windowEnd;
+    if (windowEnd === null) return length;
+    return origin + span;
+  })();
+
+  const overlayLeft = toPct(overlayStart);
+  const overlayWidth = `${clamp01((overlayEnd - overlayStart) / span) * 100}%`;
 
   return (
     <div
@@ -74,11 +95,9 @@ export default function Timeline({
         overflow: "hidden",
       }}
     >
-      {/* Instance spans */}
       {instances.map((inst) => {
-        const left = pct(inst.start);
-        const w = Math.max(0, inst.end - inst.start);
-        const width = pct(w);
+        const left = toPct(inst.start);
+        const width = `${clamp01((inst.end - inst.start) / span) * 100}%`;
         return (
           <div
             key={inst.id}
@@ -89,7 +108,7 @@ export default function Timeline({
               top: 4,
               height: height - 8,
               width,
-              background: inst.color ?? "rgba(96,165,250,0.35)", // blue-400-ish
+              background: inst.color ?? "rgba(96,165,250,0.35)",
               border: "1px solid rgba(96,165,250,0.6)",
               borderRadius: 4,
             }}
@@ -97,24 +116,22 @@ export default function Timeline({
         );
       })}
 
-      {/* Window overlay */}
       {typeof windowStart === "number" && (
         <div
           style={{
             position: "absolute",
-            left: pct(windowStart),
+            left: overlayLeft,
             top: 2,
             height: height - 4,
-            width: pct((windowEnd ?? safeLen) - windowStart),
-            background: "rgba(56,189,248,0.15)", // cyan overlay
+            width: overlayWidth,
+            background: "rgba(56,189,248,0.15)",
             border: "1px dashed rgba(56,189,248,0.5)",
             borderRadius: 4,
           }}
-          title={`window: ${windowStart.toFixed(2)}s → ${windowEnd ?? safeLen}s`}
+          title={`window: ${overlayStart.toFixed(2)}s → ${overlayEnd.toFixed(2)}s`}
         />
       )}
 
-      {/* Playhead */}
       <div
         style={{
           position: "absolute",
@@ -122,16 +139,15 @@ export default function Timeline({
           top: 0,
           bottom: 0,
           width: 2,
-          background: "#f87171", // red-400
+          background: "#f87171",
           transform: "translateX(-1px)",
           zIndex: 3,
         }}
-        title={`t=${time.toFixed(2)}s / ${safeLen.toFixed(2)}s`}
+        title={`t=${time.toFixed(2)}s / ${(origin + span).toFixed(2)}s`}
       />
 
-      {/* Keypoint markers */}
       {markers.map((marker) => {
-        const left = pct(marker.time);
+        const left = toPct(marker.time);
         return (
           <div
             key={marker.id}
@@ -155,7 +171,6 @@ export default function Timeline({
         );
       })}
 
-      {/* Ruler labels */}
       <div
         style={{
           position: "absolute",
@@ -165,7 +180,7 @@ export default function Timeline({
           color: "#9aa0a6",
         }}
       >
-        0s
+        {origin.toFixed(2)}s
       </div>
       <div
         style={{
@@ -176,7 +191,7 @@ export default function Timeline({
           color: "#9aa0a6",
         }}
       >
-        {safeLen.toFixed(2)}s
+        {length.toFixed(2)}s
       </div>
     </div>
   );

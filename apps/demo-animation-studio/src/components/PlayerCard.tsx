@@ -8,6 +8,7 @@ import type {
   StoredAnimation,
 } from "@vizij/animation-wasm";
 import Timeline, { InstanceSpan, TimelineMarker } from "./Timeline";
+import BakedAnimationPlot from "./BakedAnimationPlot";
 import ChartsView from "./OutputsView/ChartsView";
 
 type Sample = { t: number; v: Value };
@@ -24,6 +25,8 @@ const instColors = [
   "rgba(248,113,113,0.35)", // red
   "rgba(56,189,248,0.35)", // sky
 ];
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const clampStamp = (stamp: number) => clamp01(stamp);
 
 function usePlayerValue(
   player: number | string,
@@ -207,7 +210,9 @@ export default function PlayerCard({
   resolvedKeys: string[];
   history: History;
   historyWindowSec: number;
-  animationSourcesById?: Map<number, StoredAnimation> | Record<number, StoredAnimation>;
+  animationSourcesById?:
+    | Map<number, StoredAnimation>
+    | Record<number, StoredAnimation>;
 }) {
   const animApi = useAnimation() as any;
   const [speed, setSpeed] = useState<number>(player.speed ?? 1);
@@ -217,11 +222,24 @@ export default function PlayerCard({
   );
   const [winStart, setWinStart] = useState<number>(player.start_time ?? 0);
   const [winEnd, setWinEnd] = useState<number | "">(player.end_time ?? "");
+  const [instanceRevision, bumpInstanceRevision] = useState(0);
 
-  const instances: InstanceInfo[] = useMemo(
-    () => animApi.listInstances(player.id),
-    [animApi, player.id],
-  );
+  const refreshInstances = useCallback(() => {
+    bumpInstanceRevision((v) => v + 1);
+  }, []);
+
+  const instances: InstanceInfo[] = useMemo(() => {
+    if (typeof animApi.listInstances !== "function") return [];
+    return animApi.listInstances(player.id) ?? [];
+  }, [
+    animApi,
+    player.id,
+    player.start_time,
+    player.end_time,
+    player.length,
+    player.state,
+    instanceRevision,
+  ]);
   const animById = useMemo(
     () => Object.fromEntries(animations.map((a) => [a.id, a])),
     [animations],
@@ -234,10 +252,15 @@ export default function PlayerCard({
   const spans: InstanceSpan[] = useMemo(() => {
     return instances.map((ii, idx) => {
       const a = animById[ii.animation];
-      const dur = a ? a.duration_ms / 1000 : 0;
-      const ts = Math.max(Math.abs(ii.cfg.time_scale ?? 1), 1e-6);
-      const start = ii.cfg.start_offset ?? 0;
-      const end = start + dur * ts;
+      const durationSec = a ? (a.duration_ms ?? 0) / 1000 : 0;
+      const offset = Number(ii.cfg.start_offset ?? 0) || 0;
+      const rawScale = Number(ii.cfg.time_scale ?? 1);
+      const scale =
+        Number.isFinite(rawScale) && Math.abs(rawScale) > 1e-6 ? rawScale : 1;
+      const absScale = Math.abs(scale);
+      const span = durationSec * absScale;
+      const start = scale >= 0 ? offset : offset - span;
+      const end = scale >= 0 ? offset + span : offset;
       return {
         id: ii.id,
         start,
@@ -252,29 +275,40 @@ export default function PlayerCard({
 
   const markers: TimelineMarker[] = useMemo(() => {
     const map: TimelineMarker[] = [];
-    const srcMap: Map<number, StoredAnimation> | Record<number, StoredAnimation> |
-      undefined = animationSourcesById;
+    const srcMap:
+      | Map<number, StoredAnimation>
+      | Record<number, StoredAnimation>
+      | undefined = animationSourcesById;
     instances.forEach((ii, idx) => {
-      const start = ii.cfg.start_offset ?? 0;
-      const timeScale = Math.abs(ii.cfg.time_scale ?? 1) || 1;
+      const offset = Number(ii.cfg.start_offset ?? 0) || 0;
+      const rawScale = Number(ii.cfg.time_scale ?? 1);
+      const scale =
+        Number.isFinite(rawScale) && Math.abs(rawScale) > 1e-6 ? rawScale : 1;
+      const absScale = Math.abs(scale);
+      const direction = scale >= 0 ? 1 : -1;
       const animSource =
         srcMap instanceof Map
           ? srcMap.get(ii.animation)
           : srcMap
-          ? (srcMap as Record<number, StoredAnimation>)[ii.animation]
-          : undefined;
-      if (!animSource) return;
-      const durationMs = (animSource as any).duration ?? 0;
+            ? (srcMap as Record<number, StoredAnimation>)[ii.animation]
+            : undefined;
+      const durationMs =
+        (animSource as any)?.duration ??
+        animById[ii.animation]?.duration_ms ??
+        0;
       const durationSec = Number(durationMs) / 1000;
       if (!Number.isFinite(durationSec) || durationSec <= 0) return;
       const colorFallback = instColors[idx % instColors.length];
       (animSource as any).tracks?.forEach((track: any, trackIdx: number) => {
         const trackColor = track.settings?.color ?? colorFallback;
-        const baseLabel = track.name ?? track.animatableId ?? `track_${trackIdx}`;
+        const baseLabel =
+          track.name ?? track.animatableId ?? `track_${trackIdx}`;
         (track.points ?? []).forEach((pt: any, pointIdx: number) => {
           const stamp = Number(pt.stamp ?? 0);
           if (!Number.isFinite(stamp)) return;
-          const t = start + stamp * durationSec * timeScale;
+          const clipTime = clampStamp(stamp) * durationSec;
+          const relative = direction >= 0 ? clipTime : durationSec - clipTime;
+          const t = offset + relative * absScale;
           map.push({
             id: `${ii.id}:${track.id ?? trackIdx}:${pt.id ?? pointIdx}`,
             time: t,
@@ -285,7 +319,7 @@ export default function PlayerCard({
       });
     });
     return map;
-  }, [instances, animationSourcesById]);
+  }, [instances, animationSourcesById, animById]);
 
   const onSeekTimeline = useCallback(
     (t: number) => {
@@ -311,10 +345,12 @@ export default function PlayerCard({
         cfg: { enabled: true, weight: 1, time_scale: 1, start_offset: 0 },
       },
     ]);
+    refreshInstances();
   };
 
   const removeInstance = (instId: number) => {
     animApi.removeInstances?.([{ playerName: player.name, instId }]);
+    refreshInstances();
   };
 
   // Filter history records for this player: keys stored as `${playerId}:${key}`
@@ -367,6 +403,16 @@ export default function PlayerCard({
         markers={markers}
         onSeek={onSeekTimeline}
         height={40}
+        startTime={player.start_time ?? 0}
+      />
+
+      <BakedAnimationPlot
+        playerLength={player.length}
+        playerStartTime={player.start_time ?? 0}
+        playheadTime={player.time}
+        instances={instances}
+        animationSourcesById={animationSourcesById}
+        fallbackColors={instColors}
       />
 
       <div
@@ -536,15 +582,16 @@ export default function PlayerCard({
                     max={1}
                     defaultValue={ii.cfg.weight}
                     style={{ width: 70 }}
-                    onBlur={(e) =>
+                    onBlur={(e) => {
                       animApi.updateInstances([
                         {
                           player: player.id as any,
                           inst: ii.id as any,
                           weight: Number(e.target.value),
                         },
-                      ])
-                    }
+                      ]);
+                      refreshInstances();
+                    }}
                   />
                 </label>
                 <label>
@@ -554,15 +601,16 @@ export default function PlayerCard({
                     step="0.1"
                     defaultValue={ii.cfg.time_scale}
                     style={{ width: 70 }}
-                    onBlur={(e) =>
+                    onBlur={(e) => {
                       animApi.updateInstances([
                         {
                           player: player.id as any,
                           inst: ii.id as any,
                           time_scale: Number(e.target.value),
                         },
-                      ])
-                    }
+                      ]);
+                      refreshInstances();
+                    }}
                   />
                 </label>
                 <label>
@@ -572,15 +620,16 @@ export default function PlayerCard({
                     step="0.1"
                     defaultValue={ii.cfg.start_offset}
                     style={{ width: 90 }}
-                    onBlur={(e) =>
+                    onBlur={(e) => {
                       animApi.updateInstances([
                         {
                           player: player.id as any,
                           inst: ii.id as any,
                           start_offset: Number(e.target.value),
                         },
-                      ])
-                    }
+                      ]);
+                      refreshInstances();
+                    }}
                   />
                 </label>
                 <label
@@ -589,15 +638,16 @@ export default function PlayerCard({
                   <input
                     type="checkbox"
                     defaultChecked={ii.cfg.enabled}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       animApi.updateInstances([
                         {
                           player: player.id as any,
                           inst: ii.id as any,
                           enabled: e.target.checked,
                         },
-                      ])
-                    }
+                      ]);
+                      refreshInstances();
+                    }}
                   />
                   <span style={{ fontSize: 12, opacity: 0.85 }}>enabled</span>
                 </label>

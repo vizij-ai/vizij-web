@@ -53,6 +53,8 @@ export default function AnimationEditor({
   const [selectedIndex, setSelectedIndex] = useState<number>(
     externalSelectedIndex ?? 0,
   );
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number>(0);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number>(0);
   const [draft, setDraft] = useState<StoredAnimation | null>(null);
   const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
   const [valueErrors, setValueErrors] = useState<Record<string, string>>({});
@@ -73,6 +75,8 @@ export default function AnimationEditor({
       setDraft(null);
       setValueInputs({});
       setValueErrors({});
+      setSelectedTrackIndex(0);
+      setSelectedPointIndex(0);
       return;
     }
     if (selectedIndex >= animations.length) {
@@ -99,18 +103,42 @@ export default function AnimationEditor({
     });
     setValueInputs(inputs);
     setValueErrors(errs);
+    setSelectedTrackIndex(0);
+    setSelectedPointIndex(0);
     setStatus(null);
     setError(null);
   }, [animations, selectedIndex]);
 
   const tracks = useMemo(() => draft?.tracks ?? [], [draft]);
+  const selectedTrack = tracks[selectedTrackIndex] ?? null;
+  const trackPoints = (selectedTrack?.points ?? []) as any[];
+  const selectedPoint = trackPoints[selectedPointIndex] ?? null;
+  const selectedPointKey = selectedPoint
+    ? makePointKey(selectedTrackIndex, selectedPointIndex)
+    : null;
+  const selectedPointError = selectedPointKey
+    ? (valueErrors[selectedPointKey] ?? "")
+    : "";
 
-  const updateTrackField = (
-    trackIdx: number,
-    field: string,
-    value: any,
-  ) => {
-    setDraft((prev) => {
+  useEffect(() => {
+    if (selectedTrackIndex >= tracks.length) {
+      setSelectedTrackIndex(Math.max(tracks.length - 1, 0));
+      setSelectedPointIndex(0);
+    }
+  }, [tracks.length, selectedTrackIndex]);
+
+  useEffect(() => {
+    if (!selectedTrack) {
+      setSelectedPointIndex(0);
+      return;
+    }
+    if (selectedPointIndex >= trackPoints.length) {
+      setSelectedPointIndex(Math.max(trackPoints.length - 1, 0));
+    }
+  }, [trackPoints.length, selectedPoint, selectedPointIndex, selectedTrack]);
+
+  const updateTrackField = (trackIdx: number, field: string, value: any) => {
+    setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       const nextTracks = (prev.tracks ?? []).map((track: any, idx: number) => {
         if (idx !== trackIdx) return track;
@@ -132,13 +160,13 @@ export default function AnimationEditor({
     stamp: number,
   ) => {
     if (!Number.isFinite(stamp)) return;
-    setDraft((prev) => {
+    const clamped = Math.min(1, Math.max(0, stamp));
+    setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       const nextTracks = (prev.tracks ?? []).map((track: any, ti: number) => {
         if (ti !== trackIdx) return track;
-        const nextPoints = (track.points ?? []).map(
-          (pt: any, pi: number) =>
-            pi === pointIdx ? { ...pt, stamp } : pt,
+        const nextPoints = (track.points ?? []).map((pt: any, pi: number) =>
+          pi === pointIdx ? { ...pt, stamp: clamped } : pt,
         );
         return { ...track, points: nextPoints };
       });
@@ -152,24 +180,29 @@ export default function AnimationEditor({
     text: string,
   ) => {
     const key = makePointKey(trackIdx, pointIdx);
-    setValueInputs((prev) => ({ ...prev, [key]: text }));
+    setValueInputs((prev: Record<string, string>) => ({
+      ...prev,
+      [key]: text,
+    }));
     try {
       const parsed = parseValue(text);
-      setValueErrors((prev) => ({ ...prev, [key]: "" }));
-      setDraft((prev) => {
+      setValueErrors((prev: Record<string, string>) => ({
+        ...prev,
+        [key]: "",
+      }));
+      setDraft((prev: StoredAnimation | null) => {
         if (!prev) return prev;
         const nextTracks = (prev.tracks ?? []).map((track: any, ti: number) => {
           if (ti !== trackIdx) return track;
-          const nextPoints = (track.points ?? []).map(
-            (pt: any, pi: number) =>
-              pi === pointIdx ? { ...pt, value: parsed } : pt,
+          const nextPoints = (track.points ?? []).map((pt: any, pi: number) =>
+            pi === pointIdx ? { ...pt, value: parsed } : pt,
           );
           return { ...track, points: nextPoints };
         });
         return { ...prev, tracks: nextTracks } as StoredAnimation;
       });
     } catch (e: any) {
-      setValueErrors((prev) => ({
+      setValueErrors((prev: Record<string, string>) => ({
         ...prev,
         [key]: e?.message ?? "Failed to parse value",
       }));
@@ -178,7 +211,7 @@ export default function AnimationEditor({
 
   const removePoint = (trackIdx: number, pointIdx: number) => {
     let updatedPoints: any[] | undefined;
-    setDraft((prev) => {
+    setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       const nextTracks = (prev.tracks ?? []).map((track: any, ti: number) => {
         if (ti !== trackIdx) return track;
@@ -190,7 +223,7 @@ export default function AnimationEditor({
       return { ...prev, tracks: nextTracks } as StoredAnimation;
     });
     if (updatedPoints) {
-      setValueInputs((prev) => {
+      setValueInputs((prev: Record<string, string>) => {
         const next = { ...prev };
         Object.keys(next).forEach((key) => {
           if (key.startsWith(`${trackIdx}:`)) delete next[key];
@@ -201,7 +234,7 @@ export default function AnimationEditor({
         });
         return next;
       });
-      setValueErrors((prev) => {
+      setValueErrors((prev: Record<string, string>) => {
         const next = { ...prev };
         Object.keys(next).forEach((key) => {
           if (key.startsWith(`${trackIdx}:`)) delete next[key];
@@ -212,13 +245,24 @@ export default function AnimationEditor({
         });
         return next;
       });
+      setSelectedPointIndex((prev: number) => {
+        if (trackIdx !== selectedTrackIndex) return prev;
+        if ((updatedPoints?.length ?? 0) === 0) return 0;
+        if (prev === pointIdx) {
+          return Math.max(pointIdx - 1, 0);
+        }
+        if (prev > pointIdx) {
+          return Math.max(prev - 1, 0);
+        }
+        return prev;
+      });
     }
   };
 
   const addPoint = (trackIdx: number) => {
     let newPoint: any | undefined;
     let newIndex = 0;
-    setDraft((prev) => {
+    setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       const nextTracks = (prev.tracks ?? []).map((track: any, ti: number) => {
         if (ti !== trackIdx) return track;
@@ -226,7 +270,7 @@ export default function AnimationEditor({
         const last = points[points.length - 1];
         newPoint = {
           id: `kp_${Date.now()}`,
-          stamp: last ? last.stamp ?? 1 : 0,
+          stamp: last ? (last.stamp ?? 1) : 0,
           value: last ? last.value : 0,
         };
         newIndex = points.length;
@@ -238,13 +282,22 @@ export default function AnimationEditor({
     if (newPoint) {
       const key = makePointKey(trackIdx, newIndex);
       const formatted = formatValue(newPoint.value);
-      setValueInputs((prev) => ({ ...prev, [key]: formatted }));
-      setValueErrors((prev) => ({ ...prev, [key]: "" }));
+      setValueInputs((prev: Record<string, string>) => ({
+        ...prev,
+        [key]: formatted,
+      }));
+      setValueErrors((prev: Record<string, string>) => ({
+        ...prev,
+        [key]: "",
+      }));
+      if (trackIdx === selectedTrackIndex) {
+        setSelectedPointIndex(newIndex);
+      }
     }
   };
 
   const updateMeta = (field: keyof StoredAnimation, value: any) => {
-    setDraft((prev) => {
+    setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       return { ...prev, [field]: value } as StoredAnimation;
     });
@@ -266,7 +319,8 @@ export default function AnimationEditor({
         points: (track.points ?? [])
           .map((pt: any) => ({
             ...pt,
-            stamp: typeof pt.stamp === "number" ? pt.stamp : Number(pt.stamp) || 0,
+            stamp:
+              typeof pt.stamp === "number" ? pt.stamp : Number(pt.stamp) || 0,
           }))
           .sort((a: any, b: any) => a.stamp - b.stamp),
       }));
@@ -306,6 +360,8 @@ export default function AnimationEditor({
     });
     setValueInputs(inputs);
     setValueErrors({});
+    setSelectedTrackIndex(0);
+    setSelectedPointIndex(0);
     setStatus(null);
     setError(null);
   };
@@ -337,7 +393,9 @@ export default function AnimationEditor({
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, opacity: 0.75 }}>Select animation</span>
+            <span style={{ fontSize: 12, opacity: 0.75 }}>
+              Select animation
+            </span>
             <select
               value={selectedIndex}
               onChange={(e) => setSelectedIndex(Number(e.target.value))}
@@ -361,12 +419,16 @@ export default function AnimationEditor({
                   />
                 </label>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, opacity: 0.75 }}>Duration (ms)</span>
+                  <span style={{ fontSize: 12, opacity: 0.75 }}>
+                    Duration (ms)
+                  </span>
                   <input
                     type="number"
                     min={0}
                     value={(draft as any).duration ?? 0}
-                    onChange={(e) => updateMeta("duration", Number(e.target.value))}
+                    onChange={(e) =>
+                      updateMeta("duration", Number(e.target.value))
+                    }
                   />
                 </label>
               </div>
@@ -377,76 +439,170 @@ export default function AnimationEditor({
                     This animation has no tracks.
                   </div>
                 ) : (
-                  tracks.map((track: any, ti: number) => (
-                    <div
-                      key={track.id ?? ti}
-                      style={{
-                        border: "1px solid #2a2d31",
-                        borderRadius: 6,
-                        background: "#1a1d21",
-                        padding: 8,
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <label style={{ flex: "1 1 160px", display: "grid", gap: 4 }}>
-                          <span style={{ fontSize: 12, opacity: 0.75 }}>Track name</span>
-                          <input
-                            value={track.name ?? ""}
-                            onChange={(e) =>
-                              updateTrackField(ti, "name", e.target.value)
-                            }
-                          />
-                        </label>
-                        <label style={{ flex: "1 1 160px", display: "grid", gap: 4 }}>
-                          <span style={{ fontSize: 12, opacity: 0.75 }}>
-                            Animatable Id
-                          </span>
-                          <input
-                            value={track.animatableId ?? ""}
-                            onChange={(e) =>
-                              updateTrackField(ti, "animatableId", e.target.value)
-                            }
-                          />
-                        </label>
-                        <label style={{ width: 120, display: "grid", gap: 4 }}>
-                          <span style={{ fontSize: 12, opacity: 0.75 }}>Color</span>
-                          <input
-                            type="color"
-                            value={track.settings?.color ?? "#60a5fa"}
-                            onChange={(e) =>
-                              updateTrackField(
-                                ti,
-                                "settings.color",
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                      </div>
+                  <div
+                    key={selectedTrack?.id ?? selectedTrackIndex}
+                    style={{
+                      border: "1px solid #2a2d31",
+                      borderRadius: 6,
+                      background: "#1a1d21",
+                      padding: 8,
+                      display: "grid",
+                      gap: 10,
+                    }}
+                  >
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={{ fontSize: 12, opacity: 0.75 }}>Track</span>
+                      <select
+                        value={selectedTrackIndex}
+                        onChange={(e) => {
+                          const nextIndex = Number(e.target.value);
+                          setSelectedTrackIndex(nextIndex);
+                          setSelectedPointIndex(0);
+                        }}
+                      >
+                        {tracks.map((track: any, ti: number) => (
+                          <option key={track.id ?? ti} value={ti}>
+                            {track.name ?? track.id ?? `Track ${ti + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
+                    {selectedTrack && (
                       <div style={{ display: "grid", gap: 8 }}>
                         <div
                           style={{
                             display: "flex",
-                            alignItems: "center",
                             gap: 8,
+                            flexWrap: "wrap",
                           }}
                         >
-                          <b style={{ fontSize: 12 }}>Keypoints</b>
-                          <button onClick={() => addPoint(ti)}>Add keypoint</button>
+                          <label
+                            style={{
+                              flex: "1 1 160px",
+                              display: "grid",
+                              gap: 4,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, opacity: 0.75 }}>
+                              Track name
+                            </span>
+                            <input
+                              value={selectedTrack.name ?? ""}
+                              onChange={(e) =>
+                                updateTrackField(
+                                  selectedTrackIndex,
+                                  "name",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label
+                            style={{
+                              flex: "1 1 160px",
+                              display: "grid",
+                              gap: 4,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, opacity: 0.75 }}>
+                              Animatable Id
+                            </span>
+                            <input
+                              value={selectedTrack.animatableId ?? ""}
+                              onChange={(e) =>
+                                updateTrackField(
+                                  selectedTrackIndex,
+                                  "animatableId",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label
+                            style={{ width: 120, display: "grid", gap: 4 }}
+                          >
+                            <span style={{ fontSize: 12, opacity: 0.75 }}>
+                              Color
+                            </span>
+                            <input
+                              type="color"
+                              value={selectedTrack.settings?.color ?? "#60a5fa"}
+                              onChange={(e) =>
+                                updateTrackField(
+                                  selectedTrackIndex,
+                                  "settings.color",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </label>
                         </div>
-                        {(track.points ?? []).length === 0 ? (
-                          <div style={{ fontSize: 12, opacity: 0.7 }}>
-                            No keypoints
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <b style={{ fontSize: 12 }}>Keypoints</b>
+                            <label
+                              style={{
+                                flex: "1 1 160px",
+                                display: "grid",
+                                gap: 4,
+                              }}
+                            >
+                              <span style={{ fontSize: 12, opacity: 0.75 }}>
+                                Select keypoint
+                              </span>
+                              <select
+                                value={
+                                  trackPoints.length > 0
+                                    ? selectedPointIndex
+                                    : ""
+                                }
+                                onChange={(e) =>
+                                  setSelectedPointIndex(Number(e.target.value))
+                                }
+                                disabled={trackPoints.length === 0}
+                              >
+                                {trackPoints.length === 0 ? (
+                                  <option value="">No keypoints</option>
+                                ) : (
+                                  trackPoints.map((pt: any, pi: number) => (
+                                    <option
+                                      key={
+                                        pt.id ??
+                                        makePointKey(selectedTrackIndex, pi)
+                                      }
+                                      value={pi}
+                                    >
+                                      {`#${pi + 1} — stamp ${Number(pt.stamp ?? 0).toFixed(2)}`}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => addPoint(selectedTrackIndex)}
+                            >
+                              Add keypoint
+                            </button>
                           </div>
-                        ) : (
-                          (track.points ?? []).map((pt: any, pi: number) => {
-                            const key = makePointKey(ti, pi);
-                            return (
+
+                          {trackPoints.length === 0 ? (
+                            <div style={{ fontSize: 12, opacity: 0.7 }}>
+                              No keypoints
+                            </div>
+                          ) : (
+                            selectedPoint && (
                               <div
-                                key={pt.id ?? key}
+                                key={selectedPoint.id ?? selectedPointKey}
                                 style={{
                                   border: "1px solid #2a2d31",
                                   borderRadius: 6,
@@ -471,24 +627,37 @@ export default function AnimationEditor({
                                       width: 140,
                                     }}
                                   >
-                                    <span style={{ fontSize: 12, opacity: 0.75 }}>
+                                    <span
+                                      style={{ fontSize: 12, opacity: 0.75 }}
+                                    >
                                       Stamp (0-1)
                                     </span>
                                     <input
                                       type="number"
                                       step="0.01"
-                                      value={pt.stamp ?? 0}
+                                      min={0}
+                                      max={1}
+                                      value={selectedPoint.stamp ?? 0}
                                       onChange={(e) =>
                                         updatePointStamp(
-                                          ti,
-                                          pi,
+                                          selectedTrackIndex,
+                                          selectedPointIndex,
                                           Number(e.target.value),
                                         )
                                       }
                                     />
                                   </label>
                                   <div style={{ marginLeft: "auto" }}>
-                                    <button onClick={() => removePoint(ti, pi)}>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removePoint(
+                                          selectedTrackIndex,
+                                          selectedPointIndex,
+                                        )
+                                      }
+                                      disabled={trackPoints.length === 0}
+                                    >
                                       Remove
                                     </button>
                                   </div>
@@ -498,12 +667,20 @@ export default function AnimationEditor({
                                     Value (JSON)
                                   </span>
                                   <textarea
-                                    value={valueInputs[key] ?? ""}
+                                    value={
+                                      selectedPointKey
+                                        ? (valueInputs[selectedPointKey] ?? "")
+                                        : ""
+                                    }
                                     onChange={(e) =>
-                                      updatePointValue(ti, pi, e.target.value)
+                                      updatePointValue(
+                                        selectedTrackIndex,
+                                        selectedPointIndex,
+                                        e.target.value,
+                                      )
                                     }
                                     style={{
-                                      minHeight: 80,
+                                      minHeight: 54,
                                       background: "#0f1113",
                                       color: "#eaeaea",
                                       border: "1px solid #2a2d31",
@@ -511,26 +688,31 @@ export default function AnimationEditor({
                                       padding: 6,
                                       fontFamily: "monospace",
                                       fontSize: 12,
+                                      lineHeight: 1.4,
                                     }}
                                   />
-                                  {valueErrors[key] && (
-                                    <div style={{ color: "#f87171", fontSize: 11 }}>
-                                      {valueErrors[key]}
+                                  {selectedPointError && (
+                                    <div
+                                      style={{ color: "#f87171", fontSize: 11 }}
+                                    >
+                                      {selectedPointError}
                                     </div>
                                   )}
                                 </label>
                               </div>
-                            );
-                          })
-                        )}
+                            )
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )}
+                  </div>
                 )}
               </div>
 
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={applyChanges}>Apply & Reload</button>
+                <button type="button" onClick={applyChanges}>
+                  Apply & Reload
+                </button>
                 <button onClick={resetDraft} type="button">
                   Reset
                 </button>
@@ -539,7 +721,9 @@ export default function AnimationEditor({
                 <div style={{ color: "#34d399", fontSize: 12 }}>{status}</div>
               )}
               {error && (
-                <div style={{ color: "#f87171", fontSize: 12 }}>Error: {error}</div>
+                <div style={{ color: "#f87171", fontSize: 12 }}>
+                  Error: {error}
+                </div>
               )}
             </div>
           )}
