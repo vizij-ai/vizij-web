@@ -13,7 +13,7 @@ import {
   Engine,
   type StoredAnimation,
   type Inputs,
-  type Outputs,
+  type OutputsWithDerivatives,
   type Config,
   type InstanceUpdate,
   type AnimationInfo,
@@ -188,8 +188,8 @@ export const AnimationProvider: React.FC<{
   /** Optional engine configuration for Engine constructor. Changing this re-initializes the Engine. */
   engineConfig?: Config;
 
-  /** Optional callback to receive raw Outputs each update (includes events). */
-  onOutputs?: (out: Outputs) => void;
+  /** Optional callback to receive raw Outputs each update (includes events and derivatives). */
+  onOutputs?: (out: OutputsWithDerivatives) => void;
 }> = ({
   children,
   animations,
@@ -352,15 +352,22 @@ export const AnimationProvider: React.FC<{
     return derivativesRef.current[key];
   }, []);
 
-  const applyOutputs = (out: Outputs | undefined) => {
+  const applyOutputs = (out: OutputsWithDerivatives | undefined) => {
     if (!out) return;
     if (Array.isArray(out.changes) && out.changes.length > 0) {
       const changedKeys: string[] = [];
+      const derivativeChangedKeys = new Set<string>();
       for (const ch of out.changes) {
         // Legacy merged store (kept for backward compat)
         valuesRef.current[ch.key] = ch.value;
         if (typeof ch.derivative !== "undefined") {
-          derivativesRef.current[ch.key] = ch.derivative as Value;
+          const derivative = ch.derivative as Value | null | undefined;
+          if (typeof derivative !== "undefined" && derivative !== null) {
+            derivativesRef.current[ch.key] = derivative;
+          } else {
+            delete derivativesRef.current[ch.key];
+          }
+          derivativeChangedKeys.add(ch.key);
         }
         changedKeys.push(ch.key);
         // Per-player store
@@ -371,14 +378,19 @@ export const AnimationProvider: React.FC<{
         if (!derivativesByPlayerRef.current[pid])
           derivativesByPlayerRef.current[pid] = {};
         if (typeof ch.derivative !== "undefined") {
-          derivativesByPlayerRef.current[pid][ch.key] = ch.derivative as Value;
+          const derivative = ch.derivative as Value | null | undefined;
+          if (typeof derivative !== "undefined" && derivative !== null) {
+            derivativesByPlayerRef.current[pid][ch.key] = derivative;
+          } else {
+            delete derivativesByPlayerRef.current[pid][ch.key];
+          }
+          notifyPlayerDerivativeKey(pid, ch.key);
         }
         notifyPlayerKey(pid, ch.key);
-        notifyPlayerDerivativeKey(pid, ch.key);
       }
       // Notify per-key subscribers (legacy)
       changedKeys.forEach(notifyKey);
-      changedKeys.forEach(notifyDerivativeKey);
+      derivativeChangedKeys.forEach((key) => notifyDerivativeKey(key));
     }
     // Forward full Outputs (including events) to consumer if provided
     try {
@@ -529,12 +541,12 @@ export const AnimationProvider: React.FC<{
         const interval = updateHz && updateHz > 0 ? 1000 / updateHz : 0;
 
         if (!interval || now - lastNotifyRef.current >= interval) {
-          const out = eng.update(dt);
+          const out = eng.updateValuesAndDerivatives(dt);
           applyOutputs(out);
           lastNotifyRef.current = now;
         } else {
           // still advance the simulation even if throttling notifications
-          eng.update(dt);
+          eng.updateValues(dt);
         }
 
         rafRef.current = requestAnimationFrame(loop);
@@ -557,7 +569,7 @@ export const AnimationProvider: React.FC<{
   const step = useCallback((dt: number, inputs?: Inputs) => {
     const eng = engineRef.current;
     if (!eng) return;
-    applyOutputs(eng.update(dt, inputs));
+    applyOutputs(eng.updateValuesAndDerivatives(dt, inputs));
   }, []);
 
   const reload = useCallback(
@@ -565,7 +577,7 @@ export const AnimationProvider: React.FC<{
       const eng = engineRef.current;
       if (!eng) return;
       loadAnimationsAndInstances(eng, normalizeAnimations(anims), insts);
-      applyOutputs(eng.update(0.0));
+      applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh players/instances from engine after reload
       try {
         const playersInfo = eng.listPlayers() as unknown as PlayerInfo[];
@@ -627,7 +639,7 @@ export const AnimationProvider: React.FC<{
       } catch {
         // ignore
       }
-      applyOutputs(eng.update(0.0));
+      applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh engine state
       try {
         const playersInfo = eng.listPlayers() as unknown as PlayerInfo[];
@@ -688,7 +700,7 @@ export const AnimationProvider: React.FC<{
         results.push({ playerName: spec.playerName, instId });
       }
       setPlayers(nextPlayers);
-      applyOutputs(eng.update(0.0));
+      applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh engine state
       try {
         const playersInfo = eng.listPlayers() as unknown as PlayerInfo[];
@@ -721,7 +733,9 @@ export const AnimationProvider: React.FC<{
   const updateInstances = useCallback((updates: InstanceUpdate[]) => {
     const eng = engineRef.current;
     if (!eng || !updates || updates.length === 0) return;
-    applyOutputs(eng.update(0.0, { instance_updates: updates }));
+    applyOutputs(
+      eng.updateValuesAndDerivatives(0.0, { instance_updates: updates }),
+    );
   }, []);
 
   const resolvePlayerId = useCallback(
@@ -875,7 +889,7 @@ export const AnimationProvider: React.FC<{
       const pid = resolvePlayerId(player);
       if (pid === undefined) return false;
       const ok = eng.removePlayer(pid as any);
-      applyOutputs(eng.update(0.0));
+      applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh state
       try {
         const playersInfo = eng.listPlayers();
@@ -915,7 +929,7 @@ export const AnimationProvider: React.FC<{
           results.push({ playerName: s.playerName, instId: s.instId });
         }
       }
-      applyOutputs(eng.update(0.0));
+      applyOutputs(eng.updateValuesAndDerivatives(0.0));
       // Refresh
       try {
         const playersInfo = eng.listPlayers();
@@ -947,7 +961,7 @@ export const AnimationProvider: React.FC<{
       const ok = eng.unloadAnimation(aid as unknown as number);
       if (ok) removed.push(aid);
     }
-    applyOutputs(eng.update(0.0));
+    applyOutputs(eng.updateValuesAndDerivatives(0.0));
     // Refresh
     try {
       const playersInfo = eng.listPlayers();
