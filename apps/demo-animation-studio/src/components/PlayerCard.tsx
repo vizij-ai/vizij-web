@@ -5,8 +5,9 @@ import type {
   PlayerInfo,
   InstanceInfo,
   Value,
+  StoredAnimation,
 } from "@vizij/animation-wasm";
-import Timeline, { InstanceSpan } from "./Timeline";
+import Timeline, { InstanceSpan, TimelineMarker } from "./Timeline";
 import ChartsView from "./OutputsView/ChartsView";
 
 type Sample = { t: number; v: Value };
@@ -199,12 +200,14 @@ export default function PlayerCard({
   resolvedKeys,
   history,
   historyWindowSec,
+  animationSourcesById,
 }: {
   player: PlayerInfo;
   animations: AnimationInfo[];
   resolvedKeys: string[];
   history: History;
   historyWindowSec: number;
+  animationSourcesById?: Map<number, StoredAnimation> | Record<number, StoredAnimation>;
 }) {
   const animApi = useAnimation() as any;
   const [speed, setSpeed] = useState<number>(player.speed ?? 1);
@@ -246,6 +249,43 @@ export default function PlayerCard({
       };
     });
   }, [instances, animById]);
+
+  const markers: TimelineMarker[] = useMemo(() => {
+    const map: TimelineMarker[] = [];
+    const srcMap: Map<number, StoredAnimation> | Record<number, StoredAnimation> |
+      undefined = animationSourcesById;
+    instances.forEach((ii, idx) => {
+      const start = ii.cfg.start_offset ?? 0;
+      const timeScale = Math.abs(ii.cfg.time_scale ?? 1) || 1;
+      const animSource =
+        srcMap instanceof Map
+          ? srcMap.get(ii.animation)
+          : srcMap
+          ? (srcMap as Record<number, StoredAnimation>)[ii.animation]
+          : undefined;
+      if (!animSource) return;
+      const durationMs = (animSource as any).duration ?? 0;
+      const durationSec = Number(durationMs) / 1000;
+      if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+      const colorFallback = instColors[idx % instColors.length];
+      (animSource as any).tracks?.forEach((track: any, trackIdx: number) => {
+        const trackColor = track.settings?.color ?? colorFallback;
+        const baseLabel = track.name ?? track.animatableId ?? `track_${trackIdx}`;
+        (track.points ?? []).forEach((pt: any, pointIdx: number) => {
+          const stamp = Number(pt.stamp ?? 0);
+          if (!Number.isFinite(stamp)) return;
+          const t = start + stamp * durationSec * timeScale;
+          map.push({
+            id: `${ii.id}:${track.id ?? trackIdx}:${pt.id ?? pointIdx}`,
+            time: t,
+            color: trackColor,
+            label: `${baseLabel}`,
+          });
+        });
+      });
+    });
+    return map;
+  }, [instances, animationSourcesById]);
 
   const onSeekTimeline = useCallback(
     (t: number) => {
@@ -324,6 +364,7 @@ export default function PlayerCard({
         windowStart={player.start_time}
         windowEnd={player.end_time ?? undefined}
         instances={spans}
+        markers={markers}
         onSeek={onSeekTimeline}
         height={40}
       />
