@@ -1,101 +1,74 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import { ikPaths } from "./ikAnimation";
+import { ikPaths, JOINT_IDS, JOINT_SAMPLES } from "./ikAnimation";
+
+const defaultJointSample = JOINT_SAMPLES[0]
+  ? Array.from(JOINT_SAMPLES[0])
+  : [0, 0, 0, 0, 0, 0];
 
 export const ikGraphSpec: GraphSpec = {
   nodes: [
     {
-      id: "target_in",
+      id: "joint_input",
       type: "input",
       params: {
-        path: ikPaths.target,
-        value: { vec3: [0.3, 0.2, 0.4] },
+        path: ikPaths.jointInput,
+        value: { vector: defaultJointSample },
       },
     },
-    { id: "idx_x", type: "constant", params: { value: 0 } },
-    { id: "idx_y", type: "constant", params: { value: 1 } },
-    { id: "idx_z", type: "constant", params: { value: 2 } },
     {
-      id: "target_length",
-      type: "vectorlength",
-      inputs: { in: { node_id: "target_in" } },
-    },
-    {
-      id: "shoulder_gain",
-      type: "constant",
-      params: { value: 0.8 },
-    },
-    {
-      id: "elbow_gain",
-      type: "constant",
-      params: { value: 1.1 },
-    },
-    {
-      id: "wrist_gain",
-      type: "constant",
-      params: { value: 0.6 },
-    },
-    {
-      id: "target_x",
-      type: "vectorindex",
-      inputs: { v: { node_id: "target_in" }, index: { node_id: "idx_x" } },
-    },
-    {
-      id: "target_y",
-      type: "vectorindex",
-      inputs: { v: { node_id: "target_in" }, index: { node_id: "idx_y" } },
-    },
-    {
-      id: "target_z",
-      type: "vectorindex",
-      inputs: { v: { node_id: "target_in" }, index: { node_id: "idx_z" } },
-    },
-    {
-      id: "shoulder_angle",
-      type: "multiply",
+      id: "fk",
+      type: "urdffk",
+      params: {
+        urdf_xml: "",
+        root_link: "",
+        tip_link: "",
+        joint_defaults: [],
+      },
       inputs: {
-        operands_1: { node_id: "target_length" },
-        operands_2: { node_id: "shoulder_gain" },
+        joints: { node_id: "joint_input" },
       },
     },
     {
-      id: "elbow_angle",
-      type: "multiply",
+      id: "fk_position_out",
+      type: "output",
+      params: { path: ikPaths.fkPosition },
       inputs: {
-        operands_1: { node_id: "target_y" },
-        operands_2: { node_id: "elbow_gain" },
+        in: { node_id: "fk", output_key: "position" },
       },
     },
     {
-      id: "wrist_angle",
-      type: "multiply",
+      id: "fk_rotation_out",
+      type: "output",
+      params: { path: ikPaths.fkRotation },
       inputs: {
-        operands_1: { node_id: "target_z" },
-        operands_2: { node_id: "wrist_gain" },
+        in: { node_id: "fk", output_key: "rotation" },
       },
     },
     {
-      id: "reach_out",
-      type: "output",
-      params: { path: ikPaths.reach },
-      inputs: { in: { node_id: "target_length" } },
+      id: "ik_solver",
+      type: "urdfikposition",
+      params: {
+        urdf_xml: "",
+        root_link: "",
+        tip_link: "",
+        max_iters: 256,
+        tol_pos: 0.0005,
+      },
+      inputs: {
+        target_pos: { node_id: "fk", output_key: "position" },
+        seed: { node_id: "joint_input" },
+      },
     },
-    {
-      id: "shoulder_out",
-      type: "output",
-      params: { path: ikPaths.shoulder },
-      inputs: { in: { node_id: "shoulder_angle" } },
-    },
-    {
-      id: "elbow_out",
-      type: "output",
-      params: { path: ikPaths.elbow },
-      inputs: { in: { node_id: "elbow_angle" } },
-    },
-    {
-      id: "wrist_out",
-      type: "output",
-      params: { path: ikPaths.wrist },
-      inputs: { in: { node_id: "wrist_angle" } },
-    },
+    ...JOINT_IDS.map((jointId) => ({
+      id: `${jointId}_out`,
+      type: "output" as const,
+      params: { path: ikPaths.ikJointOutputs[jointId] },
+      inputs: {
+        in: {
+          node_id: "ik_solver",
+          selector: [{ field: jointId }],
+        },
+      },
+    })),
   ],
 };

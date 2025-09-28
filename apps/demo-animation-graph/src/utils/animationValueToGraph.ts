@@ -11,7 +11,9 @@ export function animationValueToValueJSON(
     case "Vec2":
       return { vector: [value.data[0] ?? 0, value.data[1] ?? 0] };
     case "Vec3":
-      return { vec3: [value.data[0] ?? 0, value.data[1] ?? 0, value.data[2] ?? 0] };
+      return {
+        vec3: [value.data[0] ?? 0, value.data[1] ?? 0, value.data[2] ?? 0],
+      };
     case "Vec4":
       return {
         vec4: [

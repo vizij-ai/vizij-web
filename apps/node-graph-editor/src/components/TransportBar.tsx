@@ -22,30 +22,36 @@ export default function TransportBar(): JSX.Element {
   const spec = useEditorStore((s) => s.spec);
 
   const currentMode = playback.getMode();
+  const runtimeReady = runtime.ready;
+  const controlsDisabled = !runtimeReady;
 
   const handlePlayPause = useCallback(() => {
+    if (!runtimeReady) return;
     if (currentMode === "manual") {
       playback.start("interval", intervalHz);
     } else {
       playback.stop();
     }
-  }, [currentMode, playback, intervalHz]);
+  }, [currentMode, playback, intervalHz, runtimeReady]);
 
   const handleStep = useCallback(() => {
+    if (!runtimeReady) return;
     // step by 1/frame at the configured interval Hz (approximate)
     const dt = 1 / Math.max(1, intervalHz);
     runtime.step?.(dt);
     runtime.evalAll?.();
-  }, [runtime, intervalHz]);
+  }, [runtime, intervalHz, runtimeReady]);
 
   const handleReset = useCallback(() => {
+    if (!runtimeReady) return;
     playback.stop();
     runtime.setTime?.(0);
     runtime.evalAll?.();
-  }, [playback, runtime]);
+  }, [playback, runtime, runtimeReady]);
 
   const handleModeChange = useCallback(
     (mode: string) => {
+      if (!runtimeReady) return;
       if (mode === "manual") {
         playback.stop();
       } else if (mode === "raf") {
@@ -57,10 +63,11 @@ export default function TransportBar(): JSX.Element {
         playback.stop();
       }
     },
-    [playback, intervalHz],
+    [playback, intervalHz, runtimeReady],
   );
 
   const applyTime = useCallback(() => {
+    if (!runtimeReady) return;
     const t = Number(timeInput);
     if (Number.isFinite(t)) {
       runtime.setTime?.(t);
@@ -68,10 +75,11 @@ export default function TransportBar(): JSX.Element {
     } else {
       // ignore invalid input
     }
-  }, [runtime, timeInput]);
+  }, [runtime, timeInput, runtimeReady]);
 
   // Manual controls to verify graph load/eval and debug current snapshot
   const handleReloadGraph = useCallback(async () => {
+    if (!runtimeReady) return;
     try {
       console.info(
         "[Transport] ReloadGraph clicked. runtime.ready=",
@@ -91,18 +99,20 @@ export default function TransportBar(): JSX.Element {
     } catch (err) {
       console.error("[Transport] ReloadGraph error:", err);
     }
-  }, [runtime, spec]);
+  }, [runtime, spec, runtimeReady]);
 
   const handleEvalNow = useCallback(() => {
+    if (!runtimeReady) return;
     try {
       const res = runtime.evalAll?.();
       console.info("[Transport] EvalNow -> evalAll result:", res);
     } catch (err) {
       console.error("[Transport] EvalNow error:", err);
     }
-  }, [runtime]);
+  }, [runtime, runtimeReady]);
 
   const handleLogSnapshot = useCallback(() => {
+    if (!runtimeReady) return;
     try {
       const snap = runtime.getSnapshot?.();
       console.info("[Transport] Snapshot:", snap);
@@ -114,7 +124,7 @@ export default function TransportBar(): JSX.Element {
     } catch (err) {
       console.error("[Transport] LogSnapshot error:", err);
     }
-  }, [runtime]);
+  }, [runtime, runtimeReady]);
 
   return (
     <div
@@ -126,15 +136,27 @@ export default function TransportBar(): JSX.Element {
         borderBottom: "1px solid #ddd",
       }}
     >
-      <button onClick={handlePlayPause} style={{ padding: "6px 10px" }}>
+      <button
+        onClick={handlePlayPause}
+        style={{ padding: "6px 10px" }}
+        disabled={controlsDisabled}
+      >
         {currentMode === "manual" ? "Play" : "Pause"}
       </button>
 
-      <button onClick={handleStep} style={{ padding: "6px 10px" }}>
+      <button
+        onClick={handleStep}
+        style={{ padding: "6px 10px" }}
+        disabled={controlsDisabled}
+      >
         Step
       </button>
 
-      <button onClick={handleReset} style={{ padding: "6px 10px" }}>
+      <button
+        onClick={handleReset}
+        style={{ padding: "6px 10px" }}
+        disabled={controlsDisabled}
+      >
         Reset
       </button>
 
@@ -151,6 +173,7 @@ export default function TransportBar(): JSX.Element {
           value={currentMode}
           onChange={(e) => handleModeChange(e.target.value)}
           style={{ padding: "6px 8px", borderRadius: 6 }}
+          disabled={controlsDisabled}
         >
           <option value="manual">manual</option>
           <option value="raf">raf</option>
@@ -175,10 +198,12 @@ export default function TransportBar(): JSX.Element {
             value={String(intervalHz)}
             onChange={(e) => setIntervalHz(Number(e.target.value || 60))}
             style={{ width: 80, padding: "6px 8px", borderRadius: 6 }}
+            disabled={controlsDisabled}
           />
           <button
             onClick={() => playback.start("interval", intervalHz)}
             style={{ padding: "6px 10px" }}
+            disabled={controlsDisabled}
           >
             Start Interval
           </button>
@@ -199,19 +224,36 @@ export default function TransportBar(): JSX.Element {
           onChange={(e) => setTimeInput(e.target.value)}
           placeholder="seconds"
           style={{ width: 100, padding: "6px 8px", borderRadius: 6 }}
+          disabled={controlsDisabled}
         />
-        <button onClick={applyTime} style={{ padding: "6px 10px" }}>
+        <button
+          onClick={applyTime}
+          style={{ padding: "6px 10px" }}
+          disabled={controlsDisabled}
+        >
           Set Time & Eval
         </button>
 
         {/* Debug / control buttons */}
-        <button onClick={handleEvalNow} style={{ padding: "6px 10px" }}>
+        <button
+          onClick={handleEvalNow}
+          style={{ padding: "6px 10px" }}
+          disabled={controlsDisabled}
+        >
           Eval Now
         </button>
-        <button onClick={handleReloadGraph} style={{ padding: "6px 10px" }}>
+        <button
+          onClick={handleReloadGraph}
+          style={{ padding: "6px 10px" }}
+          disabled={controlsDisabled}
+        >
           Reload Graph
         </button>
-        <button onClick={handleLogSnapshot} style={{ padding: "6px 10px" }}>
+        <button
+          onClick={handleLogSnapshot}
+          style={{ padding: "6px 10px" }}
+          disabled={controlsDisabled}
+        >
           Log Snapshot
         </button>
       </div>

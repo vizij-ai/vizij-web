@@ -16,7 +16,13 @@ interface Props {
 const DEFAULT_WIDTH = 360;
 const DEFAULT_HEIGHT = 140;
 
-function buildPath(values: number[], width: number, height: number, min: number, max: number) {
+function buildPath(
+  values: number[],
+  width: number,
+  height: number,
+  min: number,
+  max: number,
+) {
   if (values.length === 0) return "";
   const span = max - min || 1;
   return values
@@ -37,10 +43,8 @@ export function TimeSeriesChart({
   height = DEFAULT_HEIGHT,
 }: Props) {
   const allValues = series.flatMap((entry) => entry.values);
-  const min =
-    allValues.length > 0 ? Math.min(...allValues, 0) : 0;
-  const max =
-    allValues.length > 0 ? Math.max(...allValues, 1) : 1;
+  const min = allValues.length > 0 ? Math.min(...allValues, 0) : 0;
+  const max = allValues.length > 0 ? Math.max(...allValues, 1) : 1;
   const adjustedMin = min === max ? min - 1 : min;
   const adjustedMax = min === max ? max + 1 : max;
 
@@ -55,7 +59,11 @@ export function TimeSeriesChart({
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 12 }}>{title}</div>
-      <svg width={width} height={height} style={{ background: "#111827", borderRadius: 8 }}>
+      <svg
+        width={width}
+        height={height}
+        style={{ background: "#111827", borderRadius: 8 }}
+      >
         <line
           x1={0}
           y1={height / 2}
@@ -76,11 +84,16 @@ export function TimeSeriesChart({
           />
         ))}
       </svg>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+      <div
+        style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}
+      >
         {series.map((entry) => {
           const latest = entry.values[entry.values.length - 1];
           return (
-            <div key={entry.label} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div
+              key={entry.label}
+              style={{ display: "flex", gap: 6, alignItems: "center" }}
+            >
               <span
                 style={{
                   display: "inline-block",
@@ -92,9 +105,7 @@ export function TimeSeriesChart({
               />
               <span style={{ fontSize: 14 }}>
                 {entry.label}
-                {typeof latest === "number"
-                  ? `: ${latest.toFixed(3)}`
-                  : ""}
+                {typeof latest === "number" ? `: ${latest.toFixed(3)}` : ""}
               </span>
             </div>
           );

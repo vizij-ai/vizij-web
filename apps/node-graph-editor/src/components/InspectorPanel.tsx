@@ -426,9 +426,12 @@ export default function InspectorPanel(): JSX.Element {
   const node = nodes.find((n) => n.id === selectedId) ?? null;
   const { registry, getParamsForType, getPortsForType } = useRegistry();
   const runtime = useGraphRuntime();
+  const runtimeReady = runtime.ready;
+  const controlsDisabled = !runtimeReady;
 
   // Inspector runtime debug hooks (must be declared unconditionally before any early returns)
   const handleEvalNow = useCallback(() => {
+    if (!runtimeReady) return;
     try {
       const res = runtime.evalAll?.();
       // eslint-disable-next-line no-console
@@ -437,10 +440,11 @@ export default function InspectorPanel(): JSX.Element {
       // eslint-disable-next-line no-console
       console.error("[Inspector] EvalNow error:", err);
     }
-  }, [runtime]);
+  }, [runtime, runtimeReady]);
 
   const spec = useEditorStore((s) => s.spec);
   const handleReloadGraph = useCallback(async () => {
+    if (!runtimeReady) return;
     try {
       // eslint-disable-next-line no-console
       console.info(
@@ -464,7 +468,7 @@ export default function InspectorPanel(): JSX.Element {
       // eslint-disable-next-line no-console
       console.error("[Inspector] ReloadGraph error:", err);
     }
-  }, [runtime, spec]);
+  }, [runtime, spec, runtimeReady]);
 
   const snapshot = runtime.getSnapshot?.();
   const nodeKeys = useMemo(
@@ -520,13 +524,15 @@ export default function InspectorPanel(): JSX.Element {
       );
 
       // runtime live update
-      try {
-        runtime?.setParam?.(nodeId, paramId, value);
-      } catch {
-        // ignore runtime failures in editor
+      if (runtimeReady) {
+        try {
+          runtime?.setParam?.(nodeId, paramId, value);
+        } catch {
+          // ignore runtime failures in editor
+        }
       }
     },
-    [setNodes, runtime],
+    [setNodes, runtime, runtimeReady],
   );
 
   // Optionally reconcile NodeSpec.inputs -> RF edges (create edge)
@@ -691,10 +697,18 @@ export default function InspectorPanel(): JSX.Element {
           <code>{nodeKeys.length ? nodeKeys.join(", ") : "(none)"}</code>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={handleEvalNow} style={{ padding: "4px 8px" }}>
+          <button
+            onClick={handleEvalNow}
+            style={{ padding: "4px 8px" }}
+            disabled={controlsDisabled}
+          >
             Eval Now
           </button>
-          <button onClick={handleReloadGraph} style={{ padding: "4px 8px" }}>
+          <button
+            onClick={handleReloadGraph}
+            style={{ padding: "4px 8px" }}
+            disabled={controlsDisabled}
+          >
             Reload Graph
           </button>
         </div>

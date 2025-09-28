@@ -11,5 +11,5 @@
     "types": ["vite/client"]
   },
   "include": ["src"],
-  "exclude": ["src/index.tsx"]
+  "exclude": ["src/index.tsx", "src/__tests__"]
 }

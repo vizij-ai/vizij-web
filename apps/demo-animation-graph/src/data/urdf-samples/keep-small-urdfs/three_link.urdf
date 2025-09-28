@@ -1,0 +1,37 @@
+<robot name="vizij_three_link">
+  <link name="base_link" />
+  <link name="shoulder_link" />
+  <link name="elbow_link" />
+  <link name="wrist_link" />
+  <link name="tool" />
+
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="base_link" />
+    <child link="shoulder_link" />
+    <origin xyz="0 0 0.05" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.5" upper="2.5" effort="10" velocity="4" />
+  </joint>
+
+  <joint name="elbow_joint" type="revolute">
+    <parent link="shoulder_link" />
+    <child link="elbow_link" />
+    <origin xyz="0.25 0 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.5" upper="2.5" effort="8" velocity="4" />
+  </joint>
+
+  <joint name="wrist_joint" type="revolute">
+    <parent link="elbow_link" />
+    <child link="wrist_link" />
+    <origin xyz="0.2 0 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-2.5" upper="2.5" effort="6" velocity="4" />
+  </joint>
+
+  <joint name="tool_joint" type="fixed">
+    <parent link="wrist_link" />
+    <child link="tool" />
+    <origin xyz="0.12 0 0" rpy="0 0 0" />
+  </joint>
+</robot>
