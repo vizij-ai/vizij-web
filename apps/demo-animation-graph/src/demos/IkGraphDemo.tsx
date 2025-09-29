@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AnimationProvider,
   useAnimTarget,
@@ -13,7 +19,10 @@ import {
   valueAsVector,
 } from "@vizij/node-graph-react";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
-import { UrdfIkPanel, type AppliedParams as IkPanelAppliedParams } from "../components/UrdfIkPanel";
+import {
+  UrdfIkPanel,
+  type AppliedParams as IkPanelAppliedParams,
+} from "../components/UrdfIkPanel";
 import { useSyncedSeries } from "../utils/useSyncedSeries";
 import {
   ikAnimation,
@@ -96,9 +105,10 @@ function IkGraphInner() {
 
       const fkPos = valueAsVec3(readOut("fk_position_out")) ?? [0, 0, 0];
       const fkRotRaw = valueAsVector(readOut("fk_rotation_out"));
-      const fkRot: [number, number, number, number] = fkRotRaw && fkRotRaw.length >= 4
-        ? [fkRotRaw[0], fkRotRaw[1], fkRotRaw[2], fkRotRaw[3]]
-        : [0, 0, 0, 1];
+      const fkRot: [number, number, number, number] =
+        fkRotRaw && fkRotRaw.length >= 4
+          ? [fkRotRaw[0], fkRotRaw[1], fkRotRaw[2], fkRotRaw[3]]
+          : [0, 0, 0, 1];
 
       const jointOutputs = JOINT_IDS.map((jointId) => {
         const value = valueAsNumber(readOut(`${jointId}_out`));
@@ -153,7 +163,10 @@ function IkGraphInner() {
         runtime.setParam("fk", "root_link", params.root);
         runtime.setParam("fk", "tip_link", params.tip);
       } catch (err) {
-        console.error("[IkGraphDemo] Failed to mirror IK params onto FK node", err);
+        console.error(
+          "[IkGraphDemo] Failed to mirror IK params onto FK node",
+          err,
+        );
       }
     },
     [runtime, graphLoaded],
@@ -185,10 +198,22 @@ function IkGraphInner() {
     return { qx, qy, qz, qw } as Record<FkRotationKey, number | undefined>;
   }, [frame.fkRotation]);
 
-  const jointInputSeries = useSyncedSeries<JointId>(jointInputRecord, frame.version);
-  const ikOutputSeries = useSyncedSeries<JointId>(ikOutputRecord, frame.version);
-  const fkPositionSeries = useSyncedSeries<FkPositionKey>(fkPositionRecord, frame.version);
-  const fkRotationSeries = useSyncedSeries<FkRotationKey>(fkRotationRecord, frame.version);
+  const jointInputSeries = useSyncedSeries<JointId>(
+    jointInputRecord,
+    frame.version,
+  );
+  const ikOutputSeries = useSyncedSeries<JointId>(
+    ikOutputRecord,
+    frame.version,
+  );
+  const fkPositionSeries = useSyncedSeries<FkPositionKey>(
+    fkPositionRecord,
+    frame.version,
+  );
+  const fkRotationSeries = useSyncedSeries<FkRotationKey>(
+    fkRotationRecord,
+    frame.version,
+  );
 
   const latestFkPosition = frame.fkPosition;
   const latestFkRotation = frame.fkRotation;
@@ -233,9 +258,9 @@ function IkGraphInner() {
         </h2>
         <p style={{ margin: 0, color: "#cbd5f5", lineHeight: 1.5 }}>
           The animation streams joint samples into the graph. A URDF FK node
-          produces the target pose, and the URDF IK node solves joints that track
-          that pose. Both the animation inputs and graph outputs are plotted for
-          inspection.
+          produces the target pose, and the URDF IK node solves joints that
+          track that pose. Both the animation inputs and graph outputs are
+          plotted for inspection.
         </p>
       </header>
 
@@ -264,31 +289,32 @@ function IkGraphInner() {
           }}
         >
           <strong>Latest samples</strong>
-          <div style={{ fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}>
+          <div
+            style={{ fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}
+          >
             <div>
-              <span style={{ opacity: 0.7 }}>Anim joints:</span>
-              {" "}
-              {jointInputs.map((value, idx) =>
-                `${JOINT_IDS[idx]}=${value.toFixed(3)}`).join(", ")}
+              <span style={{ opacity: 0.7 }}>Anim joints:</span>{" "}
+              {jointInputs
+                .map((value, idx) => `${JOINT_IDS[idx]}=${value.toFixed(3)}`)
+                .join(", ")}
             </div>
             <div>
-              <span style={{ opacity: 0.7 }}>FK position:</span>
-              {" "}
+              <span style={{ opacity: 0.7 }}>FK position:</span>{" "}
               {latestFkPosition.map((value) => value.toFixed(3)).join(", ")}
             </div>
             <div>
-              <span style={{ opacity: 0.7 }}>FK rotation (quat):</span>
-              {" "}
+              <span style={{ opacity: 0.7 }}>FK rotation (quat):</span>{" "}
               {latestFkRotation.map((value) => value.toFixed(3)).join(", ")}
             </div>
             <div>
-              <span style={{ opacity: 0.7 }}>IK joints:</span>
-              {" "}
+              <span style={{ opacity: 0.7 }}>IK joints:</span>{" "}
               {latestIkOutputs
-                .map((value, idx) =>
-                  `${JOINT_IDS[idx]}=${
-                    typeof value === "number" ? value.toFixed(3) : "…"
-                  }`)
+                .map(
+                  (value, idx) =>
+                    `${JOINT_IDS[idx]}=${
+                      typeof value === "number" ? value.toFixed(3) : "…"
+                    }`,
+                )
                 .join(", ")}
             </div>
           </div>
