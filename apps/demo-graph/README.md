@@ -10,6 +10,27 @@ What this demo shows
 - Play/Pause control that toggles an internal RAF loop.
 - Load/save GraphSpec JSON.
 
+## New in 0.2.x: Provider readiness + per-frame input re-staging
+
+This demo now uses the new `@vizij/node-graph-react` provider API:
+
+- `GraphProvider` with safe defaults for WASM-backed graphs:
+  - `waitForGraph` default true, so playback starts only after `loadGraph(spec)` finishes and seeds are applied.
+  - `initialParams`, `initialInputs`, and `graphLoadTimeoutMs` are available.
+- Readiness API surfaced on the runtime:
+  - `graphLoaded` boolean and `waitForGraphReady()` promise.
+  - `on/off('graphLoaded'|'graphLoadError')` event helpers.
+
+Host input behavior (per-frame re-staging)
+
+- While Playing (`autoStart=true`), this demo re-stages the current input values each frame before the provider evaluates the graph. This guarantees Input nodes always see the latest host-provided values on every evaluation tick.
+- When Paused (`autoStart=false`), the demo re-stages all input values once and triggers a single immediate evaluation so outputs “lock” to the current state.
+
+Notes
+
+- You can also rely on “latched” inputs (last staged values persist) depending on your design; this demo chooses explicit per-frame re-staging to make staging semantics visible and predictable in a simple app.
+- For larger apps, you may throttle re-staging or only re-stage changed inputs for performance.
+
 Run the app
 
 1. Build wasm package and link/ensure available (from repo root):
@@ -31,20 +52,18 @@ How it works (updated)
 - Input editors:
   - The demo enumerates Input nodes in the current GraphSpec and renders a minimal ValueEditor per input path.
   - The editor is controlled by a single local state map keyed by TypedPath, so edited values remain in the UI and are not tied to static spec defaults.
-  - On every edit, all inputs are staged to the runtime (the edited one triggers an immediate eval for responsiveness).
+  - On every edit, all inputs are staged to the runtime; when paused we trigger an immediate eval for responsiveness, while playing we let the provider’s loop evaluate on the next tick.
 - Output panels:
   - Each Output node is rendered by a dedicated OutputPanel component which subscribes to its output using useNodeOutput.
   - This avoids React hook order issues when switching between graphs with different numbers of outputs.
 - Play/Pause semantics:
-  - When playing, the NodeGraphProvider re-stages inputs every frame before evalAll(). This is required because the core advances input epochs each evaluation (see epoch semantics).
+  - When playing, the demo re-stages inputs every frame before the provider’s eval tick.
   - When pausing, the demo re-stages all current input values once and performs a single immediate eval to “lock” the outputs for the static view.
 
-Epoch semantics (why re-staging is needed)
+Epoch semantics (why re-staging may be needed)
 
-- The runtime’s evaluate_all() advances the input epoch at the start of each call.
-- Inputs staged are only visible for the next epoch; after that they are dropped.
-- The provider persists and re-stages inputs each frame so Input nodes see them on every evaluation.
-- The demo does a one-shot re-stage on pause to keep outputs consistent without a running loop.
+- Many host-driven graph designs expect inputs to be “present” each evaluation.
+- The demo ensures host-side values are supplied at each frame while playing; when paused, a one-shot restage produces a stable snapshot.
 
 UI overview
 
@@ -75,7 +94,7 @@ Key files
 
 - src/App.tsx
   - Renders Input editors and Output panels.
-  - Maintains inputState keyed by TypedPath; stages all inputs on change/spec load/pause.
+  - Maintains inputState keyed by TypedPath; stages all inputs on change/spec load/pause; re-stages each frame while playing.
   - Uses a dedicated OutputPanel component per output to prevent React hook order warnings.
 - src/utils/graph-default.ts
   - Selects a default sample from the wasm package (vectorPlayground) or a local fallback (URDF).
@@ -88,12 +107,12 @@ Troubleshooting
   - Ensure the package is built (tsc) and pkg/ exists (wasm-pack).
   - The package.json in @vizij/node-graph-wasm must point to dist/src/index.js and export the ESM entry.
 - If outputs don’t update when playing:
-  - Check the browser console logs to confirm “RAF re-stage” messages from the provider and “Writes batch”/“Output snapshot” from the demo.
-  - Ensure your edited inputs correspond to Input nodes with valid TypedPath settings in the current graph.
+  - Confirm the frame restage effect is running (see frameVersion-based effect above).
+  - Ensure your edited inputs correspond to Input nodes with valid TypedPath in the current graph.
 - If switching between graphs triggers React hook errors:
   - The demo uses an OutputPanel component that encapsulates useNodeOutput, avoiding hook reordering. If you copy patterns from the demo, avoid calling hooks inside arrays where the number of calls can change across renders.
 
 Notes
 
-- This demo is intentionally small and focused on staging/epoch behavior and the mechanics of editing inputs and seeing outputs update.
+- This demo is intentionally small and focused on staging behavior and the mechanics of editing inputs and seeing outputs update.
 - For a full node editor experience (graph visualization, drag/links, etc.), see the demo-node-graph app in this repo.

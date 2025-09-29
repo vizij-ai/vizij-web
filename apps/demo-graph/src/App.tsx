@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  NodeGraphProvider,
-  useNodeGraph,
+  GraphProvider,
+  useGraphRuntime,
   useNodeOutput,
-  // useGraphWrites,
   valueAsNumber,
   valueAsVector,
+  useGraphLoaded,
+  useGraphOutputs,
 } from "@vizij/node-graph-react";
 import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
 import { readFileAsText, parseGraphSpecJSON } from "./utils/file";
@@ -211,7 +212,9 @@ function GraphUI({
   spec: GraphSpec;
   autostart?: boolean;
 }) {
-  const { stageInput } = useNodeGraph() as any;
+  const rt = useGraphRuntime() as any;
+  const { graphLoaded } = useGraphLoaded();
+  const frameVersion = useGraphOutputs((snap: any) => snap?.version ?? 0);
 
   // Detect Input and Output nodes from current spec
   const inputNodes = useMemo(
@@ -256,23 +259,46 @@ function GraphUI({
     });
     setInputState(nextState);
 
-    const entries = Object.entries(nextState);
-    entries.forEach(([p, entry], i) => {
-      stageInput(p, entry.value, entry.declared, i === entries.length - 1);
-    });
-  }, [spec, inputNodes, stageInput]);
+    if (graphLoaded) {
+      const entries = Object.entries(nextState);
+      entries.forEach(([p, entry], i) => {
+        const immediate = !autostart && i === entries.length - 1;
+        rt.stageInput?.(p, entry.value, entry.declared, immediate);
+      });
+    }
+  }, [spec, inputNodes, graphLoaded]);
 
   // When pausing, restage all current state and perform a single immediate eval to lock outputs.
   useEffect(() => {
     if (autostart === false) {
+      if (graphLoaded) {
+        const entries = Object.entries(inputState);
+        if (entries.length > 0) {
+          entries.forEach(([p, entry], i) => {
+            rt.stageInput?.(
+              p,
+              entry.value,
+              entry.declared,
+              i === entries.length - 1,
+            );
+          });
+        }
+      }
+    }
+  }, [autostart, inputState, graphLoaded]);
+
+  // While playing, re-stage current input values each frame so host inputs
+  // are always registered before the provider's eval tick.
+  useEffect(() => {
+    if (autostart && graphLoaded) {
       const entries = Object.entries(inputState);
       if (entries.length > 0) {
-        entries.forEach(([p, entry], i) => {
-          stageInput(p, entry.value, entry.declared, i === entries.length - 1);
+        entries.forEach(([p, entry]) => {
+          rt.stageInput?.(p, entry.value, entry.declared, false);
         });
       }
     }
-  }, [autostart, inputState, stageInput]);
+  }, [autostart, graphLoaded, frameVersion, inputState]);
 
   // // Debug: observe writes and current IO node lists
   // const writes = useGraphWrites();
@@ -344,8 +370,13 @@ function GraphUI({
                       };
                       const entries = Object.entries(nextState);
                       entries.forEach(([p, entry]) => {
-                        const immediate = p === path; // trigger a single immediate eval from the changed input
-                        stageInput(p, entry.value, entry.declared, immediate);
+                        const immediate = !autostart && p === path; // avoid forcing extra evals while playing
+                        rt.stageInput?.(
+                          p,
+                          entry.value,
+                          entry.declared,
+                          immediate,
+                        );
                       });
                       return nextState;
                     });
@@ -511,10 +542,10 @@ export default function App() {
         </button>
       </div>
 
-      <NodeGraphProvider spec={spec} autostart={autostart} updateHz={60}>
+      <GraphProvider spec={spec} autoStart={autostart} updateHz={60}>
         <Controls spec={spec} setSpec={setSpec} />
         <GraphUI spec={spec} autostart={autostart} />
-      </NodeGraphProvider>
+      </GraphProvider>
     </div>
   );
 }

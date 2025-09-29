@@ -8,6 +8,7 @@ import type {
 import { createGraphStore } from "./utils/createGraphStore";
 import { normalizeSpec } from "./utils/normalizeSpec";
 import * as wasm from "@vizij/node-graph-wasm";
+import { GraphReadyController } from "./runtime/graphReady";
 
 type Graph = any;
 type GraphSpec = any;
@@ -20,8 +21,14 @@ export function GraphProvider({
   autoMode = "raf",
   updateHz = 60,
   wasmInitInput,
+  waitForGraph = true,
+  graphLoadTimeoutMs = 60000,
+  initialParams,
+  initialInputs,
+  exposeGraphReadyPromise = true,
 }: GraphProviderProps) {
   const [ready, setReady] = useState(false);
+  const [graphLoaded, setGraphLoaded] = useState(false);
   const wasmModuleRef = useRef<any>(null);
   const graphRef = useRef<Graph | null>(null);
   const storeRef = useRef(
@@ -44,6 +51,9 @@ export function GraphProvider({
   const lastTimeRef = useRef<number | null>(null);
   // Track last loaded spec hash to avoid redundant reloads even if prop identity changes
   const lastSpecHashRef = useRef<string | null>(null);
+
+  // Readiness controller ref (recreated per load attempt)
+  const graphReadyRef = useRef<GraphReadyController | null>(null);
 
   // Initialize WASM runtime once
   useEffect(() => {
@@ -87,6 +97,7 @@ export function GraphProvider({
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper: publish eval result to store
@@ -134,8 +145,8 @@ export function GraphProvider({
         console.error("Error staging input on graph:", err);
       }
     }
-    // After applying, clear staged inputs (we keep last staged state in case consumer wants to replay)
-    stagedInputsRef.current = {};
+    // Latch semantics: do NOT clear staged inputs here. Keep values persisted
+    // so playback frames continue to see host-provided inputs until updated.
   }, []);
 
   // Eval tick - returns the eval result if available
@@ -340,7 +351,59 @@ export function GraphProvider({
   // Keep a ref to runtime for debug exposure
   const runtimeRef = useRef<GraphRuntimeContextValue | null>(null);
 
-  const runtime: GraphRuntimeContextValue = {
+  // Small helpers to apply declarative seeds
+  const applyInitialParams = useCallback(
+    async (rt: any, params?: Record<string, Record<string, any>>) => {
+      if (!params) return;
+      const tasks: Promise<void>[] = [];
+      for (const nodeId of Object.keys(params)) {
+        const nodeParams = params[nodeId] ?? {};
+        for (const key of Object.keys(nodeParams)) {
+          try {
+            const val = nodeParams[key];
+            // If rt.setParam returns a promise it's okay; otherwise wrap in Promise.resolve
+            const p = Promise.resolve(rt.setParam?.(nodeId, key, val));
+            tasks.push(p.then(() => {}));
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "applyInitialParams: setParam error",
+              nodeId,
+              key,
+              err,
+            );
+          }
+        }
+      }
+      await Promise.all(tasks);
+    },
+    [],
+  );
+
+  const applyInitialInputs = useCallback(
+    async (rt: any, inputs?: Record<string, any>) => {
+      if (!inputs) return;
+      const tasks: Promise<void>[] = [];
+      for (const path of Object.keys(inputs)) {
+        try {
+          const val = inputs[path];
+          // Stage without immediate eval so seeds are applied before any playback starts
+          const p = Promise.resolve(
+            rt.stageInput?.(path, val, undefined, false),
+          );
+          tasks.push(p.then(() => {}));
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("applyInitialInputs: stageInput error", path, err);
+        }
+      }
+      await Promise.all(tasks);
+    },
+    [],
+  );
+
+  // Build base runtime object (we'll augment with readiness helpers below)
+  const runtimeBase: Partial<GraphRuntimeContextValue> = {
     graph: graphRef.current,
     getLastDt: () => 0,
     ready,
@@ -506,18 +569,61 @@ export function GraphProvider({
     clearWrites,
   };
 
-  // Auto-start playback if requested once runtime becomes ready
+  // Create a runtime object with readiness helpers attached (when requested)
+  const runtime: any = {
+    ...runtimeBase,
+    // runtime.graph will be kept in sync with graphRef when providing the ctxValue below
+    graphLoaded,
+    waitForGraphReady: undefined as (() => Promise<void>) | undefined,
+    on: undefined as any,
+    off: undefined as any,
+    status: "idle" as "idle" | "loading" | "ready" | "error",
+  };
+
+  // Attach or create GraphReadyController when needed
+  const ensureGraphReadyController = useCallback(
+    (timeoutMs?: number | null) => {
+      if (!graphReadyRef.current) {
+        graphReadyRef.current = new GraphReadyController(timeoutMs ?? 60000);
+      }
+      return graphReadyRef.current;
+    },
+    [],
+  );
+
+  if (exposeGraphReadyPromise && !runtime.waitForGraphReady) {
+    const ctrl = ensureGraphReadyController(graphLoadTimeoutMs);
+    runtime.waitForGraphReady = () => ctrl.wait();
+    runtime.on = (
+      ev: "graphLoaded" | "graphLoadError",
+      cb: (info?: any) => void,
+    ) => ctrl.on(ev, cb);
+    runtime.off = (
+      ev: "graphLoaded" | "graphLoadError",
+      cb: (info?: any) => void,
+    ) => ctrl.off(ev, cb);
+  }
+
+  // Auto-start playback if requested once runtime becomes ready (and graphLoaded if waitForGraph)
   useEffect(() => {
     if (!ready) return;
-    if (autoStart) {
+    if (!autoStart) return;
+    // If waitForGraph is enabled, defer starting playback until graphLoaded is true.
+    if (waitForGraph) {
+      if (graphLoaded) {
+        startPlayback(autoMode, updateHz);
+      }
+      return () => {
+        stopPlayback();
+      };
+    } else {
       startPlayback(autoMode, updateHz);
+      return () => {
+        stopPlayback();
+      };
     }
-    return () => {
-      stopPlayback();
-    };
-    // AutoStart only on mount or ready change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  }, [ready, autoStart, graphLoaded, waitForGraph]);
 
   // If a spec prop is provided, load it when wasm runtime becomes ready or when spec changes
   useEffect(() => {
@@ -538,17 +644,71 @@ export function GraphProvider({
 
     let cancelled = false;
     (async () => {
+      // Prepare a fresh controller for this load attempt if exposing promise
+      const controller = ensureGraphReadyController(graphLoadTimeoutMs);
+      runtime.status = "loading";
+      if (!waitForGraph) {
+        // Legacy path: just call loadGraph and don't block provider/eval loop
+        try {
+          await runtime.loadGraph(spec);
+          if (cancelled) return;
+          // After loading, perform an initial eval to seed outputs/writes
+          const result = evalTick();
+          runtime.status = "ready";
+          setGraphLoaded(true);
+          if (exposeGraphReadyPromise) controller.resolve();
+          // eslint-disable-next-line no-console
+          console.info(
+            "[GraphProvider] initial eval after load (no-wait):",
+            result ? "ok" : "null/empty",
+          );
+        } catch (err) {
+          runtime.status = "error";
+          if (exposeGraphReadyPromise) controller.reject(err);
+          // eslint-disable-next-line no-console
+          console.error("GraphProvider: loadGraph failed (no-wait)", err);
+        }
+        return;
+      }
+
+      // waitForGraph === true path (default)
+      runtime.status = "loading";
+      // Reset graphLoaded flag for new load
+      setGraphLoaded(false);
+      // Reset controller if previously settled (create fresh)
+      if (graphReadyRef.current && graphReadyRef.current.isSettled) {
+        graphReadyRef.current = new GraphReadyController(graphLoadTimeoutMs);
+      }
+      const ctrl = ensureGraphReadyController(graphLoadTimeoutMs);
+
       try {
         await runtime.loadGraph(spec);
         if (cancelled) return;
-        // After loading, perform an initial eval to seed outputs/writes
+        // Apply declarative seeds
+        try {
+          await applyInitialParams(runtime, initialParams);
+          await applyInitialInputs(runtime, initialInputs);
+        } catch (seedErr) {
+          // eslint-disable-next-line no-console
+          console.warn("GraphProvider: seed application error", seedErr);
+          // seed application errors do not block readiness unless they throw
+        }
+        // Mark graph loaded
+        setGraphLoaded(true);
+        runtime.graphLoaded = true;
+        runtime.status = "ready";
+        if (exposeGraphReadyPromise) ctrl.resolve();
+        // After loading & seeding, perform an initial eval to seed outputs/writes
         const result = evalTick();
         // eslint-disable-next-line no-console
         console.info(
-          "[GraphProvider] initial eval after load:",
+          "[GraphProvider] initial eval after load+seed:",
           result ? "ok" : "null/empty",
         );
       } catch (err) {
+        runtime.graphLoaded = false;
+        runtime.status = "error";
+        if (exposeGraphReadyPromise) ctrl.reject(err);
         // eslint-disable-next-line no-console
         console.error("GraphProvider: loadGraph failed", err);
       }
@@ -557,7 +717,14 @@ export function GraphProvider({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, spec]);
+  }, [
+    ready,
+    spec,
+    waitForGraph,
+    graphLoadTimeoutMs,
+    JSON.stringify(initialParams),
+    JSON.stringify(initialInputs),
+  ]);
 
   // Teardown on unmount
   useEffect(() => {
@@ -572,6 +739,8 @@ export function GraphProvider({
         }
       }
       graphRef.current = null;
+      // Do not reject readiness on unmount in dev; avoid StrictMode noise.
+      // Leave promises unresolved; callers should guard with component lifetimes.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -590,8 +759,48 @@ export function GraphProvider({
 
   // Value provided via context: runtime API and a convenience getter for snapshot
   const ctxValue: GraphRuntimeContextValue = {
-    ...runtime,
-  };
+    ...runtimeBase,
+    // runtimeBase.graph may be stale; provide live getters
+    get graph() {
+      return graphRef.current;
+    },
+    ready,
+    status: runtime.status,
+    // attach readiness helpers if exposed
+    graphLoaded,
+    waitForGraphReady: exposeGraphReadyPromise
+      ? () => ensureGraphReadyController(graphLoadTimeoutMs).wait()
+      : undefined,
+    on: exposeGraphReadyPromise
+      ? (ev: "graphLoaded" | "graphLoadError", cb: (info?: any) => void) =>
+          ensureGraphReadyController(graphLoadTimeoutMs).on(ev, cb)
+      : undefined,
+    off: exposeGraphReadyPromise
+      ? (ev: "graphLoaded" | "graphLoadError", cb: (info?: any) => void) =>
+          ensureGraphReadyController(graphLoadTimeoutMs).off(ev, cb)
+      : undefined,
+    // ensure functions are bound to the runtime
+    loadGraph: runtimeBase.loadGraph!,
+    unloadGraph: runtimeBase.unloadGraph!,
+    setTime: runtimeBase.setTime!,
+    step: runtimeBase.step!,
+    setParam: runtimeBase.setParam!,
+    stageInput: runtimeBase.stageInput!,
+    applyStagedInputs: runtimeBase.applyStagedInputs!,
+    clearStagedInputs: runtimeBase.clearStagedInputs!,
+    evalAll: runtimeBase.evalAll!,
+    getLastDt: runtimeBase.getLastDt!,
+    getSnapshot: runtimeBase.getSnapshot!,
+    subscribe: runtimeBase.subscribe!,
+    getVersion: runtimeBase.getVersion!,
+    startPlayback: runtimeBase.startPlayback!,
+    stopPlayback: runtimeBase.stopPlayback!,
+    getPlaybackMode: runtimeBase.getPlaybackMode!,
+    getWrites: runtimeBase.getWrites!,
+    clearWrites: runtimeBase.clearWrites!,
+  } as GraphRuntimeContextValue;
+
+  // Keep runtimeRef up to date for debug helpers
   runtimeRef.current = ctxValue;
 
   return (

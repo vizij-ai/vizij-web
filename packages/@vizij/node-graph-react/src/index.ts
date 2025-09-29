@@ -11,6 +11,10 @@ export { useGraphPlayback } from "./useGraphPlayback";
 export { GraphContext, useGraphContext } from "./GraphContext";
 export type { GraphRuntimeContextValue } from "./types";
 
+// New hooks for readiness and safe eval
+export { useGraphLoaded } from "./hooks/useGraphLoaded";
+export { useSafeEval } from "./hooks/useSafeEval";
+
 // Compatibility exports for legacy API
 export { NodeGraphProvider, useNodeGraph, useGraphWrites } from "./compat";
 

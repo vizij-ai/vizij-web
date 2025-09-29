@@ -17,6 +17,8 @@ import {
   valueAsNumber,
   valueAsVec3,
   valueAsVector,
+  useGraphLoaded,
+  useSafeEval,
 } from "@vizij/node-graph-react";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import {
@@ -46,9 +48,8 @@ interface FrameSnapshot {
 
 function IkGraphInner() {
   const runtime = useGraphRuntime();
-  const seededRef = useRef(false);
-  const loadingRef = useRef(false);
-  const [graphLoaded, setGraphLoaded] = useState(false);
+  const { graphLoaded, waitForGraphReady } = useGraphLoaded();
+  const { stageAndEval } = useSafeEval();
 
   const joint1Anim = useAnimTarget(ikPaths.jointAnimation.joint1);
   const joint2Anim = useAnimTarget(ikPaths.jointAnimation.joint2);
@@ -68,28 +69,6 @@ function IkGraphInner() {
     ];
     return values.map((entry) => (Number.isFinite(entry) ? entry : 0));
   }, [joint1Anim, joint2Anim, joint3Anim, joint4Anim, joint5Anim, joint6Anim]);
-
-  useEffect(() => {
-    if (!runtime.ready || graphLoaded || loadingRef.current) return;
-    if (!runtime.loadGraph) return;
-    let cancelled = false;
-    loadingRef.current = true;
-    (async () => {
-      try {
-        await runtime.loadGraph(ikGraphSpec);
-        if (!cancelled) {
-          setGraphLoaded(true);
-        }
-      } catch (err) {
-        console.error("[IkGraphDemo] Failed to load IK graph spec", err);
-      } finally {
-        loadingRef.current = false;
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [runtime, runtime.ready, graphLoaded]);
 
   const frame = useGraphOutputs<FrameSnapshot>(
     (snap) => {
@@ -128,32 +107,25 @@ function IkGraphInner() {
   );
 
   useEffect(() => {
-    if (!runtime.ready || !graphLoaded || seededRef.current) return;
-    try {
-      runtime.setParam("fk", "urdf_xml", sampleUrdf);
-      runtime.setParam("fk", "root_link", "base_link");
-      runtime.setParam("fk", "tip_link", "tool");
-      runtime.setParam("ik_solver", "urdf_xml", sampleUrdf);
-      runtime.setParam("ik_solver", "root_link", "base_link");
-      runtime.setParam("ik_solver", "tip_link", "tool");
-      seededRef.current = true;
-      runtime.evalAll?.();
-    } catch (err) {
-      console.error("[IkGraphDemo] Failed to seed URDF params", err);
-    }
-  }, [runtime, runtime.ready, graphLoaded]);
-
-  useEffect(() => {
-    if (!runtime.ready || !graphLoaded) return;
-    try {
-      runtime.stageInput(ikPaths.jointInput, { vector: jointInputs });
-      if (seededRef.current) {
-        runtime.evalAll?.();
+    let cancelled = false;
+    (async () => {
+      try {
+        await waitForGraphReady();
+        if (cancelled) return;
+        await stageAndEval(
+          ikPaths.jointInput,
+          { vector: jointInputs },
+          undefined,
+          false,
+        );
+      } catch (err) {
+        console.error("[IkGraphDemo] Failed to stage joint inputs", err);
       }
-    } catch (err) {
-      console.error("[IkGraphDemo] Failed to stage joint inputs", err);
-    }
-  }, [runtime, runtime.ready, graphLoaded, jointInputs]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [waitForGraphReady, stageAndEval, jointInputs]);
 
   const handleIkParamsApplied = useCallback(
     (params: IkPanelAppliedParams) => {
@@ -369,7 +341,27 @@ export function IkGraphDemo() {
       autostart
       updateHz={60}
     >
-      <GraphProvider autoStart={false} updateHz={60}>
+      <GraphProvider
+        spec={ikGraphSpec}
+        waitForGraph
+        initialParams={{
+          fk: {
+            urdf_xml: sampleUrdf,
+            root_link: "base_link",
+            tip_link: "tool",
+          },
+          ik_solver: {
+            urdf_xml: sampleUrdf,
+            root_link: "base_link",
+            tip_link: "tool",
+          },
+        }}
+        initialInputs={{
+          [ikPaths.jointInput]: { vector: [0, 0, 0, 0, 0, 0] },
+        }}
+        autoStart={false}
+        updateHz={60}
+      >
         <IkGraphInner />
       </GraphProvider>
     </AnimationProvider>
