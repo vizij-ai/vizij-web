@@ -19,37 +19,43 @@ const DEMO_GRAPH_SPEC: GraphRegistrationInput = {
   spec: {
     nodes: [
       {
-        id: "input",
+        id: "anim_input",
         type: "input",
         params: {
-          path: "demo/input/value",
+          path: "demo/animation.value",
           value: makeFloatValue(0),
         },
       },
       {
-        id: "gain",
-        type: "constant",
-        params: { value: makeFloatValue(1.5) },
+        id: "gain_input",
+        type: "input",
+        params: {
+          path: "demo/graph/gain",
+          value: makeFloatValue(1.5),
+        },
+      },
+      {
+        id: "offset_input",
+        type: "input",
+        params: {
+          path: "demo/graph/offset",
+          value: makeFloatValue(0.25),
+        },
       },
       {
         id: "scaled",
         type: "multiply",
         inputs: {
-          a: { node_id: "input" },
-          b: { node_id: "gain" },
+          a: { node_id: "anim_input" },
+          b: { node_id: "gain_input" },
         },
-      },
-      {
-        id: "offset_constant",
-        type: "constant",
-        params: { value: makeFloatValue(0.25) },
       },
       {
         id: "output_sum",
         type: "add",
         inputs: {
           lhs: { node_id: "scaled" },
-          rhs: { node_id: "offset_constant" },
+          rhs: { node_id: "offset_input" },
         },
       },
       {
@@ -61,7 +67,7 @@ const DEMO_GRAPH_SPEC: GraphRegistrationInput = {
     ],
   },
   subs: {
-    inputs: ["demo/input/value"],
+    inputs: ["demo/animation.value", "demo/graph/gain", "demo/graph/offset"],
     outputs: ["demo/output/value"],
   },
 };
@@ -112,7 +118,8 @@ function DemoPanel() {
     graph?: string;
     anim?: string;
   }>({});
-  const [inputValue, setInputValue] = React.useState(0.42);
+  const [gainValue, setGainValue] = React.useState(1.5);
+  const [offsetValue, setOffsetValue] = React.useState(0.25);
   const [status, setStatus] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -121,16 +128,6 @@ function DemoPanel() {
       setStatus("Failed to create orchestrator. Check console for details.");
     });
   }, [createOrchestrator]);
-
-  React.useEffect(() => {
-    if (ready) {
-      try {
-        setInput("demo/input/value", makeFloatValue(inputValue));
-      } catch (err) {
-        console.warn("demo-orchestrator: setInput before controllers", err);
-      }
-    }
-  }, [ready, inputValue, setInput]);
 
   const handleRegister = React.useCallback(async () => {
     try {
@@ -144,26 +141,54 @@ function DemoPanel() {
       if (!animId) {
         animId = registerAnimation(DEMO_ANIMATION_CONFIG);
       }
+      setInput("demo/graph/gain", makeFloatValue(gainValue));
+      setInput("demo/graph/offset", makeFloatValue(offsetValue));
       setControllerIds({ graph: graphId, anim: animId });
       setStatus("Controllers registered");
     } catch (err) {
       setStatus(`Registration failed: ${(err as Error).message}`);
     }
-  }, [createOrchestrator, listControllers, registerAnimation, registerGraph]);
+  }, [
+    createOrchestrator,
+    listControllers,
+    registerAnimation,
+    registerGraph,
+    gainValue,
+    offsetValue,
+    setInput,
+  ]);
 
-  const handleInputChange = React.useCallback(
+  const handleGainChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const next = Number(event.target.value);
-      setInputValue(next);
+      setGainValue(next);
       if (!ready) {
-        setStatus("Create and register controllers before sending inputs.");
+        setStatus("Register controllers before adjusting gain.");
         return;
       }
       try {
-        setInput("demo/input/value", makeFloatValue(next));
-        setStatus(`Input value set to ${next.toFixed(2)}`);
+        setInput("demo/graph/gain", makeFloatValue(next));
+        setStatus(`Gain set to ${next.toFixed(2)}`);
       } catch (err) {
-        setStatus(`Failed to set input: ${(err as Error).message}`);
+        setStatus(`Failed to set gain: ${(err as Error).message}`);
+      }
+    },
+    [ready, setInput],
+  );
+
+  const handleOffsetChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const next = Number(event.target.value);
+      setOffsetValue(next);
+      if (!ready) {
+        setStatus("Register controllers before adjusting offset.");
+        return;
+      }
+      try {
+        setInput("demo/graph/offset", makeFloatValue(next));
+        setStatus(`Offset set to ${next.toFixed(2)}`);
+      } catch (err) {
+        setStatus(`Failed to set offset: ${(err as Error).message}`);
       }
     },
     [ready, setInput],
@@ -207,8 +232,8 @@ function DemoPanel() {
     >
       <h1 style={{ marginBottom: "0.25rem" }}>Vizij Orchestrator Demo</h1>
       <p style={{ marginTop: 0, opacity: 0.8 }}>
-        Register controllers, push a blackboard input, and step the orchestrator
-        once to see the merged frame output.
+        Register the demo controllers, watch the animation drive the graph, and
+        adjust gain/offset live while the orchestrator loops.
       </p>
 
       <section
@@ -234,14 +259,28 @@ function DemoPanel() {
         <label
           style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
         >
-          <span>Input value: {inputValue.toFixed(2)}</span>
+          <span>Gain: {gainValue.toFixed(2)}</span>
           <input
             type="range"
             min="0"
+            max="3"
+            step="0.01"
+            value={gainValue}
+            onChange={handleGainChange}
+          />
+        </label>
+
+        <label
+          style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
+        >
+          <span>Offset: {offsetValue.toFixed(2)}</span>
+          <input
+            type="range"
+            min="-1"
             max="1"
             step="0.01"
-            value={inputValue}
-            onChange={handleInputChange}
+            value={offsetValue}
+            onChange={handleOffsetChange}
           />
         </label>
 
@@ -354,7 +393,7 @@ function DemoPanel() {
 
 export default function App() {
   return (
-    <OrchestratorProvider autostart={false}>
+    <OrchestratorProvider autostart>
       <DemoPanel />
     </OrchestratorProvider>
   );
