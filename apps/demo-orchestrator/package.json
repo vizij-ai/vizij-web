@@ -1,0 +1,23 @@
+{
+  "name": "demo-orchestrator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .vite"
+  },
+  "dependencies": {
+    "@eslint/plugin-kit": "0.4.0",
+    "@vizij/orchestrator-react": "^0.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react-swc": "^3.7.0",
+    "typescript": "^5.5.0",
+    "vite": "^6.3.6"
+  }
+}
