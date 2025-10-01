@@ -14,6 +14,7 @@
     "@vizij/render": "^0.0.0",
     "@vizij/utils": "^0.0.0",
     "@vizij/orchestrator-react": "^0.0.0",
+    "@vizij/node-graph-react": "^0.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

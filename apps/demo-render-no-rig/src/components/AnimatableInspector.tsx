@@ -11,15 +11,12 @@ import type {
   RawVector3,
 } from "@vizij/utils";
 
-import {
-  useAnimatableList,
-  type AnimInspectorGroup,
-  type AnimInspectorItem,
-} from "../hooks/useAnimatableList";
+import { useAnimatableList } from "../hooks/useAnimatableList";
+import type { AnimatableListGroup, AnimatableListItem } from "../types";
 
 type SetValueFn = (id: string, namespace: string, value: RawValue) => void;
 
-type ResetFn = (item: AnimInspectorItem) => void;
+type ResetFn = (item: AnimatableListItem) => void;
 
 type NumberConstraints = {
   min?: number;
@@ -217,7 +214,7 @@ function fromCssColor(hex: string, reference: RawValue | undefined) {
 }
 
 interface RowProps {
-  item: AnimInspectorItem;
+  item: AnimatableListItem;
   namespace: string;
   setValue: SetValueFn;
   resetValue: ResetFn;
@@ -225,7 +222,7 @@ interface RowProps {
 
 function useAnimValue(
   namespace: string,
-  item: AnimInspectorItem,
+  item: AnimatableListItem,
 ): RawValue | undefined {
   const selector = useCallback(
     (state: VizijData & VizijActions) =>
@@ -510,7 +507,7 @@ function GroupSection({
   setValue,
   resetValue,
 }: {
-  group: AnimInspectorGroup;
+  group: AnimatableListGroup;
   namespace: string;
   setValue: SetValueFn;
   resetValue: ResetFn;
@@ -522,7 +519,7 @@ function GroupSection({
         <span className="tag">{group.items.length}</span>
       </summary>
       <div className="anim-group-body">
-        {group.items.map((item) => (
+        {group.items.map((item: AnimatableListItem) => (
           <div className="anim-row-wrapper" key={item.id}>
             {renderRow({ item, namespace, setValue, resetValue })}
           </div>
@@ -537,7 +534,7 @@ export function AnimatableInspector({ namespace }: { namespace: string }) {
   const { groups, total, filtered } = useAnimatableList(namespace, filter);
   const setValue = useVizijStore((state) => state.setValue);
 
-  const resetValue = (item: AnimInspectorItem) => {
+  const resetValue = (item: AnimatableListItem) => {
     setValue(item.id, namespace, cloneValue(item.defaultValue));
   };
 

@@ -1,22 +1,7 @@
 import { useMemo } from "react";
 import { useVizijStore } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-
-export interface AnimInspectorItem {
-  id: string;
-  name: string;
-  group: string;
-  label: string;
-  type: AnimatableValue["type"];
-  defaultValue: RawValue;
-  constraints: AnimatableValue["constraints"] | undefined;
-}
-
-export interface AnimInspectorGroup {
-  key: string;
-  label: string;
-  items: AnimInspectorItem[];
-}
+import type { AnimatableListGroup, AnimatableListItem } from "../types";
 
 function splitName(name: string) {
   const patterns = [
@@ -54,7 +39,7 @@ export function useAnimatableList(namespace: string, filter: string) {
   const animatables = useVizijStore((state) => state.animatables);
 
   return useMemo(() => {
-    const groups = new Map<string, AnimInspectorGroup>();
+    const groups = new Map<string, AnimatableListGroup>();
     const normalizedFilter = filter.trim().toLowerCase();
     let total = 0;
     let filtered = 0;
@@ -75,7 +60,7 @@ export function useAnimatableList(namespace: string, filter: string) {
       }
       filtered += 1;
 
-      const item: AnimInspectorItem = {
+      const item: AnimatableListItem = {
         id: anim.id,
         name,
         group,

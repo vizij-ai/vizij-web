@@ -18,6 +18,8 @@ export default defineConfig({
         "!**/node_modules/@vizij/animation-react/**",
         "!**/node_modules/@vizij/orchestrator-wasm/**",
         "!**/node_modules/@vizij/orchestrator-react/**",
+        "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph-react/**",
       ],
     },
     headers: {
@@ -27,8 +29,16 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Let Vite serve the wasm shim directly; pre-bundling breaks import.meta.url resolution
-    exclude: ["@vizij/animation-wasm", "@vizij/orchestrator-wasm"],
-    include: ["@vizij/animation-react", "@vizij/orchestrator-react"],
+    exclude: [
+      "@vizij/animation-wasm",
+      "@vizij/orchestrator-wasm",
+      "@vizij/node-graph-wasm",
+    ],
+    include: [
+      "@vizij/animation-react",
+      "@vizij/orchestrator-react",
+      "@vizij/node-graph-react",
+    ],
     force: true,
   },
 });

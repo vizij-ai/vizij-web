@@ -197,6 +197,10 @@ button {
   color: rgba(245, 245, 245, 0.65);
 }
 
+.panel-status.error {
+  color: #ff9b9b;
+}
+
 .panel-body.error {
   color: #ff9b9b;
 }
@@ -482,4 +486,382 @@ button {
 .animatable-panel .anim-groups {
   max-height: none;
   overflow: visible;
+}
+
+.authoring-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.authoring-actions {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.export-actions {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  background: rgba(10, 16, 24, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.export-actions h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.animation-editor fieldset,
+.graph-editor fieldset {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.animation-editor label,
+.graph-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.track-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(10, 16, 24, 0.45);
+}
+
+.track-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.track-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.track-card > summary strong {
+  display: block;
+}
+
+.track-summary {
+  display: block;
+  font-size: 0.8rem;
+  color: rgba(245, 245, 245, 0.6);
+  margin-top: 0.25rem;
+}
+
+.track-card .btn {
+  flex-shrink: 0;
+}
+
+.track-body {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.keyframes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.keyframes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.keyframe-card {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: rgba(8, 12, 18, 0.55);
+}
+
+.keyframe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.keyframe-row {
+  display: grid;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.keyframe-row .value-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.handle-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.handle-group {
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.handle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.handle-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.graph-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.graph-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.graph-node {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(10, 16, 24, 0.45);
+}
+
+.graph-node > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.graph-node > summary::-webkit-details-marker {
+  display: none;
+}
+
+.graph-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.graph-node-params {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.graph-param-row {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+}
+
+.graph-node-shapes {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.graph-node-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.graph-node-inputs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.graph-node-input-row {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.graph-node-input-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.graph-output-config {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.graph-output-config legend {
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(245, 245, 245, 0.6);
+}
+
+.graph-output-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(245, 245, 245, 0.55);
+}
+
+.graph-subs {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.graph-subs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.orchestrator-inputs {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.orchestrator-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.graph-output-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.graph-output-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: rgba(10, 16, 24, 0.45);
+}
+
+.graph-output-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.graph-output-path {
+  display: block;
+  font-size: 0.8rem;
+  color: rgba(245, 245, 245, 0.6);
+  margin-top: 0.25rem;
+}
+
+.graph-output-tags {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tag.tag-muted {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bridge-warning {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 128, 128, 0.09);
+  border: 1px solid rgba(255, 128, 128, 0.35);
+  color: rgba(255, 200, 200, 0.95);
+  font-size: 0.85rem;
+}
+
+.input-error {
+  border: 1px solid rgba(255, 128, 128, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(255, 128, 128, 0.15);
+  background: rgba(54, 18, 24, 0.35);
+  color: #ffdede;
+}
+
+.form-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(255, 160, 160, 0.95);
+}
+
+textarea {
+  font-family: inherit;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+  min-height: 5rem;
 }

@@ -3,105 +3,111 @@ import { useVizijStore } from "@vizij/render";
 import {
   useOrchestrator,
   useOrchTarget,
-  type AnimationRegistrationConfig,
   type GraphRegistrationInput,
   type ValueJSON,
 } from "@vizij/orchestrator-react";
-import { getLookup } from "@vizij/utils";
 import type { RawValue } from "@vizij/utils";
 
-const GAIN_PATH = "demo/graph/gain";
-const OFFSET_PATH = "demo/graph/offset";
-const ANIMATION_OUTPUT_PATH = "demo/animation.value";
+import type {
+  AnimationEditorState,
+  GraphEditorState,
+  GraphNodeState,
+  GraphParamState,
+  OrchestratorAnimatableOption,
+  ValueKind,
+} from "../types";
+import {
+  animationStateToConfig,
+  graphStateToSpec,
+} from "../utils/orchestratorConverters";
 
-const DEMO_ANIMATION_CONFIG: AnimationRegistrationConfig = {
-  setup: {
-    animation: {
-      id: "demo-ramp",
-      name: "Demo Ramp",
-      duration: 2000,
-      groups: [],
-      tracks: [
-        {
-          id: "ramp-track",
-          name: "Ramp Value",
-          animatableId: ANIMATION_OUTPUT_PATH,
-          points: [
-            { id: "start", stamp: 0, value: 0 },
-            { id: "end", stamp: 1, value: 1 },
-          ],
-        },
-      ],
-    },
-    player: {
-      name: "demo-player",
-      loop_mode: "loop",
-    },
-  },
+const KIND_COMPONENT_LABELS: Partial<Record<ValueKind, string[]>> = {
+  vec2: ["x", "y"],
+  vec3: ["x", "y", "z"],
+  vec4: ["x", "y", "z", "w"],
+  quat: ["x", "y", "z", "w"],
+  color: ["r", "g", "b", "a"],
+  vector: ["0", "1", "2", "3"],
+  transform: ["position", "rotation", "scale"],
 };
 
-const makeFloatValue = (value: number): ValueJSON => ({
-  type: "float",
-  data: value,
-});
+function componentsForKind(kind?: ValueKind): string[] {
+  if (!kind) return [];
+  const normalized = kind.toLowerCase() as ValueKind;
+  return KIND_COMPONENT_LABELS[normalized] ?? [];
+}
 
-function buildDemoGraph(outputPath: string): GraphRegistrationInput {
-  return {
-    spec: {
-      nodes: [
-        {
-          id: "anim_input",
-          type: "input",
-          params: {
-            path: ANIMATION_OUTPUT_PATH,
-            value: makeFloatValue(0),
-          },
-        },
-        {
-          id: "gain_input",
-          type: "input",
-          params: {
-            path: GAIN_PATH,
-            value: makeFloatValue(1.5),
-          },
-        },
-        {
-          id: "offset_input",
-          type: "input",
-          params: {
-            path: OFFSET_PATH,
-            value: makeFloatValue(0.25),
-          },
-        },
-        {
-          id: "scaled",
-          type: "multiply",
-          inputs: {
-            a: { node_id: "anim_input" },
-            b: { node_id: "gain_input" },
-          },
-        },
-        {
-          id: "output_sum",
-          type: "add",
-          inputs: {
-            lhs: { node_id: "scaled" },
-            rhs: { node_id: "offset_input" },
-          },
-        },
-        {
-          id: "out",
-          type: "output",
-          params: { path: outputPath },
-          inputs: { in: { node_id: "output_sum" } },
-        },
-      ],
-    },
-    subs: {
-      inputs: [ANIMATION_OUTPUT_PATH, GAIN_PATH, OFFSET_PATH],
-      outputs: [outputPath],
-    },
-  };
+function isGraphInputNode(node: GraphNodeState): boolean {
+  return node.type.toLowerCase() === "input";
+}
+
+function findParam(
+  node: GraphNodeState,
+  paramId: string,
+): GraphParamState | undefined {
+  return node.params.find((param) => param.id === paramId);
+}
+
+function toNumeric(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    const parsed = Number(value[0]);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "x" in (value as Record<string, unknown>)
+  ) {
+    const candidate = (value as Record<string, unknown>).x;
+    if (typeof candidate === "number") return candidate;
+  }
+  return undefined;
+}
+
+function extractInputDefaults(nodes: GraphNodeState[]): Record<string, number> {
+  const defaults: Record<string, number> = {};
+  nodes.forEach((node) => {
+    const pathParam = findParam(node, "path");
+    const rawPath = pathParam?.value;
+    const path = typeof rawPath === "string" ? rawPath : "";
+    if (!path) return;
+    const valueParam = findParam(node, "value");
+    const numeric = toNumeric(valueParam?.value);
+    defaults[path] = numeric ?? 0;
+  });
+  return defaults;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numericArrayToRaw(arr: number[]): RawValue {
+  const normalized = arr.map((entry) => Number(entry ?? 0));
+  switch (normalized.length) {
+    case 2:
+      return { x: normalized[0], y: normalized[1] } as unknown as RawValue;
+    case 3:
+      return {
+        x: normalized[0],
+        y: normalized[1],
+        z: normalized[2],
+      } as unknown as RawValue;
+    case 4:
+      return {
+        x: normalized[0],
+        y: normalized[1],
+        z: normalized[2],
+        w: normalized[3],
+      } as unknown as RawValue;
+    default:
+      return normalized as unknown as RawValue;
+  }
 }
 
 function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
@@ -111,46 +117,303 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
     typeof value === "string" ||
     typeof value === "boolean"
   ) {
-    return value as RawValue;
+    return value as unknown as RawValue;
   }
-  if (typeof value === "object") {
-    if ("float" in value && typeof value.float === "number") {
-      return value.float;
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if ("float" in value && typeof value.float === "number") {
+    return value.float;
+  }
+  if ("bool" in value && typeof value.bool === "boolean") {
+    return value.bool;
+  }
+  if ("text" in value && typeof value.text === "string") {
+    return value.text;
+  }
+  if ("vec3" in value && Array.isArray(value.vec3)) {
+    const [x = 0, y = 0, z = 0] = value.vec3 as number[];
+    return { x, y, z } as unknown as RawValue;
+  }
+  if ("vec2" in value && Array.isArray(value.vec2)) {
+    const [x = 0, y = 0] = value.vec2 as number[];
+    return { x, y } as unknown as RawValue;
+  }
+  if ("color" in value && Array.isArray(value.color)) {
+    const [r = 0, g = 0, b = 0, a = 1] = value.color as number[];
+    return { r, g, b, a } as unknown as RawValue;
+  }
+  if ("vector" in value && Array.isArray(value.vector)) {
+    return numericArrayToRaw(value.vector as number[]);
+  }
+  if ("record" in value && isRecord(value.record)) {
+    const result: Record<string, RawValue | undefined> = {};
+    Object.entries(value.record).forEach(([key, entry]) => {
+      result[key] = valueJSONToRaw(entry);
+    });
+    return result as unknown as RawValue;
+  }
+  if ("array" in value && Array.isArray(value.array)) {
+    return value.array.map((entry) =>
+      valueJSONToRaw(entry),
+    ) as unknown as RawValue;
+  }
+  if ("list" in value && Array.isArray(value.list)) {
+    return value.list.map((entry) =>
+      valueJSONToRaw(entry),
+    ) as unknown as RawValue;
+  }
+  if ("tuple" in value && Array.isArray(value.tuple)) {
+    return value.tuple.map((entry) =>
+      valueJSONToRaw(entry),
+    ) as unknown as RawValue;
+  }
+  if ("enum" in value && isRecord(value.enum)) {
+    const tag = value.enum.tag as string;
+    const enumValue = valueJSONToRaw(value.enum.value as ValueJSON);
+    return { tag, value: enumValue } as unknown as RawValue;
+  }
+  if ("transform" in value && isRecord(value.transform)) {
+    return {
+      pos: valueJSONToRaw(value.transform.pos as ValueJSON),
+      rot: valueJSONToRaw(value.transform.rot as ValueJSON),
+      scale: valueJSONToRaw(value.transform.scale as ValueJSON),
+    } as unknown as RawValue;
+  }
+  if ("type" in value && "data" in value) {
+    const typeName = String(value.type).toLowerCase();
+    const data = value.data as unknown;
+    switch (typeName) {
+      case "float":
+        return typeof data === "number" ? (data as RawValue) : undefined;
+      case "bool":
+        return typeof data === "boolean" ? (data as RawValue) : undefined;
+      case "text":
+        return typeof data === "string" ? (data as RawValue) : undefined;
+      case "vec2":
+        if (Array.isArray(data)) {
+          const [x = 0, y = 0] = data as number[];
+          return { x, y } as unknown as RawValue;
+        }
+        break;
+      case "vec3":
+        if (Array.isArray(data)) {
+          const [x = 0, y = 0, z = 0] = data as number[];
+          return { x, y, z } as unknown as RawValue;
+        }
+        break;
+      case "vec4":
+        if (Array.isArray(data)) {
+          const [x = 0, y = 0, z = 0, w = 0] = data as number[];
+          return { x, y, z, w } as unknown as RawValue;
+        }
+        break;
+      case "colorrgba":
+        if (Array.isArray(data)) {
+          const [r = 0, g = 0, b = 0, a = 1] = data as number[];
+          return { r, g, b, a } as unknown as RawValue;
+        }
+        break;
+      case "vector":
+        if (Array.isArray(data)) {
+          return numericArrayToRaw(data as number[]);
+        }
+        break;
+      default:
+        break;
     }
-    if (
-      "data" in value &&
-      typeof value.data === "number" &&
-      value.type?.toLowerCase?.() === "float"
-    ) {
-      return value.data;
-    }
+  }
+  return value as unknown as RawValue;
+}
+
+function valueJSONToNumber(value?: ValueJSON): number | undefined {
+  const raw = valueJSONToRaw(value);
+  if (typeof raw === "number") {
+    return raw;
   }
   return undefined;
 }
 
-export type OrchestratorAnimatableOption = {
-  id: string;
-  name: string;
-  group: string;
-  label: string;
-  type: string;
-  defaultValue: RawValue;
+function makeFloatValue(value: number): ValueJSON {
+  return { type: "float", data: value };
+}
+
+function ensureGraphOutputs(
+  config: GraphRegistrationInput,
+  outputPath: string,
+): GraphRegistrationInput {
+  const next = structuredClone(config) as any;
+  const nodes = Array.isArray(next?.spec?.nodes) ? next.spec.nodes : [];
+  const outputNodes = nodes.filter(
+    (node: any) => String(node?.type ?? "").toLowerCase() === "output",
+  );
+  next.spec = next.spec ?? { nodes: [] };
+  if (outputNodes.length <= 1) {
+    let outputFound = false;
+    next.spec.nodes = nodes.map((node: any) => {
+      if (String(node?.type ?? "").toLowerCase() === "output") {
+        outputFound = true;
+        return {
+          ...node,
+          params: {
+            ...(typeof node?.params === "object" && node?.params
+              ? node.params
+              : {}),
+            path: outputPath,
+          },
+        };
+      }
+      return node;
+    });
+    if (!outputFound) {
+      next.spec.nodes.push({
+        id: `out-${Date.now()}`,
+        type: "output",
+        params: { path: outputPath },
+        inputs: {},
+      });
+    }
+  } else {
+    next.spec.nodes = nodes.map((node: any) => {
+      if (String(node?.type ?? "").toLowerCase() === "output") {
+        const params =
+          typeof node?.params === "object" && node?.params ? node.params : {};
+        if (!params.path) {
+          return {
+            ...node,
+            params: {
+              ...params,
+              path: outputPath,
+            },
+          };
+        }
+      }
+      return node;
+    });
+  }
+
+  if (outputNodes.length === 0) {
+    next.spec.nodes.push({
+      id: `out-${Date.now()}`,
+      type: "output",
+      params: { path: outputPath },
+      inputs: {},
+    });
+  }
+  const inputSubs = Array.isArray(next?.subs?.inputs) ? next.subs.inputs : [];
+  const outputSubs = Array.isArray(next?.subs?.outputs)
+    ? next.subs.outputs
+    : [];
+  const discoveredOutputPaths = next.spec.nodes
+    .filter((node: any) => String(node?.type ?? "").toLowerCase() === "output")
+    .map((node: any) => {
+      const params =
+        typeof node?.params === "object" && node?.params ? node.params : {};
+      return params.path;
+    })
+    .filter(
+      (path: unknown): path is string =>
+        typeof path === "string" && path.length > 0,
+    );
+  next.subs = {
+    inputs: Array.from(new Set(inputSubs)),
+    outputs: Array.from(
+      new Set([...outputSubs, ...discoveredOutputPaths, outputPath]),
+    ),
+  };
+  return next as GraphRegistrationInput;
+}
+
+function OutputBridge({
+  namespace,
+  path,
+  connected,
+  setVizijValue,
+}: {
+  namespace: string;
+  path: string | null;
+  connected: boolean;
+  setVizijValue: (
+    id: string,
+    namespace: string,
+    value: RawValue | ((current: RawValue | undefined) => RawValue),
+  ) => void;
+}) {
+  const orchValue = useOrchTarget(connected && path ? path : null);
+
+  useEffect(() => {
+    if (!connected || !path) {
+      return;
+    }
+    if (orchValue == null) {
+      return;
+    }
+    const raw = valueJSONToRaw(orchValue);
+    if (raw === undefined) {
+      return;
+    }
+    setVizijValue(path, namespace, raw as RawValue);
+  }, [connected, orchValue, namespace, path, setVizijValue]);
+
+  return null;
+}
+
+type OutputRow = {
+  node: GraphNodeState;
+  option: OrchestratorAnimatableOption | null;
+  optionId: string | null;
+  graphPath: string | null;
+  targetPath: string | null;
+  components: string[];
+  invalid: boolean;
 };
 
 interface OrchestratorPanelProps {
   namespace: string;
   animatables: OrchestratorAnimatableOption[];
-  selectedAnimId: string | null;
-  onSelectAnim: (id: string) => void;
+  animationState: AnimationEditorState;
+  graphState: GraphEditorState;
+}
+
+function applyOutputMappings(
+  spec: GraphRegistrationInput,
+  rows: OutputRow[],
+  fallbackPath: string,
+): GraphRegistrationInput {
+  const next = structuredClone(spec) as any;
+  const mapping = new Map<string, string>();
+  rows.forEach((row) => {
+    if (row.targetPath) {
+      mapping.set(row.node.id, row.targetPath);
+    }
+  });
+  next.spec.nodes = next.spec.nodes.map((node: any) => {
+    if (String(node?.type ?? "").toLowerCase() === "output") {
+      const mappedPath = mapping.get(node.id);
+      const params =
+        typeof node?.params === "object" && node?.params ? node.params : {};
+      const path =
+        mappedPath ??
+        (typeof params.path === "string" ? params.path : fallbackPath);
+      return {
+        ...node,
+        params: {
+          ...params,
+          path,
+        },
+      };
+    }
+    return node;
+  });
+  return next as GraphRegistrationInput;
 }
 
 export function OrchestratorPanel({
   namespace,
   animatables,
-  selectedAnimId,
-  onSelectAnim,
+  animationState,
+  graphState,
 }: OrchestratorPanelProps) {
-  const orchestrator = useOrchestrator();
   const {
     ready,
     createOrchestrator,
@@ -159,63 +422,290 @@ export function OrchestratorPanel({
     removeGraph,
     removeAnimation,
     setInput,
-  } = orchestrator;
-
+  } = useOrchestrator();
   const setVizijValue = useVizijStore((state) => state.setValue);
 
-  const [gain, setGain] = useState(1.5);
-  const [offset, setOffset] = useState(0.25);
   const [graphId, setGraphId] = useState<string | null>(null);
   const [animationId, setAnimationId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [inputValues, setInputValues] = useState<Record<string, number>>({});
+  const [outputOptionMap, setOutputOptionMap] = useState<
+    Record<string, string>
+  >({});
 
-  const selectedAnim = useMemo(
-    () => animatables.find((item) => item.id === selectedAnimId) ?? null,
-    [animatables, selectedAnimId],
+  const graphInputNodes = useMemo(
+    () =>
+      graphState.nodes.filter((node) => {
+        if (!isGraphInputNode(node)) return false;
+        const path = findParam(node, "path");
+        return typeof path?.value === "string" && path.value.length > 0;
+      }),
+    [graphState],
   );
 
-  const outputPath = selectedAnim
-    ? getLookup(namespace, selectedAnim.id)
-    : null;
+  const outputNodes = useMemo(
+    () =>
+      graphState.nodes.filter((node) => node.type.toLowerCase() === "output"),
+    [graphState.nodes],
+  );
+
+  useEffect(() => {
+    setOutputOptionMap((prev) => {
+      const validOptionIds = new Set(animatables.map((opt) => opt.optionId));
+      const next: Record<string, string> = {};
+      let changed = false;
+
+      outputNodes.forEach((node) => {
+        const existing = prev[node.id];
+        if (existing && validOptionIds.has(existing)) {
+          next[node.id] = existing;
+          return;
+        }
+        const pathParam = findParam(node, "path");
+        const graphPath =
+          typeof pathParam?.value === "string" ? pathParam.value : null;
+        if (graphPath) {
+          const defaultOption = animatables.find(
+            (opt) => opt.animId === graphPath,
+          );
+          if (defaultOption) {
+            next[node.id] = defaultOption.optionId;
+            if (defaultOption.optionId !== existing) {
+              changed = true;
+            }
+            return;
+          }
+        }
+        if (existing) {
+          changed = true;
+        }
+      });
+
+      if (Object.keys(prev).length !== Object.keys(next).length) {
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [outputNodes, animatables]);
+
+  const outputRows: OutputRow[] = useMemo(() => {
+    return outputNodes.map((node) => {
+      const optionId = outputOptionMap[node.id] ?? null;
+      const option = optionId
+        ? (animatables.find((candidate) => candidate.optionId === optionId) ??
+          null)
+        : null;
+      const pathParam = findParam(node, "path");
+      const graphPath =
+        typeof pathParam?.value === "string" ? pathParam.value : null;
+      const components = componentsForKind(node.outputValueKind);
+      const invalid = components.length > 1 && option?.component != null;
+      const targetPath = option?.animId ?? graphPath ?? null;
+      return {
+        node,
+        option,
+        optionId,
+        graphPath,
+        targetPath,
+        components,
+        invalid,
+      };
+    });
+  }, [animatables, outputNodes, outputOptionMap]);
+
+  const missingMappings = outputRows.some((row) => !row.option);
+  const invalidMappings = outputRows.some((row) => row.invalid);
+  const buttonsDisabled =
+    !outputRows.length || missingMappings || invalidMappings;
+
+  const targetPaths = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          outputRows
+            .map((row) => row.targetPath)
+            .filter(
+              (path): path is string =>
+                typeof path === "string" && path.length > 0,
+            ),
+        ),
+      ),
+    [outputRows],
+  );
+
+  useEffect(() => {
+    const defaults = extractInputDefaults(graphInputNodes);
+    setInputValues(defaults);
+  }, [graphInputNodes]);
+
+  const applyInputsToRuntime = useCallback(
+    (values: Record<string, number>) => {
+      Object.entries(values).forEach(([path, value]) => {
+        setInput(path, makeFloatValue(value));
+      });
+    },
+    [setInput],
+  );
+
+  useEffect(() => {
+    if (outputRows.length) {
+      setStatus(null);
+    }
+  }, [outputRows.length]);
+
+  const summarizeOutputs = useCallback(
+    () =>
+      outputRows
+        .map(
+          (row) =>
+            row.option?.label ??
+            row.option?.animId ??
+            row.graphPath ??
+            row.node.id,
+        )
+        .join(", "),
+    [outputRows],
+  );
 
   const handleConnect = useCallback(async () => {
-    if (!selectedAnim || !outputPath) {
-      setStatus("Select an animatable to target");
+    if (!outputRows.length) {
+      setStatus(
+        "Add at least one output node to the graph to connect controllers.",
+      );
+      return;
+    }
+    if (missingMappings) {
+      setStatus(
+        "Assign animatable targets to every graph output before connecting.",
+      );
+      return;
+    }
+    if (invalidMappings) {
+      setStatus(
+        "Vector outputs require the base animatable (not individual component slices).",
+      );
       return;
     }
     try {
       await createOrchestrator();
-      let newAnimationId = animationId;
-      if (!newAnimationId) {
-        newAnimationId = registerAnimation(DEMO_ANIMATION_CONFIG);
-        setAnimationId(newAnimationId);
-      }
       if (graphId) {
         removeGraph(graphId);
+        setGraphId(null);
       }
-      const newGraphId = registerGraph(buildDemoGraph(outputPath));
+      if (animationId) {
+        removeAnimation(animationId);
+        setAnimationId(null);
+      }
+
+      const animationConfig = animationStateToConfig(animationState);
+      const newAnimationId = registerAnimation(animationConfig);
+      setAnimationId(newAnimationId);
+
+      const primaryOutputPath =
+        outputRows[0]?.targetPath ?? outputRows[0]?.graphPath ?? "";
+      const mappedGraph = applyOutputMappings(
+        graphStateToSpec(graphState, primaryOutputPath),
+        outputRows,
+        primaryOutputPath,
+      );
+      const preparedGraph = ensureGraphOutputs(mappedGraph, primaryOutputPath);
+      const newGraphId = registerGraph(preparedGraph);
       setGraphId(newGraphId);
-      setInput(GAIN_PATH, makeFloatValue(gain));
-      setInput(OFFSET_PATH, makeFloatValue(offset));
+
+      applyInputsToRuntime(inputValues);
       setConnected(true);
-      setStatus(`Connected to ${selectedAnim.label ?? selectedAnim.name}`);
+      setStatus(`Connected outputs: ${summarizeOutputs()}`);
     } catch (err) {
       console.error("demo-render-no-rig: orchestrator connect failed", err);
       setStatus(`Connect failed: ${(err as Error).message}`);
     }
   }, [
+    animationState,
     animationId,
+    applyInputsToRuntime,
     createOrchestrator,
-    gain,
     graphId,
-    offset,
-    outputPath,
+    graphState,
+    inputValues,
+    missingMappings,
+    invalidMappings,
+    outputRows,
+    removeAnimation,
+    removeGraph,
     registerAnimation,
     registerGraph,
+    summarizeOutputs,
+  ]);
+
+  const handleUpdateControllers = useCallback(async () => {
+    if (!connected) {
+      handleConnect();
+      return;
+    }
+    if (!outputRows.length) {
+      setStatus(
+        "Add at least one output node to the graph to connect controllers.",
+      );
+      return;
+    }
+    if (missingMappings) {
+      setStatus(
+        "Assign animatable targets to every graph output before updating.",
+      );
+      return;
+    }
+    if (invalidMappings) {
+      setStatus(
+        "Vector outputs require the base animatable (not component slices).",
+      );
+      return;
+    }
+    try {
+      if (graphId) {
+        removeGraph(graphId);
+      }
+      if (animationId) {
+        removeAnimation(animationId);
+      }
+      const animationConfig = animationStateToConfig(animationState);
+      const newAnimationId = registerAnimation(animationConfig);
+      setAnimationId(newAnimationId);
+
+      const primaryOutputPath =
+        outputRows[0]?.targetPath ?? outputRows[0]?.graphPath ?? "";
+      const mappedGraph = applyOutputMappings(
+        graphStateToSpec(graphState, primaryOutputPath),
+        outputRows,
+        primaryOutputPath,
+      );
+      const preparedGraph = ensureGraphOutputs(mappedGraph, primaryOutputPath);
+      const newGraphId = registerGraph(preparedGraph);
+      setGraphId(newGraphId);
+      applyInputsToRuntime(inputValues);
+      setConnected(true);
+      setStatus("Controllers updated");
+    } catch (err) {
+      console.error("demo-render-no-rig: orchestrator update failed", err);
+      setStatus(`Update failed: ${(err as Error).message}`);
+    }
+  }, [
+    animationState,
+    animationId,
+    applyInputsToRuntime,
+    connected,
+    graphId,
+    graphState,
+    handleConnect,
+    inputValues,
+    invalidMappings,
+    missingMappings,
+    outputRows,
+    registerAnimation,
+    registerGraph,
+    removeAnimation,
     removeGraph,
-    selectedAnim,
-    setInput,
   ]);
 
   const handleDisconnect = useCallback(() => {
@@ -231,110 +721,124 @@ export function OrchestratorPanel({
     setStatus("Disconnected");
   }, [animationId, graphId, removeAnimation, removeGraph]);
 
-  useEffect(() => {
-    if (!connected || !graphId) {
-      return;
-    }
-    setInput(GAIN_PATH, makeFloatValue(gain));
-  }, [connected, gain, graphId, setInput]);
+  const currentMappingsSummary = outputRows
+    .map((row) => row.option?.animId ?? row.graphPath ?? "–")
+    .join(", ");
 
-  useEffect(() => {
-    if (!connected || !graphId) {
-      return;
-    }
-    setInput(OFFSET_PATH, makeFloatValue(offset));
-  }, [connected, offset, graphId, setInput]);
-
-  useEffect(() => {
-    if (!connected || !ready || !selectedAnim || !outputPath) {
-      return;
-    }
-    const newGraphId = registerGraph(buildDemoGraph(outputPath));
-    setGraphId(newGraphId);
-    setStatus(`Connected to ${selectedAnim.label ?? selectedAnim.name}`);
-    return () => {
-      removeGraph(newGraphId);
-      setGraphId((prev) => (prev === newGraphId ? null : prev));
-    };
-  }, [connected, ready, outputPath, registerGraph, removeGraph, selectedAnim]);
-
-  const orchestratorValue = useOrchTarget(connected ? outputPath : null);
-  useEffect(() => {
-    if (!connected || !selectedAnim || !outputPath) {
-      return;
-    }
-    const raw = valueJSONToRaw(orchestratorValue);
-    if (raw === undefined) {
-      return;
-    }
-    setVizijValue(selectedAnim.id, namespace, raw);
-  }, [
-    connected,
-    namespace,
-    orchestratorValue,
-    outputPath,
-    selectedAnim,
-    setVizijValue,
-  ]);
-
-  const currentValue = useMemo(
-    () => valueJSONToRaw(orchestratorValue),
-    [orchestratorValue],
-  );
+  const outputComponentsSummary = outputRows
+    .map(
+      (row) =>
+        `${row.node.name ?? row.node.id}: ${row.components.join("/") || row.node.outputValueKind || "scalar"}`,
+    )
+    .join(" | ");
 
   return (
     <div className="panel orchestrator-panel">
       <div className="panel-header">
         <h2>Orchestrator Bridge</h2>
-        <span className="tag">{ready ? "live" : "loading"}</span>
+        <span className="tag">
+          {ready ? (connected ? "connected" : "ready") : "loading"}
+        </span>
       </div>
       <div className="panel-body">
-        <label className="toolbar-label" htmlFor="anim-target">
-          Target animatable
-        </label>
-        <select
-          id="anim-target"
-          className="select-input"
-          value={selectedAnimId ?? ""}
-          onChange={(event) => onSelectAnim(event.target.value)}
-          disabled={!animatables.length}
-        >
-          {animatables.length === 0 ? (
-            <option value="">No animatables available</option>
-          ) : (
-            animatables.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.group ? `${item.group} • ${item.label}` : item.label}
-              </option>
-            ))
-          )}
-        </select>
+        <div className="graph-output-table">
+          {outputRows.map((row) => {
+            return (
+              <div key={row.node.id} className="graph-output-row">
+                <div className="graph-output-row-header">
+                  <div>
+                    <strong>{row.node.name || row.node.id}</strong>
+                    <span className="graph-output-path">
+                      Target:{" "}
+                      {row.option?.animId ??
+                        row.graphPath ??
+                        "(select animatable)"}
+                    </span>
+                  </div>
+                  <div className="graph-output-tags">
+                    <span className="tag">
+                      {row.node.outputValueKind ?? "scalar"}
+                    </span>
+                    {row.components.map((component) => (
+                      <span key={component} className="tag tag-muted">
+                        {component}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <select
+                  className="select-input"
+                  value={row.optionId ?? ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setOutputOptionMap((prev) => {
+                      const next = { ...prev };
+                      if (!value) {
+                        delete next[row.node.id];
+                      } else {
+                        next[row.node.id] = value;
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <option value="">Select animatable…</option>
+                  {animatables.map((option) => (
+                    <option key={option.optionId} value={option.optionId}>
+                      {option.group
+                        ? `${option.group} • ${option.label}`
+                        : option.label}
+                    </option>
+                  ))}
+                </select>
+                {row.invalid ? (
+                  <p className="bridge-warning">
+                    This output produces {row.components.join(", ")}; choose the
+                    base animatable instead of a component slice.
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+          {!outputRows.length ? (
+            <p className="bridge-note">
+              Add output nodes in the graph to expose controllable values.
+            </p>
+          ) : null}
+        </div>
 
-        <div className="orchestrator-controls">
-          <label>
-            <span>Gain ({gain.toFixed(2)})</span>
-            <input
-              type="range"
-              min={0}
-              max={3}
-              step={0.01}
-              value={gain}
-              disabled={!connected}
-              onChange={(event) => setGain(Number(event.target.value))}
-            />
-          </label>
-          <label>
-            <span>Offset ({offset.toFixed(2)})</span>
-            <input
-              type="range"
-              min={-1}
-              max={1}
-              step={0.01}
-              value={offset}
-              disabled={!connected}
-              onChange={(event) => setOffset(Number(event.target.value))}
-            />
-          </label>
+        {missingMappings ? (
+          <p className="bridge-note">
+            Assign animatable targets to every output before connecting.
+          </p>
+        ) : null}
+
+        <div className="orchestrator-inputs">
+          {graphInputNodes.map((node) => {
+            const pathParam = findParam(node, "path");
+            const path =
+              typeof pathParam?.value === "string" ? pathParam.value : "";
+            if (!path) return null;
+            const value = inputValues[path] ?? 0;
+            return (
+              <label key={node.id}>
+                <span>{path}</span>
+                <input
+                  type="number"
+                  step={0.01}
+                  value={value}
+                  onChange={(event) => {
+                    const parsed = Number(event.target.value);
+                    const nextValue = Number.isFinite(parsed) ? parsed : 0;
+                    setInputValues((prev) => ({ ...prev, [path]: nextValue }));
+                    if (connected) {
+                      setInput(path, makeFloatValue(nextValue));
+                    }
+                  }}
+                />
+              </label>
+            );
+          })}
         </div>
 
         <div className="bridge-actions">
@@ -342,9 +846,17 @@ export function OrchestratorPanel({
             type="button"
             className="btn btn-primary"
             onClick={handleConnect}
-            disabled={!selectedAnim}
+            disabled={buttonsDisabled}
           >
             Connect controllers
+          </button>
+          <button
+            type="button"
+            className="btn btn-muted"
+            onClick={handleUpdateControllers}
+            disabled={buttonsDisabled}
+          >
+            Apply changes
           </button>
           <button
             type="button"
@@ -358,26 +870,16 @@ export function OrchestratorPanel({
 
         <div className="status-grid">
           <div>
-            <span className="label">Orchestrator</span>
-            <span>{ready ? "ready" : "initialising"}</span>
+            <span className="label">Outputs</span>
+            <span>{outputRows.length}</span>
           </div>
           <div>
-            <span className="label">Animation</span>
-            <span>{animationId ? animationId : "–"}</span>
+            <span className="label">Targets</span>
+            <span>{currentMappingsSummary || "–"}</span>
           </div>
           <div>
-            <span className="label">Graph</span>
-            <span>{graphId ?? "–"}</span>
-          </div>
-          <div>
-            <span className="label">Output</span>
-            <span>
-              {currentValue == null
-                ? "–"
-                : typeof currentValue === "number"
-                  ? currentValue.toFixed(3)
-                  : String(currentValue)}
-            </span>
+            <span className="label">Shapes</span>
+            <span>{outputComponentsSummary || "–"}</span>
           </div>
           <div>
             <span className="label">Status</span>
@@ -385,6 +887,15 @@ export function OrchestratorPanel({
           </div>
         </div>
       </div>
+      {targetPaths.map((path) => (
+        <OutputBridge
+          key={path}
+          namespace={namespace}
+          path={path}
+          connected={connected}
+          setVizijValue={setVizijValue}
+        />
+      ))}
     </div>
   );
 }
