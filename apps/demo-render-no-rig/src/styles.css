@@ -1,0 +1,485 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background-color: #0b1014;
+  color: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #18222f, #0b1014 55%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem clamp(1.5rem, 4vw, 3rem);
+}
+
+.app-header {
+  background: rgba(12, 18, 24, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  backdrop-filter: blur(12px);
+}
+
+.app-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+}
+
+.app-header p {
+  margin: 0;
+  color: rgba(245, 245, 245, 0.75);
+  max-width: 60ch;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  background: rgba(14, 20, 28, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 1rem clamp(1rem, 2vw, 1.5rem);
+}
+
+.toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toolbar-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 245, 0.6);
+}
+
+.face-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.95rem;
+  background: transparent;
+  color: inherit;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 150, 255, 0.6);
+}
+
+.btn-primary {
+  background: linear-gradient(120deg, #58a6ff, #35d0ff);
+  border-color: transparent;
+  color: #03141f;
+}
+
+.btn-muted {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.text-input {
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  min-width: 9rem;
+}
+
+.select-input {
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  min-height: 2.5rem;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: rgba(83, 189, 255, 0.65);
+  box-shadow: 0 0 0 2px rgba(83, 189, 255, 0.2);
+}
+
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(245, 245, 245, 0.85);
+}
+
+.app-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 1100px) {
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: rgba(13, 19, 27, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.panel-body {
+  padding: 1.15rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel-status {
+  padding: 1.5rem;
+  text-align: center;
+  color: rgba(245, 245, 245, 0.65);
+}
+
+.panel-body.error {
+  color: #ff9b9b;
+}
+
+.face-viewer .panel-body {
+  position: relative;
+  min-height: 420px;
+  background: radial-gradient(
+    circle at top,
+    rgba(52, 66, 86, 0.35),
+    rgba(18, 26, 35, 0.5)
+  );
+}
+
+.viewer-body {
+  padding: 0;
+}
+
+.viewer-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.tag {
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  text-transform: lowercase;
+}
+
+.diagnostics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.status-grid .label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 245, 0.55);
+  margin-bottom: 0.25rem;
+}
+
+.value-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.value-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.value-id {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.value-data {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  color: rgba(180, 220, 255, 0.85);
+}
+.inspector-body {
+  gap: 1.25rem;
+}
+
+.inspector-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.inspector-search input {
+  flex: 1 1 240px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.anim-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.anim-group {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(10, 14, 20, 0.6);
+  overflow: hidden;
+}
+
+.anim-group > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.anim-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.anim-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.anim-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 0.7fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.anim-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+}
+
+.btn-reset {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.btn-reset:hover {
+  background: rgba(88, 166, 255, 0.35);
+}
+
+.anim-row-control {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.vector-control {
+  gap: 0.65rem;
+}
+
+.vector-control label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  gap: 0.3rem;
+}
+
+.numeric-input {
+  width: 6rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.numeric-input:focus {
+  outline: none;
+  border-color: rgba(83, 189, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(83, 189, 255, 0.25);
+}
+
+.color-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.color-control input[type="color"] {
+  width: 3rem;
+  height: 2rem;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.color-control code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  color: rgba(180, 220, 255, 0.85);
+}
+
+.anim-row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: rgba(245, 245, 245, 0.65);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.unsupported-value {
+  margin: 0;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.45rem;
+  border-radius: 8px;
+}
+
+.animatable-panel {
+  min-height: 420px;
+}
+
+.orchestrator-panel .panel-body {
+  gap: 0.75rem;
+}
+
+.bridge-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.bridge-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(245, 245, 245, 0.7);
+}
+
+.orchestrator-controls {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.orchestrator-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.animatable-panel .panel-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+}
+
+.animatable-panel .anim-groups {
+  max-height: none;
+  overflow: visible;
+}

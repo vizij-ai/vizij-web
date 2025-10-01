@@ -147,3 +147,8 @@ npm run test --workspace @vizij/orchestrator-react
 
 Vitest is configured with a lightweight stub for `@vizij/orchestrator-wasm`, so real
 binary builds are not required for CI smoke tests.
+
+👉 **StrictMode note:** React 18 dev StrictMode double-mounts providers. The orchestrator
+only sets `ready` during the first mount, so the second pass stays false. Run the provider
+outside `<React.StrictMode>` (as the demo does) or gate initialisation explicitly when building
+with StrictMode.
