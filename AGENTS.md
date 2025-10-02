@@ -1,128 +1,136 @@
-# Vizij‑Web AGENTS.md – Unified guidance for Gemini, Claude and Codex
+# Vizij-Web Agent Guide
 
-Welcome! This file guides AI coding agents—Gemini CLI, Claude Code and OpenAI Codex—on how to work effectively within the `vizij-web` monorepo. It consolidates project context, commands, coding conventions and collaboration practices. Keep this document up to date as new packages or workflows are introduced.
+Welcome! This note keeps AI coding agents aligned with the current state of the
+`vizij-web` monorepo. Refer to `README.md`, workspace-specific READMEs, and the
+implementation plan for authoritative details; this file distills the key
+expectations and workflows.
 
-## Project overview and structure
+## Agent Workflow Checklist
 
-`vizij-web` hosts the web bindings and demo site for the Vizij engine. The repository uses npm workspaces (or pnpm) to organise packages. Known entries include:
+- Re-read the root `README.md` and any touched package/app README before
+  editing—monorepo scripts evolve quickly.
+- Default to `npm` (pnpm/yarn are not configured). Call workspace scripts with
+  `npm run <script> --workspace <name>`; use `npm --prefix packages/render` for
+  the renderer and similarly for `packages/utils`.
+- Keep the planning tool handy for multi-step tasks and update plans after each
+  major action.
+- Watch for stale symlinks when linking WASM packages from `vizij-rs`; restart
+  Vite servers after switching between linked and published packages.
+- Install the local git hooks (`bash scripts/install-git-hooks.sh`) so fmt/lint
+  checks run automatically. You can run the same scripts manually if needed.
+- Stay concise in handoffs; mention skipped validation steps and suggest
+  next actions (including tests, builds) when relevant.
 
-- **packages/@vizij/animation-react** – React hooks and components that wrap the `@vizij/animation-wasm` module. Built outputs live in `dist/`. Dependencies include `@vizij/animation-wasm` and `react`.
-- **packages/@vizij/node-graph-react** – React bindings for the node‑graph engine with outputs in `dist/`. Depends on `@vizij/node-graph-wasm` and `react`.
-- **apps/website** – A Vite + React TypeScript demo site showcasing the animation and node‑graph packages. Note: current setup requires manually copying a wasm module into `apps/vizij-site/animation-player/pkg` for the player to work.
-- **Generated wasm packages** – `@vizij/animation-wasm` and `@vizij/node-graph-wasm` are generated from the Rust repository `vizij-rs` and published separately on npm.
+## Workspace Snapshot
 
-Additional packages can be added as the project expands; list them here when introduced.
+### Core packages (`packages/@vizij/*`)
 
-## Key commands and workflows
+| Workspace                   | Purpose                                                       | Common scripts                               |
+| --------------------------- | ------------------------------------------------------------- | -------------------------------------------- |
+| `@vizij/animation-react`    | React provider and hooks wrapping the animation WASM runtime. | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/node-graph-react`   | React bindings for the node-graph controller.                 | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/orchestrator-react` | React hooks/components for the orchestrator WASM API.         | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/config`             | Canonical rig/pose/channel definitions shared by apps.        | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/rig`                | Helpers for loading rigged assets into the renderer.          | `dev`, `build`, `typecheck`, `clean`         |
 
-Use these commands from the repository root unless noted otherwise. Adjust for `pnpm` if the project uses pnpm workspaces.
+### Supporting packages
 
-### Installing and building
+| Workspace       | Path              | Notes                                                                                                      |
+| --------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `@vizij/render` | `packages/render` | Three.js renderer + controllers. Uses `tsup`; run scripts via `npm --prefix packages/render run <script>`. |
+| `@vizij/utils`  | `packages/utils`  | Shared math/helpers. Also uses `tsup` and exposes a Vitest suite.                                          |
 
-- **Install dependencies:**
+### Apps (`apps/*`)
 
+| Workspace                 | Purpose                                         |
+| ------------------------- | ----------------------------------------------- |
+| `vizij-website`           | Marketing/documentation site.                   |
+| `vizij-node-graph-editor` | Full editor for authoring node graphs.          |
+| `demo-animation-studio`   | Playground for animation presets.               |
+| `demo-animation`          | Minimal animation demo.                         |
+| `demo-graph`              | Minimal node-graph demo.                        |
+| `demo-orchestrator`       | Orchestrator integration showcase.              |
+| `demo-render-no-rig`      | Tests renderer/orchestrator without rig assets. |
+| `demo-animation-graph`    | Combined animation + graph demo.                |
+
+Use `npm run --workspace <workspace> <script>` to interact with any of them.
+
+## Root Command Reference
+
+| Task                               | Command                                             |
+| ---------------------------------- | --------------------------------------------------- |
+| Install dependencies               | `npm install`                                       |
+| Build everything (packages + apps) | `npm run build`                                     |
+| Build library packages only        | `npm run build:packages`                            |
+| Build apps only                    | `npm run build:apps`                                |
+| Start a specific dev server        | `npm run dev:<app>` (see scripts in `package.json`) |
+| Run lint across workspaces         | `npm run lint`                                      |
+| Run Vitest suites                  | `npm run test`                                      |
+| Type-check everywhere              | `npm run typecheck`                                 |
+| Clean build artefacts              | `npm run clean`                                     |
+| Reset node_modules and reinstall   | `npm run clean:deep` (alias for `npm run reset`)    |
+| Link locally built WASM packages   | `npm run link:wasm`                                 |
+
+## Local WASM Development (with `vizij-rs`)
+
+1. In the `vizij-rs` repo, rebuild and link the WASM crates:
+   ```bash
+   npm run build:wasm:animation   # or :graph / :orchestrator as needed
+   npm run link:wasm
+   ```
+   Use the `watch:wasm:*` scripts there (requires `cargo-watch`) for continuous
+   rebuilds.
+2. Back in `vizij-web`, link the packages into this workspace:
+   ```bash
+   npm run link:wasm
+   ```
+3. Restart any running Vite dev servers so they pick up the new symlinks. Run
+   `npm install` later to return to the published versions.
+
+Keep crate/npm versions aligned and rebuild before linking to avoid ABI
+mismatches. Relink after switching branches or cleaning lockfiles.
+
+## Coding and Testing Expectations
+
+- Target ES2022/ESM modules and strict TypeScript settings. Ensure packages
+  emit type declarations (`dist/*.d.ts`).
+- Prefer functional React components with hooks. Surface public APIs from
+  `src/index.ts` and keep internals private.
+- Handle WASM loading asynchronously (dynamic `import()`, `init()` helpers, and
+  loading/error UI states). Do not initialise WASM at module top-level.
+- Co-locate tests with source (`*.test.tsx`). Use Vitest + React Testing Library
+  where available; add smoke tests when exposing new hooks/components.
+- Run `npm run lint`, `npm run typecheck`, and `npm run test` (if present) on
+  touched workspaces before handoff. Call out any skipped command in your
+  response.
+- Avoid committing `dist/` unless a release workflow demands it. Rebuild before
+  publishing and keep metadata in sync (`package.json`, changelog if added).
+
+## Tooling and Git Hooks
+
+- Install repo hooks once per machine:
   ```bash
-  npm install    # or pnpm install
+  bash scripts/install-git-hooks.sh
   ```
+- Hooks run Prettier, ESLint, `tsc`, and Vitest (where configured). You can set
+  `HOOK_RUN_WEB_BUILD=1` to include builds, or temporarily skip with
+  `SKIP_GIT_HOOKS=1`.
+- Editor setup: enable ESLint + Prettier integrations and point TypeScript to
+  the workspace root for path resolution.
 
-- **Build all packages:**
+## Cross-Repo and Release Notes
 
-  ```bash
-  npm run build
-  ```
+- The React packages depend on the WASM crates shipped from `vizij-rs`. Publish
+  the WASM packages first, then update dependency ranges here before releasing
+  React packages.
+- Coordinate changes that affect both repos—document JSON schema or ABI updates
+  in changelog/README pairs and mention migration steps in PR descriptions.
+- Demo apps often reference local assets; document any manual asset copy steps
+  (for example, bespoke WASM bundle locations) in the PR or README until they
+  are automated.
 
-  This invokes the `build` script of each package (usually `tsc`).
+## Maintenance
 
-- **Build a specific package:**
-
-  ```bash
-  npm run build --workspace=@vizij/animation-react
-  ```
-
-- **Run the demo site:**
-
-  ```bash
-  cd apps/website
-  npm run dev     # Start Vite dev server
-  npm run build   # Build production site
-  npm run preview # Preview production build (if configured)
-  ```
-
-- **Publish a package:**
-  Always run a dry‑run first. Execute from the package directory:
-
-  ```bash
-  cd packages/@vizij/animation-react
-  npm publish --access public --provenance --dry-run
-  # remove --dry-run to publish
-  ```
-
-### Testing, linting and type‑checking
-
-- **Run tests (if configured):**
-
-  ```bash
-  npm test
-  ```
-
-- **Lint code:**
-
-  ```bash
-  npm run lint
-  ```
-
-- **Type‑check:** If a dedicated script exists:
-
-  ```bash
-  npm run type-check
-  ```
-
-  Otherwise, run `tsc -p tsconfig.json` in the relevant package to ensure TypeScript types are correct.
-
-### Commit and pull request guidelines
-
-1. **Use semantic versioning** – Major for breaking public API changes, minor for new features, patch for bug fixes. Update `package.json` versions and adjust dependency ranges accordingly (e.g. \`"@vizij/animation-wasm": "^0.2.0").
-2. **Write conventional commit messages** – Prefix messages with `feat:`, `fix:`, `refactor:`, `chore:` etc., and mention the affected package(s) where appropriate.
-3. **Create small, focused pull requests** – Each PR should build and test successfully, and should address a single task. Provide clear descriptions and link related issues.
-4. **Ensure programmatic checks pass** – Always run `npm install`, `npm run build`, `npm run lint` and `npm test` (if tests exist) before submitting a PR. All commands must succeed.
-5. **Include updated builds** – Ensure that the `dist/` directory is regenerated after making changes. Do not commit compiled files unnecessarily; commit them only when required by publishing workflows or if CI does not build them.
-
-## Coding conventions and implementation guidelines
-
-### TypeScript and React
-
-- **Strict TypeScript** – Enable `strict` and other recommended compiler options. Use type annotations and generics to express intent.
-- **Functional components and hooks** – Write React components as pure functions and use hooks (`useEffect`, `useMemo`, custom hooks) for state and side effects. Avoid class components.
-- **Component structure** – Organise code under `src/components/`, `src/hooks/`, `src/utils/`, and re-export public APIs via `src/index.ts`.
-- **Named exports** – Use named exports for hooks and components to improve tree‑shaking and clarity.
-- **Styling** – For library packages, avoid global styles; rely on CSS‑in‑JS or let consuming applications provide styling. For the demo site, follow Vite and Tailwind (if used) conventions and keep styles scoped.
-- **Documentation** – Provide JSDoc comments for public functions, hooks and components. Include usage examples where appropriate.
-
-### WebAssembly integration
-
-- **Async loading** – Load wasm modules asynchronously using the JS glue generated by `wasm-bindgen`. Use dynamic import syntax and pass the `.wasm` file via `new URL()` to ensure bundlers like Vite can locate the asset.
-- **Loading states** – Components that depend on wasm should handle loading states and errors gracefully. Expose helper hooks for initialising the wasm modules.
-- **Avoid global side effects** – Do not import and initialise wasm modules at the top level of a module; wrap them in hooks or functions so they load only when needed.
-
-## Testing and quality assurance
-
-- **Unit tests** – Use a JavaScript testing framework (Jest or Vitest) combined with React Testing Library. Place tests alongside components (e.g. `ComponentName.test.tsx`) or under a `tests/` directory.
-- **Integration tests** – For complex interactions (e.g. between animation and the demo site), write integration tests that render components in a simulated environment.
-- **Wasm testing** – While most wasm logic is tested in the Rust repository, you can write high‑level tests in the React layer to ensure wasm functions integrate correctly.
-- **Linting and formatting** – Configure ESLint and Prettier. Enforce consistent coding styles and catch potential issues early.
-- **CI** – CI should run build, lint, type‑check and tests. It should also publish packages when tags/branches indicate a release.
-
-## Developer environment and setup
-
-- Use Node.js 18+ and npm 9+ (or pnpm 8+ if adopting pnpm).
-- Install the latest TypeScript compiler and the `@types/react` package for type definitions.
-- Configure your editor (e.g. VS Code) with ESLint, Prettier and the TypeScript language server.
-- For the demo site, install Vite and appropriate plugins (such as `@vitejs/plugin-react`) and configure them in `vite.config.ts`.
-
-## Repository etiquette and additional notes
-
-- **Dist folder management** – Do not commit compiled `dist/` files unless they are required for publishing. Use `.gitignore` to avoid accidentally committing them. Regenerate `dist/` before publishing a package.
-- **Synchronise versions with Rust crates** – After releasing new versions of the Rust wasm crates (`vizij-animation-wasm` and `vizij-graph-wasm`), bump the versions of their corresponding React packages and update dependency ranges. Publish the wasm packages first, then the React packages.
-- **Manual wasm copying** – Currently the demo site requires manually copying wasm modules into `apps/vizij-site/animation-player/pkg`. Document this step in PRs affecting the player and consider automating it via build scripts.
-- **Adding new packages** – When adding a new package or entry point, update this AGENTS.md to describe its purpose, location and build/test commands.
-- **Major changes** – For significant design changes, write a design doc under a `docs/` directory and gather feedback before implementation.
+- Update this guide whenever packages, scripts, or workflows change. Keep it in
+  sync with the root README and implementation plan so future agents stay on
+  the happy path.

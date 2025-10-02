@@ -37,9 +37,10 @@ export default function App() {
   const [graphState, setGraphState] = useState<GraphEditorState>(() =>
     structuredClone(DEFAULT_GRAPH_STATE),
   );
-  const [rigOutputMap, setRigOutputMap] = useState<Record<string, string> | null>(
-    null,
-  );
+  const [rigOutputMap, setRigOutputMap] = useState<Record<
+    string,
+    string
+  > | null>(null);
   const animationImportRef = useRef<HTMLInputElement | null>(null);
   const graphImportRef = useRef<HTMLInputElement | null>(null);
   const lastRigSignatureRef = useRef<string | null>(null);

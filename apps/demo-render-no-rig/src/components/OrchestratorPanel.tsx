@@ -486,9 +486,10 @@ export function OrchestratorPanel({
         if (!animId) {
           return;
         }
-        const option = animatables.find(
-          (candidate) => candidate.animId === animId && !candidate.component,
-        ) || animatables.find((candidate) => candidate.animId === animId);
+        const option =
+          animatables.find(
+            (candidate) => candidate.animId === animId && !candidate.component,
+          ) || animatables.find((candidate) => candidate.animId === animId);
         if (!option) {
           return;
         }

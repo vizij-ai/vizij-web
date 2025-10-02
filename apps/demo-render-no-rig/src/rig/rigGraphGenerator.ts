@@ -39,7 +39,11 @@ function coerceNumber(value: RawValue | undefined, fallback = 0): number {
   return fallback;
 }
 
-function coerceVec3(value: RawValue | undefined): { x: number; y: number; z: number } {
+function coerceVec3(value: RawValue | undefined): {
+  x: number;
+  y: number;
+  z: number;
+} {
   if (value && typeof value === "object") {
     const arr = Array.isArray(value) ? (value as RawValue[]) : null;
     const record = !arr ? (value as unknown as Record<string, RawValue>) : null;
@@ -52,7 +56,11 @@ function coerceVec3(value: RawValue | undefined): { x: number; y: number; z: num
   return { x: 0, y: 0, z: 0 };
 }
 
-function coerceVec3ForScale(value: RawValue | undefined): { x: number; y: number; z: number } {
+function coerceVec3ForScale(value: RawValue | undefined): {
+  x: number;
+  y: number;
+  z: number;
+} {
   if (value && typeof value === "object") {
     const arr = Array.isArray(value) ? (value as RawValue[]) : null;
     const record = !arr ? (value as unknown as Record<string, RawValue>) : null;
@@ -117,7 +125,9 @@ function buildSearchKey(
   }
 }
 
-function flattenAnimatables(groups: AnimatableListGroup[]): AnimatableListItem[] {
+function flattenAnimatables(
+  groups: AnimatableListGroup[],
+): AnimatableListItem[] {
   const items: AnimatableListItem[] = [];
   groups.forEach((group) => {
     group.items.forEach((item) => items.push(item));
@@ -153,7 +163,12 @@ function makeInputNode(options: {
     category: "Rig",
     params: [
       { id: "path", label: "Path", type: "custom", value: options.path },
-      { id: "value", label: "Default", type: options.kind, value: options.defaultValue },
+      {
+        id: "value",
+        label: "Default",
+        type: options.kind,
+        value: options.defaultValue,
+      },
     ],
     inputs: {},
   };
@@ -171,7 +186,9 @@ function makeConstantNode(options: {
     type: "constant",
     name: options.name,
     category: options.category ?? "Math",
-    params: [{ id: "value", label: "Value", type: options.kind, value: options.value }],
+    params: [
+      { id: "value", label: "Value", type: options.kind, value: options.value },
+    ],
     inputs: {},
   };
 }
@@ -227,7 +244,9 @@ function makeOutputNode(options: {
     type: "output",
     name: options.name,
     category: "Rig",
-    params: [{ id: "path", label: "Path", type: "custom", value: options.path }],
+    params: [
+      { id: "path", label: "Path", type: "custom", value: options.path },
+    ],
     inputs: { in: options.sourceId },
     outputValueKind: options.kind,
   };
@@ -284,7 +303,10 @@ function ensureAxis(axis: string | undefined): "x" | "y" | "z" | null {
   return null;
 }
 
-function collectTrackAxes(track: LowLevelRigTrackDefinition, trackKind: string): Array<"x" | "y" | "z"> {
+function collectTrackAxes(
+  track: LowLevelRigTrackDefinition,
+  trackKind: string,
+): Array<"x" | "y" | "z"> {
   if (Array.isArray(track.axis) && track.axis.length > 0) {
     const mapped = track.axis
       .map((axis) => ensureAxis(axis))
@@ -320,13 +342,16 @@ function buildTrackNodes(options: {
   const nodes: GraphNodeState[] = [];
   const inputPaths: string[] = [];
 
-  const baseVec = trackKind === "scale"
-    ? coerceVec3ForScale(animDefault)
-    : coerceVec3(animDefault);
+  const baseVec =
+    trackKind === "scale"
+      ? coerceVec3ForScale(animDefault)
+      : coerceVec3(animDefault);
   const axes = collectTrackAxes(options.track, trackKind);
 
   if (trackKind === "morph") {
-    const inputId = sanitizeId(`${options.channelName}_${options.trackName}_input`);
+    const inputId = sanitizeId(
+      `${options.channelName}_${options.trackName}_input`,
+    );
     const inputPath = `rig/${options.faceId}/${options.channelName}/${options.trackName}`;
     nodes.push(
       makeInputNode({
@@ -339,7 +364,9 @@ function buildTrackNodes(options: {
     );
     inputPaths.push(inputPath);
 
-    const baseId = sanitizeId(`${options.channelName}_${options.trackName}_base`);
+    const baseId = sanitizeId(
+      `${options.channelName}_${options.trackName}_base`,
+    );
     nodes.push(
       makeConstantNode({
         id: baseId,
@@ -352,10 +379,17 @@ function buildTrackNodes(options: {
 
     const addId = sanitizeId(`${options.channelName}_${options.trackName}_sum`);
     nodes.push(
-      makeBinaryNode({ id: addId, name: `${options.channelName} morph`, type: "add", inputKeys: [inputId, baseId] }),
+      makeBinaryNode({
+        id: addId,
+        name: `${options.channelName} morph`,
+        type: "add",
+        inputKeys: [inputId, baseId],
+      }),
     );
 
-    const outputId = sanitizeId(`${options.channelName}_${options.trackName}_out`);
+    const outputId = sanitizeId(
+      `${options.channelName}_${options.trackName}_out`,
+    );
     nodes.push(
       makeOutputNode({
         id: outputId,
@@ -376,7 +410,9 @@ function buildTrackNodes(options: {
     const axisLabel = `${options.channelName} ${options.trackName} ${axis.toUpperCase()}`;
     if (axes.includes(axis)) {
       const inputPath = `rig/${options.faceId}/${options.channelName}/${options.trackName}/${axis}`;
-      const inputId = sanitizeId(`${options.channelName}_${options.trackName}_${axis}_input`);
+      const inputId = sanitizeId(
+        `${options.channelName}_${options.trackName}_${axis}_input`,
+      );
       nodes.push(
         makeInputNode({
           id: inputId,
@@ -420,10 +456,14 @@ function buildTrackNodes(options: {
     scaleVec.y,
     scaleVec.z,
   ];
-  const requiresScale = scaleVectorArray.some((component) => Math.abs(component - 1) > 1e-4);
+  const requiresScale = scaleVectorArray.some(
+    (component) => Math.abs(component - 1) > 1e-4,
+  );
 
   if (requiresScale) {
-    const scaleConstId = sanitizeId(`${options.channelName}_${options.trackName}_scale_vec`);
+    const scaleConstId = sanitizeId(
+      `${options.channelName}_${options.trackName}_scale_vec`,
+    );
     nodes.push(
       makeVectorConstantNode({
         id: scaleConstId,
@@ -432,7 +472,9 @@ function buildTrackNodes(options: {
         category: "Rig",
       }),
     );
-    const scaledId = sanitizeId(`${options.channelName}_${options.trackName}_scaled_vec`);
+    const scaledId = sanitizeId(
+      `${options.channelName}_${options.trackName}_scaled_vec`,
+    );
     nodes.push(
       makeVectorBinaryNode({
         id: scaledId,
@@ -450,7 +492,9 @@ function buildTrackNodes(options: {
     baseVec.y,
     baseVec.z,
   ];
-  const baseConstId = sanitizeId(`${options.channelName}_${options.trackName}_base_vec`);
+  const baseConstId = sanitizeId(
+    `${options.channelName}_${options.trackName}_base_vec`,
+  );
   nodes.push(
     makeVectorConstantNode({
       id: baseConstId,
@@ -462,7 +506,9 @@ function buildTrackNodes(options: {
 
   let resultVectorId: string;
   if (trackKind === "scale") {
-    const multiplyId = sanitizeId(`${options.channelName}_${options.trackName}_with_base`);
+    const multiplyId = sanitizeId(
+      `${options.channelName}_${options.trackName}_with_base`,
+    );
     nodes.push(
       makeVectorBinaryNode({
         id: multiplyId,
@@ -474,7 +520,9 @@ function buildTrackNodes(options: {
     );
     resultVectorId = multiplyId;
   } else {
-    const addId = sanitizeId(`${options.channelName}_${options.trackName}_with_base`);
+    const addId = sanitizeId(
+      `${options.channelName}_${options.trackName}_with_base`,
+    );
     nodes.push(
       makeVectorBinaryNode({
         id: addId,
@@ -487,7 +535,9 @@ function buildTrackNodes(options: {
     resultVectorId = addId;
   }
 
-  const outputId = sanitizeId(`${options.channelName}_${options.trackName}_out`);
+  const outputId = sanitizeId(
+    `${options.channelName}_${options.trackName}_out`,
+  );
   const valueKind = toValueKind(options.animatable.type, "vector");
   nodes.push(
     makeOutputNode({

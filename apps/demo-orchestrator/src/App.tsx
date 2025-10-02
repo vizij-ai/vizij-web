@@ -1,240 +1,104 @@
 import React from "react";
 import {
   OrchestratorProvider,
-  useOrchestrator,
-  useOrchFrame,
-  useOrchTarget,
   type WasmValue,
-  type GraphRegistrationInput,
-  type AnimationRegistrationConfig,
-  type AnimationSetup,
 } from "@vizij/orchestrator-react";
 
-const makeFloatValue = (value: number): WasmValue => ({
-  type: "float",
-  data: value,
-});
+import { DEMO_PATHS } from "./demoSpecs";
+import { useDemoOrchestrator } from "./useDemoOrchestrator";
 
-const DEMO_GRAPH_SPEC: GraphRegistrationInput = {
-  spec: {
-    nodes: [
-      {
-        id: "anim_input",
-        type: "input",
-        params: {
-          path: "demo/animation.value",
-          value: makeFloatValue(0),
-        },
-      },
-      {
-        id: "gain_input",
-        type: "input",
-        params: {
-          path: "demo/graph/gain",
-          value: makeFloatValue(1.5),
-        },
-      },
-      {
-        id: "offset_input",
-        type: "input",
-        params: {
-          path: "demo/graph/offset",
-          value: makeFloatValue(0.25),
-        },
-      },
-      {
-        id: "scaled",
-        type: "multiply",
-        inputs: {
-          a: { node_id: "anim_input" },
-          b: { node_id: "gain_input" },
-        },
-      },
-      {
-        id: "output_sum",
-        type: "add",
-        inputs: {
-          lhs: { node_id: "scaled" },
-          rhs: { node_id: "offset_input" },
-        },
-      },
-      {
-        id: "out",
-        type: "output",
-        params: { path: "demo/output/value" },
-        inputs: { in: { node_id: "output_sum" } },
-      },
-    ],
-  },
-  subs: {
-    inputs: ["demo/animation.value", "demo/graph/gain", "demo/graph/offset"],
-    outputs: ["demo/output/value"],
-  },
-};
+interface ValueCardProps {
+  label: string;
+  path: string;
+  value: WasmValue | null | undefined;
+}
 
-const DEMO_ANIMATION_SETUP: AnimationSetup = {
-  animation: {
-    id: "demo-ramp",
-    name: "Demo Ramp",
-    duration: 2000,
-    groups: [],
-    tracks: [
-      {
-        id: "ramp-track",
-        name: "Ramp Value",
-        animatableId: "demo/animation.value",
-        points: [
-          { id: "start", stamp: 0, value: 0 },
-          { id: "end", stamp: 1, value: 1 },
-        ],
-      },
-    ],
-  },
-  player: {
-    name: "demo-player",
-    loop_mode: "loop",
-  },
-};
+function ValueCard({ label, path, value }: ValueCardProps) {
+  const numericValue = value && value.type === "float" ? value.data : null;
 
-const DEMO_ANIMATION_CONFIG: AnimationRegistrationConfig = {
-  setup: DEMO_ANIMATION_SETUP,
-};
+  return (
+    <div
+      style={{
+        border: "1px solid #e0e0e0",
+        borderRadius: 8,
+        padding: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+      }}
+    >
+      <div style={{ fontWeight: 600 }}>{label}</div>
+      <code style={{ fontSize: "0.85rem", opacity: 0.7 }}>{path}</code>
+      <div
+        style={{
+          fontSize: "1.5rem",
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {numericValue != null ? numericValue.toFixed(3) : "–"}
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          background: "#101215",
+          color: "#f5f5f5",
+          padding: "0.75rem",
+          borderRadius: 6,
+          fontSize: "0.8rem",
+          overflowX: "auto",
+        }}
+      >
+        {value ? JSON.stringify(value, null, 2) : "No value yet."}
+      </pre>
+    </div>
+  );
+}
 
 function DemoPanel() {
   const {
-    ready,
-    createOrchestrator,
-    registerGraph,
-    registerAnimation,
-    setInput,
-    step,
-    listControllers,
-  } = useOrchestrator();
-  const frame = useOrchFrame();
-  const [focusPath, setFocusPath] = React.useState<string | null>(null);
-  const focusedValue = useOrchTarget(focusPath);
-
-  const [controllerIds, setControllerIds] = React.useState<{
-    graph?: string;
-    anim?: string;
-  }>({});
-  const [gainValue, setGainValue] = React.useState(1.5);
-  const [offsetValue, setOffsetValue] = React.useState(0.25);
-  const [status, setStatus] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    createOrchestrator().catch((err) => {
-      console.error("demo-orchestrator: failed to create orchestrator", err);
-      setStatus("Failed to create orchestrator. Check console for details.");
-    });
-  }, [createOrchestrator]);
-
-  const handleRegister = React.useCallback(async () => {
-    try {
-      await createOrchestrator();
-      const existing = listControllers();
-      let graphId = existing.graphs[0];
-      let animId = existing.anims[0];
-      if (!graphId) {
-        graphId = registerGraph(DEMO_GRAPH_SPEC);
-      }
-      if (!animId) {
-        animId = registerAnimation(DEMO_ANIMATION_CONFIG);
-      }
-      setInput("demo/graph/gain", makeFloatValue(gainValue));
-      setInput("demo/graph/offset", makeFloatValue(offsetValue));
-      setControllerIds({ graph: graphId, anim: animId });
-      setStatus("Controllers registered");
-    } catch (err) {
-      setStatus(`Registration failed: ${(err as Error).message}`);
-    }
-  }, [
-    createOrchestrator,
-    listControllers,
-    registerAnimation,
-    registerGraph,
-    gainValue,
-    offsetValue,
-    setInput,
-  ]);
-
-  const handleGainChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const next = Number(event.target.value);
-      setGainValue(next);
-      if (!ready) {
-        setStatus("Register controllers before adjusting gain.");
-        return;
-      }
-      try {
-        setInput("demo/graph/gain", makeFloatValue(next));
-        setStatus(`Gain set to ${next.toFixed(2)}`);
-      } catch (err) {
-        setStatus(`Failed to set gain: ${(err as Error).message}`);
-      }
+    state: {
+      ready,
+      registered,
+      status,
+      focusPath,
+      isPlaying,
+      controllerIds,
+      frame,
+      mergedWrites,
+      timings,
+      values,
+      focusedValue,
     },
-    [ready, setInput],
-  );
+    actions: { registerControllers, togglePlayback, stepOnce },
+  } = useDemoOrchestrator();
 
-  const handleOffsetChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const next = Number(event.target.value);
-      setOffsetValue(next);
-      if (!ready) {
-        setStatus("Register controllers before adjusting offset.");
-        return;
-      }
-      try {
-        setInput("demo/graph/offset", makeFloatValue(next));
-        setStatus(`Offset set to ${next.toFixed(2)}`);
-      } catch (err) {
-        setStatus(`Failed to set offset: ${(err as Error).message}`);
-      }
-    },
-    [ready, setInput],
-  );
-
-  const handleStep = React.useCallback(() => {
-    try {
-      const result = step(1 / 60);
-      if (result) {
-        setStatus(`Stepped epoch ${result.epoch}`);
-      } else {
-        setStatus("No orchestrator instance yet. Make sure it's created.");
-      }
-    } catch (err) {
-      setStatus(`Step failed: ${(err as Error).message}`);
-    }
-  }, [step]);
-
-  const mergedWrites = frame?.merged_writes ?? [];
-  const timings = frame?.timings_ms ?? {};
-  const processedValue = useOrchTarget("demo/output/value");
-  const animationValue = useOrchTarget("demo/animation.value");
-
-  React.useEffect(() => {
-    if (!frame) {
-      return;
-    }
-    const firstPath = frame.merged_writes[0]?.path;
-    if (firstPath && firstPath !== focusPath) {
-      setFocusPath(firstPath);
-    }
-  }, [frame, focusPath]);
+  const totalMsCandidate = (timings as { total_ms?: unknown }).total_ms;
+  const timingTotal =
+    typeof totalMsCandidate === "number" ? totalMsCandidate.toFixed(2) : "–";
 
   return (
     <div
       style={{
         fontFamily: "Inter, system-ui, sans-serif",
         margin: "2rem auto",
-        maxWidth: 720,
+        maxWidth: 880,
+        padding: "0 1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1.5rem",
       }}
     >
-      <h1 style={{ marginBottom: "0.25rem" }}>Vizij Orchestrator Demo</h1>
-      <p style={{ marginTop: 0, opacity: 0.8 }}>
-        Register the demo controllers, watch the animation drive the graph, and
-        adjust gain/offset live while the orchestrator loops.
-      </p>
+      <header>
+        <h1 style={{ margin: "0 0 0.25rem" }}>
+          Dual Animation Orchestrator Demo
+        </h1>
+        <p style={{ margin: 0, opacity: 0.8 }}>
+          Two looping scalar animations feed a multiply graph whose output
+          drives a second graph that raises ten to the power of that product.
+          Watch each blackboard value update in real time.
+        </p>
+      </header>
 
       <section
         style={{
@@ -244,69 +108,76 @@ function DemoPanel() {
           padding: "1rem",
           border: "1px solid #ccc",
           borderRadius: 8,
-          marginBottom: "1.5rem",
         }}
       >
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <button type="button" onClick={handleRegister} disabled={!ready}>
-            Register controllers
+          <button
+            type="button"
+            onClick={registerControllers}
+            disabled={!ready || registered}
+          >
+            {registered ? "Controllers ready" : "Register controllers"}
           </button>
-          <button type="button" onClick={handleStep} disabled={!ready}>
+          <button
+            type="button"
+            onClick={togglePlayback}
+            disabled={!ready || !registered}
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <button type="button" onClick={stepOnce} disabled={!ready}>
             Step 1 frame (dt = 1/60)
           </button>
         </div>
 
-        <label
-          style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
-        >
-          <span>Gain: {gainValue.toFixed(2)}</span>
-          <input
-            type="range"
-            min="0"
-            max="3"
-            step="0.01"
-            value={gainValue}
-            onChange={handleGainChange}
-          />
-        </label>
-
-        <label
-          style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
-        >
-          <span>Offset: {offsetValue.toFixed(2)}</span>
-          <input
-            type="range"
-            min="-1"
-            max="1"
-            step="0.01"
-            value={offsetValue}
-            onChange={handleOffsetChange}
-          />
-        </label>
-
-        <div style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+        <div style={{ fontSize: "0.9rem", opacity: 0.85 }}>
           <div>
             <strong>Ready:</strong> {ready ? "yes" : "no"}
           </div>
           <div>
-            <strong>Graph output:</strong>{" "}
-            {processedValue != null ? JSON.stringify(processedValue) : "–"}
+            <strong>Controllers:</strong> {controllerIds.multiplyGraph ?? "–"} /{" "}
+            {controllerIds.powerGraph ?? "–"} / {controllerIds.rampUp ?? "–"} /{" "}
+            {controllerIds.rampDown ?? "–"}
           </div>
           <div>
-            <strong>Animation ramp:</strong>{" "}
-            {animationValue != null ? JSON.stringify(animationValue) : "–"}
-          </div>
-          <div>
-            <strong>Controllers:</strong> {controllerIds.graph ?? "–"} /{" "}
-            {controllerIds.anim ?? "–"}
-          </div>
-          <div>
-            <strong>Latest status:</strong> {status ?? "Waiting"}
+            <strong>Latest status:</strong> {status ?? "Idle"}
           </div>
           <div>
             <strong>Focused target:</strong> {focusPath ?? "–"}
           </div>
+          <div>
+            <strong>Playback:</strong> {isPlaying ? "playing" : "stopped"}
+          </div>
         </div>
+      </section>
+
+      <section
+        style={{
+          display: "grid",
+          gap: "1rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        }}
+      >
+        <ValueCard
+          label="Ramp up animation"
+          path={DEMO_PATHS.animations.rampUp}
+          value={values.rampUp}
+        />
+        <ValueCard
+          label="Ramp down animation"
+          path={DEMO_PATHS.animations.rampDown}
+          value={values.rampDown}
+        />
+        <ValueCard
+          label="Product graph output"
+          path={DEMO_PATHS.graphs.product}
+          value={values.product}
+        />
+        <ValueCard
+          label="10^product graph output"
+          path={DEMO_PATHS.graphs.power}
+          value={values.power}
+        />
       </section>
 
       <section
@@ -326,7 +197,8 @@ function DemoPanel() {
           <h2 style={{ marginTop: 0 }}>Merged Writes</h2>
           {mergedWrites.length === 0 ? (
             <p style={{ opacity: 0.7 }}>
-              No merged writes yet. Step the orchestrator to see outputs.
+              No merged writes yet. The orchestrator will populate this once
+              playback begins.
             </p>
           ) : (
             <pre
@@ -372,13 +244,7 @@ function DemoPanel() {
               <li>dt: {frame.dt.toFixed(4)}s</li>
               <li>conflicts: {frame.conflicts?.length ?? 0}</li>
               <li>events: {frame.events?.length ?? 0}</li>
-              <li>
-                timings total:{" "}
-                {typeof timings.total_ms === "number"
-                  ? timings.total_ms.toFixed(2)
-                  : "–"}{" "}
-                ms
-              </li>
+              <li>timings total: {timingTotal} ms</li>
             </ul>
           ) : (
             <p style={{ opacity: 0.7 }}>
@@ -393,7 +259,7 @@ function DemoPanel() {
 
 export default function App() {
   return (
-    <OrchestratorProvider autostart>
+    <OrchestratorProvider autostart={false}>
       <DemoPanel />
     </OrchestratorProvider>
   );
