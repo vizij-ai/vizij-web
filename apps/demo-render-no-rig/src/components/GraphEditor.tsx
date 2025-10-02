@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   GraphEditorState,
@@ -9,6 +9,7 @@ import type {
 import type { NodeRegistryEntry } from "../hooks/useNodeRegistry";
 import { ValueField } from "./ValueField";
 import { defaultValueForKind } from "../utils/valueHelpers";
+import { CollapsiblePanel } from "./CollapsiblePanel";
 
 const VALUE_KIND_OPTIONS: ValueKind[] = [
   "float",
@@ -29,6 +30,8 @@ interface GraphEditorProps {
   registry: NodeRegistryEntry[];
   loading?: boolean;
   error?: string | null;
+  onExport?: () => void;
+  onImport?: (file: File) => void;
 }
 
 type ShapeErrorMap = Record<
@@ -230,6 +233,8 @@ export function GraphEditor({
   registry,
   loading,
   error,
+  onExport,
+  onImport,
 }: GraphEditorProps) {
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>(
     {},
@@ -238,6 +243,7 @@ export function GraphEditor({
   const [newNodeType, setNewNodeType] = useState<string>(
     () => registry[0]?.type_id ?? "",
   );
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const registryByType = useMemo(
     () => new Map(registry.map((entry) => [entry.type_id, entry] as const)),
@@ -532,439 +538,459 @@ export function GraphEditor({
   const datalistId = "graph-node-targets";
 
   return (
-    <div className="panel graph-editor">
-      <div className="panel-header">
-        <h2>Graph Editor</h2>
-        <span className="tag">nodes {value.nodes.length}</span>
-      </div>
-      <div className="panel-body">
-        {loading ? (
-          <div className="panel-status">Loading node registry…</div>
-        ) : null}
-        {error ? <div className="panel-status error">{error}</div> : null}
-
-        <fieldset>
-          <legend>Subscriptions</legend>
-          <div className="graph-subs">
-            <div>
-              <strong>Inputs</strong>
-              {value.inputs.map((subscription, index) => (
-                <div key={`input-${index}`} className="graph-subs-row">
-                  <input
-                    className="text-input"
-                    type="text"
-                    value={subscription}
-                    onChange={(event) =>
-                      handleSubscriptionsChange(
-                        "inputs",
-                        index,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="demo/graph/gain"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-muted"
-                    onClick={() => handleRemoveSubscription("inputs", index)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+    <CollapsiblePanel
+      title="Graph Editor"
+      className="graph-editor"
+      bodyClassName="graph-editor-body"
+      headerEnd={<span className="tag">nodes {value.nodes.length}</span>}
+    >
+      {onExport || onImport ? (
+        <div className="editor-toolbar">
+          {onExport ? (
+            <button type="button" className="btn btn-muted" onClick={onExport}>
+              Export graph JSON
+            </button>
+          ) : null}
+          {onImport ? (
+            <>
               <button
                 type="button"
                 className="btn btn-muted"
-                onClick={() => handleAddSubscription("inputs")}
+                onClick={() => importInputRef.current?.click()}
               >
-                Add input subscription
+                Import graph JSON
               </button>
-            </div>
-            <div>
-              <strong>Outputs</strong>
-              {value.outputs.map((subscription, index) => (
-                <div key={`output-${index}`} className="graph-subs-row">
-                  <input
-                    className="text-input"
-                    type="text"
-                    value={subscription}
-                    onChange={(event) =>
-                      handleSubscriptionsChange(
-                        "outputs",
-                        index,
-                        event.target.value,
-                      )
-                    }
-                    placeholder="demo/graph/value"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-muted"
-                    onClick={() => handleRemoveSubscription("outputs", index)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="btn btn-muted"
-                onClick={() => handleAddSubscription("outputs")}
-              >
-                Add output subscription
-              </button>
-            </div>
-          </div>
-        </fieldset>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json"
+                style={{ display: "none" }}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file || !onImport) return;
+                  await onImport(file);
+                  event.target.value = "";
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
-        <fieldset className="graph-actions">
-          <legend>Add node</legend>
-          <select
-            className="select-input"
-            value={newNodeType}
-            onChange={(event) => setNewNodeType(event.target.value)}
-          >
-            {!registry.length ? <option value="custom">Custom</option> : null}
-            {groupedRegistry.map(([category, entries]) => (
-              <optgroup key={category} label={category}>
-                {entries.map((entry) => (
-                  <option key={entry.type_id} value={entry.type_id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleAddNode}
-          >
-            Add node
-          </button>
-        </fieldset>
+      {loading ? (
+        <div className="panel-status">Loading node registry…</div>
+      ) : null}
+      {error ? <div className="panel-status error">{error}</div> : null}
 
-        <datalist id={datalistId}>
-          {nodeIdOptions.map((nodeId) => (
-            <option key={nodeId} value={nodeId} />
-          ))}
-        </datalist>
-
-        {value.nodes.map((node, index) => {
-          const schema = registryByType.get(node.type);
-          const schemaSlots = new Set(inputsFromSchema(schema));
-          const nodeId = node.id;
-          const shapeError = shapeErrors[nodeId] ?? {};
-          const collapsed = nodeId ? (collapsedNodes[nodeId] ?? true) : true;
-          const isOpen = !collapsed;
-          const connectionCount = Object.values(node.inputs ?? {}).filter(
-            Boolean,
-          ).length;
-          return (
-            <details
-              key={node.id}
-              className="graph-node"
-              open={isOpen}
-              onToggle={(event) => {
-                const details = event.currentTarget;
-                setCollapsedNodes((prev) => ({
-                  ...prev,
-                  [nodeId]: !details.open,
-                }));
-              }}
-            >
-              <summary>
-                <div>
-                  <strong>{node.name || node.id}</strong>
-                  <span className="track-summary">
-                    {summarizeNode(node)} • {connectionCount} connection
-                    {connectionCount === 1 ? "" : "s"}
-                  </span>
-                </div>
+      <fieldset>
+        <legend>Subscriptions</legend>
+        <div className="graph-subs">
+          <div>
+            <strong>Inputs</strong>
+            {value.inputs.map((subscription, index) => (
+              <div key={`input-${index}`} className="graph-subs-row">
+                <input
+                  className="text-input"
+                  type="text"
+                  value={subscription}
+                  onChange={(event) =>
+                    handleSubscriptionsChange(
+                      "inputs",
+                      index,
+                      event.target.value,
+                    )
+                  }
+                  placeholder="demo/graph/gain"
+                />
                 <button
                   type="button"
                   className="btn btn-muted"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    handleRemoveNode(index);
-                  }}
+                  onClick={() => handleRemoveSubscription("inputs", index)}
                 >
-                  Remove node
+                  Remove
                 </button>
-              </summary>
-              <div className="graph-node-body">
-                <label>
-                  <span>Node name</span>
-                  <input
-                    className="text-input"
-                    type="text"
-                    value={node.name}
-                    onChange={(event) =>
-                      handleNodeNameChange(index, event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Node ID</span>
-                  <input
-                    className="text-input"
-                    type="text"
-                    value={node.id}
-                    onChange={(event) =>
-                      handleNodeIdChange(index, event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Category</span>
-                  <input
-                    className="text-input"
-                    type="text"
-                    value={node.category}
-                    onChange={(event) =>
-                      handleNodeCategoryChange(index, event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Type</span>
-                  <select
-                    className="select-input"
-                    value={node.type}
-                    onChange={(event) =>
-                      handleNodeTypeChange(index, event.target.value)
-                    }
-                  >
-                    {!registry.length ? (
-                      <option value={node.type}>{node.type}</option>
-                    ) : null}
-                    {groupedRegistry.map(([category, entries]) => (
-                      <optgroup key={category} label={category}>
-                        {entries.map((entry) => (
-                          <option key={entry.type_id} value={entry.type_id}>
-                            {entry.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-muted"
+              onClick={() => handleAddSubscription("inputs")}
+            >
+              Add input subscription
+            </button>
+          </div>
+          <div>
+            <strong>Outputs</strong>
+            {value.outputs.map((subscription, index) => (
+              <div key={`output-${index}`} className="graph-subs-row">
+                <input
+                  className="text-input"
+                  type="text"
+                  value={subscription}
+                  onChange={(event) =>
+                    handleSubscriptionsChange(
+                      "outputs",
+                      index,
+                      event.target.value,
+                    )
+                  }
+                  placeholder="demo/graph/value"
+                />
+                <button
+                  type="button"
+                  className="btn btn-muted"
+                  onClick={() => handleRemoveSubscription("outputs", index)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-muted"
+              onClick={() => handleAddSubscription("outputs")}
+            >
+              Add output subscription
+            </button>
+          </div>
+        </div>
+      </fieldset>
 
-                {node.type.toLowerCase() === "output" ? (
-                  <fieldset className="graph-output-config">
-                    <legend>Output configuration</legend>
-                    <label>
-                      <span>Value kind</span>
-                      <select
-                        className="select-input"
-                        value={node.outputValueKind ?? "float"}
-                        onChange={(event) =>
-                          handleNodeChange(index, (nextNode) => {
-                            nextNode.outputValueKind = event.target
-                              .value as ValueKind;
-                          })
-                        }
-                      >
-                        {VALUE_KIND_OPTIONS.map((kind) => (
-                          <option key={kind} value={kind}>
-                            {kind}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <p className="graph-output-hint">
-                      This hint is used by the orchestrator panel to validate
-                      how the graph output maps to the target animatable (e.g.
-                      vec3 → X/Y/Z).
-                    </p>
-                  </fieldset>
-                ) : null}
+      <fieldset className="graph-actions">
+        <legend>Add node</legend>
+        <select
+          className="select-input"
+          value={newNodeType}
+          onChange={(event) => setNewNodeType(event.target.value)}
+        >
+          {!registry.length ? <option value="custom">Custom</option> : null}
+          {groupedRegistry.map(([category, entries]) => (
+            <optgroup key={category} label={category}>
+              {entries.map((entry) => (
+                <option key={entry.type_id} value={entry.type_id}>
+                  {entry.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleAddNode}
+        >
+          Add node
+        </button>
+      </fieldset>
 
-                {node.params.length ? (
-                  <div className="graph-node-params">
-                    <strong>Params</strong>
-                    {node.params.map((param, paramIndex) => (
-                      <div key={param.id} className="graph-param-row">
-                        <label>
-                          <span>Label</span>
-                          <input
-                            className="text-input"
-                            type="text"
-                            value={param.label}
-                            onChange={(event) =>
-                              handleParamValueChange(
-                                index,
-                                paramIndex,
-                                (nextParam) => {
-                                  nextParam.label = event.target.value;
-                                },
-                              )
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>Param ID</span>
-                          <input
-                            className="text-input"
-                            type="text"
-                            value={param.id}
-                            onChange={(event) =>
-                              handleParamValueChange(
-                                index,
-                                paramIndex,
-                                (nextParam) => {
-                                  nextParam.id = event.target.value;
-                                },
-                              )
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>Kind</span>
-                          <select
-                            className="select-input"
-                            value={param.type}
-                            onChange={(event) =>
-                              handleParamKindChange(
-                                index,
-                                paramIndex,
-                                event.target.value as ValueKind,
-                              )
-                            }
-                          >
-                            {VALUE_KIND_OPTIONS.map((kind) => (
-                              <option key={kind} value={kind}>
-                                {kind}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="value-field">
-                          <span>Value</span>
-                          <ValueField
-                            kind={param.type}
-                            value={param.value}
-                            onChange={(newValue) =>
-                              handleParamValueChange(
-                                index,
-                                paramIndex,
-                                (nextParam) => {
-                                  nextParam.value = newValue;
-                                },
-                              )
-                            }
-                            allowDynamicLength={param.type === "vector"}
-                          />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+      <datalist id={datalistId}>
+        {nodeIdOptions.map((nodeId) => (
+          <option key={nodeId} value={nodeId} />
+        ))}
+      </datalist>
 
-                <div className="graph-node-shapes">
+      {value.nodes.map((node, index) => {
+        const schema = registryByType.get(node.type);
+        const schemaSlots = new Set(inputsFromSchema(schema));
+        const nodeId = node.id;
+        const shapeError = shapeErrors[nodeId] ?? {};
+        const collapsed = nodeId ? (collapsedNodes[nodeId] ?? true) : true;
+        const isOpen = !collapsed;
+        const connectionCount = Object.values(node.inputs ?? {}).filter(
+          Boolean,
+        ).length;
+        return (
+          <details
+            key={node.id}
+            className="graph-node"
+            open={isOpen}
+            onToggle={(event) => {
+              const details = event.currentTarget;
+              setCollapsedNodes((prev) => ({
+                ...prev,
+                [nodeId]: !details.open,
+              }));
+            }}
+          >
+            <summary>
+              <div>
+                <strong>{node.name || node.id}</strong>
+                <span className="track-summary">
+                  {summarizeNode(node)} • {connectionCount} connection
+                  {connectionCount === 1 ? "" : "s"}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-muted"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleRemoveNode(index);
+                }}
+              >
+                Remove node
+              </button>
+            </summary>
+            <div className="graph-node-body">
+              <label>
+                <span>Node name</span>
+                <input
+                  className="text-input"
+                  type="text"
+                  value={node.name}
+                  onChange={(event) =>
+                    handleNodeNameChange(index, event.target.value)
+                  }
+                />
+              </label>
+              <label>
+                <span>Node ID</span>
+                <input
+                  className="text-input"
+                  type="text"
+                  value={node.id}
+                  onChange={(event) =>
+                    handleNodeIdChange(index, event.target.value)
+                  }
+                />
+              </label>
+              <label>
+                <span>Category</span>
+                <input
+                  className="text-input"
+                  type="text"
+                  value={node.category}
+                  onChange={(event) =>
+                    handleNodeCategoryChange(index, event.target.value)
+                  }
+                />
+              </label>
+              <label>
+                <span>Type</span>
+                <select
+                  className="select-input"
+                  value={node.type}
+                  onChange={(event) =>
+                    handleNodeTypeChange(index, event.target.value)
+                  }
+                >
+                  {!registry.length ? (
+                    <option value={node.type}>{node.type}</option>
+                  ) : null}
+                  {groupedRegistry.map(([category, entries]) => (
+                    <optgroup key={category} label={category}>
+                      {entries.map((entry) => (
+                        <option key={entry.type_id} value={entry.type_id}>
+                          {entry.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+
+              {node.type.toLowerCase() === "output" ? (
+                <fieldset className="graph-output-config">
+                  <legend>Output configuration</legend>
                   <label>
-                    <span>Input shape JSON</span>
-                    <textarea
-                      className={shapeError.input ? "input-error" : ""}
-                      rows={4}
-                      value={node.inputShapeJson ?? ""}
+                    <span>Value kind</span>
+                    <select
+                      className="select-input"
+                      value={node.outputValueKind ?? "float"}
                       onChange={(event) =>
-                        handleShapeJsonChange(
-                          index,
-                          "input",
-                          event.target.value,
-                        )
+                        handleNodeChange(index, (nextNode) => {
+                          nextNode.outputValueKind = event.target
+                            .value as ValueKind;
+                        })
                       }
-                      placeholder='{ "size": 3 }'
-                    />
-                    {shapeError.input ? (
-                      <p className="form-error">{shapeError.input}</p>
-                    ) : null}
-                  </label>
-                  <label>
-                    <span>Output shape JSON</span>
-                    <textarea
-                      className={shapeError.output ? "input-error" : ""}
-                      rows={4}
-                      value={node.outputShapeJson ?? ""}
-                      onChange={(event) =>
-                        handleShapeJsonChange(
-                          index,
-                          "output",
-                          event.target.value,
-                        )
-                      }
-                      placeholder='{ "size": 3 }'
-                    />
-                    {shapeError.output ? (
-                      <p className="form-error">{shapeError.output}</p>
-                    ) : null}
-                  </label>
-                </div>
-
-                <div className="graph-node-inputs">
-                  <div className="graph-node-inputs-header">
-                    <strong>Inputs</strong>
-                    <button
-                      type="button"
-                      className="btn btn-muted"
-                      onClick={() => handleAddInputSlot(index)}
                     >
-                      Add input slot
-                    </button>
-                  </div>
-                  {Object.entries(node.inputs).map(([slot, target]) => (
-                    <div key={slot} className="graph-node-input-row">
-                      <div className="graph-node-input-meta">
+                      {VALUE_KIND_OPTIONS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {kind}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="graph-output-hint">
+                    This hint is used by the orchestrator panel to validate how
+                    the graph output maps to the target animatable (e.g. vec3 →
+                    X/Y/Z).
+                  </p>
+                </fieldset>
+              ) : null}
+
+              {node.params.length ? (
+                <div className="graph-node-params">
+                  <strong>Params</strong>
+                  {node.params.map((param, paramIndex) => (
+                    <div key={param.id} className="graph-param-row">
+                      <label>
+                        <span>Label</span>
                         <input
                           className="text-input"
                           type="text"
-                          value={slot}
+                          value={param.label}
                           onChange={(event) =>
-                            handleRenameInputSlot(
+                            handleParamValueChange(
                               index,
-                              slot,
-                              event.target.value,
-                              schemaSlots,
+                              paramIndex,
+                              (nextParam) => {
+                                nextParam.label = event.target.value;
+                              },
                             )
                           }
-                          disabled={schemaSlots.has(slot)}
                         />
-                        {!schemaSlots.has(slot) ? (
-                          <button
-                            type="button"
-                            className="btn btn-muted"
-                            onClick={() =>
-                              handleRemoveInputSlot(index, slot, schemaSlots)
-                            }
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                      </div>
-                      <input
-                        className="text-input"
-                        type="text"
-                        list={datalistId}
-                        value={target}
-                        onChange={(event) =>
-                          handleInputTargetChange(
-                            index,
-                            slot,
-                            event.target.value,
-                          )
-                        }
-                        placeholder="node-id"
-                      />
+                      </label>
+                      <label>
+                        <span>Param ID</span>
+                        <input
+                          className="text-input"
+                          type="text"
+                          value={param.id}
+                          onChange={(event) =>
+                            handleParamValueChange(
+                              index,
+                              paramIndex,
+                              (nextParam) => {
+                                nextParam.id = event.target.value;
+                              },
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Kind</span>
+                        <select
+                          className="select-input"
+                          value={param.type}
+                          onChange={(event) =>
+                            handleParamKindChange(
+                              index,
+                              paramIndex,
+                              event.target.value as ValueKind,
+                            )
+                          }
+                        >
+                          {VALUE_KIND_OPTIONS.map((kind) => (
+                            <option key={kind} value={kind}>
+                              {kind}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="value-field">
+                        <span>Value</span>
+                        <ValueField
+                          kind={param.type}
+                          value={param.value}
+                          onChange={(newValue) =>
+                            handleParamValueChange(
+                              index,
+                              paramIndex,
+                              (nextParam) => {
+                                nextParam.value = newValue;
+                              },
+                            )
+                          }
+                          allowDynamicLength={param.type === "vector"}
+                        />
+                      </label>
                     </div>
                   ))}
                 </div>
+              ) : null}
+
+              <div className="graph-node-shapes">
+                <label>
+                  <span>Input shape JSON</span>
+                  <textarea
+                    className={shapeError.input ? "input-error" : ""}
+                    rows={4}
+                    value={node.inputShapeJson ?? ""}
+                    onChange={(event) =>
+                      handleShapeJsonChange(index, "input", event.target.value)
+                    }
+                    placeholder='{ "size": 3 }'
+                  />
+                  {shapeError.input ? (
+                    <p className="form-error">{shapeError.input}</p>
+                  ) : null}
+                </label>
+                <label>
+                  <span>Output shape JSON</span>
+                  <textarea
+                    className={shapeError.output ? "input-error" : ""}
+                    rows={4}
+                    value={node.outputShapeJson ?? ""}
+                    onChange={(event) =>
+                      handleShapeJsonChange(index, "output", event.target.value)
+                    }
+                    placeholder='{ "size": 3 }'
+                  />
+                  {shapeError.output ? (
+                    <p className="form-error">{shapeError.output}</p>
+                  ) : null}
+                </label>
               </div>
-            </details>
-          );
-        })}
-      </div>
-    </div>
+
+              <div className="graph-node-inputs">
+                <div className="graph-node-inputs-header">
+                  <strong>Inputs</strong>
+                  <button
+                    type="button"
+                    className="btn btn-muted"
+                    onClick={() => handleAddInputSlot(index)}
+                  >
+                    Add input slot
+                  </button>
+                </div>
+                {Object.entries(node.inputs).map(([slot, target]) => (
+                  <div key={slot} className="graph-node-input-row">
+                    <div className="graph-node-input-meta">
+                      <input
+                        className="text-input"
+                        type="text"
+                        value={slot}
+                        onChange={(event) =>
+                          handleRenameInputSlot(
+                            index,
+                            slot,
+                            event.target.value,
+                            schemaSlots,
+                          )
+                        }
+                        disabled={schemaSlots.has(slot)}
+                      />
+                      {!schemaSlots.has(slot) ? (
+                        <button
+                          type="button"
+                          className="btn btn-muted"
+                          onClick={() =>
+                            handleRemoveInputSlot(index, slot, schemaSlots)
+                          }
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <input
+                      className="text-input"
+                      type="text"
+                      list={datalistId}
+                      value={target}
+                      onChange={(event) =>
+                        handleInputTargetChange(index, slot, event.target.value)
+                      }
+                      placeholder="node-id"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+        );
+      })}
+    </CollapsiblePanel>
   );
 }

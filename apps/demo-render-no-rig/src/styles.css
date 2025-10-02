@@ -160,6 +160,19 @@ button {
   }
 }
 
+.viewer-column,
+.inspector-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inspector-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .panel {
   background: rgba(13, 19, 27, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -178,9 +191,55 @@ button {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .panel-header h2 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.panel-subtitle {
+  font-size: 0.8rem;
+  color: rgba(245, 245, 245, 0.6);
+}
+
+.panel-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.panel-toggle {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.panel-toggle:hover {
+  border-color: rgba(88, 166, 255, 0.65);
+  background: rgba(88, 166, 255, 0.15);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.collapsible-panel.is-collapsed {
+  overflow: hidden;
+}
+
+.collapsible-panel.is-collapsed .panel-header {
+  border-bottom: none;
 }
 
 .panel-body {
@@ -207,7 +266,7 @@ button {
 
 .face-viewer .panel-body {
   position: relative;
-  min-height: 420px;
+  min-height: 720px;
   background: radial-gradient(
     circle at top,
     rgba(52, 66, 86, 0.35),
@@ -448,10 +507,6 @@ button {
   border-radius: 8px;
 }
 
-.animatable-panel {
-  min-height: 420px;
-}
-
 .orchestrator-panel .panel-body {
   gap: 0.45rem;
 }
@@ -496,32 +551,18 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-.authoring-actions {
-  display: grid;
-  gap: 0.7rem;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  margin-bottom: 0.6rem;
-}
-
-.export-actions {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 0.65rem;
-  background: rgba(10, 16, 24, 0.45);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.export-actions h3 {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.action-row {
+.editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.animation-editor-body,
+.graph-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 
 .animation-editor fieldset,
@@ -720,20 +761,25 @@ button {
 
 .slider-field {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 84px) 1fr minmax(0, 84px);
   gap: 0.35rem;
   align-items: center;
 }
 
-.slider-field output {
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  font-size: 0.75rem;
-  color: rgba(221, 235, 255, 0.85);
-  background: rgba(255, 255, 255, 0.05);
+.slider-bound {
+  width: 100%;
+  padding: 0.35rem 0.4rem;
   border-radius: 6px;
-  padding: 0.1rem 0.4rem;
-  min-width: 3.2rem;
-  text-align: right;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font-size: 0.78rem;
+}
+
+.slider-bound:focus {
+  outline: none;
+  border-color: rgba(83, 189, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(83, 189, 255, 0.25);
 }
 
 .slider-field input[type="range"],
@@ -753,10 +799,10 @@ button {
 
 .vector-column {
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 0.2rem;
+  grid-template-rows: auto auto;
+  gap: 0.35rem;
   padding: 0.3rem 0.35rem;
-  min-width: 90px;
+  min-width: 150px;
   flex: 1 1 0;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
@@ -767,13 +813,6 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(245, 245, 245, 0.65);
-}
-
-.vector-column output {
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  font-size: 0.72rem;
-  color: rgba(221, 235, 255, 0.85);
-  text-align: right;
 }
 
 .vector-list {
@@ -882,6 +921,15 @@ button {
 .orchestrator-inputs {
   display: grid;
   gap: 0.4rem;
+}
+
+.orchestrator-inputs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 740px;
+  overflow-y: auto;
+  padding-right: 0.3rem;
 }
 
 .orchestrator-inputs label {

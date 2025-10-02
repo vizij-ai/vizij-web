@@ -13,6 +13,7 @@ import type {
 
 import { useAnimatableList } from "../hooks/useAnimatableList";
 import type { AnimatableListGroup, AnimatableListItem } from "../types";
+import { CollapsiblePanel } from "./CollapsiblePanel";
 
 type SetValueFn = (id: string, namespace: string, value: RawValue) => void;
 
@@ -539,43 +540,45 @@ export function AnimatableInspector({ namespace }: { namespace: string }) {
   };
 
   return (
-    <div className="panel animatable-panel">
-      <div className="panel-header">
-        <h2>Animatables</h2>
+    <CollapsiblePanel
+      title="Animatables"
+      className="animatable-panel"
+      bodyClassName="inspector-body"
+      headerEnd={
         <span className="tag">
           {filtered} / {total}
         </span>
+      }
+      defaultOpen={false}
+    >
+      <div className="inspector-search">
+        <input
+          type="search"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Filter by name, id, type…"
+        />
+        <span>
+          {filtered === total ? "Showing all" : `Filtered to ${filtered}`}
+        </span>
       </div>
-      <div className="panel-body inspector-body">
-        <div className="inspector-search">
-          <input
-            type="search"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter by name, id, type…"
-          />
-          <span>
-            {filtered === total ? "Showing all" : `Filtered to ${filtered}`}
-          </span>
+      {groups.length === 0 ? (
+        <div className="panel-status">
+          No animatables match the current filter.
         </div>
-        {groups.length === 0 ? (
-          <div className="panel-status">
-            No animatables match the current filter.
-          </div>
-        ) : (
-          <div className="anim-groups">
-            {groups.map((group) => (
-              <GroupSection
-                key={group.key}
-                group={group}
-                namespace={namespace}
-                setValue={setValue}
-                resetValue={resetValue}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      ) : (
+        <div className="anim-groups">
+          {groups.map((group) => (
+            <GroupSection
+              key={group.key}
+              group={group}
+              namespace={namespace}
+              setValue={setValue}
+              resetValue={resetValue}
+            />
+          ))}
+        </div>
+      )}
+    </CollapsiblePanel>
   );
 }

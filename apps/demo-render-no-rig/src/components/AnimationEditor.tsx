@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type {
   AnimationEditorState,
@@ -10,6 +10,7 @@ import type {
 import { ValueField } from "./ValueField";
 import { defaultValueForKind } from "../utils/valueHelpers";
 import { updateTracksForSelectedAnim } from "../utils/animatableOptions";
+import { CollapsiblePanel } from "./CollapsiblePanel";
 
 const LOOP_MODES = ["once", "loop", "pingpong"] as const;
 const VALUE_KIND_OPTIONS: ValueKind[] = [
@@ -29,6 +30,8 @@ interface AnimationEditorProps {
   value: AnimationEditorState;
   onChange: (state: AnimationEditorState) => void;
   animatableOptions: OrchestratorAnimatableOption[];
+  onExport?: () => void;
+  onImport?: (file: File) => void;
 }
 
 function cloneState(state: AnimationEditorState): AnimationEditorState {
@@ -98,6 +101,8 @@ export function AnimationEditor({
   value,
   onChange,
   animatableOptions,
+  onExport,
+  onImport,
 }: AnimationEditorProps) {
   const [shapeErrors, setShapeErrors] = useState<Record<string, string | null>>(
     {},
@@ -105,6 +110,7 @@ export function AnimationEditor({
   const [collapsedTracks, setCollapsedTracks] = useState<
     Record<string, boolean>
   >({});
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const commit = (
     mutator: (next: AnimationEditorState) => void,
@@ -309,425 +315,455 @@ export function AnimationEditor({
   }, [animatableOptions]);
 
   return (
-    <div className="panel animation-editor">
-      <div className="panel-header">
-        <h2>Animation Editor</h2>
-        <span className="tag">tracks {value.tracks.length}</span>
-      </div>
-      <div className="panel-body">
-        <fieldset>
-          <legend>Animation</legend>
-          <label>
-            <span>Name</span>
-            <input
-              className="text-input"
-              type="text"
-              value={value.name}
-              onChange={(event) => handleMetaChange("name", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>ID</span>
-            <input
-              className="text-input"
-              type="text"
-              value={value.id}
-              onChange={(event) => handleMetaChange("id", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Duration (ms)</span>
-            <input
-              className="text-input"
-              type="number"
-              min={1}
-              value={value.duration}
-              onChange={(event) =>
-                handleMetaChange("duration", Number(event.target.value))
-              }
-            />
-          </label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Player</legend>
-          <label>
-            <span>Player name</span>
-            <input
-              className="text-input"
-              type="text"
-              value={value.playerName}
-              onChange={(event) =>
-                handleMetaChange("playerName", event.target.value)
-              }
-            />
-          </label>
-          <label>
-            <span>Loop mode</span>
-            <select
-              className="select-input"
-              value={value.loopMode}
-              onChange={(event) =>
-                handleMetaChange(
-                  "loopMode",
-                  event.target.value as AnimationEditorState["loopMode"],
-                )
-              }
-            >
-              {LOOP_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Speed</span>
-            <input
-              className="text-input"
-              type="number"
-              step={0.1}
-              value={value.speed}
-              onChange={(event) =>
-                handleMetaChange("speed", Number(event.target.value))
-              }
-            />
-          </label>
-        </fieldset>
-
-        <section className="tracks">
-          {value.tracks.map((track, trackIndex) => {
-            const option = findOption(animatableOptions, track);
-            const trackId = track.id;
-            const shapeError = shapeErrors[trackId ?? ""] ?? null;
-            const collapsed = trackId
-              ? (collapsedTracks[trackId] ?? true)
-              : true;
-            const isOpen = !collapsed;
-            const selectionValue = track.optionId ?? track.animatableId;
-            const selectionExists = animatableOptions.some(
-              (candidate) => candidate.optionId === selectionValue,
-            );
-            return (
-              <details
-                key={track.id}
-                className="track-card"
-                open={isOpen}
-                onToggle={(event) => {
-                  const details = event.currentTarget;
-                  setCollapsedTracks((prev) => ({
-                    ...prev,
-                    [trackId]: !details.open,
-                  }));
-                }}
+    <CollapsiblePanel
+      title="Animation Editor"
+      className="animation-editor"
+      bodyClassName="animation-editor-body"
+      headerEnd={<span className="tag">tracks {value.tracks.length}</span>}
+    >
+      {onExport || onImport ? (
+        <div className="editor-toolbar">
+          {onExport ? (
+            <button type="button" className="btn btn-muted" onClick={onExport}>
+              Export animation JSON
+            </button>
+          ) : null}
+          {onImport ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-muted"
+                onClick={() => importInputRef.current?.click()}
               >
-                <summary>
-                  <div>
-                    <strong>{track.name || `Track ${trackIndex + 1}`}</strong>
-                    <span className="track-summary">
-                      {summarizeTrack(track, option)}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-muted"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      handleRemoveTrack(trackIndex);
-                    }}
-                  >
-                    Remove track
-                  </button>
-                </summary>
-                <div className="track-body">
-                  <label>
-                    <span>Track name</span>
-                    <input
-                      className="text-input"
-                      type="text"
-                      value={track.name}
-                      onChange={(event) =>
-                        handleTrackChange(trackIndex, (nextTrack) => {
-                          nextTrack.name = event.target.value;
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Track ID</span>
-                    <input
-                      className="text-input"
-                      type="text"
-                      value={track.id}
-                      onChange={(event) =>
-                        handleTrackChange(trackIndex, (nextTrack) => {
-                          nextTrack.id = event.target.value;
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Target animatable</span>
-                    <select
-                      className="select-input"
-                      value={selectionValue}
-                      onChange={(event) =>
-                        handleTrackTargetChange(trackIndex, event.target.value)
-                      }
-                    >
-                      {!selectionExists && selectionValue ? (
-                        <option value={selectionValue}>{selectionValue}</option>
-                      ) : null}
-                      {animatableGroups.map(([group, options]) => (
-                        <optgroup key={group} label={group}>
-                          {options.map((item) => (
-                            <option key={item.optionId} value={item.optionId}>
-                              {item.group
-                                ? `${item.group} • ${item.label}`
-                                : item.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Value kind</span>
-                    <select
-                      className="select-input"
-                      value={track.valueKind}
-                      onChange={(event) =>
-                        handleValueKindChange(
-                          trackIndex,
-                          event.target.value as ValueKind,
-                        )
-                      }
-                    >
-                      {VALUE_KIND_OPTIONS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {kind}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Shape JSON (optional)</span>
-                    <textarea
-                      className={shapeError ? "input-error" : ""}
-                      rows={4}
-                      value={track.shapeJson ?? ""}
-                      onChange={(event) =>
-                        handleShapeJsonChange(trackIndex, event.target.value)
-                      }
-                      placeholder='{ "kind": "vector", ... }'
-                    />
-                    {shapeError ? (
-                      <p className="form-error">{shapeError}</p>
-                    ) : null}
-                  </label>
+                Import animation JSON
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json"
+                style={{ display: "none" }}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file || !onImport) return;
+                  await onImport(file);
+                  event.target.value = "";
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
-                  <div className="keyframes">
-                    <div className="keyframes-header">
-                      <strong>Keyframes</strong>
-                      <button
-                        type="button"
-                        className="btn btn-muted"
-                        onClick={() => handleAddKeyframe(trackIndex)}
-                      >
-                        Add keyframe
-                      </button>
-                    </div>
-                    {track.keyframes.map((keyframe, keyIndex) => (
-                      <div key={keyframe.id} className="keyframe-card">
-                        <div className="keyframe-header">
-                          <strong>{keyframe.id}</strong>
-                          <button
-                            type="button"
-                            className="btn btn-muted"
-                            onClick={() =>
-                              handleRemoveKeyframe(trackIndex, keyIndex)
+      <fieldset>
+        <legend>Animation</legend>
+        <label>
+          <span>Name</span>
+          <input
+            className="text-input"
+            type="text"
+            value={value.name}
+            onChange={(event) => handleMetaChange("name", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>ID</span>
+          <input
+            className="text-input"
+            type="text"
+            value={value.id}
+            onChange={(event) => handleMetaChange("id", event.target.value)}
+          />
+        </label>
+        <label>
+          <span>Duration (ms)</span>
+          <input
+            className="text-input"
+            type="number"
+            min={1}
+            value={value.duration}
+            onChange={(event) =>
+              handleMetaChange("duration", Number(event.target.value))
+            }
+          />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Player</legend>
+        <label>
+          <span>Player name</span>
+          <input
+            className="text-input"
+            type="text"
+            value={value.playerName}
+            onChange={(event) =>
+              handleMetaChange("playerName", event.target.value)
+            }
+          />
+        </label>
+        <label>
+          <span>Loop mode</span>
+          <select
+            className="select-input"
+            value={value.loopMode}
+            onChange={(event) =>
+              handleMetaChange(
+                "loopMode",
+                event.target.value as AnimationEditorState["loopMode"],
+              )
+            }
+          >
+            {LOOP_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Speed</span>
+          <input
+            className="text-input"
+            type="number"
+            step={0.1}
+            value={value.speed}
+            onChange={(event) =>
+              handleMetaChange("speed", Number(event.target.value))
+            }
+          />
+        </label>
+      </fieldset>
+
+      <section className="tracks">
+        {value.tracks.map((track, trackIndex) => {
+          const option = findOption(animatableOptions, track);
+          const trackId = track.id;
+          const shapeError = shapeErrors[trackId ?? ""] ?? null;
+          const collapsed = trackId ? (collapsedTracks[trackId] ?? true) : true;
+          const isOpen = !collapsed;
+          const selectionValue = track.optionId ?? track.animatableId;
+          const selectionExists = animatableOptions.some(
+            (candidate) => candidate.optionId === selectionValue,
+          );
+          return (
+            <details
+              key={track.id}
+              className="track-card"
+              open={isOpen}
+              onToggle={(event) => {
+                const details = event.currentTarget;
+                setCollapsedTracks((prev) => ({
+                  ...prev,
+                  [trackId]: !details.open,
+                }));
+              }}
+            >
+              <summary>
+                <div>
+                  <strong>{track.name || `Track ${trackIndex + 1}`}</strong>
+                  <span className="track-summary">
+                    {summarizeTrack(track, option)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-muted"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleRemoveTrack(trackIndex);
+                  }}
+                >
+                  Remove track
+                </button>
+              </summary>
+              <div className="track-body">
+                <label>
+                  <span>Track name</span>
+                  <input
+                    className="text-input"
+                    type="text"
+                    value={track.name}
+                    onChange={(event) =>
+                      handleTrackChange(trackIndex, (nextTrack) => {
+                        nextTrack.name = event.target.value;
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Track ID</span>
+                  <input
+                    className="text-input"
+                    type="text"
+                    value={track.id}
+                    onChange={(event) =>
+                      handleTrackChange(trackIndex, (nextTrack) => {
+                        nextTrack.id = event.target.value;
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Target animatable</span>
+                  <select
+                    className="select-input"
+                    value={selectionValue}
+                    onChange={(event) =>
+                      handleTrackTargetChange(trackIndex, event.target.value)
+                    }
+                  >
+                    {!selectionExists && selectionValue ? (
+                      <option value={selectionValue}>{selectionValue}</option>
+                    ) : null}
+                    {animatableGroups.map(([group, options]) => (
+                      <optgroup key={group} label={group}>
+                        {options.map((item) => (
+                          <option key={item.optionId} value={item.optionId}>
+                            {item.group
+                              ? `${item.group} • ${item.label}`
+                              : item.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Value kind</span>
+                  <select
+                    className="select-input"
+                    value={track.valueKind}
+                    onChange={(event) =>
+                      handleValueKindChange(
+                        trackIndex,
+                        event.target.value as ValueKind,
+                      )
+                    }
+                  >
+                    {VALUE_KIND_OPTIONS.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {kind}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Shape JSON (optional)</span>
+                  <textarea
+                    className={shapeError ? "input-error" : ""}
+                    rows={4}
+                    value={track.shapeJson ?? ""}
+                    onChange={(event) =>
+                      handleShapeJsonChange(trackIndex, event.target.value)
+                    }
+                    placeholder='{ "kind": "vector", ... }'
+                  />
+                  {shapeError ? (
+                    <p className="form-error">{shapeError}</p>
+                  ) : null}
+                </label>
+
+                <div className="keyframes">
+                  <div className="keyframes-header">
+                    <strong>Keyframes</strong>
+                    <button
+                      type="button"
+                      className="btn btn-muted"
+                      onClick={() => handleAddKeyframe(trackIndex)}
+                    >
+                      Add keyframe
+                    </button>
+                  </div>
+                  {track.keyframes.map((keyframe, keyIndex) => (
+                    <div key={keyframe.id} className="keyframe-card">
+                      <div className="keyframe-header">
+                        <strong>{keyframe.id}</strong>
+                        <button
+                          type="button"
+                          className="btn btn-muted"
+                          onClick={() =>
+                            handleRemoveKeyframe(trackIndex, keyIndex)
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="keyframe-row">
+                        <label>
+                          <span>Stamp (0-1)</span>
+                          <input
+                            className="text-input"
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={keyframe.stamp}
+                            onChange={(event) =>
+                              handleKeyframeChange(
+                                trackIndex,
+                                keyIndex,
+                                (nextKeyframe) => {
+                                  const parsed = Number(event.target.value);
+                                  nextKeyframe.stamp = Number.isFinite(parsed)
+                                    ? Math.min(Math.max(parsed, 0), 1)
+                                    : nextKeyframe.stamp;
+                                },
+                              )
                             }
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <div className="keyframe-row">
-                          <label>
-                            <span>Stamp (0-1)</span>
-                            <input
-                              className="text-input"
-                              type="number"
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              value={keyframe.stamp}
-                              onChange={(event) =>
-                                handleKeyframeChange(
+                          />
+                        </label>
+                        <label className="value-field">
+                          <span>Value</span>
+                          <ValueField
+                            kind={track.valueKind}
+                            value={keyframe.value}
+                            onChange={(newValue) =>
+                              handleKeyframeChange(
+                                trackIndex,
+                                keyIndex,
+                                (nextKeyframe) => {
+                                  nextKeyframe.value = newValue;
+                                },
+                              )
+                            }
+                            allowDynamicLength={track.valueKind === "vector"}
+                          />
+                        </label>
+                      </div>
+                      <div className="handle-row">
+                        <div className="handle-group">
+                          <div className="handle-header">
+                            <span>Handle in</span>
+                            <button
+                              type="button"
+                              className="btn btn-muted"
+                              onClick={() =>
+                                handleToggleHandle(
                                   trackIndex,
                                   keyIndex,
-                                  (nextKeyframe) => {
-                                    const parsed = Number(event.target.value);
-                                    nextKeyframe.stamp = Number.isFinite(parsed)
-                                      ? Math.min(Math.max(parsed, 0), 1)
-                                      : nextKeyframe.stamp;
-                                  },
+                                  "handleIn",
                                 )
                               }
-                            />
-                          </label>
-                          <label className="value-field">
-                            <span>Value</span>
-                            <ValueField
-                              kind={track.valueKind}
-                              value={keyframe.value}
-                              onChange={(newValue) =>
-                                handleKeyframeChange(
+                            >
+                              {keyframe.handleIn ? "Remove" : "Add"}
+                            </button>
+                          </div>
+                          {keyframe.handleIn ? (
+                            <div className="handle-inputs">
+                              <label>
+                                <span>X</span>
+                                <input
+                                  className="text-input"
+                                  type="number"
+                                  step={0.01}
+                                  value={ensureHandle(keyframe.handleIn).x}
+                                  onChange={(event) =>
+                                    handleHandleValueChange(
+                                      trackIndex,
+                                      keyIndex,
+                                      "handleIn",
+                                      "x",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Y</span>
+                                <input
+                                  className="text-input"
+                                  type="number"
+                                  step={0.01}
+                                  value={ensureHandle(keyframe.handleIn).y}
+                                  onChange={(event) =>
+                                    handleHandleValueChange(
+                                      trackIndex,
+                                      keyIndex,
+                                      "handleIn",
+                                      "y",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="handle-group">
+                          <div className="handle-header">
+                            <span>Handle out</span>
+                            <button
+                              type="button"
+                              className="btn btn-muted"
+                              onClick={() =>
+                                handleToggleHandle(
                                   trackIndex,
                                   keyIndex,
-                                  (nextKeyframe) => {
-                                    nextKeyframe.value = newValue;
-                                  },
+                                  "handleOut",
                                 )
                               }
-                              allowDynamicLength={track.valueKind === "vector"}
-                            />
-                          </label>
-                        </div>
-                        <div className="handle-row">
-                          <div className="handle-group">
-                            <div className="handle-header">
-                              <span>Handle in</span>
-                              <button
-                                type="button"
-                                className="btn btn-muted"
-                                onClick={() =>
-                                  handleToggleHandle(
-                                    trackIndex,
-                                    keyIndex,
-                                    "handleIn",
-                                  )
-                                }
-                              >
-                                {keyframe.handleIn ? "Remove" : "Add"}
-                              </button>
-                            </div>
-                            {keyframe.handleIn ? (
-                              <div className="handle-inputs">
-                                <label>
-                                  <span>X</span>
-                                  <input
-                                    className="text-input"
-                                    type="number"
-                                    step={0.01}
-                                    value={ensureHandle(keyframe.handleIn).x}
-                                    onChange={(event) =>
-                                      handleHandleValueChange(
-                                        trackIndex,
-                                        keyIndex,
-                                        "handleIn",
-                                        "x",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  <span>Y</span>
-                                  <input
-                                    className="text-input"
-                                    type="number"
-                                    step={0.01}
-                                    value={ensureHandle(keyframe.handleIn).y}
-                                    onChange={(event) =>
-                                      handleHandleValueChange(
-                                        trackIndex,
-                                        keyIndex,
-                                        "handleIn",
-                                        "y",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                              </div>
-                            ) : null}
+                            >
+                              {keyframe.handleOut ? "Remove" : "Add"}
+                            </button>
                           </div>
-                          <div className="handle-group">
-                            <div className="handle-header">
-                              <span>Handle out</span>
-                              <button
-                                type="button"
-                                className="btn btn-muted"
-                                onClick={() =>
-                                  handleToggleHandle(
-                                    trackIndex,
-                                    keyIndex,
-                                    "handleOut",
-                                  )
-                                }
-                              >
-                                {keyframe.handleOut ? "Remove" : "Add"}
-                              </button>
+                          {keyframe.handleOut ? (
+                            <div className="handle-inputs">
+                              <label>
+                                <span>X</span>
+                                <input
+                                  className="text-input"
+                                  type="number"
+                                  step={0.01}
+                                  value={ensureHandle(keyframe.handleOut).x}
+                                  onChange={(event) =>
+                                    handleHandleValueChange(
+                                      trackIndex,
+                                      keyIndex,
+                                      "handleOut",
+                                      "x",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Y</span>
+                                <input
+                                  className="text-input"
+                                  type="number"
+                                  step={0.01}
+                                  value={ensureHandle(keyframe.handleOut).y}
+                                  onChange={(event) =>
+                                    handleHandleValueChange(
+                                      trackIndex,
+                                      keyIndex,
+                                      "handleOut",
+                                      "y",
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
                             </div>
-                            {keyframe.handleOut ? (
-                              <div className="handle-inputs">
-                                <label>
-                                  <span>X</span>
-                                  <input
-                                    className="text-input"
-                                    type="number"
-                                    step={0.01}
-                                    value={ensureHandle(keyframe.handleOut).x}
-                                    onChange={(event) =>
-                                      handleHandleValueChange(
-                                        trackIndex,
-                                        keyIndex,
-                                        "handleOut",
-                                        "x",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  <span>Y</span>
-                                  <input
-                                    className="text-input"
-                                    type="number"
-                                    step={0.01}
-                                    value={ensureHandle(keyframe.handleOut).y}
-                                    onChange={(event) =>
-                                      handleHandleValueChange(
-                                        trackIndex,
-                                        keyIndex,
-                                        "handleOut",
-                                        "y",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                              </div>
-                            ) : null}
-                          </div>
+                          ) : null}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              </details>
-            );
-          })}
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleAddTrack}
-          >
-            Add track
-          </button>
-        </section>
-      </div>
-    </div>
+              </div>
+            </details>
+          );
+        })}
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleAddTrack}
+        >
+          Add track
+        </button>
+      </section>
+    </CollapsiblePanel>
   );
 }

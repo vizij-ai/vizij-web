@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 
 import { ActiveValuesPanel } from "./components/ActiveValuesPanel";
 import { AnimatableInspector } from "./components/AnimatableInspector";
 import { ControlsToolbar } from "./components/ControlsToolbar";
 import { FaceViewer } from "./components/FaceViewer";
-import { OrchestratorPanel } from "./components/OrchestratorPanel";
+import {
+  OrchestratorBridgeProvider,
+  OrchestratorInputsPanel,
+  OrchestratorPanel,
+  useOrchestratorBridge,
+} from "./components/OrchestratorPanel";
 import { AnimationEditor } from "./components/AnimationEditor";
 import { GraphEditor } from "./components/GraphEditor";
+import { CollapsiblePanel } from "./components/CollapsiblePanel";
 import { useFaceLoader } from "./hooks/useFaceLoader";
 import { useAnimatableList } from "./hooks/useAnimatableList";
 import { useNodeRegistry } from "./hooks/useNodeRegistry";
@@ -41,8 +46,6 @@ export default function App() {
     string,
     string
   > | null>(null);
-  const animationImportRef = useRef<HTMLInputElement | null>(null);
-  const graphImportRef = useRef<HTMLInputElement | null>(null);
   const lastRigSignatureRef = useRef<string | null>(null);
 
   const face = useMemo(
@@ -152,22 +155,6 @@ export default function App() {
     }
   };
 
-  const onAnimationFileChange = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    await handleImportAnimation(file);
-    event.target.value = "";
-  };
-
-  const onGraphFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    await handleImportGraph(file);
-    event.target.value = "";
-  };
-
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -192,128 +179,105 @@ export default function App() {
         onToggleSafeArea={setShowSafeArea}
       />
 
-      <main className="app-main">
-        <FaceViewer
-          rootId={loader.rootId}
-          ready={loader.ready}
-          loading={loader.loading}
-          error={loader.error}
-          namespace={namespace}
-          showSafeArea={showSafeArea}
-        />
-        <AnimatableInspector namespace={namespace} />
-      </main>
-      <section className="diagnostics">
-        <div className="panel">
-          <div className="panel-header">
-            <h2>Status</h2>
-          </div>
-          <div className="panel-body status-grid">
-            <div>
-              <span className="label">Face</span>
-              <span>{face?.name ?? "Unknown"}</span>
-            </div>
-            <div>
-              <span className="label">Loader</span>
-              <span>
-                {loader.loading
-                  ? "Loading"
-                  : loader.ready
-                    ? "Ready"
-                    : loader.error
-                      ? "Error"
-                      : "Idle"}
-              </span>
-            </div>
-            <div>
-              <span className="label">Root ID</span>
-              <span>{loader.rootId ?? "–"}</span>
-            </div>
-            <div>
-              <span className="label">Error</span>
-              <span>{loader.error ?? "–"}</span>
-            </div>
-          </div>
-        </div>
-        <ActiveValuesPanel namespace={namespace} />
-      </section>
-
-      <OrchestratorPanel
+      <OrchestratorBridgeProvider
         namespace={namespace}
         animatables={animatableOptions}
         animationState={animationState}
         graphState={graphState}
         initialOutputMap={rigOutputMap}
-      />
-      <input
-        ref={animationImportRef}
-        type="file"
-        accept="application/json"
-        style={{ display: "none" }}
-        onChange={onAnimationFileChange}
-      />
-      <input
-        ref={graphImportRef}
-        type="file"
-        accept="application/json"
-        style={{ display: "none" }}
-        onChange={onGraphFileChange}
-      />
-      <section className="authoring-grid">
-        <AnimationEditor
-          value={animationState}
-          onChange={setAnimationState}
-          animatableOptions={animatableOptions}
-        />
-        <GraphEditor
-          value={graphState}
-          onChange={setGraphState}
-          registry={registry}
-          loading={registryLoading}
-          error={registryError}
-        />
-      </section>
+      >
+        <main className="app-main">
+          <div className="viewer-column">
+            <FaceViewer
+              rootId={loader.rootId}
+              ready={loader.ready}
+              loading={loader.loading}
+              error={loader.error}
+              namespace={namespace}
+              showSafeArea={showSafeArea}
+            />
+            <div className="panel status-panel">
+              <div className="panel-header">
+                <h2>Status</h2>
+              </div>
+              <div className="panel-body status-grid">
+                <div>
+                  <span className="label">Face</span>
+                  <span>{face?.name ?? "Unknown"}</span>
+                </div>
+                <div>
+                  <span className="label">Loader</span>
+                  <span>
+                    {loader.loading
+                      ? "Loading"
+                      : loader.ready
+                        ? "Ready"
+                        : loader.error
+                          ? "Error"
+                          : "Idle"}
+                  </span>
+                </div>
+                <div>
+                  <span className="label">Root ID</span>
+                  <span>{loader.rootId ?? "–"}</span>
+                </div>
+                <div>
+                  <span className="label">Error</span>
+                  <span>{loader.error ?? "–"}</span>
+                </div>
+              </div>
+            </div>
+            <ActiveValuesPanel namespace={namespace} />
+          </div>
+          <div className="inspector-column">
+            <AnimatableInspector namespace={namespace} />
+            <CollapsiblePanel
+              title="Bridge Inputs"
+              className="orchestrator-inputs-panel"
+              bodyClassName="orchestrator-inputs-body"
+            >
+              <OrchestratorInputsPanel />
+            </CollapsiblePanel>
+            <div className="inspector-diagnostics"></div>
+          </div>
+        </main>
 
-      <section className="authoring-actions">
-        <div className="export-actions">
-          <h3>Animation</h3>
-          <div className="action-row">
-            <button
-              type="button"
-              className="btn btn-muted"
-              onClick={handleExportAnimation}
-            >
-              Export animation JSON
-            </button>
-            <button
-              type="button"
-              className="btn btn-muted"
-              onClick={() => animationImportRef.current?.click()}
-            >
-              Import animation JSON
-            </button>
-          </div>
-        </div>
-        <div className="export-actions">
-          <h3>Graph</h3>
-          <div className="action-row">
-            <button
-              type="button"
-              className="btn btn-muted"
-              onClick={handleExportGraph}
-            >
-              Export graph JSON
-            </button>
-            <button
-              type="button"
-              className="btn btn-muted"
-              onClick={() => graphImportRef.current?.click()}
-            >
-              Import graph JSON
-            </button>
-          </div>
-        </div>
-      </section>
+        <OrchestratorBridgeSection />
+
+        <section className="authoring-grid">
+          <AnimationEditor
+            value={animationState}
+            onChange={setAnimationState}
+            animatableOptions={animatableOptions}
+            onExport={handleExportAnimation}
+            onImport={handleImportAnimation}
+          />
+          <GraphEditor
+            value={graphState}
+            onChange={setGraphState}
+            registry={registry}
+            loading={registryLoading}
+            error={registryError}
+            onExport={handleExportGraph}
+            onImport={handleImportGraph}
+          />
+        </section>
+      </OrchestratorBridgeProvider>
     </div>
+  );
+}
+
+function OrchestratorBridgeSection() {
+  const { ready, connected } = useOrchestratorBridge();
+  const statusLabel = ready ? (connected ? "connected" : "ready") : "loading";
+
+  return (
+    <CollapsiblePanel
+      title="Orchestrator Bridge"
+      className="orchestrator-panel"
+      headerEnd={<span className="tag">{statusLabel}</span>}
+    >
+      <OrchestratorPanel />
+    </CollapsiblePanel>
   );
 }

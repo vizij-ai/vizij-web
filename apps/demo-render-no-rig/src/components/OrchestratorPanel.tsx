@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useVizijStore } from "@vizij/render";
 import {
   useOrchestrator,
@@ -331,6 +339,40 @@ type OutputRow = {
   invalid: boolean;
 };
 
+interface OrchestratorBridgeContextValue {
+  ready: boolean;
+  connected: boolean;
+  status: string | null;
+  animatables: OrchestratorAnimatableOption[];
+  outputRows: OutputRow[];
+  missingMappings: boolean;
+  invalidMappings: boolean;
+  buttonsDisabled: boolean;
+  currentMappingsSummary: string;
+  outputComponentsSummary: string;
+  handleConnect: () => void;
+  handleUpdateControllers: () => void;
+  handleDisconnect: () => void;
+  setOutputOption: (nodeId: string, optionId: string | null) => void;
+  inputRows: InputRow[];
+  inputValues: Record<string, any>;
+  updateInputValue: (path: string, kind: ValueKind, value: any) => void;
+  namespace: string;
+}
+
+const OrchestratorBridgeContext =
+  createContext<OrchestratorBridgeContextValue | null>(null);
+
+export function useOrchestratorBridge() {
+  const context = useContext(OrchestratorBridgeContext);
+  if (!context) {
+    throw new Error(
+      "useOrchestratorBridge must be used within an OrchestratorBridgeProvider",
+    );
+  }
+  return context;
+}
+
 interface OrchestratorPanelProps {
   namespace: string;
   animatables: OrchestratorAnimatableOption[];
@@ -372,13 +414,18 @@ function applyOutputMappings(
   return next as GraphRegistrationInput;
 }
 
-export function OrchestratorPanel({
+interface OrchestratorBridgeProviderProps extends OrchestratorPanelProps {
+  children: ReactNode;
+}
+
+export function OrchestratorBridgeProvider({
   namespace,
   animatables,
   animationState,
   graphState,
   initialOutputMap,
-}: OrchestratorPanelProps) {
+  children,
+}: OrchestratorBridgeProviderProps) {
   const {
     ready,
     createOrchestrator,
@@ -467,7 +514,6 @@ export function OrchestratorPanel({
       });
 
       if (Object.keys(prev).length !== Object.keys(next).length) {
-        console.log("next", next);
         changed = true;
       }
 
@@ -566,10 +612,6 @@ export function OrchestratorPanel({
       return changed ? next : prev;
     });
   }, [inputRows]);
-
-  useEffect(() => {
-    console.log("outputOptionMap", outputOptionMap);
-  }, [outputOptionMap]);
 
   const applyInputsToRuntime = useCallback(
     (rows: InputRow[], values: Record<string, any>) => {
@@ -767,115 +809,118 @@ export function OrchestratorPanel({
     )
     .join(" | ");
 
-  return (
-    <div className="panel orchestrator-panel">
-      <div className="panel-header">
-        <h2>Orchestrator Bridge</h2>
-        <span className="tag">
-          {ready ? (connected ? "connected" : "ready") : "loading"}
-        </span>
-      </div>
-      <div className="panel-body">
-        <div className="graph-output-table">
-          {outputRows.map((row) => {
-            return (
-              <div key={row.node.id} className="graph-output-row">
-                <div className="graph-output-row-header">
-                  <div>
-                    <strong>{row.node.name || row.node.id}</strong>
-                    <span className="graph-output-path">
-                      Target:{" "}
-                      {row.option?.animId ??
-                        row.graphPath ??
-                        "(select animatable)"}
-                    </span>
-                  </div>
-                  <div className="graph-output-tags">
-                    <span className="tag">
-                      {row.node.outputValueKind ?? "scalar"}
-                    </span>
-                    {row.components.map((component) => (
-                      <span key={component} className="tag tag-muted">
-                        {component}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <select
-                  className="select-input"
-                  value={row.optionId ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setOutputOptionMap((prev) => {
-                      const next = { ...prev };
-                      if (!value) {
-                        delete next[row.node.id];
-                      } else {
-                        next[row.node.id] = value;
-                      }
-                      return next;
-                    });
-                  }}
-                >
-                  <option value="">Select animatable…</option>
-                  {animatables.map((option) => (
-                    <option key={option.optionId} value={option.optionId}>
-                      {option.group
-                        ? `${option.group} • ${option.label}`
-                        : option.label}
-                    </option>
-                  ))}
-                </select>
-                {row.invalid ? (
-                  <p className="bridge-warning">
-                    This output produces {row.components.join(", ")}; choose the
-                    base animatable instead of a component slice.
-                  </p>
-                ) : null}
-              </div>
-            );
-          })}
-          {!outputRows.length ? (
-            <p className="bridge-note">
-              Add output nodes in the graph to expose controllable values.
-            </p>
-          ) : null}
-        </div>
+  const setOutputOption = useCallback(
+    (nodeId: string, optionId: string | null) => {
+      setOutputOptionMap((prev) => {
+        const next = { ...prev };
+        if (!optionId) {
+          delete next[nodeId];
+        } else {
+          next[nodeId] = optionId;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
+  const updateInputValue = useCallback(
+    (path: string, kind: ValueKind, value: any) => {
+      setInputValues((prev) => ({
+        ...prev,
+        [path]: value,
+      }));
+      if (connected) {
+        setInput(path, valueToJSON(kind, value));
+      }
+    },
+    [connected, setInput],
+  );
+
+  const contextValue = useMemo<OrchestratorBridgeContextValue>(
+    () => ({
+      ready,
+      connected,
+      status,
+      animatables,
+      outputRows,
+      missingMappings,
+      invalidMappings,
+      buttonsDisabled,
+      currentMappingsSummary,
+      outputComponentsSummary,
+      handleConnect,
+      handleUpdateControllers,
+      handleDisconnect,
+      setOutputOption,
+      inputRows,
+      inputValues,
+      updateInputValue,
+      namespace,
+    }),
+    [
+      animatables,
+      buttonsDisabled,
+      connected,
+      currentMappingsSummary,
+      handleConnect,
+      handleDisconnect,
+      handleUpdateControllers,
+      inputRows,
+      inputValues,
+      invalidMappings,
+      missingMappings,
+      namespace,
+      outputComponentsSummary,
+      outputRows,
+      ready,
+      setOutputOption,
+      status,
+      updateInputValue,
+    ],
+  );
+
+  return (
+    <OrchestratorBridgeContext.Provider value={contextValue}>
+      {children}
+      {targetPaths.map((path) => (
+        <OutputBridge
+          key={path}
+          namespace={namespace}
+          path={path}
+          connected={connected}
+          setVizijValue={setVizijValue}
+        />
+      ))}
+    </OrchestratorBridgeContext.Provider>
+  );
+}
+
+export function OrchestratorPanel() {
+  const {
+    connected,
+    status,
+    animatables,
+    outputRows,
+    missingMappings,
+    invalidMappings,
+    buttonsDisabled,
+    currentMappingsSummary,
+    outputComponentsSummary,
+    handleConnect,
+    handleUpdateControllers,
+    handleDisconnect,
+    setOutputOption,
+  } = useOrchestratorBridge();
+
+  return (
+    <>
+      <div className="graph-output-table">
         {missingMappings ? (
           <p className="bridge-note">
             Assign animatable targets to every output before connecting.
           </p>
         ) : null}
-
-        <div className="orchestrator-inputs">
-          {inputRows.map((row) => {
-            if (!row.path) return null;
-            const value =
-              row.path in inputValues
-                ? inputValues[row.path]
-                : row.defaultValue;
-            return (
-              <label key={row.node.id}>
-                <span>{row.path}</span>
-                <ValueField
-                  kind={row.kind}
-                  value={value}
-                  onChange={(newValue) => {
-                    setInputValues((prev) => ({
-                      ...prev,
-                      [row.path!]: newValue,
-                    }));
-                    if (connected) {
-                      setInput(row.path!, valueToJSON(row.kind, newValue));
-                    }
-                  }}
-                  allowDynamicLength={row.kind === "vector"}
-                />
-              </label>
-            );
-          })}
-        </div>
 
         <div className="bridge-actions">
           <button
@@ -922,16 +967,95 @@ export function OrchestratorPanel({
             <span>{status ?? "Waiting"}</span>
           </div>
         </div>
+
+        {outputRows.map((row) => (
+          <div key={row.node.id} className="graph-output-row">
+            <div className="graph-output-row-header">
+              <div>
+                <strong>{row.node.name || row.node.id}</strong>
+                <span className="graph-output-path">
+                  Target:{" "}
+                  {row.option?.animId ?? row.graphPath ?? "(select animatable)"}
+                </span>
+              </div>
+              <div className="graph-output-tags">
+                <span className="tag">
+                  {row.node.outputValueKind ?? "scalar"}
+                </span>
+                {row.components.map((component) => (
+                  <span key={component} className="tag tag-muted">
+                    {component}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <select
+              className="select-input"
+              value={row.optionId ?? ""}
+              onChange={(event) =>
+                setOutputOption(row.node.id, event.target.value || null)
+              }
+            >
+              <option value="">Select animatable…</option>
+              {animatables.map((option) => (
+                <option key={option.optionId} value={option.optionId}>
+                  {option.group
+                    ? `${option.group} • ${option.label}`
+                    : option.label}
+                </option>
+              ))}
+            </select>
+            {row.invalid ? (
+              <p className="bridge-warning">
+                This output produces {row.components.join(", ")} – choose the
+                base animatable instead of a component slice.
+              </p>
+            ) : null}
+          </div>
+        ))}
+        {!outputRows.length ? (
+          <p className="bridge-note">
+            Add output nodes in the graph to expose controllable values.
+          </p>
+        ) : null}
       </div>
-      {targetPaths.map((path) => (
-        <OutputBridge
-          key={path}
-          namespace={namespace}
-          path={path}
-          connected={connected}
-          setVizijValue={setVizijValue}
-        />
-      ))}
+    </>
+  );
+}
+
+export function OrchestratorInputsPanel() {
+  const { inputRows, inputValues, updateInputValue } = useOrchestratorBridge();
+
+  const hasInputs = inputRows.some((row) => row.path);
+
+  if (!hasInputs) {
+    return (
+      <p className="bridge-note">
+        Add input nodes to the graph to expose bridge controls.
+      </p>
+    );
+  }
+
+  return (
+    <div className="orchestrator-inputs">
+      {inputRows.map((row) => {
+        if (!row.path) return null;
+        const value =
+          row.path in inputValues ? inputValues[row.path] : row.defaultValue;
+        return (
+          <label key={row.node.id}>
+            <span>{row.path}</span>
+            <ValueField
+              kind={row.kind}
+              value={value}
+              onChange={(newValue) =>
+                updateInputValue(row.path!, row.kind, newValue)
+              }
+              allowDynamicLength={row.kind === "vector"}
+            />
+          </label>
+        );
+      })}
     </div>
   );
 }

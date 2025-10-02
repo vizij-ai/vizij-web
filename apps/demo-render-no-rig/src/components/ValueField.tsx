@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ValueKind } from "../types";
 import { defaultValueForKind } from "../utils/valueHelpers";
 
@@ -35,28 +36,107 @@ function clampRange(value: number, options?: ClampOptions): [number, number] {
   return [-upper, upper];
 }
 
-function renderSlider(
-  value: number,
-  onChange: (next: number) => void,
-  options?: { positiveOnly?: boolean; unitRange?: boolean; step?: number },
-) {
+type SliderOptions = {
+  positiveOnly?: boolean;
+  unitRange?: boolean;
+  step?: number;
+  initialBounds?: [number, number];
+};
+
+function SliderWithBounds({
+  value,
+  onChange,
+  options,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  options?: SliderOptions;
+}) {
   const numeric = Number.isFinite(value) ? value : 0;
-  const [min, max] = clampRange(numeric, {
-    positiveOnly: options?.positiveOnly,
-    unitRange: options?.unitRange,
-  });
   const step = options?.step ?? 0.01;
+  const [{ min, max }, setBounds] = useState(() => {
+    if (options?.initialBounds) {
+      const [initialMin, initialMax] = options.initialBounds;
+      return { min: initialMin, max: initialMax };
+    }
+    const [initialMin, initialMax] = clampRange(numeric, {
+      positiveOnly: options?.positiveOnly,
+      unitRange: options?.unitRange,
+    });
+    return { min: initialMin, max: initialMax };
+  });
+
+  const sliderMin = Math.min(min, max);
+  const sliderMax = Math.max(min, max);
+
+  const clampValue = (next: number) => {
+    if (!Number.isFinite(next)) {
+      return sliderMin;
+    }
+    return Math.min(sliderMax, Math.max(sliderMin, next));
+  };
+
+  const displayValue = clampValue(numeric);
+
+  useEffect(() => {
+    if (numeric !== displayValue) {
+      onChange(displayValue);
+    }
+  }, [displayValue, numeric, onChange]);
+
+  const handleMinChange = (next: number) => {
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    setBounds((current) => {
+      const adjustedMax = Math.max(next, current.max);
+      return { min: next, max: adjustedMax };
+    });
+    if (displayValue < next) {
+      onChange(next);
+    }
+  };
+
+  const handleMaxChange = (next: number) => {
+    if (!Number.isFinite(next)) {
+      return;
+    }
+    setBounds((current) => {
+      const adjustedMin = Math.min(current.min, next);
+      return { min: adjustedMin, max: next };
+    });
+    if (displayValue > next) {
+      onChange(next);
+    }
+  };
+
   return (
     <div className="slider-field">
       <input
-        type="range"
-        min={min}
-        max={max}
+        type="number"
+        className="slider-bound"
+        value={min}
         step={step}
-        value={numeric}
+        onChange={(event) => handleMinChange(Number(event.target.value))}
+        aria-label="Minimum"
+      />
+      <input
+        type="range"
+        min={sliderMin}
+        max={sliderMax}
+        step={step}
+        value={displayValue}
+        title={displayValue.toFixed(2)}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-      <output>{numeric.toFixed(2)}</output>
+      <input
+        type="number"
+        className="slider-bound"
+        value={max}
+        step={step}
+        onChange={(event) => handleMaxChange(Number(event.target.value))}
+        aria-label="Maximum"
+      />
     </div>
   );
 }
@@ -71,10 +151,16 @@ export function ValueField({
     case "float": {
       const numeric = Number(value ?? 0);
       const unitRange = numeric > 0 && numeric <= 1;
-      return renderSlider(numeric, onChange, {
-        positiveOnly: unitRange,
-        unitRange,
-      });
+      return (
+        <SliderWithBounds
+          value={numeric}
+          onChange={onChange}
+          options={{
+            positiveOnly: unitRange,
+            unitRange,
+          }}
+        />
+      );
     }
     case "bool":
       return (
@@ -97,24 +183,18 @@ export function ValueField({
         <div className="vector-input">
           {keys.map((key) => {
             const component = Number(state?.[key] ?? 0);
-            const [min, max] = clampRange(component);
             return (
               <div key={key} className="vector-column">
                 <span>{key.toUpperCase()}</span>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={0.01}
+                <SliderWithBounds
                   value={component}
-                  onChange={(event) =>
+                  onChange={(next) =>
                     onChange({
                       ...state,
-                      [key]: Number(event.target.value),
+                      [key]: next,
                     })
                   }
                 />
-                <output>{component.toFixed(2)}</output>
               </div>
             );
           })}
@@ -127,24 +207,22 @@ export function ValueField({
         <div className="vector-input">
           {(["r", "g", "b", "a"] as const).map((key) => {
             const component = Number(state?.[key] ?? (key === "a" ? 1 : 1));
-            const [min, max] = key === "a" ? [0, 1] : [0, 1];
             return (
               <div key={key} className="vector-column">
                 <span>{key.toUpperCase()}</span>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={0.01}
+                <SliderWithBounds
                   value={component}
-                  onChange={(event) =>
+                  onChange={(next) =>
                     onChange({
                       ...state,
-                      [key]: Number(event.target.value),
+                      [key]: next,
                     })
                   }
+                  options={{
+                    initialBounds: [0, 1],
+                    step: 0.01,
+                  }}
                 />
-                <output>{component.toFixed(2)}</output>
               </div>
             );
           })}
@@ -157,23 +235,17 @@ export function ValueField({
         <div className="vector-list">
           {arr.map((entry: number, index: number) => {
             const component = Number(entry ?? 0);
-            const [min, max] = clampRange(component);
             return (
               <div key={index} className="vector-column">
                 <span>{index}</span>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={0.01}
+                <SliderWithBounds
                   value={component}
-                  onChange={(event) => {
+                  onChange={(nextValue) => {
                     const next = [...arr];
-                    next[index] = Number(event.target.value);
+                    next[index] = nextValue;
                     onChange(next);
                   }}
                 />
-                <output>{component.toFixed(2)}</output>
               </div>
             );
           })}
@@ -217,29 +289,24 @@ export function ValueField({
                 {(["x", "y", "z"] as const).map((axis) => {
                   const fallback = key === "scale" ? 1 : 0;
                   const component = Number(state?.[key]?.[axis] ?? fallback);
-                  const [min, max] = clampRange(component, {
-                    positiveOnly: key === "scale",
-                  });
                   return (
                     <div key={axis} className="vector-column">
                       <span>{axis.toUpperCase()}</span>
-                      <input
-                        type="range"
-                        min={min}
-                        max={max}
-                        step={0.01}
+                      <SliderWithBounds
                         value={component}
-                        onChange={(event) =>
+                        onChange={(next) =>
                           onChange({
                             ...state,
                             [key]: {
                               ...(state?.[key] ?? {}),
-                              [axis]: Number(event.target.value),
+                              [axis]: next,
                             },
                           })
                         }
+                        options={{
+                          positiveOnly: key === "scale",
+                        }}
                       />
-                      <output>{component.toFixed(2)}</output>
                     </div>
                   );
                 })}
