@@ -400,7 +400,10 @@ export function AnimationEditor({
             const option = findOption(animatableOptions, track);
             const trackId = track.id;
             const shapeError = shapeErrors[trackId ?? ""] ?? null;
-            const isOpen = !(trackId && collapsedTracks[trackId]);
+            const collapsed = trackId
+              ? (collapsedTracks[trackId] ?? true)
+              : true;
+            const isOpen = !collapsed;
             const selectionValue = track.optionId ?? track.animatableId;
             const selectionExists = animatableOptions.some(
               (candidate) => candidate.optionId === selectionValue,

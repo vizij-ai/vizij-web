@@ -1,63 +1,27 @@
 import type {
   AnimationRegistrationConfig,
   GraphRegistrationInput,
-  ValueJSON,
 } from "@vizij/orchestrator-react";
 import type { AnimationEditorState, GraphEditorState } from "./types";
-import { defaultValueForKind } from "./utils/valueHelpers";
 
 const LEFT_EYE_TRANSLATION_PATH = "demo/eyes/left/translation";
-const RIGHT_EYE_TRANSLATION_PATH = "demo/eyes/right/translation";
-const EYE_BASE_X_PATH = "demo/animation/eye_roll/base_x";
-const EYE_BASE_Y_PATH = "demo/animation/eye_roll/base_y";
-const XY_GAIN_PATH = "demo/graph/eye_roll/xy_gain";
-const X_OFFSET_PATH = "demo/graph/eye_roll/x_offset";
-const Y_OFFSET_PATH = "demo/graph/eye_roll/y_offset";
-const Z_DEFAULT_PATH = "demo/graph/eye_roll/z_default";
-
-const makeFloatValue = (value: number): ValueJSON => ({
-  type: "float",
-  data: value,
-});
+const PRIMARY_VECTOR_PATH = "demo/graph/l_eye/primary";
+const SECONDARY_VECTOR_PATH = "demo/graph/l_eye/secondary";
+const PRIMARY_WEIGHT_PATH = "demo/graph/l_eye/primary_weight";
+const SECONDARY_WEIGHT_PATH = "demo/graph/l_eye/secondary_weight";
+const BASELINE_VECTOR_PATH = "demo/graph/l_eye/baseline";
 
 export const DEFAULT_ANIMATION_CONFIG: AnimationRegistrationConfig = {
   setup: {
     animation: {
-      id: "eye-roll",
-      name: "Eye Roll",
-      duration: 4000,
+      id: "baseline",
+      name: "Baseline",
+      duration: 1000,
       groups: [],
-      tracks: [
-        {
-          id: "eye-roll-x",
-          name: "Eye Roll X",
-          animatableId: EYE_BASE_X_PATH,
-          points: [
-            { id: "eye-roll-x-start", stamp: 0, value: 0 },
-            { id: "eye-roll-x-rise", stamp: 0.2, value: 0.12 },
-            { id: "eye-roll-x-peak", stamp: 0.45, value: 0.38 },
-            { id: "eye-roll-x-turn", stamp: 0.65, value: 0.22 },
-            { id: "eye-roll-x-descend", stamp: 0.85, value: 0.05 },
-            { id: "eye-roll-x-end", stamp: 1, value: 0 },
-          ],
-        },
-        {
-          id: "eye-roll-y",
-          name: "Eye Roll Y",
-          animatableId: EYE_BASE_Y_PATH,
-          points: [
-            { id: "eye-roll-y-start", stamp: 0, value: 0 },
-            { id: "eye-roll-y-rise", stamp: 0.2, value: 0.26 },
-            { id: "eye-roll-y-glide", stamp: 0.45, value: 0.12 },
-            { id: "eye-roll-y-drop", stamp: 0.65, value: -0.12 },
-            { id: "eye-roll-y-swoop", stamp: 0.85, value: -0.2 },
-            { id: "eye-roll-y-end", stamp: 1, value: 0 },
-          ],
-        },
-      ],
+      tracks: [],
     },
     player: {
-      name: "eye-roll-player",
+      name: "baseline-player",
       loop_mode: "loop",
       speed: 1,
     },
@@ -68,340 +32,371 @@ export const DEFAULT_GRAPH_SPEC: GraphRegistrationInput = {
   spec: {
     nodes: [
       {
-        id: "anim_x_input",
+        id: "offset_input",
         type: "input",
-        params: {
-          path: EYE_BASE_X_PATH,
-          value: makeFloatValue(0),
-        },
+        params: { path: LEFT_EYE_TRANSLATION_PATH },
       },
       {
-        id: "anim_y_input",
+        id: "target1_input",
         type: "input",
-        params: {
-          path: EYE_BASE_Y_PATH,
-          value: makeFloatValue(0),
-        },
+        params: { path: PRIMARY_VECTOR_PATH },
       },
       {
-        id: "xy_gain_input",
+        id: "target2_input",
         type: "input",
-        params: {
-          path: XY_GAIN_PATH,
-          value: makeFloatValue(0.5),
-        },
+        params: { path: SECONDARY_VECTOR_PATH },
       },
       {
-        id: "x_offset_input",
+        id: "weight1_input",
         type: "input",
-        params: {
-          path: X_OFFSET_PATH,
-          value: makeFloatValue(0),
-        },
+        params: { path: PRIMARY_WEIGHT_PATH },
       },
       {
-        id: "y_offset_input",
+        id: "weight2_input",
         type: "input",
-        params: {
-          path: Y_OFFSET_PATH,
-          value: makeFloatValue(0),
-        },
+        params: { path: SECONDARY_WEIGHT_PATH },
       },
       {
-        id: "z_default_input",
+        id: "baseline_input",
         type: "input",
-        params: {
-          path: Z_DEFAULT_PATH,
-          value: makeFloatValue(0.05),
-        },
+        params: { path: BASELINE_VECTOR_PATH },
       },
       {
-        id: "scaled_x",
-        type: "multiply",
-        inputs: {
-          lhs: { node_id: "anim_x_input" },
-          rhs: { node_id: "xy_gain_input" },
-        },
+        id: "const_one",
+        type: "constant",
+        params: { value: { type: "float", data: 1 } },
       },
       {
-        id: "scaled_y",
-        type: "multiply",
-        inputs: {
-          lhs: { node_id: "anim_y_input" },
-          rhs: { node_id: "xy_gain_input" },
-        },
-      },
-      {
-        id: "sum_x",
+        id: "weight_sum",
         type: "add",
         inputs: {
-          lhs: { node_id: "scaled_x" },
-          rhs: { node_id: "x_offset_input" },
+          operands_1: { node_id: "weight1_input" },
+          operands_2: { node_id: "weight2_input" },
         },
       },
       {
-        id: "sum_y",
-        type: "add",
+        id: "baseline_factor_raw",
+        type: "subtract",
         inputs: {
-          lhs: { node_id: "scaled_y" },
-          rhs: { node_id: "y_offset_input" },
+          lhs: { node_id: "const_one" },
+          rhs: { node_id: "weight_sum" },
         },
       },
       {
-        id: "join_translation",
-        type: "join",
+        id: "baseline_factor",
+        type: "clamp",
+        inputs: { in: { node_id: "baseline_factor_raw" } },
+        params: {
+          min: 0,
+          max: 1,
+        },
+      },
+      {
+        id: "target1_scaled",
+        type: "vectorscale",
         inputs: {
-          operands_1: { node_id: "sum_x" },
-          operands_2: { node_id: "sum_y" },
-          operands_3: { node_id: "z_default_input" },
+          scalar: { node_id: "weight1_input" },
+          v: { node_id: "target1_input" },
+        },
+      },
+      {
+        id: "target2_scaled",
+        type: "vectorscale",
+        inputs: {
+          scalar: { node_id: "weight2_input" },
+          v: { node_id: "target2_input" },
+        },
+      },
+      {
+        id: "targets_combined",
+        type: "vectoradd",
+        inputs: {
+          a: { node_id: "target1_scaled" },
+          b: { node_id: "target2_scaled" },
+        },
+      },
+      {
+        id: "baseline_scaled",
+        type: "vectorscale",
+        inputs: {
+          scalar: { node_id: "baseline_factor" },
+          v: { node_id: "baseline_input" },
+        },
+      },
+      {
+        id: "blend_sum",
+        type: "vectoradd",
+        inputs: {
+          a: { node_id: "targets_combined" },
+          b: { node_id: "baseline_scaled" },
+        },
+      },
+      {
+        id: "final_with_offset",
+        type: "vectoradd",
+        inputs: {
+          a: { node_id: "blend_sum" },
+          b: { node_id: "offset_input" },
         },
       },
       {
         id: "left_eye_output",
         type: "output",
         params: { path: LEFT_EYE_TRANSLATION_PATH },
-        inputs: { in: { node_id: "join_translation" } },
-      },
-      {
-        id: "right_eye_output",
-        type: "output",
-        params: { path: RIGHT_EYE_TRANSLATION_PATH },
-        inputs: { in: { node_id: "join_translation" } },
+        inputs: { in: { node_id: "final_with_offset" } },
       },
     ],
   },
   subs: {
     inputs: [
-      EYE_BASE_X_PATH,
-      EYE_BASE_Y_PATH,
-      XY_GAIN_PATH,
-      X_OFFSET_PATH,
-      Y_OFFSET_PATH,
-      Z_DEFAULT_PATH,
+      LEFT_EYE_TRANSLATION_PATH,
+      PRIMARY_VECTOR_PATH,
+      SECONDARY_VECTOR_PATH,
+      PRIMARY_WEIGHT_PATH,
+      SECONDARY_WEIGHT_PATH,
+      BASELINE_VECTOR_PATH,
     ],
-    outputs: [LEFT_EYE_TRANSLATION_PATH, RIGHT_EYE_TRANSLATION_PATH],
+    outputs: [LEFT_EYE_TRANSLATION_PATH],
   },
 };
 
-export const DEFAULT_LEFT_EYE_TRANSLATION_TARGET = LEFT_EYE_TRANSLATION_PATH;
-export const DEFAULT_RIGHT_EYE_TRANSLATION_TARGET = RIGHT_EYE_TRANSLATION_PATH;
-export const DEFAULT_EYE_ROLL_BASE_X_PATH = EYE_BASE_X_PATH;
-export const DEFAULT_EYE_ROLL_BASE_Y_PATH = EYE_BASE_Y_PATH;
-export const DEFAULT_EYE_ROLL_XY_GAIN_PATH = XY_GAIN_PATH;
-export const DEFAULT_EYE_ROLL_X_OFFSET_PATH = X_OFFSET_PATH;
-export const DEFAULT_EYE_ROLL_Y_OFFSET_PATH = Y_OFFSET_PATH;
-export const DEFAULT_EYE_ROLL_Z_DEFAULT_PATH = Z_DEFAULT_PATH;
-export const DEFAULT_GRAPH_OUTPUT_PATH = LEFT_EYE_TRANSLATION_PATH;
-
 export const DEFAULT_ANIMATION_STATE: AnimationEditorState = {
-  id: "eye-roll",
-  name: "Eye Roll",
-  duration: 4000,
-  playerName: "eye-roll-player",
+  id: "baseline",
+  name: "Baseline",
+  duration: 1000,
+  playerName: "baseline-player",
   loopMode: "loop",
   speed: 1,
-  tracks: [
-    {
-      id: "eye-roll-x",
-      name: "Eye Roll X",
-      animatableId: EYE_BASE_X_PATH,
-      optionId: EYE_BASE_X_PATH,
-      componentKey: null,
-      valueKind: "float",
-      keyframes: [
-        { id: "eye-roll-x-start", stamp: 0, value: 0 },
-        { id: "eye-roll-x-rise", stamp: 0.2, value: 0.12 },
-        { id: "eye-roll-x-peak", stamp: 0.45, value: 0.38 },
-        { id: "eye-roll-x-turn", stamp: 0.65, value: 0.22 },
-        { id: "eye-roll-x-descend", stamp: 0.85, value: 0.05 },
-        { id: "eye-roll-x-end", stamp: 1, value: 0 },
-      ],
-    },
-    {
-      id: "eye-roll-y",
-      name: "Eye Roll Y",
-      animatableId: EYE_BASE_Y_PATH,
-      optionId: EYE_BASE_Y_PATH,
-      componentKey: null,
-      valueKind: "float",
-      keyframes: [
-        { id: "eye-roll-y-start", stamp: 0, value: 0 },
-        { id: "eye-roll-y-rise", stamp: 0.2, value: 0.26 },
-        { id: "eye-roll-y-glide", stamp: 0.45, value: 0.12 },
-        { id: "eye-roll-y-drop", stamp: 0.65, value: -0.12 },
-        { id: "eye-roll-y-swoop", stamp: 0.85, value: -0.2 },
-        { id: "eye-roll-y-end", stamp: 1, value: 0 },
-      ],
-    },
-  ],
+  tracks: [],
 };
 
 export const DEFAULT_GRAPH_STATE: GraphEditorState = {
   nodes: [
     {
-      id: "anim_x_input",
+      id: "offset_input",
       type: "input",
-      name: "Base X",
-      category: "Animation",
+      name: "Offset",
+      category: "Vizij",
       params: [
-        { id: "path", label: "Path", type: "custom", value: EYE_BASE_X_PATH },
+        {
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: LEFT_EYE_TRANSLATION_PATH,
+        },
         {
           id: "value",
           label: "Default",
-          type: "float",
-          value: defaultValueForKind("float"),
+          type: "vector",
+          value: [0.1378287374973297, -0.03727314993739128, -0.154551163315773],
         },
       ],
       inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "anim_y_input",
+      id: "target1_input",
       type: "input",
-      name: "Base Y",
-      category: "Animation",
-      params: [
-        { id: "path", label: "Path", type: "custom", value: EYE_BASE_Y_PATH },
-        {
-          id: "value",
-          label: "Default",
-          type: "float",
-          value: defaultValueForKind("float"),
-        },
-      ],
-      inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
-    },
-    {
-      id: "xy_gain_input",
-      type: "input",
-      name: "XY Gain",
+      name: "Target 1",
       category: "Controls",
       params: [
-        { id: "path", label: "Path", type: "custom", value: XY_GAIN_PATH },
+        {
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: PRIMARY_VECTOR_PATH,
+        },
+        {
+          id: "value",
+          label: "Default",
+          type: "vector",
+          value: [0.03, 0.02, 0.0],
+        },
+      ],
+      inputs: {},
+    },
+    {
+      id: "target2_input",
+      type: "input",
+      name: "Target 2",
+      category: "Controls",
+      params: [
+        {
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: SECONDARY_VECTOR_PATH,
+        },
+        {
+          id: "value",
+          label: "Default",
+          type: "vector",
+          value: [-0.02, 0.03, 0],
+        },
+      ],
+      inputs: {},
+    },
+    {
+      id: "weight1_input",
+      type: "input",
+      name: "Weight 1",
+      category: "Controls",
+      params: [
+        {
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: PRIMARY_WEIGHT_PATH,
+        },
         { id: "value", label: "Default", type: "float", value: 0.5 },
       ],
       inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "x_offset_input",
+      id: "weight2_input",
       type: "input",
-      name: "X Offset",
+      name: "Weight 2",
       category: "Controls",
       params: [
-        { id: "path", label: "Path", type: "custom", value: X_OFFSET_PATH },
-        { id: "value", label: "Default", type: "float", value: 0 },
-      ],
-      inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
-    },
-    {
-      id: "y_offset_input",
-      type: "input",
-      name: "Y Offset",
-      category: "Controls",
-      params: [
-        { id: "path", label: "Path", type: "custom", value: Y_OFFSET_PATH },
         {
-          id: "value",
-          label: "Default",
-          type: "float",
-          value: 0.03727314993739128,
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: SECONDARY_WEIGHT_PATH,
         },
+        { id: "value", label: "Default", type: "float", value: 0.3 },
       ],
       inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "z_default_input",
+      id: "baseline_input",
       type: "input",
-      name: "Z Default",
+      name: "Baseline",
       category: "Controls",
       params: [
-        { id: "path", label: "Path", type: "custom", value: Z_DEFAULT_PATH },
-        { id: "value", label: "Default", type: "float", value: 0.05 },
+        {
+          id: "path",
+          label: "Path",
+          type: "custom",
+          value: BASELINE_VECTOR_PATH,
+        },
+        { id: "value", label: "Default", type: "vector", value: [0, 0, 0] },
       ],
       inputs: {},
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "scaled_x",
-      type: "multiply",
-      name: "Scale X",
+      id: "const_one",
+      type: "constant",
+      name: "One",
       category: "Math",
-      params: [],
-      inputs: {
-        lhs: "anim_x_input",
-        rhs: "xy_gain_input",
-      },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
+      params: [{ id: "value", label: "Value", type: "float", value: 1 }],
+      inputs: {},
     },
     {
-      id: "scaled_y",
-      type: "multiply",
-      name: "Scale Y",
-      category: "Math",
-      params: [],
-      inputs: {
-        lhs: "anim_y_input",
-        rhs: "xy_gain_input",
-      },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
-    },
-    {
-      id: "sum_x",
+      id: "weight_sum",
       type: "add",
-      name: "Add X",
+      name: "Weight Sum",
       category: "Math",
       params: [],
       inputs: {
-        lhs: "scaled_x",
-        rhs: "x_offset_input",
+        operands_1: "weight1_input",
+        operands_2: "weight2_input",
       },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "sum_y",
-      type: "add",
-      name: "Add Y",
+      id: "baseline_factor_raw",
+      type: "subtract",
+      name: "Baseline Factor Raw",
       category: "Math",
       params: [],
       inputs: {
-        lhs: "scaled_y",
-        rhs: "y_offset_input",
+        lhs: "const_one",
+        rhs: "weight_sum",
       },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
     },
     {
-      id: "join_translation",
-      type: "join",
-      name: "Compose Vec3",
+      id: "baseline_factor",
+      type: "clamp",
+      name: "Baseline Factor",
+      category: "Math",
+      params: [
+        { id: "min", label: "Min", type: "float", value: 0 },
+        { id: "max", label: "Max", type: "float", value: 1 },
+      ],
+      inputs: {
+        in: "baseline_factor_raw",
+      },
+    },
+    {
+      id: "target1_scaled",
+      type: "vectorscale",
+      name: "Target 1 Scaled",
       category: "Vectors",
       params: [],
       inputs: {
-        operands_1: "sum_x",
-        operands_2: "sum_y",
-        operands_3: "z_default_input",
+        scalar: "weight1_input",
+        v: "target1_input",
       },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
+    },
+    {
+      id: "target2_scaled",
+      type: "vectorscale",
+      name: "Target 2 Scaled",
+      category: "Vectors",
+      params: [],
+      inputs: {
+        scalar: "weight2_input",
+        v: "target2_input",
+      },
+    },
+    {
+      id: "targets_combined",
+      type: "vectoradd",
+      name: "Targets Combined",
+      category: "Vectors",
+      params: [],
+      inputs: {
+        a: "target1_scaled",
+        b: "target2_scaled",
+      },
+    },
+    {
+      id: "baseline_scaled",
+      type: "vectorscale",
+      name: "Baseline Scaled",
+      category: "Vectors",
+      params: [],
+      inputs: {
+        scalar: "baseline_factor",
+        v: "baseline_input",
+      },
+    },
+    {
+      id: "blend_sum",
+      type: "vectoradd",
+      name: "Blend Sum",
+      category: "Vectors",
+      params: [],
+      inputs: {
+        a: "targets_combined",
+        b: "baseline_scaled",
+      },
+    },
+    {
+      id: "final_with_offset",
+      type: "vectoradd",
+      name: "Final With Offset",
+      category: "Vectors",
+      params: [],
+      inputs: {
+        a: "blend_sum",
+        b: "offset_input",
+      },
     },
     {
       id: "left_eye_output",
       type: "output",
-      name: "Left Eye",
-      category: "Sinks",
+      name: "Left Eye Output",
+      category: "Vizij",
       params: [
         {
           id: "path",
@@ -410,41 +405,17 @@ export const DEFAULT_GRAPH_STATE: GraphEditorState = {
           value: LEFT_EYE_TRANSLATION_PATH,
         },
       ],
-      inputs: {
-        in: "join_translation",
-      },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
-      outputValueKind: "vec3",
-    },
-    {
-      id: "right_eye_output",
-      type: "output",
-      name: "Right Eye",
-      category: "Sinks",
-      params: [
-        {
-          id: "path",
-          label: "Path",
-          type: "custom",
-          value: RIGHT_EYE_TRANSLATION_PATH,
-        },
-      ],
-      inputs: {
-        in: "join_translation",
-      },
-      inputShapeJson: undefined,
-      outputShapeJson: undefined,
+      inputs: { in: "final_with_offset" },
       outputValueKind: "vec3",
     },
   ],
   inputs: [
-    EYE_BASE_X_PATH,
-    EYE_BASE_Y_PATH,
-    XY_GAIN_PATH,
-    X_OFFSET_PATH,
-    Y_OFFSET_PATH,
-    Z_DEFAULT_PATH,
+    LEFT_EYE_TRANSLATION_PATH,
+    PRIMARY_VECTOR_PATH,
+    SECONDARY_VECTOR_PATH,
+    PRIMARY_WEIGHT_PATH,
+    SECONDARY_WEIGHT_PATH,
+    BASELINE_VECTOR_PATH,
   ],
-  outputs: [LEFT_EYE_TRANSLATION_PATH, RIGHT_EYE_TRANSLATION_PATH],
+  outputs: [LEFT_EYE_TRANSLATION_PATH],
 };

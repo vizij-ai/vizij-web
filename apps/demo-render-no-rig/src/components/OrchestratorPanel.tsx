@@ -20,6 +20,8 @@ import {
   animationStateToConfig,
   graphStateToSpec,
 } from "../utils/orchestratorConverters";
+import { defaultValueForKind, valueToJSON } from "../utils/valueHelpers";
+import { ValueField } from "./ValueField";
 
 const KIND_COMPONENT_LABELS: Partial<Record<ValueKind, string[]>> = {
   vec2: ["x", "y"],
@@ -46,41 +48,6 @@ function findParam(
   paramId: string,
 ): GraphParamState | undefined {
   return node.params.find((param) => param.id === paramId);
-}
-
-function toNumeric(value: unknown): number | undefined {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  if (Array.isArray(value) && value.length > 0) {
-    const parsed = Number(value[0]);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "x" in (value as Record<string, unknown>)
-  ) {
-    const candidate = (value as Record<string, unknown>).x;
-    if (typeof candidate === "number") return candidate;
-  }
-  return undefined;
-}
-
-function extractInputDefaults(nodes: GraphNodeState[]): Record<string, number> {
-  const defaults: Record<string, number> = {};
-  nodes.forEach((node) => {
-    const pathParam = findParam(node, "path");
-    const rawPath = pathParam?.value;
-    const path = typeof rawPath === "string" ? rawPath : "";
-    if (!path) return;
-    const valueParam = findParam(node, "value");
-    const numeric = toNumeric(valueParam?.value);
-    defaults[path] = numeric ?? 0;
-  });
-  return defaults;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -226,18 +193,6 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
   return value as unknown as RawValue;
 }
 
-function valueJSONToNumber(value?: ValueJSON): number | undefined {
-  const raw = valueJSONToRaw(value);
-  if (typeof raw === "number") {
-    return raw;
-  }
-  return undefined;
-}
-
-function makeFloatValue(value: number): ValueJSON {
-  return { type: "float", data: value };
-}
-
 function ensureGraphOutputs(
   config: GraphRegistrationInput,
   outputPath: string,
@@ -352,11 +307,19 @@ function OutputBridge({
     if (raw === undefined) {
       return;
     }
+    // console.log("setVizijValue", path, namespace, orchValue)
     setVizijValue(path, namespace, raw as RawValue);
   }, [connected, orchValue, namespace, path, setVizijValue]);
 
   return null;
 }
+
+type InputRow = {
+  node: GraphNodeState;
+  path: string | null;
+  kind: ValueKind;
+  defaultValue: any;
+};
 
 type OutputRow = {
   node: GraphNodeState;
@@ -429,7 +392,7 @@ export function OrchestratorPanel({
   const [animationId, setAnimationId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [inputValues, setInputValues] = useState<Record<string, number>>({});
+  const [inputValues, setInputValues] = useState<Record<string, any>>({});
   const [outputOptionMap, setOutputOptionMap] = useState<
     Record<string, string>
   >({});
@@ -443,6 +406,25 @@ export function OrchestratorPanel({
       }),
     [graphState],
   );
+
+  const inputRows: InputRow[] = useMemo(() => {
+    return graphInputNodes.map((node) => {
+      const valueParam = findParam(node, "value");
+      const kind = (valueParam?.type as ValueKind) ?? "float";
+      const defaultValue = valueParam?.value ?? defaultValueForKind(kind);
+      const pathParam = findParam(node, "path");
+      const path =
+        typeof pathParam?.value === "string" && pathParam.value.length > 0
+          ? pathParam.value
+          : null;
+      return {
+        node,
+        path,
+        kind,
+        defaultValue,
+      };
+    });
+  }, [graphInputNodes]);
 
   const outputNodes = useMemo(
     () =>
@@ -483,6 +465,7 @@ export function OrchestratorPanel({
       });
 
       if (Object.keys(prev).length !== Object.keys(next).length) {
+        console.log("next", next);
         changed = true;
       }
 
@@ -536,14 +519,35 @@ export function OrchestratorPanel({
   );
 
   useEffect(() => {
-    const defaults = extractInputDefaults(graphInputNodes);
-    setInputValues(defaults);
-  }, [graphInputNodes]);
+    setInputValues((prev) => {
+      let changed = false;
+      const next: Record<string, any> = {};
+      inputRows.forEach((row) => {
+        if (!row.path) return;
+        if (row.path in prev) {
+          next[row.path] = prev[row.path];
+        } else {
+          next[row.path] = structuredClone(row.defaultValue);
+          changed = true;
+        }
+      });
+      if (Object.keys(prev).length !== Object.keys(next).length) {
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [inputRows]);
+
+  useEffect(() => {
+    console.log("outputOptionMap", outputOptionMap);
+  }, [outputOptionMap]);
 
   const applyInputsToRuntime = useCallback(
-    (values: Record<string, number>) => {
-      Object.entries(values).forEach(([path, value]) => {
-        setInput(path, makeFloatValue(value));
+    (rows: InputRow[], values: Record<string, any>) => {
+      rows.forEach((row) => {
+        if (!row.path) return;
+        const value = row.path in values ? values[row.path] : row.defaultValue;
+        setInput(row.path, valueToJSON(row.kind, value));
       });
     },
     [setInput],
@@ -614,7 +618,7 @@ export function OrchestratorPanel({
       const newGraphId = registerGraph(preparedGraph);
       setGraphId(newGraphId);
 
-      applyInputsToRuntime(inputValues);
+      applyInputsToRuntime(inputRows, inputValues);
       setConnected(true);
       setStatus(`Connected outputs: ${summarizeOutputs()}`);
     } catch (err) {
@@ -625,6 +629,7 @@ export function OrchestratorPanel({
     animationState,
     animationId,
     applyInputsToRuntime,
+    inputRows,
     createOrchestrator,
     graphId,
     graphState,
@@ -683,7 +688,7 @@ export function OrchestratorPanel({
       const preparedGraph = ensureGraphOutputs(mappedGraph, primaryOutputPath);
       const newGraphId = registerGraph(preparedGraph);
       setGraphId(newGraphId);
-      applyInputsToRuntime(inputValues);
+      applyInputsToRuntime(inputRows, inputValues);
       setConnected(true);
       setStatus("Controllers updated");
     } catch (err) {
@@ -694,6 +699,7 @@ export function OrchestratorPanel({
     animationState,
     animationId,
     applyInputsToRuntime,
+    inputRows,
     connected,
     graphId,
     graphState,
@@ -814,27 +820,28 @@ export function OrchestratorPanel({
         ) : null}
 
         <div className="orchestrator-inputs">
-          {graphInputNodes.map((node) => {
-            const pathParam = findParam(node, "path");
-            const path =
-              typeof pathParam?.value === "string" ? pathParam.value : "";
-            if (!path) return null;
-            const value = inputValues[path] ?? 0;
+          {inputRows.map((row) => {
+            if (!row.path) return null;
+            const value =
+              row.path in inputValues
+                ? inputValues[row.path]
+                : row.defaultValue;
             return (
-              <label key={node.id}>
-                <span>{path}</span>
-                <input
-                  type="number"
-                  step={0.01}
+              <label key={row.node.id}>
+                <span>{row.path}</span>
+                <ValueField
+                  kind={row.kind}
                   value={value}
-                  onChange={(event) => {
-                    const parsed = Number(event.target.value);
-                    const nextValue = Number.isFinite(parsed) ? parsed : 0;
-                    setInputValues((prev) => ({ ...prev, [path]: nextValue }));
+                  onChange={(newValue) => {
+                    setInputValues((prev) => ({
+                      ...prev,
+                      [row.path!]: newValue,
+                    }));
                     if (connected) {
-                      setInput(path, makeFloatValue(nextValue));
+                      setInput(row.path!, valueToJSON(row.kind, newValue));
                     }
                   }}
+                  allowDynamicLength={row.kind === "vector"}
                 />
               </label>
             );

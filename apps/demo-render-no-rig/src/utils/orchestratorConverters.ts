@@ -243,6 +243,53 @@ function convertParamValue(type: ValueKind, value: any): ValueJSON {
   return normalizeForGraph(type, value);
 }
 
+const FLOAT_PARAM_IDS = new Set([
+  "min",
+  "max",
+  "frequency",
+  "phase",
+  "x",
+  "y",
+  "z",
+  "in_min",
+  "in_max",
+  "out_min",
+  "out_max",
+  "bone1",
+  "bone2",
+  "bone3",
+  "stiffness",
+  "damping",
+  "mass",
+  "half_life",
+  "max_rate",
+  "tol_pos",
+  "tol_rot",
+  "scalar",
+  "index",
+]);
+
+const INT_PARAM_IDS = new Set(["max_iters"]);
+
+const VECTOR_PARAM_IDS = new Set(["sizes", "weights", "seed"]);
+
+function coerceToNumber(value: any): number {
+  const next = Number(value ?? 0);
+  return Number.isFinite(next) ? next : 0;
+}
+
+function coerceToInteger(value: any): number {
+  const next = Math.floor(Number(value ?? 0));
+  return Number.isFinite(next) ? Math.max(0, next) : 0;
+}
+
+function coerceToNumberArray(value: any): number[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => coerceToNumber(entry));
+  }
+  return [];
+}
+
 function convertParam(param: GraphParamState): any {
   if (param.id === "path") {
     if (typeof param.value === "string") {
@@ -253,6 +300,19 @@ function convertParam(param: GraphParamState): any {
     }
     return "";
   }
+
+  if (FLOAT_PARAM_IDS.has(param.id)) {
+    return coerceToNumber(param.value);
+  }
+
+  if (INT_PARAM_IDS.has(param.id)) {
+    return coerceToInteger(param.value);
+  }
+
+  if (VECTOR_PARAM_IDS.has(param.id)) {
+    return coerceToNumberArray(param.value);
+  }
+
   return convertParamValue(param.type, param.value);
 }
 

@@ -33,9 +33,15 @@ export function defaultValueForKind(kind: ValueKind): any {
 export function valueToJSON(kind: ValueKind, value: any): ValueJSON {
   switch (kind) {
     case "float":
-      return typeof value === "number" ? value : Number(value ?? 0);
+      return {
+        type: "float",
+        data: Number(typeof value === "number" ? value : (value ?? 0)),
+      } as ValueJSON;
     case "bool":
-      return Boolean(value);
+      return {
+        type: "bool",
+        data: Boolean(value),
+      } as ValueJSON;
     case "vec2": {
       const vec = value ?? {};
       return { vec2: [Number(vec.x ?? 0), Number(vec.y ?? 0)] };
@@ -71,7 +77,10 @@ export function valueToJSON(kind: ValueKind, value: any): ValueJSON {
     }
     case "vector": {
       const arr = Array.isArray(value) ? value : [];
-      return { vector: arr.map((v) => Number(v ?? 0)) };
+      return {
+        type: "vector",
+        data: arr.map((v) => Number(v ?? 0)),
+      } as ValueJSON;
     }
     case "transform": {
       const transform = value ?? {};
@@ -85,7 +94,7 @@ export function valueToJSON(kind: ValueKind, value: any): ValueJSON {
     }
     case "custom": {
       if (value == null || value === "") {
-        return { float: 0 };
+        return { type: "float", data: 0 };
       }
       if (typeof value === "string") {
         try {
@@ -112,13 +121,29 @@ export function jsonToValue(
   switch (kind) {
     case "float":
       if (typeof value === "number") return value;
-      if (typeof value === "object" && "float" in value) {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "type" in value &&
+        String((value as any).type).toLowerCase() === "float"
+      ) {
+        return Number((value as any).data ?? 0);
+      }
+      if (typeof value === "object" && value !== null && "float" in value) {
         return Number((value as any).float ?? 0);
       }
       return Number(value as any);
     case "bool":
       if (typeof value === "boolean") return value;
-      if (typeof value === "object" && "bool" in value) {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "type" in value &&
+        String((value as any).type).toLowerCase() === "bool"
+      ) {
+        return Boolean((value as any).data);
+      }
+      if (typeof value === "object" && value !== null && "bool" in value) {
         return Boolean((value as any).bool);
       }
       return Boolean(value);
@@ -168,6 +193,15 @@ export function jsonToValue(
       return defaultValueForKind(kind);
     }
     case "vector": {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "type" in value &&
+        String((value as any).type).toLowerCase() === "vector" &&
+        Array.isArray((value as any).data)
+      ) {
+        return ((value as any).data as number[]).map((v) => Number(v ?? 0));
+      }
       if (
         typeof value === "object" &&
         "vector" in value &&

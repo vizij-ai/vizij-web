@@ -655,7 +655,8 @@ export function GraphEditor({
           const schemaSlots = new Set(inputsFromSchema(schema));
           const nodeId = node.id;
           const shapeError = shapeErrors[nodeId] ?? {};
-          const isOpen = !(nodeId && collapsedNodes[nodeId]);
+          const collapsed = nodeId ? (collapsedNodes[nodeId] ?? true) : true;
+          const isOpen = !collapsed;
           const connectionCount = Object.values(node.inputs ?? {}).filter(
             Boolean,
           ).length;

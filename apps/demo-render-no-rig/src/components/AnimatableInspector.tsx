@@ -513,7 +513,7 @@ function GroupSection({
   resetValue: ResetFn;
 }) {
   return (
-    <details className="anim-group" open>
+    <details className="anim-group">
       <summary>
         <span>{group.label}</span>
         <span className="tag">{group.items.length}</span>
