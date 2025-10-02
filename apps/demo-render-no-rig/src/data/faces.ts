@@ -6,6 +6,8 @@ import JiboGLB from "../../../website/src/assets/Jibo.glb";
 import TiagoGLB from "../../../website/src/assets/Tiago.glb";
 
 import type { RawValue, RawVector2 } from "@vizij/utils";
+import type { LowLevelRigDefinition } from "@vizij/config";
+import { HugoLowLevelRig, QuoriLowLevelRig } from "@vizij/config";
 
 export interface FaceInitialValue {
   name: string;
@@ -23,6 +25,7 @@ export interface FaceConfig {
   namespace?: string;
   initialValues?: FaceInitialValue[];
   aggressiveImport?: boolean;
+  rig?: LowLevelRigDefinition;
 }
 
 export const FACES: FaceConfig[] = [
@@ -34,6 +37,7 @@ export const FACES: FaceConfig[] = [
       center: { x: 0.01, y: -0.04 },
       size: { x: 0.6, y: 0.4 },
     },
+    rig: QuoriLowLevelRig,
   },
   {
     id: "hugo",
@@ -44,6 +48,7 @@ export const FACES: FaceConfig[] = [
       size: { x: 4, y: 5 },
     },
     initialValues: [{ name: "Black_S", value: { r: 0, g: 0, b: 0 } }],
+    rig: HugoLowLevelRig,
   },
   {
     id: "abi",

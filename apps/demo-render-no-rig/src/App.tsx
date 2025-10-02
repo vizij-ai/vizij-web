@@ -11,6 +11,7 @@ import { GraphEditor } from "./components/GraphEditor";
 import { useFaceLoader } from "./hooks/useFaceLoader";
 import { useAnimatableList } from "./hooks/useAnimatableList";
 import { useNodeRegistry } from "./hooks/useNodeRegistry";
+import { buildRigGraph } from "./rig/rigGraphGenerator";
 import {
   DEFAULT_ANIMATION_STATE,
   DEFAULT_GRAPH_STATE,
@@ -36,8 +37,12 @@ export default function App() {
   const [graphState, setGraphState] = useState<GraphEditorState>(() =>
     structuredClone(DEFAULT_GRAPH_STATE),
   );
+  const [rigOutputMap, setRigOutputMap] = useState<Record<string, string> | null>(
+    null,
+  );
   const animationImportRef = useRef<HTMLInputElement | null>(null);
   const graphImportRef = useRef<HTMLInputElement | null>(null);
+  const lastRigSignatureRef = useRef<string | null>(null);
 
   const face = useMemo(
     () => getFaceById(selectedFaceId) ?? FACES[0],
@@ -55,6 +60,35 @@ export default function App() {
     () => buildAnimatableOptions(animatableList.groups),
     [animatableList.groups],
   );
+
+  const rigGraph = useMemo(() => {
+    if (!face?.rig || !loader.ready) {
+      return null;
+    }
+    return buildRigGraph(face.id, face.rig, animatableList.groups);
+  }, [face, loader.ready, animatableList.groups]);
+
+  useEffect(() => {
+    if (!face?.rig) {
+      lastRigSignatureRef.current = null;
+      setRigOutputMap(null);
+      setGraphState(structuredClone(DEFAULT_GRAPH_STATE));
+      return;
+    }
+
+    if (!rigGraph) {
+      return;
+    }
+
+    const signature = JSON.stringify(rigGraph.outputNodeToAnimId);
+    if (lastRigSignatureRef.current === signature) {
+      return;
+    }
+
+    lastRigSignatureRef.current = signature;
+    setRigOutputMap(rigGraph.outputNodeToAnimId);
+    setGraphState(structuredClone(rigGraph.graph));
+  }, [face, rigGraph]);
 
   useEffect(() => {
     setAnimationState((prev) =>
@@ -208,6 +242,7 @@ export default function App() {
         animatables={animatableOptions}
         animationState={animationState}
         graphState={graphState}
+        initialOutputMap={rigOutputMap}
       />
       <input
         ref={animationImportRef}

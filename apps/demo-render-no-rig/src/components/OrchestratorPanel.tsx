@@ -336,6 +336,7 @@ interface OrchestratorPanelProps {
   animatables: OrchestratorAnimatableOption[];
   animationState: AnimationEditorState;
   graphState: GraphEditorState;
+  initialOutputMap?: Record<string, string> | null;
 }
 
 function applyOutputMappings(
@@ -376,6 +377,7 @@ export function OrchestratorPanel({
   animatables,
   animationState,
   graphState,
+  initialOutputMap,
 }: OrchestratorPanelProps) {
   const {
     ready,
@@ -472,6 +474,32 @@ export function OrchestratorPanel({
       return changed ? next : prev;
     });
   }, [outputNodes, animatables]);
+
+  useEffect(() => {
+    if (!initialOutputMap) {
+      return;
+    }
+    setOutputOptionMap((prev) => {
+      const next: Record<string, string> = { ...prev };
+      let mutated = false;
+      Object.entries(initialOutputMap).forEach(([nodeId, animId]) => {
+        if (!animId) {
+          return;
+        }
+        const option = animatables.find(
+          (candidate) => candidate.animId === animId && !candidate.component,
+        ) || animatables.find((candidate) => candidate.animId === animId);
+        if (!option) {
+          return;
+        }
+        if (next[nodeId] !== option.optionId) {
+          next[nodeId] = option.optionId;
+          mutated = true;
+        }
+      });
+      return mutated ? next : prev;
+    });
+  }, [initialOutputMap, animatables]);
 
   const outputRows: OutputRow[] = useMemo(() => {
     return outputNodes.map((node) => {
