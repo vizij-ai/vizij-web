@@ -24,13 +24,13 @@ Within the monorepo:
 
   ```bash
   # from vizij-rs/npm/@vizij/animation-wasm
-  npm run build
+  pnpm run build
   ```
 
 - Build this React package:
   ```bash
   # from vizij-web/packages/@vizij/animation-react
-  npm run build
+  pnpm run build
   ```
 
 In a separate app (after publishing to npm), install:
@@ -200,13 +200,13 @@ Helpers to coerce the engine Value union to simple types for UI.
 ```ts
 import {
   valueAsNumber,
-  valueAsVec3,
-  valueAsBool,
+  valueAsNumericArray,
+  valueAsTransform,
 } from "@vizij/animation-react";
 
 const n: number | undefined = valueAsNumber(value);
-const v3: [number, number, number] | undefined = valueAsVec3(value);
-const b: boolean | undefined = valueAsBool(value);
+const arr: number[] | undefined = valueAsNumericArray(value);
+const tr = valueAsTransform(value); // { translation, rotation, scale }
 ```
 
 ## Types
@@ -215,22 +215,28 @@ The engine emits values using a tagged union normalized at the wasm boundary:
 
 ```ts
 export type Value =
-  | { type: "Scalar"; data: number }
-  | { type: "Vec2"; data: [number, number] }
-  | { type: "Vec3"; data: [number, number, number] }
-  | { type: "Vec4"; data: [number, number, number, number] }
-  | { type: "Quat"; data: [number, number, number, number] }
-  | { type: "Color"; data: [number, number, number, number] }
+  | { type: "float"; data: number }
+  | { type: "bool"; data: boolean }
+  | { type: "text"; data: string }
+  | { type: "vec2"; data: [number, number] }
+  | { type: "vec3"; data: [number, number, number] }
+  | { type: "vec4"; data: [number, number, number, number] }
+  | { type: "quat"; data: [number, number, number, number] }
+  | { type: "colorrgba"; data: [number, number, number, number] }
+  | { type: "vector"; data: number[] }
   | {
-      type: "Transform";
+      type: "transform";
       data: {
         translation: [number, number, number];
-        rotation: [number, number, number, number]; // (x,y,z,w)
+        rotation: [number, number, number, number];
         scale: [number, number, number];
       };
     }
-  | { type: "Bool"; data: boolean }
-  | { type: "Text"; data: string };
+  | { type: "enum"; data: [string, Value] }
+  | { type: "record"; data: Record<string, Value> }
+  | { type: "array"; data: Value[] }
+  | { type: "list"; data: Value[] }
+  | { type: "tuple"; data: Value[] };
 ```
 
 See `@vizij/animation-wasm` for the complete `Inputs`, `Outputs`, `Change`, and `CoreEvent` types if you need to pass player commands or instance updates into `step(dt, inputs)` or into the provider in future extensions.
@@ -285,8 +291,8 @@ If `prebind` is omitted, the engine will emit changes keyed to canonical paths; 
 Build with:
 
 ```bash
-# from vizij-web/apps/demo-animation
-npm run build
+# from vizij-web/
+pnpm --filter demo-animation build
 ```
 
 ## Troubleshooting

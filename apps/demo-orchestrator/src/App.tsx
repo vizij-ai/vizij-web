@@ -1,7 +1,8 @@
 import React from "react";
 import {
   OrchestratorProvider,
-  type WasmValue,
+  valueAsNumber,
+  type ValueJSON,
 } from "@vizij/orchestrator-react";
 
 import { DEMO_PATHS } from "./demoSpecs";
@@ -10,11 +11,11 @@ import { useDemoOrchestrator } from "./useDemoOrchestrator";
 interface ValueCardProps {
   label: string;
   path: string;
-  value: WasmValue | null | undefined;
+  value: ValueJSON | null | undefined;
 }
 
 function ValueCard({ label, path, value }: ValueCardProps) {
-  const numericValue = value && value.type === "float" ? value.data : null;
+  const numericValue = valueAsNumber(value ?? undefined);
 
   return (
     <div
@@ -36,7 +37,7 @@ function ValueCard({ label, path, value }: ValueCardProps) {
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {numericValue != null ? numericValue.toFixed(3) : "–"}
+        {typeof numericValue === "number" ? numericValue.toFixed(3) : "–"}
       </div>
       <pre
         style={{
@@ -49,7 +50,9 @@ function ValueCard({ label, path, value }: ValueCardProps) {
           overflowX: "auto",
         }}
       >
-        {value ? JSON.stringify(value, null, 2) : "No value yet."}
+        {value !== undefined
+          ? JSON.stringify(value ?? null, null, 2)
+          : "No value yet."}
       </pre>
     </div>
   );

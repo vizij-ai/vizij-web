@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useShallow } from "zustand/shallow";
+import { useShallow } from "zustand/react/shallow";
 import { clsx } from "clsx";
 import {
   getLookup,

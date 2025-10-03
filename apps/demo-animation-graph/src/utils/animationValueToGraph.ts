@@ -1,4 +1,8 @@
-import type { Value } from "@vizij/animation-react";
+import {
+  valueAsNumericArray,
+  valueAsTransform,
+  type Value,
+} from "@vizij/animation-react";
 import type { ValueJSON } from "@vizij/node-graph-wasm";
 
 export function animationValueToValueJSON(
@@ -6,65 +10,44 @@ export function animationValueToValueJSON(
 ): ValueJSON | undefined {
   if (!value) return undefined;
   switch (value.type) {
-    case "Float":
+    case "float":
       return { float: value.data };
-    case "Vec2":
-      return { vector: [value.data[0] ?? 0, value.data[1] ?? 0] };
-    case "Vec3":
-      return {
-        vec3: [value.data[0] ?? 0, value.data[1] ?? 0, value.data[2] ?? 0],
-      };
-    case "Vec4":
-      return {
-        vec4: [
-          value.data[0] ?? 0,
-          value.data[1] ?? 0,
-          value.data[2] ?? 0,
-          value.data[3] ?? 0,
-        ],
-      };
-    case "Quat":
-      return {
-        quat: [
-          value.data[0] ?? 0,
-          value.data[1] ?? 0,
-          value.data[2] ?? 0,
-          value.data[3] ?? 1,
-        ],
-      };
-    case "ColorRgba":
-      return {
-        color: [
-          value.data[0] ?? 0,
-          value.data[1] ?? 0,
-          value.data[2] ?? 0,
-          value.data[3] ?? 1,
-        ],
-      };
-    case "Transform":
+    case "vec2": {
+      const arr = valueAsNumericArray(value) ?? [0, 0];
+      return { vector: [arr[0] ?? 0, arr[1] ?? 0] };
+    }
+    case "vec3": {
+      const arr = valueAsNumericArray(value) ?? [0, 0, 0];
+      return { vec3: [arr[0] ?? 0, arr[1] ?? 0, arr[2] ?? 0] };
+    }
+    case "vec4": {
+      const arr = valueAsNumericArray(value) ?? [0, 0, 0, 0];
+      return { vec4: [arr[0] ?? 0, arr[1] ?? 0, arr[2] ?? 0, arr[3] ?? 0] };
+    }
+    case "quat": {
+      const arr = valueAsNumericArray(value) ?? [0, 0, 0, 1];
+      return { quat: [arr[0] ?? 0, arr[1] ?? 0, arr[2] ?? 0, arr[3] ?? 1] };
+    }
+    case "colorrgba": {
+      const arr = valueAsNumericArray(value) ?? [0, 0, 0, 1];
+      return { color: [arr[0] ?? 0, arr[1] ?? 0, arr[2] ?? 0, arr[3] ?? 1] };
+    }
+    case "vector":
+      return { vector: (valueAsNumericArray(value) ?? []).map((v) => v ?? 0) };
+    case "transform": {
+      const tr = valueAsTransform(value);
+      if (!tr) return undefined;
       return {
         transform: {
-          pos: [
-            value.data.pos[0] ?? 0,
-            value.data.pos[1] ?? 0,
-            value.data.pos[2] ?? 0,
-          ],
-          rot: [
-            value.data.rot[0] ?? 0,
-            value.data.rot[1] ?? 0,
-            value.data.rot[2] ?? 0,
-            value.data.rot[3] ?? 1,
-          ],
-          scale: [
-            value.data.scale[0] ?? 1,
-            value.data.scale[1] ?? 1,
-            value.data.scale[2] ?? 1,
-          ],
+          translation: tr.translation.slice() as [number, number, number],
+          rotation: tr.rotation.slice() as [number, number, number, number],
+          scale: tr.scale.slice() as [number, number, number],
         },
       };
-    case "Bool":
+    }
+    case "bool":
       return { bool: Boolean(value.data) };
-    case "Text":
+    case "text":
       return { text: value.data };
     default:
       return undefined;

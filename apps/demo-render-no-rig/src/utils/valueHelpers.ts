@@ -78,18 +78,60 @@ export function valueToJSON(kind: ValueKind, value: any): ValueJSON {
     case "vector": {
       const arr = Array.isArray(value) ? value : [];
       return {
-        type: "vector",
-        data: arr.map((v) => Number(v ?? 0)),
-      } as ValueJSON;
+        vector: arr.map((v) => Number(v ?? 0)),
+      };
     }
     case "transform": {
       const transform = value ?? {};
+      const translation: [number, number, number] = [
+        Number(
+          transform.translation?.x ??
+            transform.translation?.[0] ??
+            transform.position?.x ??
+            transform.position?.[0] ??
+            transform.pos?.x ??
+            transform.pos?.[0] ??
+            0,
+        ),
+        Number(
+          transform.translation?.y ??
+            transform.translation?.[1] ??
+            transform.position?.y ??
+            transform.position?.[1] ??
+            transform.pos?.y ??
+            transform.pos?.[1] ??
+            0,
+        ),
+        Number(
+          transform.translation?.z ??
+            transform.translation?.[2] ??
+            transform.position?.z ??
+            transform.position?.[2] ??
+            transform.pos?.z ??
+            transform.pos?.[2] ??
+            0,
+        ),
+      ];
+      const rotation: [number, number, number, number] = [
+        Number(transform.rotation?.x ?? transform.rotation?.[0] ?? 0),
+        Number(transform.rotation?.y ?? transform.rotation?.[1] ?? 0),
+        Number(transform.rotation?.z ?? transform.rotation?.[2] ?? 0),
+        Number(transform.rotation?.w ?? transform.rotation?.[3] ?? 1),
+      ];
+      const scale: [number, number, number] = [
+        Number(transform.scale?.x ?? transform.scale?.[0] ?? 1),
+        Number(transform.scale?.y ?? transform.scale?.[1] ?? 1),
+        Number(transform.scale?.z ?? transform.scale?.[2] ?? 1),
+      ];
+      const payload: any = {
+        translation,
+        rotation,
+        scale,
+      };
+      payload.pos = translation;
+      payload.rot = rotation;
       return {
-        transform: {
-          pos: valueToJSON("vec3", transform.position ?? transform.pos ?? {}),
-          rot: valueToJSON("vec3", transform.rotation ?? transform.rot ?? {}),
-          scale: valueToJSON("vec3", transform.scale ?? {}),
-        },
+        transform: payload,
       };
     }
     case "custom": {
@@ -218,8 +260,11 @@ export function jsonToValue(
       if (typeof value === "object" && "transform" in value) {
         const tr = (value as any).transform ?? {};
         return {
-          position: jsonToValue("vec3", tr.pos as ValueJSON),
-          rotation: jsonToValue("vec3", tr.rot as ValueJSON),
+          position: jsonToValue(
+            "vec3",
+            (tr.translation ?? tr.pos) as ValueJSON,
+          ),
+          rotation: jsonToValue("vec3", (tr.rotation ?? tr.rot) as ValueJSON),
           scale: jsonToValue("vec3", tr.scale as ValueJSON),
         };
       }

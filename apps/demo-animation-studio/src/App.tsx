@@ -17,8 +17,8 @@ import type {
   Config,
   CoreEvent,
   Outputs,
-  Value,
 } from "@vizij/animation-wasm";
+import type { Value } from "@vizij/animation-react";
 import { init, abi_version } from "@vizij/animation-wasm";
 import "./styles/app.css";
 

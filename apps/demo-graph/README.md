@@ -35,13 +35,12 @@ Run the app
 
 1. Build wasm package and link/ensure available (from repo root):
    - node vizij-rs/scripts/build-graph-wasm.mjs
-   - cd vizij-rs/npm/@vizij/node-graph-wasm && npm run build
-   - Optionally npm link; otherwise ensure vizij-web installs it
+   - cd vizij-rs/npm/@vizij/node-graph-wasm && pnpm run build
+   - Optionally `pnpm link --global`; otherwise ensure vizij-web installs it
 
 2. Start the demo:
-   - cd vizij-web/apps/demo-graph
-   - npm install
-   - npm run dev
+   - pnpm install
+   - pnpm --filter demo-graph dev
    - Open the printed Local URL (e.g., http://localhost:5173).
 
 How it works (updated)

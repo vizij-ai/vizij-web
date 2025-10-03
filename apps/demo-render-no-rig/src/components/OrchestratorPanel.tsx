@@ -149,10 +149,22 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
     return { tag, value: enumValue } as unknown as RawValue;
   }
   if ("transform" in value && isRecord(value.transform)) {
+    const translationRaw = numericArrayToRaw(
+      (value.transform.translation ?? [0, 0, 0]) as number[],
+    );
+    const rotationRaw = numericArrayToRaw(
+      (value.transform.rotation ?? [0, 0, 0, 1]) as number[],
+    );
+    const scaleRaw = numericArrayToRaw(
+      (value.transform.scale ?? [1, 1, 1]) as number[],
+    );
     return {
-      pos: valueJSONToRaw(value.transform.pos as ValueJSON),
-      rot: valueJSONToRaw(value.transform.rot as ValueJSON),
-      scale: valueJSONToRaw(value.transform.scale as ValueJSON),
+      translation: translationRaw,
+      rotation: rotationRaw,
+      scale: scaleRaw,
+      // Back-compat aliases
+      pos: translationRaw,
+      rot: rotationRaw,
     } as unknown as RawValue;
   }
   if ("type" in value && "data" in value) {

@@ -6,8 +6,8 @@ This Vite app showcases how to drive a Vizij face directly through the render pi
 
 ```bash
 # from repo root
-npm install
-npm run dev --workspace demo-render-no-rig
+pnpm install
+pnpm --filter demo-render-no-rig dev
 ```
 
 The dev server opens at <http://localhost:5173>. Use the toolbar to swap faces or change the namespace, then drag sliders or inputs in the inspector to see updates in real time.

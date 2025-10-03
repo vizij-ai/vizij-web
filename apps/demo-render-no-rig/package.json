@@ -11,10 +11,10 @@
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
-    "@vizij/render": "^0.0.0",
-    "@vizij/utils": "^0.0.0",
-    "@vizij/orchestrator-react": "^0.0.0",
-    "@vizij/node-graph-react": "^0.0.0",
+    "@vizij/render": "workspace:*",
+    "@vizij/utils": "workspace:*",
+    "@vizij/orchestrator-react": "workspace:*",
+    "@vizij/node-graph-react": "workspace:*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

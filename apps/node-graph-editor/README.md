@@ -6,10 +6,10 @@ Local development (monorepo)
 
 - From repo root run the regular workspace install/build steps used by the monorepo.
 - From this package directory you can run:
-  - npm run dev (starts Vite dev server)
-  - npm run build
-  - npm run preview
-  - npm run test (runs vitest unit tests)
+  - pnpm run dev (starts Vite dev server)
+  - pnpm run build
+  - pnpm run preview
+  - pnpm run test (runs vitest unit tests)
 
 Notes
 

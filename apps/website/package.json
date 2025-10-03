@@ -16,11 +16,11 @@
   "dependencies": {
     "@aws-sdk/client-polly": "^3.787.0",
     "@headlessui/react": "^2.2.0",
-    "@vizij/utils": "^0.0.0",
+    "@vizij/utils": "workspace:*",
     "@tailwindcss/vite": "^4.0.7",
-    "@vizij/animation-react": "^0.1.0",
-    "@vizij/config": "^0.1.0",
-    "@vizij/rig": "^0.1.0",
+    "@vizij/animation-react": "workspace:*",
+    "@vizij/config": "workspace:*",
+    "@vizij/rig": "workspace:*",
     "d3-interpolate": "^3.0.1",
     "lodash": "^4.17.21",
     "mathjs": "^13.2.2",
@@ -30,7 +30,7 @@
     "react-colorful": "^5.6.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.1.3",
-    "@vizij/render": "^0.0.0",
+    "@vizij/render": "workspace:*",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

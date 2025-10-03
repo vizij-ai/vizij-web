@@ -15,7 +15,7 @@ Vizij's web monorepo collects the TypeScript packages, React integrations, and s
 | `vizij`                   | `packages/render`                  | Three.js renderer, store, and controllers for Vizij scenes.           | `dev`, `build`, `lint`, `clean`              |
 | `@semio/utils`            | `packages/utils`                   | Shared math/helpers used across Vizij packages.                       | `dev`, `build`, `test`, `clean`              |
 
-> The `vizij` and `@semio/utils` packages use `tsup`. Run their scripts with `npm --prefix packages/render …` and `npm --prefix packages/utils …` when you need bundled output.
+> The `vizij` and `@semio/utils` packages use `tsup`. Run their scripts with `pnpm --filter "@vizij/render" …` and `pnpm --filter "@vizij/utils" …` when you need bundled output.
 
 ### Apps
 
@@ -30,29 +30,32 @@ Vizij's web monorepo collects the TypeScript packages, React integrations, and s
 ## Prerequisites
 
 - Node.js 18 LTS or newer (Node 20 recommended).
-- npm 9+, which ships with current Node LTS builds.
-- For day-to-day work the published `@vizij/*` npm packages are enough. See [Local WASM Development](#local-wasm-development) if you need to iterate on the Rust crates directly.
+- pnpm 9.12.2 (or newer 9.x) to match the workspace lockfile.
+- For day-to-day work the published `@vizij/*` packages are enough. See [Local WASM Development](#local-wasm-development) if you need to iterate on the Rust crates directly.
 
 ## First-Time Setup
 
 1. Install dependencies from the repo root:
    ```bash
-   npm install
+   pnpm install
    ```
+   If you hit 404 errors for `@vizij/*-wasm` packages, build and link the WASM
+   wrappers from the sibling `vizij-rs` repo first (see
+   [Local WASM Development](#local-wasm-development)).
 2. Build the core packages so `dist/` outputs exist (needed for local app dev):
    ```bash
-   npm run build:packages
+   pnpm run build:packages
    ```
    If you need the bundled renderer/utilities, run:
    ```bash
-   npm --prefix packages/render run build
-   npm --prefix packages/utils run build
+   pnpm --filter "@vizij/render" build
+   pnpm --filter "@vizij/utils" build
    ```
 3. Launch the app you care about, for example the website:
    ```bash
-   npm run dev:website
+   pnpm run dev:website
    ```
-   or any workspace via `npm run dev --workspace <name>`.
+   or any workspace via `pnpm --filter <name> dev`.
 
 ## Local WASM Development
 
@@ -60,46 +63,46 @@ When you need edits from the Rust workspace (`vizij-rs`) to flow straight into t
 
 1. In `vizij-rs`, build and register the global links:
    ```bash
-   npm run link:wasm
+   pnpm run link:wasm
    ```
-   This rebuilds both WASM wrappers and exposes them via `npm link` (use `npm run watch:wasm:animation|graph` there if you want ongoing rebuilds).
+   This rebuilds both WASM wrappers and exposes them via `pnpm link` (use `pnpm run watch:wasm:animation|graph` there if you want ongoing rebuilds).
 2. Back in this repo, link the packages into the monorepo:
    ```bash
-   npm run link:wasm
+   pnpm run link:wasm
    ```
    Existing dependencies stay intact—you do **not** need to delete `node_modules`. Simply restart any running Vite dev server so it picks up the new symlinks.
-3. To return to the published artifacts, run `npm install` (or `npm unlink @vizij/animation-wasm @vizij/node-graph-wasm`) to restore the versions from the lockfile.
+3. To return to the published artifacts, run `pnpm install` (or `pnpm unlink --global @vizij/animation-wasm @vizij/node-graph-wasm`) to restore the versions from the lockfile.
 
 Gotchas to keep in mind:
 
 - Always rebuild before linking; stale `pkg/` output in `vizij-rs` can cause confusing runtime errors.
-- Keep crate/npm versions aligned. If the published packages move forward, bump local versions before linking to avoid ABI mismatches.
-- Relinking updates files inside `node_modules`, so rerun `npm run link:wasm` after switching branches or reinstalling dependencies.
+- Keep crate/package versions aligned. If the published packages move forward, bump local versions before linking to avoid ABI mismatches.
+- Relinking updates files inside `node_modules`, so rerun `pnpm run link:wasm` after switching branches or reinstalling dependencies.
 - Long-running dev servers cache module graphs—restart them whenever you toggle between linked and published packages.
 
 ## Root Scripts
 
-- `npm run dev` – convenience alias for `vizij-website` dev server.
-- `npm run dev:<app>` – start any app (`dev:node-graph-editor`, `dev:animation-studio`, `dev:demo-animation`, `dev:demo-graph`).
-- `npm run build` – run `build` in every workspace (`apps/*` and `packages/@vizij/*`).
-- `npm run build:packages` / `npm run build:apps` – targeted package or app builds; `build:animation` and `build:graph` wire up common pairings.
-- `npm run typecheck` – run `typecheck` wherever it is defined.
-- `npm run test` – execute all workspace `test` scripts (Vitest today).
-- `npm run clean` – delete build artefacts for all workspaces plus `packages/render` and `packages/utils`.
-- `npm run clean:deep` – alias for `npm run reset` (prunes every `node_modules`, `.vite`, then runs `npm ci`).
-- `npm run link:wasm` – convenience shim for linking locally built WASM packages.
+- `pnpm run dev` – convenience alias for `vizij-website` dev server.
+- `pnpm run dev:<app>` – start any app (`dev:node-graph-editor`, `dev:animation-studio`, `dev:demo-animation`, `dev:demo-graph`).
+- `pnpm run build` – run `build` in every workspace (`apps/*` and `packages/@vizij/*`).
+- `pnpm run build:packages` / `pnpm run build:apps` – targeted package or app builds; `build:animation` and `build:graph` wire up common pairings.
+- `pnpm run typecheck` – run `typecheck` wherever it is defined.
+- `pnpm run test` – execute all workspace `test` scripts (Vitest today).
+- `pnpm run clean` – delete build artefacts for all workspaces plus `packages/render` and `packages/utils`.
+- `pnpm run clean:deep` – alias for `pnpm run reset` (prunes every `node_modules`, `.vite`, then reinstalls via pnpm).
+- `pnpm run link:wasm` – convenience shim for linking locally built WASM packages.
 
 ## Working Inside a Workspace
 
-- Most packages/apps are npm workspaces, so you can run `npm run <script> --workspace <name>`.
-- Renderer and utility packages live outside the workspace glob; use `npm --prefix packages/render run <script>` or `npm --prefix packages/utils run <script>`.
-- To add dependencies inside a workspace: `npm install <pkg> --workspace <name>`.
+- Most packages/apps are pnpm workspaces, so you can run `pnpm --filter <name> <script>` (or `pnpm run <script> --filter <name>`).
+- Renderer and utility packages live outside the simpler filter globs; use `pnpm --filter "@vizij/render" <script>` or `pnpm --filter "@vizij/utils" <script>`.
+- To add dependencies inside a workspace: `pnpm add <pkg> --filter <name>`.
 
 ## Cleaning & Troubleshooting
 
-- Use `npm run clean` before switching branches or when Vite caches get confused.
-- `npm run clean:deep` (a.k.a. `reset`) removes every `node_modules`, nukes `.vite` caches, and reinstalls from lockfile.
-- If WASM behaviour looks off after pulling the Rust repo, rebuild the npm wrappers and re-run `npm run link:wasm`.
+- Use `pnpm run clean` before switching branches or when Vite caches get confused.
+- `pnpm run clean:deep` (a.k.a. `reset`) removes every `node_modules`, nukes `.vite` caches, and reinstalls from the pnpm lockfile.
+- If WASM behaviour looks off after pulling the Rust repo, rebuild the WASM wrappers and re-run `pnpm run link:wasm`.
 
 ## Git Hooks
 

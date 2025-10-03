@@ -9,19 +9,19 @@ step the orchestrator, and subscribe to merged frame outputs without juggling im
 1. Build the wasm wrapper (once per change):
    ```bash
    # from vizij-rs/
-   npm run build:wasm:orchestrator
+   pnpm run build:wasm:orchestrator
    ```
 2. Link the wasm package into the web workspace:
    ```bash
    # from vizij-web/
-   npm run link:wasm
+   pnpm run link:wasm
    # or, if orchestrator is not yet part of the script:
-   npm link @vizij/orchestrator-wasm
+   pnpm link --global @vizij/orchestrator-wasm
    ```
 3. Build or typecheck this package:
    ```bash
-   npm run build --workspace @vizij/orchestrator-react
-   npm run test --workspace @vizij/orchestrator-react
+   pnpm --filter "@vizij/orchestrator-react" build
+   pnpm --filter "@vizij/orchestrator-react" test
    ```
 
 ## Install (external app)
@@ -142,7 +142,7 @@ registration, manual stepping, and merged frame rendering.
 The package ships with a Vitest suite that mocks the wasm layer. Run it via:
 
 ```bash
-npm run test --workspace @vizij/orchestrator-react
+pnpm --filter "@vizij/orchestrator-react" test
 ```
 
 Vitest is configured with a lightweight stub for `@vizij/orchestrator-wasm`, so real

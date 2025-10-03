@@ -15,15 +15,15 @@ This Vite + React demo drives the Vizij orchestrator with two scalar animations 
 From the repository root:
 
 ```bash
-npm install
-npm run dev --workspace demo-orchestrator
+pnpm install
+pnpm --filter demo-orchestrator dev
 ```
 
 Useful scripts:
 
-- `npm run build --workspace demo-orchestrator` – Build the production bundle / run TypeScript checks.
-- `npm run preview --workspace demo-orchestrator` – Preview the production build.
-- `npm run typecheck --workspace demo-orchestrator` – Run `tsc --noEmit` directly.
+- `pnpm --filter demo-orchestrator build` – Build the production bundle / run TypeScript checks.
+- `pnpm --filter demo-orchestrator preview` – Preview the production build.
+- `pnpm --filter demo-orchestrator typecheck` – Run `tsc --noEmit` directly.
 
 ## Notes
 

@@ -9,9 +9,9 @@ expectations and workflows.
 
 - Re-read the root `README.md` and any touched package/app README before
   editing—monorepo scripts evolve quickly.
-- Default to `npm` (pnpm/yarn are not configured). Call workspace scripts with
-  `npm run <script> --workspace <name>`; use `npm --prefix packages/render` for
-  the renderer and similarly for `packages/utils`.
+- Default to `pnpm`. Call workspace scripts with
+  `pnpm --filter <name> <script>`; use `pnpm --filter "@vizij/render"` (or
+  `"@vizij/utils"`) for packages outside the default workspace globs.
 - Keep the planning tool handy for multi-step tasks and update plans after each
   major action.
 - Watch for stale symlinks when linking WASM packages from `vizij-rs`; restart
@@ -35,10 +35,10 @@ expectations and workflows.
 
 ### Supporting packages
 
-| Workspace       | Path              | Notes                                                                                                      |
-| --------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| `@vizij/render` | `packages/render` | Three.js renderer + controllers. Uses `tsup`; run scripts via `npm --prefix packages/render run <script>`. |
-| `@vizij/utils`  | `packages/utils`  | Shared math/helpers. Also uses `tsup` and exposes a Vitest suite.                                          |
+| Workspace       | Path              | Notes                                                                                                   |
+| --------------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `@vizij/render` | `packages/render` | Three.js renderer + controllers. Uses `tsup`; run scripts via `pnpm --filter "@vizij/render" <script>`. |
+| `@vizij/utils`  | `packages/utils`  | Shared math/helpers. Also uses `tsup` and exposes a Vitest suite.                                       |
 
 ### Apps (`apps/*`)
 
@@ -53,41 +53,41 @@ expectations and workflows.
 | `demo-render-no-rig`      | Tests renderer/orchestrator without rig assets. |
 | `demo-animation-graph`    | Combined animation + graph demo.                |
 
-Use `npm run --workspace <workspace> <script>` to interact with any of them.
+Use `pnpm --filter <workspace> <script>` (or `pnpm run <script> --filter <workspace>`) to interact with any of them.
 
 ## Root Command Reference
 
-| Task                               | Command                                             |
-| ---------------------------------- | --------------------------------------------------- |
-| Install dependencies               | `npm install`                                       |
-| Build everything (packages + apps) | `npm run build`                                     |
-| Build library packages only        | `npm run build:packages`                            |
-| Build apps only                    | `npm run build:apps`                                |
-| Start a specific dev server        | `npm run dev:<app>` (see scripts in `package.json`) |
-| Run lint across workspaces         | `npm run lint`                                      |
-| Run Vitest suites                  | `npm run test`                                      |
-| Type-check everywhere              | `npm run typecheck`                                 |
-| Clean build artefacts              | `npm run clean`                                     |
-| Reset node_modules and reinstall   | `npm run clean:deep` (alias for `npm run reset`)    |
-| Link locally built WASM packages   | `npm run link:wasm`                                 |
+| Task                               | Command                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| Install dependencies               | `pnpm install`                                       |
+| Build everything (packages + apps) | `pnpm run build`                                     |
+| Build library packages only        | `pnpm run build:packages`                            |
+| Build apps only                    | `pnpm run build:apps`                                |
+| Start a specific dev server        | `pnpm run dev:<app>` (see scripts in `package.json`) |
+| Run lint across workspaces         | `pnpm run lint`                                      |
+| Run Vitest suites                  | `pnpm run test`                                      |
+| Type-check everywhere              | `pnpm run typecheck`                                 |
+| Clean build artefacts              | `pnpm run clean`                                     |
+| Reset node_modules and reinstall   | `pnpm run clean:deep` (alias for `pnpm run reset`)   |
+| Link locally built WASM packages   | `pnpm run link:wasm`                                 |
 
 ## Local WASM Development (with `vizij-rs`)
 
 1. In the `vizij-rs` repo, rebuild and link the WASM crates:
    ```bash
-   npm run build:wasm:animation   # or :graph / :orchestrator as needed
-   npm run link:wasm
+   pnpm run build:wasm:animation   # or :graph / :orchestrator as needed
+   pnpm run link:wasm
    ```
    Use the `watch:wasm:*` scripts there (requires `cargo-watch`) for continuous
    rebuilds.
 2. Back in `vizij-web`, link the packages into this workspace:
    ```bash
-   npm run link:wasm
+   pnpm run link:wasm
    ```
 3. Restart any running Vite dev servers so they pick up the new symlinks. Run
-   `npm install` later to return to the published versions.
+   `pnpm install` later to return to the published versions.
 
-Keep crate/npm versions aligned and rebuild before linking to avoid ABI
+Keep crate/package versions aligned and rebuild before linking to avoid ABI
 mismatches. Relink after switching branches or cleaning lockfiles.
 
 ## Coding and Testing Expectations
@@ -100,7 +100,7 @@ mismatches. Relink after switching branches or cleaning lockfiles.
   loading/error UI states). Do not initialise WASM at module top-level.
 - Co-locate tests with source (`*.test.tsx`). Use Vitest + React Testing Library
   where available; add smoke tests when exposing new hooks/components.
-- Run `npm run lint`, `npm run typecheck`, and `npm run test` (if present) on
+- Run `pnpm run lint`, `pnpm run typecheck`, and `pnpm run test` (if present) on
   touched workspaces before handoff. Call out any skipped command in your
   response.
 - Avoid committing `dist/` unless a release workflow demands it. Rebuild before

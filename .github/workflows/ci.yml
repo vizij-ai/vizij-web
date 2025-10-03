@@ -12,11 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
-          cache: "npm"
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npm run --workspace @vizij/animation-react build
-      - run: npm run --workspace demo-animation build
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "@vizij/animation-react" build
+      - run: pnpm --filter demo-animation build

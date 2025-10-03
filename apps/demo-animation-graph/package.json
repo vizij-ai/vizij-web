@@ -10,8 +10,8 @@
     "clean": "rm -rf dist .vite"
   },
   "dependencies": {
-    "@vizij/animation-react": "^0.1.0",
-    "@vizij/node-graph-react": "^0.2.0",
+    "@vizij/animation-react": "workspace:*",
+    "@vizij/node-graph-react": "workspace:*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

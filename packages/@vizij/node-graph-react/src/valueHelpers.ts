@@ -34,7 +34,10 @@ export function valueAsNumber(
   if ("quat" in val) return val.quat[0];
   if ("color" in val) return val.color[0];
   if ("vector" in val) return val.vector[0] ?? 0;
-  if ("transform" in val) return val.transform.pos?.[0] ?? 0;
+  if ("transform" in val) {
+    const translation = val.transform.translation ?? val.transform.pos ?? [];
+    return translation[0] ?? 0;
+  }
   if ("enum" in val) return valueAsNumber(val.enum.value);
   if ("array" in val) return valueAsNumber(val.array[0]);
   if ("list" in val) return valueAsNumber(val.list[0]);
@@ -54,7 +57,7 @@ export function valueAsVec3(
   if ("vector" in val)
     return [val.vector[0] ?? 0, val.vector[1] ?? 0, val.vector[2] ?? 0];
   if ("transform" in val) {
-    const pos = val.transform.pos ?? [0, 0, 0];
+    const pos = val.transform.translation ?? val.transform.pos ?? [0, 0, 0];
     return [pos[0] ?? 0, pos[1] ?? 0, pos[2] ?? 0];
   }
   if ("enum" in val) return valueAsVec3(val.enum.value);
@@ -80,8 +83,8 @@ export function valueAsVector(
   if ("color" in val)
     return [val.color[0], val.color[1], val.color[2], val.color[3]];
   if ("transform" in val) {
-    const pos = val.transform.pos ?? [0, 0, 0];
-    const rot = val.transform.rot ?? [0, 0, 0, 1];
+    const pos = val.transform.translation ?? val.transform.pos ?? [0, 0, 0];
+    const rot = val.transform.rotation ?? val.transform.rot ?? [0, 0, 0, 1];
     const scale = val.transform.scale ?? [1, 1, 1];
     return [...pos, ...rot, ...scale];
   }
@@ -110,12 +113,16 @@ export function valueAsBool(
   if ("vec4" in val) return val.vec4.some((x: any) => x !== 0);
   if ("quat" in val) return val.quat.some((x: any) => x !== 0);
   if ("color" in val) return val.color.some((x: any) => x !== 0);
-  if ("transform" in val)
+  if ("transform" in val) {
+    const translation = val.transform.translation ?? val.transform.pos ?? [];
+    const rotation = val.transform.rotation ?? val.transform.rot ?? [];
+    const scale = val.transform.scale ?? [];
     return (
-      (val.transform.pos ?? []).some((x: any) => x !== 0) ||
-      (val.transform.rot ?? []).some((x: any) => x !== 0) ||
-      (val.transform.scale ?? []).some((x: any) => x !== 0)
+      translation.some((x: any) => x !== 0) ||
+      rotation.some((x: any) => x !== 0) ||
+      scale.some((x: any) => x !== 0)
     );
+  }
   if ("enum" in val) return valueAsBool(val.enum.value) ?? false;
   if ("record" in val)
     return Object.values(val.record).some((entry) => valueAsBool(entry));

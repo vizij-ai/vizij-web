@@ -16,87 +16,117 @@ import { valueToJSON } from "./valueHelpers";
 function normalizeForGraph(kind: ValueKind, value: any): ValueJSON {
   switch (kind) {
     case "float":
-      return { type: "float", data: Number(value ?? 0) } as ValueJSON;
+      return { float: Number(value ?? 0) };
     case "bool":
-      return { type: "bool", data: Boolean(value) } as ValueJSON;
+      return { bool: Boolean(value) };
     case "vec2": {
       const vec = value ?? {};
       return {
-        type: "vec2",
-        data: [Number(vec.x ?? vec[0] ?? 0), Number(vec.y ?? vec[1] ?? 0)],
-      } as ValueJSON;
+        vec2: [Number(vec.x ?? vec[0] ?? 0), Number(vec.y ?? vec[1] ?? 0)],
+      };
     }
     case "vec3": {
       const vec = value ?? {};
       return {
-        type: "vec3",
-        data: [
+        vec3: [
           Number(vec.x ?? vec[0] ?? 0),
           Number(vec.y ?? vec[1] ?? 0),
           Number(vec.z ?? vec[2] ?? 0),
         ],
-      } as ValueJSON;
+      };
     }
     case "vec4":
     case "quat": {
       const vec = value ?? {};
-      return {
-        type: kind,
-        data: [
-          Number(vec.x ?? vec[0] ?? 0),
-          Number(vec.y ?? vec[1] ?? 0),
-          Number(vec.z ?? vec[2] ?? 0),
-          Number(vec.w ?? vec[3] ?? 0),
-        ],
-      } as ValueJSON;
+      const data: [number, number, number, number] = [
+        Number(vec.x ?? vec[0] ?? 0),
+        Number(vec.y ?? vec[1] ?? 0),
+        Number(vec.z ?? vec[2] ?? 0),
+        Number(vec.w ?? vec[3] ?? 0),
+      ];
+      return kind === "quat" ? { quat: data } : { vec4: data };
     }
     case "color": {
       const col = value ?? {};
       return {
-        type: "color",
-        data: [
+        color: [
           Number(col.r ?? col[0] ?? 1),
           Number(col.g ?? col[1] ?? 1),
           Number(col.b ?? col[2] ?? 1),
           Number(col.a ?? col[3] ?? 1),
         ],
-      } as ValueJSON;
+      };
     }
     case "vector":
       return {
-        type: "vector",
-        data: Array.isArray(value)
+        vector: Array.isArray(value)
           ? value.map((entry) => Number(entry ?? 0))
           : [],
-      } as ValueJSON;
+      };
     case "transform": {
       const transform = value ?? {};
+      const translation: [number, number, number] = [
+        Number(
+          transform.translation?.x ??
+            transform.translation?.[0] ??
+            transform.position?.x ??
+            transform.position?.[0] ??
+            transform.pos?.x ??
+            transform.pos?.[0] ??
+            0,
+        ),
+        Number(
+          transform.translation?.y ??
+            transform.translation?.[1] ??
+            transform.position?.y ??
+            transform.position?.[1] ??
+            transform.pos?.y ??
+            transform.pos?.[1] ??
+            0,
+        ),
+        Number(
+          transform.translation?.z ??
+            transform.translation?.[2] ??
+            transform.position?.z ??
+            transform.position?.[2] ??
+            transform.pos?.z ??
+            transform.pos?.[2] ??
+            0,
+        ),
+      ];
+      const rotation: [number, number, number, number] = [
+        Number(transform.rotation?.x ?? transform.rotation?.[0] ?? 0),
+        Number(transform.rotation?.y ?? transform.rotation?.[1] ?? 0),
+        Number(transform.rotation?.z ?? transform.rotation?.[2] ?? 0),
+        Number(transform.rotation?.w ?? transform.rotation?.[3] ?? 1),
+      ];
+      const scale: [number, number, number] = [
+        Number(transform.scale?.x ?? transform.scale?.[0] ?? 1),
+        Number(transform.scale?.y ?? transform.scale?.[1] ?? 1),
+        Number(transform.scale?.z ?? transform.scale?.[2] ?? 1),
+      ];
+      const payload: any = {
+        translation,
+        rotation,
+        scale,
+      };
+      payload.pos = translation;
+      payload.rot = rotation;
       return {
-        type: "transform",
-        data: {
-          pos: normalizeForGraph(
-            "vec3",
-            transform.position ?? transform.pos ?? {},
-          ),
-          rot: normalizeForGraph(
-            "vec3",
-            transform.rotation ?? transform.rot ?? {},
-          ),
-          scale: normalizeForGraph("vec3", transform.scale ?? {}),
-        },
-      } as ValueJSON;
+        transform: payload,
+      };
     }
     case "custom": {
       if (typeof value === "string") {
         try {
           const parsed = JSON.parse(value);
-          return { type: "json", data: parsed } as ValueJSON;
+          return parsed as ValueJSON;
         } catch {
-          return { type: "text", data: value } as ValueJSON;
+          return { text: value };
         }
       }
       if (value == null) {
-        return { type: "json", data: null } as ValueJSON;
+        return { text: "" };
       }
       return value as ValueJSON;
     }

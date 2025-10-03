@@ -106,16 +106,16 @@ Dev server notes:
 ## Development
 
 ```
-npm install
-npm run dev --workspace demo-animation-graph
+pnpm install
+pnpm --filter demo-animation-graph dev
 ```
 
 The Vite dev server watches the local packages. Build the node-graph-react package first if you’ve changed it:
 
 ```
-npm --prefix packages/@vizij/node-graph-react run build
+pnpm --filter "@vizij/node-graph-react" build
 ```
 
 ## Testing & checks
 
-- `npm run build --workspace demo-animation-graph` — Type-checks and builds the production bundle.
+- `pnpm --filter demo-animation-graph build` — Type-checks and builds the production bundle.

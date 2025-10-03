@@ -3,12 +3,15 @@ import { ErrorBoundary } from "react-error-boundary";
 import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
-import { useShallow } from "zustand/shallow";
+import { useShallow } from "zustand/react/shallow";
 import { Renderable } from "./renderables";
 import { VizijContext } from "./context";
 import { useDefaultVizijStore } from "./store";
 import { useVizijStore } from "./hooks/use-vizij-store";
+import type { VizijActions, VizijData } from "./store-types";
 import { Group } from "./types";
+
+type RootBounds = NonNullable<Group["rootBounds"]>;
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -134,10 +137,11 @@ function InnerWorld({
   parentSizing?: { width: number; height: number };
 }) {
   const [present, rootBounds] = useVizijStore(
-    useShallow((state) => [
-      state.world[rootId] !== undefined,
-      (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds,
-    ]),
+    useShallow((state: VizijData & VizijActions) => {
+      const group = state.world[rootId] as Group | undefined;
+      const bounds: RootBounds = group?.rootBounds ?? defaultRootBounds;
+      return [group !== undefined, bounds] as [boolean, RootBounds];
+    }),
   );
 
   const { camera, size } = useThree((state) => ({
@@ -208,12 +212,10 @@ function InnerWorld({
 const World = memo(InnerWorld);
 
 function SafeAreaRenderer({ rootId }: { rootId: string }) {
-  const rootBounds = useVizijStore(
-    useShallow(
-      (state) =>
-        (state.world[rootId] as Group)?.rootBounds ?? defaultRootBounds,
-    ),
-  );
+  const rootBounds = useVizijStore((state: VizijData & VizijActions) => {
+    const group = state.world[rootId] as Group | undefined;
+    return (group?.rootBounds ?? defaultRootBounds) as RootBounds;
+  });
 
   const left = rootBounds.center.x - rootBounds.size.x / 2;
   const right = rootBounds.center.x + rootBounds.size.x / 2;
@@ -236,7 +238,7 @@ function SafeAreaRenderer({ rootId }: { rootId: string }) {
   );
 }
 
-const defaultRootBounds = {
+const defaultRootBounds: RootBounds = {
   center: { x: 0, y: 0 },
   size: { x: 5, y: 4 },
 };

@@ -51,49 +51,64 @@ const DEFAULT_COLORS = [
   "rgba(56,189,248,0.75)",
 ];
 
+const collectNumbers = (value: WasmValue | null | undefined): number[] => {
+  if (!value) return [];
+  const tag = typeof value.type === "string" ? value.type.toLowerCase() : "";
+  const data = value.data as unknown;
+  switch (tag) {
+    case "float": {
+      const num = Number(data);
+      return Number.isFinite(num) ? [num] : [];
+    }
+    case "bool":
+      return [data ? 1 : 0];
+    case "vec2":
+    case "vec3":
+    case "vec4":
+    case "quat":
+    case "vector":
+    case "colorrgba":
+      return Array.isArray(data)
+        ? (data as unknown[])
+            .map((n) => Number(n))
+            .filter((n) => Number.isFinite(n))
+        : [];
+    case "transform": {
+      const pos = collectNumbers((data as any)?.pos as WasmValue | undefined);
+      const rot = collectNumbers((data as any)?.rot as WasmValue | undefined);
+      const scale = collectNumbers(
+        (data as any)?.scale as WasmValue | undefined,
+      );
+      return [...pos, ...rot, ...scale];
+    }
+    case "enum": {
+      const inner = Array.isArray(data)
+        ? (data as [unknown, unknown])[1]
+        : undefined;
+      return collectNumbers(inner as WasmValue | undefined);
+    }
+    case "record":
+      return Object.values((data ?? {}) as Record<string, WasmValue>).flatMap(
+        (entry) => collectNumbers(entry),
+      );
+    case "array":
+    case "list":
+    case "tuple":
+      return Array.isArray(data)
+        ? (data as WasmValue[]).flatMap((entry) => collectNumbers(entry))
+        : [];
+    default:
+      return [];
+  }
+};
+
 const toScalar = (value: WasmValue | null | undefined): number | null => {
   if (!value) return null;
-  const { type, data } = value as WasmValue & { data: any };
-  switch (type) {
-    case "Scalar":
-    case "Float":
-      return Number.isFinite(data) ? Number(data) : null;
-    case "Bool":
-      return data ? 1 : 0;
-    case "Vec2":
-    case "Vec3":
-    case "Vec4":
-    case "Color":
-    case "ColorRgba": {
-      if (!Array.isArray(data)) return null;
-      const nums = data.filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      if (nums.length === 1) return nums[0];
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    case "Quat": {
-      if (!Array.isArray(data)) return null;
-      const nums = data.filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    case "Transform": {
-      if (!data || typeof data !== "object") return null;
-      const parts = [
-        data.translation ?? data.pos,
-        data.rotation ?? data.rot,
-        data.scale,
-      ];
-      const nums = parts.flat().filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    default:
-      return null;
-  }
+  const numbers = collectNumbers(value);
+  if (numbers.length === 0) return null;
+  if (numbers.length === 1) return numbers[0];
+  const squared = numbers.reduce((acc, v) => acc + v * v, 0);
+  return Math.sqrt(squared);
 };
 
 const mapAnimationSources = (

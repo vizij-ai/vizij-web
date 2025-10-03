@@ -1,10 +1,15 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { useAnimation } from "@vizij/animation-react";
+import {
+  useAnimation,
+  valueAsNumber,
+  valueAsNumericArray,
+  valueAsTransform,
+  type Value,
+} from "@vizij/animation-react";
 import type {
   AnimationInfo,
   PlayerInfo,
   InstanceInfo,
-  Value,
   StoredAnimation,
 } from "@vizij/animation-wasm";
 import Timeline, { InstanceSpan, TimelineMarker } from "./Timeline";
@@ -83,7 +88,10 @@ function usePlayerDerivative(
   return getSnapshot();
 }
 
-function formatNumericArray(data: readonly number[] | number[]): string {
+function formatNumericArray(
+  data: readonly number[] | number[] | undefined,
+): string {
+  if (!data) return "—";
   return data
     .map((x) => (Number.isFinite(x) ? Number(x).toFixed(3) : String(x)))
     .join(", ");
@@ -91,39 +99,56 @@ function formatNumericArray(data: readonly number[] | number[]): string {
 
 function formatValue(value: Value | undefined): string {
   if (!value) return "—";
-  const { type, data } = value as Value & { data: any };
 
-  switch (type) {
-    case "Scalar":
-    case "Float":
-      return Number.isFinite(data) ? Number(data).toFixed(3) : String(data);
-    case "Bool":
-      return data ? "true" : "false";
-    case "Vec2":
-    case "Vec3":
-    case "Vec4":
-    case "Color":
-    case "ColorRgba":
-    case "Quat":
-      return Array.isArray(data) ? formatNumericArray(data) : String(data);
-    case "Transform": {
-      if (data && typeof data === "object") {
-        const pos = data.translation ?? data.pos;
-        const rot = data.rotation ?? data.rot;
-        const scale = data.scale;
-        const lines: string[] = [];
-        if (Array.isArray(pos)) lines.push(`pos: ${formatNumericArray(pos)}`);
-        if (Array.isArray(rot)) lines.push(`rot: ${formatNumericArray(rot)}`);
-        if (Array.isArray(scale))
-          lines.push(`scale: ${formatNumericArray(scale)}`);
-        return lines.length > 0 ? lines.join("\n") : JSON.stringify(data);
-      }
-      return JSON.stringify(data);
+  switch (value.type) {
+    case "float": {
+      const num = valueAsNumber(value);
+      return typeof num === "number" ? num.toFixed(3) : String(value.data);
     }
-    case "Text":
-      return String(data);
+    case "bool":
+      return value.data ? "true" : "false";
+    case "text":
+      return String(value.data);
+    case "vec2":
+    case "vec3":
+    case "vec4":
+    case "quat":
+    case "colorrgba":
+    case "vector": {
+      const arr = valueAsNumericArray(value);
+      return arr ? formatNumericArray(arr) : JSON.stringify(value.data ?? null);
+    }
+    case "transform": {
+      const tr = valueAsTransform(value);
+      if (!tr) return JSON.stringify(value.data ?? null);
+      const lines: string[] = [];
+      lines.push(`translation: ${formatNumericArray(tr.translation)}`);
+      lines.push(`rotation: ${formatNumericArray(tr.rotation)}`);
+      lines.push(`scale: ${formatNumericArray(tr.scale)}`);
+      return lines.join("\n");
+    }
+    case "enum": {
+      const [tag, inner] = value.data;
+      const innerDisplay = inner ? formatValue(inner) : "—";
+      return `${tag}${innerDisplay !== "—" ? `: ${innerDisplay}` : ""}`;
+    }
+    case "record":
+      return JSON.stringify(
+        Object.fromEntries(
+          Object.entries(value.data).map(([key, val]) => [
+            key,
+            formatValue(val),
+          ]),
+        ),
+      );
+    case "array":
+    case "list":
+    case "tuple": {
+      const items = value.data as Value[];
+      return `[${items.map((entry) => formatValue(entry)).join(", ")}]`;
+    }
     default:
-      return JSON.stringify(data ?? null);
+      return JSON.stringify(value.data ?? null);
   }
 }
 

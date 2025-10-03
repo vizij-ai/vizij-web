@@ -169,9 +169,15 @@ function ensureValueMatchesKind(kind: ValueKind, value: any): any {
     case "transform":
       return {
         position: {
-          x: Number(value?.position?.x ?? value?.pos?.x ?? 0),
-          y: Number(value?.position?.y ?? value?.pos?.y ?? 0),
-          z: Number(value?.position?.z ?? value?.pos?.z ?? 0),
+          x: Number(
+            value?.translation?.x ?? value?.position?.x ?? value?.pos?.x ?? 0,
+          ),
+          y: Number(
+            value?.translation?.y ?? value?.position?.y ?? value?.pos?.y ?? 0,
+          ),
+          z: Number(
+            value?.translation?.z ?? value?.position?.z ?? value?.pos?.z ?? 0,
+          ),
         },
         rotation: {
           x: Number(value?.rotation?.x ?? value?.rot?.x ?? 0),

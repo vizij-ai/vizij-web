@@ -200,8 +200,8 @@ Compatibility shim
 
 - The package includes unit tests for provider readiness and error handling (mocked WASM).
 - Run locally:
-  - Tests: `cd vizij-web/packages/@vizij/node-graph-react && npm test`
-  - Build: `cd vizij-web/packages/@vizij/node-graph-react && npm run build`
+  - Tests: `pnpm --filter "@vizij/node-graph-react" test`
+  - Build: `pnpm --filter "@vizij/node-graph-react" build`
 
 ## Current limitations & TODOs
 

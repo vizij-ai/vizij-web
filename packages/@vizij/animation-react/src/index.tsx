@@ -23,27 +23,16 @@ import {
   type BakingConfig,
   type BakedAnimationData,
   type BakedAnimationBundle,
+  type Value as WasmValue,
 } from "@vizij/animation-wasm";
+import {
+  valueAsNumber as normalizedValueAsNumber,
+  valueAsNumericArray as normalizedValueAsNumericArray,
+  valueAsTransform as normalizedValueAsTransform,
+  type NormalizedTransform,
+} from "@vizij/value-json";
 
-/* Local fallback Value type to avoid tight compile-time coupling on the wasm package types.
-   Matches vizij-animation-core tagged union: { type, data } */
-export type Value =
-  | { type: "Float"; data: number }
-  | { type: "Vec2"; data: [number, number] }
-  | { type: "Vec3"; data: [number, number, number] }
-  | { type: "Vec4"; data: [number, number, number, number] }
-  | { type: "Quat"; data: [number, number, number, number] }
-  | { type: "ColorRgba"; data: [number, number, number, number] }
-  | {
-      type: "Transform";
-      data: {
-        pos: [number, number, number];
-        rot: [number, number, number, number];
-        scale: [number, number, number];
-      };
-    }
-  | { type: "Bool"; data: boolean }
-  | { type: "Text"; data: string };
+export type Value = WasmValue;
 
 /**
  * Animation React Provider (parity-oriented with @vizij/node-graph-react)
@@ -372,34 +361,41 @@ export const AnimationProvider: React.FC<{
       const changedKeys: string[] = [];
       const derivativeChangedKeys = new Set<string>();
       for (const ch of out.changes) {
-        // Legacy merged store (kept for backward compat)
-        valuesRef.current[ch.key] = ch.value;
-        if (typeof ch.derivative !== "undefined") {
-          const derivative = ch.derivative as Value | null | undefined;
-          if (typeof derivative !== "undefined" && derivative !== null) {
-            derivativesRef.current[ch.key] = derivative;
-          } else {
-            delete derivativesRef.current[ch.key];
-          }
-          derivativeChangedKeys.add(ch.key);
+        const value = (ch.value ?? undefined) as Value | undefined;
+        if (value == null) {
+          delete valuesRef.current[ch.key];
+        } else {
+          valuesRef.current[ch.key] = value;
         }
-        changedKeys.push(ch.key);
-        // Per-player store
+
         const pid = ch.player as unknown as number;
-        if (!valuesByPlayerRef.current[pid])
+        if (!valuesByPlayerRef.current[pid]) {
           valuesByPlayerRef.current[pid] = {};
-        valuesByPlayerRef.current[pid][ch.key] = ch.value;
-        if (!derivativesByPlayerRef.current[pid])
+        }
+        if (value == null) {
+          delete valuesByPlayerRef.current[pid][ch.key];
+        } else {
+          valuesByPlayerRef.current[pid][ch.key] = value;
+        }
+
+        if (!derivativesByPlayerRef.current[pid]) {
           derivativesByPlayerRef.current[pid] = {};
+        }
+
         if (typeof ch.derivative !== "undefined") {
-          const derivative = ch.derivative as Value | null | undefined;
-          if (typeof derivative !== "undefined" && derivative !== null) {
+          const derivative = (ch.derivative ?? undefined) as Value | undefined;
+          if (derivative != null) {
+            derivativesRef.current[ch.key] = derivative;
             derivativesByPlayerRef.current[pid][ch.key] = derivative;
           } else {
+            delete derivativesRef.current[ch.key];
             delete derivativesByPlayerRef.current[pid][ch.key];
           }
+          derivativeChangedKeys.add(ch.key);
           notifyPlayerDerivativeKey(pid, ch.key);
         }
+
+        changedKeys.push(ch.key);
         notifyPlayerKey(pid, ch.key);
       }
       // Notify per-key subscribers (legacy)
@@ -1222,8 +1218,18 @@ export function useAnimDerivative(key?: string): Value | undefined {
 }
 
 export function valueAsNumber(v: Value | undefined): number | undefined {
-  if (!v) return undefined;
-  if (v.type === "Float") return v.data as number;
-  if (v.type === "Bool") return v.data ? 1 : 0;
-  return undefined;
+  return normalizedValueAsNumber(v);
+}
+
+export function valueAsNumericArray(
+  v: Value | undefined,
+  fallback = 0,
+): number[] | undefined {
+  return normalizedValueAsNumericArray(v, fallback);
+}
+
+export function valueAsTransform(
+  v: Value | undefined,
+): NormalizedTransform | undefined {
+  return normalizedValueAsTransform(v);
 }
