@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@vizij/node-graph-wasm": "^0.3.0",
+    "@vizij/value-json": "link:../../vizij-rs/npm/@vizij/value-json",
     "react": "^18.2.0"
   },
   "peerDependencies": {

@@ -1,6 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
 import type { ValueJSON } from "@vizij/node-graph-wasm";
-import { useGraphRuntime, useNodeOutput } from "@vizij/node-graph-react";
+import {
+  useGraphRuntime,
+  useNodeOutput,
+  valueAsNumber,
+} from "@vizij/node-graph-react";
 import { ParamEditor } from "./ParamEditor";
 
 const MAX_URDF_BYTES = 1_000_000; // ~1 MB safeguard
@@ -33,14 +37,6 @@ function isRecord(
   value: ValueJSON,
 ): value is { record: Record<string, ValueJSON> } {
   return typeof value === "object" && value !== null && "record" in value;
-}
-
-function valueAsNumber(value: ValueJSON | undefined): number | null {
-  if (!value || typeof value !== "object") return null;
-  if ("float" in value) return value.float;
-  if ("vec3" in value) return value.vec3[0] ?? null;
-  if ("vector" in value && value.vector.length > 0) return value.vector[0];
-  return null;
 }
 
 function parseNumberList(source: string): number[] | null {

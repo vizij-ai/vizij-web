@@ -14,125 +14,7 @@ import type {
 import { valueToJSON } from "./valueHelpers";
 
 function normalizeForGraph(kind: ValueKind, value: any): ValueJSON {
-  switch (kind) {
-    case "float":
-      return { float: Number(value ?? 0) };
-    case "bool":
-      return { bool: Boolean(value) };
-    case "vec2": {
-      const vec = value ?? {};
-      return {
-        vec2: [Number(vec.x ?? vec[0] ?? 0), Number(vec.y ?? vec[1] ?? 0)],
-      };
-    }
-    case "vec3": {
-      const vec = value ?? {};
-      return {
-        vec3: [
-          Number(vec.x ?? vec[0] ?? 0),
-          Number(vec.y ?? vec[1] ?? 0),
-          Number(vec.z ?? vec[2] ?? 0),
-        ],
-      };
-    }
-    case "vec4":
-    case "quat": {
-      const vec = value ?? {};
-      const data: [number, number, number, number] = [
-        Number(vec.x ?? vec[0] ?? 0),
-        Number(vec.y ?? vec[1] ?? 0),
-        Number(vec.z ?? vec[2] ?? 0),
-        Number(vec.w ?? vec[3] ?? 0),
-      ];
-      return kind === "quat" ? { quat: data } : { vec4: data };
-    }
-    case "color": {
-      const col = value ?? {};
-      return {
-        color: [
-          Number(col.r ?? col[0] ?? 1),
-          Number(col.g ?? col[1] ?? 1),
-          Number(col.b ?? col[2] ?? 1),
-          Number(col.a ?? col[3] ?? 1),
-        ],
-      };
-    }
-    case "vector":
-      return {
-        vector: Array.isArray(value)
-          ? value.map((entry) => Number(entry ?? 0))
-          : [],
-      };
-    case "transform": {
-      const transform = value ?? {};
-      const translation: [number, number, number] = [
-        Number(
-          transform.translation?.x ??
-            transform.translation?.[0] ??
-            transform.position?.x ??
-            transform.position?.[0] ??
-            transform.pos?.x ??
-            transform.pos?.[0] ??
-            0,
-        ),
-        Number(
-          transform.translation?.y ??
-            transform.translation?.[1] ??
-            transform.position?.y ??
-            transform.position?.[1] ??
-            transform.pos?.y ??
-            transform.pos?.[1] ??
-            0,
-        ),
-        Number(
-          transform.translation?.z ??
-            transform.translation?.[2] ??
-            transform.position?.z ??
-            transform.position?.[2] ??
-            transform.pos?.z ??
-            transform.pos?.[2] ??
-            0,
-        ),
-      ];
-      const rotation: [number, number, number, number] = [
-        Number(transform.rotation?.x ?? transform.rotation?.[0] ?? 0),
-        Number(transform.rotation?.y ?? transform.rotation?.[1] ?? 0),
-        Number(transform.rotation?.z ?? transform.rotation?.[2] ?? 0),
-        Number(transform.rotation?.w ?? transform.rotation?.[3] ?? 1),
-      ];
-      const scale: [number, number, number] = [
-        Number(transform.scale?.x ?? transform.scale?.[0] ?? 1),
-        Number(transform.scale?.y ?? transform.scale?.[1] ?? 1),
-        Number(transform.scale?.z ?? transform.scale?.[2] ?? 1),
-      ];
-      const payload: any = {
-        translation,
-        rotation,
-        scale,
-      };
-      payload.pos = translation;
-      payload.rot = rotation;
-      return {
-        transform: payload,
-      };
-    }
-    case "custom": {
-      if (typeof value === "string") {
-        try {
-          const parsed = JSON.parse(value);
-          return parsed as ValueJSON;
-        } catch {
-          return { text: value };
-        }
-      }
-      if (value == null) {
-        return { text: "" };
-      }
-      return value as ValueJSON;
-    }
-    default:
-      return value as ValueJSON;
-  }
+  return valueToJSON(kind, value);
 }
 
 function parseShapeJson(shape?: string): any | undefined {
@@ -222,28 +104,35 @@ function convertTrack(track: AnimationTrackState): any {
     id: track.id,
     name: track.name,
     animatableId: track.animatableId,
-    value_type: track.valueKind,
-    shape: parseShapeJson(track.shapeJson),
-    points: track.keyframes.map((key) => {
-      const base: any = {
-        id: key.id,
-        stamp: key.stamp,
-        value: valueToJSON(track.valueKind, key.value) as ValueJSON,
-      };
-      if (key.handleIn) {
-        base.handle_in = { x: key.handleIn.x, y: key.handleIn.y };
-      }
-      if (key.handleOut) {
-        base.handle_out = { x: key.handleOut.x, y: key.handleOut.y };
-      }
-      return base;
-    }),
+    points: track.keyframes
+      .slice()
+      .sort((a, b) => a.stamp - b.stamp)
+      .map((key) => {
+        const base: any = {
+          id: key.id,
+          stamp: key.stamp,
+          value: valueToJSON(track.valueKind, key.value) as ValueJSON,
+        };
+        if (key.handleIn) {
+          base.handleIn = { x: key.handleIn.x, y: key.handleIn.y };
+        }
+        if (key.handleOut) {
+          base.handleOut = { x: key.handleOut.x, y: key.handleOut.y };
+        }
+        return base;
+      }),
   };
+  if (track.shapeJson) {
+    converted.shape = parseShapeJson(track.shapeJson);
+  }
+  if (track.valueKind) {
+    converted.valueType = track.valueKind;
+  }
   if (track.optionId) {
-    converted.option_id = track.optionId;
+    converted.optionId = track.optionId;
   }
   if (track.componentKey) {
-    converted.component_key = track.componentKey;
+    converted.componentKey = track.componentKey;
   }
   return converted;
 }
@@ -377,11 +266,14 @@ export function graphStateToSpec(
   const nodes = state.nodes.map((node) => {
     const converted = convertGraphNode(node);
     if (node.type.toLowerCase() === "output") {
-      converted.params = {
-        ...(converted.params ?? {}),
-        path: outputPath,
-        shape: parseShapeJson(node.outputShapeJson),
-      };
+      const params = { ...(converted.params ?? {}) };
+      const existingPath =
+        typeof params.path === "string" && params.path.length > 0
+          ? params.path
+          : undefined;
+      params.path = existingPath ?? outputPath;
+      params.shape = parseShapeJson(node.outputShapeJson);
+      converted.params = params;
     }
     return converted;
   });

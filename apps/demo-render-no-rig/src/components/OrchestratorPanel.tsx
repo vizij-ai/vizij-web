@@ -234,7 +234,11 @@ function ensureGraphOutputs(
             ...(typeof node?.params === "object" && node?.params
               ? node.params
               : {}),
-            path: outputPath,
+            path:
+              typeof node?.params?.path === "string" &&
+              node.params.path.length > 0
+                ? node.params.path
+                : outputPath,
           },
         };
       }
@@ -299,6 +303,25 @@ function ensureGraphOutputs(
   return next as GraphRegistrationInput;
 }
 
+function extractOutputPathFromState(
+  state: GraphEditorState,
+  fallback: string,
+): string {
+  for (const node of state.nodes) {
+    if (node.type.toLowerCase() !== "output") {
+      continue;
+    }
+    const pathParam = findParam(node, "path");
+    if (typeof pathParam?.value === "string" && pathParam.value.length > 0) {
+      return pathParam.value;
+    }
+  }
+  if (state.outputs && state.outputs.length > 0) {
+    return state.outputs[0] ?? fallback;
+  }
+  return fallback;
+}
+
 function OutputBridge({
   namespace,
   path,
@@ -339,6 +362,7 @@ type InputRow = {
   path: string | null;
   kind: ValueKind;
   defaultValue: any;
+  meta?: GraphParamState["meta"];
 };
 
 type OutputRow = {
@@ -370,6 +394,14 @@ interface OrchestratorBridgeContextValue {
   inputValues: Record<string, any>;
   updateInputValue: (path: string, kind: ValueKind, value: any) => void;
   namespace: string;
+  graphToggles: Array<{
+    id: string;
+    label: string;
+    enabled: boolean;
+    isPrimary: boolean;
+  }>;
+  setGraphEnabled: (graphId: string, enabled: boolean) => void;
+  logCurrentInputs: () => void;
 }
 
 const OrchestratorBridgeContext =
@@ -385,11 +417,17 @@ export function useOrchestratorBridge() {
   return context;
 }
 
+type AdditionalGraphState = {
+  label: string;
+  state: GraphEditorState;
+};
+
 interface OrchestratorPanelProps {
   namespace: string;
   animatables: OrchestratorAnimatableOption[];
   animationState: AnimationEditorState;
   graphState: GraphEditorState;
+  extraGraphs?: AdditionalGraphState[];
   initialOutputMap?: Record<string, string> | null;
 }
 
@@ -435,6 +473,7 @@ export function OrchestratorBridgeProvider({
   animatables,
   animationState,
   graphState,
+  extraGraphs,
   initialOutputMap,
   children,
 }: OrchestratorBridgeProviderProps) {
@@ -449,7 +488,26 @@ export function OrchestratorBridgeProvider({
   } = useOrchestrator();
   const setVizijValue = useVizijStore((state) => state.setValue);
 
-  const [graphId, setGraphId] = useState<string | null>(null);
+  const graphDescriptors = useMemo(() => {
+    const descriptors: Array<{
+      id: string;
+      label: string;
+      state: GraphEditorState;
+      isPrimary: boolean;
+    }> = [
+      { id: "primary", label: "Rig Graph", state: graphState, isPrimary: true },
+    ];
+    (extraGraphs ?? []).forEach((entry, index) => {
+      descriptors.push({
+        id: `extra-${index}`,
+        label: entry.label || `Graph ${index + 2}`,
+        state: entry.state,
+        isPrimary: false,
+      });
+    });
+    return descriptors;
+  }, [graphState, extraGraphs]);
+
   const [animationId, setAnimationId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -457,15 +515,50 @@ export function OrchestratorBridgeProvider({
   const [outputOptionMap, setOutputOptionMap] = useState<
     Record<string, string>
   >({});
+  const [graphIds, setGraphIds] = useState<string[]>([]);
+  const [graphEnabledMap, setGraphEnabledMap] = useState<
+    Record<string, boolean>
+  >(() => {
+    const initial: Record<string, boolean> = {};
+    graphDescriptors.forEach((descriptor) => {
+      initial[descriptor.id] = true;
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    setGraphEnabledMap((prev) => {
+      const next: Record<string, boolean> = {};
+      graphDescriptors.forEach((descriptor) => {
+        next[descriptor.id] = prev[descriptor.id] ?? true;
+      });
+      return next;
+    });
+  }, [graphDescriptors]);
+
+  const clearRegisteredGraphs = useCallback(() => {
+    if (!graphIds.length) {
+      return;
+    }
+    graphIds.forEach((id) => removeGraph(id));
+    setGraphIds([]);
+  }, [graphIds, removeGraph]);
+
+  const combinedGraphStates = useMemo(
+    () => graphDescriptors.map((descriptor) => descriptor.state),
+    [graphDescriptors],
+  );
 
   const graphInputNodes = useMemo(
     () =>
-      graphState.nodes.filter((node) => {
-        if (!isGraphInputNode(node)) return false;
-        const path = findParam(node, "path");
-        return typeof path?.value === "string" && path.value.length > 0;
-      }),
-    [graphState],
+      combinedGraphStates.flatMap((state) =>
+        state.nodes.filter((node) => {
+          if (!isGraphInputNode(node)) return false;
+          const path = findParam(node, "path");
+          return typeof path?.value === "string" && path.value.length > 0;
+        }),
+      ),
+    [combinedGraphStates],
   );
 
   const inputRows: InputRow[] = useMemo(() => {
@@ -483,9 +576,33 @@ export function OrchestratorBridgeProvider({
         path,
         kind,
         defaultValue,
+        meta: valueParam?.meta,
       };
     });
   }, [graphInputNodes]);
+
+  const graphToggles = useMemo(
+    () =>
+      graphDescriptors.map((descriptor) => ({
+        id: descriptor.id,
+        label: descriptor.label,
+        enabled: graphEnabledMap[descriptor.id] !== false,
+        isPrimary: descriptor.isPrimary,
+      })),
+    [graphDescriptors, graphEnabledMap],
+  );
+
+  const setGraphEnabled = useCallback((graphId: string, enabled: boolean) => {
+    setGraphEnabledMap((prev) => {
+      if ((prev[graphId] ?? true) === enabled) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [graphId]: enabled,
+      };
+    });
+  }, []);
 
   const outputNodes = useMemo(
     () =>
@@ -585,16 +702,34 @@ export function OrchestratorBridgeProvider({
     });
   }, [animatables, outputNodes, outputOptionMap]);
 
-  const missingMappings = outputRows.some((row) => !row.option);
-  const invalidMappings = outputRows.some((row) => row.invalid);
+  const primaryDescriptor = graphDescriptors[0];
+  const primaryEnabled = primaryDescriptor
+    ? graphEnabledMap[primaryDescriptor.id] !== false
+    : false;
+  const activeOutputRows = primaryEnabled ? outputRows : [];
+
+  const enabledAdditionalDescriptors = graphDescriptors
+    .slice(1)
+    .filter(
+      (descriptor) =>
+        (graphEnabledMap[descriptor.id] ?? true) &&
+        descriptor.state.nodes.length > 0,
+    );
+
+  const missingMappings = activeOutputRows.some((row) => !row.option);
+  const invalidMappings = activeOutputRows.some((row) => row.invalid);
+  const hasEnabledGraphs =
+    (primaryEnabled && activeOutputRows.length > 0) ||
+    enabledAdditionalDescriptors.length > 0;
   const buttonsDisabled =
-    !outputRows.length || missingMappings || invalidMappings;
+    !hasEnabledGraphs ||
+    (primaryEnabled && (missingMappings || invalidMappings));
 
   const targetPaths = useMemo(
     () =>
       Array.from(
         new Set(
-          outputRows
+          activeOutputRows
             .map((row) => row.targetPath)
             .filter(
               (path): path is string =>
@@ -602,7 +737,7 @@ export function OrchestratorBridgeProvider({
             ),
         ),
       ),
-    [outputRows],
+    [activeOutputRows],
   );
 
   useEffect(() => {
@@ -627,24 +762,26 @@ export function OrchestratorBridgeProvider({
 
   const applyInputsToRuntime = useCallback(
     (rows: InputRow[], values: Record<string, any>) => {
+      const visited = new Set<string>();
       rows.forEach((row) => {
-        if (!row.path) return;
+        if (!row.path || visited.has(row.path)) return;
         const value = row.path in values ? values[row.path] : row.defaultValue;
         setInput(row.path, valueToJSON(row.kind, value));
+        visited.add(row.path);
       });
     },
     [setInput],
   );
 
   useEffect(() => {
-    if (outputRows.length) {
+    if (primaryEnabled && activeOutputRows.length) {
       setStatus(null);
     }
-  }, [outputRows.length]);
+  }, [activeOutputRows.length, primaryEnabled]);
 
   const summarizeOutputs = useCallback(
     () =>
-      outputRows
+      activeOutputRows
         .map(
           (row) =>
             row.option?.label ??
@@ -653,58 +790,119 @@ export function OrchestratorBridgeProvider({
             row.node.id,
         )
         .join(", "),
-    [outputRows],
+    [activeOutputRows],
   );
 
   const handleConnect = useCallback(async () => {
-    if (!outputRows.length) {
-      setStatus(
-        "Add at least one output node to the graph to connect controllers.",
-      );
+    if (!hasEnabledGraphs) {
+      setStatus("Enable at least one graph before connecting.");
       return;
     }
-    if (missingMappings) {
-      setStatus(
-        "Assign animatable targets to every graph output before connecting.",
-      );
-      return;
+    if (primaryEnabled) {
+      if (!activeOutputRows.length) {
+        setStatus(
+          "Add at least one output node to the graph to connect controllers.",
+        );
+        return;
+      }
+      if (missingMappings) {
+        setStatus(
+          "Assign animatable targets to every graph output before connecting.",
+        );
+        return;
+      }
+      if (invalidMappings) {
+        setStatus(
+          "Vector outputs require the base animatable (not individual component slices).",
+        );
+        return;
+      }
     }
-    if (invalidMappings) {
-      setStatus(
-        "Vector outputs require the base animatable (not individual component slices).",
-      );
-      return;
-    }
+    const registeredIds: string[] = [];
     try {
       await createOrchestrator();
-      if (graphId) {
-        removeGraph(graphId);
-        setGraphId(null);
-      }
+      clearRegisteredGraphs();
       if (animationId) {
         removeAnimation(animationId);
         setAnimationId(null);
       }
-
+      console.log("Registering animation", animationState);
       const animationConfig = animationStateToConfig(animationState);
+      console.log("Registering animation config", animationConfig);
       const newAnimationId = registerAnimation(animationConfig);
       setAnimationId(newAnimationId);
 
-      const primaryOutputPath =
-        outputRows[0]?.targetPath ?? outputRows[0]?.graphPath ?? "";
-      const mappedGraph = applyOutputMappings(
-        graphStateToSpec(graphState, primaryOutputPath),
-        outputRows,
-        primaryOutputPath,
-      );
-      const preparedGraph = ensureGraphOutputs(mappedGraph, primaryOutputPath);
-      const newGraphId = registerGraph(preparedGraph);
-      setGraphId(newGraphId);
+      let primaryOutputPath =
+        activeOutputRows[0]?.targetPath ??
+        activeOutputRows[0]?.graphPath ??
+        extractOutputPathFromState(graphState, "");
+
+      if (!primaryOutputPath) {
+        for (const descriptor of enabledAdditionalDescriptors) {
+          const candidate = extractOutputPathFromState(descriptor.state, "");
+          if (candidate) {
+            primaryOutputPath = candidate;
+            break;
+          }
+        }
+      }
+
+      if (primaryEnabled) {
+        if (!primaryOutputPath) {
+          setStatus("Primary graph requires at least one output path.");
+          return;
+        }
+        const mappedGraph = applyOutputMappings(
+          graphStateToSpec(graphState, primaryOutputPath),
+          activeOutputRows,
+          primaryOutputPath,
+        );
+        const preparedGraph = ensureGraphOutputs(
+          mappedGraph,
+          primaryOutputPath,
+        );
+        const primaryGraphId = registerGraph(preparedGraph);
+        registeredIds.push(primaryGraphId);
+      }
+
+      enabledAdditionalDescriptors.forEach((descriptor) => {
+        const fallbackPath = extractOutputPathFromState(
+          descriptor.state,
+          primaryOutputPath,
+        );
+        if (!fallbackPath) {
+          return;
+        }
+        const prepared = ensureGraphOutputs(
+          graphStateToSpec(descriptor.state, fallbackPath),
+          fallbackPath,
+        );
+        const graphIdentifier = registerGraph(prepared);
+        registeredIds.push(graphIdentifier);
+      });
+
+      setGraphIds(registeredIds);
 
       applyInputsToRuntime(inputRows, inputValues);
       setConnected(true);
-      setStatus(`Connected outputs: ${summarizeOutputs()}`);
+      const enabledExtrasSummary = graphToggles
+        .filter((toggle) => !toggle.isPrimary && toggle.enabled)
+        .map((toggle) => toggle.label)
+        .join(", ");
+      if (primaryEnabled && activeOutputRows.length) {
+        setStatus(`Connected outputs: ${summarizeOutputs()}`);
+      } else {
+        setStatus(
+          enabledExtrasSummary
+            ? `Connected graphs: ${enabledExtrasSummary}`
+            : "Graphs connected",
+        );
+      }
     } catch (err) {
+      if (registeredIds.length) {
+        registeredIds.forEach((id) => removeGraph(id));
+        setGraphIds([]);
+      }
       console.error("demo-render-no-rig: orchestrator connect failed", err);
       setStatus(`Connect failed: ${(err as Error).message}`);
     }
@@ -712,18 +910,22 @@ export function OrchestratorBridgeProvider({
     animationState,
     animationId,
     applyInputsToRuntime,
+    clearRegisteredGraphs,
     inputRows,
     createOrchestrator,
-    graphId,
     graphState,
     inputValues,
     missingMappings,
     invalidMappings,
-    outputRows,
+    hasEnabledGraphs,
+    primaryEnabled,
+    activeOutputRows,
+    enabledAdditionalDescriptors,
     removeAnimation,
-    removeGraph,
     registerAnimation,
     registerGraph,
+    removeGraph,
+    graphToggles,
     summarizeOutputs,
   ]);
 
@@ -732,28 +934,33 @@ export function OrchestratorBridgeProvider({
       handleConnect();
       return;
     }
-    if (!outputRows.length) {
-      setStatus(
-        "Add at least one output node to the graph to connect controllers.",
-      );
+    if (!hasEnabledGraphs) {
+      setStatus("Enable at least one graph before updating.");
       return;
     }
-    if (missingMappings) {
-      setStatus(
-        "Assign animatable targets to every graph output before updating.",
-      );
-      return;
-    }
-    if (invalidMappings) {
-      setStatus(
-        "Vector outputs require the base animatable (not component slices).",
-      );
-      return;
-    }
-    try {
-      if (graphId) {
-        removeGraph(graphId);
+    if (primaryEnabled) {
+      if (!activeOutputRows.length) {
+        setStatus(
+          "Add at least one output node to the graph to connect controllers.",
+        );
+        return;
       }
+      if (missingMappings) {
+        setStatus(
+          "Assign animatable targets to every graph output before updating.",
+        );
+        return;
+      }
+      if (invalidMappings) {
+        setStatus(
+          "Vector outputs require the base animatable (not component slices).",
+        );
+        return;
+      }
+    }
+    const registeredIds: string[] = [];
+    try {
+      clearRegisteredGraphs();
       if (animationId) {
         removeAnimation(animationId);
       }
@@ -761,20 +968,64 @@ export function OrchestratorBridgeProvider({
       const newAnimationId = registerAnimation(animationConfig);
       setAnimationId(newAnimationId);
 
-      const primaryOutputPath =
-        outputRows[0]?.targetPath ?? outputRows[0]?.graphPath ?? "";
-      const mappedGraph = applyOutputMappings(
-        graphStateToSpec(graphState, primaryOutputPath),
-        outputRows,
-        primaryOutputPath,
-      );
-      const preparedGraph = ensureGraphOutputs(mappedGraph, primaryOutputPath);
-      const newGraphId = registerGraph(preparedGraph);
-      setGraphId(newGraphId);
+      let primaryOutputPath =
+        activeOutputRows[0]?.targetPath ??
+        activeOutputRows[0]?.graphPath ??
+        extractOutputPathFromState(graphState, "");
+
+      if (!primaryOutputPath) {
+        for (const descriptor of enabledAdditionalDescriptors) {
+          const candidate = extractOutputPathFromState(descriptor.state, "");
+          if (candidate) {
+            primaryOutputPath = candidate;
+            break;
+          }
+        }
+      }
+
+      if (primaryEnabled) {
+        if (!primaryOutputPath) {
+          setStatus("Primary graph requires at least one output path.");
+          return;
+        }
+        const mappedGraph = applyOutputMappings(
+          graphStateToSpec(graphState, primaryOutputPath),
+          activeOutputRows,
+          primaryOutputPath,
+        );
+        const preparedGraph = ensureGraphOutputs(
+          mappedGraph,
+          primaryOutputPath,
+        );
+        const primaryGraphId = registerGraph(preparedGraph);
+        registeredIds.push(primaryGraphId);
+      }
+
+      enabledAdditionalDescriptors.forEach((descriptor) => {
+        const fallbackPath = extractOutputPathFromState(
+          descriptor.state,
+          primaryOutputPath,
+        );
+        if (!fallbackPath) {
+          return;
+        }
+        const prepared = ensureGraphOutputs(
+          graphStateToSpec(descriptor.state, fallbackPath),
+          fallbackPath,
+        );
+        const graphIdentifier = registerGraph(prepared);
+        registeredIds.push(graphIdentifier);
+      });
+
+      setGraphIds(registeredIds);
       applyInputsToRuntime(inputRows, inputValues);
       setConnected(true);
       setStatus("Controllers updated");
     } catch (err) {
+      if (registeredIds.length) {
+        registeredIds.forEach((id) => removeGraph(id));
+        setGraphIds([]);
+      }
       console.error("demo-render-no-rig: orchestrator update failed", err);
       setStatus(`Update failed: ${(err as Error).message}`);
     }
@@ -784,13 +1035,16 @@ export function OrchestratorBridgeProvider({
     applyInputsToRuntime,
     inputRows,
     connected,
-    graphId,
     graphState,
     handleConnect,
     inputValues,
     invalidMappings,
+    hasEnabledGraphs,
+    primaryEnabled,
+    activeOutputRows,
+    enabledAdditionalDescriptors,
+    clearRegisteredGraphs,
     missingMappings,
-    outputRows,
     registerAnimation,
     registerGraph,
     removeAnimation,
@@ -798,17 +1052,14 @@ export function OrchestratorBridgeProvider({
   ]);
 
   const handleDisconnect = useCallback(() => {
-    if (graphId) {
-      removeGraph(graphId);
-    }
+    clearRegisteredGraphs();
     if (animationId) {
       removeAnimation(animationId);
     }
-    setGraphId(null);
     setAnimationId(null);
     setConnected(false);
     setStatus("Disconnected");
-  }, [animationId, graphId, removeAnimation, removeGraph]);
+  }, [animationId, removeAnimation, clearRegisteredGraphs]);
 
   const currentMappingsSummary = outputRows
     .map((row) => row.option?.animId ?? row.graphPath ?? "–")
@@ -849,6 +1100,38 @@ export function OrchestratorBridgeProvider({
     [connected, setInput],
   );
 
+  const logCurrentInputs = useCallback(() => {
+    const entries = inputRows
+      .filter((row) => row.path)
+      .map((row) => {
+        const path = row.path as string;
+        const value =
+          path in inputValues ? inputValues[path] : row.defaultValue;
+        return { path, value };
+      });
+
+    if (!entries.length) {
+      console.log("poses: [];");
+      return;
+    }
+
+    const lines = entries.map(({ path, value }) => {
+      let formatted: string;
+      if (typeof value === "number") {
+        formatted = Number(value).toString();
+      } else if (typeof value === "string") {
+        formatted = JSON.stringify(value);
+      } else if (typeof value === "boolean") {
+        formatted = value ? "true" : "false";
+      } else {
+        formatted = JSON.stringify(value);
+      }
+      return `  { path: "${path}", value: ${formatted} }`;
+    });
+    const payload = `poses: [\n${lines.join(",\n")}\n];`;
+    console.log(payload);
+  }, [inputRows, inputValues]);
+
   const contextValue = useMemo<OrchestratorBridgeContextValue>(
     () => ({
       ready,
@@ -869,6 +1152,9 @@ export function OrchestratorBridgeProvider({
       inputValues,
       updateInputValue,
       namespace,
+      graphToggles,
+      setGraphEnabled,
+      logCurrentInputs,
     }),
     [
       animatables,
@@ -881,11 +1167,14 @@ export function OrchestratorBridgeProvider({
       inputRows,
       inputValues,
       invalidMappings,
+      logCurrentInputs,
       missingMappings,
       namespace,
       outputComponentsSummary,
       outputRows,
       ready,
+      graphToggles,
+      setGraphEnabled,
       setOutputOption,
       status,
       updateInputValue,
@@ -923,10 +1212,38 @@ export function OrchestratorPanel() {
     handleUpdateControllers,
     handleDisconnect,
     setOutputOption,
+    graphToggles,
+    setGraphEnabled,
+    logCurrentInputs,
   } = useOrchestratorBridge();
 
   return (
     <>
+      {graphToggles.length ? (
+        <div className="graph-toggle-bar">
+          <div className="graph-toggle-list">
+            {graphToggles.map((toggle) => (
+              <label key={toggle.id} className="graph-toggle-item">
+                <input
+                  type="checkbox"
+                  checked={toggle.enabled}
+                  onChange={(event) =>
+                    setGraphEnabled(toggle.id, event.target.checked)
+                  }
+                />
+                <span>{toggle.label}</span>
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="btn btn-muted"
+            onClick={logCurrentInputs}
+          >
+            Log rig inputs
+          </button>
+        </div>
+      ) : null}
       <div className="graph-output-table">
         {missingMappings ? (
           <p className="bridge-note">
@@ -1064,6 +1381,18 @@ export function OrchestratorInputsPanel() {
                 updateInputValue(row.path!, row.kind, newValue)
               }
               allowDynamicLength={row.kind === "vector"}
+              options={
+                row.meta &&
+                typeof row.meta.min === "number" &&
+                typeof row.meta.max === "number"
+                  ? {
+                      initialBounds: [row.meta.min, row.meta.max],
+                      step: row.meta.step,
+                    }
+                  : row.meta?.step
+                    ? { step: row.meta.step }
+                    : undefined
+              }
             />
           </label>
         );

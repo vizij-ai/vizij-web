@@ -83,6 +83,12 @@ export type GraphParamState = {
   label: string;
   type: ValueKind;
   value: any;
+  meta?: {
+    min?: number;
+    max?: number;
+    step?: number;
+    fixedBounds?: boolean;
+  };
 };
 
 export type GraphNodeState = {

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { useVizijStoreSubscription } from "@vizij/render";
+import { useVizijStore, useVizijStoreSubscription } from "@vizij/render";
 import type { VizijActions, VizijData } from "@vizij/render";
 import { getNamespace, getId } from "@vizij/utils";
 import type { RawValue } from "@vizij/utils";
@@ -32,16 +32,28 @@ export function ActiveValuesPanel({ namespace }: { namespace: string }) {
 
   useVizijStoreSubscription(selector, setRawEntries);
 
+  const animatables = useVizijStore((state) => state.animatables);
+
   const entries = useMemo(() => {
-    const list: Array<{ animId: string; value: RawValue | undefined }> = [];
+    const list: Array<{
+      animId: string;
+      label: string;
+      value: RawValue | undefined;
+    }> = [];
     rawEntries.forEach(([key, value]) => {
       if (getNamespace(key) !== namespace) {
         return;
       }
-      list.push({ animId: getId(key), value });
+      const animId = getId(key);
+      const animInfo = animatables[animId];
+      const label =
+        (typeof animInfo?.name === "string" && animInfo.name.trim().length > 0
+          ? animInfo.name
+          : animId) ?? animId;
+      list.push({ animId, label, value });
     });
     return list;
-  }, [rawEntries, namespace]);
+  }, [rawEntries, namespace, animatables]);
 
   return (
     <div className="panel">
@@ -56,10 +68,12 @@ export function ActiveValuesPanel({ namespace }: { namespace: string }) {
           </div>
         ) : (
           <ul className="value-list">
-            {entries.map(({ animId, value }) => (
+            {entries.map(({ animId, label, value }) => (
               <Fragment key={animId}>
                 <li>
-                  <span className="value-id">{animId}</span>
+                  <span className="value-id" title={animId}>
+                    {label}
+                  </span>
                   <span className="value-data">{formatValue(value)}</span>
                 </li>
               </Fragment>

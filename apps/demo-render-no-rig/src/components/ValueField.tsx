@@ -2,11 +2,17 @@ import { useEffect, useState } from "react";
 import type { ValueKind } from "../types";
 import { defaultValueForKind } from "../utils/valueHelpers";
 
+export type ValueFieldOptions = {
+  initialBounds?: [number, number];
+  step?: number;
+};
+
 interface ValueFieldProps {
   kind: ValueKind;
   value: any;
   onChange: (value: any) => void;
   allowDynamicLength?: boolean;
+  options?: ValueFieldOptions;
 }
 
 type ClampOptions = {
@@ -41,6 +47,7 @@ type SliderOptions = {
   unitRange?: boolean;
   step?: number;
   initialBounds?: [number, number];
+  readOnly?: boolean;
 };
 
 function SliderWithBounds({
@@ -53,7 +60,19 @@ function SliderWithBounds({
   options?: SliderOptions;
 }) {
   const numeric = Number.isFinite(value) ? value : 0;
-  const step = options?.step ?? 0.01;
+  const computedStep = (() => {
+    if (options?.step && Number.isFinite(options.step)) {
+      return options.step;
+    }
+    if (options?.initialBounds) {
+      const [minBound, maxBound] = options.initialBounds;
+      const span = maxBound - minBound;
+      if (Number.isFinite(span) && span !== 0) {
+        return Math.max(Math.abs(span) / 100, 0.0001);
+      }
+    }
+    return 0.01;
+  })();
   const [{ min, max }, setBounds] = useState(() => {
     if (options?.initialBounds) {
       const [initialMin, initialMax] = options.initialBounds;
@@ -77,6 +96,13 @@ function SliderWithBounds({
   };
 
   const displayValue = clampValue(numeric);
+
+  useEffect(() => {
+    if (options?.initialBounds) {
+      const [minBound, maxBound] = options.initialBounds;
+      setBounds({ min: minBound, max: maxBound });
+    }
+  }, [options?.initialBounds?.[0], options?.initialBounds?.[1]]);
 
   useEffect(() => {
     if (numeric !== displayValue) {
@@ -116,7 +142,7 @@ function SliderWithBounds({
         type="number"
         className="slider-bound"
         value={min}
-        step={step}
+        step={computedStep}
         onChange={(event) => handleMinChange(Number(event.target.value))}
         aria-label="Minimum"
       />
@@ -124,16 +150,17 @@ function SliderWithBounds({
         type="range"
         min={sliderMin}
         max={sliderMax}
-        step={step}
+        step={computedStep}
         value={displayValue}
-        title={displayValue.toFixed(2)}
+        title={displayValue.toFixed(4)}
         onChange={(event) => onChange(Number(event.target.value))}
       />
+      <span className="slider-value">{displayValue.toFixed(4)}</span>
       <input
         type="number"
         className="slider-bound"
         value={max}
-        step={step}
+        step={computedStep}
         onChange={(event) => handleMaxChange(Number(event.target.value))}
         aria-label="Maximum"
       />
@@ -146,6 +173,7 @@ export function ValueField({
   value,
   onChange,
   allowDynamicLength,
+  options,
 }: ValueFieldProps) {
   switch (kind) {
     case "float": {
@@ -158,6 +186,8 @@ export function ValueField({
           options={{
             positiveOnly: unitRange,
             unitRange,
+            initialBounds: options?.initialBounds,
+            step: options?.step,
           }}
         />
       );
@@ -194,6 +224,10 @@ export function ValueField({
                       [key]: next,
                     })
                   }
+                  options={{
+                    initialBounds: options?.initialBounds,
+                    step: options?.step,
+                  }}
                 />
               </div>
             );
@@ -244,6 +278,10 @@ export function ValueField({
                     const next = [...arr];
                     next[index] = nextValue;
                     onChange(next);
+                  }}
+                  options={{
+                    initialBounds: options?.initialBounds,
+                    step: options?.step,
                   }}
                 />
               </div>
@@ -305,6 +343,8 @@ export function ValueField({
                         }
                         options={{
                           positiveOnly: key === "scale",
+                          initialBounds: options?.initialBounds,
+                          step: options?.step,
                         }}
                       />
                     </div>

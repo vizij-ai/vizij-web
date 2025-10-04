@@ -9,6 +9,7 @@ import type {
   AnimatableListGroup,
   AnimatableListItem,
   GraphEditorState,
+  GraphParamState,
   GraphNodeState,
   ValueKind,
 } from "../types";
@@ -27,6 +28,36 @@ const TRACK_DEFAULT_INPUT: Record<string, number> = {
   scale: 1,
   morph: 0,
 };
+
+function rangeMetaForTrack(
+  trackKind: string,
+): GraphParamState["meta"] | undefined {
+  switch (trackKind) {
+    case "scale": {
+      const min = 0;
+      const max = 5;
+      return { min, max, step: (max - min) / 100 };
+    }
+    case "pos": {
+      const min = -0.3;
+      const max = 0.3;
+      return { min, max, step: (max - min) / 100 };
+    }
+    case "rot":
+    case "rotation": {
+      const min = -1.6;
+      const max = 1.6;
+      return { min, max, step: (max - min) / 100 };
+    }
+    case "morph": {
+      const min = -3;
+      const max = 3;
+      return { min, max, step: (max - min) / 100 };
+    }
+    default:
+      return undefined;
+  }
+}
 
 function sanitizeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_]/g, "_");
@@ -155,6 +186,7 @@ function makeInputNode(options: {
   path: string;
   defaultValue: number | number[];
   kind: ValueKind;
+  meta?: GraphParamState["meta"];
 }): GraphNodeState {
   return {
     id: options.id,
@@ -168,6 +200,7 @@ function makeInputNode(options: {
         label: "Default",
         type: options.kind,
         value: options.defaultValue,
+        meta: options.meta,
       },
     ],
     inputs: {},
@@ -349,6 +382,7 @@ function buildTrackNodes(options: {
   const axes = collectTrackAxes(options.track, trackKind);
 
   if (trackKind === "morph") {
+    const rangeMeta = rangeMetaForTrack(trackKind);
     const inputId = sanitizeId(
       `${options.channelName}_${options.trackName}_input`,
     );
@@ -360,6 +394,7 @@ function buildTrackNodes(options: {
         path: inputPath,
         defaultValue: TRACK_DEFAULT_INPUT[trackKind] ?? 0,
         kind: "float",
+        meta: rangeMeta,
       }),
     );
     inputPaths.push(inputPath);
@@ -409,6 +444,7 @@ function buildTrackNodes(options: {
   AXES.forEach((axis) => {
     const axisLabel = `${options.channelName} ${options.trackName} ${axis.toUpperCase()}`;
     if (axes.includes(axis)) {
+      const rangeMeta = rangeMetaForTrack(trackKind);
       const inputPath = `rig/${options.faceId}/${options.channelName}/${options.trackName}/${axis}`;
       const inputId = sanitizeId(
         `${options.channelName}_${options.trackName}_${axis}_input`,
@@ -420,6 +456,7 @@ function buildTrackNodes(options: {
           path: inputPath,
           defaultValue: TRACK_DEFAULT_INPUT[trackKind] ?? 0,
           kind: "float",
+          meta: rangeMeta,
         }),
       );
       inputPaths.push(inputPath);

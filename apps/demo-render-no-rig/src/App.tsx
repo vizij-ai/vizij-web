@@ -17,6 +17,7 @@ import { useFaceLoader } from "./hooks/useFaceLoader";
 import { useAnimatableList } from "./hooks/useAnimatableList";
 import { useNodeRegistry } from "./hooks/useNodeRegistry";
 import { buildRigGraph } from "./rig/rigGraphGenerator";
+import { buildExpressionGraph } from "./rig/expressionGraphGenerator";
 import {
   DEFAULT_ANIMATION_STATE,
   DEFAULT_GRAPH_STATE,
@@ -39,14 +40,23 @@ export default function App() {
   const [animationState, setAnimationState] = useState<AnimationEditorState>(
     () => structuredClone(DEFAULT_ANIMATION_STATE),
   );
-  const [graphState, setGraphState] = useState<GraphEditorState>(() =>
+  const createEmptyGraph = () => ({
+    nodes: [] as GraphEditorState["nodes"],
+    inputs: [] as GraphEditorState["inputs"],
+    outputs: [] as GraphEditorState["outputs"],
+  });
+
+  const [rigGraphState, setRigGraphState] = useState<GraphEditorState>(() =>
     structuredClone(DEFAULT_GRAPH_STATE),
   );
+  const [expressionGraphState, setExpressionGraphState] =
+    useState<GraphEditorState>(createEmptyGraph);
   const [rigOutputMap, setRigOutputMap] = useState<Record<
     string,
     string
   > | null>(null);
   const lastRigSignatureRef = useRef<string | null>(null);
+  const lastExpressionSignatureRef = useRef<string | null>(null);
 
   const face = useMemo(
     () => getFaceById(selectedFaceId) ?? FACES[0],
@@ -72,11 +82,20 @@ export default function App() {
     return buildRigGraph(face.id, face.rig, animatableList.groups);
   }, [face, loader.ready, animatableList.groups]);
 
+  const expressionGraph = useMemo(() => {
+    if (!face?.rig) {
+      return null;
+    }
+    return buildExpressionGraph(face.id);
+  }, [face]);
+
   useEffect(() => {
     if (!face?.rig) {
       lastRigSignatureRef.current = null;
+      lastExpressionSignatureRef.current = null;
       setRigOutputMap(null);
-      setGraphState(structuredClone(DEFAULT_GRAPH_STATE));
+      setRigGraphState(structuredClone(DEFAULT_GRAPH_STATE));
+      setExpressionGraphState(createEmptyGraph());
       return;
     }
 
@@ -86,13 +105,27 @@ export default function App() {
 
     const signature = JSON.stringify(rigGraph.outputNodeToAnimId);
     if (lastRigSignatureRef.current === signature) {
+      // Rig graph unchanged – still update emotion graph if needed.
+    } else {
+      lastRigSignatureRef.current = signature;
+      setRigOutputMap(rigGraph.outputNodeToAnimId);
+      setRigGraphState(structuredClone(rigGraph.graph));
+    }
+
+    if (!expressionGraph) {
+      lastExpressionSignatureRef.current = null;
+      setExpressionGraphState(createEmptyGraph());
       return;
     }
 
-    lastRigSignatureRef.current = signature;
-    setRigOutputMap(rigGraph.outputNodeToAnimId);
-    setGraphState(structuredClone(rigGraph.graph));
-  }, [face, rigGraph]);
+    const expressionSignature = JSON.stringify(expressionGraph);
+    if (lastExpressionSignatureRef.current === expressionSignature) {
+      return;
+    }
+
+    lastExpressionSignatureRef.current = expressionSignature;
+    setExpressionGraphState(structuredClone(expressionGraph));
+  }, [face, rigGraph, expressionGraph]);
 
   useEffect(() => {
     setAnimationState((prev) =>
@@ -116,8 +149,12 @@ export default function App() {
     downloadJSON("eye-roll-animation.json", animationState);
   };
 
-  const handleExportGraph = () => {
-    downloadJSON("eye-roll-graph.json", graphState);
+  const handleExportRigGraph = () => {
+    downloadJSON("rig-graph.json", rigGraphState);
+  };
+
+  const handleExportExpressionGraph = () => {
+    downloadJSON("emotion-graph.json", expressionGraphState);
   };
 
   const handleImportAnimation = async (file: File) => {
@@ -140,7 +177,7 @@ export default function App() {
     }
   };
 
-  const handleImportGraph = async (file: File) => {
+  const handleImportRigGraph = async (file: File) => {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -148,10 +185,25 @@ export default function App() {
         throw new Error("Invalid graph file.");
       }
       const nextState = parsed as GraphEditorState;
-      setGraphState(structuredClone(nextState));
+      setRigGraphState(structuredClone(nextState));
     } catch (err) {
       console.error("demo-render-no-rig: failed to import graph", err);
       alert(`Failed to import graph: ${(err as Error).message}`);
+    }
+  };
+
+  const handleImportExpressionGraph = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid graph file.");
+      }
+      const nextState = parsed as GraphEditorState;
+      setExpressionGraphState(structuredClone(nextState));
+    } catch (err) {
+      console.error("demo-render-no-rig: failed to import emotion graph", err);
+      alert(`Failed to import emotion graph: ${(err as Error).message}`);
     }
   };
 
@@ -183,7 +235,17 @@ export default function App() {
         namespace={namespace}
         animatables={animatableOptions}
         animationState={animationState}
-        graphState={graphState}
+        graphState={rigGraphState}
+        extraGraphs={
+          expressionGraphState.nodes.length
+            ? [
+                {
+                  label: "Emotion Graph",
+                  state: expressionGraphState,
+                },
+              ]
+            : []
+        }
         initialOutputMap={rigOutputMap}
       >
         <main className="app-main">
@@ -253,14 +315,25 @@ export default function App() {
             onImport={handleImportAnimation}
           />
           <GraphEditor
-            value={graphState}
-            onChange={setGraphState}
+            value={rigGraphState}
+            onChange={setRigGraphState}
             registry={registry}
             loading={registryLoading}
             error={registryError}
-            onExport={handleExportGraph}
-            onImport={handleImportGraph}
+            onExport={handleExportRigGraph}
+            onImport={handleImportRigGraph}
           />
+          {expressionGraphState.nodes.length ? (
+            <GraphEditor
+              value={expressionGraphState}
+              onChange={setExpressionGraphState}
+              registry={registry}
+              loading={registryLoading}
+              error={registryError}
+              onExport={handleExportExpressionGraph}
+              onImport={handleImportExpressionGraph}
+            />
+          ) : null}
         </section>
       </OrchestratorBridgeProvider>
     </div>

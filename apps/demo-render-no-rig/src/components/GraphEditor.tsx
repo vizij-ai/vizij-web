@@ -44,6 +44,7 @@ type ParamBlueprint = {
   label: string;
   kind: ValueKind;
   defaultValue: any;
+  meta?: GraphParamState["meta"];
 };
 
 function cloneState(state: GraphEditorState): GraphEditorState {
@@ -87,7 +88,15 @@ function paramBlueprintsFromSchema(
       "custom",
     );
     const defaultValue = param?.default ?? defaultValueForKind(kind);
-    return { id, label, kind, defaultValue };
+    const meta: GraphParamState["meta"] | undefined =
+      typeof param?.min === "number" || typeof param?.max === "number"
+        ? {
+            min: typeof param.min === "number" ? param.min : undefined,
+            max: typeof param.max === "number" ? param.max : undefined,
+            step: typeof param.step === "number" ? param.step : undefined,
+          }
+        : undefined;
+    return { id, label, kind, defaultValue, meta };
   });
 }
 
@@ -112,6 +121,7 @@ function ensureParamsMatchBlueprints(
         ...existing,
         label: existing.label || blueprint.label,
         type: existing.type,
+        meta: existing.meta ?? blueprint.meta,
       };
     }
     return {
@@ -119,6 +129,7 @@ function ensureParamsMatchBlueprints(
       label: blueprint.label,
       type: blueprint.kind,
       value: structuredClone(blueprint.defaultValue),
+      meta: structuredClone(blueprint.meta),
     };
   });
   (params ?? []).forEach((param) => {
@@ -894,6 +905,23 @@ export function GraphEditor({
                             )
                           }
                           allowDynamicLength={param.type === "vector"}
+                          options={
+                            param.meta &&
+                            typeof param.meta.min === "number" &&
+                            typeof param.meta.max === "number"
+                              ? {
+                                  initialBounds: [
+                                    param.meta.min,
+                                    param.meta.max,
+                                  ],
+                                  step: param.meta.step,
+                                }
+                              : param.meta?.step
+                                ? {
+                                    step: param.meta.step,
+                                  }
+                                : undefined
+                          }
                         />
                       </label>
                     </div>
