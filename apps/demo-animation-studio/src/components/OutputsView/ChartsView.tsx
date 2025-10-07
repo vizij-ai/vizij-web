@@ -1,61 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import {
-  valueAsNumber,
-  valueAsNumericArray,
-  valueAsTransform,
-  type Value,
-} from "@vizij/animation-react";
+import type { Value } from "@vizij/animation-react";
+import { valueToSeries } from "../../utils/valueFormat";
 
 type Sample = { t: number; v: Value };
 type HistoryEntry = { value: Sample[]; derivative: Sample[] };
 type History = Record<string, HistoryEntry>;
-
-function valueToSeries(v: Value): number[] | null {
-  switch (v.type) {
-    case "float": {
-      const num = valueAsNumber(v);
-      return [typeof num === "number" ? num : 0];
-    }
-    case "bool":
-      return [v.data ? 1 : 0];
-    case "vec2":
-    case "vec3":
-    case "vec4":
-    case "quat":
-    case "colorrgba":
-    case "vector": {
-      const arr = valueAsNumericArray(v);
-      return arr ? arr.map((n) => (Number.isFinite(n) ? Number(n) : 0)) : null;
-    }
-    case "transform": {
-      const tr = valueAsTransform(v);
-      if (!tr) return null;
-      return [
-        ...tr.translation.map((n) => (Number.isFinite(n) ? Number(n) : 0)),
-        ...tr.rotation.map((n) => (Number.isFinite(n) ? Number(n) : 0)),
-        ...tr.scale.map((n) => (Number.isFinite(n) ? Number(n) : 0)),
-      ];
-    }
-    case "enum": {
-      const [, inner] = v.data;
-      return inner ? valueToSeries(inner) : null;
-    }
-    case "record":
-      return (
-        Object.values(v.data)
-          .map((entry) => valueToSeries(entry))
-          .find((series) => series && series.length > 0) ?? null
-      );
-    case "array":
-    case "list":
-    case "tuple":
-      return v.data.length > 0 ? valueToSeries(v.data[0]) : null;
-    case "text":
-      return null;
-    default:
-      return null;
-  }
-}
 
 const seriesColors = [
   "#60a5fa",

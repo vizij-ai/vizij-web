@@ -16,6 +16,7 @@
     "@vizij/orchestrator-react": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/config": "workspace:*",
+    "@vizij/value-json": "^0.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

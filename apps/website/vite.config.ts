@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 const fixturesBrowserEntry = path.resolve(
   __dirname,
-  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/src/index.browser.js",
+  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/index.browser.js",
 );
 
 // https://vite.dev/config/

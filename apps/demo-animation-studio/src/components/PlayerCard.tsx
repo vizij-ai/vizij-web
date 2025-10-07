@@ -1,11 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  useAnimation,
-  valueAsNumber,
-  valueAsNumericArray,
-  valueAsTransform,
-  type Value,
-} from "@vizij/animation-react";
+import { useAnimation, type Value } from "@vizij/animation-react";
+import { formatValue } from "../utils/valueFormat";
 import type {
   AnimationInfo,
   PlayerInfo,
@@ -86,70 +81,6 @@ function usePlayerDerivative(
   }, [subscribe]);
 
   return getSnapshot();
-}
-
-function formatNumericArray(
-  data: readonly number[] | number[] | undefined,
-): string {
-  if (!data) return "—";
-  return data
-    .map((x) => (Number.isFinite(x) ? Number(x).toFixed(3) : String(x)))
-    .join(", ");
-}
-
-function formatValue(value: Value | undefined): string {
-  if (!value) return "—";
-
-  switch (value.type) {
-    case "float": {
-      const num = valueAsNumber(value);
-      return typeof num === "number" ? num.toFixed(3) : String(value.data);
-    }
-    case "bool":
-      return value.data ? "true" : "false";
-    case "text":
-      return String(value.data);
-    case "vec2":
-    case "vec3":
-    case "vec4":
-    case "quat":
-    case "colorrgba":
-    case "vector": {
-      const arr = valueAsNumericArray(value);
-      return arr ? formatNumericArray(arr) : JSON.stringify(value.data ?? null);
-    }
-    case "transform": {
-      const tr = valueAsTransform(value);
-      if (!tr) return JSON.stringify(value.data ?? null);
-      const lines: string[] = [];
-      lines.push(`translation: ${formatNumericArray(tr.translation)}`);
-      lines.push(`rotation: ${formatNumericArray(tr.rotation)}`);
-      lines.push(`scale: ${formatNumericArray(tr.scale)}`);
-      return lines.join("\n");
-    }
-    case "enum": {
-      const [tag, inner] = value.data;
-      const innerDisplay = inner ? formatValue(inner) : "—";
-      return `${tag}${innerDisplay !== "—" ? `: ${innerDisplay}` : ""}`;
-    }
-    case "record":
-      return JSON.stringify(
-        Object.fromEntries(
-          Object.entries(value.data).map(([key, val]) => [
-            key,
-            formatValue(val),
-          ]),
-        ),
-      );
-    case "array":
-    case "list":
-    case "tuple": {
-      const items = value.data as Value[];
-      return `[${items.map((entry) => formatValue(entry)).join(", ")}]`;
-    }
-    default:
-      return JSON.stringify(value.data ?? null);
-  }
 }
 
 function PlayerValueCell({

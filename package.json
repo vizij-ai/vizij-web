@@ -28,8 +28,14 @@
     "typecheck": "pnpm -r run --if-present typecheck",
     "clean": "pnpm -r run --if-present clean",
     "clean:deep": "pnpm run reset",
-    "link:wasm": "pnpm link --global @vizij/animation-wasm && pnpm link --global @vizij/node-graph-wasm && pnpm link --global @vizij/orchestrator-wasm",
+    "link:wasm": "pnpm link --global @vizij/animation-wasm && pnpm link --global @vizij/node-graph-wasm && pnpm link --global @vizij/orchestrator-wasm && pnpm link --global @vizij/value-json",
     "reset": "node -e \"const {execSync}=require('node:child_process'); execSync('rm -rf node_modules'); execSync('find apps -maxdepth 2 -name node_modules -type d -prune -exec rm -rf {} +'); execSync('find packages -maxdepth 3 -name node_modules -type d -prune -exec rm -rf {} +'); execSync('find . -type d -name .vite -prune -exec rm -rf {} +'); try{execSync('test -f pnpm-lock.yaml');execSync('pnpm install --frozen-lockfile',{stdio:'inherit'});}catch(e){execSync('pnpm install',{stdio:'inherit'})}\"",
     "dev:demo-render-no-rig": "pnpm --filter demo-render-no-rig dev"
+  },
+  "pnpm": {
+    "overrides": {
+      "@vizij/value-json": "link:../vizij-rs/npm/@vizij/value-json",
+      "@vizij/orchestrator-wasm": "link:../vizij-rs/npm/@vizij/orchestrator-wasm"
+    }
   }
 }

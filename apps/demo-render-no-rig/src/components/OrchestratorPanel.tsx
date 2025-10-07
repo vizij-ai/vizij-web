@@ -15,6 +15,15 @@ import {
   type ValueJSON,
 } from "@vizij/orchestrator-react";
 import type { RawValue } from "@vizij/utils";
+import {
+  isNormalizedValue,
+  valueAsBool,
+  valueAsColorRgba,
+  valueAsNumber,
+  valueAsText,
+  valueAsTransform,
+  valueAsVector,
+} from "@vizij/value-json";
 
 import type {
   AnimationEditorState,
@@ -94,9 +103,77 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
   ) {
     return value as unknown as RawValue;
   }
+  if (isNormalizedValue(value)) {
+    switch (value.type) {
+      case "float": {
+        const num = valueAsNumber(value);
+        return typeof num === "number" ? (num as RawValue) : undefined;
+      }
+      case "bool": {
+        const boolVal = valueAsBool(value);
+        return typeof boolVal === "boolean" ? (boolVal as RawValue) : undefined;
+      }
+      case "text": {
+        const textVal = valueAsText(value);
+        return typeof textVal === "string" ? (textVal as RawValue) : undefined;
+      }
+      case "vec2":
+      case "vec3":
+      case "vec4":
+      case "quat":
+      case "vector": {
+        const vec = valueAsVector(value);
+        return vec ? numericArrayToRaw(vec) : undefined;
+      }
+      case "colorrgba": {
+        const color = valueAsColorRgba(value);
+        if (!color) return undefined;
+        const [r = 0, g = 0, b = 0, a = 1] = color;
+        return { r, g, b, a } as unknown as RawValue;
+      }
+      case "transform": {
+        const tr = valueAsTransform(value);
+        if (!tr) return undefined;
+        const translationRaw = numericArrayToRaw(tr.translation);
+        const rotationRaw = numericArrayToRaw(tr.rotation);
+        const scaleRaw = numericArrayToRaw(tr.scale);
+        return {
+          translation: translationRaw,
+          rotation: rotationRaw,
+          scale: scaleRaw,
+          pos: translationRaw,
+          rot: rotationRaw,
+        } as unknown as RawValue;
+      }
+      case "enum": {
+        const [tag, inner] = value.data;
+        return {
+          tag,
+          value: valueJSONToRaw(inner),
+        } as unknown as RawValue;
+      }
+      case "record": {
+        const result: Record<string, RawValue | undefined> = {};
+        Object.entries(value.data).forEach(([key, entry]) => {
+          result[key] = valueJSONToRaw(entry);
+        });
+        return result as unknown as RawValue;
+      }
+      case "array":
+      case "list":
+      case "tuple":
+        return value.data.map((entry) =>
+          valueJSONToRaw(entry),
+        ) as unknown as RawValue;
+      default:
+        return undefined;
+    }
+  }
+
   if (!isRecord(value)) {
     return undefined;
   }
+
   if ("float" in value && typeof value.float === "number") {
     return value.float;
   }
@@ -106,20 +183,46 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
   if ("text" in value && typeof value.text === "string") {
     return value.text;
   }
-  if ("vec3" in value && Array.isArray(value.vec3)) {
-    const [x = 0, y = 0, z = 0] = value.vec3 as number[];
-    return { x, y, z } as unknown as RawValue;
-  }
-  if ("vec2" in value && Array.isArray(value.vec2)) {
-    const [x = 0, y = 0] = value.vec2 as number[];
-    return { x, y } as unknown as RawValue;
+  if ("transform" in value && isRecord(value.transform)) {
+    const tr = valueAsTransform(value);
+    if (!tr) return undefined;
+    const translationRaw = numericArrayToRaw(tr.translation);
+    const rotationRaw = numericArrayToRaw(tr.rotation);
+    const scaleRaw = numericArrayToRaw(tr.scale);
+    return {
+      translation: translationRaw,
+      rotation: rotationRaw,
+      scale: scaleRaw,
+      pos: translationRaw,
+      rot: rotationRaw,
+    } as unknown as RawValue;
   }
   if ("color" in value && Array.isArray(value.color)) {
-    const [r = 0, g = 0, b = 0, a = 1] = value.color as number[];
+    const color = valueAsColorRgba(value);
+    if (!color) return undefined;
+    const [r = 0, g = 0, b = 0, a = 1] = color;
     return { r, g, b, a } as unknown as RawValue;
   }
+  if ("vec4" in value && Array.isArray(value.vec4)) {
+    const vec = valueAsVector(value);
+    return vec ? numericArrayToRaw(vec) : undefined;
+  }
+  if ("vec3" in value && Array.isArray(value.vec3)) {
+    const vec = valueAsVector(value);
+    return vec ? numericArrayToRaw(vec) : undefined;
+  }
+  if ("vec2" in value && Array.isArray(value.vec2)) {
+    const vec = valueAsVector(value);
+    return vec ? numericArrayToRaw(vec) : undefined;
+  }
   if ("vector" in value && Array.isArray(value.vector)) {
-    return numericArrayToRaw(value.vector as number[]);
+    const vec = valueAsVector(value);
+    return vec ? numericArrayToRaw(vec) : undefined;
+  }
+  if ("enum" in value && isRecord(value.enum)) {
+    const tag = value.enum.tag as string;
+    const enumValue = valueJSONToRaw(value.enum.value as ValueJSON);
+    return { tag, value: enumValue } as unknown as RawValue;
   }
   if ("record" in value && isRecord(value.record)) {
     const result: Record<string, RawValue | undefined> = {};
@@ -143,73 +246,7 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
       valueJSONToRaw(entry),
     ) as unknown as RawValue;
   }
-  if ("enum" in value && isRecord(value.enum)) {
-    const tag = value.enum.tag as string;
-    const enumValue = valueJSONToRaw(value.enum.value as ValueJSON);
-    return { tag, value: enumValue } as unknown as RawValue;
-  }
-  if ("transform" in value && isRecord(value.transform)) {
-    const translationRaw = numericArrayToRaw(
-      (value.transform.translation ?? [0, 0, 0]) as number[],
-    );
-    const rotationRaw = numericArrayToRaw(
-      (value.transform.rotation ?? [0, 0, 0, 1]) as number[],
-    );
-    const scaleRaw = numericArrayToRaw(
-      (value.transform.scale ?? [1, 1, 1]) as number[],
-    );
-    return {
-      translation: translationRaw,
-      rotation: rotationRaw,
-      scale: scaleRaw,
-      // Back-compat aliases
-      pos: translationRaw,
-      rot: rotationRaw,
-    } as unknown as RawValue;
-  }
-  if ("type" in value && "data" in value) {
-    const typeName = String(value.type).toLowerCase();
-    const data = value.data as unknown;
-    switch (typeName) {
-      case "float":
-        return typeof data === "number" ? (data as RawValue) : undefined;
-      case "bool":
-        return typeof data === "boolean" ? (data as RawValue) : undefined;
-      case "text":
-        return typeof data === "string" ? (data as RawValue) : undefined;
-      case "vec2":
-        if (Array.isArray(data)) {
-          const [x = 0, y = 0] = data as number[];
-          return { x, y } as unknown as RawValue;
-        }
-        break;
-      case "vec3":
-        if (Array.isArray(data)) {
-          const [x = 0, y = 0, z = 0] = data as number[];
-          return { x, y, z } as unknown as RawValue;
-        }
-        break;
-      case "vec4":
-        if (Array.isArray(data)) {
-          const [x = 0, y = 0, z = 0, w = 0] = data as number[];
-          return { x, y, z, w } as unknown as RawValue;
-        }
-        break;
-      case "colorrgba":
-        if (Array.isArray(data)) {
-          const [r = 0, g = 0, b = 0, a = 1] = data as number[];
-          return { r, g, b, a } as unknown as RawValue;
-        }
-        break;
-      case "vector":
-        if (Array.isArray(data)) {
-          return numericArrayToRaw(data as number[]);
-        }
-        break;
-      default:
-        break;
-    }
-  }
+
   return value as unknown as RawValue;
 }
 

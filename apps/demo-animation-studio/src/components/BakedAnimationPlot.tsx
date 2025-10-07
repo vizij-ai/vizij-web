@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useAnimation } from "@vizij/animation-react";
+import { valueAsNumber, valueAsVector } from "@vizij/value-json";
 import type {
   InstanceInfo,
   StoredAnimation,
@@ -53,53 +54,26 @@ const DEFAULT_COLORS = [
 
 const collectNumbers = (value: WasmValue | null | undefined): number[] => {
   if (!value) return [];
-  const tag = typeof value.type === "string" ? value.type.toLowerCase() : "";
-  const data = value.data as unknown;
-  switch (tag) {
-    case "float": {
-      const num = Number(data);
-      return Number.isFinite(num) ? [num] : [];
-    }
-    case "bool":
-      return [data ? 1 : 0];
-    case "vec2":
-    case "vec3":
-    case "vec4":
-    case "quat":
-    case "vector":
-    case "colorrgba":
-      return Array.isArray(data)
-        ? (data as unknown[])
-            .map((n) => Number(n))
-            .filter((n) => Number.isFinite(n))
-        : [];
-    case "transform": {
-      const pos = collectNumbers((data as any)?.pos as WasmValue | undefined);
-      const rot = collectNumbers((data as any)?.rot as WasmValue | undefined);
-      const scale = collectNumbers(
-        (data as any)?.scale as WasmValue | undefined,
-      );
-      return [...pos, ...rot, ...scale];
-    }
-    case "enum": {
-      const inner = Array.isArray(data)
-        ? (data as [unknown, unknown])[1]
-        : undefined;
-      return collectNumbers(inner as WasmValue | undefined);
-    }
-    case "record":
-      return Object.values((data ?? {}) as Record<string, WasmValue>).flatMap(
-        (entry) => collectNumbers(entry),
-      );
-    case "array":
-    case "list":
-    case "tuple":
-      return Array.isArray(data)
-        ? (data as WasmValue[]).flatMap((entry) => collectNumbers(entry))
-        : [];
-    default:
-      return [];
+
+  const vector = valueAsVector(value);
+  if (Array.isArray(vector) && vector.length > 0) {
+    return vector
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry));
   }
+
+  if (value.type === "record") {
+    return Object.values(value.data ?? {}).flatMap((entry) =>
+      collectNumbers(entry),
+    );
+  }
+
+  const scalar = valueAsNumber(value);
+  if (typeof scalar === "number" && Number.isFinite(scalar)) {
+    return [scalar];
+  }
+
+  return [];
 };
 
 const toScalar = (value: WasmValue | null | undefined): number | null => {

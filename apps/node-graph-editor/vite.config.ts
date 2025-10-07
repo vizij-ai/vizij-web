@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
 const fixturesBrowserEntry = path.resolve(
   __dirname,
-  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/src/index.browser.js",
+  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/index.browser.js",
 );
 // const localWasmPkg = path.resolve(
 //   __dirname,
