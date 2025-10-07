@@ -49,7 +49,6 @@ export default function PersistencePanel(): JSX.Element {
           // setSpec accepts either plain GraphSpec or { graph, layout }
           setSpec(parsed);
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error("Failed to import spec:", err);
           window.alert("Failed to parse spec JSON. See console for details.");
         }
@@ -83,7 +82,6 @@ export default function PersistencePanel(): JSX.Element {
       localStorage.setItem("vizij_graph_spec", JSON.stringify(payload));
       window.alert("Graph saved to localStorage (vizij_graph_spec)");
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Failed to save to localStorage:", err);
       window.alert("Failed to save to localStorage. See console.");
     }
@@ -100,7 +98,6 @@ export default function PersistencePanel(): JSX.Element {
       // parsed can be GraphSpec or { graph, layout }
       setSpec(parsed);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Failed to load from localStorage:", err);
       window.alert("Failed to load from localStorage. See console.");
     }

@@ -224,14 +224,14 @@ export function GraphProvider({
 
       publishEvalResult(json ?? res ?? null);
 
-      try {
-        const nodes = (json ?? res)?.nodes;
-        // eslint-disable-next-line no-console
-        console.info(
-          "[GraphProvider] evalTick result nodes keys:",
-          nodes ? Object.keys(nodes) : null,
-        );
-      } catch {}
+      // try {
+      //   const nodes = (json ?? res)?.nodes;
+      //   // eslint-disable-next-line no-console
+      //   // console.info(
+      //   //   "[GraphProvider] evalTick result nodes keys:",
+      //   //   nodes ? Object.keys(nodes) : null,
+      //   // );
+      // } catch {}
 
       return json ?? res ?? null;
     } catch (err) {
@@ -417,10 +417,10 @@ export function GraphProvider({
       }
       const normalized = await normalizeSpec(spec);
       // eslint-disable-next-line no-console
-      console.info(
-        "[GraphProvider] loadGraph(normalized) nodes:",
-        (normalized as any)?.nodes?.length ?? 0,
-      );
+      // console.info(
+      //   "[GraphProvider] loadGraph(normalized) nodes:",
+      //   (normalized as any)?.nodes?.length ?? 0,
+      // );
       // free existing graph if present
       if (graphRef.current && typeof graphRef.current.free === "function") {
         try {
@@ -457,13 +457,13 @@ export function GraphProvider({
       }
       graphRef.current = g;
       // Log available graph methods to debug API surface
-      try {
-        // eslint-disable-next-line no-console
-        console.info(
-          "[GraphProvider] Graph instance methods:",
-          Object.getOwnPropertyNames(Object.getPrototypeOf(g)),
-        );
-      } catch {}
+      // try {
+      //   // eslint-disable-next-line no-console
+      //   console.info(
+      //     "[GraphProvider] Graph instance methods:",
+      //     Object.getOwnPropertyNames(Object.getPrototypeOf(g)),
+      //   );
+      // } catch {}
       // After load, publish an initial empty eval result (consumer may call eval)
       publishEvalResult(null);
       return g;
