@@ -1,11 +1,19 @@
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+
+const fixturesBrowserEntry = path.resolve(
+  __dirname,
+  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/src/index.browser.js",
+);
 
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.glb"],
   resolve: {
-    preserveSymlinks: true,
+    alias: {
+      "@vizij/test-fixtures": fixturesBrowserEntry,
+    },
   },
   server: {
     fs: {
@@ -20,6 +28,7 @@ export default defineConfig({
         "!**/node_modules/@vizij/orchestrator-react/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
         "!**/node_modules/@vizij/node-graph-react/**",
+        "!**/node_modules/@vizij/test-fixtures/**",
       ],
     },
     headers: {

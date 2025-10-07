@@ -15,6 +15,10 @@ const __dirname = path.dirname(__filename);
 
 // Absolute path to the mono-repo root and the local wasm package folders we need to allow
 const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
+const fixturesBrowserEntry = path.resolve(
+  __dirname,
+  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/src/index.browser.js",
+);
 // const localWasmPkg = path.resolve(
 //   __dirname,
 //   "../../vizij-rs/npm/@vizij/node-graph-wasm",
@@ -25,8 +29,9 @@ export default defineConfig({
   plugins: [react()],
   root: ".",
   resolve: {
-    // Avoid resolving symlinked workspaces to their real path; keeps node_modules URLs stable.
-    preserveSymlinks: true,
+    alias: {
+      "@vizij/test-fixtures": fixturesBrowserEntry,
+    },
   },
   server: {
     port: 5174,
@@ -39,6 +44,7 @@ export default defineConfig({
       ignored: [
         "**/node_modules/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/test-fixtures/**",
       ],
     },
   },

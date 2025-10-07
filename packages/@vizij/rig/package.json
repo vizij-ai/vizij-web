@@ -23,9 +23,12 @@
   },
   "dependencies": {
     "@vizij/config": "workspace:*",
-    "@vizij/utils": "workspace:*",
-    "react": "^18.0.0",
     "@vizij/render": "workspace:*",
-    "zustand": "^5.0.0"
+    "@vizij/utils": "workspace:*",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "@types/react": "^18.2.0"
   }
 }

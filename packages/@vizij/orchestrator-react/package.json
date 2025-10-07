@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "types": "dist/index.d.ts",
   "files": [
     "dist",
@@ -16,8 +23,8 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@vizij/orchestrator-wasm": "^0.1.0",
-    "@vizij/value-json": "link:../../vizij-rs/npm/@vizij/value-json",
+    "@vizij/orchestrator-wasm": "link:../../../../vizij-rs/npm/@vizij/orchestrator-wasm",
+    "@vizij/value-json": "link:../../../../vizij-rs/npm/@vizij/value-json",
     "react": "^18.2.0"
   },
   "peerDependencies": {

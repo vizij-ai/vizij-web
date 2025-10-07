@@ -1,13 +1,24 @@
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+
+const fixturesBrowserEntry = path.resolve(
+  __dirname,
+  "../../../vizij-rs/npm/@vizij/test-fixtures/dist/src/index.browser.js",
+);
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     // Important: don't realpath npm links; keep them under node_modules/
-    preserveSymlinks: true,
+    alias: {
+      "@vizij/test-fixtures": fixturesBrowserEntry,
+    },
   },
   server: {
+    fs: {
+      allow: ["../../../"],
+    },
     // Un-ignore these linked deps inside node_modules
     watch: {
       // anymatch supports negation; first ignore, then unignore our packages
@@ -15,6 +26,7 @@ export default defineConfig({
         "**/node_modules/**",
         "!**/node_modules/@vizij/animation-wasm/**",
         "!**/node_modules/@vizij/animation-react/**",
+        "!**/node_modules/@vizij/test-fixtures/**",
       ],
     },
     headers: {
