@@ -1,64 +1,73 @@
-# Vizij Site
+# vizij-website
 
-## Temporary Note:
+> **Marketing & documentation site for Vizij.**  
+> Built with Vite + React to showcase components, demos, and integration guides across the Vizij platform.
 
-The player has not been integrated properly yet and the wasm module must be pasted into `apps/vizij-site/animation-player/pkg` before the player can be used.
+---
 
-This site was built with the Vite + React TS template. This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Table of Contents
 
-Currently, two official plugins are available:
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Environment Variables](#environment-variables)
+4. [Structure](#structure)
+5. [Development Notes](#development-notes)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## Environment variables
+## Overview
 
-Set the API base URL used by the TTS demos with the `VITE_API_URL` variable. Create an `.env.local` file in this app with, for example:
+- Uses the shared Vizij renderer packages to embed live demos.
+- Documents API usage, rig configuration, and orchestration workflows.
+- Integrates Cloud Functions for TTS demos via a configurable API base URL.
+- Built on the Vite + React TypeScript template with ESLint configured for modern React.
+
+---
+
+## Quick Start
+
+```bash
+pnpm install
+pnpm --filter vizij-website dev
+```
+
+Additional scripts:
+
+```bash
+pnpm --filter vizij-website build      # production build + type check
+pnpm --filter vizij-website preview    # preview the production bundle
+pnpm --filter vizij-website lint       # run ESLint
+pnpm --filter vizij-website test       # (if/when tests are added)
+```
+
+---
+
+## Environment Variables
+
+Create an `.env.local` file in this app to provide the TTS API base URL:
 
 ```
 VITE_API_URL=https://us-central1-semio-vizij.cloudfunctions.net/api
 ```
 
-The value is required at runtime; the app will throw a clear error if it is missing.
+The value is required at runtime. If it is missing, the site surfaces a clear error message.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+## Structure
 
-- Configure the top-level `parserOptions` property like this:
+| Path                      | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| `src/`                    | React routes, components, and demo sections.              |
+| `src/components/`         | Marketing sections, nav, hero, CTA.                       |
+| `src/demos/`              | Embedded Vizij demos (renderer, graphs, orchestrator).    |
+| `public/`                 | Static assets.                                            |
+| `apps/website/functions/` | Cloud Functions used by the TTS demos (see README there). |
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-});
-```
+---
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+## Development Notes
 
-```js
-// eslint.config.js
-import react from "eslint-plugin-react";
-
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: "18.3" } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs["jsx-runtime"].rules,
-  },
-});
-```
+- When linking local WASM/React packages, follow the guidance in the monorepo README to preserve symlinks (`preserveSymlinks: true`) and exclude linked wasm packages from Vite’s pre-bundling step.
+- The template ships with SWC-based React fast-refresh (`@vitejs/plugin-react-swc`). Adjust ESLint rules to `recommendedTypeChecked` if you need type-aware linting (see the eslint config comments in this repo).
+- The “animation player” section still expects a wasm bundle in `apps/website/animation-player/pkg`. Rebuild `vizij-animation-wasm` and copy/link the output if you modify the animation runtime.

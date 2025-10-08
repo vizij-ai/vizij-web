@@ -1,44 +1,45 @@
 # @vizij/orchestrator-react
 
-React provider and hooks for Vizij's orchestrator runtime (WASM-backed). This package bridges
-`@vizij/orchestrator-wasm` with idiomatic React primitives so apps can register controllers,
-step the orchestrator, and subscribe to merged frame outputs without juggling imperative glue.
+> **React bindings for Vizij’s orchestrator – register controllers, stream blackboard writes, and manage playback from JSX.**
 
-## Quickstart (monorepo)
+This package layers a declarative provider and hook set on top of `@vizij/orchestrator-wasm`. It handles WASM initialisation, orchestrator creation, controller registration, frame subscriptions, and convenient helpers like `useOrchTarget`.
 
-1. Build the wasm wrapper (once per change):
-   ```bash
-   # from vizij-rs/
-   pnpm run build:wasm:orchestrator
-   ```
-2. Link the wasm package into the web workspace:
-   ```bash
-   # from vizij-web/
-   pnpm run link:wasm
-   # or, if orchestrator is not yet part of the script:
-   pnpm link --global @vizij/orchestrator-wasm
-   ```
-3. Build or typecheck this package:
-   ```bash
-   pnpm --filter "@vizij/orchestrator-react" build
-   pnpm --filter "@vizij/orchestrator-react" test
-   ```
+---
 
-## Install (external app)
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Core Concepts](#core-concepts)
+5. [Hook Reference](#hook-reference)
+6. [Development & Testing](#development--testing)
+7. [Related Packages](#related-packages)
+
+---
+
+## Overview
+
+- `OrchestratorProvider` sets up a shared orchestrator instance backed by `@vizij/orchestrator-wasm`.
+- Hooks expose imperative APIs (`useOrchestrator`) and observational subscriptions (`useOrchFrame`, `useOrchTarget`), all built on `useSyncExternalStore`.
+- Local caching ensures that host-triggered `setInput` calls update hook subscribers immediately (0.3.x improvement).
+- Works alongside `@vizij/node-graph-react` and `@vizij/animation-react` to coordinate multi-domain Vizij experiences.
+
+---
+
+## Installation
 
 ```bash
 npm install @vizij/orchestrator-react @vizij/orchestrator-wasm react react-dom
 ```
 
-Ensure your bundler can load the wasm glue. For Vite, add the `preserveSymlinks` and
-`optimizeDeps.exclude` entries shown below (the demo app uses this exact config).
+If you consume locally linked WASM packages from `vizij-rs`, configure your Vite dev server to preserve symlinks, exclude the wasm pkg from pre-bundling, and enable COOP/COEP headers. See the Vizij web monorepo README for an end-to-end example.
 
-## Usage
+---
 
-Wrap your app with the provider and use the hooks to manipulate the orchestrator:
+## Quick Start
 
 ```tsx
-import React from "react";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -46,7 +47,7 @@ import {
   useOrchTarget,
 } from "@vizij/orchestrator-react";
 
-function DemoPanel() {
+function Dashboard() {
   const {
     ready,
     createOrchestrator,
@@ -56,29 +57,32 @@ function DemoPanel() {
     step,
   } = useOrchestrator();
   const frame = useOrchFrame();
-  const firstWrite = useOrchTarget(frame?.merged_writes[0]?.path);
+  const demoValue = useOrchTarget("demo/output/value");
 
   React.useEffect(() => {
-    createOrchestrator({ schedule: "SinglePass" }).catch(console.error);
-  }, [createOrchestrator]);
+    if (!ready) {
+      createOrchestrator({ schedule: "SinglePass" }).catch(console.error);
+    }
+  }, [ready, createOrchestrator]);
 
   return (
     <div>
-      <p>Ready: {ready ? "yes" : "no"}</p>
       <button onClick={() => registerGraph({ spec: { nodes: [] } })}>
-        register graph
+        Register graph
       </button>
       <button onClick={() => registerAnimation({ setup: {} })}>
-        register anim
+        Register animation
       </button>
       <button
-        onClick={() => setInput("demo/input/value", { float: Math.random() })}
+        onClick={() =>
+          setInput("demo/input/value", { float: Math.random() * 10 })
+        }
       >
-        set input
+        Push input
       </button>
-      <button onClick={() => step(1 / 60)}>step</button>
+      <button onClick={() => step(1 / 60)}>Step</button>
       <pre>{JSON.stringify(frame?.merged_writes ?? [], null, 2)}</pre>
-      <pre>{JSON.stringify(firstWrite, null, 2)}</pre>
+      <p>Latest demo value: {JSON.stringify(demoValue)}</p>
     </div>
   );
 }
@@ -86,69 +90,76 @@ function DemoPanel() {
 export function App() {
   return (
     <OrchestratorProvider autostart={false}>
-      <DemoPanel />
+      <Dashboard />
     </OrchestratorProvider>
   );
 }
 ```
 
-### Hooks & helpers
+---
 
-- `useOrchestrator()` — access the imperative orchestrator host API (register controllers, set/remove inputs, step, list controllers).
-- `useOrchFrame()` — subscribe to the latest `OrchestratorFrame` without re-rendering the entire tree.
-- `useOrchTarget(path)` — subscribe to a single merged-write path. Returns the last value (if any).
-- `valueAsNumber / valueAsVec3 / valueAsBool` — convenience helpers for common value projections.
+## Core Concepts
 
-The provider caches merged writes internally so `useOrchTarget` only re-renders components that
-care about specific paths.
+### Provider Props
 
-## Vite configuration
+- `initInput` – Forwards optional init input to `@vizij/orchestrator-wasm.init`.
+- `autoCreate` (default `true`) – Automatically call `createOrchestrator` on mount.
+- `createOptions` – Options passed to `createOrchestrator` (e.g., `{ schedule: "TwoPass" }`).
+- `autostart` – When `true`, kicks off an `requestAnimationFrame` loop stepping the orchestrator every frame.
 
-When consuming linked wasm packages, configure Vite to keep symlinks, un-ignore the linked
-module, and avoid pre-bundling the wasm shim:
+### Context Surface
 
-```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+`useOrchestrator()` exposes:
 
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    preserveSymlinks: true,
-  },
-  server: {
-    watch: {
-      ignored: [
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/orchestrator-wasm/**",
-      ],
-    },
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
-  },
-  optimizeDeps: {
-    exclude: ["@vizij/orchestrator-wasm"],
-  },
-});
-```
+- Lifecycle: `ready`, `createOrchestrator`, `requireOrchestrator`.
+- Controller management: `registerGraph`, `registerAnimation`, `removeGraph`, `removeAnimation`, `listControllers`.
+- Blackboard API: `setInput`, `removeInput`, `prebind`.
+- Stepping: `step`, plus autostart support in the provider.
+- Internals ensure `setInput` mirrors values into a local cache so `useOrchTarget` subscribers update immediately, even before the next `step`.
 
-See `apps/demo-orchestrator` for a minimal working example including controller
-registration, manual stepping, and merged frame rendering.
+### Frame & Path Subscriptions
 
-## Testing
+- `useOrchFrame()` – Subscribes to the latest `OrchestratorFrame` (merged writes, conflicts, timings, events).
+- `useOrchTarget(path)` – Observes a single blackboard path. Paths are cached so updates only re-render interested components.
+- `valueHelpers` – `valueAsNumber`, `valueAsVec3`, `valueAsBool` mirror helpers from `@vizij/value-json` for convenience.
 
-The package ships with a Vitest suite that mocks the wasm layer. Run it via:
+### StrictMode Consideration
+
+React 18 StrictMode double-mounts providers in development. Because the orchestrator uses internal mutable refs, the second mount can leave `ready` false. Either avoid wrapping the provider in `<React.StrictMode>` or conditionally gate initialisation if you need both.
+
+---
+
+## Hook Reference
+
+| Hook                  | Description                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `useOrchestrator()`   | Returns the imperative API described above.                                                       |
+| `useOrchFrame()`      | Subscribes to the latest `OrchestratorFrame`.                                                     |
+| `useOrchTarget(path)` | Subscribes to a single merged-write path, with immediate updates on `setInput`.                   |
+| `useValueHelpers()`   | Access `valueAsNumber`, `valueAsVec3`, `valueAsBool` (or import directly from `valueHelpers.ts`). |
+
+---
+
+## Development & Testing
+
+Run scripts with pnpm filters:
 
 ```bash
+pnpm --filter "@vizij/orchestrator-react" dev
 pnpm --filter "@vizij/orchestrator-react" test
+pnpm --filter "@vizij/orchestrator-react" build
+pnpm --filter "@vizij/orchestrator-react" typecheck
 ```
 
-Vitest is configured with a lightweight stub for `@vizij/orchestrator-wasm`, so real
-binary builds are not required for CI smoke tests.
+Vitest tests mock the wasm binding to keep execution fast. When you want end-to-end coverage against the real `vizij-orchestrator-wasm` build, rebuild the WASM package in `vizij-rs` (`pnpm run build:wasm:orchestrator`) and launch the `apps/demo-orchestrator` workspace.
 
-👉 **StrictMode note:** React 18 dev StrictMode double-mounts providers. The orchestrator
-only sets `ready` during the first mount, so the second pass stays false. Run the provider
-outside `<React.StrictMode>` (as the demo does) or gate initialisation explicitly when building
-with StrictMode.
+---
+
+## Related Packages
+
+- [`@vizij/orchestrator-wasm`](../../../vizij-rs/npm/@vizij/orchestrator-wasm/README.md) – wasm wrapper consumed by this package.
+- [`vizij-orchestrator-core`](../../../vizij-rs/crates/orchestrator/vizij-orchestrator-core/README.md) – Rust crate providing orchestrator logic.
+- [`@vizij/node-graph-react`](../@vizij/node-graph-react/README.md) & [`@vizij/animation-react`](../@vizij/animation-react/README.md) – React bindings for the other Vizij stacks.
+- `apps/demo-orchestrator` – Minimal showcase using this package end-to-end.
+
+Questions or feedback? Open an issue in Vizij’s main repo—great documentation keeps orchestration predictable. 🔄

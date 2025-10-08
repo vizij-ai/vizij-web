@@ -1,47 +1,87 @@
-# Vizij Renderer No-Rig Demo
+# demo-render-no-rig
 
-This Vite app showcases how to drive a Vizij face directly through the render pipeline without loading a rig. It lets you pick one of the bundled GLB faces, streams it into the shared Vizij store, inspects every animatable exposed by the renderer, and lets you tweak values live. An embedded orchestrator demo mirrors the standalone `demo-orchestrator` example, piping its output into any animatable you select.
+> **Drive Vizij faces directly through the renderer without loading a rig.**  
+> This demo lets you swap between bundled GLB faces, tweak animatable values live, and route orchestrator outputs into the renderer.
 
-## Running the demo
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Architecture](#architecture)
+4. [Key Components](#key-components)
+5. [Development Notes](#development-notes)
+6. [Ideas for Expansion](#ideas-for-expansion)
+
+---
+
+## Overview
+
+- Built with Vite + React on top of the Vizij renderer (`packages/render`) and orchestrator bindings.
+- Loads GLB faces directly, injects them into the Vizij store, and exposes every animatable for inspection.
+- Embeds the orchestrator demo from `demo-orchestrator`, piping merged writes into any selected animatable.
+
+---
+
+## Quick Start
 
 ```bash
-# from repo root
 pnpm install
 pnpm --filter demo-render-no-rig dev
 ```
 
-The dev server opens at <http://localhost:5173>. Use the toolbar to swap faces or change the namespace, then drag sliders or inputs in the inspector to see updates in real time.
+Open `http://localhost:5173` to interact with the face viewer, inspector, and orchestrator panel.
 
-## Architecture overview
+---
 
-### Loader + store
+## Architecture
 
-- `useFaceLoader` wraps `loadGLTF` with `aggressiveImport=true`, injects world and animatables into a dedicated Vizij store, and scrubs stale state for the active namespace before applying the new face.
-- Faces and bounds live in `data/faces.ts`, reusing the website's GLB assets so every demo stays in sync.
+### Loader & Store
 
-### Canvas + inspector
+- `useFaceLoader` wraps the shared `loadGLTF` helper (`aggressiveImport=true`) and pushes world elements + animatables into the Vizij store.
+- When switching faces, the hook clears stale state for the active namespace before applying the new assets.
+- Face metadata and bounds live in `src/data/faces.ts`, shared with the marketing site to keep demos consistent.
 
-- `FaceViewer` renders `<Vizij>` once the loader returns a `rootId`, with a toggle for the safe area.
-- `AnimatableInspector` combines `useAnimatableList` (store selector) with type-aware editors for numbers, vectors, booleans, strings, and RGB/HSL colors. Every row shows constraints, the current namespace, and quick reset buttons, while subscribing directly to the Vizij store for live updates.
-- `ActiveValuesPanel` mirrors the `values` map so you can see exactly what the store is tracking.
+### Canvas & Inspector
 
-### Orchestrator bridge
+- `FaceViewer` renders the `<Vizij>` component once the loader returns a `rootId`, with controls for toggling the safe area overlay.
+- `AnimatableInspector` uses `useAnimatableList` to group animatables and renders type-aware editors (numbers, vectors, colours, booleans, text) with constraints + reset buttons.
+- `ActiveValuesPanel` mirrors the store’s `values` map so you can track all animatable changes in real time.
 
-- `OrchestratorProvider` runs the wasm runtime on the client (autostarted).
-- `OrchestratorPanel` registers the ramp animation + gain/offset graph, lets you choose which animatable the graph output should drive, and pushes the merged writes back into Vizij via `setValue`.
-- Gain/offset sliders issue blackboard inputs through `setInput`, making it easy to inspect how controller math affects the active face.
+### Orchestrator Bridge
 
-## Key files
+- `OrchestratorProvider` runs the wasm orchestrator; the panel registers a ramp animation, gain/offset graph, and streams merged writes back into Vizij via `setValue`.
+- Gain/offset sliders send blackboard inputs through `setInput`, illustrating how controller math flows into the face.
+- You can route orchestrator output to any animatable selected in the inspector.
 
-- `src/App.tsx` – top-level layout plus orchestrator wiring.
-- `src/hooks/useFaceLoader.ts` – GLB loader + Vizij store bridge.
-- `src/components/AnimatableInspector.tsx` – type-specific UI and reset helpers.
-- `src/hooks/useAnimatableList.ts` – grouping/filtering logic for the inspector.
-- `src/data/faces.ts` – face catalog shared with other demos.
-- `src/components/OrchestratorPanel.tsx` – orchestrator controls that stream merged writes into Vizij.
+---
 
-## Next steps
+## Key Components
 
-1. Share the face metadata with the marketing website to remove duplicated bounds.
-2. Add regression smoke tests (e.g., Vitest + Playwright) that load a face, tweak an animatable, and confirm orchestrator playback updates the target.
-3. Expand the orchestrator UI with transport controls (pause/scrub) or multi-output routing for complex demos.
+| File                                     | Responsibility                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `src/App.tsx`                            | Top-level layout, orchestrator wiring, and namespace controls.                   |
+| `src/hooks/useFaceLoader.ts`             | GLB loader + Vizij store integration.                                            |
+| `src/hooks/useAnimatableList.ts`         | Groups/filters animatables for the inspector UI.                                 |
+| `src/components/AnimatableInspector.tsx` | Type-specific editors and reset helpers.                                         |
+| `src/components/OrchestratorPanel.tsx`   | Orchestrator UI (register controllers, gain/offset sliders, animatable routing). |
+| `src/data/faces.ts`                      | Face catalogue (GLB paths, bounds, metadata).                                    |
+
+---
+
+## Development Notes
+
+- Build or link the renderer (`@vizij/render`) before starting the demo if you are editing it locally.
+- The Vite config already preserves symlinks and excludes WASM packages, making it friendly for linked development.
+- When adding new faces, keep file sizes moderate so the demo stays responsive.
+
+---
+
+## Ideas for Expansion
+
+1. Share face metadata directly with the public website to eliminate duplication.
+2. Add regression tests (Vitest/Playwright) that load a face, tweak an animatable, and assert orchestrator playback updates the selection.
+3. Extend the orchestrator panel with transport controls (pause/scrub) or multi-output routing for complex demos.
+
+Enjoy experimenting with Vizij faces! 😄

@@ -1,117 +1,129 @@
 # demo-graph
 
-A minimal browser demo for running a Vizij node graph (WASM) and interactively editing inputs to see outputs update in real time.
+> **Interactive playground for Vizij node graphs.**  
+> Loads graph samples, lets you edit staged inputs, and visualises output ports while running the WASM runtime in the browser.
 
-What this demo shows
+---
 
-- Load and run GraphSpec samples from @vizij/node-graph-wasm (plus one local URDF sample).
-- Simple Input editors for Input nodes (leaf-focused: float, vec3, vector, tuple, transform.pos).
-- Output panels for Output nodes (values are displayed numerically or as JSON).
-- Play/Pause control that toggles an internal RAF loop.
-- Load/save GraphSpec JSON.
+## Table of Contents
 
-## New in 0.2.x: Provider readiness + per-frame input re-staging
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Features](#features)
+4. [How It Works](#how-it-works)
+5. [Supported JSON Formats](#supported-json-formats)
+6. [Key Files](#key-files)
+7. [Troubleshooting](#troubleshooting)
 
-This demo now uses the new `@vizij/node-graph-react` provider API:
+---
 
-- `GraphProvider` with safe defaults for WASM-backed graphs:
-  - `waitForGraph` default true, so playback starts only after `loadGraph(spec)` finishes and seeds are applied.
-  - `initialParams`, `initialInputs`, and `graphLoadTimeoutMs` are available.
-- Readiness API surfaced on the runtime:
-  - `graphLoaded` boolean and `waitForGraphReady()` promise.
-  - `on/off('graphLoaded'|'graphLoadError')` event helpers.
+## Overview
 
-Host input behavior (per-frame re-staging)
+- Built with Vite + React.
+- Uses `@vizij/node-graph-react` (provider + hooks) which in turn wraps the WASM runtime (`@vizij/node-graph-wasm`).
+- Demonstrates staging behaviour: inputs are re-staged every frame when playback is active, ensuring `Input` nodes always see host values.
+- Includes sample graphs from the npm package plus a local URDF IK position example.
 
-- While Playing (`autoStart=true`), this demo re-stages the current input values each frame before the provider evaluates the graph. This guarantees Input nodes always see the latest host-provided values on every evaluation tick.
-- When Paused (`autoStart=false`), the demo re-stages all input values once and triggers a single immediate evaluation so outputs “lock” to the current state.
+---
 
-Notes
+## Quick Start
 
-- You can also rely on “latched” inputs (last staged values persist) depending on your design; this demo chooses explicit per-frame re-staging to make staging semantics visible and predictable in a simple app.
-- For larger apps, you may throttle re-staging or only re-stage changed inputs for performance.
+```bash
+# From repo root
+pnpm install
 
-Run the app
+# Ensure the WASM package is built (if you are linking locally)
+node ../vizij-rs/scripts/build-graph-wasm.mjs
+cd ../vizij-rs/npm/@vizij/node-graph-wasm && pnpm run build
+cd ../../../vizij-web
 
-1. Build wasm package and link/ensure available (from repo root):
-   - node vizij-rs/scripts/build-graph-wasm.mjs
-   - cd vizij-rs/npm/@vizij/node-graph-wasm && pnpm run build
-   - Optionally `pnpm link --global`; otherwise ensure vizij-web installs it
+# Run the demo
+pnpm --filter demo-graph dev
+```
 
-2. Start the demo:
-   - pnpm install
-   - pnpm --filter demo-graph dev
-   - Open the printed Local URL (e.g., http://localhost:5173).
+Open the printed local URL (default `http://localhost:5173`). Use the control bar to pick a sample, toggle playback, or load custom specs.
 
-How it works (updated)
+---
 
-- Samples:
-  - The demo loads graph samples exported by @vizij/node-graph-wasm (vector-playground, oscillator-basics, logic-gate, tuple-spring-damp-slew).
-  - A single local URDF IK Position sample is included (getLocalUrdfSpec) for convenience.
-- Input editors:
-  - The demo enumerates Input nodes in the current GraphSpec and renders a minimal ValueEditor per input path.
-  - The editor is controlled by a single local state map keyed by TypedPath, so edited values remain in the UI and are not tied to static spec defaults.
-  - On every edit, all inputs are staged to the runtime; when paused we trigger an immediate eval for responsiveness, while playing we let the provider’s loop evaluate on the next tick.
-- Output panels:
-  - Each Output node is rendered by a dedicated OutputPanel component which subscribes to its output using useNodeOutput.
-  - This avoids React hook order issues when switching between graphs with different numbers of outputs.
-- Play/Pause semantics:
-  - When playing, the demo re-stages inputs every frame before the provider’s eval tick.
-  - When pausing, the demo re-stages all current input values once and performs a single immediate eval to “lock” the outputs for the static view.
+## Features
 
-Epoch semantics (why re-staging may be needed)
+- **Graph samples** – Choose from bundled examples (`vectorPlayground`, `oscillatorBasics`, `logicGate`, `tupleSpringDampSlew`) or the local `urdf-ik-position` sample.
+- **Input editors** – The app enumerates `Input` nodes and renders lightweight controls for floats, vectors, tuples, and transforms. Input values are stored in local state keyed by `TypedPath`.
+- **Output panels** – Each `Output` node renders its current `out` port using `useNodeOutput`, updating automatically as the graph evaluates.
+- **Playback control** – Toggle play/pause to switch between continuous evaluation (with per-frame restaging) and a static snapshot mode.
+- **Load/save JSON** – Upload a GraphSpec or download the current spec for inspection.
 
-- Many host-driven graph designs expect inputs to be “present” each evaluation.
-- The demo ensures host-side values are supplied at each frame while playing; when paused, a one-shot restage produces a stable snapshot.
+---
 
-UI overview
+## How It Works
 
-- Play / Pause: toggles the internal RAF loop. While playing, inputs are re-staged every frame; when paused, inputs are re-staged once.
-- Graph file: choose a local JSON file; the loader accepts GraphSpec-like shapes documented below.
-- Sample: pick a sample from the wasm package, or the local “urdf-ik-position”.
-- Inputs: dynamically generated controls for all Input nodes detected in the graph.
-- Outputs: panels showing each Output node’s “out” port.
+- **Provider readiness** – The demo uses the 0.2.x `GraphProvider` defaults (`waitForGraph = true`) so playback starts only after `loadGraph` succeeds and initial inputs/params are applied. Runtime readiness (`graphLoaded`, `waitForGraphReady`, `on/off`) is surfaced for debugging.
+- **Staging strategy**
+  - **Playing**: inputs are re-staged every frame before `evalAll()` runs, ensuring `Input` nodes observe host values continuously.
+  - **Paused**: all inputs are staged once and an immediate evaluation runs so outputs “lock” in place.
+- **State separation** – Input editors hold their own state map; staging reads from that map without mutating the spec defaults. Output panels subscribe independently to avoid hook-order churn when switching graphs.
 
-Supported JSON file formats
+---
 
-- GraphSpec:
-  {
-  "nodes": [...],
-  "edges": [...]
-  }
-- Editor-presets (demo-node-graph):
-  {
-  "n": [...], // nodes
-  "e": [...] // edges
-  }
-- Wrapped spec:
-  {
-  "spec": { "nodes": [...], "edges": [...] }
-  }
+## Supported JSON Formats
 
-Key files
+The loader accepts a few shapes and normalises them to the canonical `GraphSpec` used by `vizij-graph-core` (nodes with inline `inputs` maps).
 
-- src/App.tsx
-  - Renders Input editors and Output panels.
-  - Maintains inputState keyed by TypedPath; stages all inputs on change/spec load/pause; re-stages each frame while playing.
-  - Uses a dedicated OutputPanel component per output to prevent React hook order warnings.
-- src/utils/graph-default.ts
-  - Selects a default sample from the wasm package (vectorPlayground) or a local fallback (URDF).
-- src/assets/graph-presets.ts
-  - Local URDF sample (only local sample retained).
+1. **Canonical GraphSpec**
+   ```json
+   {
+     "nodes": [
+       {
+         "id": "inputA",
+         "type": "input"
+       },
+       {
+         "id": "adder",
+         "type": "add",
+         "inputs": {
+           "lhs": { "node_id": "inputA" },
+           "rhs": { "node_id": "const", "output_key": "out" }
+         }
+       },
+       {
+         "id": "const",
+         "type": "constant",
+         "params": { "value": { "float": 1 } }
+       }
+     ]
+   }
+   ```
+   Connections live inside each node’s `inputs` map rather than a top-level `edges` array.
+2. **Legacy editor presets**
+   ```json
+   { "n": [...], "e": [...] }
+   ```
+   The demo converts these into the canonical inputs map automatically.
+3. **Wrapped spec**
+   ```json
+   { "spec": { "nodes": [...] } }
+   ```
 
-Troubleshooting
+All formats are normalised through `@vizij/node-graph-wasm` before loading.
 
-- If you see errors about the @vizij/node-graph-wasm entry:
-  - Ensure the package is built (tsc) and pkg/ exists (wasm-pack).
-  - The package.json in @vizij/node-graph-wasm must point to dist/src/index.js and export the ESM entry.
-- If outputs don’t update when playing:
-  - Confirm the frame restage effect is running (see frameVersion-based effect above).
-  - Ensure your edited inputs correspond to Input nodes with valid TypedPath in the current graph.
-- If switching between graphs triggers React hook errors:
-  - The demo uses an OutputPanel component that encapsulates useNodeOutput, avoiding hook reordering. If you copy patterns from the demo, avoid calling hooks inside arrays where the number of calls can change across renders.
+---
 
-Notes
+## Key Files
 
-- This demo is intentionally small and focused on staging behavior and the mechanics of editing inputs and seeing outputs update.
-- For a full node editor experience (graph visualization, drag/links, etc.), see the demo-node-graph app in this repo.
+| File                             | Purpose                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/App.tsx`                    | Top-level UI: manages input state, handles sample loading, controls playback, and renders outputs. |
+| `src/components/OutputPanel.tsx` | Encapsulates `useNodeOutput` subscription for a single output port.                                |
+| `src/utils/graph-default.ts`     | Chooses the default graph (vector playground or local URDF fallback).                              |
+| `src/assets/graph-presets.ts`    | Local URDF sample definitions.                                                                     |
+
+---
+
+## Troubleshooting
+
+- **WASM module errors** – Ensure `@vizij/node-graph-wasm` has been built (`pkg/` present) and the wrapper points to `dist/src/index.js`. Linked packages must be rebuilt after Rust changes.
+- **No output updates when playing** – Confirm playback is enabled and that the per-frame staging effect runs (check logs in `App.tsx`). Verify input paths match existing `Input` nodes.
+- **React hook warnings when switching graphs** – The demo uses dedicated components for output subscriptions. If you replicate the pattern, avoid calling hooks inside arrays where the number of iterations can change between renders.
+- **Missing inputs** – Graphs without explicit `Input` nodes won’t show controls; ensure your spec exposes host-modifiable data through dedicated nodes.
+
+Enjoy exploring Vizij graphs! 🧩
