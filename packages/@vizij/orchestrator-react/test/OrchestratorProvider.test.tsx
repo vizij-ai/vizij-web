@@ -43,12 +43,12 @@ const makeInstance = (): OrchestratorMock => {
   const anims: string[] = [];
 
   const instance: OrchestratorMock = {
-    registerGraph: vi.fn((cfg: object | string) => {
+    registerGraph: vi.fn((_cfg: object | string) => {
       const id = `graph-${graphs.length + 1}`;
       graphs.push(id);
       return id;
     }),
-    registerAnimation: vi.fn((cfg: object) => {
+    registerAnimation: vi.fn((_cfg: object) => {
       const id = `anim-${anims.length + 1}`;
       anims.push(id);
       return id;

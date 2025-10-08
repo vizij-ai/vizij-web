@@ -192,17 +192,19 @@ export function ValueField({
         />
       );
     }
-    case "bool":
+    case "bool": {
+      const isChecked = value === true;
       return (
         <label className="toggle">
           <input
             type="checkbox"
-            checked={Boolean(value)}
+            checked={isChecked}
             onChange={(event) => onChange(event.target.checked)}
           />
-          <span>{Boolean(value) ? "True" : "False"}</span>
+          <span>{isChecked ? "True" : "False"}</span>
         </label>
       );
+    }
     case "vec2":
     case "vec3":
     case "vec4":

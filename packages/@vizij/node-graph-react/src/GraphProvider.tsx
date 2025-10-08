@@ -179,7 +179,7 @@ export function GraphProvider({
           try {
             res = fn.call(graph);
             if (res != null) break;
-          } catch (e) {
+          } catch {
             // continue trying others
           }
         }
@@ -204,7 +204,7 @@ export function GraphProvider({
             try {
               res = fn(graph);
               if (res != null) break;
-            } catch (e) {
+            } catch {
               // continue
             }
           }
@@ -525,7 +525,7 @@ export function GraphProvider({
       // After stepping, run an evaluation so outputs reflect the new time
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },
@@ -538,7 +538,7 @@ export function GraphProvider({
       // Reflect change immediately
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },
@@ -551,7 +551,7 @@ export function GraphProvider({
       // Reflect change immediately
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import {
@@ -53,7 +53,7 @@ vi.mock("@vizij/node-graph-wasm", () => {
 
   return {
     init: vi.fn(() => Promise.resolve()),
-    createGraph: vi.fn(async (spec: GraphSpec | string) => makeInstance()),
+    createGraph: vi.fn(async () => makeInstance()),
     Graph: vi.fn(() => makeInstance()),
     normalizeGraphSpec: vi.fn(async (spec: GraphSpec | string) => spec),
     getNodeSchemas: vi.fn(() => Promise.resolve({ version: "1", nodes: [] })),

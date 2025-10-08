@@ -27,29 +27,31 @@ function formatValueInternal(value: Value | undefined): string {
 
   // Handle structural types that need recursive formatting first.
   if (isNormalizedValue(value)) {
-    const tag = value.type.toLowerCase();
-
-    if (tag === "enum") {
-      const [enumTag, inner] = value.data;
-      const innerDisplay = inner ? formatValueInternal(inner as Value) : DASH;
-      return `${enumTag}${innerDisplay !== DASH ? `: ${innerDisplay}` : ""}`;
-    }
-
-    if (tag === "record") {
-      const record = value.data;
-      return JSON.stringify(
-        Object.fromEntries(
-          Object.entries(record).map(([key, entry]) => [
-            key,
-            formatValueInternal(entry as Value),
-          ]),
-        ),
-      );
-    }
-
-    if (tag === "array" || tag === "list" || tag === "tuple") {
-      const items = value.data as Value[];
-      return `[${items.map((entry) => formatValueInternal(entry)).join(", ")}]`;
+    switch (value.type) {
+      case "enum": {
+        const [enumTag, inner] = value.data;
+        const innerDisplay = inner ? formatValueInternal(inner as Value) : DASH;
+        return `${enumTag}${innerDisplay !== DASH ? `: ${innerDisplay}` : ""}`;
+      }
+      case "record": {
+        const record = value.data;
+        return JSON.stringify(
+          Object.fromEntries(
+            Object.entries(record).map(([key, entry]) => [
+              key,
+              formatValueInternal(entry as Value),
+            ]),
+          ),
+        );
+      }
+      case "array":
+      case "list":
+      case "tuple": {
+        const items = value.data as readonly Value[];
+        return `[${items.map((entry) => formatValueInternal(entry)).join(", ")}]`;
+      }
+      default:
+        break;
     }
   }
 
@@ -98,16 +100,22 @@ export function valueToSeries(value: Value | undefined): number[] | null {
   if (!value) return null;
 
   if (isNormalizedValue(value)) {
-    const tag = value.type.toLowerCase();
-    if (tag === "enum") {
-      return valueToSeries(value.data[1] as Value);
-    }
-    if (tag === "record") {
-      for (const entry of Object.values(value.data)) {
-        const series = valueToSeries(entry as Value);
-        if (series && series.length > 0) return series;
+    switch (value.type) {
+      case "enum": {
+        const [, inner] = value.data;
+        return valueToSeries(inner as Value);
       }
-      return null;
+      case "record": {
+        for (const entry of Object.values(value.data)) {
+          const series = valueToSeries(entry as Value);
+          if (series && series.length > 0) {
+            return series;
+          }
+        }
+        return null;
+      }
+      default:
+        break;
     }
   }
 

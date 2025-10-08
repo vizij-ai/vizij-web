@@ -111,9 +111,10 @@ export function importGroup(
       rotation: { animated: true, value: rotationAnimatable.id },
       scale: { animated: true, value: scaleAnimatable.id },
     },
+    root: Boolean(rootBounds),
     rootBounds,
     children,
-    refs: namespaceArrayToRefs(namespaces),
+    refs: namespaceArrayToRefs<Group>(namespaces),
   };
   world = { ...world, [newGroup.id]: newGroup };
 

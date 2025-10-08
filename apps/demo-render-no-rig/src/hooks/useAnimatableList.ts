@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useVizijStore } from "@vizij/render";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
+import type { AnimatableValue } from "@vizij/utils";
 import type { AnimatableListGroup, AnimatableListItem } from "../types";
 
 function splitName(name: string) {

@@ -20,6 +20,7 @@ import { RenderableBase } from "./renderable-base";
 export interface Group extends RenderableBase {
   type: "group";
   refs: Record<string, RefObject<ThreeGroup>>;
+  root: boolean;
 
   features: {
     translation: Feature;

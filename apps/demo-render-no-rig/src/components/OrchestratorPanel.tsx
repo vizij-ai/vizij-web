@@ -1241,7 +1241,6 @@ export function OrchestratorPanel() {
     animatables,
     outputRows,
     missingMappings,
-    invalidMappings,
     buttonsDisabled,
     currentMappingsSummary,
     outputComponentsSummary,

@@ -8,11 +8,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "test": "vitest",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "test": "vitest --run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist .vite coverage"
+    "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
@@ -28,7 +32,8 @@
     "eslint": "^9.19.0",
     "typescript": "^5.0.0",
     "vite": "^6.3.6",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "prettier": "^3.4.2"
   },
   "keywords": [
     "vizij",

@@ -45,7 +45,7 @@ function usePlayerValue(
   // In practice, consumer can wrap with useSyncExternalStore too. Here we reuse provider's subscribe/get directly:
   // We'll implement a tiny wrapper:
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [_, setTick] = useState(0);
+  const [, setTick] = useState(0);
   React.useEffect(() => {
     const unsub = subscribe(() => setTick((x) => x + 1));
     return unsub;
@@ -74,7 +74,7 @@ function usePlayerDerivative(
   }, [getPlayerDerivativeSnapshot, player, key]);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [_, setTick] = useState(0);
+  const [, setTick] = useState(0);
   React.useEffect(() => {
     const unsub = subscribe(() => setTick((x) => x + 1));
     return unsub;
@@ -170,6 +170,7 @@ export default function PlayerCard({
     | Map<number, StoredAnimation>
     | Record<number, StoredAnimation>;
 }) {
+  void resolvedKeys;
   const animApi = useAnimation() as any;
   const [speed, setSpeed] = useState<number>(player.speed ?? 1);
   const [seekTime, setSeekTime] = useState<number>(player.time ?? 0);

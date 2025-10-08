@@ -1,6 +1,6 @@
 /* @vitest-environment node */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { JSDOM } from "jsdom";

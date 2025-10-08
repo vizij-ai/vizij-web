@@ -36,6 +36,8 @@ vi.mock("@vizij/node-graph-wasm", () => {
   return {
     init,
     createGraph,
+    normalizeGraphSpec: vi.fn(async (spec: any) => spec),
+    normalize_graph_spec_json: vi.fn((json: string) => json),
     __setMode: (m: "ok" | "fail") => {
       mode = m;
     },
@@ -81,7 +83,9 @@ describe("Demo (animation-graph) init behavior with declarative seeds", () => {
 
     // Await readiness
     await runtimeRef.waitForGraphReady?.();
-    expect(Boolean(runtimeRef.graphLoaded)).toBe(true);
+    await waitFor(() => {
+      expect(Boolean(runtimeRef.graphLoaded)).toBe(true);
+    });
 
     // Assert seeds were applied to the underlying graph
     const wasm: any = await import("@vizij/node-graph-wasm");

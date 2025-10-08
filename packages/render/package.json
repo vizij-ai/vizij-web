@@ -13,7 +13,15 @@
   "scripts": {
     "build": "tsup src/index.tsx --format esm,cjs --dts src/index.tsx --external react",
     "dev": "tsup src/index.tsx --format esm,cjs --watch --dts src/index.tsx --external react",
-    "clean": "rm -rf dist .turbo tsconfig.tsbuildinfo"
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "test": "vitest --run --passWithNoTests",
+    "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
     "@react-three/drei": "^9.115.0",
@@ -39,7 +47,9 @@
     "@types/three": "^0.170.0",
     "react": "^18.3.1",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "prettier": "^3.4.2",
+    "vitest": "^3.2.4"
   },
   "publishConfig": {
     "access": "public"

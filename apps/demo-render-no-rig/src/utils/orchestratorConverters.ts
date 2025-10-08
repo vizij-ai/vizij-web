@@ -64,7 +64,7 @@ function normalizeParsedShape(
   return undefined;
 }
 
-function shapeForValueKind(
+export function shapeForValueKind(
   kind: ValueKind,
   shapeJson?: string,
 ): Record<string, any> | undefined {

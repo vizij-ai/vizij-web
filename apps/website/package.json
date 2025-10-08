@@ -8,10 +8,14 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "test": "vitest --run",
-    "clean": "rm -rf dist .vite tsconfig.tsbuildinfo"
+    "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
     "@aws-sdk/client-polly": "^3.787.0",
@@ -52,6 +56,7 @@
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.22.0",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "prettier": "^3.4.2"
   }
 }

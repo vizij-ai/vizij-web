@@ -1,3 +1,5 @@
+import type { RefObject } from "react";
+import type { Group as ThreeGroup } from "three";
 import { Feature } from "../types/feature";
 import { Group } from "../types/group";
 
@@ -17,9 +19,9 @@ export function createDefaultGroup(partialBody: Partial<Group>): Group {
     name: partialBody.name || "new-body",
     type: partialBody.type || "group",
     tags: partialBody.tags || [],
-    refs: partialBody.refs || {},
+    refs: partialBody.refs || ({} as Record<string, RefObject<ThreeGroup>>),
     features: { translation, rotation, scale },
-    root: partialBody.root || false,
+    root: partialBody.root ?? false,
     children: partialBody.children || [],
   };
 }

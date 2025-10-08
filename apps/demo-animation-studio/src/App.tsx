@@ -2,14 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimationProvider, useAnimation } from "@vizij/animation-react";
 import presets from "./presets";
 import AnimationsPanel from "./components/AnimationsPanel";
-import PlayersPanel, { InstanceSpec } from "./components/PlayersPanel";
+import type { InstanceSpec } from "./components/PlayersPanel";
 import EventsLog from "./components/EventsLog";
 import PlayerCard from "./components/PlayerCard";
 import ConfigPanel from "./components/ConfigPanel";
-import PrebindPanel, {
-  PrebindRule,
-  makeResolver,
-} from "./components/PrebindPanel";
+import { PrebindRule, makeResolver } from "./components/PrebindPanel";
 import SessionPanel, { SessionState } from "./components/SessionPanel";
 import AnimationEditor from "./components/AnimationEditor";
 import type {
@@ -96,7 +93,7 @@ function EngineBar({
    Transport controls (basic MVP)
 ----------------------------------------------------------- */
 
-function TransportBar() {
+export function TransportBar() {
   // console.log("Setting up transport bar");
   const { ready, players, step } = useAnimation();
   const playerNames = useMemo(() => Object.keys(players), [players]);
@@ -322,7 +319,7 @@ function StudioShell({
   setRules: (r: PrebindRule[]) => void;
 }) {
   // console.log("Setting up studio shell");
-  const { canonicalKeys, resolvedKeys } = useMemo(() => {
+  const resolvedKeys = useMemo(() => {
     const set = new Set<string>();
     for (const a of animations) {
       const tracks: any[] = (a as any).tracks || [];
@@ -331,12 +328,8 @@ function StudioShell({
         if (typeof id === "string") set.add(id);
       }
     }
-    const canonical = Array.from(set);
     const resolver = makeResolver(rules);
-    const resolved = Array.from(
-      new Set(canonical.map((k) => String(resolver(k)))),
-    );
-    return { canonicalKeys: canonical, resolvedKeys: resolved };
+    return Array.from(new Set(Array.from(set).map((k) => String(resolver(k)))));
   }, [animations, rules]);
 
   // Authoritative state from provider
