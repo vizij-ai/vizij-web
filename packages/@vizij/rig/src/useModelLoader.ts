@@ -124,7 +124,16 @@ export const useModelLoader = (
     } finally {
       setIsLoading(false);
     }
-  }, [glb, modelKey, addWorldElements, setVal, rigDef, bounds, initialValues]); // REMOVED isLoading from dependencies
+  }, [
+    glb,
+    modelKey,
+    addWorldElements,
+    setVal,
+    rigDef,
+    bounds,
+    initialValues,
+    isLoading,
+  ]);
 
   useEffect(() => {
     // Only load if we haven't loaded this exact configuration before
@@ -232,7 +241,7 @@ export const useRiggedModelLoader = (
     } finally {
       setIsLoading(false);
     }
-  }, [glb, modelKey, addWorldElements, setVal, rigDef]); // REMOVED isLoading from dependencies
+  }, [glb, modelKey, addWorldElements, setVal, rigDef, isLoading]);
 
   useEffect(() => {
     // Only load if we haven't loaded this exact configuration before

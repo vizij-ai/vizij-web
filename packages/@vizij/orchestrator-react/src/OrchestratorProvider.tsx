@@ -215,6 +215,20 @@ export function OrchestratorProvider({
       }
       const instance = requireOrchestrator();
       instance.setInput(path, value as ValueJSON, shape);
+      pathCacheRef.current.set(path, value);
+      const listeners = pathSubscribersRef.current.get(path);
+      if (listeners) {
+        listeners.forEach((listener) => {
+          try {
+            listener();
+          } catch (err) {
+            console.error(
+              "@vizij/orchestrator-react: setInput listener error",
+              err,
+            );
+          }
+        });
+      }
     },
     [requireOrchestrator],
   );

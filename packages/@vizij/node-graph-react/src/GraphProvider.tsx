@@ -486,8 +486,12 @@ export function GraphProvider({
       shape?: any,
       immediateEval?: boolean,
     ) => {
-      // Persist staged input; will be applied before next eval
-      stagedInputsRef.current[path] = { value, shape };
+      if (value === undefined) {
+        delete stagedInputsRef.current[path];
+      } else {
+        // Persist staged input; will be applied before next eval
+        stagedInputsRef.current[path] = { value, shape };
+      }
       // If caller requests immediate evaluation, apply staged inputs now and eval.
       if (immediateEval) {
         try {
@@ -640,8 +644,6 @@ export function GraphProvider({
       console.info("[GraphProvider] spec unchanged (hash match) — skip reload");
       return;
     }
-    lastSpecHashRef.current = currentHash;
-
     let cancelled = false;
     (async () => {
       // Prepare a fresh controller for this load attempt if exposing promise
@@ -656,6 +658,7 @@ export function GraphProvider({
           const result = evalTick();
           runtime.status = "ready";
           setGraphLoaded(true);
+          lastSpecHashRef.current = currentHash;
           if (exposeGraphReadyPromise) controller.resolve();
           // eslint-disable-next-line no-console
           console.info(
@@ -664,6 +667,7 @@ export function GraphProvider({
           );
         } catch (err) {
           runtime.status = "error";
+          lastSpecHashRef.current = null;
           if (exposeGraphReadyPromise) controller.reject(err);
           // eslint-disable-next-line no-console
           console.error("GraphProvider: loadGraph failed (no-wait)", err);
@@ -697,6 +701,7 @@ export function GraphProvider({
         setGraphLoaded(true);
         runtime.graphLoaded = true;
         runtime.status = "ready";
+        lastSpecHashRef.current = currentHash;
         if (exposeGraphReadyPromise) ctrl.resolve();
         // After loading & seeding, perform an initial eval to seed outputs/writes
         const result = evalTick();
@@ -708,6 +713,7 @@ export function GraphProvider({
       } catch (err) {
         runtime.graphLoaded = false;
         runtime.status = "error";
+        lastSpecHashRef.current = null;
         if (exposeGraphReadyPromise) ctrl.reject(err);
         // eslint-disable-next-line no-console
         console.error("GraphProvider: loadGraph failed", err);
