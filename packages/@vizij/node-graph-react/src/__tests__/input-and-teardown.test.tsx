@@ -1,13 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import {
-  render,
-  screen,
-  waitFor,
-  fireEvent,
-  cleanup,
-  act,
-} from "@testing-library/react";
+import { render, screen, waitFor, cleanup, act } from "@testing-library/react";
 import { GraphProvider, useGraphRuntime } from "../index";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 
@@ -40,7 +33,7 @@ vi.mock("@vizij/node-graph-wasm", () => {
 
   return {
     init: vi.fn(() => Promise.resolve()),
-    createGraph: vi.fn(async (s: any) => makeInstance()),
+    createGraph: vi.fn(async () => makeInstance()),
     Graph: vi.fn(() => makeInstance()),
     normalizeGraphSpec: vi.fn(async (s: any) => s),
     getNodeSchemas: vi.fn(() => Promise.resolve({ version: "1", nodes: [] })),

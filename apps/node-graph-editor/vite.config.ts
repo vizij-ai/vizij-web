@@ -24,10 +24,6 @@ const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
 export default defineConfig({
   plugins: [react()],
   root: ".",
-  resolve: {
-    // Avoid resolving symlinked workspaces to their real path; keeps node_modules URLs stable.
-    preserveSymlinks: true,
-  },
   server: {
     port: 5174,
     fs: {

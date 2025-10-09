@@ -95,6 +95,9 @@ function ValueEditor({
   value: ValueJSON;
   onChange: OnValueChange;
 }) {
+  if (typeof value !== "object" || value === null) {
+    return <code style={{ opacity: 0.7 }}>{JSON.stringify(value)}</code>;
+  }
   if ("float" in value) {
     return (
       <FloatField v={value.float} onChange={(n) => onChange({ float: n })} />
@@ -122,7 +125,7 @@ function ValueEditor({
     // Render editors for each tuple element recursively when recognizable
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {value.tuple.map((entry: ValueJSON, idx: number) => (
+        {(value.tuple as ValueJSON[]).map((entry: ValueJSON, idx: number) => (
           <div
             key={idx}
             style={{ display: "flex", alignItems: "center", gap: 8 }}
@@ -147,17 +150,17 @@ function ValueEditor({
   }
   if ("transform" in value) {
     // Show position editing only as a simple example
-    const pos = value.transform.pos ?? [0, 0, 0];
+    const translation = value.transform.translation ?? [0, 0, 0];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div>pos:</div>
         <VecNField
-          arr={pos}
+          arr={translation}
           onChange={(next) =>
             onChange({
               transform: {
-                pos: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0],
-                rot: value.transform.rot,
+                translation: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0],
+                rotation: value.transform.rotation,
                 scale: value.transform.scale,
               },
             })

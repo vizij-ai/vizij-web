@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { useAnimation } from "@vizij/animation-react";
+import { useAnimation, type Value } from "@vizij/animation-react";
+import { formatValue } from "../utils/valueFormat";
 import type {
   AnimationInfo,
   PlayerInfo,
   InstanceInfo,
-  Value,
   StoredAnimation,
 } from "@vizij/animation-wasm";
 import Timeline, { InstanceSpan, TimelineMarker } from "./Timeline";
@@ -45,7 +45,7 @@ function usePlayerValue(
   // In practice, consumer can wrap with useSyncExternalStore too. Here we reuse provider's subscribe/get directly:
   // We'll implement a tiny wrapper:
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [_, setTick] = useState(0);
+  const [, setTick] = useState(0);
   React.useEffect(() => {
     const unsub = subscribe(() => setTick((x) => x + 1));
     return unsub;
@@ -74,57 +74,13 @@ function usePlayerDerivative(
   }, [getPlayerDerivativeSnapshot, player, key]);
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [_, setTick] = useState(0);
+  const [, setTick] = useState(0);
   React.useEffect(() => {
     const unsub = subscribe(() => setTick((x) => x + 1));
     return unsub;
   }, [subscribe]);
 
   return getSnapshot();
-}
-
-function formatNumericArray(data: readonly number[] | number[]): string {
-  return data
-    .map((x) => (Number.isFinite(x) ? Number(x).toFixed(3) : String(x)))
-    .join(", ");
-}
-
-function formatValue(value: Value | undefined): string {
-  if (!value) return "—";
-  const { type, data } = value as Value & { data: any };
-
-  switch (type) {
-    case "Scalar":
-    case "Float":
-      return Number.isFinite(data) ? Number(data).toFixed(3) : String(data);
-    case "Bool":
-      return data ? "true" : "false";
-    case "Vec2":
-    case "Vec3":
-    case "Vec4":
-    case "Color":
-    case "ColorRgba":
-    case "Quat":
-      return Array.isArray(data) ? formatNumericArray(data) : String(data);
-    case "Transform": {
-      if (data && typeof data === "object") {
-        const pos = data.translation ?? data.pos;
-        const rot = data.rotation ?? data.rot;
-        const scale = data.scale;
-        const lines: string[] = [];
-        if (Array.isArray(pos)) lines.push(`pos: ${formatNumericArray(pos)}`);
-        if (Array.isArray(rot)) lines.push(`rot: ${formatNumericArray(rot)}`);
-        if (Array.isArray(scale))
-          lines.push(`scale: ${formatNumericArray(scale)}`);
-        return lines.length > 0 ? lines.join("\n") : JSON.stringify(data);
-      }
-      return JSON.stringify(data);
-    }
-    case "Text":
-      return String(data);
-    default:
-      return JSON.stringify(data ?? null);
-  }
 }
 
 function PlayerValueCell({
@@ -214,6 +170,7 @@ export default function PlayerCard({
     | Map<number, StoredAnimation>
     | Record<number, StoredAnimation>;
 }) {
+  void resolvedKeys;
   const animApi = useAnimation() as any;
   const [speed, setSpeed] = useState<number>(player.speed ?? 1);
   const [seekTime, setSeekTime] = useState<number>(player.time ?? 0);

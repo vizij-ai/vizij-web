@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { init as wasmInit } from "@vizij/node-graph-wasm";
+import * as wasm from "@vizij/node-graph-wasm";
 import { createGraphStore } from "./utils/createGraphStore";
 import { normalizeSpec } from "./utils/normalizeSpec";
 
@@ -22,7 +22,7 @@ export function useGraphInstance(
   spec?: GraphSpec,
   options?: UseGraphInstanceOptions,
 ) {
-  const wasmRef = useRef<any>(null);
+  const wasmModuleRef = useRef<typeof wasm | null>(null);
   const graphRef = useRef<Graph | null>(null);
   const stagedRef = useRef<Record<string, any>>({});
   const storeRef = useRef(
@@ -40,9 +40,9 @@ export function useGraphInstance(
     let mounted = true;
     (async () => {
       try {
-        const m = await wasmInit();
+        await wasm.init?.();
         if (!mounted) return;
-        wasmRef.current = m;
+        wasmModuleRef.current = wasm;
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("useGraphInstance: wasm init failed", err);
@@ -59,6 +59,14 @@ export function useGraphInstance(
       evalResult: res,
       version: (prev.version || 0) + 1,
     }));
+  }, []);
+
+  const ensureWasmModule = useCallback(async () => {
+    if (!wasmModuleRef.current) {
+      await wasm.init?.();
+      wasmModuleRef.current = wasm;
+    }
+    return wasmModuleRef.current!;
   }, []);
 
   const applyStaged = useCallback(() => {
@@ -100,13 +108,7 @@ export function useGraphInstance(
 
   const loadGraph = useCallback(
     async (graphSpec: GraphSpec) => {
-      if (!wasmRef.current) {
-        // attempt to init if not ready
-        wasmRef.current = await wasmInit();
-      }
-      if (!wasmRef.current) {
-        throw new Error("WASM runtime not available");
-      }
+      const module = await ensureWasmModule();
       // free previous if present
       if (graphRef.current && typeof graphRef.current.free === "function") {
         try {
@@ -118,31 +120,29 @@ export function useGraphInstance(
         graphRef.current = null;
       }
       const normalized =
-        options?.normalize !== false ? normalizeSpec(graphSpec) : graphSpec;
-      const GraphCtor =
-        wasmRef.current.Graph ?? wasmRef.current.createGraph ?? null;
+        options?.normalize !== false
+          ? await normalizeSpec(graphSpec)
+          : graphSpec;
+      const moduleAny = module as any;
+      const GraphCtor = moduleAny.Graph ?? null;
       let g: Graph | null = null;
-      if (GraphCtor) {
-        try {
-          g =
-            typeof GraphCtor === "function"
-              ? new GraphCtor(normalized)
-              : GraphCtor(normalized);
-        } catch (err) {
-          try {
-            g = wasmRef.current.loadGraph?.(normalized) ?? null;
-          } catch (err2) {
-            // eslint-disable-next-line no-console
-            console.error("useGraphInstance: create graph failed", err, err2);
-            throw err2 ?? err;
-          }
+      try {
+        if (typeof moduleAny.createGraph === "function") {
+          g = await moduleAny.createGraph(normalized);
+        } else if (typeof GraphCtor === "function") {
+          g = new GraphCtor();
+          g.loadGraph?.(normalized);
+        } else if (typeof moduleAny.loadGraph === "function") {
+          g = moduleAny.loadGraph(normalized);
+        } else {
+          throw new Error(
+            "useGraphInstance: cannot find Graph constructor/factory",
+          );
         }
-      } else if (wasmRef.current.loadGraph) {
-        g = wasmRef.current.loadGraph(normalized);
-      } else {
-        throw new Error(
-          "useGraphInstance: cannot find Graph constructor/factory",
-        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("useGraphInstance: create graph failed", err);
+        throw err;
       }
       graphRef.current = g;
       publish(null);
@@ -151,7 +151,7 @@ export function useGraphInstance(
       }
       return g;
     },
-    [evalAll, options?.autoEval, options?.normalize, publish],
+    [ensureWasmModule, evalAll, options?.autoEval, options?.normalize, publish],
   );
 
   const unloadGraph = useCallback(() => {

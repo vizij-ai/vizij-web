@@ -198,7 +198,6 @@ export default function EditorCanvas(): JSX.Element {
           );
         } catch (e) {
           // fallback to console if the assistant API isn't present
-          // eslint-disable-next-line no-console
           console.warn("Blocked connection:", validation.reason, e);
         }
         return;
@@ -247,7 +246,6 @@ export default function EditorCanvas(): JSX.Element {
   const onSelectionChange = useCallback(
     (selection: { nodes?: Node[]; edges?: Edge[] }) => {
       // Debug: log selection changes coming from React Flow
-      // eslint-disable-next-line no-console
       console.debug("[EditorCanvas] onSelectionChange", {
         nodes: selection?.nodes?.map((n) => n.id),
         edges: selection?.edges?.map((e) => e.id),

@@ -12,7 +12,6 @@ import type {
   WriteOpJSON,
   PortSnapshot,
   InitInput,
-  Registry,
 } from "@vizij/node-graph-wasm";
 
 /* Playback types */

@@ -3,9 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    preserveSymlinks: true,
-  },
   server: {
     watch: {
       ignored: [

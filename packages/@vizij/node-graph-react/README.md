@@ -1,141 +1,84 @@
-# @vizij/node-graph-react (guide-compliant refactor)
+# @vizij/node-graph-react
 
-This package provides a React-first wrapper around the @vizij/node-graph-wasm runtime.
-It replaces the previous monolithic `NodeGraphProvider`/`useNodeGraph` surface with a provider + hooks API that follows the official integration guides.
+> **React provider and hook suite for Vizij node graphs – load WASM specs, stage inputs, and consume outputs with idiomatic patterns.**
 
-Status
+This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handles WASM initialisation, graph loading, readiness promises, staged inputs, playback loops, and `useSyncExternalStore`-friendly subscriptions.
 
-- Core provider + hooks implemented: `GraphProvider`, `useGraphRuntime`, `useGraphOutputs`, `useGraphInput`, `useGraphInstance`, `useGraphPlayback`.
-- Lightweight internal store implemented with `useSyncExternalStore`-compatible API.
-- Compatibility shim exists (temporary) to ease migration: `compat.tsx` exports legacy names.
-- Type surface aligned to runtime surface (readiness fields on the runtime).
-- Remaining work: extra edge-case tests and final migration removal of shim (see TODOs below).
+---
 
-## New in 0.2.x: Readiness, declarative seeding, and safe defaults
+## Table of Contents
 
-0.2.x adds a safe default behavior optimized for both lightweight and heavyweight (WASM-backed) graphs:
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Core Concepts](#core-concepts)
+5. [Hooks Reference](#hooks-reference)
+6. [Development & Testing](#development--testing)
+7. [Related Packages](#related-packages)
 
-GraphProvider (new props)
+---
 
-- `waitForGraph?: boolean` (default: true)
-  - When a `spec` is provided, the provider awaits `runtime.loadGraph(spec)` and applies any seeds before starting playback.
-- `graphLoadTimeoutMs?: number | null` (default: 60000; `null` disables timeout)
-  - Readiness promise rejects on timeout if the graph fails to load.
-- `initialParams?: Record<string, Record<string, ValueJSON>>`
-  - One-shot parameter seeding by node/param after graph load completes.
-- `initialInputs?: Record<string, ValueJSON>`
-  - One-shot input staging after graph load completes.
-- `exposeGraphReadyPromise?: boolean` (default: true)
-  - If true, the provider surfaces a readiness promise and on/off events on the runtime.
+## Overview
 
-Runtime (readiness fields exposed by provider)
+- `GraphProvider` wraps your component tree with a graph runtime derived from `@vizij/node-graph-wasm`.
+- Hooks such as `useGraphRuntime`, `useGraphOutputs`, `useNodeOutput`, `useGraphPlayback`, and `useGraphInput` expose runtime controls and derived state.
+- Built-in readiness flow (`waitForGraph`, `waitForGraphReady`) ensures initial parameters and staged inputs land before evaluations begin.
+- Managed staged input store prevents redundant allocations and guards against invalid cleanups – `stageInput(path, undefined, …)` now removes entries safely.
+- A compatibility shim (`compat.tsx`) exports legacy names to ease incremental migration from earlier APIs.
 
-- `graphLoaded: boolean`
-- `waitForGraphReady?: () => Promise<void>`
-- `on?: (event: "graphLoaded" | "graphLoadError", cb: (info?: any) => void) => void`
-- `off?: (event: "graphLoaded" | "graphLoadError", cb: (info?: any) => void) => void`
+---
 
-Example (declarative usage)
+## Installation
 
-```tsx
-import { GraphProvider } from "@vizij/node-graph-react";
-import { ikGraphSpec } from "./ikGraph";
-import { sampleUrdf } from "./urdf";
-
-<GraphProvider
-  spec={ikGraphSpec}
-  waitForGraph
-  initialParams={{
-    fk: { urdf_xml: sampleUrdf, root_link: "base_link", tip_link: "tool" },
-    ik_solver: {
-      urdf_xml: sampleUrdf,
-      root_link: "base_link",
-      tip_link: "tool",
-    },
-  }}
-  initialInputs={{
-    "nodes.joint_input.inputs.in": { vector: [0, 0, 0, 0, 0, 0] },
-  }}
-  autoStart={false}
-/>;
+```bash
+npm install @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
 ```
 
-Awaiting readiness in a component
+When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../README.md#local-wasm-development) for details.
+
+---
+
+## Quick Start
 
 ```tsx
-import { useGraphRuntime, useGraphLoaded } from "@vizij/node-graph-react";
-
-function MyComp() {
-  const rt = useGraphRuntime();
-  const { waitForGraphReady } = useGraphLoaded();
-  useEffect(() => {
-    (async () => {
-      await waitForGraphReady();
-      rt.stageInput("nodes.inputA.inputs.in", { float: 1.0 });
-      rt.evalAll?.();
-    })();
-  }, [waitForGraphReady, rt]);
-  return null;
-}
-```
-
-Convenience helpers
-
-```tsx
-import { useSafeEval } from "@vizij/node-graph-react";
-const { stageAndEval, safeEvalAll } = useSafeEval();
-// Automatically awaits readiness if available
-await stageAndEval("nodes.inputA.inputs.in", { vector: [1, 2, 3] });
-```
-
-Semantics & notes
-
-- The provider applies a safe default (`waitForGraph=true`) so the eval loop does not begin until the graph has been constructed and one-time seeds have been applied.
-- No automatic buffering/replay of live stage/eval calls is added; use `waitForGraphReady()` for imperative flows or gate your streaming logic.
-- Staged host inputs are applied at the start of each eval. Your app can choose to:
-  - Re-stage inputs every frame when playing (e.g., demos that model host-driven Input nodes), or
-  - Rely on the last staged inputs (latched until changed) depending on your design.
-
-## Quickstart (new API)
-
-1. Wrap your app (or subtree) with the provider:
-
-```tsx
-import { GraphProvider } from "@vizij/node-graph-react";
-
-<GraphProvider spec={myGraphJson} autoStart>
-  <MyApp />
-</GraphProvider>;
-```
-
-2. Read outputs with a selector:
-
-```tsx
-import { useGraphOutputs } from "@vizij/node-graph-react";
+import { GraphProvider, useGraphOutputs } from "@vizij/node-graph-react";
+import graphSpec from "./graph.json";
 
 function NodeValue({ nodeId }: { nodeId: string }) {
-  const val = useGraphOutputs(
-    (snap: any) => snap?.evalResult?.nodes?.[nodeId]?.out ?? null,
+  const out = useGraphOutputs(
+    (snap) => snap?.evalResult?.nodes?.[nodeId]?.out ?? null,
   );
-  return <span>{String(val?.value?.float ?? "")}</span>;
+  return <span>{out?.value?.float?.toFixed?.(2) ?? "—"}</span>;
+}
+
+export function App() {
+  return (
+    <GraphProvider spec={graphSpec} waitForGraph autoStart>
+      <NodeValue nodeId="oscillator" />
+    </GraphProvider>
+  );
 }
 ```
 
-3. Stage inputs (controlled UI):
+Stage a value from a controlled input:
 
 ```tsx
 import { useGraphRuntime } from "@vizij/node-graph-react";
+
 function FrequencySlider() {
   const rt = useGraphRuntime();
   return (
     <input
       type="range"
-      onChange={(e) => {
+      min={0}
+      max={5}
+      step={0.1}
+      onChange={(event) => {
         rt.stageInput(
-          "nodes.inputA.inputs.in",
-          { float: Number(e.target.value) },
+          "nodes.frequency.inputs.in",
+          { float: Number(event.target.value) },
           undefined,
-          true,
+          true, // immediate eval
         );
       }}
     />
@@ -143,72 +86,99 @@ function FrequencySlider() {
 }
 ```
 
-4. Control playback:
+Await readiness before streaming inputs:
 
 ```tsx
-import { useGraphPlayback } from "@vizij/node-graph-react";
+import { useEffect } from "react";
+import { useGraphRuntime } from "@vizij/node-graph-react";
 
-const pb = useGraphPlayback();
-pb.start("interval", 30);
-pb.stop();
-```
-
-## Migration guide (legacy -> new)
-
-Legacy example (old)
-
-```tsx
-import { NodeGraphProvider, useNodeGraph } from "@vizij/node-graph-react";
-
-function OldComp() {
-  const ng = useNodeGraph();
-  const out = ng.getNodeOutputSnapshot("const");
-  return <div>{out?.value?.float}</div>;
+function Awaiter() {
+  const rt = useGraphRuntime();
+  useEffect(() => {
+    (async () => {
+      if (rt.waitForGraphReady) {
+        await rt.waitForGraphReady();
+      }
+      rt.stageInput("nodes.inputA.inputs.in", { float: 1 });
+      rt.evalAll?.();
+    })();
+  }, [rt]);
+  return null;
 }
 ```
 
-New API equivalent
+---
 
-```tsx
-import { GraphProvider, useGraphOutputs } from "@vizij/node-graph-react";
+## Core Concepts
 
-function NewComp() {
-  const val = useGraphOutputs(
-    (snap: any) => snap?.evalResult?.nodes?.["const"]?.out ?? null,
-  );
-  return <div>{val?.value?.float}</div>;
-}
+### GraphProvider Props
+
+- `spec?: GraphSpec | string` – Graph to load; JSON strings are normalised automatically.
+- `waitForGraph` (default `true`) – Await `loadGraph` + initial seeding before marking the runtime ready or starting playback.
+- `graphLoadTimeoutMs` (default `60000`) – Rejects readiness if the graph fails to load in the allotted time (`null` disables).
+- `initialParams` / `initialInputs` – One-shot seeds applied after `loadGraph` succeeds.
+- `autoStart` / `autoMode` / `updateHz` – Control playback loops (`"manual"`, `"raf"`, `"interval"`).
+- `exposeGraphReadyPromise` (default `true`) – Expose `waitForGraphReady`, `on`, and `off` helpers on the runtime.
+- `wasmInitInput` – Forwards optional init input to `@vizij/node-graph-wasm.init`.
+
+### Runtime Surface
+
+`useGraphRuntime` returns an object with:
+
+- Control methods: `loadGraph`, `unloadGraph`, `evalAll`, `stageInput`, `applyStagedInputs`, `clearStagedInputs`, `setParam`, `step`, `setTime`, `startPlayback`, `stopPlayback`, `getWrites`, `clearWrites`.
+- Readiness helpers: `ready`, `graphLoaded`, `waitForGraphReady?`, `on?`, `off?`.
+- Snapshot utilities: `getSnapshot`, `subscribe`, `getVersion`.
+- Improved staging semantics: passing `undefined` now removes entries instead of staging invalid payloads.
+
+### Internal Store
+
+- Built on a tiny `createGraphStore` helper that implements `subscribe`, `getSnapshot`, `setSnapshot`, and `getVersion`.
+- Works with `useSyncExternalStore` to deliver consistent cross-render behaviour.
+- Keeps staged inputs in a ref (`stagedInputsRef`) to avoid prop-state churn.
+
+### WASM Initialisation (0.2.4+)
+
+- `GraphProvider` and `useGraphInstance` both await `@vizij/node-graph-wasm.init()` before constructing graphs.
+- `normalizeSpec` is awaited before invoking wasm constructors to avoid passing unresolved promises (previous versions produced `{}` specs and confusing errors).
+
+---
+
+## Hooks Reference
+
+| Hook                                                     | Purpose                                                                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useGraphRuntime()`                                      | Access the imperative runtime API described above.                                                                                              |
+| `useGraphOutputs(selector, equalityFn?)`                 | Subscribe to derived data from the store using `useSyncExternalStore`.                                                                          |
+| `useNodeOutputs(nodeId)`                                 | Convenience wrapper returning an entire node output map.                                                                                        |
+| `useNodeOutput(nodeId, key?)`                            | Subscribe to a single output value.                                                                                                             |
+| `useGraphInput(path, value, shape?, { immediateEval? })` | Declarative staging hook; cleans up by removing staged inputs.                                                                                  |
+| `useGraphPlayback()`                                     | Control and query playback mode (`manual`, `raf`, `interval`).                                                                                  |
+| `useGraphInstance(spec?, options?)`                      | Manage an isolated graph instance outside the provider – ideal for tooling or tests. Normalises specs async and guarantees wasm initialisation. |
+
+The legacy API remains available via `compat.tsx`, but new development should target the hooks above.
+
+---
+
+## Development & Testing
+
+This package uses pnpm workspaces. Typical commands from the repo root:
+
+```bash
+pnpm --filter "@vizij/node-graph-react" dev
+pnpm --filter "@vizij/node-graph-react" test
+pnpm --filter "@vizij/node-graph-react" build
+pnpm --filter "@vizij/node-graph-react" typecheck
 ```
 
-Key mapping
+Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise the real WASM runtime end-to-end, rebuild the wrapper in `vizij-rs` and run one of the demo apps (e.g., `apps/demo-graph`).
 
-- NodeGraphProvider -> GraphProvider (prop `spec`, `autoStart`, `waitForGraph` etc.)
-- useNodeGraph -> useGraphRuntime (runtime methods are available on the returned object)
-  - setParam -> runtime.setParam(nodeId, key, value)
-  - stageInput -> runtime.stageInput(path, value, shape?, immediateEval?)
-  - loadGraph -> runtime.loadGraph(spec)
-- getNodeOutputSnapshot/getNodeOutput -> useGraphOutputs or useNodeOutput/useNodeOutputs
-- Playback control:
-  - legacy internal loops -> useGraphPlayback (modes: "manual" | "raf" | "interval")
-- Writes: useGraphOutputs(snap => snap.writes) or runtime.getWrites/clearWrites
+---
 
-Compatibility shim
+## Related Packages
 
-- A small compatibility file `src/compat.tsx` is present and exports `NodeGraphProvider`, `useNodeGraph`, and legacy helpers. This is intended as a temporary transitional aid.
+- [`@vizij/node-graph-wasm`](../../../vizij-rs/npm/@vizij/node-graph-wasm/README.md) – wasm wrapper consumed by this package.
+- [`vizij-graph-wasm`](../../../vizij-rs/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
+- [`vizij-graph-core`](../../../vizij-rs/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
+- [`@vizij/orchestrator-react`](../@vizij/orchestrator-react/README.md) – React provider for coordinating graphs and animations together.
 
-## Testing & TypeScript
-
-- The package includes unit tests for provider readiness and error handling (mocked WASM).
-- Run locally:
-  - Tests: `cd vizij-web/packages/@vizij/node-graph-react && npm test`
-  - Build: `cd vizij-web/packages/@vizij/node-graph-react && npm run build`
-
-## Current limitations & TODOs
-
-- Add tests for:
-  - Input staging immediateEval edge cases (rapid updates)
-  - Teardown / `graph.free()` and resource cleanup
-  - Timecode mode (explicit setTime-driven playback) and interval throttling correctness
-  - Selector equalityFn effectiveness and render-count profiling
-- Decide whether to keep the compatibility shim for one release or remove it in a major bump.
-- Packaging polish: consider `sideEffects: false`, update exports in package.json, and publish notes.
+Need help or spot something missing? File an issue in the Vizij repo—consistent docs keep our integration story sharp. ⚙️

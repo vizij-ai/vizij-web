@@ -170,7 +170,7 @@ export class VizijLowRig {
     Object.entries(this.map).forEach(([channelName, tracks]) => {
       Object.entries(tracks).forEach(([trackName, trackMap]) => {
         const channelValues: TrackValues = {};
-        var srcChannels = [channelName];
+        let srcChannels = [channelName];
         if (trackMap.trackRig.extraSrcChannels) {
           srcChannels = srcChannels.concat(trackMap.trackRig.extraSrcChannels);
         }
@@ -189,9 +189,8 @@ export class VizijLowRig {
           }
         }
         if (Object.keys(channelValues).length > 0) {
-          let newValue: any;
           const mapfunc = trackMap.trackRig.mapFunc ?? VizijDefaultFaceMapFunc;
-          newValue = mapfunc(this, channelName, trackName, channelValues);
+          const newValue = mapfunc(this, channelName, trackName, channelValues);
           this.applyFunc(trackMap.shapeId, "default", newValue);
         }
       });
@@ -202,7 +201,7 @@ export class VizijLowRig {
     channelName: string,
     trackName: Track,
   ): RawVector3 | number {
-    var res = this.map?.[channelName]?.[trackName]?.baseValue;
+    let res = this.map?.[channelName]?.[trackName]?.baseValue;
     if (res === undefined) {
       if (trackName.toLocaleLowerCase() === "scale") {
         res = { x: 1, y: 1, z: 1 };

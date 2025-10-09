@@ -434,10 +434,8 @@ export default function InspectorPanel(): JSX.Element {
     if (!runtimeReady) return;
     try {
       const res = runtime.evalAll?.();
-      // eslint-disable-next-line no-console
       console.info("[Inspector] EvalNow ->", res);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("[Inspector] EvalNow error:", err);
     }
   }, [runtime, runtimeReady]);
@@ -446,7 +444,6 @@ export default function InspectorPanel(): JSX.Element {
   const handleReloadGraph = useCallback(async () => {
     if (!runtimeReady) return;
     try {
-      // eslint-disable-next-line no-console
       console.info(
         "[Inspector] ReloadGraph clicked. runtime.ready=",
         runtime?.ready,
@@ -458,14 +455,11 @@ export default function InspectorPanel(): JSX.Element {
       if (spec) {
         await runtime.loadGraph?.(spec as any);
         const res = runtime.evalAll?.();
-        // eslint-disable-next-line no-console
         console.info("[Inspector] ReloadGraph -> evalAll result:", res);
       } else {
-        // eslint-disable-next-line no-console
         console.warn("[Inspector] No spec available to load.");
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("[Inspector] ReloadGraph error:", err);
     }
   }, [runtime, spec, runtimeReady]);
@@ -473,8 +467,7 @@ export default function InspectorPanel(): JSX.Element {
   const snapshot = runtime.getSnapshot?.();
   const nodeKeys = useMemo(
     () => Object.keys((snapshot as any)?.evalResult?.nodes ?? {}),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO Evaluate dependency needs here
-    [snapshot?.version],
+    [snapshot],
   );
 
   // Local raw JSON editor state

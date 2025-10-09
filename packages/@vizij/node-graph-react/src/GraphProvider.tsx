@@ -179,7 +179,7 @@ export function GraphProvider({
           try {
             res = fn.call(graph);
             if (res != null) break;
-          } catch (e) {
+          } catch {
             // continue trying others
           }
         }
@@ -204,7 +204,7 @@ export function GraphProvider({
             try {
               res = fn(graph);
               if (res != null) break;
-            } catch (e) {
+            } catch {
               // continue
             }
           }
@@ -224,14 +224,14 @@ export function GraphProvider({
 
       publishEvalResult(json ?? res ?? null);
 
-      try {
-        const nodes = (json ?? res)?.nodes;
-        // eslint-disable-next-line no-console
-        console.info(
-          "[GraphProvider] evalTick result nodes keys:",
-          nodes ? Object.keys(nodes) : null,
-        );
-      } catch {}
+      // try {
+      //   const nodes = (json ?? res)?.nodes;
+      //   // eslint-disable-next-line no-console
+      //   // console.info(
+      //   //   "[GraphProvider] evalTick result nodes keys:",
+      //   //   nodes ? Object.keys(nodes) : null,
+      //   // );
+      // } catch {}
 
       return json ?? res ?? null;
     } catch (err) {
@@ -417,10 +417,10 @@ export function GraphProvider({
       }
       const normalized = await normalizeSpec(spec);
       // eslint-disable-next-line no-console
-      console.info(
-        "[GraphProvider] loadGraph(normalized) nodes:",
-        (normalized as any)?.nodes?.length ?? 0,
-      );
+      // console.info(
+      //   "[GraphProvider] loadGraph(normalized) nodes:",
+      //   (normalized as any)?.nodes?.length ?? 0,
+      // );
       // free existing graph if present
       if (graphRef.current && typeof graphRef.current.free === "function") {
         try {
@@ -457,13 +457,13 @@ export function GraphProvider({
       }
       graphRef.current = g;
       // Log available graph methods to debug API surface
-      try {
-        // eslint-disable-next-line no-console
-        console.info(
-          "[GraphProvider] Graph instance methods:",
-          Object.getOwnPropertyNames(Object.getPrototypeOf(g)),
-        );
-      } catch {}
+      // try {
+      //   // eslint-disable-next-line no-console
+      //   console.info(
+      //     "[GraphProvider] Graph instance methods:",
+      //     Object.getOwnPropertyNames(Object.getPrototypeOf(g)),
+      //   );
+      // } catch {}
       // After load, publish an initial empty eval result (consumer may call eval)
       publishEvalResult(null);
       return g;
@@ -486,8 +486,12 @@ export function GraphProvider({
       shape?: any,
       immediateEval?: boolean,
     ) => {
-      // Persist staged input; will be applied before next eval
-      stagedInputsRef.current[path] = { value, shape };
+      if (value === undefined) {
+        delete stagedInputsRef.current[path];
+      } else {
+        // Persist staged input; will be applied before next eval
+        stagedInputsRef.current[path] = { value, shape };
+      }
       // If caller requests immediate evaluation, apply staged inputs now and eval.
       if (immediateEval) {
         try {
@@ -525,7 +529,7 @@ export function GraphProvider({
       // After stepping, run an evaluation so outputs reflect the new time
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },
@@ -538,7 +542,7 @@ export function GraphProvider({
       // Reflect change immediately
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },
@@ -551,7 +555,7 @@ export function GraphProvider({
       // Reflect change immediately
       try {
         evalTick();
-      } catch (e) {
+      } catch {
         // ignore
       }
     },
@@ -640,8 +644,6 @@ export function GraphProvider({
       console.info("[GraphProvider] spec unchanged (hash match) — skip reload");
       return;
     }
-    lastSpecHashRef.current = currentHash;
-
     let cancelled = false;
     (async () => {
       // Prepare a fresh controller for this load attempt if exposing promise
@@ -656,6 +658,7 @@ export function GraphProvider({
           const result = evalTick();
           runtime.status = "ready";
           setGraphLoaded(true);
+          lastSpecHashRef.current = currentHash;
           if (exposeGraphReadyPromise) controller.resolve();
           // eslint-disable-next-line no-console
           console.info(
@@ -664,6 +667,7 @@ export function GraphProvider({
           );
         } catch (err) {
           runtime.status = "error";
+          lastSpecHashRef.current = null;
           if (exposeGraphReadyPromise) controller.reject(err);
           // eslint-disable-next-line no-console
           console.error("GraphProvider: loadGraph failed (no-wait)", err);
@@ -697,6 +701,7 @@ export function GraphProvider({
         setGraphLoaded(true);
         runtime.graphLoaded = true;
         runtime.status = "ready";
+        lastSpecHashRef.current = currentHash;
         if (exposeGraphReadyPromise) ctrl.resolve();
         // After loading & seeding, perform an initial eval to seed outputs/writes
         const result = evalTick();
@@ -708,6 +713,7 @@ export function GraphProvider({
       } catch (err) {
         runtime.graphLoaded = false;
         runtime.status = "error";
+        lastSpecHashRef.current = null;
         if (exposeGraphReadyPromise) ctrl.reject(err);
         // eslint-disable-next-line no-console
         console.error("GraphProvider: loadGraph failed", err);

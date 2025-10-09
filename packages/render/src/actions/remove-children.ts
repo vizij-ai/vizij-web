@@ -6,9 +6,7 @@ export function removeFromTree(
   nodesToRemove: string[], // Body id that is being set as child
 ) {
   Object.entries(state.world as World).forEach(([, element]) => {
-    if ("children" in element) {
-      // element is a body
-      // Remove child from children of all other parents
+    if (element.type === "group") {
       element.children = element.children.filter(
         (c: string) => !nodesToRemove.includes(c),
       );

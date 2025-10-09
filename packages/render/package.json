@@ -13,27 +13,28 @@
   "scripts": {
     "build": "tsup src/index.tsx --format esm,cjs --dts src/index.tsx --external react",
     "dev": "tsup src/index.tsx --format esm,cjs --watch --dts src/index.tsx --external react",
-    "clean": "rm -rf dist .turbo tsconfig.tsbuildinfo"
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "test": "vitest --run --passWithNoTests",
+    "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
     "@react-three/drei": "^9.115.0",
     "@react-three/fiber": "^8.17.10",
     "@semio/ui": "*",
-    "@vizij/utils": "^0.0.0",
-    "@types/json-stable-stringify": "^1.0.36",
-    "@use-gesture/react": "^10.3.1",
+    "@vizij/utils": "workspace:*",
     "clsx": "^2.1.1",
     "deep-equal": "^2.2.3",
-    "fast-xml-parser": "^4.4.0",
     "immer": "^10.0.3",
-    "json-stable-stringify": "^1.1.1",
     "lodash": "^4.17.21",
-    "maath": "^0.10.7",
     "react-error-boundary": "^4.0.13",
-    "react-use-measure": "^2.1.1",
     "three": "^0.170.0",
     "three-stdlib": "^2.35.13",
-    "uuid": "^9.0.1",
     "zustand": "^5.0.2"
   },
   "peerDependencies": {
@@ -43,12 +44,12 @@
     "@types/deep-equal": "^1.0.4",
     "@types/lodash": "^4.17.4",
     "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",
-    "eslint": "^8.57.1",
     "react": "^18.3.1",
     "tsup": "^8.0.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "prettier": "^3.4.2",
+    "vitest": "^3.2.4"
   },
   "publishConfig": {
     "access": "public"

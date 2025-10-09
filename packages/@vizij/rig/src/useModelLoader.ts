@@ -1,12 +1,19 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { RawValue, RawVector2 } from "@vizij/utils";
-import { Group, loadGLTF, useVizijStore } from "@vizij/render";
-import { useShallow } from "zustand/shallow";
+import {
+  Group,
+  loadGLTF,
+  useVizijStore,
+  type VizijActions,
+  type VizijData,
+} from "@vizij/render";
 import {
   VizijMouthRigDeprecated as VizijOldRigDeprecated,
   LowLevelRigDefinition,
   VizijLowRig,
 } from "@vizij/config";
+
+type VizijStore = VizijData & VizijActions;
 
 const DEBUG = process.env.NODE_ENV !== "production";
 
@@ -30,13 +37,9 @@ export const useModelLoader = (
   const loadedModelRef = useRef<string | null>(null);
 
   const addWorldElements = useVizijStore(
-    useShallow((state) => state.addWorldElements),
+    (state: VizijStore) => state.addWorldElements,
   );
-  const setVal = useVizijStore(useShallow((state) => state.setValue)) as (
-    id: string,
-    namespace: string,
-    value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
-  ) => void;
+  const setVal = useVizijStore((state: VizijStore) => state.setValue);
 
   // Create stable references for the parameters
   const rigKey = JSON.stringify(rigDef);
@@ -121,7 +124,16 @@ export const useModelLoader = (
     } finally {
       setIsLoading(false);
     }
-  }, [glb, modelKey, addWorldElements, setVal, rigDef, bounds, initialValues]); // REMOVED isLoading from dependencies
+  }, [
+    glb,
+    modelKey,
+    addWorldElements,
+    setVal,
+    rigDef,
+    bounds,
+    initialValues,
+    isLoading,
+  ]);
 
   useEffect(() => {
     // Only load if we haven't loaded this exact configuration before
@@ -146,13 +158,9 @@ export const useRiggedModelLoader = (
   const loadedModelsRef = useRef<Set<string>>(new Set());
 
   const addWorldElements = useVizijStore(
-    useShallow((state) => state.addWorldElements),
+    (state: VizijStore) => state.addWorldElements,
   );
-  const setVal = useVizijStore(useShallow((state) => state.setValue)) as (
-    id: string,
-    namespace: string,
-    value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
-  ) => void;
+  const setVal = useVizijStore((state: VizijStore) => state.setValue);
 
   // Create stable references for the parameters
   const rigKey = JSON.stringify(rigDef);
@@ -233,7 +241,7 @@ export const useRiggedModelLoader = (
     } finally {
       setIsLoading(false);
     }
-  }, [glb, modelKey, addWorldElements, setVal, rigDef]); // REMOVED isLoading from dependencies
+  }, [glb, modelKey, addWorldElements, setVal, rigDef, isLoading]);
 
   useEffect(() => {
     // Only load if we haven't loaded this exact configuration before

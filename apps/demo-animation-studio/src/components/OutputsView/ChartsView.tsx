@@ -1,46 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import type { Value } from "@vizij/animation-wasm";
+import type { Value } from "@vizij/animation-react";
+import { valueToSeries } from "../../utils/valueFormat";
 
 type Sample = { t: number; v: Value };
 type HistoryEntry = { value: Sample[]; derivative: Sample[] };
 type History = Record<string, HistoryEntry>;
-
-function valueToSeries(v: Value): number[] | null {
-  switch (v.type) {
-    case "Scalar":
-    case "Float":
-      return [v.data];
-    case "Bool":
-      return [v.data ? 1 : 0];
-    case "Vec2":
-      return v.data;
-    case "Vec3":
-      return v.data;
-    case "Vec4":
-      return v.data;
-    case "Color":
-    case "ColorRgba":
-      return v.data;
-    case "Quat":
-      // Show w component by default
-      return v.data;
-    case "Transform": {
-      // Focus on translation/rotation; include scale when available
-      const translation = (v.data as any).translation ?? (v.data as any).pos;
-      const rotation = (v.data as any).rotation ?? (v.data as any).rot;
-      const scale = (v.data as any).scale;
-      const series: number[] = [];
-      if (Array.isArray(translation)) series.push(...translation);
-      if (Array.isArray(rotation)) series.push(...rotation);
-      if (Array.isArray(scale)) series.push(...scale);
-      return series.length > 0 ? series : null;
-    }
-    case "Text":
-      return null;
-    default:
-      return null;
-  }
-}
 
 const seriesColors = [
   "#60a5fa",

@@ -1,118 +1,156 @@
-# vizij-web
+# vizij-web Monorepo
 
-Vizij's web monorepo collects the TypeScript packages, React integrations, and showcase applications that drive the "Web Based Framework for Rendered Robot Faces." It contains everything from the core animation/runtime hooks to demo front-ends used during development and research.
+> **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
 
-## Monorepo Layout
+This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@vizij/*-wasm` packages and exposes production-ready packages plus a suite of internal apps.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Workspace Layout](#workspace-layout)
+3. [Tooling Requirements](#tooling-requirements)
+4. [First-Time Setup](#first-time-setup)
+5. [Scripts](#scripts)
+6. [Local WASM Development](#local-wasm-development)
+7. [Development Tips](#development-tips)
+8. [Related Repositories](#related-repositories)
+
+---
+
+## Overview
+
+- **Packages** – Reusable libraries (`@vizij/*`) that wrap WASM runtimes, provide rig utilities, share configs, and expose rendering primitives.
+- **Apps** – Demo and tooling front-ends (Vite + React) used for development, QA, and showcasing Vizij capabilities.
+- **pnpm workspace** – Shared dependency graph, consistent linting/typechecking, and streamlined scripts.
+
+---
+
+## Workspace Layout
 
 ### Packages
 
-| Package                   | Path                               | Purpose                                                               | Key scripts                                  |
-| ------------------------- | ---------------------------------- | --------------------------------------------------------------------- | -------------------------------------------- |
-| `@vizij/animation-react`  | `packages/@vizij/animation-react`  | React provider + hooks for the WASM animation engine.                 | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/config`           | `packages/@vizij/config`           | Canonical rig/pose/channel definitions shared across apps.            | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/node-graph-react` | `packages/@vizij/node-graph-react` | React bindings for the node-graph WASM runtime (provider + hooks).    | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/rig`              | `packages/@vizij/rig`              | React utilities for loading rigged 3D models into the Vizij renderer. | `dev`, `build`, `typecheck`, `clean`         |
-| `vizij`                   | `packages/render`                  | Three.js renderer, store, and controllers for Vizij scenes.           | `dev`, `build`, `lint`, `clean`              |
-| `@semio/utils`            | `packages/utils`                   | Shared math/helpers used across Vizij packages.                       | `dev`, `build`, `test`, `clean`              |
-
-> The `vizij` and `@semio/utils` packages use `tsup`. Run their scripts with `npm --prefix packages/render …` and `npm --prefix packages/utils …` when you need bundled output.
+| Package                     | Path                                 | Summary                                                       | Key scripts                                  |
+| --------------------------- | ------------------------------------ | ------------------------------------------------------------- | -------------------------------------------- |
+| `@vizij/animation-react`    | `packages/@vizij/animation-react`    | React provider for the animation WASM engine.                 | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/config`             | `packages/@vizij/config`             | Canonical rig/channel definitions + utilities.                | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/node-graph-react`   | `packages/@vizij/node-graph-react`   | React provider & hooks for node graphs.                       | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/orchestrator-react` | `packages/@vizij/orchestrator-react` | React orchestrator bindings.                                  | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/rig`                | `packages/@vizij/rig`                | Helpers for loading rigged GLTF characters into the renderer. | `dev`, `build`, `typecheck`, `clean`         |
+| `vizij`                     | `packages/render`                    | Three.js renderer, store, controllers.                        | `dev`, `build`, `lint`, `clean`              |
+| `@vizij/utils`              | `packages/utils`                     | Shared math/value utilities.                                  | `dev`, `build`, `test`, `clean`              |
 
 ### Apps
 
-| App                       | Path                         | Purpose                                                       | Key scripts                                                     |
-| ------------------------- | ---------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
-| `vizij-website`           | `apps/website`               | Marketing + documentation site showcasing Vizij capabilities. | `dev`, `build`, `typecheck`, `lint`, `clean`, `preview`         |
-| `vizij-node-graph-editor` | `apps/node-graph-editor`     | Full-featured editor for authoring node graphs.               | `dev`, `build`, `test`, `lint`, `typecheck`, `clean`, `preview` |
-| `demo-animation-studio`   | `apps/demo-animation-studio` | Playground for the animation runtime and presets.             | `dev`, `build`, `typecheck`, `clean`, `preview`                 |
-| `demo-animation`          | `apps/demo-animation`        | Minimal example showing animation playback + hooks.           | `dev`, `build`, `typecheck`, `clean`, `preview`                 |
-| `demo-graph`              | `apps/demo-graph`            | Minimal node graph consumer demo.                             | `dev`, `build`, `typecheck`, `clean`, `preview`                 |
+| App                     | Path                         | Purpose                                                                             | Typical scripts                                         |
+| ----------------------- | ---------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `website`               | `apps/website`               | Marketing/docs site sharing Vizij components.                                       | `dev`, `build`, `typecheck`, `lint`, `preview`, `clean` |
+| `node-graph-editor`     | `apps/node-graph-editor`     | Authoring tool for Vizij graphs.                                                    | `dev`, `build`, `test`, `typecheck`, `lint`, `preview`  |
+| `demo-animation-studio` | `apps/demo-animation-studio` | Playground for animation presets & rig control.                                     | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-animation`        | `apps/demo-animation`        | Minimal animation player sample.                                                    | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-animation-graph`  | `apps/demo-animation-graph`  | Animation graph showcase combining node graphs and animation outputs.               | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-graph`            | `apps/demo-graph`            | Minimal node graph consumer sample.                                                 | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-orchestrator`     | `apps/demo-orchestrator`     | Orchestrator showcase (graphs + animations).                                        | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-render-no-rig`    | `apps/demo-render-no-rig`    | Renderer showcase without rigging layer (basic face control & orchestration panel). | `dev`, `build`, `typecheck`, `preview`                  |
 
-## Prerequisites
+---
 
-- Node.js 18 LTS or newer (Node 20 recommended).
-- npm 9+, which ships with current Node LTS builds.
-- For day-to-day work the published `@vizij/*` npm packages are enough. See [Local WASM Development](#local-wasm-development) if you need to iterate on the Rust crates directly.
+## Tooling Requirements
+
+- **Node.js** 18 LTS or newer (Node 20 recommended).
+- **pnpm** 9.x (Corepack recommended: `corepack enable`).
+- Optional: VS Code with recommended extensions (`.vscode/extensions.json`).
+
+When linking local WASM builds you’ll also need the Rust toolchain from [`vizij-rs`](../vizij-rs).
+
+---
 
 ## First-Time Setup
 
-1. Install dependencies from the repo root:
+1. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
-2. Build the core packages so `dist/` outputs exist (needed for local app dev):
+2. Build packages so apps receive compiled outputs:
    ```bash
-   npm run build:packages
+   pnpm run build:packages
    ```
-   If you need the bundled renderer/utilities, run:
+   To bundle renderer/utilities specifically:
    ```bash
-   npm --prefix packages/render run build
-   npm --prefix packages/utils run build
+   pnpm --filter "@vizij/render" build
+   pnpm --filter "@vizij/utils" build
    ```
-3. Launch the app you care about, for example the website:
+3. Start a dev server:
    ```bash
-   npm run dev:website
+   pnpm run dev:website
+   # or any app via pnpm --filter "<workspace>" dev
    ```
-   or any workspace via `npm run dev --workspace <name>`.
+
+---
+
+## Scripts
+
+From the repo root:
+
+| Command                                  | Description                                                  |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| `pnpm run dev:<app>`                     | Start any app (`dev:animation`, etc.).                       |
+| `pnpm run build`                         | Build all packages and apps.                                 |
+| `pnpm run build:packages` / `build:apps` | Targeted builds.                                             |
+| `pnpm run typecheck`                     | Run TypeScript checks across workspaces.                     |
+| `pnpm run test`                          | Execute all test scripts (Vitest).                           |
+| `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.    |
+| `pnpm run clean`                         | Remove workspace build outputs.                              |
+| `pnpm run reset`                         | Remove every `node_modules`/cache (:hard to remove locks).   |
+| `pnpm run link:wasm`                     | Link locally built `@vizij/*-wasm` packages from `vizij-rs`. |
+
+Use `pnpm --filter "<workspace>" <script>` when you want to target a specific package/app.
+
+---
 
 ## Local WASM Development
 
-When you need edits from the Rust workspace (`vizij-rs`) to flow straight into the web apps, link the locally built WASM packages:
+When you need edits from the Rust workspace:
 
-1. In `vizij-rs`, build and register the global links:
+1. In `vizij-rs`:
    ```bash
-   npm run link:wasm
+   pnpm run link:wasm
+   # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
    ```
-   This rebuilds both WASM wrappers and exposes them via `npm link` (use `npm run watch:wasm:animation|graph` there if you want ongoing rebuilds).
-2. Back in this repo, link the packages into the monorepo:
+2. Back in this repo:
    ```bash
-   npm run link:wasm
+   pnpm run link:wasm
    ```
-   Existing dependencies stay intact—you do **not** need to delete `node_modules`. Simply restart any running Vite dev server so it picks up the new symlinks.
-3. To return to the published artifacts, run `npm install` (or `npm unlink @vizij/animation-wasm @vizij/node-graph-wasm`) to restore the versions from the lockfile.
 
-Gotchas to keep in mind:
+Tips:
 
-- Always rebuild before linking; stale `pkg/` output in `vizij-rs` can cause confusing runtime errors.
-- Keep crate/npm versions aligned. If the published packages move forward, bump local versions before linking to avoid ABI mismatches.
-- Relinking updates files inside `node_modules`, so rerun `npm run link:wasm` after switching branches or reinstalling dependencies.
-- Long-running dev servers cache module graphs—restart them whenever you toggle between linked and published packages.
+- Restart Vite dev servers after linking so they pick up new symlinks.
+- Keep crate/npm versions aligned to avoid ABI mismatch errors (`expected 2, got 1`). Rebuild when they diverge.
+- When you want to revert to published packages, run `pnpm install` (or `pnpm unlink --global @vizij/*-wasm`).
 
-## Root Scripts
+Vite configuration essentials (already applied in apps):
 
-- `npm run dev` – convenience alias for `vizij-website` dev server.
-- `npm run dev:<app>` – start any app (`dev:node-graph-editor`, `dev:animation-studio`, `dev:demo-animation`, `dev:demo-graph`).
-- `npm run build` – run `build` in every workspace (`apps/*` and `packages/@vizij/*`).
-- `npm run build:packages` / `npm run build:apps` – targeted package or app builds; `build:animation` and `build:graph` wire up common pairings.
-- `npm run typecheck` – run `typecheck` wherever it is defined.
-- `npm run test` – execute all workspace `test` scripts (Vitest today).
-- `npm run clean` – delete build artefacts for all workspaces plus `packages/render` and `packages/utils`.
-- `npm run clean:deep` – alias for `npm run reset` (prunes every `node_modules`, `.vite`, then runs `npm ci`).
-- `npm run link:wasm` – convenience shim for linking locally built WASM packages.
+- `resolve.preserveSymlinks = true`
+- `optimizeDeps.exclude` includes `@vizij/*-wasm`
+- `server.watch.ignored` un-ignores the linked wasm package
+- `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers required for wasm threads
 
-## Working Inside a Workspace
+---
 
-- Most packages/apps are npm workspaces, so you can run `npm run <script> --workspace <name>`.
-- Renderer and utility packages live outside the workspace glob; use `npm --prefix packages/render run <script>` or `npm --prefix packages/utils run <script>`.
-- To add dependencies inside a workspace: `npm install <pkg> --workspace <name>`.
+## Development Tips
 
-## Cleaning & Troubleshooting
+- Use `pnpm --filter "<workspace>" dev` for quick iteration without spinning up every app.
+- Set `USE_LINKED_WASM=1` (where provided) to toggle behaviour when running against local builds.
+- CI and git hooks expect formatted code; run `pnpm run lint` / `pnpm run typecheck` before pushing large changes.
+- When Vite cache issues arise, `pnpm run clean` or `pnpm run reset` usually resolves them.
 
-- Use `npm run clean` before switching branches or when Vite caches get confused.
-- `npm run clean:deep` (a.k.a. `reset`) removes every `node_modules`, nukes `.vite` caches, and reinstalls from lockfile.
-- If WASM behaviour looks off after pulling the Rust repo, rebuild the npm wrappers and re-run `npm run link:wasm`.
-
-## Git Hooks
-
-Local git hooks help keep CI green:
-
-```bash
-bash scripts/install-git-hooks.sh
-```
-
-Hooks run Prettier, ESLint, `tsc`, and Vitest (where defined) on commit/push. Set `HOOK_RUN_WEB_BUILD=1` if you want pre-push builds; override temporarily with `SKIP_GIT_HOOKS=1`.
+---
 
 ## Related Repositories
 
-- [`vizij-rs`](../vizij-rs) – Rust sources for the WASM runtimes.
-- [`vizij-spec`](../vizij-spec) – canonical animation/spec documentation.
-- [`vizij-docs`](../vizij_docs) – broader documentation set.
+- [`vizij-rs`](../vizij-rs) – Rust source for the animation, graph, and orchestrator cores plus WASM bundles.
+- [`vizij_docs`](../vizij_docs) – Additional design notes, investigation reports, and API documentation.
+- [`vizij-spec`](../vizij_spec) – Authoritative schema definitions for animations, node graphs, and orchestrations.
+
+Questions or contributions? Open an issue or reach out to the Vizij front-end & tooling team. Great docs keep this monorepo approachable. 🚀

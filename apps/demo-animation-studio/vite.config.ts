@@ -3,11 +3,10 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    // Important: don't realpath npm links; keep them under node_modules/
-    preserveSymlinks: true,
-  },
   server: {
+    fs: {
+      allow: ["../../../"],
+    },
     // Un-ignore these linked deps inside node_modules
     watch: {
       // anymatch supports negation; first ignore, then unignore our packages

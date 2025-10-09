@@ -6,10 +6,6 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()] as PluginOption[],
   assetsInclude: ["**/*.glb"],
-  resolve: {
-    // Keep linked workspaces under node_modules so wasm relative URLs resolve at runtime
-    preserveSymlinks: true,
-  },
   server: {
     fs: {
       allow: ["../../../"],

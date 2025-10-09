@@ -1,9 +1,11 @@
 import { type RefObject, createRef } from "react";
 import { mapValues } from "lodash";
+import { Group as ThreeGroup } from "three";
 import { createDefaultGroup } from "../functions/create-world-element";
 import { World } from "../types/world";
 import { VizijData } from "../store-types";
-import { Group } from "../types/group";
+import { Group as RenderGroup } from "../types/group";
+import type { Selection } from "../types/selection";
 
 export function createNewElement(
   state: VizijData,
@@ -11,28 +13,40 @@ export function createNewElement(
   root = false,
 ) {
   if (type === "group") {
+    const buildSelection = (id: string): Selection => ({
+      id,
+      namespace: "world",
+      type: "group",
+    });
+
     if (Object.entries(state.world as World).length === 0) {
       const name = `New-Root`;
-      const refs = { default: createRef() } as Record<
+      const refs = { default: createRef<ThreeGroup>() } as Record<
         string,
-        RefObject<SVGGElement>
+        RefObject<ThreeGroup>
       >;
-      const newElement: Group = createDefaultGroup({ name, root: true, refs });
+      const newElement: RenderGroup = createDefaultGroup({
+        name,
+        root: true,
+        refs,
+      });
       state.world[newElement.id] = newElement;
-      state.selectedWorldElement = newElement.id;
+      state.elementSelection = [buildSelection(newElement.id)];
     } else {
-      const worldRoot = Object.entries(state.world as World).filter(
-        ([, e]) => e.type === "group" && e.root,
-      )[0][1] as Group;
+      const worldRootEntry = Object.values(state.world as World).find(
+        (entry): entry is RenderGroup => entry.type === "group" && entry.root,
+      );
+      if (!worldRootEntry) {
+        return;
+      }
       const name = `New-Body`;
-      const refs = mapValues(worldRoot.refs, () => createRef()) as Record<
-        string,
-        RefObject<SVGGElement>
-      >;
-      const newChild: Group = createDefaultGroup({ name, root, refs });
-      (worldRoot as Group).children.push(newChild.id);
+      const refs = mapValues(worldRootEntry.refs, () =>
+        createRef<ThreeGroup>(),
+      ) as Record<string, RefObject<ThreeGroup>>;
+      const newChild: RenderGroup = createDefaultGroup({ name, root, refs });
+      worldRootEntry.children.push(newChild.id);
       state.world[newChild.id] = newChild;
-      state.selectedWorldElement = newChild.id;
+      state.elementSelection = [buildSelection(newChild.id)];
     }
   }
 }

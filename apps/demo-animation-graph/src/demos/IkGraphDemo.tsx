@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   AnimationProvider,
   useAnimTarget,
@@ -20,6 +14,7 @@ import {
   useGraphLoaded,
   useSafeEval,
 } from "@vizij/node-graph-react";
+import { toValueJSON } from "@vizij/value-json";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import {
   UrdfIkPanel,
@@ -114,7 +109,7 @@ function IkGraphInner() {
         if (cancelled) return;
         await stageAndEval(
           ikPaths.jointInput,
-          { vector: jointInputs },
+          toValueJSON(jointInputs),
           undefined,
           false,
         );

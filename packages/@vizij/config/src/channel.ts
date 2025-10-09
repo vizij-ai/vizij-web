@@ -11,35 +11,29 @@ export interface ChannelArchetype {
   tracks: TrackSet;
 }
 
-export namespace Archetype {
-  // Predefined archetypes
-  export const MOUTH: ChannelArchetype = {
+export const Archetype = {
+  MOUTH: {
     name: "mouth",
-    tracks: ["x_pos", "y_pos", "x_scale", "y_scale", "morph"] as const,
-  };
-
-  export const TXY: ChannelArchetype = {
+    tracks: ["x_pos", "y_pos", "x_scale", "y_scale", "morph"] as TrackSet,
+  },
+  TXY: {
     name: "translate_xy",
-    tracks: ["x_pos", "y_pos"] as const,
-  };
-
-  export const SXY: ChannelArchetype = {
+    tracks: ["x_pos", "y_pos"] as TrackSet,
+  },
+  SXY: {
     name: "scale_xy",
-    tracks: ["x_scale", "y_scale"] as const,
-  };
-
-  export const TY_RZ: ChannelArchetype = {
+    tracks: ["x_scale", "y_scale"] as TrackSet,
+  },
+  TY_RZ: {
     name: "ty_rz",
-    tracks: ["y_pos", "z_rot"] as const,
-  };
-
-  export const SY: ChannelArchetype = {
+    tracks: ["y_pos", "z_rot"] as TrackSet,
+  },
+  SY: {
     name: "scale_y",
-    tracks: ["y_scale"] as const,
-  };
-
-  export const TY_RZ_SX: ChannelArchetype = {
+    tracks: ["y_scale"] as TrackSet,
+  },
+  TY_RZ_SX: {
     name: "ty_rz_sx",
-    tracks: ["y_pos", "z_rot", "x_scale"] as const,
-  };
-}
+    tracks: ["y_pos", "z_rot", "x_scale"] as TrackSet,
+  },
+} satisfies Record<string, ChannelArchetype>;

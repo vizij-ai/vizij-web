@@ -1,0 +1,165 @@
+# @vizij/orchestrator-react
+
+> **React bindings for Vizij’s orchestrator – register controllers, stream blackboard writes, and manage playback from JSX.**
+
+This package layers a declarative provider and hook set on top of `@vizij/orchestrator-wasm`. It handles WASM initialisation, orchestrator creation, controller registration, frame subscriptions, and convenient helpers like `useOrchTarget`.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Core Concepts](#core-concepts)
+5. [Hook Reference](#hook-reference)
+6. [Development & Testing](#development--testing)
+7. [Related Packages](#related-packages)
+
+---
+
+## Overview
+
+- `OrchestratorProvider` sets up a shared orchestrator instance backed by `@vizij/orchestrator-wasm`.
+- Hooks expose imperative APIs (`useOrchestrator`) and observational subscriptions (`useOrchFrame`, `useOrchTarget`), all built on `useSyncExternalStore`.
+- Local caching ensures that host-triggered `setInput` calls update hook subscribers immediately (0.3.x improvement).
+- Works alongside `@vizij/node-graph-react` and `@vizij/animation-react` to coordinate multi-domain Vizij experiences.
+
+---
+
+## Installation
+
+```bash
+npm install @vizij/orchestrator-react @vizij/orchestrator-wasm react react-dom
+```
+
+If you consume locally linked WASM packages from `vizij-rs`, configure your Vite dev server to preserve symlinks, exclude the wasm pkg from pre-bundling, and enable COOP/COEP headers. See the Vizij web monorepo README for an end-to-end example.
+
+---
+
+## Quick Start
+
+```tsx
+import {
+  OrchestratorProvider,
+  useOrchestrator,
+  useOrchFrame,
+  useOrchTarget,
+} from "@vizij/orchestrator-react";
+
+function Dashboard() {
+  const {
+    ready,
+    createOrchestrator,
+    registerGraph,
+    registerAnimation,
+    setInput,
+    step,
+  } = useOrchestrator();
+  const frame = useOrchFrame();
+  const demoValue = useOrchTarget("demo/output/value");
+
+  React.useEffect(() => {
+    if (!ready) {
+      createOrchestrator({ schedule: "SinglePass" }).catch(console.error);
+    }
+  }, [ready, createOrchestrator]);
+
+  return (
+    <div>
+      <button onClick={() => registerGraph({ spec: { nodes: [] } })}>
+        Register graph
+      </button>
+      <button onClick={() => registerAnimation({ setup: {} })}>
+        Register animation
+      </button>
+      <button
+        onClick={() =>
+          setInput("demo/input/value", { float: Math.random() * 10 })
+        }
+      >
+        Push input
+      </button>
+      <button onClick={() => step(1 / 60)}>Step</button>
+      <pre>{JSON.stringify(frame?.merged_writes ?? [], null, 2)}</pre>
+      <p>Latest demo value: {JSON.stringify(demoValue)}</p>
+    </div>
+  );
+}
+
+export function App() {
+  return (
+    <OrchestratorProvider autostart={false}>
+      <Dashboard />
+    </OrchestratorProvider>
+  );
+}
+```
+
+---
+
+## Core Concepts
+
+### Provider Props
+
+- `initInput` – Forwards optional init input to `@vizij/orchestrator-wasm.init`.
+- `autoCreate` (default `true`) – Automatically call `createOrchestrator` on mount.
+- `createOptions` – Options passed to `createOrchestrator` (e.g., `{ schedule: "TwoPass" }`).
+- `autostart` – When `true`, kicks off an `requestAnimationFrame` loop stepping the orchestrator every frame.
+
+### Context Surface
+
+`useOrchestrator()` exposes:
+
+- Lifecycle: `ready`, `createOrchestrator`, `requireOrchestrator`.
+- Controller management: `registerGraph`, `registerAnimation`, `removeGraph`, `removeAnimation`, `listControllers`.
+- Blackboard API: `setInput`, `removeInput`, `prebind`.
+- Stepping: `step`, plus autostart support in the provider.
+- Internals ensure `setInput` mirrors values into a local cache so `useOrchTarget` subscribers update immediately, even before the next `step`.
+
+### Frame & Path Subscriptions
+
+- `useOrchFrame()` – Subscribes to the latest `OrchestratorFrame` (merged writes, conflicts, timings, events).
+- `useOrchTarget(path)` – Observes a single blackboard path. Paths are cached so updates only re-render interested components.
+- `valueHelpers` – `valueAsNumber`, `valueAsVec3`, `valueAsBool` mirror helpers from `@vizij/value-json` for convenience.
+
+### StrictMode Consideration
+
+React 18 StrictMode double-mounts providers in development. Because the orchestrator uses internal mutable refs, the second mount can leave `ready` false. Either avoid wrapping the provider in `<React.StrictMode>` or conditionally gate initialisation if you need both.
+
+---
+
+## Hook Reference
+
+| Hook                  | Description                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `useOrchestrator()`   | Returns the imperative API described above.                                                       |
+| `useOrchFrame()`      | Subscribes to the latest `OrchestratorFrame`.                                                     |
+| `useOrchTarget(path)` | Subscribes to a single merged-write path, with immediate updates on `setInput`.                   |
+| `useValueHelpers()`   | Access `valueAsNumber`, `valueAsVec3`, `valueAsBool` (or import directly from `valueHelpers.ts`). |
+
+---
+
+## Development & Testing
+
+Run scripts with pnpm filters:
+
+```bash
+pnpm --filter "@vizij/orchestrator-react" dev
+pnpm --filter "@vizij/orchestrator-react" test
+pnpm --filter "@vizij/orchestrator-react" build
+pnpm --filter "@vizij/orchestrator-react" typecheck
+```
+
+Vitest tests mock the wasm binding to keep execution fast. When you want end-to-end coverage against the real `vizij-orchestrator-wasm` build, rebuild the WASM package in `vizij-rs` (`pnpm run build:wasm:orchestrator`) and launch the `apps/demo-orchestrator` workspace.
+
+---
+
+## Related Packages
+
+- [`@vizij/orchestrator-wasm`](../../../vizij-rs/npm/@vizij/orchestrator-wasm/README.md) – wasm wrapper consumed by this package.
+- [`vizij-orchestrator-core`](../../../vizij-rs/crates/orchestrator/vizij-orchestrator-core/README.md) – Rust crate providing orchestrator logic.
+- [`@vizij/node-graph-react`](../@vizij/node-graph-react/README.md) & [`@vizij/animation-react`](../@vizij/animation-react/README.md) – React bindings for the other Vizij stacks.
+- `apps/demo-orchestrator` – Minimal showcase using this package end-to-end.
+
+Questions or feedback? Open an issue in Vizij’s main repo—great documentation keeps orchestration predictable. 🔄

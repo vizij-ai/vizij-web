@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useAnimation } from "@vizij/animation-react";
+import { valueAsNumber, valueAsVector } from "@vizij/value-json";
 import type {
   InstanceInfo,
   StoredAnimation,
@@ -51,49 +52,37 @@ const DEFAULT_COLORS = [
   "rgba(56,189,248,0.75)",
 ];
 
+const collectNumbers = (value: WasmValue | null | undefined): number[] => {
+  if (!value) return [];
+
+  const vector = valueAsVector(value);
+  if (Array.isArray(vector) && vector.length > 0) {
+    return vector
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry));
+  }
+
+  if (value.type === "record") {
+    return Object.values(value.data ?? {}).flatMap((entry) =>
+      collectNumbers(entry),
+    );
+  }
+
+  const scalar = valueAsNumber(value);
+  if (typeof scalar === "number" && Number.isFinite(scalar)) {
+    return [scalar];
+  }
+
+  return [];
+};
+
 const toScalar = (value: WasmValue | null | undefined): number | null => {
   if (!value) return null;
-  const { type, data } = value as WasmValue & { data: any };
-  switch (type) {
-    case "Scalar":
-    case "Float":
-      return Number.isFinite(data) ? Number(data) : null;
-    case "Bool":
-      return data ? 1 : 0;
-    case "Vec2":
-    case "Vec3":
-    case "Vec4":
-    case "Color":
-    case "ColorRgba": {
-      if (!Array.isArray(data)) return null;
-      const nums = data.filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      if (nums.length === 1) return nums[0];
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    case "Quat": {
-      if (!Array.isArray(data)) return null;
-      const nums = data.filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    case "Transform": {
-      if (!data || typeof data !== "object") return null;
-      const parts = [
-        data.translation ?? data.pos,
-        data.rotation ?? data.rot,
-        data.scale,
-      ];
-      const nums = parts.flat().filter((n) => Number.isFinite(n)) as number[];
-      if (nums.length === 0) return null;
-      const squared = nums.reduce((acc, v) => acc + v * v, 0);
-      return Math.sqrt(squared);
-    }
-    default:
-      return null;
-  }
+  const numbers = collectNumbers(value);
+  if (numbers.length === 0) return null;
+  if (numbers.length === 1) return numbers[0];
+  const squared = numbers.reduce((acc, v) => acc + v * v, 0);
+  return Math.sqrt(squared);
 };
 
 const mapAnimationSources = (

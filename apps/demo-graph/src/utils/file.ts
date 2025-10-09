@@ -26,7 +26,7 @@ export function parseGraphSpecJSON(text: string): any {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch (err) {
+  } catch {
     throw new Error("Invalid JSON file");
   }
 

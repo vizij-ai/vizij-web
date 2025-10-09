@@ -306,7 +306,7 @@ export default function AnimationEditor({
   const applyChanges = () => {
     if (!draft) return;
     // Validate value inputs
-    for (const [key, msg] of Object.entries(valueErrors)) {
+    for (const [, msg] of Object.entries(valueErrors)) {
       if (msg) {
         setError("Resolve value parsing errors before applying.");
         setStatus(null);

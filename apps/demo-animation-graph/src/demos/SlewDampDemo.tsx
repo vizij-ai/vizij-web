@@ -66,10 +66,6 @@ function SlewDampInner() {
 
   const series = useSyncedSeries(seriesValues, frame.version);
 
-  const rawOut = frame.raw;
-  const slewOut = frame.slew;
-  const dampOut = frame.damp;
-
   return (
     <div
       style={{
@@ -122,7 +118,7 @@ function SlewDampInner() {
             </li>
           </ul>
           <div style={{ opacity: 0.8, fontSize: 14 }}>
-            Latest damped value: {dampOut?.toFixed(3) ?? "…"}
+            Latest damped value: {frame.damp?.toFixed(3) ?? "…"}
           </div>
           <div
             style={{

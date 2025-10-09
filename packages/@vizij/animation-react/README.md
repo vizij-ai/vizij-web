@@ -1,102 +1,60 @@
 # @vizij/animation-react
 
-React provider and hooks for Vizij's animation engine (WASM-backed). This package wraps `@vizij/animation-wasm` with an ergonomic React API for loading animations, binding targets, stepping the simulation, and subscribing to per-target values.
+> **React provider and hooks for Vizij’s animation WASM runtime.**
 
-- Engine core (Rust): vizij-animation-core
-- WASM bindings (Rust): vizij-animation-wasm
-- JS entry (npm): @vizij/animation-wasm
-- React integration (this package): @vizij/animation-react
+This package wraps `@vizij/animation-wasm` with React-friendly primitives so applications can load animations, manage players/instances, stream outputs, and bake results using idiomatic hooks.
 
-This README describes the current API and should be treated as the canonical starting point.
+---
 
-## Install
+## Table of Contents
 
-Within the monorepo:
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Provider & Context](#provider--context)
+5. [Hooks](#hooks)
+6. [Helpers](#helpers)
+7. [Development & Testing](#development--testing)
+8. [Related Packages](#related-packages)
 
-- Build the WASM package (if not already built):
+---
 
-  ```bash
-  # from vizij-rs/
-  node scripts/build-animation-wasm.mjs
-  ```
+## Overview
 
-- Build the npm wrapper:
+- Initialises `@vizij/animation-wasm` automatically and manages the wasm engine lifecycle.
+- Loads one or more `StoredAnimation` clips, creates players/instances, and keeps them in sync with React state.
+- Provides fine-grained subscriptions (`useAnimTarget`) backed by `useSyncExternalStore`.
+- Supports manual or automatic playback (`autostart` with RAF or manual stepping via `step`).
+- Exposes helpers for value coercion (`valueAsNumber`, `valueAsTransform`, etc.).
 
-  ```bash
-  # from vizij-rs/npm/@vizij/animation-wasm
-  npm run build
-  ```
+---
 
-- Build this React package:
-  ```bash
-  # from vizij-web/packages/@vizij/animation-react
-  npm run build
-  ```
-
-In a separate app (after publishing to npm), install:
+## Installation
 
 ```bash
-npm i @vizij/animation-react @vizij/animation-wasm react react-dom
+npm install @vizij/animation-react @vizij/animation-wasm react react-dom
+# or pnpm add …
 ```
 
-### Vite configuration
+During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation-wasm` from pre-bundling (see the [`vizij-web` README](../../README.md#local-wasm-development) for a Vite example).
 
-`@vizij/animation-react` automatically calls `init()` from `@vizij/animation-wasm`, which in turn loads the compiled `.wasm` file via a relative `import.meta.url`.
-Most bundlers handle this out of the box, but **Vite will break it if it prebundles the wasm shim into `.vite/deps`**. When that happens the relative URL points at a JS bundle and the wasm fetch returns HTML, causing `WebAssembly.instantiate()` to fail ("expected magic word 00 61 73 6d").
-
-To keep the WASM asset loading correctly—without making every app import it manually—add the following to your Vite config:
-
-```ts
-// vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    // Keep linked workspaces under node_modules so import.meta.url stays stable
-    preserveSymlinks: true,
-  },
-  server: {
-    watch: {
-      ignored: [
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
-        "!**/node_modules/@vizij/animation-react/**",
-      ],
-    },
-  },
-  optimizeDeps: {
-    // Let Vite serve the wasm entry directly instead of prebundling it
-    exclude: ["@vizij/animation-wasm"],
-    include: ["@vizij/animation-react"],
-    force: true,
-  },
-});
-```
-
-With this setup the React provider can fetch the wasm binary on its own and consumers do not need to import the `.wasm` file directly.
+---
 
 ## Quick Start
 
-Load a StoredAnimation and display a live scalar value.
-
 ```tsx
-import React from "react";
 import {
   AnimationProvider,
   useAnimTarget,
   valueAsNumber,
 } from "@vizij/animation-react";
 
-// Minimal StoredAnimation (recommended format)
-const anim = {
+const storedAnimation = {
   name: "Scalar Ramp",
-  duration: 2000, // ms
+  duration: 2000,
   tracks: [
     {
-      id: "t0",
-      name: "Scalar",
+      id: "scalar",
       animatableId: "demo/scalar",
       points: [
         { id: "k0", stamp: 0.0, value: 0 },
@@ -108,16 +66,16 @@ const anim = {
 };
 
 function Panel() {
-  const value = useAnimTarget("demo/scalar"); // subscribe by resolved key
-  const num = valueAsNumber(value); // helper to coerce Value -> number
-  return <div>Value: {num !== undefined ? num.toFixed(3) : "…"}</div>;
+  const value = useAnimTarget("demo/scalar");
+  const num = valueAsNumber(value);
+  return <div>Value: {num?.toFixed(3) ?? "…"}</div>;
 }
 
-export default function App() {
+export function App() {
   return (
     <AnimationProvider
-      animations={anim}
-      prebind={(path) => path} // identity mapping: canonical path -> key
+      animations={storedAnimation}
+      prebind={(path) => path} // canonical path -> subscription key
       autostart
       updateHz={60}
     >
@@ -127,173 +85,92 @@ export default function App() {
 }
 ```
 
-## Concepts
+---
 
-- StoredAnimation: Canonical JSON format for clips (see vizij-spec/Animation.md).
-- Prebind: Map canonical target paths (e.g., `"node/Transform.translation"`) to small keys you control (string or number). The engine will emit changes keyed to these values.
-- Per-target subscription: React hooks subscribe to a specific resolved key and are notified only when that key changes (efficient updates).
-
-## Provider
+## Provider & Context
 
 ```tsx
-import { AnimationProvider } from "@vizij/animation-react";
+import { AnimationProvider, useAnimation } from "@vizij/animation-react";
 ```
 
-Props:
+`AnimationProvider` props:
 
-- `animations: StoredAnimation | StoredAnimation[]`
-  - One or more StoredAnimation JSON objects to load. The provider ensures they are loaded once per identity change.
-- `instances?: { playerName: string; animIndex?: number; cfg?: unknown }[]`
-  - Optional instance creation spec.
-  - If omitted, the provider creates a default player `"default"` bound to the first animation.
-  - `animIndex` refers to the index in the `animations` array (0 by default).
-  - `cfg` is passed through to the engine for future instance options.
-- `prebind?: (path: string) => string | number | null | undefined`
-  - Prebind resolver. Identity mapping is valid for many cases. Numbers are accepted and coerced to strings internally.
-- `autostart?: boolean` (default: true)
-  - When true, starts an RAF loop to advance the engine and notify subscribers.
-- `updateHz?: number`
-  - When set, throttles subscriber notifications to at most N Hz (simulation still advances every frame).
-- Behavior:
-  - On mount/props changes, loads animations and creates instances.
-  - Calls `init()` in the underlying wasm wrapper (browser path).
-  - Applies outputs from each `update()` into an external store keyed by resolved target keys.
+| Prop         | Type                                                                   | Description                                                                              |
+| ------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `animations` | `StoredAnimation / StoredAnimation[]`                                  | Clips to load on mount (reloaded when identity changes).                                 |
+| `instances`  | `InstanceSpec[]` _(optional)_                                          | Preconfigured instances; defaults to a single player/instance using the first animation. |
+| `prebind`    | `(path: string) => string \| number \| null \| undefined` _(optional)_ | Resolver from canonical target paths to subscription keys.                               |
+| `autostart`  | `boolean` _(default: `true`)_                                          | When true, starts a `requestAnimationFrame` loop. If false, call `step(dt)` manually.    |
+| `updateHz`   | `number` _(optional)_                                                  | Throttle subscriber notifications while the simulation still runs every frame.           |
 
-Context shape (via `useAnimation()`):
+`useAnimation()` returns the provider context:
 
 ```ts
-type Ctx = {
-  ready: boolean; // Provider is initialized
+type AnimationContext = {
+  ready: boolean;
   subscribeToKey(key: string, cb: () => void): () => void;
-  getKeySnapshot(key: string): Value | undefined;
-  step(dt: number, inputs?: Inputs): void; // Manual stepping if autostart=false
+  getKeySnapshot(key: string): ValueJSON | undefined;
+  step(dtSeconds: number, inputs?: Inputs): void;
   reload(
-    anims: StoredAnimation[] | StoredAnimation,
+    animations: StoredAnimation | StoredAnimation[],
     instances?: InstanceSpec[],
   ): void;
-  players: Record<string, number>; // Optional player name -> PlayerId map
+  players: Record<string, number>; // player name -> PlayerId
 };
 ```
 
+Use `step` when `autostart` is disabled (e.g., timeline scrubbing tools).
+
+---
+
 ## Hooks
 
-### useAnimation()
+| Hook                          | Description                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `useAnimation()`              | Access the provider context (throws if used outside `AnimationProvider`).          |
+| `useAnimTarget(key?: string)` | Subscribe to a resolved target key; returns the latest `ValueJSON` or `undefined`. |
 
-Access the provider context. Throw if called outside provider.
+`useAnimTarget` is built on `useSyncExternalStore`, so components re-render only when the requested key changes.
 
-```ts
-const { ready, players, step, reload } = useAnimation();
-```
+---
 
-### useAnimTarget(key?: string): Value | undefined
+## Helpers
 
-Subscribe to a single target key and get its latest Value (tagged union from the engine). Efficiently re-renders only when that key changes.
-
-```tsx
-const v = useAnimTarget("robot/Arm.rotation");
-```
-
-## Value Helpers
-
-Helpers to coerce the engine Value union to simple types for UI.
+The package re-exports value coercion helpers from `@vizij/value-json`:
 
 ```ts
 import {
   valueAsNumber,
+  valueAsNumericArray,
+  valueAsTransform,
+  valueAsQuat,
   valueAsVec3,
+  valueAsColorRgba,
   valueAsBool,
+  valueAsText,
 } from "@vizij/animation-react";
-
-const n: number | undefined = valueAsNumber(value);
-const v3: [number, number, number] | undefined = valueAsVec3(value);
-const b: boolean | undefined = valueAsBool(value);
 ```
 
-## Types
+Use them to format engine values for UI or to feed other subsystems.
 
-The engine emits values using a tagged union normalized at the wasm boundary:
+---
 
-```ts
-export type Value =
-  | { type: "Scalar"; data: number }
-  | { type: "Vec2"; data: [number, number] }
-  | { type: "Vec3"; data: [number, number, number] }
-  | { type: "Vec4"; data: [number, number, number, number] }
-  | { type: "Quat"; data: [number, number, number, number] }
-  | { type: "Color"; data: [number, number, number, number] }
-  | {
-      type: "Transform";
-      data: {
-        translation: [number, number, number];
-        rotation: [number, number, number, number]; // (x,y,z,w)
-        scale: [number, number, number];
-      };
-    }
-  | { type: "Bool"; data: boolean }
-  | { type: "Text"; data: string };
-```
-
-See `@vizij/animation-wasm` for the complete `Inputs`, `Outputs`, `Change`, and `CoreEvent` types if you need to pass player commands or instance updates into `step(dt, inputs)` or into the provider in future extensions.
-
-## Multiple Animations and Instances
-
-Load multiple clips and create named players bound to specific animations:
-
-```tsx
-<AnimationProvider
-  animations={[animA, animB]}
-  instances={[
-    { playerName: "walk", animIndex: 0 },
-    {
-      playerName: "wave",
-      animIndex: 1,
-      cfg: {
-        /* future instance cfg */
-      },
-    },
-  ]}
-  prebind={(path) => path}
-/>
-```
-
-You can then retrieve `players` from `useAnimation()` to send Inputs targeting specific players/instances (advanced flows).
-
-## Prebind
-
-For performance and stability, the engine resolves canonical paths once:
-
-```ts
-prebind={(path) => {
-  // Example mapping from canonical engine paths to UI keys
-  const map: Record<string, string> = {
-    "robot/Transform.rotation": "robot/rot",
-    "robot/Transform.translation": "robot/pos",
-  };
-  return map[path] ?? null;
-}}
-```
-
-If `prebind` is omitted, the engine will emit changes keyed to canonical paths; you can subscribe to those directly.
-
-## Example App (in monorepo)
-
-- `vizij-web/apps/demo-animation` shows a minimal setup that:
-  - Loads a StoredAnimation fixture
-  - Identity-prebinds paths to subscription keys
-  - Displays a live scalar value using `useAnimTarget` and `valueAsNumber`
-
-Build with:
+## Development & Testing
 
 ```bash
-# from vizij-web/apps/demo-animation
-npm run build
+pnpm --filter "@vizij/animation-react" build
+pnpm --filter "@vizij/animation-react" test
+pnpm --filter "@vizij/animation-react" typecheck
 ```
 
-## Troubleshooting
+Vitest mocks the wasm binding to keep tests fast; end-to-end checks can be exercised via demo apps (e.g., `apps/demo-animation-studio`) after linking local builds.
 
-- No values showing: Ensure your `animations` contain tracks and your subscription key matches the resolved key (consider identity prebind).
-- Bundler warnings about node: modules: These stem from the wasm wrapper supporting Node; in browsers the wrapper uses URL-based loading, so warnings are benign.
+---
 
-## License
+## Related Packages
 
-See repository root for licensing details.
+- [`@vizij/animation-wasm`](../../../vizij-rs/npm/@vizij/animation-wasm/README.md) – WASM binding used internally.
+- [`vizij-animation-core`](../../../vizij-rs/crates/animation/vizij-animation-core/README.md) – underlying animation engine.
+- [`@vizij/node-graph-react`](../@vizij/node-graph-react/README.md) / [`@vizij/orchestrator-react`](../@vizij/orchestrator-react/README.md) – complementary React bindings.
+
+Questions or feature requests? Open an issue—smooth React integration keeps Vizij animations easy to use. 🎬

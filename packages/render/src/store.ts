@@ -299,8 +299,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     set(
       produce((state) => {
         const parentLookupId = getLookup(parentNamespace, parentId);
-        const { slotConfig, [parentLookupId]: _ } = state.slotConfig;
-        state.slotConfig = slotConfig;
+        delete state.slotConfig[parentLookupId];
       }),
     );
   },
@@ -336,10 +335,6 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   ) => {
     set(
       produce((state: VizijData) => {
-        const test = 0;
-        let testy = 10 * test;
-        void testy;
-        // console.log("in store", id, namespace, ref.current);
         (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
           ref.current as Group;
         if (ref.current?.children && state.world[id].refs[namespace].current) {

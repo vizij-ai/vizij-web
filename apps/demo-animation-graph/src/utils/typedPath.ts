@@ -14,7 +14,7 @@ function segmentToString(segment: string | number): string {
   if (typeof segment === "number") {
     return segment.toString(10);
   }
-  return segment.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_\/-]/g, "");
+  return segment.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_/-]/g, "");
 }
 
 /**
