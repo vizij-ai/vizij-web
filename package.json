@@ -21,6 +21,8 @@
     "build:apps": "pnpm --filter vizij-node-graph-editor run build && pnpm --filter demo-render-no-rig run build && pnpm --filter demo-animation-studio run build && pnpm --filter demo-animation run build && pnpm --filter demo-graph run build",
     "prettier:check": "pnpm -r run --if-present prettier:check",
     "prettier": "pnpm -r run --if-present prettier:write",
+    "format": "pnpm run prettier",
+    "format:check": "pnpm run prettier:check",
     "lint": "pnpm -r run --if-present lint",
     "test": "pnpm -r run --if-present test",
     "typecheck": "pnpm -r run --if-present typecheck",
@@ -33,11 +35,12 @@
   "devDependencies": {
     "@eslint/js": "^9.19.0",
     "eslint": "^9.19.0",
+    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.18",
-    "eslint-plugin-import": "^2.31.0",
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.22.0",
     "vitest": "^3.2.4"
   }
