@@ -40,11 +40,5 @@
     "prettier": "^3.4.2",
     "typescript-eslint": "^8.22.0",
     "vitest": "^3.2.4"
-  },
-  "pnpm": {
-    "overrides": {
-      "@vizij/value-json": "link:../vizij-rs/npm/@vizij/value-json",
-      "@vizij/orchestrator-wasm": "link:../vizij-rs/npm/@vizij/orchestrator-wasm"
-    }
   }
 }

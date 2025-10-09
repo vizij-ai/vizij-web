@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
+    "@vizij/animation-wasm": "^0.3.1",
     "@vizij/animation-react": "workspace:*",
     "@vizij/value-json": "^0.1.0",
     "react": "^18.2.0",
