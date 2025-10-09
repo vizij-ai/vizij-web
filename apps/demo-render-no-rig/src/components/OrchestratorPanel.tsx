@@ -439,6 +439,7 @@ interface OrchestratorBridgeContextValue {
   }>;
   setGraphEnabled: (graphId: string, enabled: boolean) => void;
   logCurrentInputs: () => void;
+  hiddenInputPaths: Set<string>;
 }
 
 const OrchestratorBridgeContext =
@@ -466,6 +467,7 @@ interface OrchestratorPanelProps {
   graphState: GraphEditorState;
   extraGraphs?: AdditionalGraphState[];
   initialOutputMap?: Record<string, string> | null;
+  hiddenInputPaths?: string[];
 }
 
 function applyOutputMappings(
@@ -512,6 +514,7 @@ export function OrchestratorBridgeProvider({
   graphState,
   extraGraphs,
   initialOutputMap,
+  hiddenInputPaths = [],
   children,
 }: OrchestratorBridgeProviderProps) {
   const {
@@ -1169,6 +1172,11 @@ export function OrchestratorBridgeProvider({
     console.log(payload);
   }, [inputRows, inputValues]);
 
+  const hiddenInputPathSet = useMemo(
+    () => new Set(hiddenInputPaths.filter((entry) => entry && entry.length)),
+    [hiddenInputPaths],
+  );
+
   const contextValue = useMemo<OrchestratorBridgeContextValue>(
     () => ({
       ready,
@@ -1192,9 +1200,11 @@ export function OrchestratorBridgeProvider({
       graphToggles,
       setGraphEnabled,
       logCurrentInputs,
+      hiddenInputPaths: hiddenInputPathSet,
     }),
     [
       animatables,
+      hiddenInputPathSet,
       buttonsDisabled,
       connected,
       currentMappingsSummary,
@@ -1389,9 +1399,16 @@ export function OrchestratorPanel() {
 }
 
 export function OrchestratorInputsPanel() {
-  const { inputRows, inputValues, updateInputValue } = useOrchestratorBridge();
+  const { inputRows, inputValues, updateInputValue, hiddenInputPaths } =
+    useOrchestratorBridge();
 
-  const hasInputs = inputRows.some((row) => row.path);
+  const visibleRows = useMemo(
+    () =>
+      inputRows.filter((row) => row.path && !hiddenInputPaths.has(row.path)),
+    [hiddenInputPaths, inputRows],
+  );
+
+  const hasInputs = visibleRows.length > 0;
 
   if (!hasInputs) {
     return (
@@ -1403,7 +1420,7 @@ export function OrchestratorInputsPanel() {
 
   return (
     <div className="orchestrator-inputs">
-      {inputRows.map((row) => {
+      {visibleRows.map((row) => {
         if (!row.path) return null;
         const value =
           row.path in inputValues ? inputValues[row.path] : row.defaultValue;

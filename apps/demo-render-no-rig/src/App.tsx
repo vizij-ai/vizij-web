@@ -13,6 +13,8 @@ import {
 import { AnimationEditor } from "./components/AnimationEditor";
 import { GraphEditor } from "./components/GraphEditor";
 import { CollapsiblePanel } from "./components/CollapsiblePanel";
+import { GazeControlPanel } from "./components/GazeControlPanel";
+import { getGazeControlledPaths } from "./data/gazeMappings";
 import { useFaceLoader } from "./hooks/useFaceLoader";
 import { useAnimatableList } from "./hooks/useAnimatableList";
 import { useNodeRegistry } from "./hooks/useNodeRegistry";
@@ -88,6 +90,11 @@ export default function App() {
     }
     return buildExpressionGraph(face.id);
   }, [face]);
+
+  const gazeInputPaths = useMemo(
+    () => getGazeControlledPaths(face?.id),
+    [face?.id],
+  );
 
   useEffect(() => {
     if (!face?.rig) {
@@ -247,6 +254,7 @@ export default function App() {
             : []
         }
         initialOutputMap={rigOutputMap}
+        hiddenInputPaths={gazeInputPaths}
       >
         <main className="app-main">
           <div className="viewer-column">
@@ -258,6 +266,7 @@ export default function App() {
               namespace={namespace}
               showSafeArea={showSafeArea}
             />
+            <GazeControlPanel face={face} />
             <div className="panel status-panel">
               <div className="panel-header">
                 <h2>Status</h2>

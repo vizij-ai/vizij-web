@@ -1013,3 +1013,109 @@ textarea {
   resize: vertical;
   min-height: 5rem;
 }
+
+.gaze-panel .panel-body {
+  gap: 0.75rem;
+}
+
+.gaze-panel .panel-heading p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(245, 245, 245, 0.65);
+}
+
+.gaze-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gaze-body {
+  gap: 0.75rem;
+}
+
+.gaze-area {
+  position: relative;
+  width: 100%;
+  padding-top: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: radial-gradient(
+    circle at center,
+    rgba(80, 196, 182, 0.18),
+    rgba(14, 20, 28, 0.65)
+  );
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.gaze-area.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.gaze-area.is-dragging {
+  border-color: rgba(80, 196, 182, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(80, 196, 182, 0.25),
+    0 0 18px rgba(80, 196, 182, 0.2);
+}
+
+.gaze-area:focus-visible {
+  outline: 2px solid rgba(88, 166, 255, 0.75);
+  outline-offset: 2px;
+}
+
+.gaze-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(245, 245, 245, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 245, 245, 0.12) 1px, transparent 1px);
+  background-size: 20% 20%;
+  pointer-events: none;
+}
+
+.gaze-grid::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20%;
+  height: 20%;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+}
+
+.gaze-knob {
+  position: absolute;
+  width: 18%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 1px solid rgba(80, 196, 182, 0.9);
+  background: rgba(80, 196, 182, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: grab;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.gaze-knob:active {
+  cursor: grabbing;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.gaze-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: rgba(245, 245, 245, 0.75);
+}
+
+.gaze-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(245, 245, 245, 0.65);
+}
