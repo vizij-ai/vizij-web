@@ -410,10 +410,15 @@ function GraphUI({
 function Controls({
   spec,
   setSpec,
+  autostart,
+  setAutostart,
 }: {
   spec: GraphSpec;
   setSpec: (spec: GraphSpec) => void;
+  autostart: boolean;
+  setAutostart: (next: boolean) => void;
 }) {
+  const rt = useGraphRuntime();
   const [error, setError] = useState<string | null>(null);
   const [sampleId, setSampleId] = useState<string>("vector-playground");
 
@@ -468,16 +473,57 @@ function Controls({
     }
   };
 
+  const togglePlay = (next: boolean) => {
+    setAutostart(next);
+    if (next) {
+      rt.startPlayback?.();
+    } else {
+      rt.stopPlayback?.();
+      rt.evalAll?.();
+    }
+  };
+
+  const stepOnce = () => {
+    setAutostart(false);
+    rt.stopPlayback?.();
+    rt.applyStagedInputs?.();
+    rt.step?.(1 / 60);
+    rt.evalAll?.();
+  };
+
   return (
     <div
       style={{
         display: "flex",
-        gap: 12,
-        alignItems: "center",
         flexWrap: "wrap",
-        marginBottom: 12,
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 16,
       }}
     >
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => togglePlay(true)}
+          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          disabled={autostart}
+        >
+          Play
+        </button>
+        <button
+          onClick={() => togglePlay(false)}
+          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          disabled={!autostart}
+        >
+          Pause
+        </button>
+        <button
+          onClick={stepOnce}
+          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+        >
+          Step
+        </button>
+      </div>
+
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <strong>Graph file</strong>
         <input
@@ -506,6 +552,87 @@ function Controls({
   );
 }
 
+function SpecEditor({
+  spec,
+  setSpec,
+}: {
+  spec: GraphSpec;
+  setSpec: (spec: GraphSpec) => void;
+}) {
+  const [draft, setDraft] = useState<string>(() =>
+    JSON.stringify(spec, null, 2),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(JSON.stringify(spec, null, 2));
+    setError(null);
+  }, [spec]);
+
+  const applyDraft = () => {
+    try {
+      const parsed = parseGraphSpecJSON(draft);
+      setSpec(parsed);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    }
+  };
+
+  return (
+    <section
+      style={{
+        border: "1px solid #333",
+        borderRadius: 8,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        background: "#0f0f0f",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h3 style={{ margin: 0 }}>Graph JSON</h3>
+        <button
+          onClick={() => {
+            setDraft(JSON.stringify(spec, null, 2));
+            setError(null);
+          }}
+          style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #444" }}
+        >
+          Reset
+        </button>
+      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={24}
+        spellCheck={false}
+        style={{
+          width: "100%",
+          fontFamily: "monospace",
+          fontSize: 13,
+          background: "#1a1a1a",
+          color: "#f5f5f5",
+          border: "1px solid #333",
+          borderRadius: 6,
+          padding: 8,
+          resize: "vertical",
+        }}
+      />
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button
+          onClick={applyDraft}
+          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+        >
+          Apply JSON
+        </button>
+      </div>
+      {error ? <div style={{ color: "salmon" }}>Error: {error}</div> : null}
+    </section>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
@@ -516,38 +643,41 @@ export default function App() {
     <div
       style={{
         fontFamily: "Inter, system-ui, sans-serif",
-        maxWidth: 960,
+        maxWidth: 1120,
         margin: "2rem auto",
         padding: "0 1rem",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Vizij Demo Graph</h1>
-        <button
-          onClick={() => setAutostart((s) => !s)}
+      <GraphProvider spec={spec} autoStart={autostart} updateHz={60}>
+        <header
           style={{
-            padding: "6px 10px",
-            borderRadius: 6,
-            border: "1px solid #444",
-            background: autostart ? "#1f8cff" : "#2a2a2a",
-            color: "#fff",
-            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
           }}
         >
-          {autostart ? "Pause" : "Play"}
-        </button>
-      </div>
+          <h1 style={{ margin: 0 }}>Vizij Node Graph Demo</h1>
+        </header>
 
-      <GraphProvider spec={spec} autoStart={autostart} updateHz={60}>
-        <Controls spec={spec} setSpec={setSpec} />
-        <GraphUI spec={spec} autostart={autostart} />
+        <Controls
+          spec={spec}
+          setSpec={setSpec}
+          autostart={autostart}
+          setAutostart={setAutostart}
+        />
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 0.85fr)",
+            gap: 24,
+            alignItems: "start",
+          }}
+        >
+          <GraphUI spec={spec} autostart={autostart} />
+          <SpecEditor spec={spec} setSpec={setSpec} />
+        </div>
       </GraphProvider>
     </div>
   );
