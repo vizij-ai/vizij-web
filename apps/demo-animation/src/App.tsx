@@ -26,6 +26,114 @@ const normalizeAnimations = (
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+type AnimationSummary = {
+  primaryAnimationId?: string | number;
+  primaryTrackAnimatableId?: string;
+  primaryTrackLabel?: string | number;
+  animatableIds: string[];
+};
+
+type AnimationValidationResult = {
+  errors: string[];
+  warnings: string[];
+  summary: AnimationSummary;
+};
+
+const describeAnimation = (anim: StoredAnimation, index: number): string => {
+  const candidate = anim as any;
+  if (typeof candidate?.id === "string" && candidate.id.trim() !== "") {
+    return `animation "${candidate.id}"`;
+  }
+  if (typeof candidate?.id === "number") {
+    return `animation ${candidate.id}`;
+  }
+  if (typeof candidate?.name === "string" && candidate.name.trim() !== "") {
+    return `animation "${candidate.name}"`;
+  }
+  return `animation[${index}]`;
+};
+
+const describeTrack = (
+  anim: StoredAnimation,
+  animIndex: number,
+  track: unknown,
+  trackIndex: number,
+): string => {
+  const trackObj = track as any;
+  if (typeof trackObj?.id === "string" && trackObj.id.trim() !== "") {
+    return `track "${trackObj.id}" of ${describeAnimation(anim, animIndex)}`;
+  }
+  if (typeof trackObj?.id === "number") {
+    return `track ${trackObj.id} of ${describeAnimation(anim, animIndex)}`;
+  }
+  return `track[${trackIndex}] of ${describeAnimation(anim, animIndex)}`;
+};
+
+const validateAnimations = (
+  anims: StoredAnimation[],
+): AnimationValidationResult => {
+  const summary: AnimationSummary = { animatableIds: [] };
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const animatableIdSet = new Set<string>();
+
+  anims.forEach((anim, animIndex) => {
+    if (!anim || typeof anim !== "object") {
+      errors.push(`Animation at index ${animIndex} must be an object.`);
+      return;
+    }
+
+    const animObj = anim as any;
+    const animId = animObj.id;
+    if (summary.primaryAnimationId === undefined) {
+      if (typeof animId === "string" && animId.trim() !== "") {
+        summary.primaryAnimationId = animId;
+      } else if (typeof animId === "number") {
+        summary.primaryAnimationId = animId;
+      }
+    }
+    if (
+      animId === undefined ||
+      animId === null ||
+      (typeof animId === "string" && animId.trim() === "")
+    ) {
+      warnings.push(`${describeAnimation(anim, animIndex)} is missing an id.`);
+    }
+
+    const tracks = animObj.tracks;
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      errors.push(`${describeAnimation(anim, animIndex)} must include tracks.`);
+      return;
+    }
+
+    tracks.forEach((track: any, trackIndex: number) => {
+      if (!track || typeof track !== "object") {
+        errors.push(
+          `${describeTrack(anim, animIndex, track, trackIndex)} must be an object.`,
+        );
+        return;
+      }
+      const animatableId =
+        track.animatableId ?? track.animatable_id ?? track.target ?? undefined;
+      if (typeof animatableId !== "string" || animatableId.trim() === "") {
+        errors.push(
+          `${describeTrack(anim, animIndex, track, trackIndex)} is missing a valid animatableId.`,
+        );
+        return;
+      }
+      if (!summary.primaryTrackAnimatableId) {
+        summary.primaryTrackAnimatableId = animatableId;
+        summary.primaryTrackLabel = track.id ?? trackIndex;
+      }
+      animatableIdSet.add(animatableId);
+    });
+  });
+
+  summary.animatableIds = Array.from(animatableIdSet);
+
+  return { errors, warnings, summary };
+};
+
 function downloadJson(text: string, filename: string) {
   const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -58,10 +166,78 @@ type PanelProps = {
   initialAnimations: StoredAnimation[];
 };
 
+type TrackedKeyValueProps = {
+  targetKey: string;
+};
+
+const formatValue = (value: unknown) => {
+  const numeric = valueAsNumber(value as any);
+  if (typeof numeric === "number" && Number.isFinite(numeric)) {
+    return numeric.toFixed(4);
+  }
+  if (value === undefined || value === null) return "—";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+function TrackedKeyValue({ targetKey }: TrackedKeyValueProps) {
+  const value = useAnimTarget(targetKey);
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 4,
+        border: "1px solid #d1d5db",
+        borderRadius: 8,
+        padding: "10px 12px",
+        background: "#1f2937",
+        color: "#f9fafb",
+      }}
+    >
+      <code
+        style={{
+          fontSize: 11,
+          opacity: 0.7,
+          wordBreak: "break-word",
+        }}
+      >
+        {targetKey}
+      </code>
+      <strong
+        style={{
+          fontSize: 18,
+          fontVariantNumeric: "tabular-nums",
+          lineHeight: 1,
+          textAlign: "right",
+        }}
+      >
+        {formatValue(value)}
+      </strong>
+    </div>
+  );
+}
+
 function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
-  const value = useAnimTarget("demo/scalar");
-  const num = valueAsNumber(value);
+  const currentValidation = React.useMemo(
+    () => validateAnimations(animations),
+    [animations],
+  );
+  const allTrackedKeys = currentValidation.summary.animatableIds;
+  const primaryKey = allTrackedKeys[0];
+  const primaryValue = useAnimTarget(primaryKey);
+  const currentAnimationId =
+    currentValidation.summary.primaryAnimationId ?? undefined;
   const animApi = useAnimation();
+  const [warnings, setWarnings] = React.useState<string[]>(() =>
+    currentValidation.warnings.slice(),
+  );
   const [editorText, setEditorText] = React.useState<string>(() =>
     toPretty(animations.length === 1 ? animations[0] : animations),
   );
@@ -71,32 +247,102 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
   const primaryPlayer = players[0] as PlayerInfo | undefined;
   const playerStart = Number(primaryPlayer?.start_time ?? 0) || 0;
   const playerLengthRaw = Number(primaryPlayer?.length ?? 0) || 0;
-  const playerLength = playerLengthRaw > playerStart
-    ? playerLengthRaw
-    : playerStart + (playerLengthRaw > 0 ? playerLengthRaw : 1);
+  const playerLength =
+    playerLengthRaw > playerStart
+      ? playerLengthRaw
+      : playerStart + (playerLengthRaw > 0 ? playerLengthRaw : 1);
   const playerTimeRaw = Number(primaryPlayer?.time ?? playerStart) || 0;
   const clampedTime = clamp(playerTimeRaw, playerStart, playerLength);
-  const [seekTime, setSeekTime] = React.useState(clampedTime);
 
   React.useEffect(() => {
-    setEditorText(toPretty(animations.length === 1 ? animations[0] : animations));
+    const { warnings: nextWarnings } = validateAnimations(animations);
+    setWarnings(nextWarnings.slice());
   }, [animations]);
 
   React.useEffect(() => {
-    setSeekTime(clampedTime);
-  }, [clampedTime]);
+    setEditorText(
+      toPretty(animations.length === 1 ? animations[0] : animations),
+    );
+  }, [animations]);
 
   const applyAnimations = React.useCallback(
-    (next: StoredAnimation[]) => {
-      setAnimations(next);
-      setStatus(
-        next.length === 1
-          ? "Loaded 1 animation clip."
-          : `Loaded ${next.length} animation clips.`,
-      );
+    (nextInput: StoredAnimation[] | StoredAnimation) => {
+      setStatus(null);
       setError(null);
+
+      const normalizedList = normalizeAnimations(nextInput);
+      const {
+        errors: validationErrors,
+        warnings: validationWarnings,
+        summary,
+      } = validateAnimations(normalizedList);
+
+      if (validationErrors.length > 0) {
+        const formatted = validationErrors
+          .map((line) => `- ${line}`)
+          .join("\n");
+        setError(`Animation payload invalid:\n${formatted}`);
+        setWarnings(validationWarnings.slice());
+        return false;
+      }
+
+      if (animApi.ready) {
+        try {
+          animApi.reload(normalizedList);
+        } catch (err: unknown) {
+          setError(
+            `Animation engine rejected payload: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          setWarnings(validationWarnings.slice());
+          return false;
+        }
+      }
+
+      setAnimations([...normalizedList]);
+
+      const segments: string[] = [];
+      if (normalizedList.length === 1) {
+        segments.push("Loaded 1 animation clip.");
+      } else {
+        segments.push(`Loaded ${normalizedList.length} animation clips.`);
+      }
+      if (summary.primaryAnimationId !== undefined) {
+        segments.push(`Animation ID: ${summary.primaryAnimationId}.`);
+      }
+      if (summary.animatableIds.length > 0) {
+        const keysPreview =
+          summary.animatableIds.length > 3
+            ? `${summary.animatableIds.slice(0, 3).join(", ")} (+${
+                summary.animatableIds.length - 3
+              } more)`
+            : summary.animatableIds.join(", ");
+        segments.push(
+          `Tracking ${summary.animatableIds.length} key${
+            summary.animatableIds.length === 1 ? "" : "s"
+          }: ${keysPreview}.`,
+        );
+      } else {
+        segments.push("No animatableId detected.");
+      }
+      if (validationWarnings.length > 0) {
+        const warningText =
+          validationWarnings.length === 1
+            ? `Warning: ${validationWarnings[0]}`
+            : `Warnings: ${validationWarnings.join(" ")}`;
+        segments.push(warningText);
+      }
+      if (!animApi.ready) {
+        segments.push("Engine is initialising; clip will load when ready.");
+      }
+
+      setStatus(segments.join(" "));
+      setWarnings(validationWarnings.slice());
+      setError(null);
+      return true;
     },
-    [setAnimations],
+    [animApi, setAnimations],
   );
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,20 +420,10 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
     (nextTime: number) => {
       if (playerId === undefined) return;
       const clamped = clamp(nextTime, playerStart, playerLength);
-      setSeekTime(clamped);
       sendCommand({ Seek: { player: playerId, time: clamped } });
     },
     [playerId, playerStart, playerLength, sendCommand],
   );
-
-  const onTimelinePointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!primaryPlayer) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const relative = clamp(event.clientX - rect.left, 0, rect.width);
-    const norm = rect.width > 0 ? relative / rect.width : 0;
-    const next = playerStart + norm * (playerLength - playerStart);
-    onSeek(next);
-  };
 
   return (
     <div
@@ -202,11 +438,23 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
       <header style={{ display: "grid", gap: 4 }}>
         <h1 style={{ margin: 0 }}>Vizij Animation Demo</h1>
         <p style={{ margin: 0, opacity: 0.7 }}>
-          Anim key: <code>demo/scalar</code>
+          Animation ID:{" "}
+          <code>
+            {currentAnimationId !== undefined ? currentAnimationId : "—"}
+          </code>
         </p>
         <p style={{ margin: 0 }}>
-          Value: <b>{num !== undefined ? num.toFixed(4) : "…"}</b>
+          Tracked keys:{" "}
+          <code>
+            {allTrackedKeys.length > 0 ? allTrackedKeys.join(", ") : "—"}
+          </code>
         </p>
+        {primaryKey ? (
+          <p style={{ margin: 0 }}>
+            Primary value ({primaryKey}):{" "}
+            <strong>{formatValue(primaryValue)}</strong>
+          </p>
+        ) : null}
       </header>
 
       <section style={{ display: "grid", gap: 12 }}>
@@ -247,51 +495,27 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
           <div style={{ marginLeft: "auto", minWidth: 160 }}>
             <div
               style={{
-                position: "relative",
-                height: 12,
-                background: "#e5e7eb",
-                borderRadius: 999,
-                cursor: playerId === undefined ? "not-allowed" : "pointer",
-              }}
-              onPointerDown={(e) => {
-                if (playerId === undefined) return;
-                e.preventDefault();
-                e.currentTarget.setPointerCapture(e.pointerId);
-                onTimelinePointer(e);
-              }}
-              onPointerMove={(e) => {
-                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                onTimelinePointer(e);
-              }}
-              onPointerUp={(e) => {
-                if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                  e.currentTarget.releasePointerCapture(e.pointerId);
-                }
+                display: "grid",
+                gap: 4,
               }}
             >
-              <div
+              <input
+                type="range"
+                min={playerStart}
+                max={playerLength}
+                step={
+                  playerLength - playerStart > 0
+                    ? (playerLength - playerStart) / 200
+                    : 0.01
+                }
+                value={clampedTime}
+                onChange={(event) => onSeek(Number(event.target.value))}
+                disabled={playerId === undefined}
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  borderRadius: 999,
-                  background: "linear-gradient(90deg,#38bdf8,#6366f1)",
-                  transformOrigin: "left",
-                  transform: `scaleX(${(seekTime - playerStart) / (playerLength - playerStart || 1)})`,
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: -4,
-                  width: 8,
-                  height: 20,
-                  borderRadius: 4,
-                  background: "#ef4444",
-                  transform: `translateX(${((seekTime - playerStart) /
-                    (playerLength - playerStart || 1)) * 100}%) translateX(-4px)`,
+                  appearance: "none",
+                  width: "100%",
+                  cursor: playerId === undefined ? "not-allowed" : "pointer",
+                  accentColor: "#ef4444",
                 }}
               />
             </div>
@@ -311,6 +535,27 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
             Time: {clampedTime.toFixed(2)}s
           </div>
         </div>
+      </section>
+
+      <section style={{ display: "grid", gap: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Tracked Outputs</h2>
+        {allTrackedKeys.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            }}
+          >
+            {allTrackedKeys.map((key) => (
+              <TrackedKeyValue key={key} targetKey={key} />
+            ))}
+          </div>
+        ) : (
+          <p style={{ margin: 0, opacity: 0.65 }}>
+            No animatable keys detected in the current clip.
+          </p>
+        )}
       </section>
 
       <section style={{ display: "grid", gap: 12 }}>
@@ -362,11 +607,12 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
             resize: "vertical",
           }}
         />
-        {error ? (
-          <div style={{ color: "#ef4444" }}>Error: {error}</div>
-        ) : null}
-        {status ? (
-          <div style={{ color: "#16a34a" }}>{status}</div>
+        {error ? <div style={{ color: "#ef4444" }}>Error: {error}</div> : null}
+        {status ? <div style={{ color: "#16a34a" }}>{status}</div> : null}
+        {warnings.length > 0 ? (
+          <div style={{ color: "#f97316" }}>
+            Warning{warnings.length === 1 ? "" : "s"}: {warnings.join(" ")}
+          </div>
         ) : null}
         <p style={{ opacity: 0.65, fontSize: 14, margin: 0 }}>
           Paste or load a StoredAnimation JSON payload, tweak it, then apply to
@@ -383,9 +629,8 @@ export default function App() {
     () => normalizeAnimations(anim as StoredAnimation),
     [],
   );
-  const [animations, setAnimations] = React.useState<StoredAnimation[]>(
-    initialList,
-  );
+  const [animations, setAnimations] =
+    React.useState<StoredAnimation[]>(initialList);
   const initialRef = React.useRef(initialList);
 
   return (
