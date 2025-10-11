@@ -13,8 +13,7 @@ import {
 } from "../index";
 import type { GraphRuntimeContextValue } from "../types";
 import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve as resolvePath } from "node:path";
+import { resolve as resolvePath } from "node:path";
 import { readFile } from "node:fs/promises";
 
 const urdfXml = `
@@ -181,12 +180,42 @@ describe("URDF FK/IK integration", () => {
       },
     });
 
-    const here = dirname(fileURLToPath(import.meta.url));
-    const wasmPath = resolvePath(
-      here,
-      "../../../../../../vizij-rs/npm/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-    );
-    const wasmBytes = await readFile(wasmPath);
+    const candidatePaths = [
+      resolvePath(
+        process.cwd(),
+        "node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      ),
+      resolvePath(
+        process.cwd(),
+        "../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      ),
+      resolvePath(
+        process.cwd(),
+        "../../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      ),
+    ];
+
+    let wasmBytes: Buffer | null = null;
+    for (const candidate of candidatePaths) {
+      try {
+        wasmBytes = await readFile(candidate);
+        break;
+      } catch (err: unknown) {
+        if (
+          !(err instanceof Error) ||
+          (err as NodeJS.ErrnoException).code !== "ENOENT"
+        ) {
+          throw err;
+        }
+      }
+    }
+
+    if (!wasmBytes) {
+      throw new Error(
+        "vizij_graph_wasm_bg.wasm not found; install @vizij/node-graph-wasm or run pnpm install.",
+      );
+    }
+
     await initGraphWasm(wasmBytes);
   });
 
