@@ -1,8 +1,18 @@
 import {
-  type WasmValue,
+  type ValueJSON,
   type GraphRegistrationInput,
   type AnimationRegistrationConfig,
+  type CreateOrchOptions,
 } from "@vizij/orchestrator-react";
+
+export interface OrchestrationDocument {
+  label?: string;
+  createOptions?: CreateOrchOptions;
+  inputs?: Record<string, ValueJSON>;
+  graphs?: GraphRegistrationInput[];
+  animations?: AnimationRegistrationConfig[];
+  watchPath?: string | null;
+}
 
 export const DEMO_PATHS = {
   animations: {
@@ -18,7 +28,7 @@ export const DEMO_PATHS = {
   },
 } as const;
 
-export const makeFloatValue = (value: number): WasmValue => ({
+export const makeFloatValue = (value: number): ValueJSON => ({
   type: "float",
   data: value,
 });
@@ -160,3 +170,13 @@ export const RAMP_DOWN_ANIMATION_CONFIG = createRampAnimationConfig(
   1,
   0,
 );
+
+export const DEFAULT_ORCHESTRATION: OrchestrationDocument = {
+  label: "Dual animation multiply example",
+  inputs: {
+    [DEMO_PATHS.constants.ten]: makeFloatValue(10),
+  },
+  graphs: [MULTIPLY_GRAPH_SPEC, POWER_GRAPH_SPEC],
+  animations: [RAMP_UP_ANIMATION_CONFIG, RAMP_DOWN_ANIMATION_CONFIG],
+  watchPath: DEMO_PATHS.graphs.product,
+};
