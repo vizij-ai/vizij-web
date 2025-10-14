@@ -13,6 +13,7 @@
     "dev:website": "pnpm --filter vizij-website run dev",
     "dev:demo-animation": "pnpm --filter demo-animation run dev",
     "dev:demo-graph": "pnpm --filter demo-graph run dev",
+    "dev:demo-render": "pnpm --filter demo-vizij-render run dev",
     "dev:demo-orchestrator": "pnpm --filter demo-orchestrator run dev",
     "dev:demo-animation-graph": "pnpm --filter demo-animation-graph run dev",
     "dev:demo-render-no-rig": "pnpm --filter demo-render-no-rig dev",

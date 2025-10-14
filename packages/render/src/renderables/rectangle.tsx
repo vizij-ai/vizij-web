@@ -1,4 +1,12 @@
-import { ReactNode, memo, RefObject, useEffect, useRef, useMemo } from "react";
+import {
+  ReactNode,
+  memo,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   RawValue,
@@ -13,6 +21,7 @@ import {
 import { Plane, Line } from "@react-three/drei";
 import { Mesh, MeshStandardMaterial } from "three";
 import { Line2 } from "three-stdlib";
+import { ThreeEvent } from "@react-three/fiber";
 import { useFeatures } from "../hooks/use-features";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { VizijActions } from "../store-types";
@@ -38,6 +47,9 @@ function InnerRenderedRectangle({
   const strokeWidthRef = useRef<number>(0);
   const onElementClick = useVizijStore(
     useShallow((state) => state.onElementClick),
+  );
+  const setHoveredElement = useVizijStore(
+    useShallow((state) => state.setHoveredElement),
   );
 
   const rectangle = useVizijStore(
@@ -254,12 +266,30 @@ function InnerRenderedRectangle({
       setReference(rectangle.id, namespace, rectangleRef);
   }, [rectangle.id, namespace, rectangleRef, setReference, refIsNull]);
 
+  const handlePointerOver = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement({ id, namespace, type: "rectangle" });
+    },
+    [id, namespace, setHoveredElement],
+  );
+
+  const handlePointerOut = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement(null);
+    },
+    [setHoveredElement],
+  );
+
   return (
     <>
       <Plane
         ref={rectangleRef}
         userData={userData}
         args={[1, 1]}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
         onClick={(e) => {
           onElementClick(
             { id, type: "rectangle", namespace },
@@ -270,7 +300,14 @@ function InnerRenderedRectangle({
       >
         <meshStandardMaterial attach="material" ref={materialRef} />
       </Plane>
-      {showLine(rectangle) && <Line ref={lineRef} points={points} />}
+      {showLine(rectangle) && (
+        <Line
+          ref={lineRef}
+          points={points}
+          onPointerOver={handlePointerOver}
+          onPointerOut={handlePointerOut}
+        />
+      )}
     </>
   );
 }

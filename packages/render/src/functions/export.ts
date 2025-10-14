@@ -1,15 +1,13 @@
 import { GLTFExporter } from "three-stdlib";
 import { Group } from "three";
 import * as THREE from "three";
-import { convertYupToZup } from "./transforms";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
-export function exportScene(data: Group): void {
-  const rotatedData = convertYupToZup(data.clone());
+export function exportScene(data: Group, fileName = "scene.glb"): void {
   const exporter = new GLTFExporter();
   exporter.parse(
-    rotatedData,
+    data,
     (gltf) => {
       if (!(gltf instanceof ArrayBuffer)) {
         throw new Error("Failed to export scene!");
@@ -20,8 +18,15 @@ export function exportScene(data: Group): void {
           type: "application/octet-stream",
         }),
       );
-      link.download = "scene.glb";
+      const trimmed = fileName.trim();
+      const safeFileName =
+        trimmed.length > 0 ? trimmed : "scene.glb";
+      const downloadName = safeFileName.toLowerCase().endsWith(".glb")
+        ? safeFileName
+        : `${safeFileName}.glb`;
+      link.download = downloadName;
       link.click();
+      URL.revokeObjectURL(link.href);
     },
     () => {
       // alert("Failed to export scene!");

@@ -3,6 +3,7 @@ import {
   RefObject,
   ReactNode,
   memo,
+  useCallback,
   useRef,
   useMemo,
   useEffect,
@@ -29,6 +30,7 @@ import { Shape } from "../types/shape";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { useFeatures } from "../hooks/use-features";
 import { createStoredRenderable } from "../functions/create-stored-data";
+import { ThreeEvent } from "@react-three/fiber";
 // eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { Renderable } from "./renderable";
 
@@ -199,10 +201,29 @@ function InnerRenderedShape({
   const onElementClick = useVizijStore(
     useShallow((state) => state.onElementClick),
   );
+  const setHoveredElement = useVizijStore(
+    useShallow((state) => state.setHoveredElement),
+  );
 
   useEffect(() => {
     if (ref.current && refIsNull) setReference(shape.id, namespace, ref);
   }, [shape.id, namespace, ref, setReference, refIsNull]);
+
+  const handlePointerOver = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement({ id, namespace, type: "shape" });
+    },
+    [id, namespace, setHoveredElement],
+  );
+
+  const handlePointerOut = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement(null);
+    },
+    [setHoveredElement],
+  );
 
   return (
     <mesh
@@ -214,6 +235,8 @@ function InnerRenderedShape({
       geometry={geometry}
       morphTargetDictionary={morphTargetSettings[0]}
       morphTargetInfluences={morphTargetSettings[1]}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
       onClick={(e) => {
         console.log("Clicked element", shape);
         onElementClick({ id, type: "shape", namespace }, [...chain, id], e);

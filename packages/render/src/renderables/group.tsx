@@ -1,6 +1,15 @@
-import { ReactNode, memo, RefObject, useEffect, useRef, useMemo } from "react";
+import {
+  ReactNode,
+  memo,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
+import { ThreeEvent } from "@react-three/fiber";
 import {
   RawValue,
   AnimatableValue,
@@ -35,6 +44,9 @@ function InnerRenderedGroup({
   const refIsNull = !group.refs[namespace]?.current;
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
+  const setHoveredElement = useVizijStore(
+    useShallow((state) => state.setHoveredElement),
+  );
 
   const animatableValues = useMemo(() => {
     const av: Record<string, AnimatableValue> = {};
@@ -99,8 +111,35 @@ function InnerRenderedGroup({
     }
   }, [group.id, namespace, ref, setReference, refIsNull]);
 
+  const handlePointerOver = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      // Allow descendants to provide more specific hover details.
+      if (event.eventObject !== event.object) {
+        return;
+      }
+      setHoveredElement({ id, namespace, type: "group" });
+    },
+    [id, namespace, setHoveredElement],
+  );
+
+  const handlePointerOut = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (event.eventObject !== event.object) {
+        return;
+      }
+      setHoveredElement(null);
+    },
+    [setHoveredElement],
+  );
+
   return (
-    <group ref={ref} uuid={`${namespace}.${group.id}`} userData={userData}>
+    <group
+      ref={ref}
+      uuid={`${namespace}.${group.id}`}
+      userData={userData}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+    >
       {group.children.map((child) => (
         <Renderable
           key={child}

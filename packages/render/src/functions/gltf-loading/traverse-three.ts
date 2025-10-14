@@ -30,7 +30,16 @@ export function traverseThree(
   const worldData: World = {};
   const animatableData: Record<string, AnimatableValue> = {};
 
-  if (!aggressiveImport) {
+  let hasRobotData = false;
+  group.traverse((child) => {
+    if (child.userData?.gltfExtensions?.RobotData) {
+      hasRobotData = true;
+    }
+  });
+
+  const useRobotData = !aggressiveImport || hasRobotData;
+
+  if (useRobotData) {
     group.traverse((child) => {
       if (child.userData?.gltfExtensions?.RobotData) {
         const data = child.userData.gltfExtensions
@@ -103,18 +112,22 @@ export function traverseThree(
         }
       }
     });
-  } else if (rootBounds) {
-    // Using an aggressive import that converts all three elements into their direct vizij counterparts
+  } else {
+    const derivedRootBounds = rootBounds ?? deriveRootBounds(group);
+
+    if (!derivedRootBounds) {
+      throw new Error(
+        "Root bounds are expected if using an aggressive import",
+      );
+    }
+
     const [newWorldData, newAnimatableData] = importScene(
       group,
       namespaces,
-      rootBounds!,
+      derivedRootBounds,
     );
     Object.assign(worldData, newWorldData);
     Object.assign(animatableData, newAnimatableData);
-  } else {
-    // Root bounds are expected if using an aggressive import
-    throw new Error("Root bounds are expected if using an aggressive import");
   }
 
   // console.log("worldData", worldData);
@@ -169,4 +182,44 @@ function isRectangleFeatures(
       "Expected translation, rotation, width, and height keys in features",
     );
   }
+}
+
+function deriveRootBounds(
+  group: Group,
+): { center: RawVector2; size: RawVector2 } | null {
+  const boundingBox = new THREE.Box3().setFromObject(group);
+  if (boundingBox.isEmpty()) {
+    return null;
+  }
+
+  const { min, max } = boundingBox;
+  if (
+    !Number.isFinite(min.x) ||
+    !Number.isFinite(min.y) ||
+    !Number.isFinite(max.x) ||
+    !Number.isFinite(max.y)
+  ) {
+    return null;
+  }
+
+  const width = max.x - min.x;
+  const height = max.y - min.y;
+
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
+  const safeWidth = Math.max(Math.abs(width), 1e-3);
+  const safeHeight = Math.max(Math.abs(height), 1e-3);
+
+  return {
+    center: {
+      x: (min.x + max.x) / 2,
+      y: (min.y + max.y) / 2,
+    },
+    size: {
+      x: safeWidth,
+      y: safeHeight,
+    },
+  };
 }

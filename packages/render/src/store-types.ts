@@ -15,6 +15,7 @@ export interface VizijData {
     damping: boolean;
   };
   elementSelection: Selection[];
+  hoveredElement: Selection | null;
   slotConfig: Record<string, string>;
 }
 
@@ -45,6 +46,7 @@ export interface VizijActions {
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => void;
   getExportableBodies: (filterIds?: string[]) => Group[];
   updateElementSelection: (selection: Selection, chain: string[]) => void;
+  setHoveredElement: (selection: Selection | null) => void;
   onElementClick: (
     selection: Selection,
     chain: string[],

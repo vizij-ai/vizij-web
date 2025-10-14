@@ -46,23 +46,40 @@ export async function loadGLTFFromBlob(
     size: RawVector2;
   },
 ): Promise<[World, Record<string, AnimatableValue>]> {
+  const actualizedNamespaces =
+    namespaces.length > 0 ? namespaces : ["default"];
+
+  if (
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function"
+  ) {
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      return await loadGLTF(
+        objectUrl,
+        actualizedNamespaces,
+        aggressiveImport,
+        rootBounds,
+      );
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  const arrayBuffer =
+    typeof blob.arrayBuffer === "function"
+      ? await blob.arrayBuffer()
+      : await new Response(blob).arrayBuffer();
+
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(new DRACOLoader());
 
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const arrayBuffer = reader.result as ArrayBuffer;
-
-      loader.parse(
-        arrayBuffer,
-        "", // Base path for resolving external resources
-        (gltf: GLTF) => {
-          // Create a scene and add the loaded GLTF model
-          const actualizedNamespaces =
-            namespaces.length > 0 ? namespaces : ["default"];
-          // console.log("actualizedNamespaces", actualizedNamespaces);
+    loader.parse(
+      arrayBuffer,
+      "",
+      (gltf: GLTF) => {
+        try {
           resolve(
             traverseThree(
               gltf.scene,
@@ -71,17 +88,17 @@ export async function loadGLTFFromBlob(
               rootBounds,
             ),
           );
-        },
-        (error: ErrorEvent) => {
-          reject(new Error(`Error loading GLTF: ${error.message}`));
-        },
-      );
-    };
-
-    reader.onerror = () => {
-      reject(new Error("Failed to read Blob as ArrayBuffer."));
-    };
-
-    reader.readAsArrayBuffer(blob);
+        } catch (error) {
+          if (error instanceof Error) {
+            reject(error);
+          } else {
+            reject(new Error(String(error)));
+          }
+        }
+      },
+      (error: ErrorEvent) => {
+        reject(new Error(`Error loading GLTF: ${error.message}`));
+      },
+    );
   });
 }

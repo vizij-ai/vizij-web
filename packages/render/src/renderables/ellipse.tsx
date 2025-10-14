@@ -1,4 +1,12 @@
-import { ReactNode, memo, RefObject, useEffect, useRef, useMemo } from "react";
+import {
+  ReactNode,
+  memo,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   RawValue,
@@ -13,6 +21,7 @@ import {
 import { Circle, Line } from "@react-three/drei";
 import { Mesh, MeshStandardMaterial } from "three";
 import { Line2 } from "three-stdlib";
+import { ThreeEvent } from "@react-three/fiber";
 import { useFeatures } from "../hooks/use-features";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { VizijActions } from "../store-types";
@@ -38,6 +47,9 @@ function InnerRenderedEllipse({
   const strokeWidthRef = useRef<number>(0);
   const onElementClick = useVizijStore(
     useShallow((state) => state.onElementClick),
+  );
+  const setHoveredElement = useVizijStore(
+    useShallow((state) => state.setHoveredElement),
   );
 
   const ellipse = useVizijStore(
@@ -255,19 +267,44 @@ function InnerRenderedEllipse({
       setReference(ellipse.id, namespace, ellipseRef);
   }, [ellipse.id, namespace, ellipseRef, setReference, refIsNull]);
 
+  const handlePointerOver = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement({ id, namespace, type: "ellipse" });
+    },
+    [id, namespace, setHoveredElement],
+  );
+
+  const handlePointerOut = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      setHoveredElement(null);
+    },
+    [setHoveredElement],
+  );
+
   return (
     <>
       <Circle
         ref={ellipseRef}
         userData={userData}
         args={[1, 100]}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
         onClick={(e) => {
           onElementClick({ id, type: "ellipse", namespace }, [...chain, id], e);
         }}
       >
         <meshStandardMaterial attach="material" ref={materialRef} />
       </Circle>
-      {showLine(ellipse) && <Line ref={lineRef} points={points} />}
+      {showLine(ellipse) && (
+        <Line
+          ref={lineRef}
+          points={points}
+          onPointerOver={handlePointerOver}
+          onPointerOut={handlePointerOut}
+        />
+      )}
     </>
   );
 }

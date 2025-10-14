@@ -32,6 +32,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     damping: false,
   },
   elementSelection: [],
+  hoveredElement: null,
   slotConfig: {},
   clearSelection: () => {
     set({ elementSelection: [] });
@@ -42,6 +43,9 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         state.elementSelection = [selection];
       }),
     );
+  },
+  setHoveredElement: (selection: Selection | null) => {
+    set({ hoveredElement: selection });
   },
   onElementClick: (
     selection: Selection,
