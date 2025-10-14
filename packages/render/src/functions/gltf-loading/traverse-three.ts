@@ -116,9 +116,7 @@ export function traverseThree(
     const derivedRootBounds = rootBounds ?? deriveRootBounds(group);
 
     if (!derivedRootBounds) {
-      throw new Error(
-        "Root bounds are expected if using an aggressive import",
-      );
+      throw new Error("Root bounds are expected if using an aggressive import");
     }
 
     const [newWorldData, newAnimatableData] = importScene(

@@ -25,7 +25,8 @@ export function formatConstraints(
   }
 
   const entries = Object.entries(animatable.constraints ?? {}).filter(
-    ([, constraintValue]) => constraintValue !== undefined && constraintValue !== null,
+    ([, constraintValue]) =>
+      constraintValue !== undefined && constraintValue !== null,
   );
 
   if (!entries.length) {
@@ -33,6 +34,8 @@ export function formatConstraints(
   }
 
   return entries
-    .map(([key, constraintValue]) => `${key}: ${JSON.stringify(constraintValue)}`)
+    .map(
+      ([key, constraintValue]) => `${key}: ${JSON.stringify(constraintValue)}`,
+    )
     .join(" · ");
 }

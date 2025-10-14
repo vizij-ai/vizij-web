@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import {
   getLookup,
@@ -116,10 +123,7 @@ function resolveSupportedKind(
       }
       return {
         type: "vector3",
-        descriptorType: descriptorType as Exclude<
-          VectorDescriptorType,
-          "rgb"
-        >,
+        descriptorType: descriptorType as Exclude<VectorDescriptorType, "rgb">,
       };
     }
     return null;
@@ -377,8 +381,7 @@ function getVectorConstraintDefaults(
   }
 
   const ranges = entry.vector.components.map((component) => {
-    const value =
-      (defaults as RawVector3)[component as keyof RawVector3] ?? 0;
+    const value = (defaults as RawVector3)[component as keyof RawVector3] ?? 0;
     return computeNumberBounds(value, entry.featureKey);
   });
 
@@ -416,8 +419,7 @@ function buildDefaultAnimatable(
   const labelBase = `${entry.elementName} ${entry.featureLabel}`;
 
   if (entry.type === "number") {
-    const numericDefault =
-      typeof defaultValue === "number" ? defaultValue : 0;
+    const numericDefault = typeof defaultValue === "number" ? defaultValue : 0;
     const [min, max] = computeNumberBounds(numericDefault, entry.featureKey);
     const units = getUnitsForEntry(entry);
 
@@ -508,23 +510,20 @@ function isAnimatableReferencedElsewhere(
     if (!renderable.features) {
       return false;
     }
-    return Object.entries(renderable.features).some(
-      ([featureKey, feature]) =>
-        Boolean(
-          feature &&
-            feature.animated &&
-            feature.value === animatableId &&
-            !(renderable.id === targetElementId && featureKey === targetFeatureKey),
-        ),
+    return Object.entries(renderable.features).some(([featureKey, feature]) =>
+      Boolean(
+        feature &&
+          feature.animated &&
+          feature.value === animatableId &&
+          !(
+            renderable.id === targetElementId && featureKey === targetFeatureKey
+          ),
+      ),
     );
   });
 }
 
-export function AnimatableValuesPanel({
-  namespace,
-}: {
-  namespace: string;
-}) {
+export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
   const setValue = useVizijStore((state) => state.setValue);
@@ -563,7 +562,9 @@ export function AnimatableValuesPanel({
     setCollapsedGroups((previous) => {
       let changed = false;
       const next = new Set(previous);
-      const currentIds = new Set(groupedEntries.map((group) => group.elementId));
+      const currentIds = new Set(
+        groupedEntries.map((group) => group.elementId),
+      );
 
       // Remove stale ids and forget them.
       previous.forEach((id) => {
@@ -818,14 +819,17 @@ export function AnimatableValuesPanel({
   const handleConstraintUpdate = useCallback(
     (
       entry: FeatureEntry,
-      updater: (current: NonNullable<AnimatableValue["constraints"]>) => NonNullable<AnimatableValue["constraints"]>,
+      updater: (
+        current: NonNullable<AnimatableValue["constraints"]>,
+      ) => NonNullable<AnimatableValue["constraints"]>,
     ) => {
       if (!entry.animatableId || !entry.descriptor) {
         return;
       }
       updateAnimatableDescriptor(entry.animatableId, (current) => {
         const currentConstraints =
-          current.constraints ?? ({} as NonNullable<AnimatableValue["constraints"]>);
+          current.constraints ??
+          ({} as NonNullable<AnimatableValue["constraints"]>);
         const updatedConstraints = updater({
           ...currentConstraints,
         });
@@ -866,7 +870,9 @@ export function AnimatableValuesPanel({
                 </button>
                 <div className="feature-group__summary">
                   <h3 className="feature-group__title">{group.elementName}</h3>
-                  <span className="feature-group__type">{group.elementType}</span>
+                  <span className="feature-group__type">
+                    {group.elementType}
+                  </span>
                 </div>
               </header>
               {!collapsedGroups.has(group.elementId) && (
@@ -914,7 +920,9 @@ function FeatureRow({
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
-    updater: (constraints: NonNullable<AnimatableValue["constraints"]>) => NonNullable<AnimatableValue["constraints"]>,
+    updater: (
+      constraints: NonNullable<AnimatableValue["constraints"]>,
+    ) => NonNullable<AnimatableValue["constraints"]>,
   ) => void;
   onStaticUpdate: (entry: FeatureEntry, value: RawValue) => void;
   setValue: (
@@ -958,7 +966,9 @@ function FeatureRow({
 
   const updateConstraints = useCallback(
     (
-      updater: (constraints: NonNullable<AnimatableValue["constraints"]>) => NonNullable<AnimatableValue["constraints"]>,
+      updater: (
+        constraints: NonNullable<AnimatableValue["constraints"]>,
+      ) => NonNullable<AnimatableValue["constraints"]>,
     ) => {
       onConstraintChange(entry, updater);
     },
@@ -1128,7 +1138,10 @@ function FeatureRow({
             isApproximatelyEqual(componentMin, componentDefault) &&
             isApproximatelyEqual(componentMax, componentDefault);
           return (
-            <div className="feature-row__matrix-cell" key={`${component}-default`}>
+            <div
+              className="feature-row__matrix-cell"
+              key={`${component}-default`}
+            >
               <input
                 type="number"
                 className="feature-row__input feature-row__input--compact"
@@ -1148,7 +1161,9 @@ function FeatureRow({
                   updateDefault(next);
                   if (componentPinched) {
                     updateConstraints((currentConstraints) => {
-                      const nextConstraints = { ...(currentConstraints as any) };
+                      const nextConstraints = {
+                        ...(currentConstraints as any),
+                      };
                       const nextMin = cloneVectorTuple(
                         (nextConstraints.min ?? resolvedMin) as [
                           number | null,
@@ -1263,7 +1278,10 @@ function FeatureRow({
             isApproximatelyEqual(componentMin, componentDefault) &&
             isApproximatelyEqual(componentMax, componentDefault);
           return (
-            <div className="feature-row__matrix-cell" key={`${component}-pinch`}>
+            <div
+              className="feature-row__matrix-cell"
+              key={`${component}-pinch`}
+            >
               <label className="feature-row__pinch-toggle">
                 <input
                   type="checkbox"
@@ -1447,9 +1465,7 @@ function FeatureRow({
           <div className="feature-row__metrics">
             <span>
               Default:{" "}
-              <strong>
-                {formatRawValue(descriptor.default as RawValue)}
-              </strong>
+              <strong>{formatRawValue(descriptor.default as RawValue)}</strong>
             </span>
           </div>
         </div>

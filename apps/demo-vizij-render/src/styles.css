@@ -175,7 +175,9 @@ button {
   background: #2563eb;
   color: white;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 button:hover:not(:disabled) {
@@ -433,7 +435,10 @@ button:disabled {
 .feature-row__matrix {
   --feature-columns: 1;
   display: grid;
-  grid-template-columns: minmax(72px, auto) repeat(var(--feature-columns), minmax(0, 1fr));
+  grid-template-columns: minmax(72px, auto) repeat(
+      var(--feature-columns),
+      minmax(0, 1fr)
+    );
   align-items: center;
   gap: 0.25rem 0.45rem;
 }

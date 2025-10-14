@@ -45,7 +45,8 @@ type StaticFeatureEntry = FeatureEntry & {
 
 function findRootId(world: World): string | null {
   const root = Object.values(world).find(
-    (entry): entry is Group => entry.type === "group" && Boolean(entry.rootBounds),
+    (entry): entry is Group =>
+      entry.type === "group" && Boolean(entry.rootBounds),
   );
   return root ? root.id : null;
 }
@@ -110,7 +111,9 @@ function applyDefaultsToRobotData(
           if (updated) {
             (feature as { value: AnimatableValue }).value = {
               ...updated,
-              default: cloneRawValue(updated.default as RawValue) as AnimatableValue["default"],
+              default: cloneRawValue(
+                updated.default as RawValue,
+              ) as AnimatableValue["default"],
             } as AnimatableValue;
           }
         }
@@ -128,14 +131,18 @@ export default function App() {
   const [exportFileName, setExportFileName] = useState("vizij-export.glb");
 
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
-  const getExportableBodies = useVizijStore((state) => state.getExportableBodies);
+  const getExportableBodies = useVizijStore(
+    (state) => state.getExportableBodies,
+  );
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
   const values = useVizijStore((state) => state.values);
   const elementSelection = useVizijStore((state) => state.elementSelection);
   const setStoreState = useVizijStoreSetter();
 
-  const [selectedElement, setSelectedElement] = useState<Selection | null>(null);
+  const [selectedElement, setSelectedElement] = useState<Selection | null>(
+    null,
+  );
 
   useEffect(() => {
     if (elementSelection.length > 0) {
@@ -149,7 +156,9 @@ export default function App() {
     ? world[selectedElement.id]
     : undefined;
 
-  const rootRenderable = rootId ? (world[rootId] as Group | undefined) : undefined;
+  const rootRenderable = rootId
+    ? (world[rootId] as Group | undefined)
+    : undefined;
 
   const featureEntries = useMemo(() => {
     if (!selectedElement) {
@@ -159,20 +168,24 @@ export default function App() {
     if (!renderable) {
       return [] as FeatureEntry[];
     }
-    return (Object.entries(renderable.features) as [string, Feature | undefined][])?.filter(
-      (entry): entry is FeatureEntry => isFeature(entry[1]),
-    );
+    return (
+      Object.entries(renderable.features) as [string, Feature | undefined][]
+    )?.filter((entry): entry is FeatureEntry => isFeature(entry[1]));
   }, [selectedElement, world]);
 
   const animatedFeatures = useMemo(() => {
     if (!selectedElement) {
       return [] as AnimatedFeatureEntry[];
     }
-    return featureEntries.filter((entry): entry is AnimatedFeatureEntry => entry[1].animated);
+    return featureEntries.filter(
+      (entry): entry is AnimatedFeatureEntry => entry[1].animated,
+    );
   }, [featureEntries, selectedElement]);
 
   const staticFeatures = useMemo(() => {
-    return featureEntries.filter((entry): entry is StaticFeatureEntry => !entry[1].animated);
+    return featureEntries.filter(
+      (entry): entry is StaticFeatureEntry => !entry[1].animated,
+    );
   }, [featureEntries]);
 
   const loadVizij = useCallback(
@@ -230,7 +243,10 @@ export default function App() {
       if (!trimmed) {
         return;
       }
-      await loadVizij(() => loadGLTF(trimmed, [DEFAULT_NAMESPACE], true), trimmed);
+      await loadVizij(
+        () => loadGLTF(trimmed, [DEFAULT_NAMESPACE], true),
+        trimmed,
+      );
     },
     [assetUrl, loadVizij],
   );
@@ -238,14 +254,18 @@ export default function App() {
   const handleLoadSample = useCallback(
     async (sampleUrl: string, label: string) => {
       setAssetUrl(sampleUrl);
-      await loadVizij(() => loadGLTF(sampleUrl, [DEFAULT_NAMESPACE], true), label);
+      await loadVizij(
+        () => loadGLTF(sampleUrl, [DEFAULT_NAMESPACE], true),
+        label,
+      );
     },
     [loadVizij],
   );
 
   const handleExport = useCallback(async () => {
     const trimmedName = exportFileName.trim();
-    const desiredName = trimmedName.length > 0 ? trimmedName : "vizij-export.glb";
+    const desiredName =
+      trimmedName.length > 0 ? trimmedName : "vizij-export.glb";
     const downloadName = desiredName.toLowerCase().endsWith(".glb")
       ? desiredName
       : `${desiredName}.glb`;
@@ -273,7 +293,9 @@ export default function App() {
       }
     }
 
-    const effectiveAnimatables = appliedOverrides ? nextAnimatables : animatables;
+    const effectiveAnimatables = appliedOverrides
+      ? nextAnimatables
+      : animatables;
 
     if (appliedOverrides) {
       setStoreState((prev) => ({
@@ -421,7 +443,8 @@ export default function App() {
               <h2 className="sidebar__panel-title">Export Vizij GLB</h2>
             </div>
             <p className="sidebar__panel-description">
-              Save a Vizij GLB that bakes in the animatable overrides you currently have applied to the selected robot.
+              Save a Vizij GLB that bakes in the animatable overrides you
+              currently have applied to the selected robot.
             </p>
             <label className="sidebar__label" htmlFor="vizij-export-name">
               File name
@@ -447,7 +470,8 @@ export default function App() {
               </button>
             </div>
             <p className="sidebar__hint">
-              We export the active Vizij rig with any edited animatable defaults so you can reload it elsewhere.
+              We export the active Vizij rig with any edited animatable defaults
+              so you can reload it elsewhere.
             </p>
           </div>
         </section>
@@ -458,13 +482,17 @@ export default function App() {
               <h2 className="sidebar__panel-title">Selected details</h2>
             </div>
             {!selectionDetails ? (
-              <p className="sidebar__empty">Click a component in the viewport.</p>
+              <p className="sidebar__empty">
+                Click a component in the viewport.
+              </p>
             ) : (
               <div className="hover-details">
                 <div className="hover-details__summary">
                   <h3>{selectionDetails.name}</h3>
                   <p className="hover-details__meta">
-                    <span className="hover-details__pill">{selectionDetails.type}</span>
+                    <span className="hover-details__pill">
+                      {selectionDetails.type}
+                    </span>
                     {selectionDetails.tags.length > 0 && (
                       <span>{selectionDetails.tags.join(", ")}</span>
                     )}
@@ -482,7 +510,12 @@ export default function App() {
                   ) : (
                     <ul>
                       {selectionDetails.animatableDetails.map(
-                        ({ featureName, animatable, currentValue, constraints }) => (
+                        ({
+                          featureName,
+                          animatable,
+                          currentValue,
+                          constraints,
+                        }) => (
                           <li key={featureName}>
                             <div className="hover-details__row">
                               <strong>{featureName}</strong>
@@ -497,7 +530,10 @@ export default function App() {
                             )}
                             <div className="hover-details__values">
                               <span>
-                                Current: {formatRawValue(currentValue ?? animatable?.default)}
+                                Current:{" "}
+                                {formatRawValue(
+                                  currentValue ?? animatable?.default,
+                                )}
                               </span>
                               <span>
                                 Default: {formatRawValue(animatable?.default)}
@@ -520,14 +556,16 @@ export default function App() {
                     <p className="sidebar__empty">None</p>
                   ) : (
                     <ul>
-                      {selectionDetails.staticDetails.map(({ featureName, value }) => (
-                        <li key={featureName}>
-                          <div className="hover-details__row">
-                            <strong>{featureName}</strong>
-                            <span>{formatRawValue(value)}</span>
-                          </div>
-                        </li>
-                      ))}
+                      {selectionDetails.staticDetails.map(
+                        ({ featureName, value }) => (
+                          <li key={featureName}>
+                            <div className="hover-details__row">
+                              <strong>{featureName}</strong>
+                              <span>{formatRawValue(value)}</span>
+                            </div>
+                          </li>
+                        ),
+                      )}
                     </ul>
                   )}
                 </div>
@@ -552,7 +590,11 @@ export default function App() {
         </header>
         <div className="viewer__canvas">
           {rootId ? (
-            <Vizij rootId={rootId} namespace={DEFAULT_NAMESPACE} showSafeArea={false} />
+            <Vizij
+              rootId={rootId}
+              namespace={DEFAULT_NAMESPACE}
+              showSafeArea={false}
+            />
           ) : (
             <div className="viewer__placeholder">
               <p>Load a Vizij asset to render it here.</p>

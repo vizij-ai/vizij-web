@@ -504,21 +504,33 @@ function Controls({
       <div style={{ display: "flex", gap: 8 }}>
         <button
           onClick={() => togglePlay(true)}
-          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid #444",
+          }}
           disabled={autostart}
         >
           Play
         </button>
         <button
           onClick={() => togglePlay(false)}
-          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid #444",
+          }}
           disabled={!autostart}
         >
           Pause
         </button>
         <button
           onClick={stepOnce}
-          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid #444",
+          }}
         >
           Step
         </button>
@@ -598,7 +610,11 @@ function SpecEditor({
             setDraft(JSON.stringify(spec, null, 2));
             setError(null);
           }}
-          style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #444" }}
+          style={{
+            padding: "4px 8px",
+            borderRadius: 6,
+            border: "1px solid #444",
+          }}
         >
           Reset
         </button>
@@ -623,7 +639,11 @@ function SpecEditor({
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button
           onClick={applyDraft}
-          style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444" }}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 6,
+            border: "1px solid #444",
+          }}
         >
           Apply JSON
         </button>

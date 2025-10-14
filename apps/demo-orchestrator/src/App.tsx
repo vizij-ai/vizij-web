@@ -7,10 +7,7 @@ import {
   type ValueJSON,
 } from "@vizij/orchestrator-react";
 
-import {
-  DEFAULT_ORCHESTRATION,
-  type OrchestrationDocument,
-} from "./demoSpecs";
+import { DEFAULT_ORCHESTRATION, type OrchestrationDocument } from "./demoSpecs";
 
 const DEFAULT_DOC_TEXT = JSON.stringify(DEFAULT_ORCHESTRATION, null, 2);
 
@@ -37,7 +34,9 @@ function WatchedValue({ path }: { path: string | null }) {
         fontSize: "0.85rem",
       }}
     >
-      {path ? jsonStringifySafe(value ?? null) : "Set a path to observe blackboard values."}
+      {path
+        ? jsonStringifySafe(value ?? null)
+        : "Set a path to observe blackboard values."}
     </pre>
   );
 }
@@ -65,30 +64,27 @@ function Editor() {
   );
 
   const appliedInputsRef = React.useRef<string[]>([]);
-  const requestRafRef = React.useRef<null | ((cb: FrameRequestCallback) => number)>(
-    null,
-  );
+  const requestRafRef = React.useRef<
+    null | ((cb: FrameRequestCallback) => number)
+  >(null);
   const cancelRafRef = React.useRef<null | ((handle: number) => void)>(null);
   const rafHandleRef = React.useRef<number | null>(null);
   const lastTimestampRef = React.useRef<number | null>(null);
 
-  const stopPlayback = React.useCallback(
-    (message?: string) => {
-      const cancel = cancelRafRef.current;
-      if (cancel && rafHandleRef.current != null) {
-        cancel(rafHandleRef.current);
-      }
-      rafHandleRef.current = null;
-      lastTimestampRef.current = null;
-      requestRafRef.current = null;
-      cancelRafRef.current = null;
-      setIsPlaying(false);
-      if (message) {
-        setStatus(message);
-      }
-    },
-    [],
-  );
+  const stopPlayback = React.useCallback((message?: string) => {
+    const cancel = cancelRafRef.current;
+    if (cancel && rafHandleRef.current != null) {
+      cancel(rafHandleRef.current);
+    }
+    rafHandleRef.current = null;
+    lastTimestampRef.current = null;
+    requestRafRef.current = null;
+    cancelRafRef.current = null;
+    setIsPlaying(false);
+    if (message) {
+      setStatus(message);
+    }
+  }, []);
 
   const playbackLoop = React.useCallback(
     (timestamp: number) => {
@@ -126,7 +122,9 @@ function Editor() {
         });
         appliedInputsRef.current = [];
 
-        const registeredGraphs = (doc.graphs ?? []).map((cfg) => registerGraph(cfg));
+        const registeredGraphs = (doc.graphs ?? []).map((cfg) =>
+          registerGraph(cfg),
+        );
         const registeredAnims = (doc.animations ?? []).map((cfg) =>
           registerAnimation(cfg),
         );
@@ -134,7 +132,11 @@ function Editor() {
         const nextInputs: string[] = [];
         if (doc.inputs) {
           Object.entries(doc.inputs).forEach(([path, value]) => {
-            if (typeof path === "string" && path.length > 0 && value !== undefined) {
+            if (
+              typeof path === "string" &&
+              path.length > 0 &&
+              value !== undefined
+            ) {
               setInput(path, value as ValueJSON);
               nextInputs.push(path);
             }
@@ -227,7 +229,13 @@ function Editor() {
       removeInput(path);
     });
     appliedInputsRef.current = [];
-  }, [listControllers, removeAnimation, removeGraph, removeInput, stopPlayback]);
+  }, [
+    listControllers,
+    removeAnimation,
+    removeGraph,
+    removeInput,
+    stopPlayback,
+  ]);
 
   const handleStep = React.useCallback(() => {
     const result = step(1 / 60);
@@ -246,9 +254,10 @@ function Editor() {
       }
       const reader = new FileReader();
       reader.onload = () => {
-        const text = typeof reader.result === "string"
-          ? reader.result
-          : new TextDecoder().decode(reader.result as ArrayBuffer);
+        const text =
+          typeof reader.result === "string"
+            ? reader.result
+            : new TextDecoder().decode(reader.result as ArrayBuffer);
         try {
           const parsed = JSON.parse(text) as OrchestrationDocument;
           const pretty = JSON.stringify(parsed, null, 2);
@@ -322,8 +331,8 @@ function Editor() {
       <header>
         <h1 style={{ margin: "0 0 0.5rem" }}>Orchestrator Playground</h1>
         <p style={{ margin: 0, opacity: 0.8 }}>
-          Minimal wrapper around <code>@vizij/orchestrator-react</code> to load, edit,
-          and play orchestrations.
+          Minimal wrapper around <code>@vizij/orchestrator-react</code> to load,
+          edit, and play orchestrations.
         </p>
       </header>
 
@@ -402,16 +411,25 @@ function Editor() {
           minHeight: "18rem",
           borderRadius: 6,
           border: "1px solid #d0d0d0",
-          fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+          fontFamily:
+            "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
           fontSize: "0.9rem",
           padding: "1rem",
           background: "#fafafa",
         }}
       />
 
-      <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: "1rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        }}
+      >
         <div>
-          <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
+          >
             <span style={{ fontWeight: 600 }}>Watch blackboard path</span>
             <input
               type="text"

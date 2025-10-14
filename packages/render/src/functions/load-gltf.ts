@@ -46,13 +46,9 @@ export async function loadGLTFFromBlob(
     size: RawVector2;
   },
 ): Promise<[World, Record<string, AnimatableValue>]> {
-  const actualizedNamespaces =
-    namespaces.length > 0 ? namespaces : ["default"];
+  const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
 
-  if (
-    typeof URL !== "undefined" &&
-    typeof URL.createObjectURL === "function"
-  ) {
+  if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
     const objectUrl = URL.createObjectURL(blob);
     try {
       return await loadGLTF(

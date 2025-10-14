@@ -19,8 +19,7 @@ export function exportScene(data: Group, fileName = "scene.glb"): void {
         }),
       );
       const trimmed = fileName.trim();
-      const safeFileName =
-        trimmed.length > 0 ? trimmed : "scene.glb";
+      const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
       const downloadName = safeFileName.toLowerCase().endsWith(".glb")
         ? safeFileName
         : `${safeFileName}.glb`;
