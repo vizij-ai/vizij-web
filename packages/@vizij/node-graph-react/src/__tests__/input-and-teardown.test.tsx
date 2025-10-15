@@ -37,6 +37,7 @@ vi.mock("@vizij/node-graph-wasm", () => {
     Graph: vi.fn(() => makeInstance()),
     normalizeGraphSpec: vi.fn(async (s: any) => s),
     getNodeSchemas: vi.fn(() => Promise.resolve({ version: "1", nodes: [] })),
+    toValueJSON: vi.fn((value: any) => value),
   };
 });
 

@@ -8,7 +8,11 @@ import type {
   AnimationSetup as WasmAnimationSetup,
   ConflictLog,
   GraphRegistrationInput as WasmGraphRegistrationInput,
+  GraphRegistrationConfig as WasmGraphRegistrationConfig,
   GraphSubscriptions as WasmGraphSubscriptions,
+  MergedGraphRegistrationConfig as WasmMergedGraphRegistrationConfig,
+  MergeStrategyOptions as WasmMergeStrategyOptions,
+  MergeConflictStrategy as WasmMergeConflictStrategy,
   InitInput as WasmInitInput,
   OrchestratorFrame as WasmOrchestratorFrame,
   Shape as WasmShape,
@@ -51,7 +55,11 @@ export type CreateOrchOptions = {
 export type ControllerId = string;
 
 export type GraphRegistrationInput = WasmGraphRegistrationInput;
+export type GraphRegistrationConfig = WasmGraphRegistrationConfig;
 export type GraphSubscriptions = WasmGraphSubscriptions;
+export type MergedGraphRegistrationConfig = WasmMergedGraphRegistrationConfig;
+export type MergeStrategyOptions = WasmMergeStrategyOptions;
+export type MergeConflictStrategy = WasmMergeConflictStrategy;
 
 export type AnimationRegistrationConfig = WasmAnimationRegistrationConfig;
 export type AnimationSetup = WasmAnimationSetup;
@@ -60,6 +68,7 @@ export type OrchestratorReactCtx = {
   ready: boolean;
   createOrchestrator: (opts?: CreateOrchOptions) => Promise<void>;
   registerGraph: (cfg: GraphRegistrationInput) => ControllerId;
+  registerMergedGraph: (cfg: MergedGraphRegistrationConfig) => ControllerId;
   registerAnimation: (cfg: AnimationRegistrationConfig) => ControllerId;
   prebind?: (resolver: PrebindResolver) => void;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
@@ -73,4 +82,6 @@ export type OrchestratorReactCtx = {
   getPathSnapshot: (path: string) => ValueJSON | undefined;
   subscribeToFrame: (cb: () => void) => () => void;
   getFrameSnapshot: () => OrchestratorFrame | null;
+  normalizeGraphSpec?: (spec: object | string) => Promise<object>;
+  abiVersion?: () => Promise<number>;
 };

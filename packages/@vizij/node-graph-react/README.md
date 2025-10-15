@@ -126,9 +126,10 @@ function Awaiter() {
 `useGraphRuntime` returns an object with:
 
 - Control methods: `loadGraph`, `unloadGraph`, `evalAll`, `stageInput`, `applyStagedInputs`, `clearStagedInputs`, `setParam`, `step`, `setTime`, `startPlayback`, `stopPlayback`, `getWrites`, `clearWrites`.
+- Registry helpers: `normalizeGraphSpec?(spec)` and `getNodeSchemas?()` forward to the underlying WASM bindings so editors can fetch canonical specs and the node palette (including new controllers such as `case`, `default-blend`, and the weighted blend family).
 - Readiness helpers: `ready`, `graphLoaded`, `waitForGraphReady?`, `on?`, `off?`.
 - Snapshot utilities: `getSnapshot`, `subscribe`, `getVersion`.
-- Improved staging semantics: passing `undefined` now removes entries instead of staging invalid payloads.
+- Improved staging semantics: passing `undefined` now removes entries instead of staging invalid payloads, and typed paths are validated (no whitespace, trimmed) before staging to avoid runtime panics.
 
 ### Internal Store
 

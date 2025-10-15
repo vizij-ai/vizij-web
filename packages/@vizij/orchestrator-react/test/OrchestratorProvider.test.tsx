@@ -11,6 +11,7 @@ import type { OrchestratorFrame, ValueJSON } from "../src/types";
 
 type OrchestratorMock = {
   registerGraph: Mock;
+  registerMergedGraph: Mock;
   registerAnimation: Mock;
   prebind: Mock;
   setInput: Mock;
@@ -19,6 +20,7 @@ type OrchestratorMock = {
   listControllers: Mock<() => { graphs: string[]; anims: string[] }>;
   removeGraph: Mock;
   removeAnimation: Mock;
+  normalizeGraphSpec: Mock<(spec: unknown) => Promise<unknown>>;
 };
 
 const orchestratorInstances: OrchestratorMock[] = [];
@@ -48,6 +50,11 @@ const makeInstance = (): OrchestratorMock => {
       graphs.push(id);
       return id;
     }),
+    registerMergedGraph: vi.fn((_cfg: object) => {
+      const id = `merged-${graphs.length + 1}`;
+      graphs.push(id);
+      return id;
+    }),
     registerAnimation: vi.fn((_cfg: object) => {
       const id = `anim-${anims.length + 1}`;
       anims.push(id);
@@ -74,6 +81,7 @@ const makeInstance = (): OrchestratorMock => {
       }
       return false;
     }),
+    normalizeGraphSpec: vi.fn(async (spec: unknown) => spec),
   };
   orchestratorInstances.push(instance);
   return instance;
@@ -85,6 +93,7 @@ vi.mock(
     init: vi.fn(async () => {}),
     createOrchestrator: vi.fn(async () => makeInstance()),
     Orchestrator: vi.fn(() => makeInstance()),
+    abi_version: vi.fn(() => 2),
   }),
   { virtual: true },
 );

@@ -91,8 +91,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -180,8 +180,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.4.0
+        version: 0.4.0
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -352,8 +352,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.4.0
+        version: 0.4.0
       react:
         specifier: 18.x
         version: 18.3.1
@@ -545,8 +545,8 @@ importers:
   packages/@vizij/node-graph-react:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -576,8 +576,8 @@ importers:
   packages/@vizij/orchestrator-react:
     dependencies:
       '@vizij/orchestrator-wasm':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.0
+        version: 0.2.0
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -2801,11 +2801,11 @@ packages:
   '@vizij/animation-wasm@0.3.1':
     resolution: {integrity: sha512-27rFBkRbo6aZrD3QdrN27c2Dvvo8WQX0IiQ++YjFqaxPI+Tbyvm87KmT3IKyWxZ6I1YqiMoZBG6e2YoxdagxWQ==}
 
-  '@vizij/node-graph-wasm@0.3.1':
-    resolution: {integrity: sha512-yFD2AmxmjuyLthkb6EUTwBcn+O/d2L/o/DHgugQBIylalcgLLiWUcCELC19AoV3QYA7YTqkHdiDp0Dph+QqcEQ==}
+  '@vizij/node-graph-wasm@0.4.0':
+    resolution: {integrity: sha512-6Rug5grNzyfuK2dsOHPjhsuY52cIdj05KHEZQTUluNo52HidWyEIQi8pLKa6JKcgalnx4fq9vhmbm/TgvqQmJA==}
 
-  '@vizij/orchestrator-wasm@0.1.0':
-    resolution: {integrity: sha512-ipaA8fjUR8rA1elcIn3jWUlbvL2bPgEJUh0M2NrWEqABa8XcyiReR0dvWjF3HtyI5Que73bRMqsDLo8LYpG0pA==}
+  '@vizij/orchestrator-wasm@0.2.0':
+    resolution: {integrity: sha512-JnyH80fqpdlH+NWntIJHNX0jiRcIY2VQNNaX04SKbCr5XXHGP5yOsw1JOfHI4FuM+Fzlf8M4JAkhieZgfQ2ZrQ==}
 
   '@vizij/value-json@0.1.0':
     resolution: {integrity: sha512-NzSX14YLnA1ZPaxib0qhgHn5+cVxPZpiTINhqfQwD07FBtkLHPNh/FdQTUmyNAdhZB/RVvdobbEnFCEVLRQJqw==}
@@ -7761,12 +7761,12 @@ snapshots:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
-  '@vizij/node-graph-wasm@0.3.1':
+  '@vizij/node-graph-wasm@0.4.0':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
-  '@vizij/orchestrator-wasm@0.1.0':
+  '@vizij/orchestrator-wasm@0.2.0':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0

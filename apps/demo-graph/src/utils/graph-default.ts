@@ -36,7 +36,7 @@ const sanitizeParams = (params: NodeParams): NodeParams => {
 };
 
 export const nodesToSpecMinimal = (nodes: Node[], edges: Edge[]): GraphSpec => {
-  const spec: GraphSpec = { nodes: [] };
+  const spec: GraphSpec = { nodes: [], links: [] };
 
   for (const node of nodes) {
     const { id, type, data } = node;
@@ -49,15 +49,6 @@ export const nodesToSpecMinimal = (nodes: Node[], edges: Edge[]): GraphSpec => {
     const lowerType = (type || "unknown").toLowerCase();
 
     const inputEdges = edges.filter((e) => e.target === id);
-    const inputs: Record<string, { node_id: string; output_key: string }> = {};
-    for (const edge of inputEdges) {
-      const targetHandle = edge.targetHandle ?? "in";
-      if (!targetHandle) continue;
-      inputs[targetHandle] = {
-        node_id: edge.source,
-        output_key: edge.sourceHandle ?? "out",
-      };
-    }
 
     const baseParams: NodeParams = { ...(data ?? {}) } as NodeParams;
     const params = omit(baseParams, [
@@ -92,11 +83,30 @@ export const nodesToSpecMinimal = (nodes: Node[], edges: Edge[]): GraphSpec => {
       id,
       type: lowerType,
       params: sanitizeParams(params),
-      inputs,
       output_shapes: outputShapes,
     } as any;
 
     spec.nodes.push(nodeSpec);
+
+    for (const edge of inputEdges) {
+      const targetHandle = edge.targetHandle ?? "in";
+      if (!targetHandle) continue;
+      const link = {
+        from: {
+          node_id: edge.source,
+          output: edge.sourceHandle ?? "out",
+        },
+        to: {
+          node_id: id,
+          input: targetHandle,
+        },
+      };
+      const selector = (edge as any)?.data?.selector;
+      if (selector) {
+        (link as any).selector = selector;
+      }
+      spec.links!.push(link as any);
+    }
   }
 
   return spec;

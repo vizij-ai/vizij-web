@@ -99,16 +99,25 @@ export function getLocalUrdfSpec(): GraphSpec {
           max_iters: 200,
           tol_pos: 0.01,
         },
-        inputs: {
-          target_pos: { node_id: "target_pos", output_key: "out" },
-          seed: { node_id: "seed", output_key: "out" },
-        },
       },
       {
         id: "out",
         type: "output",
         params: { path: "samples/urdf.angles" },
-        inputs: { in: { node_id: "ik", output_key: "out" } },
+      },
+    ],
+    links: [
+      {
+        from: { node_id: "target_pos" },
+        to: { node_id: "ik", input: "target_pos" },
+      },
+      {
+        from: { node_id: "seed" },
+        to: { node_id: "ik", input: "seed" },
+      },
+      {
+        from: { node_id: "ik" },
+        to: { node_id: "out", input: "in" },
       },
     ],
   };

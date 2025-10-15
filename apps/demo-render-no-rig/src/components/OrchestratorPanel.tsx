@@ -804,10 +804,13 @@ export function OrchestratorBridgeProvider({
     (rows: InputRow[], values: Record<string, any>) => {
       const visited = new Set<string>();
       rows.forEach((row) => {
-        if (!row.path || visited.has(row.path)) return;
-        const value = row.path in values ? values[row.path] : row.defaultValue;
-        setInput(row.path, valueToJSON(row.kind, value));
-        visited.add(row.path);
+        if (!row.path) return;
+        const normalizedPath = row.path.trim();
+        if (!normalizedPath || visited.has(normalizedPath)) return;
+        const value =
+          normalizedPath in values ? values[normalizedPath] : row.defaultValue;
+        setInput(normalizedPath, valueToJSON(row.kind, value));
+        visited.add(normalizedPath);
       });
     },
     [setInput],
@@ -1129,12 +1132,16 @@ export function OrchestratorBridgeProvider({
 
   const updateInputValue = useCallback(
     (path: string, kind: ValueKind, value: any) => {
+      const normalizedPath = path.trim();
+      if (!normalizedPath) {
+        return;
+      }
       setInputValues((prev) => ({
         ...prev,
-        [path]: value,
+        [normalizedPath]: value,
       }));
       if (connected) {
-        setInput(path, valueToJSON(kind, value));
+        setInput(normalizedPath, valueToJSON(kind, value));
       }
     },
     [connected, setInput],
@@ -1144,11 +1151,15 @@ export function OrchestratorBridgeProvider({
     const entries = inputRows
       .filter((row) => row.path)
       .map((row) => {
-        const path = row.path as string;
+        const trimmed = (row.path as string).trim();
+        if (!trimmed) {
+          return null;
+        }
         const value =
-          path in inputValues ? inputValues[path] : row.defaultValue;
-        return { path, value };
-      });
+          trimmed in inputValues ? inputValues[trimmed] : row.defaultValue;
+        return { path: trimmed, value };
+      })
+      .filter((entry): entry is { path: string; value: any } => entry != null);
 
     if (!entries.length) {
       console.log("poses: [];");

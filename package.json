@@ -29,7 +29,6 @@
     "typecheck": "pnpm -r run --if-present typecheck",
     "typecheck:all": "pnpm -r --no-bail run --if-present typecheck",
     "clean": "pnpm -r run --if-present clean",
-    "link:wasm": "pnpm link --global @vizij/animation-wasm && pnpm link --global @vizij/node-graph-wasm && pnpm link --global @vizij/orchestrator-wasm && pnpm link --global @vizij/value-json",
     "reset": "pnpm -r run --if-present reset && rm -rf node_modules",
     "reset:hard": "pnpm -r run --if-present reset:hard && rm -rf node_modules pnpm-lock.yaml"
   },

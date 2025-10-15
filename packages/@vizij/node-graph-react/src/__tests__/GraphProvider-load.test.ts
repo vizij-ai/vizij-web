@@ -34,10 +34,12 @@ vi.mock("@vizij/node-graph-wasm", () => {
     lastGraph = graph;
     return graph;
   });
+  const toValueJSON = vi.fn((value: any) => value);
   return {
     init,
     normalizeGraphSpec,
     createGraph,
+    toValueJSON,
     __setMode: (m: "ok" | "fail") => {
       mode = m;
     },

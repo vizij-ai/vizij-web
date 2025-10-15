@@ -24,25 +24,16 @@ export const ikGraphSpec: GraphSpec = {
         tip_link: "",
         joint_defaults: [],
       },
-      inputs: {
-        joints: { node_id: "joint_input" },
-      },
     },
     {
       id: "fk_position_out",
       type: "output",
       params: { path: ikPaths.fkPosition },
-      inputs: {
-        in: { node_id: "fk", output_key: "position" },
-      },
     },
     {
       id: "fk_rotation_out",
       type: "output",
       params: { path: ikPaths.fkRotation },
-      inputs: {
-        in: { node_id: "fk", output_key: "rotation" },
-      },
     },
     {
       id: "ik_solver",
@@ -54,21 +45,38 @@ export const ikGraphSpec: GraphSpec = {
         max_iters: 256,
         tol_pos: 0.0005,
       },
-      inputs: {
-        target_pos: { node_id: "fk", output_key: "position" },
-        seed: { node_id: "joint_input" },
-      },
     },
     ...JOINT_IDS.map((jointId) => ({
       id: `${jointId}_out`,
       type: "output" as const,
       params: { path: ikPaths.ikJointOutputs[jointId] },
-      inputs: {
-        in: {
-          node_id: "ik_solver",
-          selector: [{ field: jointId }],
-        },
-      },
+    })),
+  ],
+  links: [
+    {
+      from: { node_id: "joint_input" },
+      to: { node_id: "fk", input: "joints" },
+    },
+    {
+      from: { node_id: "fk", output: "position" },
+      to: { node_id: "fk_position_out", input: "in" },
+    },
+    {
+      from: { node_id: "fk", output: "rotation" },
+      to: { node_id: "fk_rotation_out", input: "in" },
+    },
+    {
+      from: { node_id: "fk", output: "position" },
+      to: { node_id: "ik_solver", input: "target_pos" },
+    },
+    {
+      from: { node_id: "joint_input" },
+      to: { node_id: "ik_solver", input: "seed" },
+    },
+    ...JOINT_IDS.map((jointId) => ({
+      from: { node_id: "ik_solver" },
+      to: { node_id: `${jointId}_out`, input: "in" },
+      selector: [{ field: jointId }],
     })),
   ],
 };

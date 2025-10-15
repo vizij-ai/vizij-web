@@ -55,10 +55,6 @@ export const MULTIPLY_GRAPH_SPEC: GraphRegistrationInput = {
       {
         id: "product",
         type: "multiply",
-        inputs: {
-          a: { node_id: "ramp_up_input" },
-          b: { node_id: "ramp_down_input" },
-        },
       },
       {
         id: "product_out",
@@ -66,9 +62,20 @@ export const MULTIPLY_GRAPH_SPEC: GraphRegistrationInput = {
         params: {
           path: DEMO_PATHS.graphs.product,
         },
-        inputs: {
-          in: { node_id: "product" },
-        },
+      },
+    ],
+    links: [
+      {
+        from: { node_id: "ramp_up_input" },
+        to: { node_id: "product", input: "a" },
+      },
+      {
+        from: { node_id: "ramp_down_input" },
+        to: { node_id: "product", input: "b" },
+      },
+      {
+        from: { node_id: "product" },
+        to: { node_id: "product_out", input: "in" },
       },
     ],
   },
@@ -100,10 +107,6 @@ export const POWER_GRAPH_SPEC: GraphRegistrationInput = {
       {
         id: "ten_power",
         type: "power",
-        inputs: {
-          base: { node_id: "ten_constant" },
-          exp: { node_id: "multiply_output" },
-        },
       },
       {
         id: "ten_power_out",
@@ -111,9 +114,20 @@ export const POWER_GRAPH_SPEC: GraphRegistrationInput = {
         params: {
           path: DEMO_PATHS.graphs.power,
         },
-        inputs: {
-          in: { node_id: "ten_power" },
-        },
+      },
+    ],
+    links: [
+      {
+        from: { node_id: "ten_constant" },
+        to: { node_id: "ten_power", input: "base" },
+      },
+      {
+        from: { node_id: "multiply_output" },
+        to: { node_id: "ten_power", input: "exp" },
+      },
+      {
+        from: { node_id: "ten_power" },
+        to: { node_id: "ten_power_out", input: "in" },
       },
     ],
   },

@@ -109,27 +109,49 @@ export const DEFAULT_GRAPH_SPEC: GraphRegistrationInput = {
       {
         id: "weights_vector",
         type: "join",
-        inputs: {
-          operands_1: { node_id: "weight1_input" },
-          operands_2: { node_id: "weight2_input" },
-        },
       },
       {
         id: "default_blend",
         type: "default-blend",
-        inputs: {
-          baseline: { node_id: "baseline_input" },
-          offset: { node_id: "offset_input" },
-          weights: { node_id: "weights_vector" },
-          target_1: { node_id: "target1_input" },
-          target_2: { node_id: "target2_input" },
-        },
       },
       {
         id: "left_eye_output",
         type: "output",
         params: { path: LEFT_EYE_TRANSLATION_PATH },
-        inputs: { in: { node_id: "default_blend" } },
+      },
+    ],
+    links: [
+      {
+        from: { node_id: "weight1_input" },
+        to: { node_id: "weights_vector", input: "operands_1" },
+      },
+      {
+        from: { node_id: "weight2_input" },
+        to: { node_id: "weights_vector", input: "operands_2" },
+      },
+      {
+        from: { node_id: "baseline_input" },
+        to: { node_id: "default_blend", input: "baseline" },
+      },
+      {
+        from: { node_id: "offset_input" },
+        to: { node_id: "default_blend", input: "offset" },
+      },
+      {
+        from: { node_id: "weights_vector" },
+        to: { node_id: "default_blend", input: "weights" },
+      },
+      {
+        from: { node_id: "target1_input" },
+        to: { node_id: "default_blend", input: "target_1" },
+      },
+      {
+        from: { node_id: "target2_input" },
+        to: { node_id: "default_blend", input: "target_2" },
+      },
+      {
+        from: { node_id: "default_blend" },
+        to: { node_id: "left_eye_output", input: "in" },
       },
     ],
   },

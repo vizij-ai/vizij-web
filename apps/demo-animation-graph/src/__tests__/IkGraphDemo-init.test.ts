@@ -38,6 +38,7 @@ vi.mock("@vizij/node-graph-wasm", () => {
     createGraph,
     normalizeGraphSpec: vi.fn(async (spec: any) => spec),
     normalize_graph_spec_json: vi.fn((json: string) => json),
+    toValueJSON: vi.fn((value: any) => value),
     __setMode: (m: "ok" | "fail") => {
       mode = m;
     },

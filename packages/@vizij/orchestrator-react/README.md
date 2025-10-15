@@ -23,6 +23,7 @@ This package layers a declarative provider and hook set on top of `@vizij/orches
 - `OrchestratorProvider` sets up a shared orchestrator instance backed by `@vizij/orchestrator-wasm`.
 - Hooks expose imperative APIs (`useOrchestrator`) and observational subscriptions (`useOrchFrame`, `useOrchTarget`), all built on `useSyncExternalStore`.
 - Local caching ensures that host-triggered `setInput` calls update hook subscribers immediately (0.3.x improvement).
+- Native graph merging support: `registerMergedGraph` wires multiple specs together with configurable conflict strategies (`error`, `namespace`, `blend`).
 - Works alongside `@vizij/node-graph-react` and `@vizij/animation-react` to coordinate multi-domain Vizij experiences.
 
 ---
@@ -112,15 +113,16 @@ export function App() {
 `useOrchestrator()` exposes:
 
 - Lifecycle: `ready`, `createOrchestrator`, `requireOrchestrator`.
-- Controller management: `registerGraph`, `registerAnimation`, `removeGraph`, `removeAnimation`, `listControllers`.
-- Blackboard API: `setInput`, `removeInput`, `prebind`.
+- Controller management: `registerGraph`, `registerMergedGraph`, `registerAnimation`, `removeGraph`, `removeAnimation`, `listControllers`.
+- Blackboard API: `setInput`, `removeInput`, `prebind` — paths are normalised (trimmed, no whitespace) before staging to match `TypedPath` requirements.
 - Stepping: `step`, plus autostart support in the provider.
+- Utilities: `normalizeGraphSpec?(spec)` and `abiVersion?()` expose WASM helpers for editor tooling and compatibility checks.
 - Internals ensure `setInput` mirrors values into a local cache so `useOrchTarget` subscribers update immediately, even before the next `step`.
 
 ### Frame & Path Subscriptions
 
 - `useOrchFrame()` – Subscribes to the latest `OrchestratorFrame` (merged writes, conflicts, timings, events).
-- `useOrchTarget(path)` – Observes a single blackboard path. Paths are cached so updates only re-render interested components.
+- `useOrchTarget(path)` – Observes a single blackboard path. Paths are normalised before subscription and cached so updates only re-render interested components.
 - `valueHelpers` – `valueAsNumber`, `valueAsVec3`, `valueAsBool` mirror helpers from `@vizij/value-json` for convenience.
 
 ### StrictMode Consideration

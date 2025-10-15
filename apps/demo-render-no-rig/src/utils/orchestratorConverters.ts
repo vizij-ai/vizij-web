@@ -277,13 +277,39 @@ export function graphStateToSpec(
     }
     return converted;
   });
+  const links: Array<{
+    from: { node_id: string; output?: string };
+    to: { node_id: string; input: string };
+    selector?: Array<{ field?: string; index?: number }>;
+  }> = [];
+  nodes.forEach((node) => {
+    const rawInputs = node.inputs ?? {};
+    Object.entries(rawInputs).forEach(([inputKey, connection]) => {
+      const conn = connection as
+        | { node_id?: string; output?: string; selector?: unknown }
+        | undefined;
+      if (!conn || typeof conn.node_id !== "string") {
+        return;
+      }
+      links.push({
+        from: { node_id: conn.node_id, output: conn.output ?? "out" },
+        to: { node_id: node.id, input: inputKey },
+        selector: Array.isArray(conn.selector)
+          ? (conn.selector as Array<{ field?: string; index?: number }>)
+          : undefined,
+      });
+    });
+    delete node.inputs;
+  });
   return {
     spec: {
       nodes,
+      links,
     },
     subs: {
       inputs: state.inputs,
       outputs: state.outputs.length > 0 ? state.outputs : [outputPath],
+      mirrorWrites: true,
     },
   };
 }

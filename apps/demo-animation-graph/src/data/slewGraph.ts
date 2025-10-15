@@ -14,32 +14,46 @@ export const slewGraphSpec: GraphSpec = {
     {
       id: "slew_node",
       type: "slew",
-      inputs: { in: { node_id: "driver_in" } },
       params: { max_rate: 1.5 },
     },
     {
       id: "damp_node",
       type: "damp",
-      inputs: { in: { node_id: "slew_node" } },
       params: { half_life: 0.22 },
     },
     {
       id: "raw_out",
       type: "output",
       params: { path: slewPaths.driver },
-      inputs: { in: { node_id: "driver_in" } },
     },
     {
       id: "slew_out",
       type: "output",
       params: { path: slewPaths.slew },
-      inputs: { in: { node_id: "slew_node" } },
     },
     {
       id: "damp_out",
       type: "output",
       params: { path: slewPaths.damp },
-      inputs: { in: { node_id: "damp_node" } },
+    },
+  ],
+  links: [
+    {
+      from: { node_id: "driver_in" },
+      to: { node_id: "slew_node", input: "in" },
+    },
+    {
+      from: { node_id: "slew_node" },
+      to: { node_id: "damp_node", input: "in" },
+    },
+    { from: { node_id: "driver_in" }, to: { node_id: "raw_out", input: "in" } },
+    {
+      from: { node_id: "slew_node" },
+      to: { node_id: "slew_out", input: "in" },
+    },
+    {
+      from: { node_id: "damp_node" },
+      to: { node_id: "damp_out", input: "in" },
     },
   ],
 };
