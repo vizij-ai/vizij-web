@@ -52,22 +52,60 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     _chain: string[],
     event: ThreeEvent<MouseEvent>,
   ) => {
-    const { id, namespace, type } = selection;
+    event.stopPropagation();
+
+    const makeKey = (sel: Selection) =>
+      `${sel.namespace}__${sel.type}__${sel.id}`;
+
+    const stack: Selection[] = [];
+    const seen = new Set<string>();
+    const push = (sel: Selection | undefined) => {
+      if (!sel) return;
+      if (!sel.id || !sel.namespace || !sel.type) return;
+      const key = makeKey(sel);
+      if (seen.has(key)) return;
+      seen.add(key);
+      stack.push(sel);
+    };
+
+    const intersections = (event.intersections ?? []) as Array<{
+      object: THREE.Object3D & { userData?: Record<string, unknown> };
+    }>;
+
+    intersections.forEach((hit) => {
+      const hitSelection = hit.object?.userData?.selection as
+        | Selection
+        | undefined;
+      push(hitSelection);
+    });
+
+    if (stack.length === 0) {
+      push(selection);
+    }
+
+    const stackKeys = new Set(stack.map(makeKey));
+    const primary = stack[0];
+    const primaryKey = makeKey(primary);
+
     set(
       produce((state: VizijData) => {
-        if (
-          event.metaKey &&
-          !state.elementSelection.find(
-            (e) => e.id === id && e.namespace === namespace,
-          )
-        ) {
-          state.elementSelection.push(selection);
-        } else if (event.metaKey) {
-          state.elementSelection = state.elementSelection.filter(
-            (e) => e.id !== id && e.namespace !== namespace && e.type !== type,
+        if (event.metaKey) {
+          const existing = state.elementSelection ?? [];
+          const alreadySelected = existing.some(
+            (item) => makeKey(item) === primaryKey,
           );
+
+          const existingWithoutStack = existing.filter(
+            (item) => !stackKeys.has(makeKey(item)),
+          );
+
+          if (alreadySelected) {
+            state.elementSelection = existingWithoutStack;
+          } else {
+            state.elementSelection = [...stack, ...existingWithoutStack];
+          }
         } else {
-          state.elementSelection = [selection];
+          state.elementSelection = stack;
         }
       }),
     );

@@ -8,6 +8,7 @@ import {
   useOrchestrator,
   valueAsNumber,
   samples,
+  GraphRegistrationInput,
 } from "../index";
 import { toValueJSON, type ValueInput } from "@vizij/value-json";
 
@@ -148,7 +149,7 @@ describe("@vizij/orchestrator-react samples", () => {
         registeredRef.current = true;
         (async () => {
           orch.prebind?.((path) => path);
-          orch.registerGraph(bundle.graphSpec);
+          orch.registerGraph(bundle.graphSpec as GraphRegistrationInput);
           orch.registerAnimation({
             setup: {
               animation: bundle.animation,

@@ -70,11 +70,20 @@ function InnerRenderedEllipse({
     return av;
   }, [ellipse.features, animatables]);
 
-  const userData = {
-    gltfExtensions: {
-      RobotData: createStoredRenderable(ellipse, animatableValues),
-    },
-  };
+  const selectionData = useMemo(
+    () => ({ id, namespace, type: "ellipse" as const }),
+    [id, namespace],
+  );
+
+  const userData = useMemo(
+    () => ({
+      gltfExtensions: {
+        RobotData: createStoredRenderable(ellipse, animatableValues),
+      },
+      selection: selectionData,
+    }),
+    [ellipse, animatableValues, selectionData],
+  );
 
   useFeatures(namespace, ellipse.features, {
     translation: (pos: RawValue) => {

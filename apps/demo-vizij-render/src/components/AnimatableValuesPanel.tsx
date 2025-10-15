@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -6,7 +7,11 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
-import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import {
+  useVizijStore,
+  useVizijStoreSetter,
+  type Selection,
+} from "@vizij/render";
 import {
   getLookup,
   instanceOfRawEuler,
@@ -24,6 +29,21 @@ import {
   AnimatableColor,
 } from "@vizij/utils";
 import { formatRawValue } from "../utils/format";
+import {
+  STANDARD_RIG_INPUTS,
+  type StandardRigInput,
+} from "../rig/standardRigInputs";
+import {
+  createDefaultRemap,
+  type AnimatableBinding,
+  type BindingMap,
+  type StandardInputValues,
+} from "../rig/state";
+import type { AnimatableComponent } from "../rig/animatableMetadata";
+import {
+  computeNumberBounds,
+  computeVectorBounds,
+} from "../rig/animatableMetadata";
 
 const DEFAULT_NAMESPACE = "default";
 
@@ -36,6 +56,7 @@ type VectorComponent =
   | (typeof RGB_COMPONENTS)[number];
 
 type VectorDescriptorType = "vector3" | "euler" | "rgb";
+type BindingField = "inMin" | "inMax" | "outMin" | "outMax";
 
 type BaseFeatureEntry = {
   id: string;
@@ -96,6 +117,11 @@ function formatFeatureLabel(key: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatStandardInputLabel(input: StandardRigInput): string {
+  const groupName = input.group.replace(/_/g, " ");
+  return `${input.label} · ${groupName}`;
+}
+
 function getComponentsForDescriptor(
   descriptorType: VectorDescriptorType,
 ): readonly VectorComponent[] {
@@ -107,6 +133,24 @@ function resolveSupportedKind(
   descriptor: AnimatableValue | undefined,
   value: RawValue | undefined,
 ): SupportedKind | null {
+  if (!descriptor) {
+    console.log("resolver", featureKey, descriptor, value);
+  }
+  const key = featureKey.toLowerCase();
+
+  switch (key) {
+    case "color":
+      return { type: "vector3", descriptorType: "rgb" };
+    case "opacity":
+      return { type: "number" };
+    case "rotation":
+      return { type: "vector3", descriptorType: "euler" };
+    case "translation":
+      return { type: "vector3", descriptorType: "vector3" };
+    case "scale":
+      return { type: "vector3", descriptorType: "vector3" };
+  }
+
   if (descriptor) {
     if (descriptor.type === "number") {
       return { type: "number" };
@@ -136,22 +180,6 @@ function resolveSupportedKind(
   if (typeof value === "number") {
     return { type: "number" };
   }
-
-  if (instanceOfRawRGB(value)) {
-    return { type: "vector3", descriptorType: "rgb" };
-  }
-
-  if (instanceOfRawEuler(value)) {
-    return { type: "vector3", descriptorType: "euler" };
-  }
-
-  if (instanceOfRawVector3(value)) {
-    if (featureKey.toLowerCase().includes("rotation")) {
-      return { type: "vector3", descriptorType: "euler" };
-    }
-    return { type: "vector3", descriptorType: "vector3" };
-  }
-
   return null;
 }
 
@@ -267,54 +295,6 @@ function buildFeatureEntries(
   });
 }
 
-function computeTranslationBounds(componentValue: number): [number, number] {
-  if (Math.abs(componentValue) < 1e-4) {
-    return [-1, 1];
-  }
-  if (componentValue >= 0) {
-    return [0, componentValue * 2];
-  }
-  return [componentValue * 2, 0];
-}
-
-function computeScaleBounds(componentValue: number): [number, number] {
-  let min = 0;
-  let max = 2;
-  if (componentValue < min) {
-    min = componentValue;
-  }
-  if (componentValue > max) {
-    max = componentValue;
-  }
-  return [min, max];
-}
-
-function computeNumberBounds(
-  defaultValue: number,
-  featureKey: string,
-): [number, number] {
-  const key = featureKey.toLowerCase();
-  if (key.includes("opacity")) {
-    return [0, 1];
-  }
-  if (key.includes("scale")) {
-    return computeScaleBounds(defaultValue);
-  }
-  if (key.includes("rotation")) {
-    return [-Math.PI, Math.PI];
-  }
-  if (key.includes("translation") || key.includes("position")) {
-    return computeTranslationBounds(defaultValue);
-  }
-  if (defaultValue === 0) {
-    return [0, 1];
-  }
-  if (defaultValue > 0) {
-    return [0, defaultValue * 2];
-  }
-  return [defaultValue * 2, 0];
-}
-
 function isApproximatelyEqual(
   a: number | null | undefined,
   b: number | null | undefined,
@@ -357,38 +337,6 @@ function cloneVectorTuple(
   tuple: readonly [number | null, number | null, number | null],
 ): [number | null, number | null, number | null] {
   return [tuple[0], tuple[1], tuple[2]];
-}
-
-function getVectorConstraintDefaults(
-  entry: VectorFeatureEntry,
-  defaults: RawVector3 | RawEuler | RawRGB,
-): {
-  min: [number | null, number | null, number | null];
-  max: [number | null, number | null, number | null];
-} {
-  if (entry.vector.descriptorType === "rgb") {
-    return {
-      min: [0, 0, 0],
-      max: [1, 1, 1],
-    };
-  }
-
-  if (entry.vector.descriptorType === "euler") {
-    return {
-      min: [-Math.PI, -Math.PI, -Math.PI],
-      max: [Math.PI, Math.PI, Math.PI],
-    };
-  }
-
-  const ranges = entry.vector.components.map((component) => {
-    const value = (defaults as RawVector3)[component as keyof RawVector3] ?? 0;
-    return computeNumberBounds(value, entry.featureKey);
-  });
-
-  return {
-    min: [ranges[0][0], ranges[1][0], ranges[2][0]],
-    max: [ranges[0][1], ranges[1][1], ranges[2][1]],
-  };
 }
 
 function getUnitsForEntry(entry: FeatureEntry): string | undefined {
@@ -442,8 +390,17 @@ function buildDefaultAnimatable(
   }
 
   const defaults = ensureVectorValue(entry, defaultValue);
-  const { min, max } = getVectorConstraintDefaults(entry, defaults);
+  const { min: computedMin, max: computedMax } = computeVectorBounds(
+    entry.vector.descriptorType,
+    entry.featureKey,
+    defaults,
+  );
   const units = getUnitsForEntry(entry);
+
+  type VecThree = [number | null, number | null, number | null] | undefined;
+
+  const min = [computedMin[0], computedMin[1], computedMin[2]] as VecThree;
+  const max = [computedMax[0], computedMax[1], computedMax[2]] as VecThree;
 
   if (entry.vector.descriptorType === "rgb") {
     const descriptor: AnimatableColor = {
@@ -523,20 +480,100 @@ function isAnimatableReferencedElsewhere(
   });
 }
 
-export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
+interface AnimatableValuesPanelProps {
+  namespace: string;
+  faceId: string;
+  onFaceIdChange(faceId: string): void;
+  selectionStack: Selection[];
+  onFocusSelectionIndex(index: number): void;
+  components: AnimatableComponent[];
+  bindings: BindingMap;
+  onBindingInputChange(targetId: string, inputId: string | null): void;
+  onBindingRemapChange(
+    targetId: string,
+    field: BindingField,
+    value: number,
+  ): void;
+  onResetBinding(targetId: string): void;
+  inputValues: StandardInputValues;
+  onInputValueChange(inputId: string, value: number): void;
+}
+
+export function AnimatableValuesPanel({
+  namespace,
+  faceId,
+  onFaceIdChange,
+  selectionStack,
+  onFocusSelectionIndex,
+  components,
+  bindings,
+  onBindingInputChange,
+  onBindingRemapChange,
+  onResetBinding,
+  inputValues,
+  onInputValueChange,
+}: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
   const setValue = useVizijStore((state) => state.setValue);
   const setStoreState = useVizijStoreSetter();
+
+  const [rigCollapsed, setRigCollapsed] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [collapsedFeatureRows, setCollapsedFeatureRows] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const componentsById = useMemo(
+    () =>
+      new Map<string, AnimatableComponent>(
+        components.map((component) => [component.id, component]),
+      ),
+    [components],
+  );
+
+  const toggleFeatureCollapse = useCallback((id: string) => {
+    setCollapsedFeatureRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const featureEntries = useMemo(
     () => buildFeatureEntries(world, animatables),
     [world, animatables],
   );
 
+  const selectionKey = useCallback(
+    (sel: Selection) => `${sel.namespace}:${sel.type}:${sel.id}`,
+    [],
+  );
+
+  const activeSelection = selectionStack[0] ?? null;
+
+  const filteredEntries = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    return featureEntries.filter((entry) => {
+      if (activeSelection && entry.elementId !== activeSelection.id) {
+        return false;
+      }
+      if (!normalized) {
+        return true;
+      }
+      const haystack =
+        `${entry.featureLabel} ${entry.elementName} ${entry.elementType}`.toLowerCase();
+      return haystack.includes(normalized);
+    });
+  }, [featureEntries, searchTerm, activeSelection]);
+
   const groupedEntries = useMemo(() => {
     const grouped = new Map<string, FeatureEntry[]>();
-    featureEntries.forEach((entry) => {
+    filteredEntries.forEach((entry) => {
       if (!grouped.has(entry.elementId)) {
         grouped.set(entry.elementId, []);
       }
@@ -551,7 +588,7 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
         entries,
       };
     });
-  }, [featureEntries]);
+  }, [filteredEntries]);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(),
@@ -587,6 +624,53 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
       return changed ? next : previous;
     });
   }, [groupedEntries]);
+
+  useEffect(() => {
+    if (!activeSelection) {
+      return;
+    }
+    setCollapsedGroups((previous) => {
+      if (!previous.has(activeSelection.id)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.delete(activeSelection.id);
+      return next;
+    });
+  }, [activeSelection]);
+
+  useEffect(() => {
+    setCollapsedFeatureRows((previous) => {
+      const valid = new Set(filteredEntries.map((entry) => entry.id));
+      let modified = false;
+      const next = new Set<string>();
+      previous.forEach((id) => {
+        if (valid.has(id)) {
+          next.add(id);
+        } else {
+          modified = true;
+        }
+      });
+      return modified ? next : previous;
+    });
+  }, [filteredEntries]);
+
+  useEffect(() => {
+    if (!activeSelection) {
+      return;
+    }
+    setCollapsedFeatureRows((previous) => {
+      let modified = false;
+      const next = new Set(previous);
+      filteredEntries.forEach((entry) => {
+        if (entry.elementId === activeSelection.id && next.has(entry.id)) {
+          next.delete(entry.id);
+          modified = true;
+        }
+      });
+      return modified ? next : previous;
+    });
+  }, [filteredEntries, activeSelection]);
 
   const toggleGroup = useCallback((elementId: string) => {
     setCollapsedGroups((previous) => {
@@ -665,6 +749,7 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
 
   const convertToAnimated = useCallback(
     (entry: FeatureEntry, baseValue: RawValue) => {
+      // console.log("Convert to animated", entry, baseValue)
       const animatable = buildDefaultAnimatable(entry, baseValue);
       if (!animatable) {
         return;
@@ -757,6 +842,7 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
   const handleAnimatedToggle = useCallback(
     (entry: FeatureEntry, makeAnimated: boolean) => {
       if (makeAnimated) {
+        console.log("Convert in makeAnimated", entry);
         const base =
           entry.staticValue ??
           (entry.descriptor?.default as RawValue | undefined) ??
@@ -844,12 +930,145 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
 
   return (
     <div className="sidebar__panel feature-panel">
+      <section className="feature-panel__rig">
+        <div className="feature-panel__rig-header">
+          <button
+            type="button"
+            className="feature-panel__collapse-btn"
+            onClick={() => setRigCollapsed((prev) => !prev)}
+            aria-expanded={!rigCollapsed}
+            aria-controls="feature-panel-rig-body"
+          >
+            {rigCollapsed ? "+" : "−"}
+          </button>
+          <div className="feature-panel__rig-summary">
+            <h2 className="feature-panel__rig-title">Rig Mapping</h2>
+            <p className="feature-panel__rig-description">
+              Bind standard rig inputs to animatables and preview their remapped
+              values.
+            </p>
+          </div>
+        </div>
+        {!rigCollapsed && (
+          <div id="feature-panel-rig-body" className="feature-panel__rig-body">
+            <label
+              className="feature-panel__label"
+              htmlFor="feature-panel-face"
+            >
+              Face / rig identifier
+            </label>
+            <input
+              id="feature-panel-face"
+              type="text"
+              value={faceId}
+              spellCheck={false}
+              onChange={(event) => onFaceIdChange(event.target.value)}
+            />
+            <div className="feature-panel__inputs">
+              {STANDARD_RIG_INPUTS.map((input) => {
+                const value = inputValues[input.id] ?? input.defaultValue;
+                const step = Math.max(
+                  (input.range.max - input.range.min) / 200,
+                  0.001,
+                );
+                return (
+                  <div key={input.id} className="feature-panel__input-row">
+                    <div className="feature-panel__input-meta">
+                      <strong>{input.label}</strong>
+                      <span>{input.path}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={input.range.min}
+                      max={input.range.max}
+                      step={step}
+                      value={value}
+                      onChange={(event) =>
+                        onInputValueChange(input.id, Number(event.target.value))
+                      }
+                    />
+                    <input
+                      className="feature-panel__input-number"
+                      type="number"
+                      value={value}
+                      min={input.range.min}
+                      max={input.range.max}
+                      step={step}
+                      onChange={(event) =>
+                        onInputValueChange(input.id, Number(event.target.value))
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+      <div className="feature-panel__filters">
+        <input
+          type="search"
+          placeholder="Search features"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          spellCheck={false}
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            className="feature-panel__clear-btn"
+            onClick={() => setSearchTerm("")}
+          >
+            Clear
+          </button>
+        )}
+        {selectionStack.length > 0 && (
+          <span className="feature-panel__filter-chip">
+            {selectionStack.length} layered element
+            {selectionStack.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      {selectionStack.length > 0 && (
+        <div
+          className="feature-panel__stack"
+          role="group"
+          aria-label="Selection stack"
+        >
+          <h3 className="feature-panel__stack-title">Selection stack</h3>
+          <ol className="feature-panel__stack-list">
+            {selectionStack.map((sel, index) => {
+              const renderable = world[sel.id];
+              const label = renderable?.name || sel.id;
+              const isActive = index === 0;
+              return (
+                <li
+                  key={selectionKey(sel)}
+                  className={`feature-panel__stack-item${isActive ? " feature-panel__stack-item--active" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="feature-panel__stack-button"
+                    onClick={() => onFocusSelectionIndex(index)}
+                    disabled={isActive}
+                  >
+                    <span className="feature-panel__stack-label">{label}</span>
+                    <span className="feature-panel__stack-meta">
+                      {sel.type}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
       <div className="sidebar__panel-header">
         <h2 className="sidebar__panel-title">Features</h2>
-        <span className="sidebar__badge">{featureEntries.length}</span>
+        <span className="sidebar__badge">{filteredEntries.length}</span>
       </div>
-      {featureEntries.length === 0 ? (
-        <p className="sidebar__empty">No features detected.</p>
+      {filteredEntries.length === 0 ? (
+        <p className="sidebar__empty">No features match the current filters.</p>
       ) : (
         <div className="feature-panel__groups">
           {groupedEntries.map((group) => (
@@ -889,6 +1108,13 @@ export function AnimatableValuesPanel({ namespace }: { namespace: string }) {
                       onConstraintChange={handleConstraintUpdate}
                       onStaticUpdate={updateStaticFeature}
                       setValue={setValue}
+                      bindings={bindings}
+                      componentsById={componentsById}
+                      onBindingInputChange={onBindingInputChange}
+                      onBindingRemapChange={onBindingRemapChange}
+                      onResetBinding={onResetBinding}
+                      isCollapsed={collapsedFeatureRows.has(entry.id)}
+                      onToggleCollapse={toggleFeatureCollapse}
                     />
                   ))}
                 </div>
@@ -911,6 +1137,13 @@ function FeatureRow({
   onConstraintChange,
   onStaticUpdate,
   setValue,
+  bindings,
+  componentsById,
+  onBindingInputChange,
+  onBindingRemapChange,
+  onResetBinding,
+  isCollapsed,
+  onToggleCollapse,
 }: {
   entry: FeatureEntry;
   namespace: string;
@@ -930,8 +1163,133 @@ function FeatureRow({
     namespace: string,
     value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
   ) => void;
+  bindings: BindingMap;
+  componentsById: Map<string, AnimatableComponent>;
+  onBindingInputChange: (targetId: string, inputId: string | null) => void;
+  onBindingRemapChange: (
+    targetId: string,
+    field: BindingField,
+    value: number,
+  ) => void;
+  onResetBinding: (targetId: string) => void;
+  isCollapsed: boolean;
+  onToggleCollapse: (id: string) => void;
 }) {
   const descriptor = entry.descriptor;
+  const bindingFieldLabels: Record<BindingField, string> = {
+    inMin: "Input min",
+    inMax: "Input max",
+    outMin: "Output min",
+    outMax: "Output max",
+  };
+
+  type BindingTarget = {
+    label: string;
+    targetId: string;
+    binding: AnimatableBinding | undefined;
+    component: AnimatableComponent;
+  };
+
+  const renderBindingMatrix = (targets: BindingTarget[]) => {
+    if (!targets.length) {
+      return null;
+    }
+    const columnCount = targets.length;
+    const matrixClass = `feature-row__binding-matrix feature-row__binding-matrix--columns-${columnCount}`;
+
+    return (
+      <div className={matrixClass}>
+        <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label" />
+        {targets.map((target) => (
+          <div
+            key={`${target.targetId}-header`}
+            className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--header"
+          >
+            {target.label}
+          </div>
+        ))}
+
+        <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
+          Standard input
+        </div>
+        {targets.map((target) => (
+          <div
+            key={`${target.targetId}-input`}
+            className="feature-row__binding-matrix-cell"
+          >
+            <select
+              value={target.binding?.inputId ?? ""}
+              onChange={(event) =>
+                onBindingInputChange(
+                  target.targetId,
+                  event.target.value ? event.target.value : null,
+                )
+              }
+              aria-label={`${target.label} standard input`}
+            >
+              <option value="">Unbound</option>
+              {STANDARD_RIG_INPUTS.map((input) => (
+                <option key={input.id} value={input.id}>
+                  {formatStandardInputLabel(input)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+
+        {(["inMin", "inMax", "outMin", "outMax"] as BindingField[]).map(
+          (field) => (
+            <Fragment key={`binding-row-${field}`}>
+              <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
+                {bindingFieldLabels[field]}
+              </div>
+              {targets.map((target) => {
+                const defaults = createDefaultRemap(target.component);
+                // if (target.component.label.includes("rotation")) console.log("Creating default remaps", target, defaults)
+                const remap = target.binding?.remap ?? defaults;
+                return (
+                  <div
+                    key={`${target.targetId}-${field}`}
+                    className="feature-row__binding-matrix-cell"
+                  >
+                    <input
+                      type="number"
+                      value={remap[field]}
+                      step={0.01}
+                      onChange={(event) => {
+                        const parsed = Number(event.target.value);
+                        if (Number.isFinite(parsed)) {
+                          onBindingRemapChange(target.targetId, field, parsed);
+                        }
+                      }}
+                      aria-label={`${target.label} ${bindingFieldLabels[field]}`}
+                    />
+                  </div>
+                );
+              })}
+            </Fragment>
+          ),
+        )}
+
+        <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
+          Actions
+        </div>
+        {targets.map((target) => (
+          <div
+            key={`${target.targetId}-actions`}
+            className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--actions"
+          >
+            <button
+              type="button"
+              onClick={() => onResetBinding(target.targetId)}
+            >
+              Reset
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const handleAnimatedChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -993,108 +1351,123 @@ function FeatureRow({
       const isPinched =
         isApproximatelyEqual(currentMin, defaultValue) &&
         isApproximatelyEqual(currentMax, defaultValue);
+      const bindingTargets: BindingTarget[] = [];
+      if (entry.animatableId) {
+        const componentMeta = componentsById.get(entry.animatableId);
+        if (componentMeta) {
+          bindingTargets.push({
+            label: "Value",
+            targetId: entry.animatableId,
+            binding: bindings[entry.animatableId],
+            component: componentMeta,
+          });
+        }
+      }
 
       return (
-        <div className="feature-row__matrix feature-row__matrix--columns-1">
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--label" />
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--header">
-            Value
-          </div>
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-            Default
-          </div>
-          <div className="feature-row__matrix-cell">
-            <input
-              type="number"
-              className="feature-row__input feature-row__input--compact"
-              value={defaultValue}
-              step={0.1}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed)) {
-                  updateDefault(parsed);
-                  if (isPinched) {
+        <>
+          <div className="feature-row__matrix feature-row__matrix--columns-1">
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--label" />
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--header">
+              Value
+            </div>
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+              Default
+            </div>
+            <div className="feature-row__matrix-cell">
+              <input
+                type="number"
+                className="feature-row__input feature-row__input--compact"
+                value={defaultValue}
+                step={0.1}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    updateDefault(parsed);
+                    if (isPinched) {
+                      updateConstraints((current) => {
+                        const next = { ...(current as any) };
+                        next.min = parsed;
+                        next.max = parsed;
+                        return next;
+                      });
+                    }
+                  }
+                }}
+                aria-label="Default value"
+              />
+            </div>
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+              Min
+            </div>
+            <div className="feature-row__matrix-cell">
+              <input
+                type="number"
+                className="feature-row__input feature-row__input--compact"
+                value={currentMin}
+                step={0.1}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
                     updateConstraints((current) => {
                       const next = { ...(current as any) };
                       next.min = parsed;
-                      next.max = parsed;
-                      return next;
-                    });
-                  }
-                }
-              }}
-              aria-label="Default value"
-            />
-          </div>
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-            Min
-          </div>
-          <div className="feature-row__matrix-cell">
-            <input
-              type="number"
-              className="feature-row__input feature-row__input--compact"
-              value={currentMin}
-              step={0.1}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed)) {
-                  updateConstraints((current) => {
-                    const next = { ...(current as any) };
-                    next.min = parsed;
-                    return next;
-                  });
-                }
-              }}
-              aria-label="Minimum value"
-            />
-          </div>
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-            Max
-          </div>
-          <div className="feature-row__matrix-cell">
-            <input
-              type="number"
-              className="feature-row__input feature-row__input--compact"
-              value={currentMax}
-              step={0.1}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed)) {
-                  updateConstraints((current) => {
-                    const next = { ...(current as any) };
-                    next.max = parsed;
-                    return next;
-                  });
-                }
-              }}
-              aria-label="Maximum value"
-            />
-          </div>
-          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-            Pinch
-          </div>
-          <div className="feature-row__matrix-cell">
-            <label className="feature-row__pinch-toggle">
-              <input
-                type="checkbox"
-                checked={isPinched}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  if (checked) {
-                    updateConstraints((current) => {
-                      const next = { ...(current as any) };
-                      next.min = defaultValue;
-                      next.max = defaultValue;
                       return next;
                     });
                   }
                 }}
-                aria-label="Pinch value"
+                aria-label="Minimum value"
               />
-              <span>Pinch</span>
-            </label>
+            </div>
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+              Max
+            </div>
+            <div className="feature-row__matrix-cell">
+              <input
+                type="number"
+                className="feature-row__input feature-row__input--compact"
+                value={currentMax}
+                step={0.1}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    updateConstraints((current) => {
+                      const next = { ...(current as any) };
+                      next.max = parsed;
+                      return next;
+                    });
+                  }
+                }}
+                aria-label="Maximum value"
+              />
+            </div>
+            <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+              Pinch
+            </div>
+            <div className="feature-row__matrix-cell">
+              <label className="feature-row__pinch-toggle">
+                <input
+                  type="checkbox"
+                  checked={isPinched}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    if (checked) {
+                      updateConstraints((current) => {
+                        const next = { ...(current as any) };
+                        next.min = defaultValue;
+                        next.max = defaultValue;
+                        return next;
+                      });
+                    }
+                  }}
+                  aria-label="Pinch value"
+                />
+                <span>Pinch</span>
+              </label>
+            </div>
           </div>
-        </div>
+          {renderBindingMatrix(bindingTargets)}
+        </>
       );
     }
 
@@ -1106,7 +1479,12 @@ function FeatureRow({
           : (descriptor as AnimatableVector3);
 
     const current = ensureVectorValue(entry, vectorDescriptor.default);
-    const fallbackConstraints = getVectorConstraintDefaults(entry, current);
+
+    const fallbackConstraints = computeVectorBounds(
+      entry.vector.descriptorType,
+      entry.featureKey,
+      current,
+    );
     const resolvedMin =
       vectorDescriptor.constraints?.min ?? fallbackConstraints.min;
     const resolvedMax =
@@ -1116,36 +1494,107 @@ function FeatureRow({
         ? "feature-row__matrix feature-row__matrix--columns-2"
         : "feature-row__matrix feature-row__matrix--columns-3";
 
+    const bindingTargets: BindingTarget[] = [];
+    if (entry.animatableId) {
+      entry.vector.components.forEach((component) => {
+        const targetId = `${entry.animatableId}:${component}`;
+        const componentMeta = componentsById.get(targetId);
+        if (componentMeta) {
+          bindingTargets.push({
+            label: component.toUpperCase(),
+            targetId,
+            binding: bindings[targetId],
+            component: componentMeta,
+          });
+        }
+      });
+    }
+
     return (
-      <div className={vectorColumnsClass}>
-        <div className="feature-row__matrix-cell feature-row__matrix-cell--label" />
-        {entry.vector.components.map((component) => (
-          <div
-            className="feature-row__matrix-cell feature-row__matrix-cell--header"
-            key={`${component}-header`}
-          >
-            {component.toUpperCase()}
-          </div>
-        ))}
-        <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-          Default
-        </div>
-        {entry.vector.components.map((component, index) => {
-          const componentDefault = (current as any)[component];
-          const componentMin = resolvedMin[index];
-          const componentMax = resolvedMax[index];
-          const componentPinched =
-            isApproximatelyEqual(componentMin, componentDefault) &&
-            isApproximatelyEqual(componentMax, componentDefault);
-          return (
+      <>
+        <div className={vectorColumnsClass}>
+          <div className="feature-row__matrix-cell feature-row__matrix-cell--label" />
+          {entry.vector.components.map((component) => (
             <div
-              className="feature-row__matrix-cell"
-              key={`${component}-default`}
+              className="feature-row__matrix-cell feature-row__matrix-cell--header"
+              key={`${component}-header`}
             >
+              {component.toUpperCase()}
+            </div>
+          ))}
+          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+            Default
+          </div>
+          {entry.vector.components.map((component, index) => {
+            const componentDefault = (current as any)[component];
+            const componentMin = resolvedMin[index];
+            const componentMax = resolvedMax[index];
+            const componentPinched =
+              isApproximatelyEqual(componentMin, componentDefault) &&
+              isApproximatelyEqual(componentMax, componentDefault);
+            return (
+              <div
+                className="feature-row__matrix-cell"
+                key={`${component}-default`}
+              >
+                <input
+                  type="number"
+                  className="feature-row__input feature-row__input--compact"
+                  value={componentDefault}
+                  min={entry.vector.descriptorType === "rgb" ? 0 : undefined}
+                  max={entry.vector.descriptorType === "rgb" ? 1 : undefined}
+                  step={entry.vector.descriptorType === "rgb" ? 0.01 : 0.1}
+                  onChange={(event) => {
+                    const parsed = Number(event.target.value);
+                    if (!Number.isFinite(parsed)) {
+                      return;
+                    }
+                    const next = {
+                      ...current,
+                      [component]: parsed,
+                    } as typeof current;
+                    updateDefault(next);
+                    if (componentPinched) {
+                      updateConstraints((currentConstraints) => {
+                        const nextConstraints = {
+                          ...(currentConstraints as any),
+                        };
+                        const nextMin = cloneVectorTuple(
+                          (nextConstraints.min ?? resolvedMin) as [
+                            number | null,
+                            number | null,
+                            number | null,
+                          ],
+                        );
+                        const nextMax = cloneVectorTuple(
+                          (nextConstraints.max ?? resolvedMax) as [
+                            number | null,
+                            number | null,
+                            number | null,
+                          ],
+                        );
+                        nextMin[index] = parsed;
+                        nextMax[index] = parsed;
+                        nextConstraints.min = nextMin;
+                        nextConstraints.max = nextMax;
+                        return nextConstraints;
+                      });
+                    }
+                  }}
+                  aria-label={`${component.toUpperCase()} default`}
+                />
+              </div>
+            );
+          })}
+          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+            Min
+          </div>
+          {entry.vector.components.map((component, index) => (
+            <div className="feature-row__matrix-cell" key={`${component}-min`}>
               <input
                 type="number"
                 className="feature-row__input feature-row__input--compact"
-                value={componentDefault}
+                value={resolvedMin[index] ?? 0}
                 min={entry.vector.descriptorType === "rgb" ? 0 : undefined}
                 max={entry.vector.descriptorType === "rgb" ? 1 : undefined}
                 step={entry.vector.descriptorType === "rgb" ? 0.01 : 0.1}
@@ -1154,172 +1603,120 @@ function FeatureRow({
                   if (!Number.isFinite(parsed)) {
                     return;
                   }
-                  const next = {
-                    ...current,
-                    [component]: parsed,
-                  } as typeof current;
-                  updateDefault(next);
-                  if (componentPinched) {
-                    updateConstraints((currentConstraints) => {
-                      const nextConstraints = {
-                        ...(currentConstraints as any),
-                      };
-                      const nextMin = cloneVectorTuple(
-                        (nextConstraints.min ?? resolvedMin) as [
-                          number | null,
-                          number | null,
-                          number | null,
-                        ],
-                      );
-                      const nextMax = cloneVectorTuple(
-                        (nextConstraints.max ?? resolvedMax) as [
-                          number | null,
-                          number | null,
-                          number | null,
-                        ],
-                      );
-                      nextMin[index] = parsed;
-                      nextMax[index] = parsed;
-                      nextConstraints.min = nextMin;
-                      nextConstraints.max = nextMax;
-                      return nextConstraints;
-                    });
-                  }
+                  updateConstraints((currentConstraints) => {
+                    const next = { ...(currentConstraints as any) };
+                    const nextMin = cloneVectorTuple(
+                      (next.min ?? resolvedMin) as [
+                        number | null,
+                        number | null,
+                        number | null,
+                      ],
+                    );
+                    nextMin[index] = parsed;
+                    next.min = nextMin;
+                    if (!next.max) {
+                      next.max = cloneVectorTuple(resolvedMax as any);
+                    }
+                    return next;
+                  });
                 }}
-                aria-label={`${component.toUpperCase()} default`}
+                aria-label={`${component.toUpperCase()} minimum`}
               />
             </div>
-          );
-        })}
-        <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-          Min
-        </div>
-        {entry.vector.components.map((component, index) => (
-          <div className="feature-row__matrix-cell" key={`${component}-min`}>
-            <input
-              type="number"
-              className="feature-row__input feature-row__input--compact"
-              value={resolvedMin[index] ?? 0}
-              min={entry.vector.descriptorType === "rgb" ? 0 : undefined}
-              max={entry.vector.descriptorType === "rgb" ? 1 : undefined}
-              step={entry.vector.descriptorType === "rgb" ? 0.01 : 0.1}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (!Number.isFinite(parsed)) {
-                  return;
-                }
-                updateConstraints((currentConstraints) => {
-                  const next = { ...(currentConstraints as any) };
-                  const nextMin = cloneVectorTuple(
-                    (next.min ?? resolvedMin) as [
-                      number | null,
-                      number | null,
-                      number | null,
-                    ],
-                  );
-                  nextMin[index] = parsed;
-                  next.min = nextMin;
-                  if (!next.max) {
-                    next.max = cloneVectorTuple(resolvedMax as any);
-                  }
-                  return next;
-                });
-              }}
-              aria-label={`${component.toUpperCase()} minimum`}
-            />
+          ))}
+          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+            Max
           </div>
-        ))}
-        <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-          Max
-        </div>
-        {entry.vector.components.map((component, index) => (
-          <div className="feature-row__matrix-cell" key={`${component}-max`}>
-            <input
-              type="number"
-              className="feature-row__input feature-row__input--compact"
-              value={resolvedMax[index] ?? 0}
-              min={entry.vector.descriptorType === "rgb" ? 0 : undefined}
-              max={entry.vector.descriptorType === "rgb" ? 1 : undefined}
-              step={entry.vector.descriptorType === "rgb" ? 0.01 : 0.1}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (!Number.isFinite(parsed)) {
-                  return;
-                }
-                updateConstraints((currentConstraints) => {
-                  const next = { ...(currentConstraints as any) };
-                  const nextMax = cloneVectorTuple(
-                    (next.max ?? resolvedMax) as [
-                      number | null,
-                      number | null,
-                      number | null,
-                    ],
-                  );
-                  nextMax[index] = parsed;
-                  next.max = nextMax;
-                  if (!next.min) {
-                    next.min = cloneVectorTuple(resolvedMin as any);
+          {entry.vector.components.map((component, index) => (
+            <div className="feature-row__matrix-cell" key={`${component}-max`}>
+              <input
+                type="number"
+                className="feature-row__input feature-row__input--compact"
+                value={resolvedMax[index] ?? 0}
+                min={entry.vector.descriptorType === "rgb" ? 0 : undefined}
+                max={entry.vector.descriptorType === "rgb" ? 1 : undefined}
+                step={entry.vector.descriptorType === "rgb" ? 0.01 : 0.1}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (!Number.isFinite(parsed)) {
+                    return;
                   }
-                  return next;
-                });
-              }}
-              aria-label={`${component.toUpperCase()} maximum`}
-            />
-          </div>
-        ))}
-        <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
-          Pinch
-        </div>
-        {entry.vector.components.map((component, index) => {
-          const componentDefault = (current as any)[component];
-          const componentMin = resolvedMin[index];
-          const componentMax = resolvedMax[index];
-          const componentPinched =
-            isApproximatelyEqual(componentMin, componentDefault) &&
-            isApproximatelyEqual(componentMax, componentDefault);
-          return (
-            <div
-              className="feature-row__matrix-cell"
-              key={`${component}-pinch`}
-            >
-              <label className="feature-row__pinch-toggle">
-                <input
-                  type="checkbox"
-                  checked={componentPinched}
-                  onChange={(event) => {
-                    if (event.target.checked) {
-                      updateConstraints((currentConstraints) => {
-                        const next = { ...(currentConstraints as any) };
-                        const nextMin = cloneVectorTuple(
-                          (next.min ?? resolvedMin) as [
-                            number | null,
-                            number | null,
-                            number | null,
-                          ],
-                        );
-                        const nextMax = cloneVectorTuple(
-                          (next.max ?? resolvedMax) as [
-                            number | null,
-                            number | null,
-                            number | null,
-                          ],
-                        );
-                        nextMin[index] = componentDefault;
-                        nextMax[index] = componentDefault;
-                        next.min = nextMin;
-                        next.max = nextMax;
-                        return next;
-                      });
+                  updateConstraints((currentConstraints) => {
+                    const next = { ...(currentConstraints as any) };
+                    const nextMax = cloneVectorTuple(
+                      (next.max ?? resolvedMax) as [
+                        number | null,
+                        number | null,
+                        number | null,
+                      ],
+                    );
+                    nextMax[index] = parsed;
+                    next.max = nextMax;
+                    if (!next.min) {
+                      next.min = cloneVectorTuple(resolvedMin as any);
                     }
-                  }}
-                  aria-label={`${component.toUpperCase()} pinch`}
-                />
-                <span>Pinch</span>
-              </label>
+                    return next;
+                  });
+                }}
+                aria-label={`${component.toUpperCase()} maximum`}
+              />
             </div>
-          );
-        })}
-      </div>
+          ))}
+          <div className="feature-row__matrix-cell feature-row__matrix-cell--label">
+            Pinch
+          </div>
+          {entry.vector.components.map((component, index) => {
+            const componentDefault = (current as any)[component];
+            const componentMin = resolvedMin[index];
+            const componentMax = resolvedMax[index];
+            const componentPinched =
+              isApproximatelyEqual(componentMin, componentDefault) &&
+              isApproximatelyEqual(componentMax, componentDefault);
+            return (
+              <div
+                className="feature-row__matrix-cell"
+                key={`${component}-pinch`}
+              >
+                <label className="feature-row__pinch-toggle">
+                  <input
+                    type="checkbox"
+                    checked={componentPinched}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        updateConstraints((currentConstraints) => {
+                          const next = { ...(currentConstraints as any) };
+                          const nextMin = cloneVectorTuple(
+                            (next.min ?? resolvedMin) as [
+                              number | null,
+                              number | null,
+                              number | null,
+                            ],
+                          );
+                          const nextMax = cloneVectorTuple(
+                            (next.max ?? resolvedMax) as [
+                              number | null,
+                              number | null,
+                              number | null,
+                            ],
+                          );
+                          nextMin[index] = componentDefault;
+                          nextMax[index] = componentDefault;
+                          next.min = nextMin;
+                          next.max = nextMax;
+                          return next;
+                        });
+                      }
+                    }}
+                    aria-label={`${component.toUpperCase()} pinch`}
+                  />
+                  <span>Pinch</span>
+                </label>
+              </div>
+            );
+          })}
+        </div>
+        {renderBindingMatrix(bindingTargets)}
+      </>
     );
   };
 
@@ -1415,32 +1812,58 @@ function FeatureRow({
       ? "NUMBER"
       : entry.vector.descriptorType.toUpperCase();
 
+  const summaryValue = entry.animated
+    ? descriptor
+      ? formatRawValue(descriptor.default as RawValue)
+      : "—"
+    : entry.staticValue !== undefined
+      ? formatRawValue(entry.staticValue)
+      : descriptor
+        ? formatRawValue(descriptor.default as RawValue)
+        : "—";
+
   return (
-    <div className="feature-row">
+    <div
+      className={`feature-row${isCollapsed ? " feature-row--collapsed" : ""}`}
+    >
       <div className="feature-row__header">
-        <div className="feature-row__summary">
-          <div className="feature-row__title">
-            <strong>{entry.featureLabel}</strong>
-            <span className="feature-row__badge">{badgeLabel}</span>
-          </div>
-          <div className="feature-row__subtitle">
-            <span>{entry.elementName}</span>
-            <span>•</span>
-            <span>{entry.elementType}</span>
+        <div className="feature-row__header-left">
+          <button
+            type="button"
+            className="feature-row__collapse-btn"
+            onClick={() => onToggleCollapse(entry.id)}
+            aria-expanded={!isCollapsed}
+            aria-controls={`${entry.id}-body`}
+          >
+            {isCollapsed ? "+" : "−"}
+          </button>
+          <div className="feature-row__summary">
+            <div className="feature-row__title">
+              <strong>{entry.featureLabel}</strong>
+              <span className="feature-row__badge">{badgeLabel}</span>
+            </div>
+            <div className="feature-row__subtitle">
+              <span>{entry.elementName}</span>
+              <span>•</span>
+              <span>{entry.elementType}</span>
+            </div>
           </div>
         </div>
-        <label className="feature-row__toggle">
-          <input
-            type="checkbox"
-            checked={entry.animated}
-            onChange={handleAnimatedChange}
-          />
-          <span>Animatable</span>
-        </label>
+        <div className="feature-row__header-right">
+          <span className="feature-row__summary-value">{summaryValue}</span>
+          <label className="feature-row__toggle">
+            <input
+              type="checkbox"
+              checked={entry.animated}
+              onChange={handleAnimatedChange}
+            />
+            <span>Animatable</span>
+          </label>
+        </div>
       </div>
 
-      {entry.animated && descriptor ? (
-        <div className="feature-row__body">
+      {!isCollapsed && entry.animated && descriptor ? (
+        <div className="feature-row__body" id={`${entry.id}-body`}>
           <div className="feature-row__grid">
             <label className="feature-row__field">
               <span>Name</span>
@@ -1469,12 +1892,14 @@ function FeatureRow({
             </span>
           </div>
         </div>
-      ) : (
-        <div className="feature-row__body">
+      ) : null}
+
+      {!isCollapsed && !entry.animated && (
+        <div className="feature-row__body" id={`${entry.id}-body`}>
           {renderStaticControls()}
           <div className="feature-row__metrics">
             <span>
-              Value: <strong>{formatRawValue(entry.staticValue)}</strong>
+              Value: <strong>{summaryValue}</strong>
             </span>
           </div>
         </div>

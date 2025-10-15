@@ -13,7 +13,17 @@ import { makeTypedPath } from "../utils/typedPath";
 let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
-vi.mock("@vizij/node-graph-wasm", () => {
+vi.mock("@vizij/node-graph-wasm", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@vizij/node-graph-wasm")>();
+  const {
+    listNodeGraphFixtures,
+    loadNodeGraphBundle,
+    loadNodeGraphSpec,
+    loadNodeGraphSpecJson,
+    loadNodeGraphStage,
+    ...rest
+  } = actual;
   const init = vi.fn(async () => {});
   const createGraph = vi.fn(async (_spec: any) => {
     if (mode === "fail") {
@@ -38,6 +48,12 @@ vi.mock("@vizij/node-graph-wasm", () => {
     return graph;
   });
   return {
+    ...rest,
+    listNodeGraphFixtures,
+    loadNodeGraphBundle,
+    loadNodeGraphSpec,
+    loadNodeGraphSpecJson,
+    loadNodeGraphStage,
     init,
     createGraph,
     normalizeGraphSpec: vi.fn(async (spec: any) => spec),

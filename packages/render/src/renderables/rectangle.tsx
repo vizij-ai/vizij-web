@@ -70,11 +70,20 @@ function InnerRenderedRectangle({
     return av;
   }, [rectangle.features, animatables]);
 
-  const userData = {
-    gltfExtensions: {
-      RobotData: createStoredRenderable(rectangle, animatableValues),
-    },
-  };
+  const selectionData = useMemo(
+    () => ({ id, namespace, type: "rectangle" as const }),
+    [id, namespace],
+  );
+
+  const userData = useMemo(
+    () => ({
+      gltfExtensions: {
+        RobotData: createStoredRenderable(rectangle, animatableValues),
+      },
+      selection: selectionData,
+    }),
+    [rectangle, animatableValues, selectionData],
+  );
 
   useFeatures(namespace, rectangle.features, {
     translation: (pos: RawValue) => {

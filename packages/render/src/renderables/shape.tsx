@@ -75,11 +75,20 @@ function InnerRenderedShape({
 
   const geometry = useMemo(() => shape.geometry.clone(), [shape.geometry]);
 
-  const userData = {
-    gltfExtensions: {
-      RobotData: createStoredRenderable(shape, animatableValues),
-    },
-  };
+  const selectionData = useMemo(
+    () => ({ id, namespace, type: "shape" as const }),
+    [id, namespace],
+  );
+
+  const userData = useMemo(
+    () => ({
+      gltfExtensions: {
+        RobotData: createStoredRenderable(shape, animatableValues),
+      },
+      selection: selectionData,
+    }),
+    [shape, animatableValues, selectionData],
+  );
 
   const material = useRef<
     | MeshBasicMaterial

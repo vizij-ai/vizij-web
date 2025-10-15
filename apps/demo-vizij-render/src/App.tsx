@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -14,11 +15,32 @@ import {
   useVizijStore,
   useVizijStoreSetter,
 } from "@vizij/render";
-import type { World, Group, Feature, Selection } from "@vizij/render";
+import type { World, Group, VizijData } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import { getLookup } from "@vizij/utils";
 import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
-import { formatConstraints, formatRawValue } from "./utils/format";
+import {
+  extractAnimatableComponents,
+  buildAnimatableValue,
+  type ComponentOverrideMap,
+} from "./rig/animatableMetadata";
+import {
+  createDefaultBindings,
+  createDefaultInputValues,
+  reconcileBindings,
+  updateBindingWithInput,
+  remapValue,
+  createDefaultRemap,
+  type BindingMap,
+  type AnimatableBinding,
+  type StandardInputValues,
+} from "./rig/state";
+import {
+  STANDARD_RIG_INPUTS_BY_ID,
+  type StandardRigInput,
+} from "./rig/standardRigInputs";
+import { buildRigGraphSpec } from "./rig/graphBuilder";
+import { loadRigState, saveRigState } from "./rig/persistence";
 
 const SAMPLE_ASSETS = [
   {
@@ -33,16 +55,6 @@ const SAMPLE_ASSETS = [
 
 const DEFAULT_NAMESPACE = "default";
 
-type FeatureEntry = [string, Feature];
-
-type AnimatedFeatureEntry = FeatureEntry & {
-  1: Feature & { animated: true; value: string };
-};
-
-type StaticFeatureEntry = FeatureEntry & {
-  1: Feature & { animated: false };
-};
-
 function findRootId(world: World): string | null {
   const root = Object.values(world).find(
     (entry): entry is Group =>
@@ -51,14 +63,22 @@ function findRootId(world: World): string | null {
   return root ? root.id : null;
 }
 
-function isFeature(value: Feature | undefined): value is Feature {
-  return Boolean(value);
-}
-
 function waitForNextFrame(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function cloneRawValue(value: RawValue): RawValue {
@@ -83,6 +103,17 @@ function rawValuesEqual(
   } catch {
     return false;
   }
+}
+
+function sanitizeFaceId(value: string): string {
+  const normalised = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalised || "robot";
 }
 
 type Traversable = {
@@ -129,6 +160,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportFileName, setExportFileName] = useState("vizij-export.glb");
+  const [graphFileName, setGraphFileName] = useState("vizij-export.graph.json");
 
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
   const getExportableBodies = useVizijStore(
@@ -136,57 +168,252 @@ export default function App() {
   );
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
+  const setValue = useVizijStore((state) => state.setValue);
   const values = useVizijStore((state) => state.values);
   const elementSelection = useVizijStore((state) => state.elementSelection);
   const setStoreState = useVizijStoreSetter();
 
-  const [selectedElement, setSelectedElement] = useState<Selection | null>(
-    null,
+  const [faceId, setFaceId] = useState<string>("robot");
+  const [inputValues, setInputValues] = useState<StandardInputValues>(() =>
+    createDefaultInputValues(),
+  );
+  const [bindings, setBindings] = useState<BindingMap>(() =>
+    createDefaultBindings([]),
+  );
+  const drivenAnimatablesRef = useRef<Set<string>>(new Set());
+  const lastAutoFaceIdRef = useRef<string | null>(null);
+  const lastLoadedFaceIdRef = useRef<string | null>(null);
+  const skipPersistRef = useRef(false);
+
+  const animatableComponents = useMemo(
+    () => extractAnimatableComponents(animatables),
+    [animatables],
+  );
+
+  const componentsById = useMemo(() => {
+    return new Map(
+      animatableComponents.map((component) => [component.id, component]),
+    );
+  }, [animatableComponents]);
+
+  const handleInputValueChange = useCallback(
+    (inputId: string, value: number) => {
+      setInputValues((previous) => ({
+        ...previous,
+        [inputId]: value,
+      }));
+    },
+    [],
+  );
+
+  const handleBindingInputChange = useCallback(
+    (targetId: string, nextInputId: string | null) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      const inputMeta: StandardRigInput | undefined =
+        nextInputId !== null
+          ? STANDARD_RIG_INPUTS_BY_ID.get(nextInputId)
+          : undefined;
+      setBindings((previous) => {
+        const fallback: AnimatableBinding = {
+          targetId,
+          inputId: null,
+          remap: createDefaultRemap(component),
+        };
+        const current = previous[targetId] ?? fallback;
+        const updated = updateBindingWithInput(current, component, inputMeta);
+        if (updated === current) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: updated,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleBindingRemapChange = useCallback(
+    (
+      targetId: string,
+      field: "inMin" | "inMax" | "outMin" | "outMax",
+      value: number,
+    ) => {
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: {
+            ...binding,
+            remap: {
+              ...binding.remap,
+              [field]: value,
+            },
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const handleResetBinding = useCallback(
+    (targetId: string) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      setBindings((previous) => {
+        if (!previous[targetId]) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: {
+            targetId,
+            inputId: null,
+            remap: createDefaultRemap(component),
+          },
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleFaceIdChange = useCallback((next: string) => {
+    setFaceId(sanitizeFaceId(next));
+  }, []);
+
+  const handleFocusSelectionIndex = useCallback(
+    (index: number) => {
+      setStoreState((state: VizijData) => {
+        const current = state.elementSelection ?? [];
+        if (index <= 0 || index >= current.length) {
+          return {};
+        }
+        const next = current.slice();
+        const [selected] = next.splice(index, 1);
+        next.unshift(selected);
+        return { elementSelection: next };
+      });
+    },
+    [setStoreState],
   );
 
   useEffect(() => {
-    if (elementSelection.length > 0) {
-      setSelectedElement(elementSelection[elementSelection.length - 1]);
-    } else {
-      setSelectedElement(null);
-    }
-  }, [elementSelection]);
+    setBindings((previous) =>
+      reconcileBindings(previous, animatableComponents),
+    );
+  }, [animatableComponents]);
 
-  const selectedRenderable = selectedElement
-    ? world[selectedElement.id]
-    : undefined;
+  useEffect(() => {
+    if (!faceId) {
+      return;
+    }
+    if (lastLoadedFaceIdRef.current === faceId) {
+      return;
+    }
+    const persisted = loadRigState(faceId);
+    skipPersistRef.current = true;
+    if (persisted) {
+      setInputValues(persisted.inputValues);
+      setBindings(reconcileBindings(persisted.bindings, animatableComponents));
+    } else {
+      setInputValues(createDefaultInputValues());
+      setBindings(createDefaultBindings(animatableComponents));
+    }
+    setTimeout(() => {
+      skipPersistRef.current = false;
+    }, 0);
+    lastLoadedFaceIdRef.current = faceId;
+  }, [animatableComponents, faceId]);
+
+  useEffect(() => {
+    if (
+      !faceId ||
+      skipPersistRef.current ||
+      animatableComponents.length === 0
+    ) {
+      return;
+    }
+    saveRigState({
+      faceId,
+      bindings,
+      inputValues,
+    });
+  }, [animatableComponents, bindings, faceId, inputValues]);
 
   const rootRenderable = rootId
     ? (world[rootId] as Group | undefined)
     : undefined;
 
-  const featureEntries = useMemo(() => {
-    if (!selectedElement) {
-      return [] as FeatureEntry[];
+  useEffect(() => {
+    if (!rootRenderable) {
+      return;
     }
-    const renderable = world[selectedElement.id];
-    if (!renderable) {
-      return [] as FeatureEntry[];
+    const auto = sanitizeFaceId(rootRenderable.name || rootRenderable.id);
+    if (
+      lastAutoFaceIdRef.current === null ||
+      faceId === lastAutoFaceIdRef.current ||
+      !faceId
+    ) {
+      setFaceId(auto);
     }
-    return (
-      Object.entries(renderable.features) as [string, Feature | undefined][]
-    )?.filter((entry): entry is FeatureEntry => isFeature(entry[1]));
-  }, [selectedElement, world]);
+    lastAutoFaceIdRef.current = auto;
+  }, [rootRenderable, faceId]);
 
-  const animatedFeatures = useMemo(() => {
-    if (!selectedElement) {
-      return [] as AnimatedFeatureEntry[];
-    }
-    return featureEntries.filter(
-      (entry): entry is AnimatedFeatureEntry => entry[1].animated,
-    );
-  }, [featureEntries, selectedElement]);
+  useEffect(() => {
+    const overrides = new Map<string, ComponentOverrideMap | number>();
+    animatableComponents.forEach((component) => {
+      const binding = bindings[component.id];
+      if (!binding || !binding.inputId) {
+        return;
+      }
+      const inputMeta = STANDARD_RIG_INPUTS_BY_ID.get(binding.inputId);
+      const sourceValue =
+        inputValues[binding.inputId] ?? inputMeta?.defaultValue ?? 0;
+      const outputValue = remapValue(sourceValue, binding.remap);
+      const existing = overrides.get(component.animatableId);
+      if (component.component) {
+        const nextOverrides: ComponentOverrideMap =
+          existing && typeof existing !== "number" ? { ...existing } : {};
+        nextOverrides[component.component] = outputValue;
+        overrides.set(component.animatableId, nextOverrides);
+      } else {
+        overrides.set(component.animatableId, outputValue);
+      }
+    });
 
-  const staticFeatures = useMemo(() => {
-    return featureEntries.filter(
-      (entry): entry is StaticFeatureEntry => !entry[1].animated,
-    );
-  }, [featureEntries]);
+    const nextDriven = new Set<string>();
+    overrides.forEach((override, animId) => {
+      const animatable = animatables[animId];
+      if (!animatable) {
+        return;
+      }
+      const rawValue = buildAnimatableValue(animatable, override);
+      setValue(animId, DEFAULT_NAMESPACE, rawValue);
+      nextDriven.add(animId);
+    });
+
+    drivenAnimatablesRef.current.forEach((animId) => {
+      if (nextDriven.has(animId)) {
+        return;
+      }
+      const animatable = animatables[animId];
+      if (!animatable) {
+        return;
+      }
+      const resetValue = buildAnimatableValue(animatable, undefined);
+      setValue(animId, DEFAULT_NAMESPACE, resetValue);
+    });
+
+    drivenAnimatablesRef.current = nextDriven;
+  }, [animatableComponents, animatables, bindings, inputValues, setValue]);
 
   const loadVizij = useCallback(
     async (
@@ -262,14 +489,7 @@ export default function App() {
     [loadVizij],
   );
 
-  const handleExport = useCallback(async () => {
-    const trimmedName = exportFileName.trim();
-    const desiredName =
-      trimmedName.length > 0 ? trimmedName : "vizij-export.glb";
-    const downloadName = desiredName.toLowerCase().endsWith(".glb")
-      ? desiredName
-      : `${desiredName}.glb`;
-
+  const collectAnimatableExportState = useCallback(() => {
     const nextAnimatables = { ...animatables };
     const nextValues = new Map(values);
     let appliedOverrides = false;
@@ -293,9 +513,69 @@ export default function App() {
       }
     }
 
-    const effectiveAnimatables = appliedOverrides
-      ? nextAnimatables
-      : animatables;
+    return {
+      appliedOverrides,
+      nextAnimatables,
+      nextValues,
+      effectiveAnimatables: appliedOverrides ? nextAnimatables : animatables,
+    };
+  }, [animatables, values]);
+
+  const handleExportGraph = useCallback(() => {
+    const trimmedName = graphFileName.trim();
+    const desiredName =
+      trimmedName.length > 0 ? trimmedName : "vizij-export.graph.json";
+    const fileName = desiredName.toLowerCase().endsWith(".json")
+      ? desiredName
+      : `${desiredName}.json`;
+
+    const { effectiveAnimatables } = collectAnimatableExportState();
+
+    const graphResult = buildRigGraphSpec({
+      faceId,
+      animatables: effectiveAnimatables,
+      components: animatableComponents,
+      bindings,
+    });
+
+    const baseName = fileName.replace(/\.json$/i, "");
+    const specFileName = `${baseName.length > 0 ? baseName : "vizij-export.graph"}.json`;
+    const summaryFileName = `${baseName.length > 0 ? baseName : "vizij-export.graph"}.summary.json`;
+
+    const graphBlob = new Blob([JSON.stringify(graphResult.spec, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(graphBlob, specFileName);
+
+    const summaryBlob = new Blob(
+      [JSON.stringify(graphResult.summary, null, 2)],
+      {
+        type: "application/json",
+      },
+    );
+    downloadBlob(summaryBlob, summaryFileName);
+  }, [
+    animatableComponents,
+    bindings,
+    collectAnimatableExportState,
+    faceId,
+    graphFileName,
+  ]);
+
+  const handleExportGlb = useCallback(async () => {
+    const trimmedName = exportFileName.trim();
+    const desiredName =
+      trimmedName.length > 0 ? trimmedName : "vizij-export.glb";
+    const downloadName = desiredName.toLowerCase().endsWith(".glb")
+      ? desiredName
+      : `${desiredName}.glb`;
+
+    const {
+      appliedOverrides,
+      nextAnimatables,
+      nextValues,
+      effectiveAnimatables,
+    } = collectAnimatableExportState();
 
     if (appliedOverrides) {
       setStoreState((prev) => ({
@@ -317,52 +597,11 @@ export default function App() {
 
     exportScene(bodies[0], downloadName);
   }, [
-    animatables,
+    collectAnimatableExportState,
     exportFileName,
     getExportableBodies,
     rootId,
     setStoreState,
-    values,
-  ]);
-
-  const selectionDetails = useMemo(() => {
-    if (!selectedElement || !selectedRenderable) {
-      return null;
-    }
-
-    const animatableDetails = animatedFeatures.map(([featureName, feature]) => {
-      const animatable = animatables[feature.value];
-      const currentValue = values.get(
-        getLookup(selectedElement.namespace, feature.value),
-      );
-      const constraints = formatConstraints(animatable);
-      return {
-        featureName,
-        animatable,
-        currentValue,
-        constraints,
-      };
-    });
-
-    const staticDetails = staticFeatures.map(([featureName, feature]) => ({
-      featureName,
-      value: feature.value,
-    }));
-
-    return {
-      name: selectedRenderable.name || selectedRenderable.id,
-      type: selectedRenderable.type,
-      tags: selectedRenderable.tags,
-      animatableDetails,
-      staticDetails,
-    };
-  }, [
-    animatables,
-    animatedFeatures,
-    selectedElement,
-    selectedRenderable,
-    staticFeatures,
-    values,
   ]);
 
   const canExport = Boolean(rootId) && !isLoading;
@@ -446,8 +685,31 @@ export default function App() {
               Save a Vizij GLB that bakes in the animatable overrides you
               currently have applied to the selected robot.
             </p>
+            <label className="sidebar__label" htmlFor="vizij-graph-name">
+              Graph file name
+            </label>
+            <div className="sidebar__form-row">
+              <input
+                id="vizij-graph-name"
+                type="text"
+                value={graphFileName}
+                placeholder="vizij-export.graph.json"
+                onChange={(event) => setGraphFileName(event.target.value)}
+                disabled={!rootId || isLoading}
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  handleExportGraph();
+                }}
+                disabled={!canExport}
+              >
+                Export graph
+              </button>
+            </div>
             <label className="sidebar__label" htmlFor="vizij-export-name">
-              File name
+              GLB file name
             </label>
             <div className="sidebar__form-row">
               <input
@@ -462,115 +724,17 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  void handleExport();
+                  void handleExportGlb();
                 }}
                 disabled={!canExport}
               >
-                Save
+                Export GLB
               </button>
             </div>
             <p className="sidebar__hint">
-              We export the active Vizij rig with any edited animatable defaults
-              so you can reload it elsewhere.
+              Export the graph JSON separately from the Vizij GLB to share both
+              bindings and geometry.
             </p>
-          </div>
-        </section>
-
-        <section className="sidebar__section">
-          <div className="sidebar__panel">
-            <div className="sidebar__panel-header">
-              <h2 className="sidebar__panel-title">Selected details</h2>
-            </div>
-            {!selectionDetails ? (
-              <p className="sidebar__empty">
-                Click a component in the viewport.
-              </p>
-            ) : (
-              <div className="hover-details">
-                <div className="hover-details__summary">
-                  <h3>{selectionDetails.name}</h3>
-                  <p className="hover-details__meta">
-                    <span className="hover-details__pill">
-                      {selectionDetails.type}
-                    </span>
-                    {selectionDetails.tags.length > 0 && (
-                      <span>{selectionDetails.tags.join(", ")}</span>
-                    )}
-                    {selectedElement && (
-                      <span className="hover-details__namespace">
-                        Namespace: {selectedElement.namespace}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="hover-details__group">
-                  <h4>Animatable properties</h4>
-                  {selectionDetails.animatableDetails.length === 0 ? (
-                    <p className="sidebar__empty">None</p>
-                  ) : (
-                    <ul>
-                      {selectionDetails.animatableDetails.map(
-                        ({
-                          featureName,
-                          animatable,
-                          currentValue,
-                          constraints,
-                        }) => (
-                          <li key={featureName}>
-                            <div className="hover-details__row">
-                              <strong>{featureName}</strong>
-                              <span className="hover-details__type">
-                                {animatable?.type ?? "unknown"}
-                              </span>
-                            </div>
-                            {animatable?.name && (
-                              <div className="hover-details__caption">
-                                {animatable.name}
-                              </div>
-                            )}
-                            <div className="hover-details__values">
-                              <span>
-                                Current:{" "}
-                                {formatRawValue(
-                                  currentValue ?? animatable?.default,
-                                )}
-                              </span>
-                              <span>
-                                Default: {formatRawValue(animatable?.default)}
-                              </span>
-                            </div>
-                            {constraints && (
-                              <div className="hover-details__caption">
-                                Constraints: {constraints}
-                              </div>
-                            )}
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  )}
-                </div>
-                <div className="hover-details__group">
-                  <h4>Static properties</h4>
-                  {selectionDetails.staticDetails.length === 0 ? (
-                    <p className="sidebar__empty">None</p>
-                  ) : (
-                    <ul>
-                      {selectionDetails.staticDetails.map(
-                        ({ featureName, value }) => (
-                          <li key={featureName}>
-                            <div className="hover-details__row">
-                              <strong>{featureName}</strong>
-                              <span>{formatRawValue(value)}</span>
-                            </div>
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </section>
       </aside>
@@ -604,7 +768,20 @@ export default function App() {
       </main>
 
       <aside className="sidebar sidebar--right">
-        <AnimatableValuesPanel namespace={DEFAULT_NAMESPACE} />
+        <AnimatableValuesPanel
+          namespace={DEFAULT_NAMESPACE}
+          faceId={faceId}
+          onFaceIdChange={handleFaceIdChange}
+          selectionStack={elementSelection}
+          onFocusSelectionIndex={handleFocusSelectionIndex}
+          components={animatableComponents}
+          bindings={bindings}
+          onBindingInputChange={handleBindingInputChange}
+          onBindingRemapChange={handleBindingRemapChange}
+          onResetBinding={handleResetBinding}
+          inputValues={inputValues}
+          onInputValueChange={handleInputValueChange}
+        />
       </aside>
     </div>
   );

@@ -53,6 +53,8 @@ function bundleToDocument(
 ): OrchestrationDocument {
   const { descriptor, animation, graphSpec } = bundle;
 
+  const normalizedGraph = normalizeGraphConfig(graphSpec, 0);
+
   const inputs =
     Array.isArray((descriptor as any)?.initial_inputs) &&
     (descriptor as any).initial_inputs.length > 0
@@ -68,10 +70,10 @@ function bundleToDocument(
 
   const graphConfig: GraphRegistrationInput = {
     id: `${sampleId}-graph`,
-    spec: graphSpec.spec,
+    spec: normalizedGraph.spec,
   };
-  if ((graphSpec as any)?.subs) {
-    (graphConfig as any).subs = (graphSpec as any).subs;
+  if (normalizedGraph.subs) {
+    (graphConfig as any).subs = normalizedGraph.subs;
   }
 
   const animations: AnimationRegistrationConfig[] = [
@@ -92,11 +94,10 @@ function bundleToDocument(
       : null;
 
   const graphOutput =
-    graphSpec &&
-    (graphSpec as any)?.subs &&
-    Array.isArray((graphSpec as any).subs?.outputs) &&
-    (graphSpec as any).subs.outputs.length > 0
-      ? (((graphSpec as any).subs.outputs[0] as string) ?? null)
+    normalizedGraph.subs &&
+    Array.isArray(normalizedGraph.subs.outputs) &&
+    normalizedGraph.subs.outputs.length > 0
+      ? ((normalizedGraph.subs.outputs[0] as string) ?? null)
       : null;
 
   const stepExpectPath =
