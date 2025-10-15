@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   GraphProvider,
   useGraphRuntime,
@@ -7,17 +13,23 @@ import {
   valueAsVector,
   useGraphLoaded,
   useGraphOutputs,
+  samples as graphSamples,
 } from "@vizij/node-graph-react";
 import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
 import { readFileAsText, parseGraphSpecJSON } from "./utils/file";
-import { getDefaultGraphSpec } from "./utils/graph-default";
-import { getLocalUrdfSpec } from "./assets/graph-presets";
-import {
-  oscillatorBasics,
-  vectorPlayground,
-  logicGate,
-  tupleSpringDampSlew,
-} from "@vizij/node-graph-wasm";
+
+const cloneGraphSpec = (spec: GraphSpec): GraphSpec => {
+  const cloneFn: typeof structuredClone | undefined = (globalThis as any)
+    ?.structuredClone;
+  if (typeof cloneFn === "function") {
+    try {
+      return cloneFn(spec);
+    } catch {
+      // fall through to JSON clone
+    }
+  }
+  return JSON.parse(JSON.stringify(spec)) as GraphSpec;
+};
 
 /* ---------- Value editors for Input nodes (leaf-focused) ---------- */
 
@@ -103,12 +115,55 @@ function ValueEditor({
       <FloatField v={value.float} onChange={(n) => onChange({ float: n })} />
     );
   }
+  if ("bool" in value) {
+    return (
+      <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={!!value.bool}
+          onChange={(event) => onChange({ bool: event.target.checked })}
+        />
+        <span>True?</span>
+      </label>
+    );
+  }
+  if ("text" in value) {
+    return (
+      <input
+        value={value.text ?? ""}
+        onChange={(event) => onChange({ text: event.target.value })}
+        style={{ width: "100%", padding: "4px 8px" }}
+      />
+    );
+  }
+  if ("vec2" in value) {
+    return (
+      <VecNField
+        arr={value.vec2}
+        onChange={(next) =>
+          onChange({ vec2: [next[0] ?? 0, next[1] ?? 0] } as ValueJSON)
+        }
+      />
+    );
+  }
   if ("vec3" in value) {
     return (
       <VecNField
         arr={value.vec3}
         onChange={(next) =>
           onChange({ vec3: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0] })
+        }
+      />
+    );
+  }
+  if ("vec4" in value) {
+    return (
+      <VecNField
+        arr={value.vec4}
+        onChange={(next) =>
+          onChange({
+            vec4: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0, next[3] ?? 0],
+          } as ValueJSON)
         }
       />
     );
@@ -393,6 +448,12 @@ function GraphUI({
 
       <section>
         <h3>Outputs</h3>
+        <p style={{ fontSize: "0.85rem", color: "#64748b", marginTop: -4 }}>
+          Vector and transform ports are rendered as numeric arrays. The wasm
+          runtime flattens shapes into <code>{'{ id: "Vector" }'}</code>{" "}
+          metadata, so downstream hosts should rely on declared shapes when
+          preserving semantics.
+        </p>
         {outputNodes.length === 0 ? (
           <div style={{ opacity: 0.7 }}>No Output nodes</div>
         ) : (
@@ -409,43 +470,41 @@ function GraphUI({
 
 function Controls({
   spec,
-  setSpec,
+  onApplySpec,
   autostart,
   setAutostart,
+  availableSamples,
+  selectedSample,
+  onSelectSample,
+  loadingSamples,
+  loadingSelection,
+  sampleError,
 }: {
   spec: GraphSpec;
-  setSpec: (spec: GraphSpec) => void;
+  onApplySpec: (spec: GraphSpec) => void;
   autostart: boolean;
   setAutostart: (next: boolean) => void;
+  availableSamples: string[];
+  selectedSample: string | null;
+  onSelectSample: (id: string) => Promise<boolean>;
+  loadingSamples: boolean;
+  loadingSelection: boolean;
+  sampleError: string | null;
 }) {
   const rt = useGraphRuntime();
-  const [error, setError] = useState<string | null>(null);
-  const [sampleId, setSampleId] = useState<string>("vector-playground");
-
-  const sampleMap = useMemo<Record<string, GraphSpec>>(
-    () => ({
-      "vector-playground": vectorPlayground as GraphSpec,
-      "oscillator-basics": oscillatorBasics as GraphSpec,
-      "logic-gate": logicGate as GraphSpec,
-      "tuple-spring-damp-slew": tupleSpringDampSlew as GraphSpec,
-    }),
-    [],
-  );
-
-  const samplesList = useMemo(() => {
-    return Object.entries(sampleMap).sort(([a], [b]) => a.localeCompare(b));
-  }, [sampleMap]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const selectValue = selectedSample ?? "__custom__";
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
+    setFileError(null);
     const f = e.target.files?.[0];
     if (!f) return;
     try {
       const text = await readFileAsText(f);
       const parsed = parseGraphSpecJSON(text);
-      setSpec(parsed);
+      onApplySpec(parsed);
     } catch (err: any) {
-      setError(err?.message ?? String(err));
+      setFileError(err?.message ?? String(err));
     } finally {
       e.currentTarget.value = "";
     }
@@ -463,14 +522,12 @@ function Controls({
     URL.revokeObjectURL(url);
   };
 
-  const loadSample = (id: string) => {
-    setSampleId(id);
-    if (id === "urdf-ik-position") {
-      setSpec(getLocalUrdfSpec());
-    } else {
-      const found = sampleMap[id];
-      if (found) setSpec(found);
+  const handleSampleChange = async (id: string) => {
+    if (!id || id === "__custom__" || loadingSelection) {
+      return;
     }
+    setFileError(null);
+    void onSelectSample(id);
   };
 
   const togglePlay = (next: boolean) => {
@@ -547,29 +604,40 @@ function Controls({
 
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <strong>Sample</strong>
-        <select value={sampleId} onChange={(e) => loadSample(e.target.value)}>
-          {samplesList.map(([id]) => (
+        <select
+          value={selectValue}
+          onChange={(e) => handleSampleChange(e.target.value)}
+          disabled={loadingSamples || loadingSelection}
+        >
+          <option value="__custom__">
+            {loadingSamples ? "Loading samples…" : "Custom (from editor/file)"}
+          </option>
+          {availableSamples.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>
           ))}
-          <option value="urdf-ik-position">urdf-ik-position (local)</option>
         </select>
       </label>
 
       <button onClick={onSave}>Save</button>
 
-      {error ? <div style={{ color: "salmon" }}>Error: {error}</div> : null}
+      {loadingSelection ? (
+        <div style={{ color: "#94a3b8" }}>Loading sample…</div>
+      ) : null}
+      {fileError || sampleError ? (
+        <div style={{ color: "salmon" }}>Error: {fileError ?? sampleError}</div>
+      ) : null}
     </div>
   );
 }
 
 function SpecEditor({
   spec,
-  setSpec,
+  onApplySpec,
 }: {
   spec: GraphSpec;
-  setSpec: (spec: GraphSpec) => void;
+  onApplySpec: (spec: GraphSpec) => void;
 }) {
   const [draft, setDraft] = useState<string>(() =>
     JSON.stringify(spec, null, 2),
@@ -584,7 +652,7 @@ function SpecEditor({
   const applyDraft = () => {
     try {
       const parsed = parseGraphSpecJSON(draft);
-      setSpec(parsed);
+      onApplySpec(parsed);
       setError(null);
     } catch (err: any) {
       setError(err?.message ?? String(err));
@@ -657,7 +725,100 @@ function SpecEditor({
 
 export default function App() {
   const [autostart, setAutostart] = useState(true);
-  const [spec, setSpec] = useState<GraphSpec>(() => getDefaultGraphSpec());
+  const [spec, setSpec] = useState<GraphSpec | null>(null);
+  const [availableSamples, setAvailableSamples] = useState<string[]>([]);
+  const [selectedSample, setSelectedSample] = useState<string | null>(null);
+  const [loadingSamples, setLoadingSamples] = useState(true);
+  const [loadingSelection, setLoadingSelection] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const applyCustomSpec = useCallback((next: GraphSpec) => {
+    if (!mountedRef.current) return;
+    setSpec(cloneGraphSpec(next));
+    setSelectedSample(null);
+  }, []);
+
+  const handleSelectSample = useCallback(async (id: string) => {
+    if (!mountedRef.current) return false;
+    setSampleError(null);
+    setLoadingSelection(true);
+    try {
+      const loaded = (await graphSamples.load(id)) as GraphSpec;
+      if (!mountedRef.current) return false;
+      const cloned = cloneGraphSpec(loaded);
+      setSpec(cloned);
+      setSelectedSample(id);
+      return true;
+    } catch (err: any) {
+      if (!mountedRef.current) return false;
+      const message =
+        err instanceof Error ? err.message : String(err ?? "unknown");
+      setSampleError(`Failed to load sample "${id}": ${message}`);
+      return false;
+    } finally {
+      if (mountedRef.current) {
+        setLoadingSelection(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const names = await graphSamples.list();
+        if (cancelled || !mountedRef.current) return;
+        const sorted = names.slice().sort((a, b) => a.localeCompare(b));
+        setAvailableSamples(sorted);
+        if (sorted.length > 0) {
+          const preferred = sorted.includes("weighted-average")
+            ? "weighted-average"
+            : sorted[0];
+          await handleSelectSample(preferred);
+        }
+      } catch (err: any) {
+        if (cancelled || !mountedRef.current) return;
+        const message =
+          err instanceof Error ? err.message : String(err ?? "unknown");
+        setSampleError(`Failed to list node-graph samples: ${message}`);
+      } finally {
+        if (!cancelled && mountedRef.current) {
+          setLoadingSamples(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleSelectSample]);
+
+  if (!spec) {
+    return (
+      <div
+        style={{
+          fontFamily: "Inter, system-ui, sans-serif",
+          maxWidth: 640,
+          margin: "2rem auto",
+          padding: "0 1rem",
+        }}
+      >
+        <h1 style={{ margin: "0 0 1rem" }}>Vizij Node Graph Demo</h1>
+        <p style={{ color: "#94a3b8" }}>
+          {loadingSamples || loadingSelection
+            ? "Loading node-graph samples…"
+            : (sampleError ??
+              "Unable to load a sample graph. Check the console for details.")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -682,9 +843,15 @@ export default function App() {
 
         <Controls
           spec={spec}
-          setSpec={setSpec}
+          onApplySpec={applyCustomSpec}
           autostart={autostart}
           setAutostart={setAutostart}
+          availableSamples={availableSamples}
+          selectedSample={selectedSample}
+          onSelectSample={handleSelectSample}
+          loadingSamples={loadingSamples}
+          loadingSelection={loadingSelection}
+          sampleError={sampleError}
         />
 
         <div
@@ -696,7 +863,7 @@ export default function App() {
           }}
         >
           <GraphUI spec={spec} autostart={autostart} />
-          <SpecEditor spec={spec} setSpec={setSpec} />
+          <SpecEditor spec={spec} onApplySpec={applyCustomSpec} />
         </div>
       </GraphProvider>
     </div>

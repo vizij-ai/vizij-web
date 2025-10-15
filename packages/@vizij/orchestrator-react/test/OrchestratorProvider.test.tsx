@@ -87,16 +87,18 @@ const makeInstance = (): OrchestratorMock => {
   return instance;
 };
 
-vi.mock(
-  "@vizij/orchestrator-wasm",
-  () => ({
+vi.mock("@vizij/orchestrator-wasm", async () => {
+  const actual = await vi.importActual<
+    typeof import("@vizij/orchestrator-wasm")
+  >("@vizij/orchestrator-wasm");
+  return {
+    ...actual,
     init: vi.fn(async () => {}),
     createOrchestrator: vi.fn(async () => makeInstance()),
     Orchestrator: vi.fn(() => makeInstance()),
     abi_version: vi.fn(() => 2),
-  }),
-  { virtual: true },
-);
+  };
+});
 
 const Harness: React.FC = () => {
   const ctx = useOrchestrator();

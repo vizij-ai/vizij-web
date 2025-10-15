@@ -24,6 +24,10 @@ import {
   type BakedAnimationData,
   type BakedAnimationBundle,
   type Value as WasmValue,
+  listAnimationFixtures,
+  loadAnimationFixture,
+  loadAnimationJson,
+  resolveAnimationPath,
 } from "@vizij/animation-wasm";
 import {
   valueAsNumber as normalizedValueAsNumber,
@@ -1233,3 +1237,20 @@ export function valueAsTransform(
 ): NormalizedTransform | undefined {
   return normalizedValueAsTransform(v);
 }
+
+export {
+  listAnimationFixtures,
+  loadAnimationFixture,
+  loadAnimationJson,
+  resolveAnimationPath,
+};
+
+/**
+ * Standardised access to embedded animation samples for quick-start demos and tests.
+ */
+export const samples = {
+  list: listAnimationFixtures,
+  load: loadAnimationFixture,
+  loadJson: loadAnimationJson,
+  resolvePath: resolveAnimationPath,
+} as const;

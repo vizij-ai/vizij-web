@@ -1,3 +1,11 @@
+import {
+  listNodeGraphFixtures,
+  loadNodeGraphBundle,
+  loadNodeGraphSpec,
+  loadNodeGraphSpecJson,
+  loadNodeGraphStage,
+} from "@vizij/node-graph-wasm";
+
 export { GraphProvider } from "./GraphProvider";
 export { useGraphRuntime } from "./useGraphRuntime";
 export {
@@ -25,4 +33,24 @@ export {
   valueAsVector,
   valueAsBool,
 } from "./valueHelpers";
+
+export {
+  listNodeGraphFixtures,
+  loadNodeGraphBundle,
+  loadNodeGraphSpec,
+  loadNodeGraphSpecJson,
+  loadNodeGraphStage,
+};
+
+/**
+ * Standardised access to embedded node-graph samples for quick-start demos and tests.
+ */
+export const samples = {
+  list: listNodeGraphFixtures,
+  load: loadNodeGraphSpec,
+  loadJson: loadNodeGraphSpecJson,
+  loadBundle: loadNodeGraphBundle,
+  loadStage: loadNodeGraphStage,
+} as const;
+
 export * from "@vizij/node-graph-wasm";

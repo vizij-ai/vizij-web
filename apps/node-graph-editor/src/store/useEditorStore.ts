@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { Edge, Node } from "reactflow";
-import type { GraphSpec, NodeSpec, NodeParams } from "@vizij/node-graph-wasm";
+import type {
+  GraphSpec,
+  NodeSpec,
+  NodeParams,
+  ValueJSON,
+} from "@vizij/node-graph-wasm";
 
 /**
  * Minimal editor store for the node-graph-editor app.
@@ -44,6 +49,148 @@ type EditorState = {
     edges: EditorEdge[];
   };
 };
+
+type InputDefaultValue =
+  | ValueJSON
+  | number
+  | boolean
+  | string
+  | number[]
+  | null
+  | undefined;
+
+type InputDefaultEntry = {
+  value: InputDefaultValue;
+  shape?: Record<string, any> | null;
+};
+
+type SelectorSegmentJSON = { field: string } | { index: number };
+
+function normalizeInputDefaultEntry(entry: unknown): InputDefaultEntry | null {
+  if (entry == null) {
+    return null;
+  }
+  if (
+    typeof entry === "object" &&
+    !Array.isArray(entry) &&
+    "value" in (entry as Record<string, unknown>)
+  ) {
+    const record = entry as { value?: unknown; shape?: unknown };
+    const value = record.value as InputDefaultValue;
+    const shape =
+      record.shape && typeof record.shape === "object"
+        ? (record.shape as Record<string, any>)
+        : null;
+    return { value, shape };
+  }
+  return { value: entry as InputDefaultValue };
+}
+
+function serializeInputDefaults(
+  defaults: Record<string, InputDefaultEntry | undefined> | undefined,
+): Record<string, unknown> | undefined {
+  if (!defaults) {
+    return undefined;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [inputId, entry] of Object.entries(defaults)) {
+    if (!entry || entry.value === undefined) continue;
+    if (entry.shape && Object.keys(entry.shape).length > 0) {
+      result[inputId] = {
+        value: entry.value,
+        shape: entry.shape,
+      };
+    } else {
+      result[inputId] = entry.value;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function parseSelectorText(
+  text: string | null | undefined,
+): SelectorSegmentJSON[] | undefined {
+  if (!text || typeof text !== "string") return undefined;
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+
+  // Attempt to parse JSON form first
+  if (
+    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+    (trimmed.startsWith("{") && trimmed.endsWith("}"))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      const normalized = arr
+        .map((seg) => {
+          if (!seg || typeof seg !== "object") return null;
+          if ("field" in seg) {
+            const field = (seg as { field: unknown }).field;
+            if (typeof field === "string" && field.length > 0) {
+              return { field };
+            }
+          } else if ("index" in seg) {
+            const index = Number((seg as { index: unknown }).index);
+            if (Number.isFinite(index)) {
+              return { index };
+            }
+          }
+          return null;
+        })
+        .filter((seg): seg is SelectorSegmentJSON => seg != null);
+      return normalized.length > 0 ? normalized : undefined;
+    } catch {
+      // fall through to manual parsing
+    }
+  }
+
+  const clean = trimmed.replace(/\s+/g, "");
+  if (!clean) return undefined;
+  const tokens = clean.split(".");
+  const segments: SelectorSegmentJSON[] = [];
+
+  for (const token of tokens) {
+    if (!token) continue;
+    const pattern = /([^[\]]+)|(\[-?\d+\])/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(token)) !== null) {
+      const part = match[0];
+      if (!part) continue;
+      if (part.startsWith("[")) {
+        const idx = Number(part.slice(1, -1));
+        if (Number.isFinite(idx)) {
+          segments.push({ index: idx });
+        }
+      } else {
+        segments.push({ field: part });
+      }
+    }
+  }
+
+  return segments.length > 0 ? segments : undefined;
+}
+
+function formatSelectorText(
+  selector: SelectorSegmentJSON[] | null | undefined,
+): string {
+  if (!Array.isArray(selector) || selector.length === 0) {
+    return "";
+  }
+  let result = "";
+  selector.forEach((segment) => {
+    if (!segment || typeof segment !== "object") return;
+    if ("field" in segment && typeof segment.field === "string") {
+      if (result.length > 0 && !result.endsWith("]")) {
+        result += ".";
+      }
+      result += segment.field;
+    } else if ("index" in segment && typeof segment.index === "number") {
+      result += `[${segment.index}]`;
+    }
+  });
+  return result;
+}
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   nodes: [],
@@ -137,23 +284,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   reset: () =>
     set(() => ({ nodes: [], edges: [], spec: null, selectedNodeId: null })),
 
-  // Canonical GraphSpec builder (no edges persisted). Inputs are reconstructed from the RF graph.
+  // Canonical GraphSpec builder using explicit links and input defaults.
   nodesToSpec: (nodes, edges) => {
-    const graph: GraphSpec = { nodes: [] };
+    const nodeMap = new Map<string, EditorNode>();
+    nodes.forEach((node) => nodeMap.set(String(node.id), node));
 
-    // Group incoming edges by target node id
-    const byTarget = new Map<string, Edge[]>();
-    for (const e of edges) {
-      if (!e.target) continue;
-      const arr = byTarget.get(e.target) ?? [];
-      arr.push(e);
-      byTarget.set(e.target, arr);
-    }
-
-    for (const n of nodes) {
+    const graphNodes: NodeSpec[] = nodes.map((n) => {
       const type = String(n.type ?? "").toLowerCase() as any;
 
-      // Sanitize params from node.data.params (drop undefined)
       const paramsSrc = (n.data?.params ?? {}) as Record<string, unknown>;
       const paramsEntries = Object.entries(paramsSrc).filter(
         ([, v]) => v !== undefined,
@@ -163,37 +301,88 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ? (Object.fromEntries(paramsEntries) as NodeParams)
           : undefined;
 
-      // Build inputs from incoming edges
-      const incoming = byTarget.get(n.id) ?? [];
-      const inputs: Record<string, { node_id: string; output_key?: string }> =
-        {};
-      const counts: Record<string, number> = {};
-      for (const e of incoming) {
-        const keyBase = String(e.targetHandle ?? "in");
-        const idx = (counts[keyBase] = (counts[keyBase] ?? 0) + 1);
-        const key = idx === 1 ? keyBase : `${keyBase}_${idx}`;
-        inputs[key] = {
-          node_id: String(e.source),
-          output_key: e.sourceHandle ? String(e.sourceHandle) : "out",
-        };
+      if (params && typeof params.path === "string") {
+        params.path = params.path.trim();
       }
-      const inputsObj = Object.keys(inputs).length > 0 ? inputs : undefined;
 
       const outputShapes =
         n.data?.output_shapes && typeof n.data.output_shapes === "object"
           ? (n.data.output_shapes as Record<string, any>)
           : undefined;
 
+      const inputDefaultsRaw =
+        n.data?.input_defaults && typeof n.data.input_defaults === "object"
+          ? (n.data.input_defaults as Record<string, InputDefaultEntry>)
+          : undefined;
+      const inputDefaults = serializeInputDefaults(inputDefaultsRaw);
+
       const nodeSpec: NodeSpec = {
         id: String(n.id),
-        type: type as any,
+        type,
         ...(params ? { params } : {}),
-        ...(inputsObj ? { inputs: inputsObj } : {}),
         ...(outputShapes ? { output_shapes: outputShapes } : {}),
+        ...(inputDefaults ? { input_defaults: inputDefaults } : {}),
       };
 
-      graph.nodes.push(nodeSpec);
-    }
+      return nodeSpec;
+    });
+
+    const links: GraphSpec["links"] = [];
+
+    const findSelectorForEdge = (
+      targetId: string,
+      inputId: string,
+      sourceId: string,
+      outputKey: string,
+    ): string | undefined => {
+      const node = nodeMap.get(targetId);
+      if (!node) return undefined;
+      const inputsArray = Array.isArray(node.data?.inputs)
+        ? (node.data?.inputs as any[])
+        : [];
+      const match = inputsArray.find((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        const portId = String(entry.portId ?? "");
+        const srcId = String(entry.sourceNodeId ?? "");
+        const srcOut = String(entry.sourceOutputKey ?? "out");
+        return portId === inputId && srcId === sourceId && srcOut === outputKey;
+      });
+      const selector = match?.selector;
+      return typeof selector === "string" ? selector : undefined;
+    };
+
+    edges.forEach((edge) => {
+      if (!edge.source || !edge.target) return;
+      const fromNodeId = String(edge.source);
+      const toNodeId = String(edge.target);
+      const inputKey = String(edge.targetHandle ?? "in");
+      const outputKey = edge.sourceHandle ? String(edge.sourceHandle) : "out";
+
+      const selectorText =
+        (edge.data as any)?.selector ??
+        findSelectorForEdge(toNodeId, inputKey, fromNodeId, outputKey);
+      const selectorSegments = parseSelectorText(selectorText);
+
+      const link: any = {
+        from: {
+          node_id: fromNodeId,
+          ...(outputKey ? { output: outputKey } : {}),
+        },
+        to: {
+          node_id: toNodeId,
+          input: inputKey,
+        },
+      };
+      if (selectorSegments) {
+        link.selector = selectorSegments;
+      }
+      links!.push(link);
+    });
+
+    const graph: GraphSpec = {
+      nodes: graphNodes,
+      ...(links && links.length > 0 ? { links } : {}),
+    };
 
     return graph;
   },
@@ -205,14 +394,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ? ((spec as any).nodes as NodeSpec[])
       : [];
 
-    // Build RF nodes (positions will be applied by setSpec when layout is provided)
     const nodes: EditorNode[] = nodeSpecs.map((ns) => {
       const data: Record<string, any> = {};
-      if (ns.params && typeof ns.params === "object")
+      if (ns.params && typeof ns.params === "object") {
         data.params = { ...ns.params };
-      if (ns.output_shapes && typeof ns.output_shapes === "object")
+        if (typeof data.params.path === "string") {
+          data.params.path = data.params.path.trim();
+        }
+      }
+      if (ns.output_shapes && typeof ns.output_shapes === "object") {
         data.output_shapes = { ...ns.output_shapes };
-
+      }
+      if (
+        ns.input_defaults &&
+        typeof ns.input_defaults === "object" &&
+        ns.input_defaults !== null
+      ) {
+        const defaults: Record<string, InputDefaultEntry> = {};
+        Object.entries(ns.input_defaults as Record<string, unknown>).forEach(
+          ([inputId, entry]) => {
+            const normalized = normalizeInputDefaultEntry(entry);
+            if (normalized) {
+              defaults[inputId] = normalized;
+            }
+          },
+        );
+        if (Object.keys(defaults).length > 0) {
+          data.input_defaults = defaults;
+        }
+      }
+      data.inputs = [];
       return {
         id: String(ns.id),
         type: String(ns.type),
@@ -221,26 +432,106 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       } as EditorNode;
     });
 
-    // Reconstruct RF edges for UI from NodeSpec.inputs
+    const nodeMap = new Map<string, EditorNode>();
+    nodes.forEach((node) => nodeMap.set(node.id, node));
+
     const edges: EditorEdge[] = [];
-    for (const ns of nodeSpecs) {
-      const inputs = (ns.inputs ?? {}) as Record<
-        string,
-        { node_id: string; output_key?: string }
-      >;
-      for (const [inputKey, conn] of Object.entries(inputs)) {
-        const src = String(conn.node_id);
-        const outKey = conn.output_key ?? "out";
-        const tgt = String(ns.id);
-        edges.push({
-          id: `e_${src}_${outKey}_${tgt}_${inputKey}`,
-          source: src,
-          target: tgt,
-          sourceHandle: outKey,
-          targetHandle: inputKey,
-        } as EditorEdge);
-      }
+    const registerInput = (
+      targetId: string,
+      entry: {
+        portId: string;
+        sourceNodeId?: string | null;
+        sourceOutputKey?: string | null;
+        selector?: string | null;
+      },
+    ) => {
+      const node = nodeMap.get(targetId);
+      if (!node) return;
+      const current = Array.isArray(node.data.inputs)
+        ? (node.data.inputs as any[])
+        : [];
+      current.push(entry);
+      node.data.inputs = current;
+    };
+
+    const pushEdge = (
+      sourceId: string,
+      outputKey: string,
+      targetId: string,
+      inputKey: string,
+      selectorSegments?: SelectorSegmentJSON[],
+    ) => {
+      const selectorText = formatSelectorText(selectorSegments);
+      const edge: EditorEdge = {
+        id: `e_${sourceId}_${outputKey}_${targetId}_${inputKey}_${edges.length}`,
+        source: sourceId,
+        target: targetId,
+        sourceHandle: outputKey !== "out" ? outputKey : undefined,
+        targetHandle: inputKey,
+        data: selectorText ? { selector: selectorText } : undefined,
+      } as EditorEdge;
+      edges.push(edge);
+      registerInput(targetId, {
+        portId: inputKey,
+        sourceNodeId: sourceId,
+        sourceOutputKey: outputKey,
+        selector: selectorText || null,
+      });
+    };
+
+    const graphLinks = Array.isArray((spec as any).links)
+      ? ((spec as any).links as any[])
+      : [];
+    if (graphLinks.length > 0) {
+      graphLinks.forEach((link) => {
+        if (!link || typeof link !== "object") return;
+        const fromNodeId = link.from?.node_id;
+        const toNodeId = link.to?.node_id;
+        const inputKey = link.to?.input ?? "in";
+        if (!fromNodeId || !toNodeId) return;
+        const outputKey =
+          typeof link.from?.output === "string" && link.from.output.length > 0
+            ? link.from.output
+            : "out";
+        const selectorSegments = Array.isArray(link.selector)
+          ? (link.selector as SelectorSegmentJSON[])
+          : undefined;
+        pushEdge(
+          String(fromNodeId),
+          String(outputKey),
+          String(toNodeId),
+          String(inputKey),
+          selectorSegments,
+        );
+      });
+    } else {
+      // Legacy support: NodeSpec.inputs map
+      nodeSpecs.forEach((ns) => {
+        const inputs = (ns as any).inputs as
+          | Record<string, { node_id: string; output_key?: string }>
+          | undefined;
+        if (!inputs) return;
+        Object.entries(inputs).forEach(([inputKey, conn]) => {
+          if (!conn || !conn.node_id) return;
+          const outputKey =
+            conn.output_key && typeof conn.output_key === "string"
+              ? conn.output_key
+              : "out";
+          pushEdge(
+            String(conn.node_id),
+            String(outputKey),
+            String(ns.id),
+            String(inputKey),
+          );
+        });
+      });
     }
+
+    nodes.forEach((node) => {
+      if (!Array.isArray(node.data.inputs)) {
+        node.data.inputs = [];
+      }
+    });
 
     return { nodes, edges };
   },

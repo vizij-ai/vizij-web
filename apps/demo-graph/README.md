@@ -110,12 +110,10 @@ All formats are normalised through `@vizij/node-graph-wasm` before loading.
 
 ## Key Files
 
-| File                             | Purpose                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/App.tsx`                    | Top-level UI: manages input state, handles sample loading, controls playback, and renders outputs. |
-| `src/components/OutputPanel.tsx` | Encapsulates `useNodeOutput` subscription for a single output port.                                |
-| `src/utils/graph-default.ts`     | Chooses the default graph (vector playground or local URDF fallback).                              |
-| `src/assets/graph-presets.ts`    | Local URDF sample definitions.                                                                     |
+| File                | Purpose                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `src/App.tsx`       | Top-level UI: manages sample selection, playback, JSON editing, and renders graph IO panels. |
+| `src/utils/file.ts` | File helpers for reading/staging uploaded graph specs.                                       |
 
 ---
 

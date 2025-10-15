@@ -4,8 +4,8 @@ import {
   useAnimTarget,
   valueAsNumber,
   useAnimation,
+  samples as animationSamples,
 } from "@vizij/animation-react";
-import anim from "./anim";
 
 const toPretty = (value: unknown) => JSON.stringify(value, null, 2);
 
@@ -22,6 +22,19 @@ type PlayerInfo = {
 const normalizeAnimations = (
   source: StoredAnimation[] | StoredAnimation,
 ): StoredAnimation[] => (Array.isArray(source) ? source : [source]);
+
+const cloneAnimationsList = (anims: StoredAnimation[]): StoredAnimation[] => {
+  const cloneFn: typeof structuredClone | undefined = (globalThis as any)
+    ?.structuredClone;
+  if (typeof cloneFn === "function") {
+    try {
+      return cloneFn(anims);
+    } catch {
+      // fall through to JSON clone
+    }
+  }
+  return JSON.parse(JSON.stringify(anims)) as StoredAnimation[];
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -162,8 +175,15 @@ function parseAnimations(text: string): StoredAnimation[] {
 
 type PanelProps = {
   animations: StoredAnimation[];
-  setAnimations: (next: StoredAnimation[]) => void;
+  setAnimations: React.Dispatch<StoredAnimation[] | null>;
   initialAnimations: StoredAnimation[];
+  sampleOptions: string[];
+  selectedSample: string | null;
+  baselineSampleId: string | null;
+  onRequestSample: (id: string) => Promise<StoredAnimation[]>;
+  onSampleApplied: (id: string | null, baseline: StoredAnimation[]) => void;
+  onCustomSpec: () => void;
+  loadingSamples: boolean;
 };
 
 type TrackedKeyValueProps = {
@@ -224,7 +244,18 @@ function TrackedKeyValue({ targetKey }: TrackedKeyValueProps) {
   );
 }
 
-function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
+function Panel({
+  animations,
+  setAnimations,
+  initialAnimations,
+  sampleOptions,
+  selectedSample,
+  baselineSampleId,
+  onRequestSample,
+  onSampleApplied,
+  onCustomSpec,
+  loadingSamples,
+}: PanelProps) {
   const currentValidation = React.useMemo(
     () => validateAnimations(animations),
     [animations],
@@ -243,6 +274,7 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
   );
   const [error, setError] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<string | null>(null);
+  const [isSampleLoading, setIsSampleLoading] = React.useState(false);
   const players = animApi.listPlayers?.() ?? [];
   const primaryPlayer = players[0] as PlayerInfo | undefined;
   const playerStart = Number(primaryPlayer?.start_time ?? 0) || 0;
@@ -266,7 +298,10 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
   }, [animations]);
 
   const applyAnimations = React.useCallback(
-    (nextInput: StoredAnimation[] | StoredAnimation) => {
+    (
+      nextInput: StoredAnimation[] | StoredAnimation,
+      opts?: { source?: "sample" | "custom"; sampleId?: string | null },
+    ) => {
       setStatus(null);
       setError(null);
 
@@ -286,9 +321,11 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
         return false;
       }
 
+      const clonedList = cloneAnimationsList(normalizedList);
+
       if (animApi.ready) {
         try {
-          animApi.reload(normalizedList);
+          animApi.reload(clonedList);
         } catch (err: unknown) {
           setError(
             `Animation engine rejected payload: ${
@@ -300,7 +337,7 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
         }
       }
 
-      setAnimations([...normalizedList]);
+      setAnimations(clonedList);
 
       const segments: string[] = [];
       if (normalizedList.length === 1) {
@@ -340,9 +377,14 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
       setStatus(segments.join(" "));
       setWarnings(validationWarnings.slice());
       setError(null);
+      if (opts?.source === "sample") {
+        onSampleApplied(opts.sampleId ?? null, clonedList);
+      } else if (opts?.source === "custom") {
+        onCustomSpec();
+      }
       return true;
     },
-    [animApi, setAnimations],
+    [animApi, setAnimations, onSampleApplied, onCustomSpec],
   );
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,7 +401,7 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
       });
       const parsed = parseAnimations(text);
       setEditorText(toPretty(parsed.length === 1 ? parsed[0] : parsed));
-      applyAnimations(parsed);
+      applyAnimations(parsed, { source: "custom" });
     } catch (err: any) {
       setError(err?.message ?? String(err));
       setStatus(null);
@@ -373,7 +415,7 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
     setError(null);
     try {
       const parsed = parseAnimations(editorText);
-      applyAnimations(parsed);
+      applyAnimations(parsed, { source: "custom" });
     } catch (err: any) {
       setError(err?.message ?? String(err));
     }
@@ -394,15 +436,51 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
     setStatus("Saved animation JSON.");
   };
 
+  const sampleSelectValue = selectedSample ?? "__custom__";
+
+  const handleSampleSelect = React.useCallback(
+    async (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const id = event.target.value;
+      if (!id || id === "__custom__" || id === selectedSample) {
+        return;
+      }
+      setStatus(null);
+      setError(null);
+      setIsSampleLoading(true);
+      try {
+        const payload = await onRequestSample(id);
+        const ok = applyAnimations(payload, {
+          source: "sample",
+          sampleId: id,
+        });
+        if (!ok) {
+          return;
+        }
+      } catch (err: any) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(`Failed to load sample "${id}": ${message}`);
+        setStatus(null);
+      } finally {
+        setIsSampleLoading(false);
+      }
+    },
+    [applyAnimations, onRequestSample, selectedSample],
+  );
+
   const onRestoreInitial = () => {
-    applyAnimations(initialAnimations);
-    setEditorText(
-      toPretty(
-        initialAnimations.length === 1
-          ? initialAnimations[0]
-          : initialAnimations,
-      ),
-    );
+    const restored = applyAnimations(initialAnimations, {
+      source: "sample",
+      sampleId: baselineSampleId ?? null,
+    });
+    if (restored) {
+      setEditorText(
+        toPretty(
+          initialAnimations.length === 1
+            ? initialAnimations[0]
+            : initialAnimations,
+        ),
+      );
+    }
   };
 
   const playerId = primaryPlayer?.id as number | undefined;
@@ -569,6 +647,29 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
           }}
         >
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <strong>Sample</strong>
+            <select
+              value={sampleSelectValue}
+              onChange={handleSampleSelect}
+              disabled={
+                loadingSamples || isSampleLoading || sampleOptions.length === 0
+              }
+            >
+              <option value="__custom__">
+                {loadingSamples
+                  ? "Loading samples…"
+                  : sampleOptions.length === 0
+                    ? "No samples available"
+                    : "Custom (editor/file)"}
+              </option>
+              {sampleOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <strong>Load file</strong>
             <input
               type="file"
@@ -588,6 +689,9 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
           <button type="button" onClick={onRestoreInitial}>
             Restore initial clip
           </button>
+          {isSampleLoading ? (
+            <span style={{ color: "#94a3b8" }}>Loading sample…</span>
+          ) : null}
         </div>
         <textarea
           value={editorText}
@@ -625,13 +729,114 @@ function Panel({ animations, setAnimations, initialAnimations }: PanelProps) {
 }
 
 export default function App() {
-  const initialList = React.useMemo(
-    () => normalizeAnimations(anim as StoredAnimation),
+  const [animations, setAnimations] = React.useState<StoredAnimation[] | null>(
+    null,
+  );
+  const [initialAnimations, setInitialAnimations] = React.useState<
+    StoredAnimation[]
+  >([]);
+  const [sampleOptions, setSampleOptions] = React.useState<string[]>([]);
+  const [selectedSample, setSelectedSample] = React.useState<string | null>(
+    null,
+  );
+  const [baselineSampleId, setBaselineSampleId] = React.useState<string | null>(
+    null,
+  );
+  const [loadingSamples, setLoadingSamples] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const mountedRef = React.useRef(true);
+
+  React.useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const requestSample = React.useCallback(async (id: string) => {
+    const payload = (await animationSamples.load(id)) as
+      | StoredAnimation
+      | StoredAnimation[];
+    const normalized = normalizeAnimations(payload);
+    return cloneAnimationsList(normalized);
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const names = await animationSamples.list();
+        if (cancelled || !mountedRef.current) return;
+        const sorted = names.slice().sort((a, b) => a.localeCompare(b));
+        setSampleOptions(sorted);
+        if (sorted.length > 0) {
+          const preferred = sorted.includes("simple-scalar-ramp")
+            ? "simple-scalar-ramp"
+            : sorted[0];
+          const normalized = await requestSample(preferred);
+          if (cancelled || !mountedRef.current) return;
+          setAnimations(cloneAnimationsList(normalized));
+          setInitialAnimations(cloneAnimationsList(normalized));
+          setSelectedSample(preferred);
+          setBaselineSampleId(preferred);
+        } else {
+          setAnimations([]);
+          setInitialAnimations([]);
+          setBaselineSampleId(null);
+        }
+      } catch (err: any) {
+        if (cancelled || !mountedRef.current) return;
+        const message =
+          err instanceof Error ? err.message : String(err ?? "unknown");
+        setLoadError(`Failed to load animation samples: ${message}`);
+      } finally {
+        if (!cancelled && mountedRef.current) {
+          setLoadingSamples(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestSample]);
+
+  const handleSampleApplied = React.useCallback(
+    (sampleId: string | null, baseline: StoredAnimation[]) => {
+      setInitialAnimations(cloneAnimationsList(baseline));
+      if (sampleId) {
+        setSelectedSample(sampleId);
+        setBaselineSampleId(sampleId);
+      } else {
+        setSelectedSample(null);
+        setBaselineSampleId(null);
+      }
+    },
     [],
   );
-  const [animations, setAnimations] =
-    React.useState<StoredAnimation[]>(initialList);
-  const initialRef = React.useRef(initialList);
+
+  const handleCustomSpec = React.useCallback(() => {
+    setSelectedSample(null);
+  }, []);
+
+  if (animations === null) {
+    return (
+      <div
+        style={{
+          fontFamily: "Inter, system-ui, sans-serif",
+          maxWidth: 640,
+          margin: "2rem auto",
+          padding: "0 1rem",
+        }}
+      >
+        <h1 style={{ margin: "0 0 1rem" }}>Vizij Animation Demo</h1>
+        <p style={{ color: "#94a3b8" }}>
+          {loadingSamples
+            ? "Loading animation samples…"
+            : (loadError ??
+              "Unable to load animation samples. Check the console for details.")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <AnimationProvider
@@ -643,7 +848,14 @@ export default function App() {
       <Panel
         animations={animations}
         setAnimations={setAnimations}
-        initialAnimations={initialRef.current}
+        initialAnimations={initialAnimations}
+        sampleOptions={sampleOptions}
+        selectedSample={selectedSample}
+        baselineSampleId={baselineSampleId}
+        onRequestSample={requestSample}
+        onSampleApplied={handleSampleApplied}
+        onCustomSpec={handleCustomSpec}
+        loadingSamples={loadingSamples}
       />
     </AnimationProvider>
   );

@@ -12,6 +12,7 @@ import {
   useOrchestrator,
   useOrchTarget,
   type GraphRegistrationInput,
+  type GraphRegistrationConfig,
   type ValueJSON,
 } from "@vizij/orchestrator-react";
 import type { RawValue } from "@vizij/utils";
@@ -250,6 +251,8 @@ function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
   return value as unknown as RawValue;
 }
 
+const TYPED_PATH_PATTERN = /^[a-z0-9_]+:[^\s]+$/i;
+
 function ensureGraphOutputs(
   config: GraphRegistrationInput,
   outputPath: string,
@@ -359,6 +362,24 @@ function extractOutputPathFromState(
   return fallback;
 }
 
+function toMergedGraphConfig(
+  id: string,
+  config: GraphRegistrationInput,
+): GraphRegistrationConfig {
+  if (typeof config === "string") {
+    return { id, spec: config };
+  }
+  if (config && typeof config === "object" && "spec" in config) {
+    const conf = config as GraphRegistrationConfig;
+    return {
+      id: conf.id ?? id,
+      spec: conf.spec,
+      subs: conf.subs,
+    };
+  }
+  return { id, spec: config };
+}
+
 function OutputBridge({
   namespace,
   path,
@@ -400,6 +421,7 @@ type InputRow = {
   kind: ValueKind;
   defaultValue: any;
   meta?: GraphParamState["meta"];
+  pathError: string | null;
 };
 
 type OutputRow = {
@@ -440,6 +462,11 @@ interface OrchestratorBridgeContextValue {
   setGraphEnabled: (graphId: string, enabled: boolean) => void;
   logCurrentInputs: () => void;
   hiddenInputPaths: Set<string>;
+  useMergedGraphs: boolean;
+  setUseMergedGraphs: (next: boolean) => void;
+  mergeStrategy: "namespace" | "blend";
+  setMergeStrategy: (next: "namespace" | "blend") => void;
+  invalidInputRows: InputRow[];
 }
 
 const OrchestratorBridgeContext =
@@ -521,6 +548,7 @@ export function OrchestratorBridgeProvider({
     ready,
     createOrchestrator,
     registerGraph,
+    registerMergedGraph,
     registerAnimation,
     removeGraph,
     removeAnimation,
@@ -565,6 +593,10 @@ export function OrchestratorBridgeProvider({
     });
     return initial;
   });
+  const [useMergedGraphs, setUseMergedGraphs] = useState(false);
+  const [mergeStrategy, setMergeStrategy] = useState<"namespace" | "blend">(
+    "namespace",
+  );
 
   useEffect(() => {
     setGraphEnabledMap((prev) => {
@@ -607,16 +639,22 @@ export function OrchestratorBridgeProvider({
       const kind = (valueParam?.type as ValueKind) ?? "float";
       const defaultValue = valueParam?.value ?? defaultValueForKind(kind);
       const pathParam = findParam(node, "path");
-      const path =
+      const rawPath =
         typeof pathParam?.value === "string" && pathParam.value.length > 0
           ? pathParam.value
           : null;
+      const trimmedPath = rawPath ? rawPath.trim() : null;
+      const pathError =
+        trimmedPath && !TYPED_PATH_PATTERN.test(trimmedPath)
+          ? "Typed paths require a kind prefix (e.g. float:path/to/value) and cannot contain whitespace."
+          : null;
       return {
         node,
-        path,
+        path: trimmedPath,
         kind,
         defaultValue,
         meta: valueParam?.meta,
+        pathError,
       };
     });
   }, [graphInputNodes]);
@@ -761,9 +799,11 @@ export function OrchestratorBridgeProvider({
   const hasEnabledGraphs =
     (primaryEnabled && activeOutputRows.length > 0) ||
     enabledAdditionalDescriptors.length > 0;
+  const invalidInputRows = inputRows.filter((row) => row.pathError);
   const buttonsDisabled =
     !hasEnabledGraphs ||
-    (primaryEnabled && (missingMappings || invalidMappings));
+    (primaryEnabled && (missingMappings || invalidMappings)) ||
+    invalidInputRows.length > 0;
 
   const targetPaths = useMemo(
     () =>
@@ -805,6 +845,7 @@ export function OrchestratorBridgeProvider({
       const visited = new Set<string>();
       rows.forEach((row) => {
         if (!row.path) return;
+        if (row.pathError) return;
         const normalizedPath = row.path.trim();
         if (!normalizedPath || visited.has(normalizedPath)) return;
         const value =
@@ -862,6 +903,10 @@ export function OrchestratorBridgeProvider({
       }
     }
     const registeredIds: string[] = [];
+    const preparedConfigs: Array<{
+      id: string;
+      config: GraphRegistrationInput;
+    }> = [];
     try {
       await createOrchestrator();
       clearRegisteredGraphs();
@@ -869,9 +914,7 @@ export function OrchestratorBridgeProvider({
         removeAnimation(animationId);
         setAnimationId(null);
       }
-      console.log("Registering animation", animationState);
       const animationConfig = animationStateToConfig(animationState);
-      console.log("Registering animation config", animationConfig);
       const newAnimationId = registerAnimation(animationConfig);
       setAnimationId(newAnimationId);
 
@@ -904,8 +947,10 @@ export function OrchestratorBridgeProvider({
           mappedGraph,
           primaryOutputPath,
         );
-        const primaryGraphId = registerGraph(preparedGraph);
-        registeredIds.push(primaryGraphId);
+        preparedConfigs.push({
+          id: primaryDescriptor?.id ?? "primary",
+          config: preparedGraph,
+        });
       }
 
       enabledAdditionalDescriptors.forEach((descriptor) => {
@@ -920,9 +965,35 @@ export function OrchestratorBridgeProvider({
           graphStateToSpec(descriptor.state, fallbackPath),
           fallbackPath,
         );
-        const graphIdentifier = registerGraph(prepared);
-        registeredIds.push(graphIdentifier);
+        preparedConfigs.push({
+          id: descriptor.id,
+          config: prepared,
+        });
       });
+
+      if (useMergedGraphs) {
+        if (!preparedConfigs.length) {
+          setStatus(
+            "No graphs ready to merge. Enable at least one graph before connecting.",
+          );
+          return;
+        }
+        const mergedId = registerMergedGraph({
+          graphs: preparedConfigs.map(({ id, config }) =>
+            toMergedGraphConfig(id, config),
+          ),
+          strategy: {
+            outputs: mergeStrategy,
+            intermediate: mergeStrategy,
+          },
+        });
+        registeredIds.push(mergedId);
+      } else {
+        preparedConfigs.forEach(({ config }) => {
+          const graphId = registerGraph(config);
+          registeredIds.push(graphId);
+        });
+      }
 
       setGraphIds(registeredIds);
 
@@ -932,7 +1003,11 @@ export function OrchestratorBridgeProvider({
         .filter((toggle) => !toggle.isPrimary && toggle.enabled)
         .map((toggle) => toggle.label)
         .join(", ");
-      if (primaryEnabled && activeOutputRows.length) {
+      if (useMergedGraphs) {
+        setStatus(
+          `Connected merged graph (${registeredIds[0] ?? "none"}) with strategy ${mergeStrategy}.`,
+        );
+      } else if (primaryEnabled && activeOutputRows.length) {
         setStatus(`Connected outputs: ${summarizeOutputs()}`);
       } else {
         setStatus(
@@ -950,26 +1025,31 @@ export function OrchestratorBridgeProvider({
       setStatus(`Connect failed: ${(err as Error).message}`);
     }
   }, [
-    animationState,
+    activeOutputRows,
     animationId,
+    animationState,
     applyInputsToRuntime,
     clearRegisteredGraphs,
-    inputRows,
     createOrchestrator,
-    graphState,
-    inputValues,
-    missingMappings,
-    invalidMappings,
-    hasEnabledGraphs,
-    primaryEnabled,
-    activeOutputRows,
     enabledAdditionalDescriptors,
-    removeAnimation,
+    graphState,
+    graphToggles,
+    hasEnabledGraphs,
+    inputRows,
+    inputValues,
+    invalidInputRows,
+    invalidMappings,
+    mergeStrategy,
+    missingMappings,
+    primaryDescriptor?.id,
+    primaryEnabled,
     registerAnimation,
     registerGraph,
+    registerMergedGraph,
+    removeAnimation,
     removeGraph,
-    graphToggles,
     summarizeOutputs,
+    useMergedGraphs,
   ]);
 
   const handleUpdateControllers = useCallback(async () => {
@@ -1001,7 +1081,15 @@ export function OrchestratorBridgeProvider({
         return;
       }
     }
+    if (invalidInputRows.length) {
+      setStatus("Fix typed-path issues on graph inputs before connecting.");
+      return;
+    }
     const registeredIds: string[] = [];
+    const preparedConfigs: Array<{
+      id: string;
+      config: GraphRegistrationInput;
+    }> = [];
     try {
       clearRegisteredGraphs();
       if (animationId) {
@@ -1040,8 +1128,10 @@ export function OrchestratorBridgeProvider({
           mappedGraph,
           primaryOutputPath,
         );
-        const primaryGraphId = registerGraph(preparedGraph);
-        registeredIds.push(primaryGraphId);
+        preparedConfigs.push({
+          id: primaryDescriptor?.id ?? "primary",
+          config: preparedGraph,
+        });
       }
 
       enabledAdditionalDescriptors.forEach((descriptor) => {
@@ -1056,14 +1146,44 @@ export function OrchestratorBridgeProvider({
           graphStateToSpec(descriptor.state, fallbackPath),
           fallbackPath,
         );
-        const graphIdentifier = registerGraph(prepared);
-        registeredIds.push(graphIdentifier);
+        preparedConfigs.push({
+          id: descriptor.id,
+          config: prepared,
+        });
       });
+
+      if (useMergedGraphs) {
+        if (!preparedConfigs.length) {
+          setStatus(
+            "No graphs ready to merge. Enable at least one graph before updating.",
+          );
+          return;
+        }
+        const mergedId = registerMergedGraph({
+          graphs: preparedConfigs.map(({ id, config }) =>
+            toMergedGraphConfig(id, config),
+          ),
+          strategy: {
+            outputs: mergeStrategy,
+            intermediate: mergeStrategy,
+          },
+        });
+        registeredIds.push(mergedId);
+      } else {
+        preparedConfigs.forEach(({ config }) => {
+          const graphId = registerGraph(config);
+          registeredIds.push(graphId);
+        });
+      }
 
       setGraphIds(registeredIds);
       applyInputsToRuntime(inputRows, inputValues);
       setConnected(true);
-      setStatus("Controllers updated");
+      setStatus(
+        useMergedGraphs
+          ? `Controllers updated (strategy ${mergeStrategy})`
+          : "Controllers updated",
+      );
     } catch (err) {
       if (registeredIds.length) {
         registeredIds.forEach((id) => removeGraph(id));
@@ -1073,25 +1193,29 @@ export function OrchestratorBridgeProvider({
       setStatus(`Update failed: ${(err as Error).message}`);
     }
   }, [
-    animationState,
+    activeOutputRows,
     animationId,
+    animationState,
     applyInputsToRuntime,
-    inputRows,
+    clearRegisteredGraphs,
     connected,
+    enabledAdditionalDescriptors,
     graphState,
     handleConnect,
+    inputRows,
     inputValues,
+    invalidInputRows,
     invalidMappings,
-    hasEnabledGraphs,
-    primaryEnabled,
-    activeOutputRows,
-    enabledAdditionalDescriptors,
-    clearRegisteredGraphs,
+    mergeStrategy,
     missingMappings,
+    primaryDescriptor?.id,
+    primaryEnabled,
     registerAnimation,
     registerGraph,
+    registerMergedGraph,
     removeAnimation,
     removeGraph,
+    useMergedGraphs,
   ]);
 
   const handleDisconnect = useCallback(() => {
@@ -1212,6 +1336,11 @@ export function OrchestratorBridgeProvider({
       setGraphEnabled,
       logCurrentInputs,
       hiddenInputPaths: hiddenInputPathSet,
+      useMergedGraphs,
+      setUseMergedGraphs,
+      mergeStrategy,
+      setMergeStrategy,
+      invalidInputRows,
     }),
     [
       animatables,
@@ -1224,8 +1353,10 @@ export function OrchestratorBridgeProvider({
       handleUpdateControllers,
       inputRows,
       inputValues,
+      invalidInputRows,
       invalidMappings,
       logCurrentInputs,
+      mergeStrategy,
       missingMappings,
       namespace,
       outputComponentsSummary,
@@ -1234,8 +1365,11 @@ export function OrchestratorBridgeProvider({
       graphToggles,
       setGraphEnabled,
       setOutputOption,
+      setUseMergedGraphs,
+      setMergeStrategy,
       status,
       updateInputValue,
+      useMergedGraphs,
     ],
   );
 
@@ -1272,6 +1406,11 @@ export function OrchestratorPanel() {
     graphToggles,
     setGraphEnabled,
     logCurrentInputs,
+    useMergedGraphs,
+    setUseMergedGraphs,
+    mergeStrategy,
+    setMergeStrategy,
+    invalidInputRows,
   } = useOrchestratorBridge();
 
   return (
@@ -1305,6 +1444,56 @@ export function OrchestratorPanel() {
         {missingMappings ? (
           <p className="bridge-note">
             Assign animatable targets to every output before connecting.
+          </p>
+        ) : null}
+        <div
+          style={{
+            display: "flex",
+            gap: "1rem",
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useMergedGraphs}
+              onChange={(event) => setUseMergedGraphs(event.target.checked)}
+            />
+            <span>Register merged graph controllers</span>
+          </label>
+          {useMergedGraphs ? (
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <span>Conflict strategy</span>
+              <select
+                value={mergeStrategy}
+                onChange={(event) =>
+                  setMergeStrategy(event.target.value as "namespace" | "blend")
+                }
+              >
+                <option value="namespace">namespace</option>
+                <option value="blend">blend</option>
+              </select>
+            </label>
+          ) : null}
+        </div>
+        {invalidInputRows.length ? (
+          <p className="bridge-warning">
+            Resolve typed-path issues on graph inputs before connecting:{" "}
+            {invalidInputRows.map((row) => row.path ?? row.node.id).join(", ")}
           </p>
         ) : null}
 
@@ -1458,6 +1647,9 @@ export function OrchestratorInputsPanel() {
                     : undefined
               }
             />
+            {row.pathError ? (
+              <span className="bridge-warning">{row.pathError}</span>
+            ) : null}
           </label>
         );
       })}

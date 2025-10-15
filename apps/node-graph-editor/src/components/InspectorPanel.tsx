@@ -416,6 +416,268 @@ function ValueParamEditor({
   );
 }
 
+type InputDefaultEntry = {
+  value: any;
+  shape?: Record<string, any> | null;
+};
+
+const CASE_LABEL_PLACEHOLDER = ["case_0", "case_1", "case_2"];
+
+function CaseLabelsEditor({
+  labels,
+  onChange,
+}: {
+  labels: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const safeLabels = labels.length ? labels : CASE_LABEL_PLACEHOLDER;
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      {safeLabels.map((label, index) => (
+        <div
+          key={`${index}_${label}`}
+          style={{ display: "flex", gap: 6, alignItems: "center" }}
+        >
+          <input
+            value={label}
+            onChange={(e) => {
+              const next = [...safeLabels];
+              next[index] = e.target.value;
+              onChange(
+                next
+                  .map((entry) => entry.trim())
+                  .filter((entry) => entry.length > 0),
+              );
+            }}
+            style={{ flex: 1, padding: 6 }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const next = safeLabels
+                .filter((_, idx) => idx !== index)
+                .map((entry) => entry.trim())
+                .filter((entry) => entry.length > 0);
+              onChange(next);
+            }}
+            style={{ padding: "4px 8px" }}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => {
+          const next = [...labels, `case_${labels.length}`];
+          onChange(next);
+        }}
+        style={{ padding: "6px 8px", justifySelf: "flex-start" }}
+      >
+        Add label
+      </button>
+    </div>
+  );
+}
+
+const TYPED_PATH_TYPES = [
+  "float",
+  "bool",
+  "vec2",
+  "vec3",
+  "vec4",
+  "quat",
+  "color",
+  "transform",
+  "vector",
+  "text",
+] as const;
+
+function normalizeTypedPath(value: string | undefined): {
+  type: string;
+  path: string;
+} {
+  if (!value) {
+    return { type: "float", path: "" };
+  }
+  const trimmed = value.trim();
+  const idx = trimmed.indexOf(":");
+  if (idx > 0) {
+    const type = trimmed.slice(0, idx).toLowerCase();
+    const path = trimmed.slice(idx + 1);
+    return {
+      type: TYPED_PATH_TYPES.includes(type as any) ? type : "float",
+      path,
+    };
+  }
+  return { type: "float", path: trimmed };
+}
+
+function buildTypedPath(type: string, path: string): string {
+  const cleaned = path
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .join("/");
+  return `${type}:${cleaned}`;
+}
+
+function TypedPathEditor({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (next: string) => void;
+}) {
+  const { type, path } = normalizeTypedPath(value);
+  const [kind, setKind] = useState<string>(type);
+  const [pathText, setPathText] = useState<string>(path);
+
+  useEffect(() => {
+    const { type: nextType, path: nextPath } = normalizeTypedPath(value);
+    setKind(nextType);
+    setPathText(nextPath);
+  }, [value]);
+
+  const invalid =
+    pathText.trim().length === 0 ||
+    /\s/.test(pathText) ||
+    pathText.includes("//");
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <select
+          value={kind}
+          onChange={(event) => {
+            const nextKind = event.target.value;
+            setKind(nextKind);
+            onChange(buildTypedPath(nextKind, pathText));
+          }}
+          style={{ padding: "6px 8px" }}
+        >
+          {TYPED_PATH_TYPES.map((entry) => (
+            <option key={entry} value={entry}>
+              {entry}
+            </option>
+          ))}
+        </select>
+        <input
+          value={pathText}
+          onChange={(event) => {
+            const nextPath = event.target.value;
+            setPathText(nextPath);
+            if (!/\s/.test(nextPath)) {
+              onChange(buildTypedPath(kind, nextPath));
+            }
+          }}
+          placeholder="namespace/channel/field"
+          style={{ flex: 1, padding: "6px 8px" }}
+        />
+      </div>
+      {invalid ? (
+        <div style={{ fontSize: 11, color: "#dc2626" }}>
+          Path must not be empty or contain whitespace. Use "/" to separate
+          segments.
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: "#64748b" }}>
+          Result: <code>{buildTypedPath(kind, pathText)}</code>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function defaultValueForPortType(portType: string): any {
+  const normalized = String(portType ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (normalized.includes("bool")) return false;
+  if (normalized.includes("vec4") || normalized.includes("quat"))
+    return { vector: [0, 0, 0, 0] };
+  if (normalized.includes("vec3")) return { vec3: [0, 0, 0] };
+  if (normalized.includes("vec2")) return { vector: [0, 0] };
+  if (normalized.includes("color")) return { vector: [0, 0, 0, 1] };
+  if (normalized.includes("text")) return { text: "" };
+  if (normalized.includes("transform"))
+    return {
+      transform: {
+        translation: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 1],
+      },
+    };
+  return 0;
+}
+
+function InputDefaultEditor({
+  entry,
+  portType,
+  onChange,
+}: {
+  entry: InputDefaultEntry | undefined;
+  portType: string;
+  onChange: (next: InputDefaultEntry | null) => void;
+}) {
+  const currentValue =
+    entry && entry.value !== undefined
+      ? entry.value
+      : defaultValueForPortType(portType);
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <ValueParamEditor
+        value={currentValue}
+        onChange={(next) =>
+          onChange({
+            value: next,
+            shape: entry?.shape ?? null,
+          })
+        }
+      />
+      <div style={{ fontSize: 11, color: "#94a3b8" }}>
+        Fallback applies when the input has no upstream link. Values stage into
+        the runtime (and orchestrator mirrors when `mirrorWrites` is enabled).
+      </div>
+      {!entry ? (
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              value:
+                currentValue && typeof currentValue === "object"
+                  ? JSON.parse(JSON.stringify(currentValue))
+                  : currentValue,
+              shape: null,
+            })
+          }
+          style={{
+            padding: "4px 8px",
+            justifySelf: "flex-start",
+            background: "#e0f2fe",
+          }}
+        >
+          Enable default
+        </button>
+      ) : null}
+      {entry ? (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          style={{
+            padding: "4px 8px",
+            justifySelf: "flex-start",
+            background: "#f1f5f9",
+          }}
+        >
+          Clear default
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function InspectorPanel(): JSX.Element {
   const selectedId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
@@ -528,6 +790,41 @@ export default function InspectorPanel(): JSX.Element {
     [setNodes, runtime, runtimeReady],
   );
 
+  const updateInputDefault = useCallback(
+    (nodeId: string, portId: string, entry: InputDefaultEntry | null) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id !== nodeId) return n;
+          const data = { ...(n.data || {}) };
+          const defaults =
+            data.input_defaults && typeof data.input_defaults === "object"
+              ? {
+                  ...(data.input_defaults as Record<string, InputDefaultEntry>),
+                }
+              : {};
+
+          if (entry && entry.value !== undefined) {
+            defaults[portId] = {
+              value: entry.value,
+              shape: entry.shape ?? null,
+            };
+          } else {
+            delete defaults[portId];
+          }
+
+          if (Object.keys(defaults).length > 0) {
+            data.input_defaults = defaults;
+          } else {
+            delete data.input_defaults;
+          }
+
+          return { ...n, data };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
   // Optionally reconcile NodeSpec.inputs -> RF edges (create edge)
   const reconcileInputsToEdges = useCallback(
     (n: any) => {
@@ -542,6 +839,10 @@ export default function InspectorPanel(): JSX.Element {
             target: n.id,
             sourceHandle: inp.sourceOutputKey,
             targetHandle: inp.portId,
+            data:
+              typeof inp.selector === "string" && inp.selector.trim().length > 0
+                ? { selector: inp.selector.trim() }
+                : undefined,
           });
         }
       }
@@ -588,7 +889,10 @@ export default function InspectorPanel(): JSX.Element {
             portId,
             sourceNodeId: mapping.sourceNodeId ?? null,
             sourceOutputKey: mapping.sourceOutputKey ?? null,
-            selector: mapping.selector ?? null,
+            selector:
+              typeof mapping.selector === "string"
+                ? mapping.selector.trim() || null
+                : null,
           };
           if (idx >= 0) inputs[idx] = entry;
           else inputs.push(entry);
@@ -801,6 +1105,38 @@ export default function InspectorPanel(): JSX.Element {
         ) : (
           paramsSpec.map((p) => {
             const current = (node.data?.params ?? {})[p.id];
+            let editor: React.ReactNode;
+            if (p.id === "value") {
+              editor = (
+                <ValueParamEditor
+                  value={current}
+                  onChange={(v) => updateNodeParam(node.id, p.id, v)}
+                />
+              );
+            } else if (p.id === "case_labels") {
+              const labels = Array.isArray(current)
+                ? (current as unknown[])
+                    .map((entry) => String(entry ?? ""))
+                    .filter((entry) => entry.length > 0)
+                : [];
+              editor = (
+                <CaseLabelsEditor
+                  labels={labels}
+                  onChange={(next) => updateNodeParam(node.id, p.id, next)}
+                />
+              );
+            } else if (p.id === "path") {
+              editor = (
+                <TypedPathEditor
+                  value={typeof current === "string" ? current : ""}
+                  onChange={(next) => updateNodeParam(node.id, p.id, next)}
+                />
+              );
+            } else {
+              editor = renderParamEditor(p, current, (v) =>
+                updateNodeParam(node.id, p.id, v),
+              );
+            }
             return (
               <div key={p.id} style={{ marginBottom: 10 }}>
                 <label
@@ -808,18 +1144,7 @@ export default function InspectorPanel(): JSX.Element {
                 >
                   {p.name ?? p.id}
                 </label>
-                <div>
-                  {p.id === "value" ? (
-                    <ValueParamEditor
-                      value={current}
-                      onChange={(v) => updateNodeParam(node.id, p.id, v)}
-                    />
-                  ) : (
-                    renderParamEditor(p, current, (v) =>
-                      updateNodeParam(node.id, p.id, v),
-                    )
-                  )}
-                </div>
+                <div>{editor}</div>
                 <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 4 }}>
                   {p.editorHints?.description ?? ""}
                 </div>
@@ -844,6 +1169,16 @@ export default function InspectorPanel(): JSX.Element {
                     (i: any) => String(i.portId) === String(port.id),
                   )
                 : null;
+              const inputDefaultEntry =
+                node.data?.input_defaults &&
+                typeof node.data.input_defaults === "object"
+                  ? (
+                      node.data.input_defaults as Record<
+                        string,
+                        InputDefaultEntry
+                      >
+                    )[port.id]
+                  : undefined;
               return (
                 <div
                   key={port.id}
@@ -933,6 +1268,17 @@ export default function InspectorPanel(): JSX.Element {
                           })
                         }
                         style={{ width: "100%", padding: 6 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 12 }}>Fallback value</label>
+                      <InputDefaultEditor
+                        entry={inputDefaultEntry}
+                        portType={port.type}
+                        onChange={(next) =>
+                          updateInputDefault(node.id, port.id, next)
+                        }
                       />
                     </div>
                   </div>
@@ -1112,6 +1458,25 @@ export default function InspectorPanel(): JSX.Element {
           Changes to inputs will update the node's NodeSpec mapping; use export
           to persist the canonical spec.
         </div>
+        {String(node.type ?? "")
+          .toLowerCase()
+          .includes("input") ? (
+          <div
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              marginTop: 8,
+              background: "#f1f5f9",
+              padding: "8px 10px",
+              borderRadius: 6,
+            }}
+          >
+            Runtime defaults and staged values will mirror into orchestrator
+            frames only when the controller enables{" "}
+            <code>subs.mirrorWrites</code>. Keep this in mind when wiring graphs
+            into shared blackboards.
+          </div>
+        ) : null}
       </section>
 
       {/* Output shape & live outputs */}

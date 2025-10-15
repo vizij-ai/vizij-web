@@ -62,6 +62,13 @@ vi.mock("@vizij/node-graph-wasm", () => {
       JSON.stringify({ version: "1", nodes: [] }),
     ),
     normalize_graph_spec_json: vi.fn((json: string) => json),
+    listNodeGraphFixtures: vi.fn(async () => []),
+    loadNodeGraphBundle: vi.fn(async () => ({
+      spec: { nodes: [], edges: [] },
+    })),
+    loadNodeGraphSpec: vi.fn(async () => ({ nodes: [], edges: [] })),
+    loadNodeGraphSpecJson: vi.fn(async () => "{}"),
+    loadNodeGraphStage: vi.fn(async () => null),
   };
 });
 
