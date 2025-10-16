@@ -116,6 +116,38 @@ function sanitizeFaceId(value: string): string {
   return normalised || "robot";
 }
 
+function normaliseAssetLabel(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const withoutParams = trimmed.split(/[?#]/, 1)[0];
+  const withForwardSlashes = withoutParams.replace(/\\/g, "/");
+  const segments = withForwardSlashes.split("/");
+  const last = segments[segments.length - 1] ?? trimmed;
+  const withoutExtension = last.replace(/\.[^.]+$/, "");
+  return withoutExtension || last;
+}
+
+function deriveAutoFaceId(
+  sourceName: string | null,
+  rootRenderable: Group | undefined,
+): string | null {
+  if (sourceName) {
+    const normalised = normaliseAssetLabel(sourceName);
+    if (normalised) {
+      return sanitizeFaceId(normalised);
+    }
+  }
+  if (rootRenderable?.name) {
+    return sanitizeFaceId(rootRenderable.name);
+  }
+  if (rootRenderable?.id) {
+    return sanitizeFaceId(rootRenderable.id);
+  }
+  return null;
+}
+
 type Traversable = {
   traverse: (callback: (object: Record<string, any>) => void) => void;
 };
@@ -171,6 +203,7 @@ export default function App() {
   const setValue = useVizijStore((state) => state.setValue);
   const values = useVizijStore((state) => state.values);
   const elementSelection = useVizijStore((state) => state.elementSelection);
+  const clearSelection = useVizijStore((state) => state.clearSelection);
   const setStoreState = useVizijStoreSetter();
 
   const [faceId, setFaceId] = useState<string>("robot");
@@ -305,6 +338,10 @@ export default function App() {
     [setStoreState],
   );
 
+  const handleClearSelection = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
+
   useEffect(() => {
     setBindings((previous) =>
       reconcileBindings(previous, animatableComponents),
@@ -353,10 +390,10 @@ export default function App() {
     : undefined;
 
   useEffect(() => {
-    if (!rootRenderable) {
+    const auto = deriveAutoFaceId(sourceName, rootRenderable);
+    if (!auto) {
       return;
     }
-    const auto = sanitizeFaceId(rootRenderable.name || rootRenderable.id);
     if (
       lastAutoFaceIdRef.current === null ||
       faceId === lastAutoFaceIdRef.current ||
@@ -365,7 +402,7 @@ export default function App() {
       setFaceId(auto);
     }
     lastAutoFaceIdRef.current = auto;
-  }, [rootRenderable, faceId]);
+  }, [faceId, rootRenderable, sourceName]);
 
   useEffect(() => {
     const overrides = new Map<string, ComponentOverrideMap | number>();
@@ -758,6 +795,11 @@ export default function App() {
               rootId={rootId}
               namespace={DEFAULT_NAMESPACE}
               showSafeArea={false}
+              onPointerMissed={(event) => {
+                if (event.button === 0) {
+                  handleClearSelection();
+                }
+              }}
             />
           ) : (
             <div className="viewer__placeholder">
@@ -774,6 +816,7 @@ export default function App() {
           onFaceIdChange={handleFaceIdChange}
           selectionStack={elementSelection}
           onFocusSelectionIndex={handleFocusSelectionIndex}
+          onClearSelection={handleClearSelection}
           components={animatableComponents}
           bindings={bindings}
           onBindingInputChange={handleBindingInputChange}

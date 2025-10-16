@@ -4,6 +4,7 @@ import type {
   AnimatableVector2,
   AnimatableVector3,
   AnimatableEuler,
+  AnimatableColor,
 } from "@vizij/utils";
 import type {
   RawValue,
@@ -11,9 +12,10 @@ import type {
   RawVector3,
   RawEuler,
   RawColor,
+  RawRGB,
 } from "@vizij/utils";
 
-type VectorComponent = "x" | "y" | "z";
+type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 
 export interface AnimatableComponent {
   /**
@@ -198,8 +200,47 @@ function formatComponentLabel(
   return `${base} (${component.toUpperCase()})`;
 }
 
+function componentToIndex(component: VectorComponent): 0 | 1 | 2 {
+  switch (component) {
+    case "x":
+    case "r":
+      return 0;
+    case "y":
+    case "g":
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+function componentKeys(component: VectorComponent): readonly string[] {
+  switch (component) {
+    case "x":
+      return ["x", "r"];
+    case "y":
+      return ["y", "g"];
+    case "z":
+      return ["z", "b"];
+    case "r":
+      return ["r", "x"];
+    case "g":
+      return ["g", "y"];
+    case "b":
+      return ["b", "z"];
+    default:
+      return [component];
+  }
+}
+
 function getVectorComponentValue(
-  vector: RawVector2 | RawVector3 | RawEuler | number[] | null | undefined,
+  vector:
+    | RawVector2
+    | RawVector3
+    | RawEuler
+    | RawColor
+    | number[]
+    | null
+    | undefined,
   component: VectorComponent,
   fallback: number,
 ): number {
@@ -207,19 +248,17 @@ function getVectorComponentValue(
     return fallback;
   }
   if (Array.isArray(vector)) {
-    const index = component === "x" ? 0 : component === "y" ? 1 : 2;
+    const index = componentToIndex(component);
     return coerceNumber(vector[index], fallback);
   }
   if (typeof vector === "object") {
-    const record: Partial<Record<VectorComponent | "r" | "g" | "b", unknown>> =
-      vector;
-    const direct = record[component];
-    if (direct !== undefined) {
-      return coerceNumber(direct, fallback);
+    const record = vector as unknown as Record<string, unknown>;
+    for (const key of componentKeys(component)) {
+      const candidate = record[key];
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return candidate;
+      }
     }
-    const alt =
-      component === "x" ? record.r : component === "y" ? record.g : record.b;
-    return coerceNumber(alt, fallback);
   }
   return fallback;
 }
@@ -228,7 +267,8 @@ function getVectorConstraintComponent(
   constraints:
     | AnimatableVector3["constraints"]
     | AnimatableVector2["constraints"]
-    | AnimatableEuler["constraints"],
+    | AnimatableEuler["constraints"]
+    | AnimatableColor["constraints"],
   component: VectorComponent,
   bound: "min" | "max",
 ): number | null | undefined {
@@ -236,7 +276,7 @@ function getVectorConstraintComponent(
   if (!Array.isArray(values)) {
     return undefined;
   }
-  const index = component === "x" ? 0 : component === "y" ? 1 : 2;
+  const index = componentToIndex(component);
   return values[index] ?? undefined;
 }
 
@@ -260,10 +300,20 @@ function extractNumberComponent(
 }
 
 function extractVectorComponents(
-  animatable: AnimatableVector2 | AnimatableVector3 | AnimatableEuler,
+  animatable:
+    | AnimatableVector2
+    | AnimatableVector3
+    | AnimatableEuler
+    | AnimatableColor,
 ): AnimatableComponent[] {
-  const components: VectorComponent[] =
-    animatable.type === "vector2" ? ["x", "y"] : ["x", "y", "z"];
+  let components: VectorComponent[];
+  if (animatable.type === "vector2") {
+    components = ["x", "y"];
+  } else if (animatable.type === "rgb") {
+    components = ["r", "g", "b"];
+  } else {
+    components = ["x", "y", "z"];
+  }
 
   return components.map((component) => {
     const defaultValue = getVectorComponentValue(
@@ -305,6 +355,10 @@ export function extractAnimatableComponents(
         result.push(...extractVectorComponents(animatable));
         break;
       }
+      case "rgb": {
+        result.push(...extractVectorComponents(animatable));
+        break;
+      }
       default:
         // Skip unsupported animatable types (strings, colors, etc.) for rig mapping.
         break;
@@ -315,8 +369,11 @@ export function extractAnimatableComponents(
 
 function cloneVector2(defaultValue: unknown): RawVector2 {
   if (defaultValue && typeof defaultValue === "object") {
-    const value = defaultValue as Partial<Record<VectorComponent, unknown>>;
-    if ("x" in value && "y" in value) {
+    const value = defaultValue as Record<string, unknown>;
+    if (
+      Object.prototype.hasOwnProperty.call(value, "x") &&
+      Object.prototype.hasOwnProperty.call(value, "y")
+    ) {
       return {
         x: coerceNumber(value.x, 0),
         y: coerceNumber(value.y, 0),
@@ -328,8 +385,12 @@ function cloneVector2(defaultValue: unknown): RawVector2 {
 
 function cloneVector3(defaultValue: unknown): RawVector3 {
   if (defaultValue && typeof defaultValue === "object") {
-    const value = defaultValue as Partial<Record<VectorComponent, unknown>>;
-    if ("x" in value && "y" in value && "z" in value) {
+    const value = defaultValue as Record<string, unknown>;
+    if (
+      Object.prototype.hasOwnProperty.call(value, "x") &&
+      Object.prototype.hasOwnProperty.call(value, "y") &&
+      Object.prototype.hasOwnProperty.call(value, "z")
+    ) {
       return {
         x: coerceNumber(value.x, 0),
         y: coerceNumber(value.y, 0),
@@ -338,6 +399,73 @@ function cloneVector3(defaultValue: unknown): RawVector3 {
     }
   }
   return { x: 0, y: 0, z: 0 };
+}
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+  return Math.min(1, Math.max(0, value));
+}
+
+function hslToRgb(h: number, s: number, l: number): RawRGB {
+  const hueToRgb = (p: number, q: number, t: number): number => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+
+  const hh = ((h % 1) + 1) % 1;
+  const ss = clamp01(s);
+  const ll = clamp01(l);
+
+  if (ss === 0) {
+    return {
+      r: ll,
+      g: ll,
+      b: ll,
+    };
+  }
+
+  const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
+  const p = 2 * ll - q;
+
+  return {
+    r: hueToRgb(p, q, hh + 1 / 3),
+    g: hueToRgb(p, q, hh),
+    b: hueToRgb(p, q, hh - 1 / 3),
+  };
+}
+
+function cloneColor(defaultValue: unknown): RawRGB {
+  if (defaultValue && typeof defaultValue === "object") {
+    const value = defaultValue as Record<string, unknown>;
+    if (
+      Object.prototype.hasOwnProperty.call(value, "r") &&
+      Object.prototype.hasOwnProperty.call(value, "g") &&
+      Object.prototype.hasOwnProperty.call(value, "b")
+    ) {
+      return {
+        r: coerceNumber(value.r, 0),
+        g: coerceNumber(value.g, 0),
+        b: coerceNumber(value.b, 0),
+      };
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(value, "h") &&
+      Object.prototype.hasOwnProperty.call(value, "s") &&
+      Object.prototype.hasOwnProperty.call(value, "l")
+    ) {
+      const h = coerceNumber(value.h, 0);
+      const s = coerceNumber(value.s, 0);
+      const l = coerceNumber(value.l, 0);
+      return hslToRgb(h, s, l);
+    }
+  }
+  return { r: 0, g: 0, b: 0 };
 }
 
 function applyVector2Overrides(
@@ -361,6 +489,20 @@ function applyVector3Overrides<T extends RawVector3 | RawEuler>(
   (["x", "y", "z"] as const).forEach((component) => {
     if (Object.prototype.hasOwnProperty.call(overrides, component)) {
       next[component] = overrides[component]!;
+    }
+  });
+  return next;
+}
+
+function applyColorOverrides(
+  base: RawRGB,
+  overrides: ComponentOverrideMap,
+): RawRGB {
+  const next: RawRGB = { ...base };
+  (["r", "g", "b"] as const).forEach((component) => {
+    const value = overrides[component];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      next[component] = value;
     }
   });
   return next;
@@ -403,6 +545,17 @@ export function buildAnimatableValue(
         });
       }
       return applyVector3Overrides(base, overrides ?? {});
+    }
+    case "rgb": {
+      const base = cloneColor(animatable.default);
+      if (typeof overrides === "number") {
+        return applyColorOverrides(base, {
+          r: overrides,
+          g: overrides,
+          b: overrides,
+        });
+      }
+      return applyColorOverrides(base, overrides ?? {});
     }
     default:
       return animatable.default;

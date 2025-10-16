@@ -9,7 +9,7 @@ import { buildAnimatableValue } from "./animatableMetadata";
 import type { BindingMap } from "./state";
 import { createDefaultRemap } from "./state";
 
-type VectorComponent = "x" | "y" | "z";
+type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 type GraphLink = NonNullable<GraphSpec["links"]>[number];
 
 interface BuildGraphOptions {
@@ -60,6 +60,8 @@ function getComponentOrder(
     case "vector3":
     case "euler":
       return ["x", "y", "z"];
+    case "rgb":
+      return ["r", "g", "b"];
     default:
       return null;
   }
@@ -81,7 +83,16 @@ function isComponentRecord(value: unknown): value is ComponentRecord {
 }
 
 function componentIndex(component: VectorComponent): number {
-  return component === "x" ? 0 : component === "y" ? 1 : 2;
+  switch (component) {
+    case "x":
+    case "r":
+      return 0;
+    case "y":
+    case "g":
+      return 1;
+    default:
+      return 2;
+  }
 }
 
 function extractComponentDefault(

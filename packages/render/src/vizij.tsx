@@ -1,4 +1,11 @@
-import { type ReactNode, Suspense, memo, useContext, useEffect } from "react";
+import {
+  type ReactNode,
+  type ComponentProps,
+  Suspense,
+  memo,
+  useContext,
+  useEffect,
+} from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -21,6 +28,7 @@ export interface VizijProps {
   rootId: string;
   namespace?: string;
   showSafeArea?: boolean;
+  onPointerMissed?: ComponentProps<typeof Canvas>["onPointerMissed"];
 }
 
 /**
@@ -44,11 +52,17 @@ export function Vizij({
   rootId,
   namespace = "default",
   showSafeArea = false,
+  onPointerMissed,
 }: VizijProps): ReactNode {
   const ctx = useContext(VizijContext);
   if (ctx) {
     return (
-      <Canvas shadows={false} style={style} className={className}>
+      <Canvas
+        shadows={false}
+        style={style}
+        className={className}
+        onPointerMissed={onPointerMissed}
+      >
         <MemoizedInnerVizij
           rootId={rootId}
           namespace={namespace}
@@ -59,7 +73,11 @@ export function Vizij({
   } else {
     return (
       <VizijContext.Provider value={useDefaultVizijStore}>
-        <Canvas style={style} className={className}>
+        <Canvas
+          style={style}
+          className={className}
+          onPointerMissed={onPointerMissed}
+        >
           <MemoizedInnerVizij
             rootId={rootId}
             namespace={namespace}
