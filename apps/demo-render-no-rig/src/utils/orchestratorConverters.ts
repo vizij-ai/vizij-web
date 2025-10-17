@@ -277,7 +277,7 @@ export function graphStateToSpec(
     }
     return converted;
   });
-  const links: Array<{
+  const edges: Array<{
     from: { node_id: string; output?: string };
     to: { node_id: string; input: string };
     selector?: Array<{ field?: string; index?: number }>;
@@ -291,7 +291,7 @@ export function graphStateToSpec(
       if (!conn || typeof conn.node_id !== "string") {
         return;
       }
-      links.push({
+      edges.push({
         from: { node_id: conn.node_id, output: conn.output ?? "out" },
         to: { node_id: node.id, input: inputKey },
         selector: Array.isArray(conn.selector)
@@ -304,7 +304,7 @@ export function graphStateToSpec(
   return {
     spec: {
       nodes,
-      links,
+      edges,
     },
     subs: {
       inputs: state.inputs,

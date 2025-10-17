@@ -93,6 +93,10 @@ vi.mock("@vizij/orchestrator-wasm", async () => {
   >("@vizij/orchestrator-wasm");
   return {
     ...actual,
+    listOrchestrationFixtures: actual.listOrchestrationFixtures,
+    loadOrchestrationBundle: actual.loadOrchestrationBundle,
+    loadOrchestrationDescriptor: actual.loadOrchestrationDescriptor,
+    loadOrchestrationJson: actual.loadOrchestrationJson,
     init: vi.fn(async () => {}),
     createOrchestrator: vi.fn(async () => makeInstance()),
     Orchestrator: vi.fn(() => makeInstance()),

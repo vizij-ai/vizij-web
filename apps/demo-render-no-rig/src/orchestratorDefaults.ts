@@ -120,14 +120,14 @@ export const DEFAULT_GRAPH_SPEC: GraphRegistrationInput = {
         params: { path: LEFT_EYE_TRANSLATION_PATH },
       },
     ],
-    links: [
+    edges: [
       {
         from: { node_id: "weight1_input" },
-        to: { node_id: "weights_vector", input: "operands_1" },
+        to: { node_id: "weights_vector", input: "operand_1" },
       },
       {
         from: { node_id: "weight2_input" },
-        to: { node_id: "weights_vector", input: "operands_2" },
+        to: { node_id: "weights_vector", input: "operand_2" },
       },
       {
         from: { node_id: "baseline_input" },
@@ -301,8 +301,8 @@ export const DEFAULT_GRAPH_STATE: GraphEditorState = {
       category: "Vectors",
       params: [],
       inputs: {
-        operands_1: "weight1_input",
-        operands_2: "weight2_input",
+        operand_1: "weight1_input",
+        operand_2: "weight2_input",
       },
     },
     {

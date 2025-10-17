@@ -2,17 +2,17 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import {
   OrchestratorProvider,
   useOrchestrator,
   valueAsNumber,
   samples,
-  GraphRegistrationInput,
 } from "../index";
+import type { GraphRegistrationInput, GraphRegistrationConfig } from "../index";
 import { toValueJSON, type ValueInput } from "@vizij/value-json";
 
-const FALLBACK_DESCRIPTOR = {
+const SAMPLE_DESCRIPTOR = {
   description: "Scalar ramp animation drives a gain/offset graph",
   animation: "simple-scalar-ramp",
   graph: "simple-gain-offset",
@@ -36,8 +36,165 @@ const FALLBACK_DESCRIPTOR = {
   ],
 } as const;
 
+const SAMPLE_ANIMATION = {
+  id: "ramp-1",
+  name: "ramp",
+  tracks: [
+    {
+      id: "t-ramp-scalar",
+      name: "Scalar Ramp",
+      animatableId: "node.t",
+      points: [
+        {
+          id: "k0",
+          stamp: 0.0,
+          value: 0.0,
+          transitions: { out: { x: 0.0, y: 0.0 } },
+        },
+        {
+          id: "k1",
+          stamp: 1.0,
+          value: 1.0,
+          transitions: { in: { x: 1.0, y: 1.0 } },
+        },
+      ],
+      settings: {},
+    },
+  ],
+  groups: {},
+  duration: 1000,
+} as const;
+
+const SAMPLE_GRAPH_SPEC: GraphRegistrationInput = {
+  spec: {
+    nodes: [
+      {
+        id: "anim_input",
+        type: "input",
+        params: {
+          path: "node.t",
+          value: 0,
+        },
+      },
+      {
+        id: "gain_input",
+        type: "input",
+        params: {
+          path: "demo/graph/gain",
+          value: 1.5,
+        },
+      },
+      {
+        id: "offset_input",
+        type: "input",
+        params: {
+          path: "demo/graph/offset",
+          value: 0.25,
+        },
+      },
+      { id: "scaled", type: "multiply" },
+      { id: "output_sum", type: "add" },
+      {
+        id: "out",
+        type: "output",
+        params: {
+          path: "demo/output/value",
+        },
+      },
+    ],
+    edges: [
+      {
+        from: { node_id: "anim_input" },
+        to: { node_id: "scaled", input: "operand_1" },
+      },
+      {
+        from: { node_id: "gain_input" },
+        to: { node_id: "scaled", input: "operand_2" },
+      },
+      {
+        from: { node_id: "scaled" },
+        to: { node_id: "output_sum", input: "operand_1" },
+      },
+      {
+        from: { node_id: "offset_input" },
+        to: { node_id: "output_sum", input: "operand_2" },
+      },
+      {
+        from: { node_id: "output_sum" },
+        to: { node_id: "out", input: "in" },
+      },
+    ],
+  },
+  subs: {
+    inputs: ["node.t", "demo/graph/gain", "demo/graph/offset"],
+    outputs: ["demo/output/value"],
+    mirrorWrites: true,
+  },
+};
+
+const SAMPLE_FIXTURES = {
+  "scalar-ramp-pipeline": {
+    descriptor: SAMPLE_DESCRIPTOR,
+    animations: [
+      {
+        key: "simple-scalar-ramp",
+        id: "anim-1",
+        animation: SAMPLE_ANIMATION,
+        setup: {
+          animation: SAMPLE_ANIMATION,
+          player: { name: "fixture-player", loop_mode: "once" },
+        },
+      },
+    ],
+    graphs: [
+      {
+        key: "simple-gain-offset",
+        id: "graph-1",
+        config: SAMPLE_GRAPH_SPEC as GraphRegistrationConfig,
+        mirrorWrites: true,
+        stage: [
+          { path: "demo/graph/gain", value: 1.5 },
+          { path: "demo/graph/offset", value: 0.25 },
+        ],
+      },
+    ],
+    mergedGraphs: [],
+    initialInputs: SAMPLE_DESCRIPTOR.initial_inputs.map((entry) => ({
+      path: entry.path,
+      value: entry.value,
+    })),
+  },
+} as const;
+
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 vi.mock("@vizij/orchestrator-wasm", () => {
-  type Step = (typeof FALLBACK_DESCRIPTOR.steps)[number];
+  type Step = (typeof SAMPLE_DESCRIPTOR.steps)[number];
+
+  const listOrchestrationFixtures = vi.fn(async () =>
+    Object.keys(SAMPLE_FIXTURES),
+  );
+
+  const loadOrchestrationDescriptor = vi.fn(async (name: string) => {
+    const fixture = SAMPLE_FIXTURES[name as keyof typeof SAMPLE_FIXTURES];
+    if (!fixture) {
+      throw new Error(`Unknown orchestration fixture: ${name}`);
+    }
+    return clone(fixture.descriptor);
+  });
+
+  const loadOrchestrationJson = vi.fn(async (name: string) => {
+    const descriptor = await loadOrchestrationDescriptor(name);
+    return JSON.stringify(descriptor);
+  });
+
+  const loadOrchestrationBundle = vi.fn(async (name: string) => {
+    const fixture = SAMPLE_FIXTURES[name as keyof typeof SAMPLE_FIXTURES];
+    if (!fixture) {
+      throw new Error(`Unknown orchestration fixture: ${name}`);
+    }
+    return clone(fixture);
+  });
 
   class StubOrchestrator {
     private stepIndex = 0;
@@ -80,11 +237,11 @@ vi.mock("@vizij/orchestrator-wasm", () => {
 
     step(delta: number): any {
       const step: Step =
-        FALLBACK_DESCRIPTOR.steps[this.stepIndex] ??
-        FALLBACK_DESCRIPTOR.steps[FALLBACK_DESCRIPTOR.steps.length - 1];
+        SAMPLE_DESCRIPTOR.steps[this.stepIndex] ??
+        SAMPLE_DESCRIPTOR.steps[SAMPLE_DESCRIPTOR.steps.length - 1];
       this.stepIndex = Math.min(
         this.stepIndex + 1,
-        FALLBACK_DESCRIPTOR.steps.length - 1,
+        SAMPLE_DESCRIPTOR.steps.length - 1,
       );
 
       const merged_writes = Object.entries(step.expect ?? {}).map(
@@ -111,10 +268,10 @@ vi.mock("@vizij/orchestrator-wasm", () => {
     createOrchestrator: vi.fn(async () => new StubOrchestrator()),
     Orchestrator: StubOrchestrator,
     abi_version: vi.fn(() => 2),
-    listOrchestrationFixtures: undefined,
-    loadOrchestrationBundle: undefined,
-    loadOrchestrationDescriptor: undefined,
-    loadOrchestrationJson: undefined,
+    listOrchestrationFixtures,
+    loadOrchestrationBundle,
+    loadOrchestrationDescriptor,
+    loadOrchestrationJson,
   };
 });
 
@@ -149,16 +306,42 @@ describe("@vizij/orchestrator-react samples", () => {
         registeredRef.current = true;
         (async () => {
           orch.prebind?.((path) => path);
-          orch.registerGraph(bundle.graphSpec as GraphRegistrationInput);
-          orch.registerAnimation({
-            setup: {
-              animation: bundle.animation,
-              player: { name: "fixture-player", loop_mode: "once" },
-            },
+          bundle.graphs.forEach((binding) => {
+            const config = clone(binding.config) as GraphRegistrationConfig;
+            if (binding.id) {
+              config.id = binding.id;
+            }
+            orch.registerGraph(config);
           });
 
-          for (const input of bundle.descriptor.initial_inputs ?? []) {
-            orch.setInput(input.path, toValueJSON(input.value as ValueInput));
+          bundle.mergedGraphs.forEach((merged) => {
+            const mergedConfig = {
+              id: merged.id,
+              strategy: merged.strategy,
+              graphs: merged.graphs.map((binding) => {
+                const config = clone(binding.config) as GraphRegistrationConfig;
+                if (binding.id) {
+                  config.id = binding.id;
+                }
+                return config;
+              }),
+            };
+            orch.registerMergedGraph(mergedConfig);
+          });
+
+          bundle.animations.forEach((binding) => {
+            orch.registerAnimation({
+              ...(binding.id ? { id: binding.id } : {}),
+              setup: clone(binding.setup),
+            });
+          });
+
+          for (const input of bundle.initialInputs) {
+            orch.setInput(
+              input.path,
+              toValueJSON(input.value as ValueInput),
+              input.shape as any,
+            );
           }
 
           const captures: Array<Record<string, number>> = [];
@@ -181,13 +364,19 @@ describe("@vizij/orchestrator-react samples", () => {
       return null;
     };
 
-    render(
-      <OrchestratorProvider autostart={false}>
-        <Harness />
-      </OrchestratorProvider>,
-    );
+    let renderResult: ReturnType<typeof render>;
+    await act(async () => {
+      renderResult = render(
+        <OrchestratorProvider autostart={false}>
+          <Harness />
+        </OrchestratorProvider>,
+      );
+    });
 
     const captured = await deferred.promise;
+    await act(async () => {
+      renderResult.unmount();
+    });
     const steps = bundle.descriptor.steps ?? [];
     expect(captured.length).toBe(steps.length);
     steps.forEach((step, idx) => {

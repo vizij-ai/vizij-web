@@ -7,6 +7,7 @@ import {
   samples as orchestratorSamples,
   type ValueJSON,
   type GraphRegistrationInput,
+  type GraphRegistrationConfig,
   type AnimationRegistrationConfig,
   type CreateOrchOptions,
 } from "@vizij/orchestrator-react";
@@ -24,15 +25,19 @@ function prettyPrintDocument(doc: OrchestrationDocument): string {
   return JSON.stringify(doc, null, 2);
 }
 
-function cloneDocument(doc: OrchestrationDocument): OrchestrationDocument {
+function deepClone<T>(value: T): T {
   if (typeof structuredClone === "function") {
     try {
-      return structuredClone(doc) as OrchestrationDocument;
+      return structuredClone(value) as T;
     } catch {
-      // fall through to JSON clone
+      // fall back to JSON clone below
     }
   }
-  return JSON.parse(JSON.stringify(doc)) as OrchestrationDocument;
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function cloneDocument(doc: OrchestrationDocument): OrchestrationDocument {
+  return deepClone(doc);
 }
 
 function jsonStringifySafe(value: unknown): string {
@@ -51,53 +56,47 @@ function bundleToDocument(
   sampleId: string,
   bundle: OrchestrationBundle,
 ): OrchestrationDocument {
-  const { descriptor, animation, graphSpec } = bundle;
+  const { descriptor } = bundle;
 
-  const normalizedGraph = normalizeGraphConfig(graphSpec, 0);
+  const graphConfigs = bundle.graphs.map((binding, index) => {
+    const config = deepClone(binding.config) as GraphRegistrationConfig;
+    if (binding.id) {
+      config.id = binding.id;
+    } else if (!config.id) {
+      config.id = `${sampleId}-graph-${index}`;
+    }
+    return config;
+  });
+
+  const animations = bundle.animations.map((binding) => {
+    const registration: AnimationRegistrationConfig = {
+      setup: deepClone(binding.setup),
+    };
+    if (binding.id) {
+      registration.id = binding.id;
+    }
+    return registration;
+  });
 
   const inputs =
-    Array.isArray((descriptor as any)?.initial_inputs) &&
-    (descriptor as any).initial_inputs.length > 0
+    bundle.initialInputs.length > 0
       ? Object.fromEntries(
-          (descriptor as any).initial_inputs.map(
-            ({ path, value }: { path: string; value: unknown }) => [
-              path,
-              value as ValueJSON,
-            ],
-          ),
+          bundle.initialInputs.map(({ path, value }) => [
+            path,
+            value as ValueJSON,
+          ]),
         )
       : undefined;
-
-  const graphConfig: GraphRegistrationInput = {
-    id: `${sampleId}-graph`,
-    spec: normalizedGraph.spec,
-  };
-  if (normalizedGraph.subs) {
-    (graphConfig as any).subs = normalizedGraph.subs;
-  }
-
-  const animations: AnimationRegistrationConfig[] = [
-    {
-      setup: {
-        animation,
-        player: {
-          name: `${sampleId}-player`,
-          loop_mode: "loop",
-        },
-      },
-    },
-  ];
 
   const descriptorWatch =
     typeof (descriptor as any)?.watchPath === "string"
       ? ((descriptor as any).watchPath as string)
       : null;
 
+  const primaryGraphOutputs = graphConfigs[0]?.subs?.outputs;
   const graphOutput =
-    normalizedGraph.subs &&
-    Array.isArray(normalizedGraph.subs.outputs) &&
-    normalizedGraph.subs.outputs.length > 0
-      ? ((normalizedGraph.subs.outputs[0] as string) ?? null)
+    Array.isArray(primaryGraphOutputs) && primaryGraphOutputs.length > 0
+      ? ((primaryGraphOutputs[0] as string) ?? null)
       : null;
 
   const stepExpectPath =
@@ -111,20 +110,28 @@ function bundleToDocument(
           .find((key: string) => typeof key === "string") ?? null)
       : null;
 
+  const descriptorSchedule =
+    typeof (descriptor as { schedule?: unknown })?.schedule === "string"
+      ? ((descriptor as { schedule?: string }).schedule as string)
+      : undefined;
+  const createOptions: CreateOrchOptions | undefined =
+    descriptorSchedule === "SinglePass" ||
+    descriptorSchedule === "TwoPass" ||
+    descriptorSchedule === "RateDecoupled"
+      ? { schedule: descriptorSchedule }
+      : undefined;
+
   return {
     label: (descriptor as any)?.description ?? sampleId,
+    createOptions,
     inputs,
-    graphs: [graphConfig],
-    animations,
+    graphs: graphConfigs.length > 0 ? graphConfigs : undefined,
+    animations: animations.length > 0 ? animations : undefined,
     watchPath: descriptorWatch ?? graphOutput ?? stepExpectPath ?? null,
   };
 }
 
-type NormalizedGraphConfig = {
-  id: string;
-  spec: any;
-  subs?: any;
-};
+type NormalizedGraphConfig = GraphRegistrationConfig;
 
 type EditorProps = {
   initialDoc: OrchestrationDocument;
@@ -138,28 +145,18 @@ type EditorProps = {
 };
 
 function normalizeGraphConfig(
-  entry: unknown,
+  entry: GraphRegistrationInput,
   index: number,
 ): NormalizedGraphConfig {
   if (typeof entry === "string") {
     return { id: `graph_${index}`, spec: entry };
   }
   if (entry && typeof entry === "object") {
-    if ("spec" in (entry as any)) {
-      const spec = (entry as any).spec;
-      const id =
-        typeof (entry as any).id === "string"
-          ? (entry as any).id
-          : `graph_${index}`;
-      const subs =
-        typeof (entry as any).subs === "object"
-          ? (entry as any).subs
-          : undefined;
-      const config: NormalizedGraphConfig = { id, spec };
-      if (subs) config.subs = subs;
-      return config;
+    const config = deepClone(entry) as GraphRegistrationConfig;
+    if (!config.id) {
+      config.id = `graph_${index}`;
     }
-    return { id: `graph_${index}`, spec: entry };
+    return config;
   }
   throw new Error("Invalid graph entry in orchestration document.");
 }

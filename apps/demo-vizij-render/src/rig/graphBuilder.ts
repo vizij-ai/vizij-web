@@ -10,7 +10,7 @@ import type { BindingMap } from "./state";
 import { createDefaultRemap } from "./state";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
-type GraphLink = NonNullable<GraphSpec["links"]>[number];
+type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
 
 interface BuildGraphOptions {
   faceId: string;
@@ -133,7 +133,7 @@ export function buildRigGraphSpec({
   bindings,
 }: BuildGraphOptions): BuildGraphResult {
   const nodes: NodeSpec[] = [];
-  const links: NonNullable<GraphSpec["links"]> = [];
+  const edges: NonNullable<GraphSpec["edges"]> = [];
   const inputNodes = new Map<
     string,
     { nodeId: string; input: StandardRigInput }
@@ -211,7 +211,7 @@ export function buildRigGraphSpec({
           out_max: binding.remap.outMax,
         },
       });
-      links.push({
+      edges.push({
         from: { node_id: inputNode.nodeId },
         to: { node_id: remapNodeId, input: "value" },
       });
@@ -262,7 +262,7 @@ export function buildRigGraphSpec({
           path: animatableId,
         },
       });
-      links.push({
+      edges.push({
         from: { node_id: valueNodeId },
         to: { node_id: outputNodeId, input: "in" },
       });
@@ -294,9 +294,9 @@ export function buildRigGraphSpec({
         });
         sourceId = constNodeId;
       }
-      links.push({
+      edges.push({
         from: { node_id: sourceId },
-        to: { node_id: joinNodeId, input: `operands_${index + 1}` },
+        to: { node_id: joinNodeId, input: `operand_${index + 1}` },
       });
     });
 
@@ -308,7 +308,7 @@ export function buildRigGraphSpec({
         path: animatableId,
       },
     });
-    links.push({
+    edges.push({
       from: { node_id: joinNodeId },
       to: { node_id: outputNodeId, input: "in" },
     });
@@ -320,31 +320,31 @@ export function buildRigGraphSpec({
   });
 
   const constantUsage = new Map<string, number>();
-  links.forEach((link: GraphLink) => {
-    const source = nodeById.get(link.from.node_id);
+  edges.forEach((edge: GraphEdge) => {
+    const source = nodeById.get(edge.from.node_id);
     if (source?.type === "constant") {
       constantUsage.set(source.id, (constantUsage.get(source.id) ?? 0) + 1);
     }
   });
 
-  const updatedLinks: NonNullable<GraphSpec["links"]> = [];
+  const updatedEdges: NonNullable<GraphSpec["edges"]> = [];
   const constantsToRemove = new Set<string>();
 
-  links.forEach((link: GraphLink) => {
-    const source = nodeById.get(link.from.node_id);
+  edges.forEach((edge: GraphEdge) => {
+    const source = nodeById.get(edge.from.node_id);
     if (
       source?.type === "constant" &&
       constantUsage.get(source.id) === 1 &&
       source.params &&
       Object.prototype.hasOwnProperty.call(source.params, "value")
     ) {
-      const target = nodeById.get(link.to.node_id);
+      const target = nodeById.get(edge.to.node_id);
       if (target) {
         const value = (source.params as { value?: unknown }).value;
         if (value !== undefined) {
           target.input_defaults = {
             ...(target.input_defaults ?? {}),
-            [link.to.input]: value,
+            [edge.to.input]: value,
           };
           nodeById.set(target.id, target);
           constantsToRemove.add(source.id);
@@ -352,7 +352,7 @@ export function buildRigGraphSpec({
         }
       }
     }
-    updatedLinks.push(link);
+    updatedEdges.push(edge);
   });
 
   const filteredNodes = nodes
@@ -366,7 +366,7 @@ export function buildRigGraphSpec({
 
   const spec: GraphSpec = {
     nodes: filteredNodes,
-    links: updatedLinks.length ? updatedLinks : undefined,
+    edges: updatedEdges.length ? updatedEdges : undefined,
   };
 
   return {

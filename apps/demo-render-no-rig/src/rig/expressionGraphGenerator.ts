@@ -77,7 +77,7 @@ function makeJoinNode(
 ): GraphNodeState {
   const inputs: Record<string, string> = {};
   sources.forEach((sourceId, index) => {
-    inputs[`operands_${index + 1}`] = sourceId;
+    inputs[`operand_${index + 1}`] = sourceId;
   });
   return {
     id,

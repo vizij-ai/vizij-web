@@ -37,7 +37,7 @@ export const slewGraphSpec: GraphSpec = {
       params: { path: slewPaths.damp },
     },
   ],
-  links: [
+  edges: [
     {
       from: { node_id: "driver_in" },
       to: { node_id: "slew_node", input: "in" },

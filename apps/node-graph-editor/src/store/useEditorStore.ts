@@ -65,6 +65,7 @@ type InputDefaultEntry = {
 };
 
 type SelectorSegmentJSON = { field: string } | { index: number };
+type CanonicalGraphEdge = NonNullable<GraphSpec["edges"]>[number];
 
 function normalizeInputDefaultEntry(entry: unknown): InputDefaultEntry | null {
   if (entry == null) {
@@ -284,7 +285,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   reset: () =>
     set(() => ({ nodes: [], edges: [], spec: null, selectedNodeId: null })),
 
-  // Canonical GraphSpec builder using explicit links and input defaults.
+  // Canonical GraphSpec builder using explicit edges and input defaults.
   nodesToSpec: (nodes, edges) => {
     const nodeMap = new Map<string, EditorNode>();
     nodes.forEach((node) => nodeMap.set(String(node.id), node));
@@ -327,7 +328,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return nodeSpec;
     });
 
-    const links: GraphSpec["links"] = [];
+    const specEdges: GraphSpec["edges"] = [];
 
     const findSelectorForEdge = (
       targetId: string,
@@ -351,19 +352,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return typeof selector === "string" ? selector : undefined;
     };
 
-    edges.forEach((edge) => {
-      if (!edge.source || !edge.target) return;
-      const fromNodeId = String(edge.source);
-      const toNodeId = String(edge.target);
-      const inputKey = String(edge.targetHandle ?? "in");
-      const outputKey = edge.sourceHandle ? String(edge.sourceHandle) : "out";
+    edges.forEach((editorEdge) => {
+      if (!editorEdge.source || !editorEdge.target) return;
+      const fromNodeId = String(editorEdge.source);
+      const toNodeId = String(editorEdge.target);
+      const inputKey = String(editorEdge.targetHandle ?? "in");
+      const outputKey = editorEdge.sourceHandle
+        ? String(editorEdge.sourceHandle)
+        : "out";
 
       const selectorText =
-        (edge.data as any)?.selector ??
+        (editorEdge.data as any)?.selector ??
         findSelectorForEdge(toNodeId, inputKey, fromNodeId, outputKey);
       const selectorSegments = parseSelectorText(selectorText);
 
-      const link: any = {
+      const specEdge: CanonicalGraphEdge = {
         from: {
           node_id: fromNodeId,
           ...(outputKey ? { output: outputKey } : {}),
@@ -372,16 +375,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           node_id: toNodeId,
           input: inputKey,
         },
-      };
+      } as CanonicalGraphEdge;
       if (selectorSegments) {
-        link.selector = selectorSegments;
+        specEdge.selector = selectorSegments;
       }
-      links!.push(link);
+      specEdges.push(specEdge);
     });
 
     const graph: GraphSpec = {
       nodes: graphNodes,
-      ...(links && links.length > 0 ? { links } : {}),
+      ...(specEdges.length > 0 ? { edges: specEdges } : {}),
     };
 
     return graph;
@@ -479,22 +482,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
     };
 
-    const graphLinks = Array.isArray((spec as any).links)
-      ? ((spec as any).links as any[])
+    const graphEdges = Array.isArray((spec as any).edges)
+      ? ((spec as any).edges as Array<{
+          from?: { node_id?: string; output?: string };
+          to?: { node_id?: string; input?: string };
+          selector?: unknown;
+        }>)
       : [];
-    if (graphLinks.length > 0) {
-      graphLinks.forEach((link) => {
-        if (!link || typeof link !== "object") return;
-        const fromNodeId = link.from?.node_id;
-        const toNodeId = link.to?.node_id;
-        const inputKey = link.to?.input ?? "in";
+    if (graphEdges.length > 0) {
+      graphEdges.forEach((edgeLike) => {
+        if (!edgeLike || typeof edgeLike !== "object") return;
+        const fromNodeId = edgeLike.from?.node_id;
+        const toNodeId = edgeLike.to?.node_id;
+        const inputKey = edgeLike.to?.input ?? "in";
         if (!fromNodeId || !toNodeId) return;
         const outputKey =
-          typeof link.from?.output === "string" && link.from.output.length > 0
-            ? link.from.output
+          typeof edgeLike.from?.output === "string" &&
+          edgeLike.from.output.length > 0
+            ? edgeLike.from.output
             : "out";
-        const selectorSegments = Array.isArray(link.selector)
-          ? (link.selector as SelectorSegmentJSON[])
+        const selectorSegments = Array.isArray(edgeLike.selector)
+          ? (edgeLike.selector as SelectorSegmentJSON[])
           : undefined;
         pushEdge(
           String(fromNodeId),

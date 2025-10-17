@@ -123,8 +123,8 @@ describe("Demo (animation-graph) init behavior with declarative seeds", () => {
 
 const typedPathPattern = /^[a-z0-9_]+:[^\s]+$/i;
 
-function ensureGraphHasCanonicalLinks(spec: GraphSpec) {
-  expect(Array.isArray(spec.links)).toBe(true);
+function ensureGraphHasCanonicalEdges(spec: GraphSpec) {
+  expect(Array.isArray(spec.edges)).toBe(true);
   spec.nodes.forEach((node: GraphSpec["nodes"][number]) => {
     if (
       node.type &&
@@ -155,18 +155,18 @@ function registerMergedGraphMock(config: {
     if (!spec || typeof spec !== "object") {
       throw new Error(`Graph entry ${index} missing spec`);
     }
-    ensureGraphHasCanonicalLinks(spec);
+    ensureGraphHasCanonicalEdges(spec);
   });
   return `merged-${config.graphs.length}`;
 }
 
 describe("Graph fixtures and orchestrator guards", () => {
-  it("ik graph fixture exposes canonical links and typed paths", () => {
-    expect(() => ensureGraphHasCanonicalLinks(ikGraphSpec)).not.toThrow();
+  it("ik graph fixture exposes canonical edges and typed paths", () => {
+    expect(() => ensureGraphHasCanonicalEdges(ikGraphSpec)).not.toThrow();
   });
 
-  it("slew graph fixture exposes canonical links and typed paths", () => {
-    expect(() => ensureGraphHasCanonicalLinks(slewGraphSpec)).not.toThrow();
+  it("slew graph fixture exposes canonical edges and typed paths", () => {
+    expect(() => ensureGraphHasCanonicalEdges(slewGraphSpec)).not.toThrow();
   });
 
   it("makeTypedPath sanitizes segments for typed path guards", () => {

@@ -52,7 +52,7 @@ export const ikGraphSpec: GraphSpec = {
       params: { path: ikPaths.ikJointOutputs[jointId] },
     })),
   ],
-  links: [
+  edges: [
     {
       from: { node_id: "joint_input" },
       to: { node_id: "fk", input: "joints" },

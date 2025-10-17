@@ -491,7 +491,7 @@ export function GraphProvider({
       const module = wasmModuleRef.current ?? wasm;
       if (!module || typeof (module as any).getNodeSchemas !== "function") {
         throw new Error(
-          "@vizij/node-graph-wasm does not expose getNodeSchemas(). Update to ^0.4.0 or newer.",
+          "@vizij/node-graph-wasm does not expose getNodeSchemas(). Update to ^0.4.1 or newer.",
         );
       }
       return await (module as any).getNodeSchemas();
