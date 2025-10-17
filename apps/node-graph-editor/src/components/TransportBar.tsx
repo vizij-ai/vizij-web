@@ -126,6 +126,16 @@ export default function TransportBar(): JSX.Element {
     }
   }, [runtime, runtimeReady]);
 
+  const buttonBase = {
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(30,41,59,0.75)",
+    color: "#e2e8f0",
+    cursor: controlsDisabled ? "not-allowed" : "pointer",
+    opacity: controlsDisabled ? 0.55 : 1,
+  } as const;
+
   return (
     <div
       style={{
@@ -133,12 +143,23 @@ export default function TransportBar(): JSX.Element {
         gap: 12,
         alignItems: "center",
         padding: 8,
-        borderBottom: "1px solid #ddd",
+        borderBottom: "1px solid rgba(148,163,184,0.25)",
+        background: "rgba(15,23,42,0.88)",
       }}
     >
       <button
         onClick={handlePlayPause}
-        style={{ padding: "6px 10px" }}
+        style={{
+          ...buttonBase,
+          background:
+            currentMode === "manual"
+              ? "rgba(96,165,250,0.35)"
+              : "rgba(248,113,113,0.28)",
+          border:
+            currentMode === "manual"
+              ? "1px solid rgba(96,165,250,0.5)"
+              : "1px solid rgba(248,113,113,0.45)",
+        }}
         disabled={controlsDisabled}
       >
         {currentMode === "manual" ? "Play" : "Pause"}
@@ -146,7 +167,11 @@ export default function TransportBar(): JSX.Element {
 
       <button
         onClick={handleStep}
-        style={{ padding: "6px 10px" }}
+        style={{
+          ...buttonBase,
+          background: "rgba(129,140,248,0.28)",
+          border: "1px solid rgba(129,140,248,0.45)",
+        }}
         disabled={controlsDisabled}
       >
         Step
@@ -154,7 +179,10 @@ export default function TransportBar(): JSX.Element {
 
       <button
         onClick={handleReset}
-        style={{ padding: "6px 10px" }}
+        style={{
+          ...buttonBase,
+          background: "rgba(248,250,252,0.08)",
+        }}
         disabled={controlsDisabled}
       >
         Reset
@@ -168,11 +196,17 @@ export default function TransportBar(): JSX.Element {
           marginLeft: 12,
         }}
       >
-        <label style={{ fontSize: 13, color: "#666" }}>Mode</label>
+        <label style={{ fontSize: 13, color: "#94a3b8" }}>Mode</label>
         <select
           value={currentMode}
           onChange={(e) => handleModeChange(e.target.value)}
-          style={{ padding: "6px 8px", borderRadius: 6 }}
+          style={{
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: "rgba(15,23,42,0.75)",
+            border: "1px solid rgba(148,163,184,0.35)",
+            color: "#e2e8f0",
+          }}
           disabled={controlsDisabled}
         >
           <option value="manual">manual</option>
@@ -191,18 +225,29 @@ export default function TransportBar(): JSX.Element {
             marginLeft: 12,
           }}
         >
-          <label style={{ fontSize: 13, color: "#666" }}>Hz</label>
+          <label style={{ fontSize: 13, color: "#94a3b8" }}>Hz</label>
           <input
             type="number"
             min={1}
             value={String(intervalHz)}
             onChange={(e) => setIntervalHz(Number(e.target.value || 60))}
-            style={{ width: 80, padding: "6px 8px", borderRadius: 6 }}
+            style={{
+              width: 80,
+              padding: "6px 8px",
+              borderRadius: 6,
+              background: "rgba(15,23,42,0.75)",
+              border: "1px solid rgba(148,163,184,0.35)",
+              color: "#e2e8f0",
+            }}
             disabled={controlsDisabled}
           />
           <button
             onClick={() => playback.start("interval", intervalHz)}
-            style={{ padding: "6px 10px" }}
+            style={{
+              ...buttonBase,
+              background: "rgba(45,212,191,0.25)",
+              border: "1px solid rgba(45,212,191,0.4)",
+            }}
             disabled={controlsDisabled}
           >
             Start Interval
@@ -218,17 +263,28 @@ export default function TransportBar(): JSX.Element {
           alignItems: "center",
         }}
       >
-        <label style={{ fontSize: 13, color: "#666" }}>Time</label>
+        <label style={{ fontSize: 13, color: "#94a3b8" }}>Time</label>
         <input
           value={timeInput}
           onChange={(e) => setTimeInput(e.target.value)}
           placeholder="seconds"
-          style={{ width: 100, padding: "6px 8px", borderRadius: 6 }}
+          style={{
+            width: 100,
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: "rgba(15,23,42,0.75)",
+            border: "1px solid rgba(148,163,184,0.35)",
+            color: "#e2e8f0",
+          }}
           disabled={controlsDisabled}
         />
         <button
           onClick={applyTime}
-          style={{ padding: "6px 10px" }}
+          style={{
+            ...buttonBase,
+            background: "rgba(165,180,252,0.28)",
+            border: "1px solid rgba(165,180,252,0.45)",
+          }}
           disabled={controlsDisabled}
         >
           Set Time & Eval
@@ -237,21 +293,32 @@ export default function TransportBar(): JSX.Element {
         {/* Debug / control buttons */}
         <button
           onClick={handleEvalNow}
-          style={{ padding: "6px 10px" }}
+          style={{
+            ...buttonBase,
+            background: "rgba(248,250,252,0.1)",
+          }}
           disabled={controlsDisabled}
         >
           Eval Now
         </button>
         <button
           onClick={handleReloadGraph}
-          style={{ padding: "6px 10px" }}
+          style={{
+            ...buttonBase,
+            background: "rgba(248,113,113,0.25)",
+            border: "1px solid rgba(248,113,113,0.45)",
+          }}
           disabled={controlsDisabled}
         >
           Reload Graph
         </button>
         <button
           onClick={handleLogSnapshot}
-          style={{ padding: "6px 10px" }}
+          style={{
+            ...buttonBase,
+            background: "rgba(192,132,252,0.25)",
+            border: "1px solid rgba(192,132,252,0.45)",
+          }}
           disabled={controlsDisabled}
         >
           Log Snapshot

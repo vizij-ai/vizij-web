@@ -1,13 +1,67 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
-  useState,
   useMemo,
+  useState,
 } from "react";
 import { init as initGraphWasm, getNodeSchemas } from "@vizij/node-graph-react";
+import type { Registry as WasmRegistry } from "@vizij/node-graph-wasm";
+import { useEditorStore } from "../store/useEditorStore";
 
-export type Registry = any;
+export type Registry = WasmRegistry;
+
+type WasmPortSpec = {
+  id?: string;
+  name?: string;
+  label?: string;
+  ty?: string;
+  type?: string;
+  doc?: string;
+  optional?: boolean;
+  direction?: string;
+  dir?: string;
+  data_type?: string;
+};
+
+type WasmVariadicSpec = {
+  id?: string;
+  label?: string;
+  ty?: string;
+  type?: string;
+  doc?: string;
+  min?: number;
+  max?: number | null;
+};
+
+type WasmParamSpec = {
+  id?: string;
+  label?: string;
+  ty?: string;
+  type?: string;
+  doc?: string;
+  default_json?: unknown;
+  default?: unknown;
+  min?: number;
+  max?: number;
+  editor_hints?: Record<string, unknown>;
+  editorHints?: Record<string, unknown>;
+  hints?: Record<string, unknown>;
+};
+
+type NodeSignature = {
+  type_id?: string;
+  id?: string;
+  name?: string;
+  category?: string;
+  doc?: string;
+  inputs?: WasmPortSpec[];
+  outputs?: WasmPortSpec[];
+  variadic_inputs?: WasmVariadicSpec | null;
+  variadic_outputs?: WasmVariadicSpec | null;
+  params?: WasmParamSpec[];
+};
 
 /**
  * Port / Param helpers used by the editor:
@@ -21,6 +75,8 @@ export type PortSpec = {
   label?: string;
   direction: "input" | "output";
   optional?: boolean;
+  doc?: string;
+  schema?: WasmPortSpec;
 };
 
 export type VariadicSpec = {
@@ -30,321 +86,333 @@ export type VariadicSpec = {
   min?: number;
   max?: number | null;
   doc?: string;
+  schema?: WasmVariadicSpec;
 };
 
 export type ParamSpec = {
   id: string;
   name: string;
   type: string;
+  doc?: string;
   default_json?: any;
+  min?: number;
+  max?: number;
   editorHints?: Record<string, any>;
+  schema?: WasmParamSpec;
+};
+
+export type NormalizedNodeSchema = {
+  signature: NodeSignature;
+  inputs: PortSpec[];
+  outputs: PortSpec[];
+  params: ParamSpec[];
+  variadicInputs: VariadicSpec | null;
+  variadicOutputs: VariadicSpec | null;
 };
 
 type RegistryState = {
   registry: Registry | null;
   loading: boolean;
   error: string | null;
-
-  // helpers
-  normalizeNodeSchema: (schema: any) => {
-    inputs: PortSpec[];
-    outputs: PortSpec[];
-    params: ParamSpec[];
-    variadicInputs?: VariadicSpec | null;
-    variadicOutputs?: VariadicSpec | null;
-  };
+  nodesByType: Map<string, NormalizedNodeSchema>;
+  normalizeNodeSchema: (
+    schema: NodeSignature | string | null | undefined,
+  ) => NormalizedNodeSchema | null;
   getPortsForType: (typeId: string) => {
     inputs: PortSpec[];
     outputs: PortSpec[];
-    variadicInputs?: VariadicSpec | null;
-    variadicOutputs?: VariadicSpec | null;
+    variadicInputs: VariadicSpec | null;
+    variadicOutputs: VariadicSpec | null;
   };
   getParamsForType: (typeId: string) => ParamSpec[];
+  getNodeSummary: (typeId: string) => {
+    name: string;
+    doc: string;
+    category: string;
+  } | null;
 };
 
 const RegistryContext = createContext<RegistryState>({
   registry: null,
   loading: true,
   error: null,
-  normalizeNodeSchema: () => ({ inputs: [], outputs: [], params: [] }),
-  getPortsForType: () => ({ inputs: [], outputs: [] }),
+  nodesByType: new Map(),
+  normalizeNodeSchema: () => null,
+  getPortsForType: () => ({
+    inputs: [],
+    outputs: [],
+    variadicInputs: null,
+    variadicOutputs: null,
+  }),
   getParamsForType: () => [],
+  getNodeSummary: () => null,
 });
 
-function normalizeNodeSchemaImpl(schema: any) {
-  // Many registry schemas differ in shape. We implement a best-effort normalizer:
-  // - inputs/outputs: look for fields `inputs` / `outputs` or `ports`
-  // - params: look for `params` array with id/name/type/default_json
-  const inputs: PortSpec[] = [];
-  const outputs: PortSpec[] = [];
-  const params: ParamSpec[] = [];
+const UNKNOWN_CATEGORY = "Uncategorized";
 
-  if (!schema || typeof schema !== "object") {
-    return {
-      inputs,
-      outputs,
-      params,
-      variadicInputs: null,
-      variadicOutputs: null,
-    };
-  }
+function normalizeTypeId(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
 
-  // Normalize params
-  if (Array.isArray(schema.params)) {
-    for (const p of schema.params) {
-      params.push({
-        id: String(p.id ?? p.name ?? ""),
-        name: String(p.name ?? p.id ?? p.id ?? ""),
-        type: String(p.ty ?? p.type ?? p.param_type ?? p.kind ?? "any"),
-        default_json: p.default_json ?? p.default ?? undefined,
-        editorHints: p.editor_hints ?? p.hints ?? undefined,
-      });
-    }
-  }
+function buildPortSpec(
+  port: WasmPortSpec,
+  direction: "input" | "output",
+): PortSpec {
+  const id = port.id != null ? String(port.id) : String(port.label ?? "");
+  const label = port.label ?? (typeof port.id === "string" ? port.id : "");
+  const type =
+    typeof port.ty === "string"
+      ? port.ty
+      : normalizeTypeId((port as Record<string, unknown>).type) || "any";
 
-  // Ports may be listed under `inputs` / `outputs` or `ports` with direction
-  if (Array.isArray(schema.inputs)) {
-    for (const pi of schema.inputs) {
-      inputs.push({
-        id: String(pi.id ?? pi.name ?? ""),
-        name: String(pi.name ?? pi.id ?? ""),
-        type: String(pi.ty ?? pi.type ?? pi.data_type ?? "any"),
-        label: pi.label ?? pi.name ?? pi.id,
-        direction: "input",
-        optional: !!pi.optional,
-      });
-    }
-  }
-  if (Array.isArray(schema.outputs)) {
-    for (const po of schema.outputs) {
-      outputs.push({
-        id: String(po.id ?? po.name ?? ""),
-        name: String(po.name ?? po.id ?? ""),
-        type: String(po.ty ?? po.type ?? po.data_type ?? "any"),
-        label: po.label ?? po.name ?? po.id,
-        direction: "output",
-      });
-    }
-  }
+  return {
+    id,
+    name: label || id,
+    label: label || undefined,
+    type,
+    direction,
+    optional: !!port.optional,
+    doc: port.doc ?? "",
+    schema: port,
+  };
+}
 
-  if (Array.isArray(schema.ports)) {
-    for (const p of schema.ports) {
-      const dir = (p.direction ?? p.dir ?? "").toString().toLowerCase();
-      const spec: PortSpec = {
-        id: String(p.id ?? p.name ?? ""),
-        name: String(p.name ?? p.id ?? ""),
-        type: String(p.ty ?? p.type ?? p.data_type ?? "any"),
-        label: p.label ?? p.name ?? p.id,
-        direction: dir === "output" ? "output" : "input",
-        optional: !!p.optional,
-      };
-      if (spec.direction === "output") outputs.push(spec);
-      else inputs.push(spec);
-    }
-  }
+function buildVariadicSpec(
+  spec?: WasmVariadicSpec | null,
+): VariadicSpec | null {
+  if (!spec) return null;
+  const type =
+    typeof spec.ty === "string"
+      ? spec.ty
+      : normalizeTypeId((spec as Record<string, unknown>).type) || "any";
 
-  // Fallback: if nothing found, attempt to derive from schema.io or schema.signature
-  if (
-    inputs.length === 0 &&
-    outputs.length === 0 &&
-    schema.io &&
-    typeof schema.io === "object"
-  ) {
-    const io = schema.io;
-    if (Array.isArray(io.inputs)) {
-      for (const pi of io.inputs) {
-        inputs.push({
-          id: String(pi.id ?? pi.name ?? ""),
-          name: String(pi.name ?? pi.id ?? ""),
-          type: String(pi.ty ?? pi.type ?? "any"),
-          label: pi.label ?? pi.name ?? pi.id,
-          direction: "input",
-          optional: !!pi.optional,
-        });
-      }
-    }
-    if (Array.isArray(io.outputs)) {
-      for (const po of io.outputs) {
-        outputs.push({
-          id: String(po.id ?? po.name ?? ""),
-          name: String(po.name ?? po.id ?? ""),
-          type: String(po.ty ?? po.type ?? "any"),
-          label: po.label ?? po.name ?? po.id,
-          direction: "output",
-        });
-      }
-    }
-  }
+  return {
+    id: String(spec.id ?? ""),
+    type,
+    label: spec.label ?? spec.id ?? "",
+    min: typeof spec.min === "number" ? spec.min : undefined,
+    max:
+      spec.max === undefined || spec.max === null
+        ? null
+        : Number.isFinite(spec.max)
+          ? spec.max
+          : null,
+    doc: spec.doc ?? "",
+    schema: spec,
+  };
+}
 
-  // ensure we include variadic specs if present on the schema
-  const variadicInputs =
-    (schema.variadic_inputs ?? schema.variadicInputs ?? null)
-      ? {
-          id: String(
-            (schema.variadic_inputs ?? schema.variadicInputs).id ?? "",
-          ),
-          type: String(
-            (schema.variadic_inputs ?? schema.variadicInputs).ty ??
-              (schema.variadic_inputs ?? schema.variadicInputs).type ??
-              "any",
-          ),
-          label: String(
-            (schema.variadic_inputs ?? schema.variadicInputs).label ?? "",
-          ),
-          min:
-            (schema.variadic_inputs ?? schema.variadicInputs).min ?? undefined,
-          max: (schema.variadic_inputs ?? schema.variadicInputs).max ?? null,
-          doc: (schema.variadic_inputs ?? schema.variadicInputs).doc ?? "",
-        }
-      : null;
+function buildParamSpec(param: WasmParamSpec): ParamSpec {
+  const type =
+    typeof param.ty === "string"
+      ? param.ty
+      : normalizeTypeId((param as Record<string, unknown>).type) || "any";
+  const editorHints =
+    (param as Record<string, unknown>).editor_hints ??
+    (param as Record<string, unknown>).hints ??
+    (param as Record<string, unknown>).editorHints;
 
-  const variadicOutputs =
-    (schema.variadic_outputs ?? schema.variadicOutputs ?? null)
-      ? {
-          id: String(
-            (schema.variadic_outputs ?? schema.variadicOutputs).id ?? "",
-          ),
-          type: String(
-            (schema.variadic_outputs ?? schema.variadicOutputs).ty ??
-              (schema.variadic_outputs ?? schema.variadicOutputs).type ??
-              "any",
-          ),
-          label: String(
-            (schema.variadic_outputs ?? schema.variadicOutputs).label ?? "",
-          ),
-          min:
-            (schema.variadic_outputs ?? schema.variadicOutputs).min ??
-            undefined,
-          max: (schema.variadic_outputs ?? schema.variadicOutputs).max ?? null,
-          doc: (schema.variadic_outputs ?? schema.variadicOutputs).doc ?? "",
-        }
-      : null;
+  return {
+    id: String(param.id ?? ""),
+    name: String(param.label ?? param.id ?? ""),
+    type,
+    doc: param.doc ?? "",
+    default_json: param.default_json,
+    min: typeof param.min === "number" ? param.min : undefined,
+    max: typeof param.max === "number" ? param.max : undefined,
+    editorHints:
+      editorHints && typeof editorHints === "object"
+        ? (editorHints as Record<string, any>)
+        : undefined,
+    schema: param,
+  };
+}
 
-  return { inputs, outputs, params, variadicInputs, variadicOutputs };
+function normalizeSignature(signature: NodeSignature): NormalizedNodeSchema {
+  const inputs = Array.isArray(signature.inputs)
+    ? signature.inputs.map((port) => buildPortSpec(port, "input"))
+    : [];
+  const outputs = Array.isArray(signature.outputs)
+    ? signature.outputs.map((port) => buildPortSpec(port, "output"))
+    : [];
+  const params = Array.isArray(signature.params)
+    ? signature.params.map(buildParamSpec)
+    : [];
+  const variadicInputs = buildVariadicSpec(signature.variadic_inputs);
+  const variadicOutputs = buildVariadicSpec(signature.variadic_outputs);
+
+  return {
+    signature,
+    inputs,
+    outputs,
+    params,
+    variadicInputs,
+    variadicOutputs,
+  };
 }
 
 export const RegistryProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
-  const [state, setState] = useState<RegistryState>({
-    registry: null,
-    loading: true,
-    error: null,
-    normalizeNodeSchema: () => ({ inputs: [], outputs: [], params: [] }),
-    getPortsForType: () => ({ inputs: [], outputs: [] }),
-    getParamsForType: () => [],
-  });
+  const [registry, setRegistry] = useState<Registry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const setVariadicPortGroups = useEditorStore((s) => s.setVariadicPortGroups);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
 
     (async () => {
       try {
-        // Ensure the wasm module is initialised before requesting schemas
         await initGraphWasm?.();
 
-        if (!mounted) return;
+        if (cancelled) return;
 
-        if (typeof getNodeSchemas === "function") {
-          const r = await getNodeSchemas();
-          if (!mounted) return;
-          setState((prev) => ({
-            ...prev,
-            registry: r,
-            loading: false,
-            error: null,
-          }));
+        if (typeof getNodeSchemas !== "function") {
+          setRegistry(null);
+          setError(
+            "@vizij/node-graph-react is missing getNodeSchemas; update the dependency to a schema-aware version.",
+          );
+          setLoading(false);
           return;
         }
 
-        setState((prev) => ({
-          ...prev,
-          registry: null,
-          loading: false,
-          error:
-            "@vizij/node-graph-react does not expose getNodeSchemas; ensure the package version includes schema exports.",
-        }));
+        const fetched = await getNodeSchemas();
+        if (cancelled) return;
+
+        setRegistry(fetched as Registry);
+        setError(null);
       } catch (err: any) {
-        if (!mounted) return;
-        setState((prev) => ({
-          ...prev,
-          registry: null,
-          loading: false,
-          error: err?.message ?? String(err),
-        }));
+        if (cancelled) return;
+        setRegistry(null);
+        setError(err?.message ?? String(err));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     })();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, []);
 
-  // memoized helpers that operate on the registry
-  const normalizeNodeSchema = useMemo(() => normalizeNodeSchemaImpl, []);
-  const getPortsForType = useMemo(
-    () => (typeId: string) => {
-      const reg = state.registry;
-      if (!reg)
-        return {
-          inputs: [],
-          outputs: [],
-          variadicInputs: null,
-          variadicOutputs: null,
-        };
-      // registry.nodes is expected to be an array of node schema entries
-      const found = Array.isArray(reg.nodes)
-        ? reg.nodes.find(
-            (n: any) =>
-              (n.type_id ?? n.id ?? "").toString().toLowerCase() ===
-              typeId.toLowerCase(),
-          )
-        : null;
-      if (!found)
-        return {
-          inputs: [],
-          outputs: [],
-          variadicInputs: null,
-          variadicOutputs: null,
-        };
-      const normalized = normalizeNodeSchemaImpl(found);
-      return {
-        inputs: normalized.inputs,
-        outputs: normalized.outputs,
-        variadicInputs: (normalized as any).variadicInputs ?? null,
-        variadicOutputs: (normalized as any).variadicOutputs ?? null,
-      };
+  const nodesByType = useMemo(() => {
+    const map = new Map<string, NormalizedNodeSchema>();
+    if (!registry?.nodes) return map;
+    for (const signature of registry.nodes as NodeSignature[]) {
+      const key =
+        normalizeTypeId((signature as Record<string, unknown>).type_id) ||
+        normalizeTypeId((signature as Record<string, unknown>).id);
+      if (!key) continue;
+      map.set(key, normalizeSignature(signature));
+    }
+    return map;
+  }, [registry]);
+
+  useEffect(() => {
+    const groups: Record<string, string | null> = {};
+    nodesByType.forEach((entry, typeId) => {
+      const canonical =
+        entry.variadicInputs && entry.variadicInputs.id
+          ? String(entry.variadicInputs.id)
+          : null;
+      groups[typeId] = canonical;
+    });
+    setVariadicPortGroups(groups);
+  }, [nodesByType, setVariadicPortGroups]);
+
+  const getNormalized = useCallback(
+    (typeId: string) => {
+      if (!typeId) return null;
+      const normalized = nodesByType.get(normalizeTypeId(typeId));
+      return normalized ?? null;
     },
-    [state.registry],
+    [nodesByType],
   );
 
-  const getParamsForType = useMemo(
-    () => (typeId: string) => {
-      const reg = state.registry;
-      if (!reg) return [];
-      const found = Array.isArray(reg.nodes)
-        ? reg.nodes.find(
-            (n: any) =>
-              (n.type_id ?? n.id ?? "").toString().toLowerCase() ===
-              typeId.toLowerCase(),
-          )
-        : null;
-      if (!found) return [];
-      const normalized = normalizeNodeSchemaImpl(found);
-      return normalized.params;
+  const normalizeNodeSchema = useCallback(
+    (schema: NodeSignature | string | null | undefined) => {
+      if (!schema) return null;
+      if (typeof schema === "string") {
+        return getNormalized(schema);
+      }
+      return normalizeSignature(schema);
     },
-    [state.registry],
+    [getNormalized],
+  );
+
+  const getPortsForType = useCallback(
+    (typeId: string) => {
+      const entry = getNormalized(typeId);
+      if (!entry) {
+        return {
+          inputs: [] as PortSpec[],
+          outputs: [] as PortSpec[],
+          variadicInputs: null,
+          variadicOutputs: null,
+        };
+      }
+      return {
+        inputs: entry.inputs,
+        outputs: entry.outputs,
+        variadicInputs: entry.variadicInputs,
+        variadicOutputs: entry.variadicOutputs,
+      };
+    },
+    [getNormalized],
+  );
+
+  const getParamsForType = useCallback(
+    (typeId: string) => {
+      const entry = getNormalized(typeId);
+      return entry ? entry.params : [];
+    },
+    [getNormalized],
+  );
+
+  const getNodeSummary = useCallback(
+    (typeId: string) => {
+      const entry = getNormalized(typeId);
+      if (!entry) return null;
+      const { signature } = entry;
+      return {
+        name: signature.name ?? String(signature.type_id ?? typeId),
+        doc: signature.doc ?? "",
+        category: signature.category ?? UNKNOWN_CATEGORY,
+      };
+    },
+    [getNormalized],
+  );
+
+  const value = useMemo<RegistryState>(
+    () => ({
+      registry,
+      loading,
+      error,
+      nodesByType,
+      normalizeNodeSchema,
+      getPortsForType,
+      getParamsForType,
+      getNodeSummary,
+    }),
+    [
+      registry,
+      loading,
+      error,
+      nodesByType,
+      normalizeNodeSchema,
+      getPortsForType,
+      getParamsForType,
+      getNodeSummary,
+    ],
   );
 
   return (
-    <RegistryContext.Provider
-      value={{
-        ...state,
-        normalizeNodeSchema,
-        getPortsForType,
-        getParamsForType,
-      }}
-    >
+    <RegistryContext.Provider value={value}>
       {children}
     </RegistryContext.Provider>
   );

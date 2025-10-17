@@ -203,7 +203,7 @@ export function buildExpressionGraph(faceId: string): GraphEditorState | null {
       weights: weightsJoinId,
     };
     targetIds.forEach((targetId, index) => {
-      blendInputs[`target_${index + 1}`] = targetId;
+      blendInputs[`operand_${index + 1}`] = targetId;
     });
 
     const blendId = sanitizeId(`${path}_default_blend`);

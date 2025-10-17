@@ -69,6 +69,15 @@ export function isConnectionCompatibleWithRegistry(
     return { ok: false, reason: "Missing source or target node" };
   }
   try {
+    const nodesSource =
+      (registry && Array.isArray(registry.nodes)
+        ? registry.nodes
+        : registry &&
+            registry.registry &&
+            Array.isArray(registry.registry.nodes)
+          ? registry.registry.nodes
+          : []) ?? [];
+
     // Try to use registry.getPortsForType if available
     const typeForSource = (sourceNode.type ?? "").toString().toLowerCase();
     const typeForTarget = (targetNode.type ?? "").toString().toLowerCase();
@@ -76,16 +85,14 @@ export function isConnectionCompatibleWithRegistry(
     let srcPortType: string | null = null;
     let tgtPortType: string | null = null;
 
-    if (registry && typeof registry.nodes !== "undefined") {
+    if (nodesSource.length > 0) {
       // Prefer provider helper shape if provided under registry.nodes
       const findNodeSchema = (typeId: string) =>
-        Array.isArray(registry.nodes)
-          ? registry.nodes.find(
-              (n: any) =>
-                (n.type_id ?? n.id ?? "").toString().toLowerCase() ===
-                typeId.toLowerCase(),
-            )
-          : null;
+        nodesSource.find(
+          (n: any) =>
+            (n.type_id ?? n.id ?? "").toString().toLowerCase() ===
+            typeId.toLowerCase(),
+        );
 
       if (typeof (registry as any).getPortsForType === "function") {
         const srcPorts = (registry as any).getPortsForType(typeForSource);
@@ -151,9 +158,9 @@ export function isConnectionCompatibleWithRegistry(
 
     // If types differ, provide suggestion stubs: attempt to find simple converter nodes in registry
     const suggestions: Suggestion[] = [];
-    if (registry && Array.isArray(registry.nodes)) {
+    if (nodesSource.length > 0) {
       // Look for nodes that have single input of finalSrcType and single output of finalTgtType
-      for (const n of registry.nodes) {
+      for (const n of nodesSource) {
         const norm = (function (s: any) {
           const inputs: any[] = Array.isArray(s.inputs)
             ? s.inputs

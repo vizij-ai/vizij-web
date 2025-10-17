@@ -7,33 +7,377 @@ import ReactFlow, {
   ReactFlowProvider,
   applyEdgeChanges,
   applyNodeChanges,
-  Edge,
-  Node,
   Connection,
-  NodeChange,
+  Edge,
   EdgeChange,
-  ReactFlowInstance,
   Handle,
+  Node,
+  NodeChange,
   Position,
+  ReactFlowInstance,
+  useUpdateNodeInternals,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { useEditorStore } from "../store/useEditorStore";
-import { isConnectionCompatible } from "../utils/connectionUtils";
+
+import { useEditorStore, parseVariadicPortId } from "../store/useEditorStore";
+import {
+  isConnectionCompatible,
+  isConnectionCompatibleWithRegistry,
+} from "../utils/connectionUtils";
 import { useRegistry } from "../contexts/RegistryProvider";
 
-//
-// Cache of simple node renderers to ensure stable component identity across renders.
-// React Flow warns if nodeTypes object or its component identities change frequently.
-// We keep renderers in a module-level cache and reuse them for consistent identity.
-//
-const simpleNodeCache: Record<string, React.ComponentType<any>> = {};
+const simpleNodeCache: Record<string, React.FC<{ id: string; data: any }>> = {};
 
-/**
- * EditorCanvas
- * - Renders a React Flow surface bound to useEditorStore
- * - Handles node/edge changes and onConnect
- * - Supports dropping node types from the palette (application/reactflow)
- */
+const formatVariadicHandleId = (groupId: string, index: number): string =>
+  `${groupId}_${index}`;
+
+const buildVariadicEntries = (
+  spec: { id?: string | number; min?: number | null; max?: number | null },
+  inputMappings: any[],
+) => {
+  const groupId = spec?.id != null ? String(spec.id) : "";
+  if (!groupId) return [];
+
+  const entriesByIndex = new Map<number, any>();
+  let cursor = 0;
+
+  const claimIndex = (candidate: number | null | undefined) => {
+    let idx =
+      candidate != null && Number.isFinite(candidate) ? Number(candidate) : -1;
+    if (idx < 0 || entriesByIndex.has(idx)) {
+      idx = Math.max(0, cursor);
+      while (entriesByIndex.has(idx)) {
+        idx += 1;
+      }
+    }
+    cursor = Math.max(cursor, idx + 1);
+    return idx;
+  };
+
+  inputMappings.forEach((entry) => {
+    const portId = String(entry?.portId ?? "");
+    const baseId = String(entry?.basePortId ?? portId);
+    const parsed = parseVariadicPortId(portId);
+    if (
+      baseId === groupId ||
+      (parsed?.groupId === groupId && Number.isFinite(parsed?.index))
+    ) {
+      const index = claimIndex(parsed?.index ?? null);
+      if (!entriesByIndex.has(index)) {
+        entriesByIndex.set(index, entry);
+      }
+    }
+  });
+
+  const existingCount = entriesByIndex.size;
+  const highestIndex =
+    existingCount > 0 ? Math.max(...entriesByIndex.keys()) : -1;
+  const minRequired = Math.max(0, Number(spec?.min ?? 0));
+  const maxAllowed =
+    spec?.max != null && Number.isFinite(spec.max)
+      ? Math.max(0, Number(spec.max))
+      : null;
+
+  let desiredCount = Math.max(minRequired, existingCount, highestIndex + 1);
+  if (desiredCount === 0) desiredCount = 1;
+
+  if (maxAllowed == null) {
+    desiredCount = Math.max(desiredCount, existingCount + 1);
+  } else {
+    desiredCount = Math.min(desiredCount, maxAllowed);
+    if (existingCount < maxAllowed) {
+      desiredCount = Math.min(
+        Math.max(desiredCount, existingCount + 1),
+        maxAllowed,
+      );
+    }
+  }
+
+  const entries: any[] = [];
+  for (let idx = 0; idx < desiredCount; idx += 1) {
+    const existing = entriesByIndex.get(idx);
+    if (existing) {
+      entries.push(existing);
+    } else {
+      entries.push({
+        portId: formatVariadicHandleId(groupId, idx),
+        basePortId: groupId,
+        sourceNodeId: null,
+        sourceOutputKey: null,
+        selector: null,
+      });
+    }
+  }
+
+  return entries;
+};
+
+const compareInputHandles = (a: any, b: any): number => {
+  const portA = String(a?.portId ?? "");
+  const portB = String(b?.portId ?? "");
+  const parsedA = parseVariadicPortId(portA);
+  const parsedB = parseVariadicPortId(portB);
+  if (parsedA && parsedB) {
+    if (parsedA.groupId === parsedB.groupId) {
+      return parsedA.index - parsedB.index;
+    }
+    return parsedA.groupId.localeCompare(parsedB.groupId);
+  }
+  if (parsedA && !parsedB) return 1;
+  if (!parsedA && parsedB) return -1;
+  return portA.localeCompare(portB);
+};
+
+const createNodeRenderer = (
+  typeId: string,
+  schema: any,
+  getPortsForType?: (typeId: string) => any,
+) => {
+  if (simpleNodeCache[typeId]) {
+    return simpleNodeCache[typeId];
+  }
+
+  const ports =
+    typeof getPortsForType === "function"
+      ? getPortsForType(typeId)
+      : {
+          inputs: schema.inputs ?? [],
+          outputs: schema.outputs ?? [],
+          variadicInputs: schema.variadicInputs ?? null,
+          variadicOutputs: schema.variadicOutputs ?? null,
+        };
+
+  const SimpleNode: React.FC<{ id: string; data: any }> = ({ id, data }) => {
+    const updateNodeInternals = useUpdateNodeInternals();
+    const defaults = (data?.input_defaults as Record<string, any>) ?? {};
+    const inputMappings: any[] = Array.isArray(data?.inputs) ? data.inputs : [];
+
+    const findMapping = (portId: string) =>
+      inputMappings.find((entry) => {
+        const candidatePort = String(entry.portId ?? "");
+        const candidateBase = String(entry.basePortId ?? candidatePort);
+        const target = String(portId);
+        return candidatePort === target || candidateBase === target;
+      });
+
+    const variadicEntries =
+      ports.variadicInputs && ports.variadicInputs.id
+        ? buildVariadicEntries(ports.variadicInputs, inputMappings)
+        : [];
+
+    React.useEffect(() => {
+      updateNodeInternals(id);
+    }, [id, updateNodeInternals, variadicEntries.length]);
+
+    const renderInputLabel = (
+      label: string,
+      portId: string,
+      basePortId: string,
+      optional?: boolean,
+      selector?: string | null,
+    ) => {
+      const hasDefault =
+        defaults &&
+        (defaults[portId] !== undefined || defaults[basePortId] !== undefined);
+      return (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 11,
+              color: "#e2e8f0",
+            }}
+          >
+            <span>{label}</span>
+            {optional ? (
+              <span
+                style={{
+                  fontSize: 9,
+                  color: "#38bdf8",
+                  background: "rgba(56,189,248,0.2)",
+                  padding: "2px 4px",
+                  borderRadius: 999,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                }}
+              >
+                opt
+              </span>
+            ) : null}
+            {hasDefault ? (
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#f97316",
+                  display: "inline-block",
+                }}
+                title="Default value applied when unlinked"
+              />
+            ) : null}
+          </div>
+          {selector ? (
+            <div
+              style={{
+                fontSize: 10,
+                color: "#94a3b8",
+                marginTop: 2,
+              }}
+            >
+              sel: {selector}
+            </div>
+          ) : null}
+        </div>
+      );
+    };
+
+    return (
+      <div
+        style={{
+          position: "relative",
+          padding: 12,
+          border: "1px solid rgba(148, 163, 184, 0.3)",
+          borderRadius: 10,
+          background: "linear-gradient(135deg,#1e293b,#111827)",
+          color: "#f8fafc",
+          minWidth: 200,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>
+            {data?.label ??
+              schema.signature?.name ??
+              schema.signature?.type_id ??
+              typeId}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+            {schema.signature?.doc || typeId}
+          </div>
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            left: -16,
+            top: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {ports.inputs.map((p: any) => {
+            const mapping = findMapping(p.id);
+            return (
+              <div
+                key={p.id}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <Handle
+                  id={p.id}
+                  type="target"
+                  position={Position.Left}
+                  style={{
+                    background: "#475569",
+                    width: 10,
+                    height: 10,
+                    border: "1px solid #38bdf8",
+                  }}
+                  data-type={p.type}
+                />
+                {renderInputLabel(
+                  p.label ?? p.name,
+                  p.id,
+                  p.id,
+                  p.optional,
+                  mapping?.selector ?? null,
+                )}
+              </div>
+            );
+          })}
+          {ports.variadicInputs
+            ? variadicEntries.map((entry: any, idx: number) => {
+                const portId = String(entry.portId ?? "");
+                const mapping = findMapping(portId);
+                const label = `${
+                  ports.variadicInputs?.label ??
+                  ports.variadicInputs?.id ??
+                  "item"
+                } ${idx + 1}`;
+                return (
+                  <div
+                    key={portId}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <Handle
+                      id={portId}
+                      type="target"
+                      position={Position.Left}
+                      style={{
+                        background: "#475569",
+                        width: 10,
+                        height: 10,
+                        border: "1px solid #f97316",
+                      }}
+                      data-type={ports.variadicInputs?.type ?? "any"}
+                    />
+                    {renderInputLabel(
+                      label,
+                      portId,
+                      String(
+                        entry.basePortId ?? ports.variadicInputs?.id ?? portId,
+                      ),
+                      false,
+                      mapping?.selector ?? null,
+                    )}
+                  </div>
+                );
+              })
+            : null}
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            right: -16,
+            top: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {ports.outputs.map((p: any) => (
+            <div
+              key={p.id}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                {p.label ?? p.name}
+              </div>
+              <Handle
+                id={p.id}
+                type="source"
+                position={Position.Right}
+                style={{
+                  background: "#34d399",
+                  width: 10,
+                  height: 10,
+                  border: "1px solid rgba(15,118,110,0.6)",
+                }}
+                data-type={p.type}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  simpleNodeCache[typeId] = SimpleNode;
+  return SimpleNode;
+};
 
 export default function EditorCanvas(): JSX.Element {
   const nodes = useEditorStore((s) => s.nodes);
@@ -44,118 +388,68 @@ export default function EditorCanvas(): JSX.Element {
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  const { registry, getPortsForType } = useRegistry();
+  const registryState = useRegistry();
+  const { nodesByType, getPortsForType } = registryState;
+
+  const registryEntries = useMemo(
+    () => Array.from(nodesByType?.entries?.() ?? []),
+    [nodesByType],
+  );
 
   const nodeTypes = useMemo(() => {
-    // Build nodeTypes by reusing cached renderer components so identities stay stable.
     const types: Record<string, React.ComponentType<any>> = {};
-    if (registry && Array.isArray(registry.nodes)) {
-      for (const n of registry.nodes) {
-        const rawTypeId = n.type_id ?? n.id ?? "";
-        const typeId = String(rawTypeId).toLowerCase();
-        if (!typeId) continue;
-
-        if (!simpleNodeCache[typeId]) {
-          // Precompute ports for this type so the renderer can be a plain component (no hooks inside)
-          const ports =
-            typeof getPortsForType === "function" && typeId
-              ? getPortsForType(typeId)
-              : { inputs: [], outputs: [] };
-
-          // Create and cache a renderer that renders handles for each input/output port.
-          simpleNodeCache[typeId] = ({ data }: any) => {
-            return (
-              <div
-                style={{
-                  position: "relative",
-                  padding: 8,
-                  border: "1px solid #444",
-                  borderRadius: 6,
-                  background: "#222",
-                  color: "#fff",
-                  minWidth: 160,
-                }}
-              >
-                {/* left-side input handles */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: -12,
-                    top: 8,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6,
-                  }}
-                >
-                  {ports.inputs.map((p) => (
-                    <div
-                      key={p.id}
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <Handle
-                        id={p.id}
-                        type="target"
-                        position={Position.Left}
-                        style={{ background: "#555", width: 10, height: 10 }}
-                        data-type={p.type}
-                      />
-                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                        {p.label ?? p.name}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* node core content */}
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 700 }}>
-                    {data?.label ?? n.name ?? typeId}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 4 }}>
-                    {typeId}
-                  </div>
-                </div>
-
-                {/* right-side output handles */}
-                <div
-                  style={{
-                    position: "absolute",
-                    right: -12,
-                    top: 8,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6,
-                  }}
-                >
-                  {ports.outputs.map((p) => (
-                    <div
-                      key={p.id}
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                        {p.label ?? p.name}
-                      </div>
-                      <Handle
-                        id={p.id}
-                        type="source"
-                        position={Position.Right}
-                        style={{ background: "#4ade80", width: 10, height: 10 }}
-                        data-type={p.type}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          };
-        }
-        types[typeId] = simpleNodeCache[typeId];
-      }
+    for (const [typeId, schema] of registryEntries) {
+      if (!typeId) continue;
+      types[typeId] = createNodeRenderer(typeId, schema, getPortsForType);
     }
-    // Depend on registry.nodes.length so we only rebuild when node set changes size.
     return types;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO: evaluate dependency need here
-  }, [registry?.nodes?.length, getPortsForType]);
+  }, [registryEntries, getPortsForType]);
+
+  const upsertTargetHandleMapping = useCallback(
+    (connection: Connection) => {
+      if (!connection.target) return;
+      const targetId = String(connection.target);
+      const handleId = connection.targetHandle
+        ? String(connection.targetHandle)
+        : null;
+      const sourceId = connection.source ? String(connection.source) : null;
+      const sourceHandle = connection.sourceHandle
+        ? String(connection.sourceHandle)
+        : "out";
+      if (!handleId) return;
+
+      const basePortId = parseVariadicPortId(handleId)?.groupId ?? handleId;
+
+      setNodes((prev) =>
+        prev.map((node) => {
+          if (String(node.id) !== targetId) return node;
+          const data = { ...(node.data || {}) };
+          const inputs = Array.isArray(data.inputs)
+            ? [...(data.inputs as any[])]
+            : [];
+          const existingIdx = inputs.findIndex(
+            (entry) => String(entry?.portId ?? "") === handleId,
+          );
+          const nextEntry = {
+            portId: handleId,
+            basePortId,
+            sourceNodeId: sourceId,
+            sourceOutputKey: sourceHandle,
+            selector: null,
+          };
+          if (existingIdx >= 0) {
+            inputs[existingIdx] = nextEntry;
+          } else {
+            inputs.push(nextEntry);
+          }
+          inputs.sort(compareInputHandles);
+          data.inputs = inputs;
+          return { ...node, data };
+        }),
+      );
+    },
+    [setNodes],
+  );
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -177,35 +471,44 @@ export default function EditorCanvas(): JSX.Element {
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      // Validate connection compatibility using simple schema-aware helper.
       const sourceId = String(connection.source);
       const targetId = String(connection.target);
       const sourceNode = nodes.find((n) => n.id === sourceId);
       const targetNode = nodes.find((n) => n.id === targetId);
 
-      const validation = isConnectionCompatible(
-        sourceNode,
-        targetNode,
-        connection.sourceHandle ?? null,
-        connection.targetHandle ?? null,
-      );
+      const validation =
+        registryState && (registryState as any)
+          ? isConnectionCompatibleWithRegistry(
+              registryState,
+              sourceNode,
+              targetNode,
+              connection.sourceHandle ?? null,
+              connection.targetHandle ?? null,
+            )
+          : isConnectionCompatible(
+              sourceNode,
+              targetNode,
+              connection.sourceHandle ?? null,
+              connection.targetHandle ?? null,
+            );
+
       if (!validation.ok) {
-        // Block the connection and surface the reason via the ConnectionsAssistant UI when available.
         try {
           (window as any).__vizijConnectionsAssistant?.show(
             validation.reason ?? "Incompatible connection",
             [],
           );
-        } catch (e) {
-          // fallback to console if the assistant API isn't present
-          console.warn("Blocked connection:", validation.reason, e);
+        } catch {
+          // fall back to console without crashing
+          console.warn("Blocked connection:", validation.reason);
         }
         return;
       }
 
-      const id = `e_${connection.source}_${connection.sourceHandle ?? "out"}_${connection.target}_${connection.targetHandle ?? "in"}_${Date.now()}`;
+      upsertTargetHandleMapping(connection);
+
       const newEdge: Edge = {
-        id,
+        id: `e_${connection.source}_${connection.sourceHandle ?? "out"}_${connection.target}_${connection.targetHandle ?? "in"}_${Date.now()}`,
         source: sourceId,
         target: targetId,
         sourceHandle: connection.sourceHandle ?? undefined,
@@ -214,55 +517,36 @@ export default function EditorCanvas(): JSX.Element {
       };
       setEdges((prev) => addEdge(newEdge, prev as Edge[]) as any);
     },
-    [setEdges, nodes],
+    [nodes, registryState, setEdges, upsertTargetHandleMapping],
   );
 
-  // selection helpers for Inspector
   const setSelected = useEditorStore((s) => s.setSelected);
+
   const onNodeClick = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      // Select clicked node. Let React Flow manage its own selection UI to avoid
-      // mutating nodes and inadvertently recomputing/spec reloading.
+    (_event: React.MouseEvent, node: Node) => {
       setSelected(node.id);
     },
     [setSelected],
   );
-  const onPaneClick = useCallback(
-    (_event?: React.MouseEvent) => {
-      // Deselect when clicking on empty canvas
-      setSelected(null);
-    },
-    [setSelected],
-  );
 
-  // handle initialization of react-flow instance
-  const onInit = useCallback((instance: ReactFlowInstance) => {
-    setRfInstance(instance);
-  }, []);
+  const onPaneClick = useCallback(() => {
+    setSelected(null);
+  }, [setSelected]);
 
-  // Keep React Flow selection and Inspector selection in sync by listening
-  // to React Flow's selection change. Some custom node renderers stop click
-  // propagation, so relying on onNodeClick alone can miss selections.
   const onSelectionChange = useCallback(
     (selection: { nodes?: Node[]; edges?: Edge[] }) => {
-      // Debug: log selection changes coming from React Flow
-      console.debug("[EditorCanvas] onSelectionChange", {
-        nodes: selection?.nodes?.map((n) => n.id),
-        edges: selection?.edges?.map((e) => e.id),
-      });
-
-      const selNode =
+      const selectedNode =
         selection?.nodes && selection.nodes.length > 0
           ? selection.nodes[0]
           : null;
-      if (selNode) {
-        setSelected(String(selNode.id));
-      } else {
-        setSelected(null);
-      }
+      setSelected(selectedNode ? String(selectedNode.id) : null);
     },
     [setSelected],
   );
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    setRfInstance(instance);
+  }, []);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -277,24 +561,22 @@ export default function EditorCanvas(): JSX.Element {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
-      // Prefer the newer screenToFlowPosition API if available.
       const position = rfInstance.screenToFlowPosition
         ? rfInstance.screenToFlowPosition({
             x: event.clientX,
             y: event.clientY,
           })
-        : // fallback: compute relative to wrapper and use project if present
-          (() => {
+        : (() => {
             const bounds = reactFlowWrapper.current!.getBoundingClientRect();
             const x = event.clientX - bounds.left;
             const y = event.clientY - bounds.top;
             return rfInstance.project ? rfInstance.project({ x, y }) : { x, y };
           })();
 
-      const id = `node_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const id = `node_${Date.now()}_${Math.floor(Math.random() * 1_000)}`;
       const newNode: Node = {
         id,
-        type, // node type id (will match registry type ids)
+        type,
         position,
         data: { label: type },
       };

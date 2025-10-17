@@ -42,6 +42,8 @@ type EditorState = {
       | null,
   ) => void;
   reset: () => void;
+  variadicPortGroups: VariadicPortGroups;
+  setVariadicPortGroups: (groups: VariadicPortGroups) => void;
   // converters (placeholders)
   nodesToSpec: (nodes: EditorNode[], edges: EditorEdge[]) => GraphSpec;
   specToNodes: (spec: GraphSpec) => {
@@ -63,6 +65,72 @@ type InputDefaultEntry = {
   value: InputDefaultValue;
   shape?: Record<string, any> | null;
 };
+
+type VariadicPortGroups = Record<string, string | null>;
+
+const VARIADIC_DELIM = "_";
+const CANONICAL_VARIADIC_REGEX = /^(.*)_([0-9]+)$/;
+const LEGACY_VARIADIC_REGEX = /^(.*)::([0-9]+)$/;
+
+function formatVariadicPortId(groupId: string, index: number): string {
+  return `${groupId}${VARIADIC_DELIM}${index}`;
+}
+
+export function parseVariadicPortId(
+  portId: string,
+): { groupId: string; index: number } | null {
+  if (typeof portId !== "string") return null;
+  const canonicalMatch = portId.match(CANONICAL_VARIADIC_REGEX);
+  if (canonicalMatch) {
+    const index = Number(canonicalMatch[2]);
+    if (Number.isFinite(index)) {
+      return { groupId: canonicalMatch[1], index };
+    }
+  }
+  const legacyMatch = portId.match(LEGACY_VARIADIC_REGEX);
+  if (legacyMatch) {
+    const index = Number(legacyMatch[2]);
+    if (Number.isFinite(index)) {
+      return { groupId: legacyMatch[1], index };
+    }
+  }
+  return null;
+}
+
+function deriveVariadicIds(
+  nodeId: string,
+  rawPortId: string,
+  edgeCounts: Record<string, number>,
+  edgeIndices: Record<string, number>,
+): { portId: string; basePortId: string } {
+  const canonical = rawPortId.match(CANONICAL_VARIADIC_REGEX);
+  if (canonical) {
+    const baseId = canonical[1];
+    const index = Number(canonical[2]);
+    if (Number.isFinite(index)) {
+      const key = `${nodeId}${VARIADIC_DELIM}${baseId}`;
+      edgeIndices[key] = Math.max(edgeIndices[key] ?? -1, index);
+      return {
+        portId: formatVariadicPortId(baseId, index),
+        basePortId: baseId,
+      };
+    }
+  }
+  const legacy = rawPortId.match(LEGACY_VARIADIC_REGEX);
+  if (legacy) {
+    const baseId = legacy[1];
+    const index = Number(legacy[2]);
+    if (Number.isFinite(index)) {
+      const key = `${nodeId}${VARIADIC_DELIM}${baseId}`;
+      edgeIndices[key] = Math.max(edgeIndices[key] ?? -1, index);
+      return {
+        portId: formatVariadicPortId(baseId, index),
+        basePortId: baseId,
+      };
+    }
+  }
+  return { portId: rawPortId, basePortId: rawPortId };
+}
 
 type SelectorSegmentJSON = { field: string } | { index: number };
 type CanonicalGraphEdge = NonNullable<GraphSpec["edges"]>[number];
@@ -193,6 +261,27 @@ function formatSelectorText(
   return result;
 }
 
+function compareInputEntries(a: any, b: any): number {
+  const portA = String(a?.portId ?? "");
+  const portB = String(b?.portId ?? "");
+  const baseA = String(a?.basePortId ?? portA);
+  const baseB = String(b?.basePortId ?? portB);
+  const parsedA = parseVariadicPortId(portA);
+  const parsedB = parseVariadicPortId(portB);
+
+  if (parsedA && parsedB) {
+    if (parsedA.groupId === parsedB.groupId) {
+      return parsedA.index - parsedB.index;
+    }
+    return parsedA.groupId.localeCompare(parsedB.groupId);
+  }
+  if (parsedA && !parsedB) return 1;
+  if (!parsedA && parsedB) return -1;
+  const baseCompare = baseA.localeCompare(baseB);
+  if (baseCompare !== 0) return baseCompare;
+  return portA.localeCompare(portB);
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -284,6 +373,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   reset: () =>
     set(() => ({ nodes: [], edges: [], spec: null, selectedNodeId: null })),
+  variadicPortGroups: {},
+  setVariadicPortGroups: (groups) =>
+    set((state) => {
+      const current = state.variadicPortGroups ?? {};
+      const next: VariadicPortGroups = { ...groups };
+      const allKeys = new Set([...Object.keys(current), ...Object.keys(next)]);
+      let changed = false;
+      for (const key of allKeys) {
+        if ((current[key] ?? null) !== (next[key] ?? null)) {
+          changed = true;
+          break;
+        }
+      }
+      if (!changed) {
+        return {};
+      }
+      return {
+        variadicPortGroups: next,
+      };
+    }),
 
   // Canonical GraphSpec builder using explicit edges and input defaults.
   nodesToSpec: (nodes, edges) => {
@@ -332,7 +441,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const findSelectorForEdge = (
       targetId: string,
-      inputId: string,
+      handleId: string,
       sourceId: string,
       outputKey: string,
     ): string | undefined => {
@@ -343,26 +452,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         : [];
       const match = inputsArray.find((entry) => {
         if (!entry || typeof entry !== "object") return false;
-        const portId = String(entry.portId ?? "");
+        const candidatePort = String(entry.portId ?? "");
+        const candidateBase = String(entry.basePortId ?? candidatePort);
         const srcId = String(entry.sourceNodeId ?? "");
         const srcOut = String(entry.sourceOutputKey ?? "out");
-        return portId === inputId && srcId === sourceId && srcOut === outputKey;
+        return (
+          (candidatePort === handleId || candidateBase === handleId) &&
+          srcId === sourceId &&
+          srcOut === outputKey
+        );
       });
       const selector = match?.selector;
       return typeof selector === "string" ? selector : undefined;
     };
 
-    edges.forEach((editorEdge) => {
-      if (!editorEdge.source || !editorEdge.target) return;
-      const fromNodeId = String(editorEdge.source);
-      const toNodeId = String(editorEdge.target);
-      const inputKey = String(editorEdge.targetHandle ?? "in");
-      const outputKey = editorEdge.sourceHandle
-        ? String(editorEdge.sourceHandle)
-        : "out";
+    edges.forEach((edge) => {
+      if (!edge.source || !edge.target) return;
+      const fromNodeId = String(edge.source);
+      const toNodeId = String(edge.target);
+      const inputKey = String(edge.targetHandle ?? "in");
+      const outputKey = edge.sourceHandle ? String(edge.sourceHandle) : "out";
 
       const selectorText =
-        (editorEdge.data as any)?.selector ??
+        (edge.data as any)?.selector ??
         findSelectorForEdge(toNodeId, inputKey, fromNodeId, outputKey);
       const selectorSegments = parseSelectorText(selectorText);
 
@@ -379,7 +491,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (selectorSegments) {
         specEdge.selector = selectorSegments;
       }
-      specEdges.push(specEdge);
+      specEdges!.push(specEdge);
     });
 
     const graph: GraphSpec = {
@@ -399,6 +511,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const nodes: EditorNode[] = nodeSpecs.map((ns) => {
       const data: Record<string, any> = {};
+      const rawType =
+        (ns as any).type ??
+        (ns as any).kind ??
+        (typeof (ns as any).type === "string"
+          ? (ns as any).type
+          : (ns as any).kind);
+      const normalizedType = String(rawType ?? "").toLowerCase();
+
       if (ns.params && typeof ns.params === "object") {
         data.params = { ...ns.params };
         if (typeof data.params.path === "string") {
@@ -427,9 +547,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }
       data.inputs = [];
+      if (rawType && typeof rawType === "string") {
+        data.originalType = rawType;
+      }
+
       return {
         id: String(ns.id),
-        type: String(ns.type),
+        type: normalizedType || "",
         position: { x: 0, y: 0 },
         data,
       } as EditorNode;
@@ -438,11 +562,101 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const nodeMap = new Map<string, EditorNode>();
     nodes.forEach((node) => nodeMap.set(node.id, node));
 
+    const variadicGroupsByType = get().variadicPortGroups ?? {};
+    const canonicalGroupByNodeId = new Map<string, string | null>();
+    nodes.forEach((node) => {
+      const typeKey = String(node.type ?? "").toLowerCase();
+      const canonical = variadicGroupsByType[typeKey] ?? null;
+      canonicalGroupByNodeId.set(node.id, canonical ?? null);
+    });
+    const variadicAliasesByNode = new Map<string, Set<string>>();
+    const variadicIndexTracker = new Map<string, number>();
+
+    const getVariadicInfo = (value: string | null | undefined) => {
+      if (!value) return null;
+      const parsed = parseVariadicPortId(String(value));
+      if (parsed) {
+        return {
+          alias: parsed.groupId,
+          index: Number.isFinite(parsed.index) ? parsed.index : null,
+        };
+      }
+      return null;
+    };
+
+    const canonicalizeVariadicIds = (
+      targetId: string,
+      rawInputId: string,
+      current: { portId: string; basePortId: string },
+    ): { portId: string; basePortId: string } => {
+      const { portId, basePortId } = current;
+      const canonicalGroup = canonicalGroupByNodeId.get(targetId) ?? null;
+      if (!canonicalGroup) {
+        return { portId, basePortId };
+      }
+
+      let aliasSet = variadicAliasesByNode.get(targetId);
+      if (!aliasSet) {
+        aliasSet = new Set<string>();
+        aliasSet.add(canonicalGroup);
+        variadicAliasesByNode.set(targetId, aliasSet);
+      }
+
+      const infoFromInput = getVariadicInfo(rawInputId);
+      const infoFromPort = getVariadicInfo(portId);
+      let aliasCandidate =
+        infoFromInput?.alias ??
+        infoFromPort?.alias ??
+        (basePortId ? String(basePortId) : null);
+
+      if (!aliasCandidate && canonicalGroup === rawInputId) {
+        aliasCandidate = canonicalGroup;
+      }
+
+      let treatAsVariadic = false;
+
+      if (aliasCandidate === canonicalGroup) {
+        treatAsVariadic = true;
+      } else if (aliasCandidate && aliasSet.has(aliasCandidate)) {
+        treatAsVariadic = true;
+      } else if (
+        aliasCandidate &&
+        (infoFromInput != null || infoFromPort != null)
+      ) {
+        aliasSet.add(aliasCandidate);
+        treatAsVariadic = true;
+      } else if (
+        !aliasCandidate &&
+        (basePortId === canonicalGroup || rawInputId === canonicalGroup)
+      ) {
+        aliasCandidate = canonicalGroup;
+        treatAsVariadic = true;
+      }
+
+      if (!treatAsVariadic) {
+        return { portId, basePortId };
+      }
+
+      if (aliasCandidate) {
+        aliasSet.add(aliasCandidate);
+      }
+
+      const trackerKey = `${targetId}${VARIADIC_DELIM}${canonicalGroup}`;
+      const resolvedIndex = variadicIndexTracker.get(trackerKey) ?? 0;
+      variadicIndexTracker.set(trackerKey, resolvedIndex + 1);
+
+      return {
+        portId: formatVariadicPortId(canonicalGroup, resolvedIndex),
+        basePortId: canonicalGroup,
+      };
+    };
+
     const edges: EditorEdge[] = [];
     const registerInput = (
       targetId: string,
       entry: {
         portId: string;
+        basePortId: string;
         sourceNodeId?: string | null;
         sourceOutputKey?: string | null;
         selector?: string | null;
@@ -454,6 +668,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? (node.data.inputs as any[])
         : [];
       current.push(entry);
+      current.sort(compareInputEntries);
       node.data.inputs = current;
     };
 
@@ -461,54 +676,111 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       sourceId: string,
       outputKey: string,
       targetId: string,
-      inputKey: string,
+      portId: string,
+      basePortId: string,
       selectorSegments?: SelectorSegmentJSON[],
     ) => {
       const selectorText = formatSelectorText(selectorSegments);
       const edge: EditorEdge = {
-        id: `e_${sourceId}_${outputKey}_${targetId}_${inputKey}_${edges.length}`,
+        id: `e_${sourceId}_${outputKey}_${targetId}_${portId}_${edges.length}`,
         source: sourceId,
         target: targetId,
         sourceHandle: outputKey !== "out" ? outputKey : undefined,
-        targetHandle: inputKey,
+        targetHandle: portId,
         data: selectorText ? { selector: selectorText } : undefined,
       } as EditorEdge;
       edges.push(edge);
       registerInput(targetId, {
-        portId: inputKey,
+        portId,
+        basePortId,
         sourceNodeId: sourceId,
         sourceOutputKey: outputKey,
         selector: selectorText || null,
       });
     };
 
+    const edgeCounts: Record<string, number> = {};
+    const edgeIndices: Record<string, number> = {};
+
     const graphEdges = Array.isArray((spec as any).edges)
-      ? ((spec as any).edges as Array<{
-          from?: { node_id?: string; output?: string };
-          to?: { node_id?: string; input?: string };
-          selector?: unknown;
-        }>)
+      ? ((spec as any).edges as any[])
       : [];
     if (graphEdges.length > 0) {
       graphEdges.forEach((edgeLike) => {
         if (!edgeLike || typeof edgeLike !== "object") return;
-        const fromNodeId = edgeLike.from?.node_id;
+        // const fromNodeId = edgeLike.from?.node_id;
         const toNodeId = edgeLike.to?.node_id;
         const inputKey = edgeLike.to?.input ?? "in";
+        const key = `${toNodeId}${VARIADIC_DELIM}${inputKey}`;
+        edgeCounts[key] = (edgeCounts[key] ?? 0) + 1;
+        const parsedInput = parseVariadicPortId(String(inputKey));
+        if (parsedInput) {
+          const baseKey = `${toNodeId}${VARIADIC_DELIM}${parsedInput.groupId}`;
+          edgeCounts[baseKey] = (edgeCounts[baseKey] ?? 0) + 1;
+        }
+      });
+    }
+    if (graphEdges.length > 0) {
+      graphEdges.forEach((edge) => {
+        if (!edge || typeof edge !== "object") return;
+        const toNodeId = edge.to?.node_id;
+        if (!toNodeId) return;
+        const inputKey = edge.to?.input ?? "in";
+        const key = `${toNodeId}${VARIADIC_DELIM}${inputKey}`;
+        edgeCounts[key] = (edgeCounts[key] ?? 0) + 1;
+        const parsedInput = parseVariadicPortId(String(inputKey));
+        if (parsedInput) {
+          const baseKey = `${toNodeId}${VARIADIC_DELIM}${parsedInput.groupId}`;
+          edgeCounts[baseKey] = (edgeCounts[baseKey] ?? 0) + 1;
+        }
+      });
+
+      graphEdges.forEach((edge) => {
+        if (!edge || typeof edge !== "object") return;
+        const fromNodeId = edge.from?.node_id;
+        const toNodeId = edge.to?.node_id;
+        const inputKey = edge.to?.input ?? "in";
         if (!fromNodeId || !toNodeId) return;
         const outputKey =
-          typeof edgeLike.from?.output === "string" &&
-          edgeLike.from.output.length > 0
-            ? edgeLike.from.output
+          typeof edge.from?.output === "string" && edge.from.output.length > 0
+            ? edge.from.output
             : "out";
-        const selectorSegments = Array.isArray(edgeLike.selector)
-          ? (edgeLike.selector as SelectorSegmentJSON[])
+        const selectorSegments = Array.isArray(edge.selector)
+          ? (edge.selector as SelectorSegmentJSON[])
           : undefined;
+
+        let { portId, basePortId } = deriveVariadicIds(
+          String(toNodeId),
+          String(inputKey),
+          edgeCounts,
+          edgeIndices,
+        );
+        if (portId === inputKey) {
+          const key = `${toNodeId}${VARIADIC_DELIM}${inputKey}`;
+          const total = edgeCounts[key] ?? 0;
+          const canonicalGroupForTarget =
+            canonicalGroupByNodeId.get(String(toNodeId)) ?? null;
+          const parsedInput = parseVariadicPortId(String(inputKey));
+          if (total > 1 && (parsedInput || canonicalGroupForTarget)) {
+            const index = edgeIndices[key] ?? 0;
+            edgeIndices[key] = index + 1;
+            portId = formatVariadicPortId(String(inputKey), index);
+            basePortId = String(inputKey);
+          }
+        }
+
+        ({ portId, basePortId } = canonicalizeVariadicIds(
+          String(toNodeId),
+          String(inputKey),
+          { portId, basePortId },
+        ));
+
         pushEdge(
           String(fromNodeId),
           String(outputKey),
           String(toNodeId),
-          String(inputKey),
+          portId,
+          basePortId,
           selectorSegments,
         );
       });
@@ -519,25 +791,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           | Record<string, { node_id: string; output_key?: string }>
           | undefined;
         if (!inputs) return;
+
+        Object.entries(inputs).forEach(([inputKey]) => {
+          const rawKey = `${String(ns.id)}${VARIADIC_DELIM}${inputKey}`;
+          edgeCounts[rawKey] = (edgeCounts[rawKey] ?? 0) + 1;
+          const parsedInput = parseVariadicPortId(String(inputKey));
+          if (parsedInput) {
+            const baseKey = `${String(ns.id)}${VARIADIC_DELIM}${parsedInput.groupId}`;
+            edgeCounts[baseKey] = (edgeCounts[baseKey] ?? 0) + 1;
+          }
+        });
+
         Object.entries(inputs).forEach(([inputKey, conn]) => {
           if (!conn || !conn.node_id) return;
           const outputKey =
             conn.output_key && typeof conn.output_key === "string"
               ? conn.output_key
               : "out";
+          let { portId, basePortId } = deriveVariadicIds(
+            String(ns.id),
+            String(inputKey),
+            edgeCounts,
+            edgeIndices,
+          );
+          if (portId === inputKey) {
+            const key = `${String(ns.id)}${VARIADIC_DELIM}${inputKey}`;
+            const total = edgeCounts[key] ?? 0;
+            if (total > 1) {
+              const index = edgeIndices[key] ?? 0;
+              edgeIndices[key] = index + 1;
+              portId = formatVariadicPortId(String(inputKey), index);
+              basePortId = String(inputKey);
+            }
+          }
+
+          ({ portId, basePortId } = canonicalizeVariadicIds(
+            String(ns.id),
+            String(inputKey),
+            { portId, basePortId },
+          ));
+
           pushEdge(
             String(conn.node_id),
             String(outputKey),
             String(ns.id),
-            String(inputKey),
+            portId,
+            basePortId,
           );
         });
       });
     }
-
     nodes.forEach((node) => {
       if (!Array.isArray(node.data.inputs)) {
         node.data.inputs = [];
+      } else {
+        node.data.inputs = [...node.data.inputs].sort(compareInputEntries);
       }
     });
 

@@ -213,7 +213,7 @@ export function buildRigGraphSpec({
       });
       edges.push({
         from: { node_id: inputNode.nodeId },
-        to: { node_id: remapNodeId, input: "value" },
+        to: { node_id: remapNodeId, input: "in" },
       });
       valueNodeId = remapNodeId;
       entry.isDriven = true;

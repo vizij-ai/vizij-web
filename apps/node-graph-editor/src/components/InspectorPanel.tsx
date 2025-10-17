@@ -2,6 +2,33 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useEditorStore } from "../store/useEditorStore";
 import { ParamSpec, PortSpec, useRegistry } from "../contexts/RegistryProvider";
 import { useGraphRuntime, useNodeOutputs } from "@vizij/node-graph-react";
+import { parseVariadicPortId } from "../store/useEditorStore";
+
+const VARIADIC_DELIM = "_";
+
+function formatVariadicPortId(groupId: string, index: number): string {
+  return `${groupId}${VARIADIC_DELIM}${index}`;
+}
+
+function extractVariadicIndex(portId: string, groupId: string): number | null {
+  const parsed = parseVariadicPortId(portId);
+  if (!parsed) return null;
+  if (parsed.groupId !== groupId) return null;
+  return Number.isFinite(parsed.index) ? parsed.index : null;
+}
+
+function nextVariadicIndex(inputs: any[], groupId: string): number {
+  const used = inputs
+    .map((entry) => extractVariadicIndex(String(entry?.portId ?? ""), groupId))
+    .filter((value): value is number => value != null)
+    .sort((a, b) => a - b);
+  let candidate = 0;
+  for (const value of used) {
+    if (value !== candidate) break;
+    candidate += 1;
+  }
+  return candidate;
+}
 
 /**
  * InspectorPanel (NodeSpec-first)
@@ -686,10 +713,16 @@ export default function InspectorPanel(): JSX.Element {
   const setSelected = useEditorStore((s) => s.setSelected);
 
   const node = nodes.find((n) => n.id === selectedId) ?? null;
-  const { registry, getParamsForType, getPortsForType } = useRegistry();
+  const { registry, getParamsForType, getPortsForType, getNodeSummary } =
+    useRegistry();
   const runtime = useGraphRuntime();
   const runtimeReady = runtime.ready;
   const controlsDisabled = !runtimeReady;
+
+  const nodeSummary = useMemo(() => {
+    if (!node) return null;
+    return getNodeSummary?.(String(node.type ?? ""));
+  }, [node, getNodeSummary]);
 
   // Inspector runtime debug hooks (must be declared unconditionally before any early returns)
   const handleEvalNow = useCallback(() => {
@@ -874,6 +907,7 @@ export default function InspectorPanel(): JSX.Element {
         sourceNodeId?: string | null;
         sourceOutputKey?: string | null;
         selector?: string | null;
+        basePortId?: string | null;
       },
     ) => {
       setNodes((prev) =>
@@ -885,8 +919,13 @@ export default function InspectorPanel(): JSX.Element {
           const idx = inputs.findIndex(
             (i: any) => String(i.portId) === String(portId),
           );
+          const basePortId =
+            typeof mapping.basePortId === "string" && mapping.basePortId
+              ? mapping.basePortId
+              : (parseVariadicPortId(portId)?.groupId ?? portId);
           const entry = {
             portId,
+            basePortId,
             sourceNodeId: mapping.sourceNodeId ?? null,
             sourceOutputKey: mapping.sourceOutputKey ?? null,
             selector:
@@ -1093,6 +1132,16 @@ export default function InspectorPanel(): JSX.Element {
             </option>
           ))}
         </select>
+        {nodeSummary?.category ? (
+          <div style={{ fontSize: 12, color: "#9aa0a6", marginTop: 6 }}>
+            Category: {nodeSummary.category}
+          </div>
+        ) : null}
+        {nodeSummary?.doc ? (
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
+            {nodeSummary.doc}
+          </div>
+        ) : null}
       </section>
 
       {/* Params */}
@@ -1145,9 +1194,11 @@ export default function InspectorPanel(): JSX.Element {
                   {p.name ?? p.id}
                 </label>
                 <div>{editor}</div>
-                <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 4 }}>
-                  {p.editorHints?.description ?? ""}
-                </div>
+                {(p.doc || p.editorHints?.description) && (
+                  <div style={{ fontSize: 11, color: "#9aa0a6", marginTop: 4 }}>
+                    {p.doc ?? p.editorHints?.description}
+                  </div>
+                )}
               </div>
             );
           })
@@ -1189,12 +1240,46 @@ export default function InspectorPanel(): JSX.Element {
                     marginBottom: 8,
                   }}
                 >
-                  <div style={{ fontWeight: 700 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontWeight: 700,
+                    }}
+                  >
                     {port.label ?? port.name}
+                    {port.optional ? (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "#16a34a",
+                          background: "rgba(22,163,74,0.1)",
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        optional
+                      </span>
+                    ) : null}
                   </div>
                   <div
                     style={{ fontSize: 12, color: "#666" }}
                   >{`port: ${port.id} — type: ${port.type}`}</div>
+                  {port.doc ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginTop: 4,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {port.doc}
+                    </div>
+                  ) : null}
 
                   <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                     <div>
@@ -1206,6 +1291,7 @@ export default function InspectorPanel(): JSX.Element {
                             sourceNodeId: e.target.value || null,
                             sourceOutputKey: null,
                             selector: null,
+                            basePortId: port.id,
                           })
                         }
                         style={{ width: "100%", padding: 6 }}
@@ -1230,6 +1316,7 @@ export default function InspectorPanel(): JSX.Element {
                             sourceNodeId: mapping?.sourceNodeId ?? null,
                             sourceOutputKey: e.target.value || null,
                             selector: null,
+                            basePortId: port.id,
                           })
                         }
                         style={{ width: "100%", padding: 6 }}
@@ -1265,6 +1352,7 @@ export default function InspectorPanel(): JSX.Element {
                             sourceNodeId: mapping?.sourceNodeId ?? null,
                             sourceOutputKey: mapping?.sourceOutputKey ?? null,
                             selector: e.target.value || null,
+                            basePortId: port.id,
                           })
                         }
                         style={{ width: "100%", padding: 6 }}
@@ -1305,15 +1393,37 @@ export default function InspectorPanel(): JSX.Element {
               <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
                 {`type: ${portsSpec.variadicInputs.type}  min: ${portsSpec.variadicInputs.min ?? 0} ${portsSpec.variadicInputs.max ? `max: ${portsSpec.variadicInputs.max}` : ""}`}
               </div>
+              {portsSpec.variadicInputs.doc ? (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#64748b",
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {portsSpec.variadicInputs.doc}
+                </div>
+              ) : null}
 
               {/* list existing variadic mappings */}
               {Array.isArray(node.data?.inputs)
                 ? node.data.inputs
-                    .filter((i: any) =>
-                      String(i.portId).startsWith(
-                        `${portsSpec.variadicInputs!.id}_`,
-                      ),
-                    )
+                    .filter((i: any) => {
+                      const portId = String(i.portId ?? "");
+                      const baseId = String(
+                        i.basePortId ?? portsSpec.variadicInputs!.id ?? portId,
+                      );
+                      const groupId = String(
+                        portsSpec.variadicInputs!.id ?? "",
+                      );
+                      const parsed = parseVariadicPortId(portId);
+                      return (
+                        (parsed?.groupId === groupId &&
+                          Number.isFinite(parsed?.index)) ||
+                        baseId === groupId
+                      );
+                    })
                     .map((m: any, idx: number) => (
                       <div
                         key={m.portId}
@@ -1340,6 +1450,10 @@ export default function InspectorPanel(): JSX.Element {
                                 sourceNodeId: e.target.value || null,
                                 sourceOutputKey: null,
                                 selector: null,
+                                basePortId:
+                                  m.basePortId ??
+                                  portsSpec.variadicInputs?.id ??
+                                  m.portId,
                               })
                             }
                             style={{ width: "100%", padding: 6 }}
@@ -1361,6 +1475,10 @@ export default function InspectorPanel(): JSX.Element {
                                 sourceNodeId: m.sourceNodeId ?? null,
                                 sourceOutputKey: e.target.value || null,
                                 selector: null,
+                                basePortId:
+                                  m.basePortId ??
+                                  portsSpec.variadicInputs?.id ??
+                                  m.portId,
                               })
                             }
                             style={{ width: "100%", padding: 6 }}
@@ -1392,6 +1510,10 @@ export default function InspectorPanel(): JSX.Element {
                                   sourceNodeId: m.sourceNodeId ?? null,
                                   sourceOutputKey: m.sourceOutputKey ?? null,
                                   selector: e.target.value || null,
+                                  basePortId:
+                                    m.basePortId ??
+                                    portsSpec.variadicInputs?.id ??
+                                    m.portId,
                                 })
                               }
                               style={{ flex: 1, padding: 6 }}
@@ -1432,18 +1554,17 @@ export default function InspectorPanel(): JSX.Element {
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => {
-                    // add new variadic mapping with generated port id
-                    const idx =
-                      ((node.data?.inputs ?? []).filter((i: any) =>
-                        String(i.portId).startsWith(
-                          `${portsSpec.variadicInputs!.id}_`,
-                        ),
-                      ).length ?? 0) + 1;
-                    const newPortId = `${portsSpec.variadicInputs!.id}_${Date.now()}_${idx}`;
+                    const groupId = String(portsSpec.variadicInputs!.id);
+                    const nextIdx = nextVariadicIndex(
+                      node.data?.inputs ?? [],
+                      groupId,
+                    );
+                    const newPortId = formatVariadicPortId(groupId, nextIdx);
                     updateNodeInput(node.id, newPortId, {
                       sourceNodeId: null,
                       sourceOutputKey: null,
                       selector: null,
+                      basePortId: groupId,
                     });
                   }}
                   style={{ padding: "6px 8px" }}
@@ -1488,7 +1609,20 @@ export default function InspectorPanel(): JSX.Element {
             <div style={{ color: "#888" }}>No declared outputs</div>
           ) : (
             portsSpec.outputs.map((o) => (
-              <div key={o.id}>{`${o.id} : ${o.type}`}</div>
+              <div key={o.id} style={{ marginBottom: 6 }}>
+                <div>{`${o.id} : ${o.type}`}</div>
+                {o.doc ? (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {o.doc}
+                  </div>
+                ) : null}
+              </div>
             ))
           )}
         </div>

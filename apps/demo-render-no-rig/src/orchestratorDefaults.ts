@@ -143,11 +143,11 @@ export const DEFAULT_GRAPH_SPEC: GraphRegistrationInput = {
       },
       {
         from: { node_id: "target1_input" },
-        to: { node_id: "default_blend", input: "target_1" },
+        to: { node_id: "default_blend", input: "operand_1" },
       },
       {
         from: { node_id: "target2_input" },
-        to: { node_id: "default_blend", input: "target_2" },
+        to: { node_id: "default_blend", input: "operand_2" },
       },
       {
         from: { node_id: "default_blend" },
@@ -315,8 +315,8 @@ export const DEFAULT_GRAPH_STATE: GraphEditorState = {
         baseline: "baseline_input",
         offset: "offset_input",
         weights: "weights_vector",
-        target_1: "target1_input",
-        target_2: "target2_input",
+        operand_1: "target1_input",
+        operand_2: "target2_input",
       },
     },
     {

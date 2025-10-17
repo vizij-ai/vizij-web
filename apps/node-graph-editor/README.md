@@ -43,11 +43,13 @@ pnpm --filter vizij-node-graph-editor test       # Vitest unit tests
 
 ## Capabilities
 
-- Node palette sourced from the wasm node schema.
-- Drag-and-drop node creation with React Flow.
-- Inspector panel for editing node params.
-- Persistence panel (export/import GraphSpec JSON).
-- Outputs chart for quick validation of numeric nodes.
+- Dark-mode authoring shell with collapsible palette/inputs/inspector panels tailored for dense graphs.
+- Node palette backed by the wasm registry (docs, categories, tooling-ready metadata).
+- React Flow canvas with schema-driven handles, variadic slot rendering, and selector/default indicators.
+- Inspector panel showing registry docs, param editors, variadic controls, and inline runtime snapshots.
+- Input panel that auto-discovers `input` nodes, exposes sliders/toggles for their typed paths, and stages changes into the runtime in real time.
+- Persistence panel with wasm normalisation, local storage helpers, and one-click loading of bundled fixtures.
+- Transport controls for stepping graphs, hot reloading specs, and logging runtime snapshots.
 
 ---
 
@@ -61,16 +63,15 @@ pnpm --filter vizij-node-graph-editor test       # Vitest unit tests
 | `src/components/EditorCanvas.tsx`     | React Flow canvas implementation.                               |
 | `src/components/NodePalette.tsx`      | Searchable list of node types.                                  |
 | `src/components/InspectorPanel.tsx`   | Param editing UI.                                               |
-| `src/components/OutputsChart.tsx`     | Basic visualisation for numeric outputs.                        |
 | `src/components/PersistencePanel.tsx` | Import/export controls.                                         |
 
 ---
 
 ## Roadmap
 
-- Connection assistant enhancements and richer validation.
+- Connection assistant enhancements and richer validation feedback.
 - Improved inspector editors (vectors, transforms, enums).
-- Output chart polish and multi-series support.
-- End-to-end regression tests and performance tuning.
+- Canvas affordances for grouped selections and bulk operations.
+- End-to-end regression tests, wasm parity checks, and performance tuning.
 
 Contributions are welcome—open an issue if you hit rough edges. 🛠️
