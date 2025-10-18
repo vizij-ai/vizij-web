@@ -7,7 +7,7 @@ import {
 import type { AnimatableComponent } from "./animatableMetadata";
 import { buildAnimatableValue } from "./animatableMetadata";
 import type { BindingMap } from "./state";
-import { createDefaultRemap } from "./state";
+import { createDefaultRemap, type RemapSettings } from "./state";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
@@ -24,12 +24,7 @@ export interface GraphBindingSummary {
   animatableId: string;
   component?: VectorComponent;
   inputId: string | null;
-  remap: {
-    inMin: number;
-    inMax: number;
-    outMin: number;
-    outMax: number;
-  };
+  remap: RemapSettings;
 }
 
 export interface BuildGraphResult {
@@ -203,12 +198,14 @@ export function buildRigGraphSpec({
       const remapNodeId = `remap_${sanitizeNodeId(component.id)}`;
       nodes.push({
         id: remapNodeId,
-        type: "remap",
+        type: "centered_remap",
         input_defaults: {
-          in_min: binding.remap.inMin,
-          in_max: binding.remap.inMax,
-          out_min: binding.remap.outMin,
-          out_max: binding.remap.outMax,
+          in_low: binding.remap.inLow,
+          in_anchor: binding.remap.inAnchor,
+          in_high: binding.remap.inHigh,
+          out_low: binding.remap.outLow,
+          out_anchor: binding.remap.outAnchor,
+          out_high: binding.remap.outHigh,
         },
       });
       edges.push({

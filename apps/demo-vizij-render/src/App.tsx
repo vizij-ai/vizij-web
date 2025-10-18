@@ -34,6 +34,7 @@ import {
   type BindingMap,
   type AnimatableBinding,
   type StandardInputValues,
+  type RemapSettings,
 } from "./rig/state";
 import {
   STANDARD_RIG_INPUTS_BY_ID,
@@ -270,11 +271,7 @@ export default function App() {
   );
 
   const handleBindingRemapChange = useCallback(
-    (
-      targetId: string,
-      field: "inMin" | "inMax" | "outMin" | "outMax",
-      value: number,
-    ) => {
+    (targetId: string, field: keyof RemapSettings, value: number) => {
       setBindings((previous) => {
         const binding = previous[targetId];
         if (!binding) {

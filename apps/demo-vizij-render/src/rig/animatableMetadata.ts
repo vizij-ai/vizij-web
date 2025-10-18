@@ -14,6 +14,11 @@ import type {
   RawColor,
   RawRGB,
 } from "@vizij/utils";
+import {
+  computeNumberBounds,
+  computeVectorBounds,
+  type VectorDescriptorType,
+} from "./bounds";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 
@@ -45,148 +50,44 @@ function coerceNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
-function computeFallbackRange(defaultValue: number): {
-  min: number;
-  max: number;
-} {
-  const delta = Math.max(Math.abs(defaultValue), 1);
-  console.log(
-    "Computing fallback around 1 (default, min, max)",
-    defaultValue,
-    defaultValue - delta,
-    defaultValue + delta,
-  );
-  return {
-    min: defaultValue - delta,
-    max: defaultValue + delta,
-  };
-}
-
-function computeTranslationBounds(componentValue: number): [number, number] {
-  if (Math.abs(componentValue) < 1e-4) {
-    return [-1, 1];
-  }
-  if (componentValue >= 0) {
-    return [0, componentValue * 2];
-  }
-  return [componentValue * 2, 0];
-}
-
-function computeScaleBounds(componentValue: number): [number, number] {
-  let min = 0;
-  let max = 2;
-  if (componentValue < min) {
-    min = componentValue;
-  }
-  if (componentValue > max) {
-    max = componentValue;
-  }
-  return [min, max];
-}
-
-export function computeNumberBounds(
-  defaultValue: number,
-  featureKey: string,
-): [number, number] {
-  const key = featureKey.toLowerCase();
-  if (key.includes("opacity")) {
-    return [0, 1];
-  }
-  if (key.includes("scale")) {
-    return computeScaleBounds(defaultValue);
-  }
-  if (key.includes("rotation") || key.includes("angle")) {
-    const extent = Math.max(Math.abs(defaultValue), Math.PI);
-    return [-extent, extent];
-  }
-  if (key.includes("translation") || key.includes("position")) {
-    return computeTranslationBounds(defaultValue);
-  }
-  if (defaultValue === 0) {
-    return [0, 1];
-  }
-  if (defaultValue > 0) {
-    return [0, defaultValue * 2];
-  }
-  return [defaultValue * 2, 0];
-}
-
-type VectorDescriptorType = "vector2" | "vector3" | "euler" | "rgb";
-
-export function computeVectorBounds(
-  descriptorType: VectorDescriptorType,
-  featureKey: string,
-  defaults: RawVector2 | RawVector3 | RawEuler | RawColor,
-): {
-  min: Array<number | null>;
-  max: Array<number | null>;
-} {
-  // console.log("Computing bounds", descriptorType, featureKey, defaults)
-  switch (descriptorType) {
-    case "rgb":
-      return {
-        min: [0, 0, 0],
-        max: [1, 1, 1],
-      };
-    case "euler":
-      return {
-        min: [-Math.PI, -Math.PI, -Math.PI],
-        max: [Math.PI, Math.PI, Math.PI],
-      };
-    case "vector2": {
-      const vector = defaults as RawVector2;
-      const xRange = computeNumberBounds(vector.x ?? 0, featureKey);
-      const yRange = computeNumberBounds(vector.y ?? 0, featureKey);
-      return {
-        min: [xRange[0], yRange[0]],
-        max: [xRange[1], yRange[1]],
-      };
-    }
-    case "vector3": {
-      const vector = defaults as RawVector3;
-      const xRange = computeNumberBounds(vector.x ?? 0, featureKey);
-      const yRange = computeNumberBounds(vector.y ?? 0, featureKey);
-      const zRange = computeNumberBounds(vector.z ?? 0, featureKey);
-      return {
-        min: [xRange[0], yRange[0], zRange[0]],
-        max: [xRange[1], yRange[1], zRange[1]],
-      };
-    }
-    default:
-      return {
-        min: [0, 0, 0],
-        max: [0, 0, 0],
-      };
-  }
-}
-
 function resolveRangeFromConstraints(
   min: number | null | undefined,
   max: number | null | undefined,
   defaultValue: number,
+  computeFallback: () => { min: number; max: number },
 ): { min: number; max: number } {
-  if (typeof min === "number" && Number.isFinite(min)) {
-    if (typeof max === "number" && Number.isFinite(max) && max !== min) {
-      return { min, max };
-    }
-    const derivedMax = max ?? defaultValue;
-    if (Number.isFinite(derivedMax) && derivedMax !== min) {
-      return {
-        min,
-        max: derivedMax,
-      };
-    }
+  const hasMin = typeof min === "number" && Number.isFinite(min);
+  const hasMax = typeof max === "number" && Number.isFinite(max);
+
+  if (hasMin && hasMax) {
+    return { min: min as number, max: max as number };
   }
-  if (typeof max === "number" && Number.isFinite(max)) {
-    const derivedMin = min ?? defaultValue;
-    if (Number.isFinite(derivedMin) && derivedMin !== max) {
-      return {
-        min: derivedMin,
-        max,
-      };
-    }
+
+  if (hasMin) {
+    const fallback = computeFallback();
+    const base = Number.isFinite(defaultValue)
+      ? defaultValue
+      : (fallback.max ?? (min as number));
+    const derivedMax = Math.max(base, fallback.max, min as number);
+    return {
+      min: min as number,
+      max: derivedMax,
+    };
   }
-  return computeFallbackRange(defaultValue);
+
+  if (hasMax) {
+    const fallback = computeFallback();
+    const base = Number.isFinite(defaultValue)
+      ? defaultValue
+      : (fallback.min ?? (max as number));
+    const derivedMin = Math.min(base, fallback.min, max as number);
+    return {
+      min: derivedMin,
+      max: max as number,
+    };
+  }
+
+  return computeFallback();
 }
 
 function formatComponentLabel(
@@ -263,6 +164,83 @@ function getVectorComponentValue(
   return fallback;
 }
 
+function inferFeatureKey(animatable: AnimatableValue): string {
+  return (
+    animatable.pub?.output ??
+    animatable.name ??
+    (typeof animatable.id === "string" ? animatable.id : "")
+  );
+}
+
+function computeNumberFallbackRange(
+  animatable: AnimatableNumber,
+  defaultValue: number,
+): { min: number; max: number } {
+  const [min, max] = computeNumberBounds(
+    defaultValue,
+    inferFeatureKey(animatable),
+  );
+  return { min, max };
+}
+
+function computeVectorFallbackRange(
+  animatable:
+    | AnimatableVector2
+    | AnimatableVector3
+    | AnimatableEuler
+    | AnimatableColor,
+  component: VectorComponent,
+  defaultValue: number,
+): { min: number; max: number } {
+  let descriptorType: VectorDescriptorType;
+  let defaults: RawVector2 | RawVector3 | RawEuler | RawColor;
+
+  switch (animatable.type) {
+    case "vector2":
+      descriptorType = "vector2";
+      defaults = cloneVector2(animatable.default);
+      break;
+    case "vector3":
+      descriptorType = "vector3";
+      defaults = cloneVector3(animatable.default);
+      break;
+    case "euler":
+      descriptorType = "euler";
+      defaults = cloneVector3(animatable.default);
+      break;
+    case "rgb":
+      descriptorType = "rgb";
+      defaults = cloneColor(animatable.default);
+      break;
+    default:
+      descriptorType = "vector3";
+      defaults = cloneVector3(animatable.default);
+      break;
+  }
+
+  const { min, max } = computeVectorBounds(
+    descriptorType,
+    inferFeatureKey(animatable),
+    defaults,
+  );
+  const index = componentToIndex(component);
+  const fallbackMin = min[index];
+  const fallbackMax = max[index];
+  if (
+    typeof fallbackMin === "number" &&
+    Number.isFinite(fallbackMin) &&
+    typeof fallbackMax === "number" &&
+    Number.isFinite(fallbackMax)
+  ) {
+    return { min: fallbackMin, max: fallbackMax };
+  }
+  const generic = computeNumberBounds(
+    defaultValue,
+    inferFeatureKey(animatable),
+  );
+  return { min: generic[0], max: generic[1] };
+}
+
 function getVectorConstraintComponent(
   constraints:
     | AnimatableVector3["constraints"]
@@ -288,6 +266,7 @@ function extractNumberComponent(
     animatable.constraints?.min,
     animatable.constraints?.max,
     defaultValue,
+    () => computeNumberFallbackRange(animatable, defaultValue),
   );
   return {
     id: animatable.id,
@@ -321,11 +300,11 @@ function extractVectorComponents(
       component,
       0,
     );
-    console.log("extracting", animatable, component, defaultValue);
     const range = resolveRangeFromConstraints(
       getVectorConstraintComponent(animatable.constraints, component, "min"),
       getVectorConstraintComponent(animatable.constraints, component, "max"),
       defaultValue,
+      () => computeVectorFallbackRange(animatable, component, defaultValue),
     );
     return {
       id: `${animatable.id}:${component}`,
