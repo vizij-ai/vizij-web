@@ -180,6 +180,7 @@ export function GraphProvider({
       const mod = wasmModuleRef.current ?? wasm;
       let res: any = null;
 
+      let lastError: unknown = null;
       // Try instance methods
       const candidates = [
         "evalAll",
@@ -195,7 +196,8 @@ export function GraphProvider({
           try {
             res = fn.call(graph);
             if (res != null) break;
-          } catch {
+          } catch (err) {
+            lastError = err;
             // continue trying others
           }
         }
@@ -220,7 +222,8 @@ export function GraphProvider({
             try {
               res = fn(graph);
               if (res != null) break;
-            } catch {
+            } catch (err) {
+              lastError = err;
               // continue
             }
           }
@@ -228,6 +231,13 @@ export function GraphProvider({
       }
 
       if (res == null) {
+        if (lastError) {
+          // eslint-disable-next-line no-console
+          console.error(
+            "[GraphProvider] evalTick: graph evaluation threw",
+            lastError,
+          );
+        }
         // eslint-disable-next-line no-console
         console.warn(
           "[GraphProvider] evalTick: no known eval method produced a result.",

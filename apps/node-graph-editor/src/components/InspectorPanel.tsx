@@ -739,6 +739,19 @@ function InputDefaultEditor({
       ? entry.value
       : defaultValueForPortType(portType);
 
+  React.useEffect(() => {
+    if (!entry) {
+      const seeded =
+        currentValue && typeof currentValue === "object"
+          ? JSON.parse(JSON.stringify(currentValue))
+          : currentValue;
+      onChange({
+        value: seeded,
+        shape: null,
+      });
+    }
+  }, [entry, currentValue, onChange]);
+
   return (
     <div style={{ display: "grid", gap: 6, color: "#e2e8f0" }}>
       <ValueParamEditor
@@ -754,43 +767,6 @@ function InputDefaultEditor({
         Fallback applies when the input has no upstream link. Values stage into
         the runtime (and orchestrator mirrors when `mirrorWrites` is enabled).
       </div>
-      {!entry ? (
-        <button
-          type="button"
-          onClick={() =>
-            onChange({
-              value:
-                currentValue && typeof currentValue === "object"
-                  ? JSON.parse(JSON.stringify(currentValue))
-                  : currentValue,
-              shape: null,
-            })
-          }
-          style={{
-            ...darkButtonStyle,
-            justifySelf: "flex-start",
-            padding: "6px 10px",
-            background: "rgba(56,189,248,0.22)",
-            border: "1px solid rgba(56,189,248,0.45)",
-            color: "#bae6fd",
-          }}
-        >
-          Enable default
-        </button>
-      ) : null}
-      {entry ? (
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          style={{
-            ...darkSecondaryButtonStyle,
-            justifySelf: "flex-start",
-            padding: "6px 10px",
-          }}
-        >
-          Clear default
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -1153,7 +1129,9 @@ export default function InspectorPanel(): JSX.Element {
       {/* Identity */}
       <section style={{ marginBottom: 12 }}>
         <div style={{ fontWeight: 700 }}>{node.data?.label ?? node.type}</div>
-        <div style={{ color: subtleTextColor, fontSize: 12 }}>{`ID: ${node.id}`}</div>
+        <div
+          style={{ color: subtleTextColor, fontSize: 12 }}
+        >{`ID: ${node.id}`}</div>
         <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
           <label style={{ fontSize: 12, color: subtleTextColor }}>ID</label>
           <input
@@ -1214,27 +1192,60 @@ export default function InspectorPanel(): JSX.Element {
       {/* Type */}
       <section style={{ marginBottom: 12 }}>
         <label
-          style={{ display: "block", fontSize: 12, marginBottom: 6, color: subtleTextColor }}
+          style={{
+            display: "block",
+            fontSize: 12,
+            marginBottom: 6,
+            color: subtleTextColor,
+          }}
         >
           Type
         </label>
-        <select
-          value={node.type ?? ""}
-          onChange={(e) => {
-            const newType = e.target.value;
-            setNodes((prev) =>
-              prev.map((n) => (n.id === node.id ? { ...n, type: newType } : n)),
-            );
-          }}
-          style={{ ...darkInputStyle, width: "100%" }}
-        >
-          <option value={node.type}>{node.type}</option>
-          {registry?.nodes?.map((t: any) => (
-            <option key={t.type_id ?? t.id} value={t.type_id ?? t.id}>
-              {t.name ?? t.type_id ?? t.id}
-            </option>
-          ))}
-        </select>
+        {(() => {
+          const originalType =
+            typeof node.data?.originalType === "string" &&
+            node.data.originalType.length > 0
+              ? node.data.originalType
+              : "";
+          const selectValue = originalType || node.type || "";
+          return (
+            <select
+              value={selectValue}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const normalized =
+                  newType && newType.trim().length > 0
+                    ? newType.trim().toLowerCase()
+                    : "";
+                setNodes((prev) =>
+                  prev.map((n) => {
+                    if (n.id !== node.id) return n;
+                    const data = { ...(n.data || {}) };
+                    data.originalType = newType;
+                    return { ...n, type: normalized, data };
+                  }),
+                );
+              }}
+              style={{ ...darkInputStyle, width: "100%" }}
+            >
+              <option value={selectValue}>
+                {selectValue || "(unknown type)"}
+              </option>
+              {registry?.nodes?.map((t: any) => {
+                const optionVal =
+                  (t.type_id && String(t.type_id)) ||
+                  (t.id && String(t.id)) ||
+                  "";
+                if (!optionVal) return null;
+                return (
+                  <option key={optionVal} value={optionVal}>
+                    {t.name ?? optionVal}
+                  </option>
+                );
+              })}
+            </select>
+          );
+        })()}
         {nodeSummary?.category ? (
           <div style={{ fontSize: 12, color: "#9aa0a6", marginTop: 6 }}>
             Category: {nodeSummary.category}
@@ -1338,11 +1349,11 @@ export default function InspectorPanel(): JSX.Element {
                       >
                     )[port.id]
                   : undefined;
-            return (
-              <div
-                key={port.id}
-                style={{
-                  ...darkSectionStyle,
+              return (
+                <div
+                  key={port.id}
+                  style={{
+                    ...darkSectionStyle,
                     marginBottom: 8,
                     color: "#e2e8f0",
                   }}
@@ -1357,9 +1368,7 @@ export default function InspectorPanel(): JSX.Element {
                   >
                     {port.label ?? port.name}
                     {port.optional ? (
-                      <span style={darkAccentBadgeStyle}>
-                        optional
-                      </span>
+                      <span style={darkAccentBadgeStyle}>optional</span>
                     ) : null}
                   </div>
                   <div
@@ -1469,8 +1478,7 @@ export default function InspectorPanel(): JSX.Element {
                                 value={mapping?.selector ?? ""}
                                 onChange={(e) =>
                                   updateNodeInput(node.id, port.id, {
-                                    sourceNodeId:
-                                      mapping?.sourceNodeId ?? null,
+                                    sourceNodeId: mapping?.sourceNodeId ?? null,
                                     sourceOutputKey:
                                       mapping?.sourceOutputKey ?? null,
                                     selector: e.target.value || null,
@@ -1518,7 +1526,11 @@ export default function InspectorPanel(): JSX.Element {
                 (variadic)
               </div>
               <div
-                style={{ fontSize: 12, color: subtleTextColor, marginBottom: 8 }}
+                style={{
+                  fontSize: 12,
+                  color: subtleTextColor,
+                  marginBottom: 8,
+                }}
               >
                 {`type: ${portsSpec.variadicInputs.type}  min: ${portsSpec.variadicInputs.min ?? 0} ${portsSpec.variadicInputs.max ? `max: ${portsSpec.variadicInputs.max}` : ""}`}
               </div>
@@ -1654,7 +1666,8 @@ export default function InspectorPanel(): JSX.Element {
                                   onChange={(e) =>
                                     updateNodeInput(node.id, m.portId, {
                                       sourceNodeId: m.sourceNodeId ?? null,
-                                      sourceOutputKey: m.sourceOutputKey ?? null,
+                                      sourceOutputKey:
+                                        m.sourceOutputKey ?? null,
                                       selector: e.target.value || null,
                                       basePortId:
                                         m.basePortId ??
@@ -1779,7 +1792,9 @@ export default function InspectorPanel(): JSX.Element {
         </div>
 
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: subtleTextColor, marginBottom: 6 }}>
+          <div
+            style={{ fontSize: 12, color: subtleTextColor, marginBottom: 6 }}
+          >
             Live outputs
           </div>
           {outputsSnapshot && Object.keys(outputsSnapshot).length > 0 ? (
@@ -1829,10 +1844,7 @@ export default function InspectorPanel(): JSX.Element {
           style={{ ...darkTextareaStyle, width: "100%" }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button
-            onClick={applyRawJsonToNode}
-            style={{ ...darkButtonStyle }}
-          >
+          <button onClick={applyRawJsonToNode} style={{ ...darkButtonStyle }}>
             Apply JSON to Node
           </button>
           <button

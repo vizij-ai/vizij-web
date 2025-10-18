@@ -535,7 +535,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nodes.forEach((node) => nodeMap.set(String(node.id), node));
 
     const graphNodes: NodeSpec[] = nodes.map((n) => {
-      const type = String(n.type ?? "").toLowerCase() as any;
+      const originalType =
+        typeof n.data?.originalType === "string" &&
+        n.data.originalType.trim().length > 0
+          ? n.data.originalType.trim()
+          : null;
+      const fallbackType =
+        typeof n.type === "string" && n.type.trim().length > 0
+          ? n.type.trim()
+          : "";
+      const type = (originalType ?? fallbackType) as any;
 
       const paramsSrc = (n.data?.params ?? {}) as Record<string, unknown>;
       const paramsEntries = Object.entries(paramsSrc).filter(

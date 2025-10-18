@@ -585,16 +585,27 @@ export default function EditorCanvas(): JSX.Element {
           })();
 
       const id = `node_${Date.now()}_${Math.floor(Math.random() * 1_000)}`;
+      const registryEntry = nodesByType?.get?.(String(type).toLowerCase());
+      const canonicalType =
+        (registryEntry?.signature?.type_id &&
+          String(registryEntry.signature.type_id)) ||
+        (registryEntry?.signature?.id && String(registryEntry.signature.id)) ||
+        String(type);
+      const displayLabel =
+        (registryEntry?.signature?.name &&
+          String(registryEntry.signature.name)) ||
+        canonicalType;
+
       const newNode: Node = {
         id,
         type,
         position,
-        data: { label: type },
+        data: { label: displayLabel, originalType: canonicalType },
       };
 
       setNodes((prev) => [...prev, newNode] as any);
     },
-    [rfInstance, setNodes],
+    [nodesByType, rfInstance, setNodes],
   );
 
   const handleAutoArrange = useCallback(() => {

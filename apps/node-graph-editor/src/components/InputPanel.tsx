@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ChangeEvent,
 } from "react";
@@ -113,6 +114,11 @@ export default function InputPanel(): JSX.Element {
           ? (params.max as number)
           : undefined;
 
+      if (kind === "unsupported") {
+        kind = "float";
+        defaultValue = 0;
+      }
+
       results.push({
         nodeId: node.id,
         nodeLabel:
@@ -139,6 +145,7 @@ export default function InputPanel(): JSX.Element {
   }, [nodes, getNodeSummary]);
 
   const [values, setValues] = useState<Record<string, number | boolean>>({});
+  const stagedRef = useRef<Record<string, number | boolean>>({});
 
   useEffect(() => {
     setValues((prev) => {
@@ -155,10 +162,27 @@ export default function InputPanel(): JSX.Element {
     });
   }, [inputEntries]);
 
+  useEffect(() => {
+    if (!runtimeReady) return;
+    for (const entry of inputEntries) {
+      const val = values[entry.path];
+      if (val === undefined) continue;
+      const prev = stagedRef.current[entry.path];
+      if (prev === val) continue;
+      stagedRef.current[entry.path] = val;
+      if (entry.kind === "bool") {
+        runtime.stageInput?.(entry.path, Boolean(val), undefined, true);
+      } else if (entry.kind === "float") {
+        runtime.stageInput?.(entry.path, Number(val), undefined, true);
+      }
+    }
+  }, [inputEntries, runtime, runtimeReady, values]);
+
   const stageFloat = useCallback(
     (path: string, value: number) => {
       setValues((prev) => ({ ...prev, [path]: value }));
       runtime.stageInput?.(path, value, undefined, true);
+      stagedRef.current[path] = value;
     },
     [runtime],
   );
@@ -167,6 +191,7 @@ export default function InputPanel(): JSX.Element {
     (path: string, value: boolean) => {
       setValues((prev) => ({ ...prev, [path]: value }));
       runtime.stageInput?.(path, value, undefined, true);
+      stagedRef.current[path] = value;
     },
     [runtime],
   );
@@ -256,9 +281,14 @@ export default function InputPanel(): JSX.Element {
                   <span>Active</span>
                 </label>
               ) : (
-                <div className="nge-inputs__unsupported">
-                  Unsupported default value shape. Edit this input from the
-                  inspector.
+                <div className="nge-inputs__control">
+                  <input
+                    type="number"
+                    value={Number(currentValue ?? 0)}
+                    onChange={handleNumberInputChange(entry.path)}
+                    className="nge-inputs__number"
+                    disabled={!runtimeReady}
+                  />
                 </div>
               )}
             </div>
