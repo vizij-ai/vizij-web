@@ -243,7 +243,9 @@ const createNodeRenderer = (
           borderRadius: 10,
           background: "linear-gradient(135deg,#1e293b,#111827)",
           color: "#f8fafc",
-          minWidth: 200,
+          width: 240,
+          minWidth: 240,
+          maxWidth: 240,
         }}
       >
         <div style={{ textAlign: "center" }}>
@@ -253,7 +255,15 @@ const createNodeRenderer = (
               schema.signature?.type_id ??
               typeId}
           </div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "#94a3b8",
+              marginTop: 4,
+              wordBreak: "break-word",
+              whiteSpace: "normal",
+            }}
+          >
             {schema.signature?.doc || typeId}
           </div>
         </div>
@@ -384,6 +394,7 @@ export default function EditorCanvas(): JSX.Element {
   const edges = useEditorStore((s) => s.edges);
   const setNodes = useEditorStore((s) => s.setNodes);
   const setEdges = useEditorStore((s) => s.setEdges);
+  const arrangeNodes = useEditorStore((s) => s.arrangeNodes);
 
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -586,31 +597,74 @@ export default function EditorCanvas(): JSX.Element {
     [rfInstance, setNodes],
   );
 
+  const handleAutoArrange = useCallback(() => {
+    arrangeNodes();
+    if (!rfInstance) return;
+    setTimeout(() => {
+      try {
+        rfInstance.fitView?.({ padding: 0.25, duration: 250 });
+      } catch {
+        // fitView optional; ignore failures (e.g., instance disposed)
+      }
+    }, 75);
+  }, [arrangeNodes, rfInstance]);
+
   return (
     <ReactFlowProvider>
-      <div
-        ref={reactFlowWrapper}
-        style={{ width: "100%", height: "100%" }}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
-        <ReactFlow
-          nodes={nodes as Node[]}
-          edges={edges as Edge[]}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          onSelectionChange={onSelectionChange}
-          nodeTypes={nodeTypes}
-          fitView
-          onInit={onInit}
+      <div style={{ position: "relative", width: "100%", height: "100%" }}>
+        <div
+          ref={reactFlowWrapper}
+          style={{ width: "100%", height: "100%" }}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
         >
-          <Background gap={16} size={1} color="#f0f0f0" />
-          <MiniMap />
-          <Controls />
-        </ReactFlow>
+          <ReactFlow
+            nodes={nodes as Node[]}
+            edges={edges as Edge[]}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            onSelectionChange={onSelectionChange}
+            nodeTypes={nodeTypes}
+            fitView
+            onInit={onInit}
+          >
+            <Background gap={16} size={1} color="#f0f0f0" />
+            <MiniMap />
+            <Controls />
+          </ReactFlow>
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            zIndex: 20,
+            pointerEvents: "none",
+            display: "flex",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleAutoArrange}
+            style={{
+              pointerEvents: "auto",
+              background: "rgba(37,99,235,0.22)",
+              border: "1px solid rgba(59,130,246,0.55)",
+              color: "#bfdbfe",
+              borderRadius: 6,
+              padding: "6px 12px",
+              fontSize: 12,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(15,23,42,0.35)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            Arrange Graph
+          </button>
+        </div>
       </div>
     </ReactFlowProvider>
   );

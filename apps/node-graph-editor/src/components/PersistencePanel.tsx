@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useEditorStore } from "../store/useEditorStore";
 import {
   listNodeGraphFixtures,
@@ -23,6 +23,7 @@ export default function PersistencePanel(): JSX.Element {
   const [fixturesLoading, setFixturesLoading] = useState(false);
   const [fixtureError, setFixtureError] = useState<string | null>(null);
   const [selectedFixture, setSelectedFixture] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -104,6 +105,10 @@ export default function PersistencePanel(): JSX.Element {
     },
     [onFile],
   );
+
+  const triggerFileDialog = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const saveToLocal = useCallback(() => {
     try {
@@ -190,32 +195,27 @@ export default function PersistencePanel(): JSX.Element {
         Export Spec
       </button>
 
-      <label
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={importFromInput}
+        style={{ display: "none" }}
+      />
+      <button
+        type="button"
+        onClick={triggerFileDialog}
         style={{
-          display: "inline-flex",
-          gap: 8,
-          alignItems: "center",
-          background: "transparent",
+          padding: "6px 10px",
+          border: "1px solid rgba(148,163,184,0.35)",
+          borderRadius: 6,
+          cursor: "pointer",
+          color: "#e2e8f0",
+          background: "rgba(148,163,184,0.15)",
         }}
       >
-        <input
-          type="file"
-          accept=".json,application/json"
-          onChange={importFromInput}
-          style={{ display: "none" }}
-        />
-        <span
-          style={{
-            padding: "6px 10px",
-            border: "1px solid rgba(148,163,184,0.35)",
-            borderRadius: 6,
-            cursor: "pointer",
-            color: "#e2e8f0",
-          }}
-        >
-          Import Spec
-        </span>
-      </label>
+        Load From File
+      </button>
 
       <button
         onClick={saveToLocal}

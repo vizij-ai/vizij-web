@@ -35,6 +35,7 @@ type EditorState = {
   setEdges: (
     updater: EditorEdge[] | ((prev: EditorEdge[]) => EditorEdge[]),
   ) => void;
+  arrangeNodes: () => void;
   setSpec: (
     spec:
       | GraphSpec
@@ -345,6 +346,140 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         spec: specToUse,
       };
     }),
+  arrangeNodes: () => {
+    const { nodes, edges, setNodes } = get();
+    if (!Array.isArray(nodes) || nodes.length === 0) return;
+
+    const nodeMap = new Map<string, EditorNode>();
+    nodes.forEach((node) => {
+      nodeMap.set(String(node.id), node);
+    });
+
+    const adjacency = new Map<string, Set<string>>();
+    const incoming = new Map<string, Set<string>>();
+    nodeMap.forEach((_node, id) => {
+      adjacency.set(id, new Set());
+      incoming.set(id, new Set());
+    });
+
+    edges.forEach((edge) => {
+      const sourceId = String(edge.source);
+      const targetId = String(edge.target);
+      if (!nodeMap.has(sourceId) || !nodeMap.has(targetId)) return;
+      if (sourceId === targetId) return; // ignore self loops for layout
+      adjacency.get(sourceId)!.add(targetId);
+      incoming.get(targetId)!.add(sourceId);
+    });
+
+    const indegree = new Map<string, number>();
+    nodeMap.forEach((_node, id) => {
+      indegree.set(id, incoming.get(id)?.size ?? 0);
+    });
+
+    const queue: EditorNode[] = [];
+    nodeMap.forEach((node, id) => {
+      if ((indegree.get(id) ?? 0) === 0) {
+        queue.push(node);
+      }
+    });
+    queue.sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0));
+
+    const order: string[] = [];
+    const indegreeMutable = new Map(indegree);
+    const enqueued = new Set<string>(queue.map((node) => String(node.id)));
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      order.push(String(current.id));
+
+      const neighbors = adjacency.get(String(current.id));
+      if (!neighbors) continue;
+      neighbors.forEach((neighborId) => {
+        if (!indegreeMutable.has(neighborId)) return;
+        const next = (indegreeMutable.get(neighborId) ?? 0) - 1;
+        indegreeMutable.set(neighborId, next);
+        if (next === 0 && !enqueued.has(neighborId)) {
+          const neighborNode = nodeMap.get(neighborId);
+          if (neighborNode) {
+            queue.push(neighborNode);
+            enqueued.add(neighborId);
+            queue.sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0));
+          }
+        }
+      });
+    }
+
+    const seen = new Set(order);
+    if (order.length < nodes.length) {
+      nodes.forEach((node) => {
+        const nodeId = String(node.id);
+        if (!seen.has(nodeId)) {
+          order.push(nodeId);
+          seen.add(nodeId);
+        }
+      });
+    }
+
+    const layerMap = new Map<string, number>();
+    order.forEach((id) => {
+      const parents = incoming.get(id);
+      if (!parents || parents.size === 0) {
+        layerMap.set(id, 0);
+        return;
+      }
+      let best = 0;
+      parents.forEach((parentId) => {
+        const parentLayer = layerMap.get(parentId);
+        if (parentLayer != null) {
+          best = Math.max(best, parentLayer + 1);
+        } else {
+          best = Math.max(best, 1);
+        }
+      });
+      layerMap.set(id, best);
+    });
+
+    const layers = new Map<number, string[]>();
+    order.forEach((id) => {
+      const layerIdx = layerMap.get(id) ?? 0;
+      if (!layers.has(layerIdx)) layers.set(layerIdx, []);
+      layers.get(layerIdx)!.push(id);
+    });
+
+    const columnSpacing = 320;
+    const rowSpacing = 140;
+    const horizontalMargin = 80;
+    const verticalMargin = 60;
+
+    const positions = new Map<string, { x: number; y: number }>();
+    Array.from(layers.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([layerIdx, ids]) => {
+        ids.sort((aId, bId) => {
+          const nodeA = nodeMap.get(aId);
+          const nodeB = nodeMap.get(bId);
+          return (nodeA?.position?.y ?? 0) - (nodeB?.position?.y ?? 0);
+        });
+        ids.forEach((nodeId, idx) => {
+          const x = horizontalMargin + layerIdx * columnSpacing;
+          const y = verticalMargin + idx * rowSpacing;
+          positions.set(nodeId, { x, y });
+        });
+      });
+
+    setNodes((prev) =>
+      prev.map((node) => {
+        const nodeId = String(node.id);
+        const targetPos = positions.get(nodeId);
+        if (!targetPos) return node;
+        return {
+          ...node,
+          position: targetPos,
+          positionAbsolute: undefined,
+        };
+      }),
+    );
+  },
   setSpec: (specLike) =>
     set(() => {
       if (!specLike) return { spec: null, nodes: [], edges: [] };

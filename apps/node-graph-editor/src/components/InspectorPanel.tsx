@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useEditorStore } from "../store/useEditorStore";
 import { ParamSpec, PortSpec, useRegistry } from "../contexts/RegistryProvider";
 import { useGraphRuntime, useNodeOutputs } from "@vizij/node-graph-react";
@@ -9,6 +15,70 @@ const VARIADIC_DELIM = "_";
 function formatVariadicPortId(groupId: string, index: number): string {
   return `${groupId}${VARIADIC_DELIM}${index}`;
 }
+
+const darkCardStyle: CSSProperties = {
+  background: "rgba(17,24,39,0.85)",
+  border: "1px solid rgba(148,163,184,0.35)",
+  borderRadius: 8,
+};
+
+const darkSectionStyle: CSSProperties = {
+  ...darkCardStyle,
+  padding: 8,
+};
+
+const darkInputStyle: CSSProperties = {
+  background: "rgba(15,23,42,0.85)",
+  border: "1px solid rgba(148,163,184,0.45)",
+  color: "#e2e8f0",
+  borderRadius: 6,
+  padding: "6px 8px",
+};
+
+const darkTextareaStyle: CSSProperties = {
+  ...darkInputStyle,
+  padding: "8px 10px",
+  fontFamily: "monospace",
+};
+
+const darkButtonStyle: CSSProperties = {
+  background: "rgba(37,99,235,0.22)",
+  border: "1px solid rgba(59,130,246,0.45)",
+  color: "#bfdbfe",
+  borderRadius: 6,
+  padding: "6px 10px",
+  cursor: "pointer",
+};
+
+const darkSecondaryButtonStyle: CSSProperties = {
+  background: "rgba(148,163,184,0.18)",
+  border: "1px solid rgba(148,163,184,0.4)",
+  color: "#e2e8f0",
+  borderRadius: 6,
+  padding: "6px 10px",
+  cursor: "pointer",
+};
+
+const darkDangerButtonStyle: CSSProperties = {
+  background: "rgba(248,113,113,0.2)",
+  border: "1px solid rgba(248,113,113,0.4)",
+  color: "#fecaca",
+  borderRadius: 6,
+  padding: "6px 10px",
+  cursor: "pointer",
+};
+
+const darkAccentBadgeStyle: CSSProperties = {
+  fontSize: 11,
+  color: "#34d399",
+  background: "rgba(52,211,153,0.15)",
+  padding: "2px 6px",
+  borderRadius: 999,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+};
+
+const subtleTextColor = "#94a3b8";
 
 function extractVariadicIndex(portId: string, groupId: string): number | null {
   const parsed = parseVariadicPortId(portId);
@@ -71,6 +141,7 @@ function renderParamEditor(
       <select
         value={String(value ?? "")}
         onChange={(e) => onChange(e.target.value)}
+        style={{ ...darkInputStyle, width: "100%" }}
       >
         <option value="">(none)</option>
         {options.map((o: any) => (
@@ -88,6 +159,7 @@ function renderParamEditor(
         type="checkbox"
         checked={!!value}
         onChange={(e) => onChange(e.target.checked)}
+        style={{ accentColor: "#38bdf8" }}
       />
     );
   }
@@ -105,6 +177,7 @@ function renderParamEditor(
         onChange={(e) =>
           onChange(e.target.value === "" ? null : Number(e.target.value))
         }
+        style={{ ...darkInputStyle, width: "100%" }}
       />
     );
   }
@@ -117,21 +190,21 @@ function renderParamEditor(
           onChange={(e) =>
             onChange([Number(e.target.value), value[1], value[2]])
           }
-          style={{ width: 60 }}
+          style={{ ...darkInputStyle, width: 60 }}
         />
         <input
           value={value[1] ?? ""}
           onChange={(e) =>
             onChange([value[0], Number(e.target.value), value[2]])
           }
-          style={{ width: 60 }}
+          style={{ ...darkInputStyle, width: 60 }}
         />
         <input
           value={value[2] ?? ""}
           onChange={(e) =>
             onChange([value[0], value[1], Number(e.target.value)])
           }
-          style={{ width: 60 }}
+          style={{ ...darkInputStyle, width: 60 }}
         />
       </div>
     );
@@ -148,12 +221,17 @@ function renderParamEditor(
           if (!parsed.error) onChange(parsed.value);
           else onChange(e.target.value);
         }}
+        style={{ ...darkTextareaStyle }}
       />
     );
   }
 
   return (
-    <input value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+    <input
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ ...darkInputStyle, width: "100%" }}
+    />
   );
 }
 
@@ -294,9 +372,9 @@ function ValueParamEditor({
   // };
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "grid", gap: 8, color: "#e2e8f0" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <label style={{ fontSize: 12, color: "#666" }}>Type</label>
+        <label style={{ fontSize: 12, color: subtleTextColor }}>Type</label>
         <select
           value={kind}
           onChange={(e) => {
@@ -321,7 +399,7 @@ function ValueParamEditor({
               onChange({ text: "" });
             }
           }}
-          style={{ padding: 6 }}
+          style={{ ...darkInputStyle }}
         >
           <option value="float">float</option>
           <option value="bool">bool</option>
@@ -340,12 +418,20 @@ function ValueParamEditor({
             setFloatVal(n);
             onChange({ float: n });
           }}
-          style={{ width: 140, padding: 6 }}
+          style={{ ...darkInputStyle, width: 140 }}
         />
       )}
 
       {kind === "bool" && (
-        <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+        <label
+          style={{
+            display: "inline-flex",
+            gap: 6,
+            alignItems: "center",
+            fontSize: 12,
+            color: subtleTextColor,
+          }}
+        >
           <input
             type="checkbox"
             checked={!!boolVal}
@@ -354,6 +440,7 @@ function ValueParamEditor({
               setBoolVal(b);
               onChange({ bool: b });
             }}
+            style={{ accentColor: "#38bdf8" }}
           />
           <span>true/false</span>
         </label>
@@ -374,7 +461,7 @@ function ValueParamEditor({
               setVec3Val(next);
               onChange({ vec3: next });
             }}
-            style={{ width: 60 }}
+            style={{ ...darkInputStyle, width: 60 }}
           />
           <input
             type="number"
@@ -389,7 +476,7 @@ function ValueParamEditor({
               setVec3Val(next);
               onChange({ vec3: next });
             }}
-            style={{ width: 60 }}
+            style={{ ...darkInputStyle, width: 60 }}
           />
           <input
             type="number"
@@ -404,7 +491,7 @@ function ValueParamEditor({
               setVec3Val(next);
               onChange({ vec3: next });
             }}
-            style={{ width: 60 }}
+            style={{ ...darkInputStyle, width: 60 }}
           />
         </div>
       )}
@@ -424,7 +511,7 @@ function ValueParamEditor({
               .filter((n) => Number.isFinite(n));
             onChange({ vector: nums });
           }}
-          style={{ width: "100%", padding: 6 }}
+          style={{ ...darkInputStyle, width: "100%" }}
         />
       )}
 
@@ -436,7 +523,7 @@ function ValueParamEditor({
             setTextVal(t);
             onChange({ text: t });
           }}
-          style={{ width: "100%", padding: 6 }}
+          style={{ ...darkInputStyle, width: "100%" }}
         />
       )}
     </div>
@@ -459,7 +546,7 @@ function CaseLabelsEditor({
 }) {
   const safeLabels = labels.length ? labels : CASE_LABEL_PLACEHOLDER;
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6, color: "#e2e8f0" }}>
       {safeLabels.map((label, index) => (
         <div
           key={`${index}_${label}`}
@@ -476,7 +563,7 @@ function CaseLabelsEditor({
                   .filter((entry) => entry.length > 0),
               );
             }}
-            style={{ flex: 1, padding: 6 }}
+            style={{ ...darkInputStyle, flex: 1 }}
           />
           <button
             type="button"
@@ -487,7 +574,7 @@ function CaseLabelsEditor({
                 .filter((entry) => entry.length > 0);
               onChange(next);
             }}
-            style={{ padding: "4px 8px" }}
+            style={{ ...darkDangerButtonStyle, padding: "4px 10px" }}
           >
             Remove
           </button>
@@ -499,7 +586,7 @@ function CaseLabelsEditor({
           const next = [...labels, `case_${labels.length}`];
           onChange(next);
         }}
-        style={{ padding: "6px 8px", justifySelf: "flex-start" }}
+        style={{ ...darkButtonStyle, justifySelf: "flex-start" }}
       >
         Add label
       </button>
@@ -572,7 +659,7 @@ function TypedPathEditor({
     pathText.includes("//");
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6, color: "#e2e8f0" }}>
       <div style={{ display: "flex", gap: 8 }}>
         <select
           value={kind}
@@ -581,7 +668,7 @@ function TypedPathEditor({
             setKind(nextKind);
             onChange(buildTypedPath(nextKind, pathText));
           }}
-          style={{ padding: "6px 8px" }}
+          style={{ ...darkInputStyle }}
         >
           {TYPED_PATH_TYPES.map((entry) => (
             <option key={entry} value={entry}>
@@ -599,16 +686,16 @@ function TypedPathEditor({
             }
           }}
           placeholder="namespace/channel/field"
-          style={{ flex: 1, padding: "6px 8px" }}
+          style={{ ...darkInputStyle, flex: 1 }}
         />
       </div>
       {invalid ? (
-        <div style={{ fontSize: 11, color: "#dc2626" }}>
+        <div style={{ fontSize: 11, color: "#fca5a5" }}>
           Path must not be empty or contain whitespace. Use "/" to separate
           segments.
         </div>
       ) : (
-        <div style={{ fontSize: 11, color: "#64748b" }}>
+        <div style={{ fontSize: 11, color: subtleTextColor }}>
           Result: <code>{buildTypedPath(kind, pathText)}</code>
         </div>
       )}
@@ -653,7 +740,7 @@ function InputDefaultEditor({
       : defaultValueForPortType(portType);
 
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6, color: "#e2e8f0" }}>
       <ValueParamEditor
         value={currentValue}
         onChange={(next) =>
@@ -680,9 +767,12 @@ function InputDefaultEditor({
             })
           }
           style={{
-            padding: "4px 8px",
+            ...darkButtonStyle,
             justifySelf: "flex-start",
-            background: "#e0f2fe",
+            padding: "6px 10px",
+            background: "rgba(56,189,248,0.22)",
+            border: "1px solid rgba(56,189,248,0.45)",
+            color: "#bae6fd",
           }}
         >
           Enable default
@@ -693,9 +783,9 @@ function InputDefaultEditor({
           type="button"
           onClick={() => onChange(null)}
           style={{
-            padding: "4px 8px",
+            ...darkSecondaryButtonStyle,
             justifySelf: "flex-start",
-            background: "#f1f5f9",
+            padding: "6px 10px",
           }}
         >
           Clear default
@@ -987,7 +1077,7 @@ export default function InspectorPanel(): JSX.Element {
     return (
       <aside style={{ padding: 12 }}>
         <h3 style={{ marginTop: 0 }}>Inspector</h3>
-        <div style={{ color: "#888", fontSize: 13 }}>
+        <div style={{ color: subtleTextColor, fontSize: 13 }}>
           Select a node on the canvas to inspect its details.
         </div>
       </aside>
@@ -1007,7 +1097,10 @@ export default function InspectorPanel(): JSX.Element {
         <h3 style={{ margin: 0 }}>Inspector</h3>
         <button
           onClick={() => setSelected(null)}
-          style={{ marginLeft: "auto" }}
+          style={{
+            marginLeft: "auto",
+            ...darkSecondaryButtonStyle,
+          }}
         >
           Deselect
         </button>
@@ -1016,33 +1109,40 @@ export default function InspectorPanel(): JSX.Element {
       {/* Runtime debug controls */}
       <section
         style={{
+          ...darkSectionStyle,
           marginBottom: 10,
-          padding: 8,
-          background: "#f7fafc",
-          border: "1px solid #e5e7eb",
-          borderRadius: 6,
         }}
       >
-        <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, color: "#e2e8f0", marginBottom: 6 }}>
           Runtime ready: <strong>{String(runtime.ready)}</strong> · Playback:{" "}
           <strong>{runtime.getPlaybackMode?.()}</strong> · Snapshot v
           <strong>{(snapshot as any)?.version ?? 0}</strong>
         </div>
-        <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, color: subtleTextColor, marginBottom: 6 }}>
           Eval nodes keys:{" "}
           <code>{nodeKeys.length ? nodeKeys.join(", ") : "(none)"}</code>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={handleEvalNow}
-            style={{ padding: "4px 8px" }}
+            style={{
+              ...darkSecondaryButtonStyle,
+              padding: "6px 10px",
+              opacity: controlsDisabled ? 0.55 : 1,
+              cursor: controlsDisabled ? "not-allowed" : "pointer",
+            }}
             disabled={controlsDisabled}
           >
             Eval Now
           </button>
           <button
             onClick={handleReloadGraph}
-            style={{ padding: "4px 8px" }}
+            style={{
+              ...darkSecondaryButtonStyle,
+              padding: "6px 10px",
+              opacity: controlsDisabled ? 0.55 : 1,
+              cursor: controlsDisabled ? "not-allowed" : "pointer",
+            }}
             disabled={controlsDisabled}
           >
             Reload Graph
@@ -1053,9 +1153,9 @@ export default function InspectorPanel(): JSX.Element {
       {/* Identity */}
       <section style={{ marginBottom: 12 }}>
         <div style={{ fontWeight: 700 }}>{node.data?.label ?? node.type}</div>
-        <div style={{ color: "#9aa0a6", fontSize: 12 }}>{`ID: ${node.id}`}</div>
+        <div style={{ color: subtleTextColor, fontSize: 12 }}>{`ID: ${node.id}`}</div>
         <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-          <label style={{ fontSize: 12 }}>ID</label>
+          <label style={{ fontSize: 12, color: subtleTextColor }}>ID</label>
           <input
             value={node.id}
             onChange={(e) => {
@@ -1070,7 +1170,7 @@ export default function InspectorPanel(): JSX.Element {
                 }
               });
             }}
-            style={{ width: "100%", padding: 6 }}
+            style={{ ...darkInputStyle, width: "100%" }}
           />
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -1103,6 +1203,7 @@ export default function InspectorPanel(): JSX.Element {
                 );
                 setSelected(newId);
               }}
+              style={{ ...darkButtonStyle }}
             >
               Apply ID (from JSON)
             </button>
@@ -1112,7 +1213,9 @@ export default function InspectorPanel(): JSX.Element {
 
       {/* Type */}
       <section style={{ marginBottom: 12 }}>
-        <label style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
+        <label
+          style={{ display: "block", fontSize: 12, marginBottom: 6, color: subtleTextColor }}
+        >
           Type
         </label>
         <select
@@ -1123,7 +1226,7 @@ export default function InspectorPanel(): JSX.Element {
               prev.map((n) => (n.id === node.id ? { ...n, type: newType } : n)),
             );
           }}
-          style={{ width: "100%", padding: 6 }}
+          style={{ ...darkInputStyle, width: "100%" }}
         >
           <option value={node.type}>{node.type}</option>
           {registry?.nodes?.map((t: any) => (
@@ -1138,7 +1241,7 @@ export default function InspectorPanel(): JSX.Element {
           </div>
         ) : null}
         {nodeSummary?.doc ? (
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: subtleTextColor, marginTop: 6 }}>
             {nodeSummary.doc}
           </div>
         ) : null}
@@ -1148,7 +1251,7 @@ export default function InspectorPanel(): JSX.Element {
       <section style={{ marginBottom: 12 }}>
         <h4 style={{ marginBottom: 8 }}>Params</h4>
         {paramsSpec.length === 0 ? (
-          <div style={{ color: "#888" }}>
+          <div style={{ color: subtleTextColor }}>
             No structured params for this node type.
           </div>
         ) : (
@@ -1189,7 +1292,12 @@ export default function InspectorPanel(): JSX.Element {
             return (
               <div key={p.id} style={{ marginBottom: 10 }}>
                 <label
-                  style={{ display: "block", fontSize: 12, marginBottom: 4 }}
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    marginBottom: 4,
+                    color: subtleTextColor,
+                  }}
                 >
                   {p.name ?? p.id}
                 </label>
@@ -1209,7 +1317,7 @@ export default function InspectorPanel(): JSX.Element {
       <section style={{ marginBottom: 12 }}>
         <h4 style={{ marginBottom: 8 }}>Inputs</h4>
         {portsSpec.inputs.length === 0 ? (
-          <div style={{ color: "#888" }}>
+          <div style={{ color: subtleTextColor }}>
             No declared inputs for this node type.
           </div>
         ) : (
@@ -1230,14 +1338,13 @@ export default function InspectorPanel(): JSX.Element {
                       >
                     )[port.id]
                   : undefined;
-              return (
-                <div
-                  key={port.id}
-                  style={{
-                    padding: 8,
-                    borderRadius: 6,
-                    background: "#fafafa",
+            return (
+              <div
+                key={port.id}
+                style={{
+                  ...darkSectionStyle,
                     marginBottom: 8,
+                    color: "#e2e8f0",
                   }}
                 >
                   <div
@@ -1250,29 +1357,19 @@ export default function InspectorPanel(): JSX.Element {
                   >
                     {port.label ?? port.name}
                     {port.optional ? (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "#16a34a",
-                          background: "rgba(22,163,74,0.1)",
-                          padding: "2px 6px",
-                          borderRadius: 999,
-                          textTransform: "uppercase",
-                          letterSpacing: 0.4,
-                        }}
-                      >
+                      <span style={darkAccentBadgeStyle}>
                         optional
                       </span>
                     ) : null}
                   </div>
                   <div
-                    style={{ fontSize: 12, color: "#666" }}
+                    style={{ fontSize: 12, color: subtleTextColor }}
                   >{`port: ${port.id} — type: ${port.type}`}</div>
                   {port.doc ? (
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#64748b",
+                        color: subtleTextColor,
                         marginTop: 4,
                         lineHeight: 1.4,
                       }}
@@ -1282,85 +1379,116 @@ export default function InspectorPanel(): JSX.Element {
                   ) : null}
 
                   <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-                    <div>
-                      <label style={{ fontSize: 12 }}>Source node</label>
-                      <select
-                        value={mapping?.sourceNodeId ?? ""}
-                        onChange={(e) =>
-                          updateNodeInput(node.id, port.id, {
-                            sourceNodeId: e.target.value || null,
-                            sourceOutputKey: null,
-                            selector: null,
-                            basePortId: port.id,
-                          })
-                        }
-                        style={{ width: "100%", padding: 6 }}
-                      >
-                        <option value="">(none)</option>
-                        {nodes
-                          .filter((nn) => nn.id !== node.id)
-                          .map((nn) => (
-                            <option key={nn.id} value={nn.id}>
-                              {nn.data?.label ?? nn.id}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
+                    {(() => {
+                      const hasSourceNode =
+                        typeof mapping?.sourceNodeId === "string" &&
+                        mapping.sourceNodeId.length > 0;
+                      const hasSourceOutput =
+                        typeof mapping?.sourceOutputKey === "string" &&
+                        mapping.sourceOutputKey.length > 0;
+                      return (
+                        <>
+                          <div>
+                            <label
+                              style={{ fontSize: 12, color: subtleTextColor }}
+                            >
+                              Source node
+                            </label>
+                            <select
+                              value={mapping?.sourceNodeId ?? ""}
+                              onChange={(e) =>
+                                updateNodeInput(node.id, port.id, {
+                                  sourceNodeId: e.target.value || null,
+                                  sourceOutputKey: null,
+                                  selector: null,
+                                  basePortId: port.id,
+                                })
+                              }
+                              style={{ ...darkInputStyle, width: "100%" }}
+                            >
+                              <option value="">(none)</option>
+                              {nodes
+                                .filter((nn) => nn.id !== node.id)
+                                .map((nn) => (
+                                  <option key={nn.id} value={nn.id}>
+                                    {nn.data?.label ?? nn.id}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+
+                          {hasSourceNode ? (
+                            <div>
+                              <label
+                                style={{ fontSize: 12, color: subtleTextColor }}
+                              >
+                                Source output key
+                              </label>
+                              <select
+                                value={mapping?.sourceOutputKey ?? ""}
+                                onChange={(e) =>
+                                  updateNodeInput(node.id, port.id, {
+                                    sourceNodeId: mapping?.sourceNodeId ?? null,
+                                    sourceOutputKey: e.target.value || null,
+                                    selector: null,
+                                    basePortId: port.id,
+                                  })
+                                }
+                                style={{ ...darkInputStyle, width: "100%" }}
+                              >
+                                <option value="">(none)</option>
+                                {mapping?.sourceNodeId
+                                  ? (() => {
+                                      const src = nodes.find(
+                                        (nn) => nn.id === mapping.sourceNodeId,
+                                      );
+                                      const srcPorts = src
+                                        ? (getPortsForType?.(
+                                            String(src.type ?? ""),
+                                          )?.outputs ?? [])
+                                        : [];
+                                      return srcPorts.map((op: any) => (
+                                        <option key={op.id} value={op.id}>
+                                          {op.label ?? op.name ?? op.id}
+                                        </option>
+                                      ));
+                                    })()
+                                  : null}
+                              </select>
+                            </div>
+                          ) : null}
+
+                          {hasSourceOutput ? (
+                            <div>
+                              <label
+                                style={{ fontSize: 12, color: subtleTextColor }}
+                              >
+                                Selector (optional)
+                              </label>
+                              <input
+                                value={mapping?.selector ?? ""}
+                                onChange={(e) =>
+                                  updateNodeInput(node.id, port.id, {
+                                    sourceNodeId:
+                                      mapping?.sourceNodeId ?? null,
+                                    sourceOutputKey:
+                                      mapping?.sourceOutputKey ?? null,
+                                    selector: e.target.value || null,
+                                    basePortId: port.id,
+                                  })
+                                }
+                                style={{ ...darkInputStyle, width: "100%" }}
+                              />
+                            </div>
+                          ) : null}
+                        </>
+                      );
+                    })()}
 
                     <div>
-                      <label style={{ fontSize: 12 }}>Source output key</label>
-                      <select
-                        value={mapping?.sourceOutputKey ?? ""}
-                        onChange={(e) =>
-                          updateNodeInput(node.id, port.id, {
-                            sourceNodeId: mapping?.sourceNodeId ?? null,
-                            sourceOutputKey: e.target.value || null,
-                            selector: null,
-                            basePortId: port.id,
-                          })
-                        }
-                        style={{ width: "100%", padding: 6 }}
-                      >
-                        <option value="">(none)</option>
-                        {mapping?.sourceNodeId
-                          ? (() => {
-                              const src = nodes.find(
-                                (nn) => nn.id === mapping.sourceNodeId,
-                              );
-                              const srcPorts = src
-                                ? (getPortsForType?.(String(src.type ?? ""))
-                                    ?.outputs ?? [])
-                                : [];
-                              return srcPorts.map((op: any) => (
-                                <option key={op.id} value={op.id}>
-                                  {op.label ?? op.name ?? op.id}
-                                </option>
-                              ));
-                            })()
-                          : null}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 12 }}>
-                        Selector (optional)
+                      <label style={{ fontSize: 12, color: subtleTextColor }}>
+                        Fallback value
                       </label>
-                      <input
-                        value={mapping?.selector ?? ""}
-                        onChange={(e) =>
-                          updateNodeInput(node.id, port.id, {
-                            sourceNodeId: mapping?.sourceNodeId ?? null,
-                            sourceOutputKey: mapping?.sourceOutputKey ?? null,
-                            selector: e.target.value || null,
-                            basePortId: port.id,
-                          })
-                        }
-                        style={{ width: "100%", padding: 6 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 12 }}>Fallback value</label>
                       <InputDefaultEditor
                         entry={inputDefaultEntry}
                         portType={port.type}
@@ -1380,24 +1508,25 @@ export default function InspectorPanel(): JSX.Element {
           {portsSpec.variadicInputs ? (
             <div
               style={{
-                padding: 8,
-                borderRadius: 6,
-                background: "#f8faf8",
+                ...darkSectionStyle,
                 marginTop: 8,
+                color: "#e2e8f0",
               }}
             >
               <div style={{ fontWeight: 700 }}>
                 {portsSpec.variadicInputs.label ?? portsSpec.variadicInputs.id}{" "}
                 (variadic)
               </div>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
+              <div
+                style={{ fontSize: 12, color: subtleTextColor, marginBottom: 8 }}
+              >
                 {`type: ${portsSpec.variadicInputs.type}  min: ${portsSpec.variadicInputs.min ?? 0} ${portsSpec.variadicInputs.max ? `max: ${portsSpec.variadicInputs.max}` : ""}`}
               </div>
               {portsSpec.variadicInputs.doc ? (
                 <div
                   style={{
                     fontSize: 12,
-                    color: "#64748b",
+                    color: subtleTextColor,
                     marginBottom: 8,
                     lineHeight: 1.4,
                   }}
@@ -1424,131 +1553,150 @@ export default function InspectorPanel(): JSX.Element {
                         baseId === groupId
                       );
                     })
-                    .map((m: any, idx: number) => (
-                      <div
-                        key={m.portId}
-                        style={{
-                          padding: 6,
-                          background: "#fff",
-                          borderRadius: 6,
-                          marginBottom: 6,
-                        }}
-                      >
+                    .map((m: any, idx: number) => {
+                      const hasSourceNode =
+                        typeof m.sourceNodeId === "string" &&
+                        m.sourceNodeId.length > 0;
+                      const hasSourceOutput =
+                        typeof m.sourceOutputKey === "string" &&
+                        m.sourceOutputKey.length > 0;
+                      return (
                         <div
+                          key={m.portId}
                           style={{
-                            fontSize: 12,
-                            color: "#333",
+                            ...darkCardStyle,
+                            padding: 8,
                             marginBottom: 6,
+                            color: "#e2e8f0",
                           }}
-                        >{`Item ${idx + 1} (id: ${m.portId})`}</div>
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: subtleTextColor,
+                              marginBottom: 6,
+                            }}
+                          >{`Item ${idx + 1} (id: ${m.portId})`}</div>
 
-                        <div style={{ display: "grid", gap: 8 }}>
-                          <select
-                            value={m.sourceNodeId ?? ""}
-                            onChange={(e) =>
-                              updateNodeInput(node.id, m.portId, {
-                                sourceNodeId: e.target.value || null,
-                                sourceOutputKey: null,
-                                selector: null,
-                                basePortId:
-                                  m.basePortId ??
-                                  portsSpec.variadicInputs?.id ??
-                                  m.portId,
-                              })
-                            }
-                            style={{ width: "100%", padding: 6 }}
-                          >
-                            <option value="">(none)</option>
-                            {nodes
-                              .filter((nn) => nn.id !== node.id)
-                              .map((nn) => (
-                                <option key={nn.id} value={nn.id}>
-                                  {nn.data?.label ?? nn.id}
-                                </option>
-                              ))}
-                          </select>
-
-                          <select
-                            value={m.sourceOutputKey ?? ""}
-                            onChange={(e) =>
-                              updateNodeInput(node.id, m.portId, {
-                                sourceNodeId: m.sourceNodeId ?? null,
-                                sourceOutputKey: e.target.value || null,
-                                selector: null,
-                                basePortId:
-                                  m.basePortId ??
-                                  portsSpec.variadicInputs?.id ??
-                                  m.portId,
-                              })
-                            }
-                            style={{ width: "100%", padding: 6 }}
-                          >
-                            <option value="">(none)</option>
-                            {m.sourceNodeId
-                              ? (() => {
-                                  const src = nodes.find(
-                                    (nn) => nn.id === m.sourceNodeId,
-                                  );
-                                  const srcPorts = src
-                                    ? (getPortsForType?.(String(src.type ?? ""))
-                                        ?.outputs ?? [])
-                                    : [];
-                                  return srcPorts.map((op: any) => (
-                                    <option key={op.id} value={op.id}>
-                                      {op.label ?? op.name ?? op.id}
-                                    </option>
-                                  ));
-                                })()
-                              : null}
-                          </select>
-
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <input
-                              value={m.selector ?? ""}
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <select
+                              value={m.sourceNodeId ?? ""}
                               onChange={(e) =>
                                 updateNodeInput(node.id, m.portId, {
-                                  sourceNodeId: m.sourceNodeId ?? null,
-                                  sourceOutputKey: m.sourceOutputKey ?? null,
-                                  selector: e.target.value || null,
+                                  sourceNodeId: e.target.value || null,
+                                  sourceOutputKey: null,
+                                  selector: null,
                                   basePortId:
                                     m.basePortId ??
                                     portsSpec.variadicInputs?.id ??
                                     m.portId,
                                 })
                               }
-                              style={{ flex: 1, padding: 6 }}
-                              placeholder="selector (optional)"
-                            />
-                            <button
-                              onClick={() => {
-                                // remove this variadic mapping
-                                setNodes((prev) =>
-                                  prev.map((n) => {
-                                    if (n.id !== node.id) return n;
-                                    const inputs = (
-                                      n.data?.inputs ?? []
-                                    ).filter(
-                                      (i: any) =>
-                                        String(i.portId) !== String(m.portId),
-                                    );
-                                    return {
-                                      ...n,
-                                      data: { ...(n.data || {}), inputs },
-                                    };
-                                  }),
-                                );
-                              }}
+                              style={{ ...darkInputStyle, width: "100%" }}
+                            >
+                              <option value="">(none)</option>
+                              {nodes
+                                .filter((nn) => nn.id !== node.id)
+                                .map((nn) => (
+                                  <option key={nn.id} value={nn.id}>
+                                    {nn.data?.label ?? nn.id}
+                                  </option>
+                                ))}
+                            </select>
+
+                            {hasSourceNode ? (
+                              <select
+                                value={m.sourceOutputKey ?? ""}
+                                onChange={(e) =>
+                                  updateNodeInput(node.id, m.portId, {
+                                    sourceNodeId: m.sourceNodeId ?? null,
+                                    sourceOutputKey: e.target.value || null,
+                                    selector: null,
+                                    basePortId:
+                                      m.basePortId ??
+                                      portsSpec.variadicInputs?.id ??
+                                      m.portId,
+                                  })
+                                }
+                                style={{ ...darkInputStyle, width: "100%" }}
+                              >
+                                <option value="">(none)</option>
+                                {m.sourceNodeId
+                                  ? (() => {
+                                      const src = nodes.find(
+                                        (nn) => nn.id === m.sourceNodeId,
+                                      );
+                                      const srcPorts = src
+                                        ? (getPortsForType?.(
+                                            String(src.type ?? ""),
+                                          )?.outputs ?? [])
+                                        : [];
+                                      return srcPorts.map((op: any) => (
+                                        <option key={op.id} value={op.id}>
+                                          {op.label ?? op.name ?? op.id}
+                                        </option>
+                                      ));
+                                    })()
+                                  : null}
+                              </select>
+                            ) : null}
+
+                            <div
                               style={{
-                                padding: "6px 8px",
-                                background: "#ffdddd",
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "center",
                               }}
                             >
-                              Remove
-                            </button>
+                              {hasSourceOutput ? (
+                                <input
+                                  value={m.selector ?? ""}
+                                  onChange={(e) =>
+                                    updateNodeInput(node.id, m.portId, {
+                                      sourceNodeId: m.sourceNodeId ?? null,
+                                      sourceOutputKey: m.sourceOutputKey ?? null,
+                                      selector: e.target.value || null,
+                                      basePortId:
+                                        m.basePortId ??
+                                        portsSpec.variadicInputs?.id ??
+                                        m.portId,
+                                    })
+                                  }
+                                  style={{ ...darkInputStyle, flex: 1 }}
+                                  placeholder="selector (optional)"
+                                />
+                              ) : null}
+                              <button
+                                onClick={() => {
+                                  // remove this variadic mapping
+                                  setNodes((prev) =>
+                                    prev.map((n) => {
+                                      if (n.id !== node.id) return n;
+                                      const inputs = (
+                                        n.data?.inputs ?? []
+                                      ).filter(
+                                        (i: any) =>
+                                          String(i.portId) !== String(m.portId),
+                                      );
+                                      return {
+                                        ...n,
+                                        data: { ...(n.data || {}), inputs },
+                                      };
+                                    }),
+                                  );
+                                }}
+                                style={{
+                                  ...darkDangerButtonStyle,
+                                  padding: "6px 10px",
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                 : null}
 
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -1567,7 +1715,7 @@ export default function InspectorPanel(): JSX.Element {
                       basePortId: groupId,
                     });
                   }}
-                  style={{ padding: "6px 8px" }}
+                  style={{ ...darkButtonStyle }}
                 >
                   Add {portsSpec.variadicInputs.label ?? "item"}
                 </button>
@@ -1575,7 +1723,7 @@ export default function InspectorPanel(): JSX.Element {
             </div>
           ) : null}
         </>
-        <div style={{ fontSize: 12, color: "#9aa0a6" }}>
+        <div style={{ fontSize: 12, color: subtleTextColor }}>
           Changes to inputs will update the node's NodeSpec mapping; use export
           to persist the canonical spec.
         </div>
@@ -1585,9 +1733,10 @@ export default function InspectorPanel(): JSX.Element {
           <div
             style={{
               fontSize: 11,
-              color: "#64748b",
+              color: subtleTextColor,
               marginTop: 8,
-              background: "#f1f5f9",
+              background: "rgba(15,23,42,0.75)",
+              border: "1px solid rgba(148,163,184,0.35)",
               padding: "8px 10px",
               borderRadius: 6,
             }}
@@ -1604,9 +1753,11 @@ export default function InspectorPanel(): JSX.Element {
       <section style={{ marginTop: 12 }}>
         <h4 style={{ marginBottom: 8 }}>Output shape & Live outputs</h4>
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 12, color: "#9aa0a6" }}>Declared outputs</div>
+          <div style={{ fontSize: 12, color: subtleTextColor }}>
+            Declared outputs
+          </div>
           {portsSpec.outputs.length === 0 ? (
-            <div style={{ color: "#888" }}>No declared outputs</div>
+            <div style={{ color: subtleTextColor }}>No declared outputs</div>
           ) : (
             portsSpec.outputs.map((o) => (
               <div key={o.id} style={{ marginBottom: 6 }}>
@@ -1615,7 +1766,7 @@ export default function InspectorPanel(): JSX.Element {
                   <div
                     style={{
                       fontSize: 12,
-                      color: "#64748b",
+                      color: subtleTextColor,
                       lineHeight: 1.35,
                     }}
                   >
@@ -1628,7 +1779,7 @@ export default function InspectorPanel(): JSX.Element {
         </div>
 
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: "#9aa0a6", marginBottom: 6 }}>
+          <div style={{ fontSize: 12, color: subtleTextColor, marginBottom: 6 }}>
             Live outputs
           </div>
           {outputsSnapshot && Object.keys(outputsSnapshot).length > 0 ? (
@@ -1647,7 +1798,7 @@ export default function InspectorPanel(): JSX.Element {
                   style={{ display: "flex", justifyContent: "space-between" }}
                 >
                   <div style={{ fontWeight: 700 }}>{k}</div>
-                  <div style={{ color: "#9aa0a6" }}>{typeof v}</div>
+                  <div style={{ color: subtleTextColor }}>{typeof v}</div>
                 </div>
                 <pre
                   style={{
@@ -1661,7 +1812,7 @@ export default function InspectorPanel(): JSX.Element {
               </div>
             ))
           ) : (
-            <div style={{ color: "#888" }}>
+            <div style={{ color: subtleTextColor }}>
               No runtime outputs available. Run the graph to produce outputs.
             </div>
           )}
@@ -1675,10 +1826,13 @@ export default function InspectorPanel(): JSX.Element {
           value={rawJson}
           onChange={(e) => setRawJson(e.target.value)}
           rows={12}
-          style={{ width: "100%", padding: 8, fontFamily: "monospace" }}
+          style={{ ...darkTextareaStyle, width: "100%" }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button onClick={applyRawJsonToNode} style={{ padding: "6px 8px" }}>
+          <button
+            onClick={applyRawJsonToNode}
+            style={{ ...darkButtonStyle }}
+          >
             Apply JSON to Node
           </button>
           <button
@@ -1686,7 +1840,7 @@ export default function InspectorPanel(): JSX.Element {
               // reset JSON to current node
               setRawJson(JSON.stringify(node, null, 2));
             }}
-            style={{ padding: "6px 8px" }}
+            style={{ ...darkSecondaryButtonStyle }}
           >
             Reset JSON
           </button>
