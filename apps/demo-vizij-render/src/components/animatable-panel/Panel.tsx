@@ -1,58 +1,13 @@
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useVizijStore,
   useVizijStoreSetter,
   type Selection,
 } from "@vizij/render";
-import {
-  getLookup,
-  instanceOfRawEuler,
-  instanceOfRawRGB,
-  instanceOfRawVector3,
-  RawColor,
-  RawEuler,
-  RawRGB,
-  RawValue,
-  RawVector3,
-  AnimatableValue,
-  AnimatableNumber,
-  AnimatableVector3,
-  AnimatableEuler,
-  AnimatableColor,
-} from "@vizij/utils";
-import { formatRawValue } from "../../utils/format";
-import {
-  STANDARD_RIG_INPUTS,
-  findStandardRigInput,
-  type StandardRigInput,
-} from "../../rig/standardRigInputs";
-import {
-  createDefaultRemap,
-  type AnimatableBinding,
-  type BindingMap,
-  type StandardInputValues,
-  type RemapSettings,
-} from "../../rig/state";
+import { getLookup, RawValue, AnimatableValue } from "@vizij/utils";
 import type { AnimatableComponent } from "../../rig/animatableMetadata";
-import {
-  DEFAULT_NAMESPACE,
-  XYZ_COMPONENTS,
-  RGB_COMPONENTS,
-  APPROX_EQUAL_EPSILON,
-} from "./constants";
-import type {
-  FeatureEntry,
-  RenderableLike,
-  AnimatableValuesPanelProps,
-} from "./types";
+import { DEFAULT_NAMESPACE } from "./constants";
+import type { FeatureEntry, AnimatableValuesPanelProps } from "./types";
 import { buildFeatureEntries } from "./featureEntries";
 import {
   cloneRawValue,

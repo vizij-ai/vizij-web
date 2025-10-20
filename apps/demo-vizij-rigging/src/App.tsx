@@ -946,12 +946,10 @@ export default function App(): JSX.Element {
       poseData[emotion.name || emotion.id] = poseValues;
     });
 
-    console.group("Rigging demo • captured poses");
-    console.log({
+    console.log("Rigging demo • captured poses", {
       neutral: neutralPose,
       poses: poseData,
     });
-    console.groupEnd();
   }, [availableStandardInputs, emotions, savedNeutral]);
 
   const selectedEmotion = useMemo(

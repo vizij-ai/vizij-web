@@ -8,10 +8,6 @@ import type {
 } from "./types";
 type EdgeSpec = NonNullable<GraphSpec["edges"]>[number];
 
-function recordBuilderNodeId(emotionId: string): string {
-  return `pose_${sanitizeId(emotionId)}`;
-}
-
 function buildRecordValue(fields: Record<string, number>): any {
   const entries = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b));
   return {
@@ -228,7 +224,7 @@ export function buildPoseGraphSpec(options: {
     const contributions: GraphGenerationSummary["inputs"][number]["contributions"] =
       [];
 
-    emotions.forEach((emotion, index) => {
+    emotions.forEach((emotion) => {
       const poseValueRaw = emotion.values[input.id];
       const poseValue = clampValueForInput(
         input,
