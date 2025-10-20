@@ -8,8 +8,6 @@ import {
 import { createDefaultInputValues as createDefaultStandardInputs } from "../low-level/state";
 import type { AnimatableComponent } from "../low-level/animatableMetadata";
 import type {
-  EmotionDefinition,
-  EmotionWeightMap,
   LowLevelBinding,
   LowLevelRigSummary,
   StandardInputId,
@@ -55,44 +53,9 @@ export function clampToInputRange(
   return value;
 }
 
-export function computeAppliedInputs(
-  inputs: StandardRigInput[],
-  neutralInputs: Record<StandardInputId, number>,
-  emotions: EmotionDefinition[],
-  weights: EmotionWeightMap,
-): Record<StandardInputId, number> {
-  const applied: Record<StandardInputId, number> = {};
-  inputs.forEach((input) => {
-    const neutral = neutralInputs[input.id] ?? input.defaultValue;
-    let value = neutral;
-    emotions.forEach((emotion) => {
-      const weight = weights[emotion.id] ?? 0;
-      if (weight <= 0) {
-        return;
-      }
-      const target = emotion.values[input.id] ?? neutral;
-      value += weight * (target - neutral);
-    });
-    applied[input.id] = clampToInputRange(input.id, value);
-  });
-  return applied;
-}
-
-export function computePoseDelta(
-  inputs: StandardRigInput[],
-  applied: Record<StandardInputId, number>,
-  neutral: Record<StandardInputId, number>,
-  epsilon = 1e-4,
-): Record<StandardInputId, number> {
-  const entries: Record<StandardInputId, number> = {};
-  inputs.forEach((input) => {
-    const neutralValue = neutral[input.id] ?? input.defaultValue;
-    const appliedValue = applied[input.id] ?? neutralValue;
-    if (Math.abs(appliedValue - neutralValue) > epsilon) {
-      entries[input.id] = clampToInputRange(input.id, appliedValue);
-    }
-  });
-  return entries;
+export function buildRigInputPath(faceId: string, path: string): string {
+  const trimmed = path.startsWith("/") ? path.slice(1) : path;
+  return `rig/${faceId}/${trimmed}`;
 }
 
 export function computeStandardInputsFromPaths(
@@ -166,4 +129,17 @@ export function collectBindingIssues(
 
 export function useMemoizedBindingsByInput(summary: LowLevelRigSummary | null) {
   return useMemo(() => buildBindingsByInput(summary), [summary]);
+}
+
+export function captureEmotionPoseSnapshot(options: {
+  inputs: StandardRigInput[];
+  currentValues: Record<StandardInputId, number>;
+}): Record<StandardInputId, number> {
+  const { inputs, currentValues } = options;
+  const snapshot: Record<StandardInputId, number> = {};
+  inputs.forEach((input) => {
+    const value = currentValues[input.id] ?? input.defaultValue ?? 0;
+    snapshot[input.id] = clampToInputRange(input.id, value);
+  });
+  return snapshot;
 }

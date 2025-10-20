@@ -7,6 +7,16 @@ interface GraphSummaryPanelProps {
   configIssues: string[];
   onExportConfig: () => void;
   onExportGraph: () => void;
+  onLogEmotionPoses: () => void;
+  onCaptureNeutral: () => void;
+  onApplyNeutral: () => void;
+  onApplyPose: (poseId: string) => void;
+  poseLibrary: {
+    neutral: Record<string, number>;
+    poses: Array<{ id: string; name: string }>;
+  };
+  rigName: string;
+  onRigNameChange: (name: string) => void;
   onImportConfig: (file: File) => void;
   graphLoaded: boolean;
   graphError: string | null;
@@ -18,6 +28,13 @@ export function GraphSummaryPanel({
   configIssues,
   onExportConfig,
   onExportGraph,
+  onLogEmotionPoses,
+  onCaptureNeutral,
+  onApplyNeutral,
+  onApplyPose,
+  poseLibrary,
+  rigName,
+  onRigNameChange,
   onImportConfig,
   graphLoaded,
   graphError,
@@ -35,8 +52,16 @@ export function GraphSummaryPanel({
       <div className="panel-header">
         <h2>Graph & Persistence</h2>
         <div className="graph-actions">
-          <button type="button" className="button" onClick={onExportGraph}>
+          <button
+            type="button"
+            className="button"
+            onClick={onExportGraph}
+            disabled={!summary}
+          >
             Export graph (.json)
+          </button>
+          <button type="button" className="button" onClick={onLogEmotionPoses}>
+            Log pose values
           </button>
           <button type="button" className="button" onClick={onExportConfig}>
             Export rig config
@@ -54,6 +79,19 @@ export function GraphSummaryPanel({
       </div>
       <div className="panel-body graph-summary-body">
         <div className="graph-summary-section">
+          <label className="field-label" htmlFor="rig-name">
+            Rig name
+          </label>
+          <input
+            id="rig-name"
+            className="input"
+            value={rigName}
+            onChange={(event) => onRigNameChange(event.target.value)}
+            placeholder="Rig identifier"
+          />
+        </div>
+
+        <div className="graph-summary-section">
           <h3>Low-level graph runtime</h3>
           <p>
             {graphError
@@ -64,9 +102,47 @@ export function GraphSummaryPanel({
           </p>
         </div>
 
+        <div className="graph-summary-section">
+          <h3>Pose Library</h3>
+          <p className="graph-summary-neutral">
+            Neutral channels: {Object.keys(poseLibrary.neutral).length}
+          </p>
+          <div className="pose-actions">
+            <button type="button" className="button" onClick={onApplyNeutral}>
+              Apply neutral
+            </button>
+            <button type="button" className="button" onClick={onCaptureNeutral}>
+              Capture neutral
+            </button>
+          </div>
+          {poseLibrary.poses.length ? (
+            <ul className="graph-summary-list">
+              {poseLibrary.poses.map((pose) => (
+                <li key={pose.id}>
+                  <div className="graph-summary-input">
+                    <span className="graph-summary-label">{pose.name}</span>
+                    <button
+                      type="button"
+                      className="button subtle"
+                      onClick={() => onApplyPose(pose.id)}
+                    >
+                      Apply pose
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="graph-contribution-empty">
+              No poses captured yet. Capture poses from the editor to populate
+              this list.
+            </p>
+          )}
+        </div>
+
         {summary ? (
           <div className="graph-summary-section">
-            <h3>Emotion graph overview</h3>
+            <h3>Channel overview</h3>
             <ul className="graph-summary-list">
               {summary.inputs.map((input) => (
                 <li key={input.id}>
@@ -84,14 +160,15 @@ export function GraphSummaryPanel({
                             {contribution.emotionName}
                           </span>
                           <span className="graph-contribution-delta">
-                            Δ {contribution.delta.toFixed(3)}
+                            Value {contribution.value.toFixed(3)} (Δ{" "}
+                            {contribution.delta.toFixed(3)})
                           </span>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <p className="graph-contribution-empty">
-                      No emotion overrides.
+                      No pose overrides.
                     </p>
                   )}
                 </li>

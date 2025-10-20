@@ -1,34 +1,49 @@
+import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "../low-level/standardRigInputs";
+import { buildRigInputPath } from "./utils";
 import type {
   EmotionDefinition,
   GraphGenerationSummary,
   StandardInputId,
 } from "./types";
+type EdgeSpec = NonNullable<GraphSpec["edges"]>[number];
 
-type GraphNodeSpec = {
-  id: string;
-  type: string;
-  params?: Record<string, unknown>;
-  input_defaults?: Record<string, unknown>;
-};
+function recordBuilderNodeId(emotionId: string): string {
+  return `pose_${sanitizeId(emotionId)}`;
+}
 
-type GraphLinkSpec = {
-  from: { node_id: string };
-  to: { node_id: string; input: string };
-};
-
-export type GraphSpec = {
-  nodes: GraphNodeSpec[];
-  links?: GraphLinkSpec[];
-};
+function buildRecordValue(fields: Record<string, number>): any {
+  const entries = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b));
+  return {
+    record: {
+      values: {
+        record: Object.fromEntries(
+          entries.map(([key, value]) => [key, { float: value }]),
+        ),
+      },
+    },
+  };
+}
 
 function sanitizeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
-function buildRigInputPath(faceId: string, path: string): string {
-  const trimmed = path.startsWith("/") ? path.slice(1) : path;
-  return `rig/${faceId}/${trimmed}`;
+function sanitizePathSegment(value: string, fallback: string): string {
+  const fromLabel = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (fromLabel) {
+    return fromLabel;
+  }
+  const fromFallback = fallback
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return fromFallback || "emotion";
 }
 
 function getNeutralValue(
@@ -38,32 +53,167 @@ function getNeutralValue(
   return neutralInputs[input.id] ?? input.defaultValue;
 }
 
-function createEmotionInputNode(emotion: EmotionDefinition): GraphNodeSpec {
+function clampValueForInput(input: StandardRigInput, value: number): number {
+  if (!Number.isFinite(value)) {
+    return input.defaultValue;
+  }
+  const { min, max } = input.range;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function createEmotionPathSegment(
+  emotion: EmotionDefinition,
+  usage: Map<string, number>,
+): string {
+  const base = sanitizePathSegment(emotion.name ?? "", emotion.id);
+  const used = usage.get(base) ?? 0;
+  usage.set(base, used + 1);
+  if (used === 0) {
+    return base;
+  }
+  return `${base}_${used + 1}`;
+}
+
+function createEmotionInputNode(
+  emotion: EmotionDefinition,
+  path: string,
+): NodeSpec {
   return {
     id: `emotion_${sanitizeId(emotion.id)}`,
     type: "input",
     params: {
-      path: `rigging/emotions/${emotion.id}`,
-      value: 0,
+      path,
+      value: { float: 0 },
     },
   };
 }
 
-export function buildEmotionGraphSpec(options: {
+function buildPoseWeightPath(faceId: string, segment: string): string {
+  return buildRigInputPath(faceId, `/poses/${segment}.weight`);
+}
+
+export function buildPoseGraphSpec(options: {
   faceId: string | null;
   neutralInputs: Record<StandardInputId, number>;
   emotions: EmotionDefinition[];
   standardInputs: StandardRigInput[];
 }): { spec: GraphSpec; summary: GraphGenerationSummary } {
   const { faceId, neutralInputs, emotions, standardInputs } = options;
-  const nodes: GraphNodeSpec[] = [];
-  const links: GraphLinkSpec[] = [];
+  const nodes: NodeSpec[] = [];
+  const edges: EdgeSpec[] = [];
+  const trimmedFaceId = faceId?.trim();
+  const faceSegment =
+    trimmedFaceId && trimmedFaceId.length > 0 ? trimmedFaceId : "face";
 
-  const emotionNodes = new Map<string, string>();
+  const emotionPathUsage = new Map<string, number>();
+  const poseConstants = new Map<string, string>();
+  const emotionInputs: Array<{ emotion: EmotionDefinition; nodeId: string }> =
+    [];
+
   emotions.forEach((emotion) => {
-    const node = createEmotionInputNode(emotion);
-    nodes.push(node);
-    emotionNodes.set(emotion.id, node.id);
+    const recordFields: Record<string, number> = {};
+    standardInputs.forEach((input) => {
+      const value = clampValueForInput(
+        input,
+        emotion.values[input.id] ??
+          neutralInputs[input.id] ??
+          input.defaultValue,
+      );
+      recordFields[input.id] = value;
+    });
+    const nodeId = `pose_record_${sanitizeId(emotion.id)}`;
+    nodes.push({
+      id: nodeId,
+      type: "constant",
+      params: {
+        value: buildRecordValue(recordFields),
+      },
+    });
+    poseConstants.set(emotion.id, nodeId);
+
+    const pathSegment = createEmotionPathSegment(emotion, emotionPathUsage);
+    const poseWeightPath = buildPoseWeightPath(faceSegment, pathSegment);
+    const inputNode = createEmotionInputNode(emotion, poseWeightPath);
+    nodes.push(inputNode);
+    emotionInputs.push({ emotion, nodeId: inputNode.id });
+  });
+
+  const weightsJoinId = emotions.length ? "pose_weights_join" : null;
+  if (weightsJoinId) {
+    nodes.push({
+      id: weightsJoinId,
+      type: "join",
+    });
+    emotionInputs.forEach((entry, index) => {
+      edges.push({
+        from: { node_id: entry.nodeId },
+        to: { node_id: weightsJoinId, input: `operand_${index + 1}` },
+      });
+    });
+  }
+
+  const neutralRecordFields: Record<string, number> = {};
+  const zeroRecordFields: Record<string, number> = {};
+  standardInputs.forEach((input) => {
+    const value = clampValueForInput(
+      input,
+      neutralInputs[input.id] ?? input.defaultValue,
+    );
+    neutralRecordFields[input.id] = value;
+    zeroRecordFields[input.id] = 0;
+  });
+
+  const neutralNodeId = "pose_neutral_record";
+  nodes.push({
+    id: neutralNodeId,
+    type: "constant",
+    params: {
+      value: buildRecordValue(neutralRecordFields),
+    },
+  });
+
+  const offsetNodeId = "pose_offset_zero";
+  nodes.push({
+    id: offsetNodeId,
+    type: "constant",
+    params: {
+      value: buildRecordValue(zeroRecordFields),
+    },
+  });
+
+  const blendNodeId = "pose_blend";
+  nodes.push({
+    id: blendNodeId,
+    type: "default-blend",
+  });
+
+  edges.push({
+    from: { node_id: neutralNodeId },
+    to: { node_id: blendNodeId, input: "baseline" },
+  });
+  edges.push({
+    from: { node_id: offsetNodeId },
+    to: { node_id: blendNodeId, input: "offset" },
+  });
+
+  if (weightsJoinId) {
+    edges.push({
+      from: { node_id: weightsJoinId },
+      to: { node_id: blendNodeId, input: "weights" },
+    });
+  }
+
+  emotions.forEach((emotion, index) => {
+    const poseNodeId = poseConstants.get(emotion.id);
+    if (!poseNodeId) {
+      return;
+    }
+    edges.push({
+      from: { node_id: poseNodeId },
+      to: { node_id: blendNodeId, input: `operand_${index + 1}` },
+    });
   });
 
   const summary: GraphGenerationSummary = {
@@ -71,94 +221,47 @@ export function buildEmotionGraphSpec(options: {
     outputs: [],
   };
 
-  const resolvedFaceId = faceId ?? "face";
-
   standardInputs.forEach((input) => {
     const neutral = getNeutralValue(input, neutralInputs);
-    const neutralConstId = `neutral_${sanitizeId(input.id)}`;
-    nodes.push({
-      id: neutralConstId,
-      type: "constant",
-      params: { value: neutral },
-    });
+    const neutralValue = clampValueForInput(input, neutral);
 
-    let currentSourceId: string = neutralConstId;
-    let contributionIndex = 0;
     const contributions: GraphGenerationSummary["inputs"][number]["contributions"] =
       [];
 
-    emotions.forEach((emotion) => {
-      const target = emotion.values[input.id];
-      if (target === undefined) {
-        return;
-      }
-      const delta = target - neutral;
-      if (Math.abs(delta) < 1e-6) {
-        return;
-      }
-      const deltaConstId = `delta_${sanitizeId(input.id)}_${sanitizeId(emotion.id)}`;
-      nodes.push({
-        id: deltaConstId,
-        type: "constant",
-        params: { value: delta },
-      });
-
-      const multiplierId = `mul_${sanitizeId(input.id)}_${sanitizeId(emotion.id)}`;
-      nodes.push({
-        id: multiplierId,
-        type: "multiply",
-      });
-      const emotionNodeId = emotionNodes.get(emotion.id);
-      if (emotionNodeId) {
-        links.push({
-          from: { node_id: emotionNodeId },
-          to: { node_id: multiplierId, input: "a" },
+    emotions.forEach((emotion, index) => {
+      const poseValueRaw = emotion.values[input.id];
+      const poseValue = clampValueForInput(
+        input,
+        poseValueRaw === undefined ? neutralValue : poseValueRaw,
+      );
+      const delta = poseValue - neutralValue;
+      if (Math.abs(delta) >= 1e-6) {
+        contributions.push({
+          emotionId: emotion.id,
+          emotionName: emotion.name,
+          value: poseValue,
+          delta,
         });
       }
-      links.push({
-        from: { node_id: deltaConstId },
-        to: { node_id: multiplierId, input: "b" },
-      });
-
-      const addNodeId = `add_${sanitizeId(input.id)}_${++contributionIndex}`;
-      nodes.push({
-        id: addNodeId,
-        type: "add",
-      });
-      links.push({
-        from: { node_id: currentSourceId },
-        to: { node_id: addNodeId, input: "lhs" },
-      });
-      links.push({
-        from: { node_id: multiplierId },
-        to: { node_id: addNodeId, input: "rhs" },
-      });
-
-      currentSourceId = addNodeId;
-      contributions.push({
-        emotionId: emotion.id,
-        emotionName: emotion.name,
-        delta,
-      });
     });
 
-    const path = buildRigInputPath(resolvedFaceId, input.path);
+    const path = input.path;
+    const typedPath = buildRigInputPath(faceSegment, path);
     const outputNodeId = `out_${sanitizeId(input.id)}`;
     nodes.push({
       id: outputNodeId,
       type: "output",
-      params: {
-        path,
-      },
+      params: { path: typedPath },
     });
-    links.push({
-      from: { node_id: currentSourceId },
+    edges.push({
+      from: { node_id: "pose_blend" },
       to: { node_id: outputNodeId, input: "in" },
+      selector: [{ field: "values" }, { field: input.id }],
     });
     summary.inputs.push({
       id: input.id,
-      path,
-      neutral,
+      path: path,
+      neutral: neutralValue,
       contributions,
     });
     summary.outputs.push(path);
@@ -166,7 +269,7 @@ export function buildEmotionGraphSpec(options: {
 
   const spec: GraphSpec = {
     nodes,
-    links: links.length ? links : undefined,
+    edges: edges.length ? edges : undefined,
   };
 
   return { spec, summary };

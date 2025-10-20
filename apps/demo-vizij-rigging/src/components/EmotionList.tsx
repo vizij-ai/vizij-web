@@ -20,15 +20,15 @@ export function EmotionList({
   return (
     <div className="panel emotion-list-panel">
       <div className="panel-header">
-        <h2>3 · Emotion Rig</h2>
+        <h2>3 · Pose Rig</h2>
         <button type="button" className="button primary" onClick={onAdd}>
-          Add Emotion
+          Add Pose
         </button>
       </div>
       <div className="panel-body emotion-list-body">
         {emotions.length === 0 ? (
           <p className="panel-placeholder">
-            Capture a pose to create your first emotion channel.
+            Capture or add a pose to begin building the rig.
           </p>
         ) : (
           <ul className="emotion-list">

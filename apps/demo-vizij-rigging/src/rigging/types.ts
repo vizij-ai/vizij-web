@@ -61,6 +61,7 @@ export interface GraphGenerationSummary {
     contributions: Array<{
       emotionId: string;
       emotionName: string;
+      value: number;
       delta: number;
     }>;
   }>;

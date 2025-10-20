@@ -86,11 +86,11 @@ export function EmotionEditor({
     return (
       <div className="panel emotion-editor-panel">
         <div className="panel-header">
-          <h2>Emotion Details</h2>
+          <h2>Pose Details</h2>
         </div>
         <div className="panel-body">
           <p className="panel-placeholder">
-            Select an emotion to edit its configuration.
+            Select a pose to edit its configuration.
           </p>
         </div>
       </div>
@@ -100,25 +100,25 @@ export function EmotionEditor({
   return (
     <div className="panel emotion-editor-panel">
       <div className="panel-header">
-        <h2>Emotion Details</h2>
+        <h2>Pose Details</h2>
       </div>
       <div className="panel-body emotion-editor-body">
-        <label className="field-label" htmlFor="emotion-name">
+        <label className="field-label" htmlFor="pose-name">
           Name
         </label>
         <input
-          id="emotion-name"
+          id="pose-name"
           className="input"
           type="text"
           value={emotion.name}
           onChange={(event) => onRename(event.target.value)}
         />
 
-        <label className="field-label" htmlFor="emotion-description">
+        <label className="field-label" htmlFor="pose-description">
           Notes
         </label>
         <textarea
-          id="emotion-description"
+          id="pose-description"
           className="textarea"
           value={emotion.description ?? ""}
           onChange={(event) => onDescriptionChange(event.target.value)}

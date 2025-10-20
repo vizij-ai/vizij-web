@@ -25,17 +25,15 @@ import {
 } from "./low-level/standardRigInputs";
 import {
   clampToInputRange,
-  computeAppliedInputs,
-  computePoseDelta,
   createNeutralInputs,
   ensureNeutralDefaults,
   computeStandardInputsFromPaths,
+  captureEmotionPoseSnapshot,
 } from "./rigging/utils";
-import { buildEmotionGraphSpec } from "./rigging/graphBuilder";
 import { buildRigConfig, parseRigConfig } from "./rigging/persistence";
+import { buildPoseGraphSpec } from "./rigging/graphBuilder";
 import type {
   EmotionDefinition,
-  EmotionWeightMap,
   GraphGenerationSummary,
   RigConfigFile,
   StandardInputId,
@@ -45,7 +43,6 @@ import { FaceViewer } from "./components/FaceViewer";
 import { LowLevelInputsPanel } from "./components/LowLevelInputsPanel";
 import { EmotionList } from "./components/EmotionList";
 import { EmotionEditor } from "./components/EmotionEditor";
-import { EmotionMixer } from "./components/EmotionMixer";
 import { GraphSummaryPanel } from "./components/GraphSummaryPanel";
 
 const DEFAULT_NAMESPACE = "default";
@@ -100,6 +97,15 @@ function sanitizeFaceId(value: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
   return normalised || "face";
+}
+
+function sanitizeSlug(value: string, fallback: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || fallback;
 }
 
 function normaliseAssetLabel(label: string): string {
@@ -193,11 +199,14 @@ export default function App(): JSX.Element {
   const [selectedEmotionId, setSelectedEmotionId] = useState<string | null>(
     null,
   );
-  const [emotionWeights, setEmotionWeights] = useState<EmotionWeightMap>({});
   const [graphSummary, setGraphSummary] =
     useState<GraphGenerationSummary | null>(null);
   const [graphSpec, setGraphSpec] = useState<GraphSpec | null>(null);
   const [configFile, setConfigFile] = useState<RigConfigFile | null>(null);
+  const [rigName, setRigName] = useState<string>("emotion");
+  const [savedNeutral, setSavedNeutral] = useState<
+    Record<StandardInputId, number>
+  >({});
 
   const setStoreState = useVizijStoreSetter();
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
@@ -258,6 +267,23 @@ export default function App(): JSX.Element {
     const recognized = computeStandardInputsFromPaths(paths);
     return recognized.length ? recognized : STANDARD_RIG_INPUTS;
   }, [lowLevelInputNodes]);
+
+  useEffect(() => {
+    setSavedNeutral((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      availableStandardInputs.forEach((input) => {
+        if (next[input.id] === undefined) {
+          next[input.id] = clampToInputRange(
+            input.id,
+            neutralInputs[input.id] ?? input.defaultValue,
+          );
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [availableStandardInputs, neutralInputs]);
 
   const bindingCounts = useMemo(() => {
     const counts = new Map<StandardInputId, number>();
@@ -327,17 +353,6 @@ export default function App(): JSX.Element {
       ensureNeutralDefaults(prev, availableStandardInputs),
     );
   }, [availableStandardInputs]);
-
-  const appliedInputs = useMemo(
-    () =>
-      computeAppliedInputs(
-        availableStandardInputs,
-        neutralInputs,
-        emotions,
-        emotionWeights,
-      ),
-    [availableStandardInputs, neutralInputs, emotions, emotionWeights],
-  );
 
   const convertValueJSONToRaw = useCallback(
     (
@@ -435,9 +450,7 @@ export default function App(): JSX.Element {
           const standardInput = STANDARD_INPUTS_BY_PATH.get(standardPath);
           if (standardInput) {
             const nextValue =
-              appliedInputs[standardInput.id] ??
-              neutralInputs[standardInput.id] ??
-              standardInput.defaultValue;
+              neutralInputs[standardInput.id] ?? standardInput.defaultValue;
             stagedValue = { float: nextValue };
           }
         }
@@ -478,7 +491,6 @@ export default function App(): JSX.Element {
     });
   }, [
     animatables,
-    appliedInputs,
     clearLowLevelStaged,
     convertValueJSONToRaw,
     evalLowLevelGraph,
@@ -622,22 +634,8 @@ export default function App(): JSX.Element {
     [],
   );
 
-  const handleResetWeights = useCallback(() => {
-    setEmotionWeights({});
-  }, []);
-
-  const handleWeightChange = useCallback(
-    (emotionId: string, weight: number) => {
-      setEmotionWeights((prev) => ({
-        ...prev,
-        [emotionId]: Math.max(0, Math.min(1, weight)),
-      }));
-    },
-    [],
-  );
-
   const handleAddEmotion = useCallback(() => {
-    const next = createEmotion(`Emotion ${emotions.length + 1}`);
+    const next = createEmotion(`Pose ${emotions.length + 1}`);
     setEmotions((prev) => [...prev, next]);
     setSelectedEmotionId(next.id);
   }, [emotions.length]);
@@ -658,11 +656,6 @@ export default function App(): JSX.Element {
 
   const handleDeleteEmotion = useCallback((emotionId: string) => {
     setEmotions((prev) => prev.filter((emotion) => emotion.id !== emotionId));
-    setEmotionWeights((prev) => {
-      const next = { ...prev };
-      delete next[emotionId];
-      return next;
-    });
     setSelectedEmotionId((current) => (current === emotionId ? null : current));
   }, []);
 
@@ -700,16 +693,27 @@ export default function App(): JSX.Element {
 
   const handleCaptureEmotion = useCallback(
     (emotionId: string) => {
-      const snapshot = computePoseDelta(
-        availableStandardInputs,
-        appliedInputs,
-        neutralInputs,
-      );
-      updateEmotionById(emotionId, (emotion) =>
-        updateEmotion(emotion, { values: snapshot }),
-      );
+      if (!availableStandardInputs.length) {
+        return;
+      }
+      const snapshot = captureEmotionPoseSnapshot({
+        inputs: availableStandardInputs,
+        currentValues: neutralInputs,
+      });
+      updateEmotionById(emotionId, (emotion) => {
+        const nextValues = { ...emotion.values };
+        availableStandardInputs.forEach((input) => {
+          const captured = snapshot[input.id];
+          if (captured !== undefined) {
+            nextValues[input.id] = captured;
+          } else if (nextValues[input.id] !== undefined) {
+            delete nextValues[input.id];
+          }
+        });
+        return updateEmotion(emotion, { values: nextValues });
+      });
     },
-    [appliedInputs, availableStandardInputs, neutralInputs, updateEmotionById],
+    [availableStandardInputs, neutralInputs, updateEmotionById],
   );
 
   const handleClearEmotionValues = useCallback(
@@ -754,10 +758,7 @@ export default function App(): JSX.Element {
       if (!definition) {
         return;
       }
-      const baseValue =
-        appliedInputs[inputId] ??
-        neutralInputs[inputId] ??
-        definition.defaultValue;
+      const baseValue = neutralInputs[inputId] ?? definition.defaultValue;
       updateEmotionById(emotionId, (emotion) => {
         if (emotion.values[inputId] !== undefined) {
           return emotion;
@@ -769,19 +770,39 @@ export default function App(): JSX.Element {
         return updateEmotion(emotion, { values: nextValues });
       });
     },
-    [appliedInputs, neutralInputs, updateEmotionById],
+    [neutralInputs, updateEmotionById],
   );
 
+  const poseLibrary = useMemo(() => {
+    const neutralPose: Record<string, number> = {};
+    availableStandardInputs.forEach((input) => {
+      neutralPose[input.id] = clampToInputRange(
+        input.id,
+        savedNeutral[input.id] ?? input.defaultValue,
+      );
+    });
+
+    const poseEntries = emotions.map((emotion) => ({
+      id: emotion.id,
+      name: emotion.name || emotion.id,
+    }));
+
+    return {
+      neutral: neutralPose,
+      poses: poseEntries,
+    };
+  }, [availableStandardInputs, emotions, savedNeutral]);
+
   useEffect(() => {
-    if (!graphLoaded || !lowLevelGraphSpec) {
-      setGraphSummary(null);
+    if (!graphLoaded || !availableStandardInputs.length) {
       setGraphSpec(null);
+      setGraphSummary(null);
       return;
     }
-    const resolvedFaceId = activeFaceId ?? lowLevelFaceId ?? "face";
-    const { spec, summary } = buildEmotionGraphSpec({
+    const resolvedFaceId = lowLevelFaceId ?? activeFaceId ?? null;
+    const { spec, summary } = buildPoseGraphSpec({
       faceId: resolvedFaceId,
-      neutralInputs,
+      neutralInputs: savedNeutral,
       emotions,
       standardInputs: availableStandardInputs,
     });
@@ -794,33 +815,94 @@ export default function App(): JSX.Element {
     graphLoaded,
     lowLevelFaceId,
     lowLevelGraphSpec,
-    neutralInputs,
+    savedNeutral,
   ]);
 
   const configValidationIssues: string[] = [];
 
+  const handleCaptureNeutral = useCallback(() => {
+    if (!availableStandardInputs.length) {
+      return;
+    }
+    const snapshot = captureEmotionPoseSnapshot({
+      inputs: availableStandardInputs,
+      currentValues: neutralInputs,
+    });
+    setSavedNeutral(snapshot);
+  }, [availableStandardInputs, neutralInputs]);
+
+  const handleApplyNeutral = useCallback(() => {
+    if (!availableStandardInputs.length) {
+      return;
+    }
+    setNeutralInputs(() => {
+      const next: Record<StandardInputId, number> = {};
+      availableStandardInputs.forEach((input) => {
+        const value = savedNeutral[input.id] ?? input.defaultValue ?? 0;
+        next[input.id] = clampToInputRange(input.id, value);
+      });
+      return next;
+    });
+    setSelectedEmotionId(null);
+  }, [availableStandardInputs, savedNeutral]);
+
+  const handleApplyPose = useCallback(
+    (emotionId: string) => {
+      const emotion = emotions.find((entry) => entry.id === emotionId);
+      if (!emotion || !availableStandardInputs.length) {
+        return;
+      }
+      setNeutralInputs(() => {
+        const next: Record<StandardInputId, number> = {};
+        availableStandardInputs.forEach((input) => {
+          const value =
+            emotion.values[input.id] ??
+            savedNeutral[input.id] ??
+            input.defaultValue ??
+            0;
+          next[input.id] = clampToInputRange(input.id, value);
+        });
+        return next;
+      });
+      setSelectedEmotionId(emotionId);
+    },
+    [availableStandardInputs, emotions, savedNeutral],
+  );
+
   const handleExportRigConfig = useCallback(() => {
     const config = buildRigConfig({
       faceId: activeFaceId ?? lowLevelFaceId,
-      neutralInputs,
+      neutralInputs: savedNeutral,
       emotions,
       previous: configFile,
+      title: rigName,
     });
-    downloadJSON(`${config.faceId ?? "emotion"}-rig-config.json`, config);
+    const faceSlug = sanitizeSlug(config.faceId ?? "face", "face");
+    const rigSlug = sanitizeSlug(rigName, "rig");
+    downloadJSON(`${faceSlug}_${rigSlug}_rig_config.json`, config);
     setConfigFile(config);
-  }, [activeFaceId, configFile, emotions, lowLevelFaceId, neutralInputs]);
+  }, [
+    activeFaceId,
+    configFile,
+    emotions,
+    lowLevelFaceId,
+    rigName,
+    savedNeutral,
+  ]);
 
   const handleExportGraph = useCallback(() => {
     if (!graphSpec) {
       window.alert("Generate the graph before exporting.");
       return;
     }
-    const exportFaceId = activeFaceId ?? lowLevelFaceId ?? "emotion";
-    downloadJSON(`${exportFaceId}-graph.json`, graphSpec);
+    const exportFaceId = activeFaceId ?? lowLevelFaceId ?? "face";
+    const faceSlug = sanitizeSlug(exportFaceId, "face");
+    const rigSlug = sanitizeSlug(rigName, "rig");
+    downloadJSON(`${faceSlug}_${rigSlug}_rig.json`, graphSpec);
     if (graphSummary) {
-      downloadJSON(`${exportFaceId}-graph.summary.json`, graphSummary);
+      downloadJSON(`${faceSlug}_${rigSlug}_rig.summary.json`, graphSummary);
     }
-  }, [activeFaceId, graphSpec, graphSummary, lowLevelFaceId]);
+  }, [activeFaceId, graphSpec, graphSummary, lowLevelFaceId, rigName]);
 
   const handleImportRigConfig = useCallback(async (file: File) => {
     try {
@@ -828,9 +910,10 @@ export default function App(): JSX.Element {
       const parsed = parseRigConfig(JSON.parse(text));
       setConfigFile(parsed);
       setNeutralInputs({ ...parsed.neutralInputs });
+      setSavedNeutral({ ...parsed.neutralInputs });
+      setRigName(parsed.title ?? "emotion");
       setEmotions(parsed.emotions.map((emotion) => ({ ...emotion })));
       setSelectedEmotionId(parsed.emotions[0]?.id ?? null);
-      setEmotionWeights({});
       window.alert(
         "Rig config imported. Review validation warnings before exporting.",
       );
@@ -839,6 +922,37 @@ export default function App(): JSX.Element {
       window.alert(`Failed to import rig config: ${(err as Error).message}`);
     }
   }, []);
+
+  const handleLogEmotionPoses = useCallback(() => {
+    const neutralPose: Record<string, number> = {};
+    availableStandardInputs.forEach((input) => {
+      neutralPose[input.id] = clampToInputRange(
+        input.id,
+        savedNeutral[input.id] ?? input.defaultValue ?? 0,
+      );
+    });
+
+    const poseData: Record<string, Record<string, number>> = {};
+    emotions.forEach((emotion) => {
+      const poseValues: Record<string, number> = {};
+      availableStandardInputs.forEach((input) => {
+        const value =
+          emotion.values[input.id] ??
+          savedNeutral[input.id] ??
+          input.defaultValue ??
+          0;
+        poseValues[input.id] = clampToInputRange(input.id, value);
+      });
+      poseData[emotion.name || emotion.id] = poseValues;
+    });
+
+    console.group("Rigging demo • captured poses");
+    console.log({
+      neutral: neutralPose,
+      poses: poseData,
+    });
+    console.groupEnd();
+  }, [availableStandardInputs, emotions, savedNeutral]);
 
   const selectedEmotion = useMemo(
     () => emotions.find((emotion) => emotion.id === selectedEmotionId) ?? null,
@@ -851,7 +965,7 @@ export default function App(): JSX.Element {
         <div>
           <h1>Vizij Rigging Demo</h1>
           <p>
-            Load Vizij assets, author high-level emotion rigs, and export the
+            Load Vizij assets, author high-level pose rigs, and export the
             resulting blend graphs for downstream playback.
           </p>
         </div>
@@ -871,7 +985,7 @@ export default function App(): JSX.Element {
           <LowLevelInputsPanel
             inputs={availableStandardInputs}
             neutralValues={neutralInputs}
-            appliedValues={appliedInputs}
+            appliedValues={neutralInputs}
             bindingsCount={bindingCounts}
             onChange={handleNeutralInputChange}
             disabled={!graphLoaded}
@@ -885,18 +999,19 @@ export default function App(): JSX.Element {
             error={loaderStatus.error}
             namespace={DEFAULT_NAMESPACE}
           />
-          <EmotionMixer
-            emotions={emotions}
-            weights={emotionWeights}
-            onWeightChange={handleWeightChange}
-            onResetWeights={handleResetWeights}
-          />
           <GraphSummaryPanel
             summary={graphSummary}
             faceId={lowLevelFaceId ?? activeFaceId}
             configIssues={configValidationIssues}
             onExportConfig={handleExportRigConfig}
             onExportGraph={handleExportGraph}
+            onLogEmotionPoses={handleLogEmotionPoses}
+            onCaptureNeutral={handleCaptureNeutral}
+            onApplyNeutral={handleApplyNeutral}
+            onApplyPose={handleApplyPose}
+            poseLibrary={poseLibrary}
+            rigName={rigName}
+            onRigNameChange={setRigName}
             onImportConfig={handleImportRigConfig}
             graphLoaded={graphLoaded}
             graphError={lowLevelGraphError}
