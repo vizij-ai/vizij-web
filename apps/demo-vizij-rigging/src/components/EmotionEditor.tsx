@@ -16,7 +16,39 @@ interface EmotionEditorProps {
 }
 
 function formatGroupName(group: string): string {
-  return group.replace(/_/g, " ");
+  const segments = group
+    .split("/")
+    .filter(Boolean)
+    .map((segment) =>
+      segment.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+    );
+  if (segments.length === 0) {
+    return "Root";
+  }
+  return segments.join(" / ");
+}
+
+function resolveRange(input: StandardRigInput): { min: number; max: number } {
+  const defaultValue = input.defaultValue ?? 0;
+  const min = Number.isFinite(input.range.min)
+    ? input.range.min
+    : defaultValue - 1;
+  const max = Number.isFinite(input.range.max)
+    ? input.range.max
+    : defaultValue + 1;
+  if (min === max) {
+    return { min: defaultValue - 1, max: defaultValue + 1 };
+  }
+  return { min, max };
+}
+
+function computeStep(input: StandardRigInput): number {
+  const range = resolveRange(input);
+  const span = Math.abs(range.max - range.min);
+  if (!Number.isFinite(span) || span === 0) {
+    return 0.01;
+  }
+  return span / 200;
 }
 
 export function EmotionEditor({
@@ -170,7 +202,9 @@ export function EmotionEditor({
               </header>
               <ul className="emotion-input-list">
                 {entries.map(([input, value]) => {
-                  const neutral = neutralInputs[input.id] ?? input.defaultValue;
+                  const neutral = neutralInputs[input.id] ?? 0;
+                  const range = resolveRange(input);
+                  const step = computeStep(input);
                   return (
                     <li key={input.id} className="emotion-input-row">
                       <div className="emotion-input-meta">
@@ -184,9 +218,9 @@ export function EmotionEditor({
                       <div className="emotion-input-controls">
                         <input
                           type="range"
-                          min={input.range.min}
-                          max={input.range.max}
-                          step={(input.range.max - input.range.min) / 200}
+                          min={range.min}
+                          max={range.max}
+                          step={step}
                           value={value}
                           onChange={(event) =>
                             handleValueChange(event, input.id)
@@ -195,7 +229,7 @@ export function EmotionEditor({
                         <input
                           type="number"
                           className="input numeric"
-                          step={(input.range.max - input.range.min) / 200}
+                          step={step}
                           value={value}
                           onChange={(event) =>
                             handleValueChange(event, input.id)

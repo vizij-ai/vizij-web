@@ -46,12 +46,12 @@ function getNeutralValue(
   input: StandardRigInput,
   neutralInputs: Record<StandardInputId, number>,
 ): number {
-  return neutralInputs[input.id] ?? input.defaultValue;
+  return neutralInputs[input.id] ?? 0;
 }
 
 function clampValueForInput(input: StandardRigInput, value: number): number {
   if (!Number.isFinite(value)) {
-    return input.defaultValue;
+    return 0;
   }
   const { min, max } = input.range;
   if (value < min) return min;
@@ -113,9 +113,7 @@ export function buildPoseGraphSpec(options: {
     standardInputs.forEach((input) => {
       const value = clampValueForInput(
         input,
-        emotion.values[input.id] ??
-          neutralInputs[input.id] ??
-          input.defaultValue,
+        emotion.values[input.id] ?? neutralInputs[input.id] ?? 0,
       );
       recordFields[input.id] = value;
     });
@@ -153,10 +151,7 @@ export function buildPoseGraphSpec(options: {
   const neutralRecordFields: Record<string, number> = {};
   const zeroRecordFields: Record<string, number> = {};
   standardInputs.forEach((input) => {
-    const value = clampValueForInput(
-      input,
-      neutralInputs[input.id] ?? input.defaultValue,
-    );
+    const value = clampValueForInput(input, neutralInputs[input.id] ?? 0);
     neutralRecordFields[input.id] = value;
     zeroRecordFields[input.id] = 0;
   });
@@ -240,6 +235,10 @@ export function buildPoseGraphSpec(options: {
         });
       }
     });
+
+    if (contributions.length === 0) {
+      return;
+    }
 
     const path = input.path;
     const typedPath = buildRigInputPath(faceSegment, path);

@@ -1,14 +1,4 @@
-export type RigInputGroup =
-  | "mouth"
-  | "left_eye"
-  | "left_eye_highlight"
-  | "left_eye_top_eyelid"
-  | "left_eye_brow"
-  | "right_eye"
-  | "right_eye_highlight"
-  | "right_eye_bottom_eyelid"
-  | "right_eye_top_eyelid"
-  | "right_eye_brow";
+export type RigInputGroup = string;
 
 export interface StandardRigInput {
   id: string;

@@ -12,12 +12,36 @@ interface LowLevelInputsPanelProps {
 }
 
 function formatGroupName(group: StandardRigInput["group"]): string {
-  return group.replace(/_/g, " ");
+  const segments = String(group)
+    .split("/")
+    .filter(Boolean)
+    .map((segment) =>
+      segment.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+    );
+  if (segments.length === 0) {
+    return "Root";
+  }
+  return segments.join(" / ");
+}
+
+function resolveRange(input: StandardRigInput): { min: number; max: number } {
+  const defaultValue = input.defaultValue ?? 0;
+  const min = Number.isFinite(input.range.min)
+    ? input.range.min
+    : defaultValue - 1;
+  const max = Number.isFinite(input.range.max)
+    ? input.range.max
+    : defaultValue + 1;
+  if (min === max) {
+    return { min: defaultValue - 1, max: defaultValue + 1 };
+  }
+  return { min, max };
 }
 
 function computeStep(input: StandardRigInput): number {
-  const span = Math.abs(input.range.max - input.range.min);
-  if (span === 0) {
+  const range = resolveRange(input);
+  const span = Math.abs(range.max - range.min);
+  if (!Number.isFinite(span) || span === 0) {
     return 0.01;
   }
   return span / 200;
@@ -62,9 +86,10 @@ export function LowLevelInputsPanel({
             </header>
             <ul className="inputs-list">
               {groupInputs.map((input) => {
-                const neutral = neutralValues[input.id] ?? input.defaultValue;
+                const neutral = neutralValues[input.id] ?? 0;
                 const applied = appliedValues[input.id] ?? neutral;
                 const bindingCount = bindingsCount.get(input.id) ?? 0;
+                const range = resolveRange(input);
                 return (
                   <li key={input.id} className="inputs-row">
                     <div className="inputs-metadata">
@@ -78,8 +103,8 @@ export function LowLevelInputsPanel({
                     <div className="inputs-slider">
                       <input
                         type="range"
-                        min={input.range.min}
-                        max={input.range.max}
+                        min={range.min}
+                        max={range.max}
                         step={computeStep(input)}
                         value={neutral}
                         disabled={disabled}

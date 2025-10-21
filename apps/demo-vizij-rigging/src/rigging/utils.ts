@@ -1,11 +1,6 @@
 import { useMemo } from "react";
 import type { AnimatableValue } from "@vizij/utils";
-import {
-  STANDARD_RIG_INPUTS,
-  STANDARD_RIG_INPUTS_BY_ID,
-  type StandardRigInput,
-} from "../low-level/standardRigInputs";
-import { createDefaultInputValues as createDefaultStandardInputs } from "../low-level/state";
+import type { StandardRigInput } from "../low-level/standardRigInputs";
 import type { AnimatableComponent } from "../low-level/animatableMetadata";
 import type {
   LowLevelBinding,
@@ -14,12 +9,11 @@ import type {
 } from "./types";
 
 export function createNeutralInputs(
-  inputs: StandardRigInput[] = STANDARD_RIG_INPUTS,
+  inputs: StandardRigInput[] = [],
 ): Record<StandardInputId, number> {
-  const defaults = createDefaultStandardInputs();
   const values: Record<StandardInputId, number> = {};
   inputs.forEach((input) => {
-    values[input.id] = defaults[input.id] ?? input.defaultValue ?? 0;
+    values[input.id] = input.defaultValue ?? 0;
   });
   return values;
 }
@@ -32,47 +26,16 @@ export function ensureNeutralDefaults(
   let changed = false;
   inputs.forEach((input) => {
     if (next[input.id] === undefined) {
-      next[input.id] = input.defaultValue;
+      next[input.id] = input.defaultValue ?? 0;
       changed = true;
     }
   });
   return changed ? next : current;
 }
 
-export function clampToInputRange(
-  inputId: StandardInputId,
-  value: number,
-): number {
-  const input = STANDARD_RIG_INPUTS_BY_ID.get(inputId);
-  if (!input) {
-    return value;
-  }
-  const { min, max } = input.range;
-  if (value < min) return min;
-  if (value > max) return max;
-  return value;
-}
-
 export function buildRigInputPath(faceId: string, path: string): string {
   const trimmed = path.startsWith("/") ? path.slice(1) : path;
   return `rig/${faceId}/${trimmed}`;
-}
-
-export function computeStandardInputsFromPaths(
-  paths: string[],
-): StandardRigInput[] {
-  const seen = new Set<string>();
-  const inputs: StandardRigInput[] = [];
-  paths.forEach((path) => {
-    const input = STANDARD_RIG_INPUTS.find(
-      (candidate) => candidate.path === path,
-    );
-    if (input && !seen.has(input.id)) {
-      inputs.push(input);
-      seen.add(input.id);
-    }
-  });
-  return inputs;
 }
 
 export function buildBindingsByInput(
@@ -109,11 +72,6 @@ export function collectBindingIssues(
     if (!binding.inputId) {
       return;
     }
-    if (!STANDARD_RIG_INPUTS_BY_ID.has(binding.inputId)) {
-      issues.push(
-        `Unknown standard rig input: ${binding.inputId} (bound to ${binding.targetId})`,
-      );
-    }
     if (!animatables[binding.animatableId]) {
       issues.push(
         `Animatable ${binding.animatableId} missing for binding ${binding.inputId}`,
@@ -138,8 +96,8 @@ export function captureEmotionPoseSnapshot(options: {
   const { inputs, currentValues } = options;
   const snapshot: Record<StandardInputId, number> = {};
   inputs.forEach((input) => {
-    const value = currentValues[input.id] ?? input.defaultValue ?? 0;
-    snapshot[input.id] = clampToInputRange(input.id, value);
+    const value = currentValues[input.id] ?? 0;
+    snapshot[input.id] = value;
   });
   return snapshot;
 }

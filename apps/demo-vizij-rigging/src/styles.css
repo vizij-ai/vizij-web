@@ -87,6 +87,13 @@ body {
   gap: 12px;
 }
 
+.emotion-list__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .panel-header h2 {
   margin: 0;
   font-size: 16px;
@@ -308,18 +315,53 @@ body {
 }
 
 .viewer-body {
-  min-height: 320px;
-  background: #0b1120;
-  border-radius: 10px;
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  padding: 0;
+  background: #020617;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+}
+
+.viewer-body__canvas {
+  flex: 1;
+  position: relative;
+}
+
+.viewer-body__canvas canvas,
+.viewer-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.viewer-body__placeholder,
+.viewer-body__overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
 }
 
-.viewer-canvas {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
+.viewer-body__placeholder p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.viewer-body__overlay {
+  background: rgba(15, 23, 42, 0.85);
+  z-index: 2;
+}
+
+.viewer-body__status {
+  color: #e2e8f0;
+  font-size: 0.95rem;
 }
 
 .emotion-list {

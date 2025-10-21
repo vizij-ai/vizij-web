@@ -143,37 +143,43 @@ export function GraphSummaryPanel({
         {summary ? (
           <div className="graph-summary-section">
             <h3>Channel overview</h3>
-            <ul className="graph-summary-list">
-              {summary.inputs.map((input) => (
-                <li key={input.id}>
-                  <div className="graph-summary-input">
-                    <span className="graph-summary-label">{input.path}</span>
-                    <span className="graph-summary-neutral">
-                      Neutral {input.neutral.toFixed(3)}
-                    </span>
-                  </div>
-                  {input.contributions.length ? (
-                    <ul className="graph-contribution-list">
-                      {input.contributions.map((contribution) => (
-                        <li key={`${input.id}-${contribution.emotionId}`}>
-                          <span className="graph-contribution-name">
-                            {contribution.emotionName}
-                          </span>
-                          <span className="graph-contribution-delta">
-                            Value {contribution.value.toFixed(3)} (Δ{" "}
-                            {contribution.delta.toFixed(3)})
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="graph-contribution-empty">
-                      No pose overrides.
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
+            {summary.inputs.length ? (
+              <ul className="graph-summary-list">
+                {summary.inputs.map((input) => (
+                  <li key={input.id}>
+                    <div className="graph-summary-input">
+                      <span className="graph-summary-label">{input.path}</span>
+                      <span className="graph-summary-neutral">
+                        Neutral {input.neutral.toFixed(3)}
+                      </span>
+                    </div>
+                    {input.contributions.length ? (
+                      <ul className="graph-contribution-list">
+                        {input.contributions.map((contribution) => (
+                          <li key={`${input.id}-${contribution.emotionId}`}>
+                            <span className="graph-contribution-name">
+                              {contribution.emotionName}
+                            </span>
+                            <span className="graph-contribution-delta">
+                              Value {contribution.value.toFixed(3)} (Δ{" "}
+                              {contribution.delta.toFixed(3)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="graph-contribution-empty">
+                        No pose overrides.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="graph-contribution-empty">
+                All channels match the neutral pose.
+              </p>
+            )}
           </div>
         ) : null}
 

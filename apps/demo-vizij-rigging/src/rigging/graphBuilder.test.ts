@@ -150,4 +150,40 @@ describe("buildPoseGraphSpec", () => {
       value: 0.8,
     });
   });
+
+  it("omits channels that never diverge from neutral", () => {
+    const standardInputs: StandardRigInput[] = [
+      makeStandardInput({
+        id: "mouth_pos_x",
+        path: "/mouth/pos/x",
+        defaultValue: 0,
+      }),
+    ];
+    const now = new Date().toISOString();
+    const { spec, summary } = buildPoseGraphSpec({
+      faceId: "rig_face",
+      neutralInputs: { mouth_pos_x: 0 },
+      emotions: [
+        {
+          id: "still",
+          name: "Still",
+          description: "",
+          values: {},
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      standardInputs,
+    });
+
+    expect(
+      spec.nodes.some(
+        (
+          node: GraphSpec["nodes"][number],
+        ): node is GraphSpec["nodes"][number] => node.id === "out_mouth_pos_x",
+      ),
+    ).toBe(false);
+    expect(summary.outputs).not.toContain("/mouth/pos/x");
+    expect(summary.inputs).toHaveLength(0);
+  });
 });

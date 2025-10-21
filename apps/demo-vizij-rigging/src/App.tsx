@@ -19,15 +19,10 @@ import {
 } from "@vizij/node-graph-react";
 
 import { FACES, getFaceById } from "./data/faces";
+import type { StandardRigInput } from "./low-level/standardRigInputs";
 import {
-  STANDARD_RIG_INPUTS,
-  STANDARD_RIG_INPUTS_BY_ID,
-} from "./low-level/standardRigInputs";
-import {
-  clampToInputRange,
   createNeutralInputs,
   ensureNeutralDefaults,
-  computeStandardInputsFromPaths,
   captureEmotionPoseSnapshot,
 } from "./rigging/utils";
 import { buildRigConfig, parseRigConfig } from "./rigging/persistence";
@@ -44,6 +39,8 @@ import { LowLevelInputsPanel } from "./components/LowLevelInputsPanel";
 import { EmotionList } from "./components/EmotionList";
 import { EmotionEditor } from "./components/EmotionEditor";
 import { GraphSummaryPanel } from "./components/GraphSummaryPanel";
+import { NeutralPoseEditor } from "./components/NeutralPoseEditor";
+import { VISEME_DEFINITIONS } from "./data/visemes";
 
 const DEFAULT_NAMESPACE = "default";
 
@@ -61,9 +58,7 @@ const INITIAL_LOADER_STATUS: LoaderStatus = {
   assetName: null,
 };
 
-const STANDARD_INPUTS_BY_PATH = new Map(
-  STANDARD_RIG_INPUTS.map((input) => [input.path, input]),
-);
+const NEUTRAL_POSE_ID = "__neutral_pose__";
 
 function findRootId(world: World): string | undefined {
   const rootEntry = Object.values(world).find(
@@ -195,9 +190,10 @@ export default function App(): JSX.Element {
   const [graphLoaded, setGraphLoaded] = useState(false);
   const [neutralInputs, setNeutralInputs] =
     useState<Record<StandardInputId, number>>(createNeutralInputs);
+  const [visemeEnabled, setVisemeEnabled] = useState(false);
   const [emotions, setEmotions] = useState<EmotionDefinition[]>([]);
   const [selectedEmotionId, setSelectedEmotionId] = useState<string | null>(
-    null,
+    NEUTRAL_POSE_ID,
   );
   const [graphSummary, setGraphSummary] =
     useState<GraphGenerationSummary | null>(null);
@@ -221,25 +217,120 @@ export default function App(): JSX.Element {
     clearStaged: clearLowLevelStaged,
   } = useGraphInstance(undefined, { autoEval: false });
 
-  const lowLevelInputNodes = useMemo(() => {
-    if (
-      !lowLevelGraphSpec ||
-      !Array.isArray((lowLevelGraphSpec as any).nodes)
-    ) {
-      return [] as Array<{ path: string; defaultValue?: ValueJSON }>;
+  type GraphInputNode = {
+    path: string;
+    remap?: {
+      in_low: number;
+      in_high: number;
+      in_anchor: number;
+    };
+    defaultValue?: number;
+  };
+
+  const lowLevelInputNodes = useMemo((): GraphInputNode[] => {
+    if (!lowLevelGraphSpec) {
+      return [];
     }
-    return ((lowLevelGraphSpec as any).nodes as Array<any>)
-      .filter(
-        (node) =>
+
+    const nodes = (lowLevelGraphSpec.nodes ?? []) as Array<any>;
+    const edges = (lowLevelGraphSpec.edges ?? []) as Array<any>;
+
+    const nodeById = new Map<string, any>();
+    nodes.forEach((node) => {
+      if (node && typeof node.id === "string") {
+        nodeById.set(node.id, node);
+      }
+    });
+
+    const incomingEdges = new Map<string, any[]>();
+    edges.forEach((edge) => {
+      if (!edge || !edge.to?.node_id) {
+        return;
+      }
+      const list = incomingEdges.get(edge.to.node_id) ?? [];
+      list.push(edge);
+      incomingEdges.set(edge.to.node_id, list);
+    });
+
+    const descriptors: GraphInputNode[] = nodes
+      .filter((node) => {
+        return (
           node &&
           node.type === "input" &&
           node.params &&
-          typeof node.params.path === "string",
-      )
-      .map((node) => ({
-        path: node.params.path as string,
-        defaultValue: node.params?.value as ValueJSON | undefined,
-      }));
+          typeof node.params.path === "string"
+        );
+      })
+      .map((node) => {
+        const path = node.params.path as string;
+        const edgesFromNode = edges.filter(
+          (edge) => edge?.from?.node_id === node.id,
+        );
+        const defaultValue = node.params?.value as ValueJSON | undefined;
+
+        let remap: {
+          in_low: number;
+          in_high: number;
+          in_anchor: number;
+        } | null = null;
+
+        for (const edge of edgesFromNode) {
+          const targetId = edge.to?.node_id;
+          if (!targetId) {
+            continue;
+          }
+          const parentEdges = incomingEdges.get(targetId) ?? [];
+          if (parentEdges.length === 0) {
+            const targetNode = nodeById.get(targetId);
+            if (targetNode?.input_defaults) {
+              const { in_low, in_high, in_anchor } = targetNode.input_defaults;
+              if (
+                typeof in_low === "number" &&
+                typeof in_high === "number" &&
+                typeof in_anchor === "number"
+              ) {
+                remap = { in_low, in_high, in_anchor };
+                break;
+              }
+            }
+            continue;
+          }
+
+          for (const parentEdge of parentEdges) {
+            const parentNode = nodeById.get(parentEdge.from?.node_id);
+            if (parentNode?.input_defaults) {
+              const { in_low, in_high, in_anchor } = parentNode.input_defaults;
+              if (
+                typeof in_low === "number" &&
+                typeof in_high === "number" &&
+                typeof in_anchor === "number"
+              ) {
+                remap = { in_low, in_high, in_anchor };
+                break;
+              }
+            }
+          }
+        if (remap) {
+          break;
+        }
+      }
+
+        let defaultNumeric: number | undefined;
+        if (defaultValue && typeof defaultValue === "object") {
+          const floatValue = (defaultValue as { float?: number }).float;
+          if (typeof floatValue === "number" && Number.isFinite(floatValue)) {
+            defaultNumeric = floatValue;
+          }
+        }
+
+        return {
+          path,
+          remap: remap ?? undefined,
+          defaultValue: defaultNumeric,
+        };
+      });
+
+    return descriptors;
   }, [lowLevelGraphSpec]);
 
   const lowLevelFaceId = useMemo(() => {
@@ -255,18 +346,139 @@ export default function App(): JSX.Element {
   }, [lowLevelInputNodes]);
 
   const availableStandardInputs = useMemo(() => {
-    const paths: string[] = [];
-    lowLevelInputNodes.forEach((node) => {
-      if (typeof node.path === "string" && node.path.startsWith("rig/")) {
-        const segments = node.path.split("/");
-        if (segments.length >= 3) {
-          paths.push(`/${segments.slice(2).join("/")}`);
-        }
+    const seen = new Map<string, StandardRigInput>();
+
+    const deriveGroupFromPath = (fullPath: string): string => {
+      const segments = fullPath.split("/").filter(Boolean);
+      if (segments.length <= 1) {
+        return "/";
+      }
+      return `/${segments.slice(0, -1).join("/")}`;
+    };
+
+    const createLabelFromPath = (fullPath: string): string => {
+      const segments = fullPath
+        .split("/")
+        .filter(Boolean)
+        .map((segment) =>
+          segment.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase()),
+        );
+      return segments.join(" · ") || fullPath;
+    };
+
+    lowLevelInputNodes.forEach(({ path, remap, defaultValue: nodeDefault }) => {
+      if (typeof path !== "string" || !path.startsWith("rig/")) {
+        return;
+      }
+      const segments = path.split("/");
+      if (segments.length < 3) {
+        return;
+      }
+      const rest = segments.slice(2).join("/");
+      if (!rest) {
+        return;
+      }
+
+      const normalizedPath = rest.startsWith("/") ? rest : `/${rest}`;
+      const id = normalizedPath.replace(/\//g, "_").replace(/^_+/, "");
+      const defaultValue = remap?.in_anchor ?? nodeDefault ?? 0;
+      const fallbackSpan = Number.isFinite(nodeDefault)
+        ? Math.max(Math.abs(nodeDefault as number), 1)
+        : 1;
+      const descriptor: StandardRigInput = {
+        id: id.length > 0 ? id : `input_${seen.size + 1}`,
+        path: normalizedPath,
+        label: createLabelFromPath(normalizedPath),
+        group: deriveGroupFromPath(normalizedPath),
+        defaultValue,
+        range: {
+          min: remap?.in_low ?? defaultValue - fallbackSpan,
+          max: remap?.in_high ?? defaultValue + fallbackSpan,
+        },
+      };
+
+      if (!seen.has(descriptor.id)) {
+        seen.set(descriptor.id, descriptor);
       }
     });
-    const recognized = computeStandardInputsFromPaths(paths);
-    return recognized.length ? recognized : STANDARD_RIG_INPUTS;
+
+    return Array.from(seen.values());
   }, [lowLevelInputNodes]);
+
+  const standardInputsByPath = useMemo(() => {
+    return new Map(availableStandardInputs.map((input) => [input.path, input]));
+  }, [availableStandardInputs]);
+
+  const standardInputsById = useMemo(() => {
+    return new Map(availableStandardInputs.map((input) => [input.id, input]));
+  }, [availableStandardInputs]);
+
+  const handleCreateVisemePoses = useCallback(() => {
+    if (!availableStandardInputs.length) {
+      return;
+    }
+
+    const mouthScaleXPath = "/mouth/scale/x";
+    const mouthScaleYPath = "/mouth/scale/y";
+    const mouthMorphPath = "/mouth/morph";
+
+    const additions: EmotionDefinition[] = [];
+
+    setEmotions((previous) => {
+      const existingNames = new Set(previous.map((emotion) => emotion.name));
+      const next = [...previous];
+
+      VISEME_DEFINITIONS.forEach((viseme) => {
+        const name = `Viseme: ${viseme.label}`;
+        if (existingNames.has(name)) {
+          return;
+        }
+
+        const values: Record<string, number> = {};
+        const xInput = standardInputsByPath.get(mouthScaleXPath);
+        const yInput = standardInputsByPath.get(mouthScaleYPath);
+        const morphInput = standardInputsByPath.get(mouthMorphPath);
+
+        if (xInput) {
+          values[xInput.id] = viseme.xScale;
+        }
+        if (yInput) {
+          values[yInput.id] = viseme.yScale;
+        }
+        if (morphInput) {
+          values[morphInput.id] = viseme.morph;
+        }
+
+        if (Object.keys(values).length === 0) {
+          return;
+        }
+
+        const now = new Date().toISOString();
+        const emotion: EmotionDefinition = {
+          id: `viseme_${viseme.id}_${Math.random().toString(36).slice(2, 10)}`,
+          name,
+          description: `Auto-generated viseme pose (${viseme.id})`,
+          values,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        additions.push(emotion);
+        next.push(emotion);
+      });
+
+      return next;
+    });
+
+    if (additions.length > 0) {
+      setSelectedEmotionId(additions[0].id);
+    }
+  }, [
+    availableStandardInputs,
+    setEmotions,
+    setSelectedEmotionId,
+    standardInputsByPath,
+  ]);
 
   useEffect(() => {
     setSavedNeutral((prev) => {
@@ -274,10 +486,7 @@ export default function App(): JSX.Element {
       let changed = false;
       availableStandardInputs.forEach((input) => {
         if (next[input.id] === undefined) {
-          next[input.id] = clampToInputRange(
-            input.id,
-            neutralInputs[input.id] ?? input.defaultValue,
-          );
+          next[input.id] = neutralInputs[input.id] ?? input.defaultValue ?? 0;
           changed = true;
         }
       });
@@ -440,17 +649,22 @@ export default function App(): JSX.Element {
     }
 
     lowLevelInputNodes.forEach((node) => {
-      const { path } = node;
-      let stagedValue: ValueJSON | undefined = node.defaultValue;
+      const { path, defaultValue: nodeDefault } = node;
+      let stagedValue: ValueJSON | undefined =
+        typeof nodeDefault === "number" && Number.isFinite(nodeDefault)
+          ? { float: nodeDefault }
+          : undefined;
 
       if (typeof path === "string" && path.startsWith("rig/")) {
         const segments = path.split("/");
         if (segments.length >= 3) {
           const standardPath = `/${segments.slice(2).join("/")}`;
-          const standardInput = STANDARD_INPUTS_BY_PATH.get(standardPath);
+          const standardInput = standardInputsByPath.get(standardPath);
           if (standardInput) {
             const nextValue =
-              neutralInputs[standardInput.id] ?? standardInput.defaultValue;
+              neutralInputs[standardInput.id] ??
+              standardInput.defaultValue ??
+              0;
             stagedValue = { float: nextValue };
           }
         }
@@ -500,6 +714,7 @@ export default function App(): JSX.Element {
     neutralInputs,
     setValue,
     stageLowLevelInput,
+    standardInputsByPath,
     loaderStatus.ready,
   ]);
 
@@ -628,7 +843,7 @@ export default function App(): JSX.Element {
     (inputId: StandardInputId, value: number) => {
       setNeutralInputs((prev) => ({
         ...prev,
-        [inputId]: clampToInputRange(inputId, value),
+        [inputId]: value,
       }));
     },
     [],
@@ -655,8 +870,15 @@ export default function App(): JSX.Element {
   );
 
   const handleDeleteEmotion = useCallback((emotionId: string) => {
-    setEmotions((prev) => prev.filter((emotion) => emotion.id !== emotionId));
-    setSelectedEmotionId((current) => (current === emotionId ? null : current));
+    setEmotions((prev) => {
+      const next = prev.filter((emotion) => emotion.id !== emotionId);
+      if (next.length !== prev.length) {
+        setSelectedEmotionId((current) =>
+          current === emotionId ? (next[0]?.id ?? NEUTRAL_POSE_ID) : current,
+        );
+      }
+      return next;
+    });
   }, []);
 
   const updateEmotionById = useCallback(
@@ -730,7 +952,7 @@ export default function App(): JSX.Element {
       updateEmotionById(emotionId, (emotion) => {
         const nextValues = {
           ...emotion.values,
-          [inputId]: clampToInputRange(inputId, value),
+          [inputId]: value,
         };
         return updateEmotion(emotion, { values: nextValues });
       });
@@ -754,32 +976,29 @@ export default function App(): JSX.Element {
 
   const handleAddEmotionInput = useCallback(
     (emotionId: string, inputId: string) => {
-      const definition = STANDARD_RIG_INPUTS_BY_ID.get(inputId);
+      const definition = standardInputsById.get(inputId);
       if (!definition) {
         return;
       }
-      const baseValue = neutralInputs[inputId] ?? definition.defaultValue;
+      const baseValue = neutralInputs[inputId] ?? definition.defaultValue ?? 0;
       updateEmotionById(emotionId, (emotion) => {
         if (emotion.values[inputId] !== undefined) {
           return emotion;
         }
         const nextValues = {
           ...emotion.values,
-          [inputId]: clampToInputRange(inputId, baseValue),
+          [inputId]: baseValue,
         };
         return updateEmotion(emotion, { values: nextValues });
       });
     },
-    [neutralInputs, updateEmotionById],
+    [neutralInputs, standardInputsById, updateEmotionById],
   );
 
   const poseLibrary = useMemo(() => {
     const neutralPose: Record<string, number> = {};
     availableStandardInputs.forEach((input) => {
-      neutralPose[input.id] = clampToInputRange(
-        input.id,
-        savedNeutral[input.id] ?? input.defaultValue,
-      );
+      neutralPose[input.id] = savedNeutral[input.id] ?? input.defaultValue ?? 0;
     });
 
     const poseEntries = emotions.map((emotion) => ({
@@ -839,11 +1058,11 @@ export default function App(): JSX.Element {
       const next: Record<StandardInputId, number> = {};
       availableStandardInputs.forEach((input) => {
         const value = savedNeutral[input.id] ?? input.defaultValue ?? 0;
-        next[input.id] = clampToInputRange(input.id, value);
+        next[input.id] = value;
       });
       return next;
     });
-    setSelectedEmotionId(null);
+    setSelectedEmotionId(NEUTRAL_POSE_ID);
   }, [availableStandardInputs, savedNeutral]);
 
   const handleApplyPose = useCallback(
@@ -855,12 +1074,8 @@ export default function App(): JSX.Element {
       setNeutralInputs(() => {
         const next: Record<StandardInputId, number> = {};
         availableStandardInputs.forEach((input) => {
-          const value =
-            emotion.values[input.id] ??
-            savedNeutral[input.id] ??
-            input.defaultValue ??
-            0;
-          next[input.id] = clampToInputRange(input.id, value);
+          const value = emotion.values[input.id] ?? savedNeutral[input.id] ?? 0;
+          next[input.id] = value;
         });
         return next;
       });
@@ -913,7 +1128,7 @@ export default function App(): JSX.Element {
       setSavedNeutral({ ...parsed.neutralInputs });
       setRigName(parsed.title ?? "emotion");
       setEmotions(parsed.emotions.map((emotion) => ({ ...emotion })));
-      setSelectedEmotionId(parsed.emotions[0]?.id ?? null);
+      setSelectedEmotionId(parsed.emotions[0]?.id ?? NEUTRAL_POSE_ID);
       window.alert(
         "Rig config imported. Review validation warnings before exporting.",
       );
@@ -926,22 +1141,15 @@ export default function App(): JSX.Element {
   const handleLogEmotionPoses = useCallback(() => {
     const neutralPose: Record<string, number> = {};
     availableStandardInputs.forEach((input) => {
-      neutralPose[input.id] = clampToInputRange(
-        input.id,
-        savedNeutral[input.id] ?? input.defaultValue ?? 0,
-      );
+      neutralPose[input.id] = savedNeutral[input.id] ?? input.defaultValue ?? 0;
     });
 
     const poseData: Record<string, Record<string, number>> = {};
     emotions.forEach((emotion) => {
       const poseValues: Record<string, number> = {};
       availableStandardInputs.forEach((input) => {
-        const value =
-          emotion.values[input.id] ??
-          savedNeutral[input.id] ??
-          input.defaultValue ??
-          0;
-        poseValues[input.id] = clampToInputRange(input.id, value);
+        const value = emotion.values[input.id] ?? savedNeutral[input.id] ?? 0;
+        poseValues[input.id] = value;
       });
       poseData[emotion.name || emotion.id] = poseValues;
     });
@@ -952,10 +1160,15 @@ export default function App(): JSX.Element {
     });
   }, [availableStandardInputs, emotions, savedNeutral]);
 
-  const selectedEmotion = useMemo(
-    () => emotions.find((emotion) => emotion.id === selectedEmotionId) ?? null,
-    [emotions, selectedEmotionId],
-  );
+  const selectedEmotion = useMemo(() => {
+    if (!selectedEmotionId || selectedEmotionId === NEUTRAL_POSE_ID) {
+      return null;
+    }
+    return emotions.find((emotion) => emotion.id === selectedEmotionId) ?? null;
+  }, [emotions, selectedEmotionId]);
+
+  const isNeutralSelected = selectedEmotionId === NEUTRAL_POSE_ID;
+  const activeEmotionId = selectedEmotion?.id ?? null;
 
   return (
     <div className="app-shell">
@@ -1018,56 +1231,67 @@ export default function App(): JSX.Element {
         <section className="column column-right">
           <EmotionList
             emotions={emotions}
-            selectedEmotionId={selectedEmotionId}
+            selectedEmotionId={activeEmotionId}
+            neutralSelected={isNeutralSelected}
+            onSelectNeutral={() => setSelectedEmotionId(NEUTRAL_POSE_ID)}
             onSelect={setSelectedEmotionId}
             onAdd={handleAddEmotion}
+            onCreateVisemes={handleCreateVisemePoses}
             onDuplicate={handleDuplicateEmotion}
             onDelete={handleDeleteEmotion}
           />
-          <EmotionEditor
-            emotion={selectedEmotion}
-            neutralInputs={neutralInputs}
-            inputs={availableStandardInputs}
-            onRename={(name) =>
-              selectedEmotionId
-                ? handleRenameEmotion(selectedEmotionId, name)
-                : undefined
-            }
-            onDescriptionChange={(description) =>
-              selectedEmotionId
-                ? handleEmotionDescriptionChange(selectedEmotionId, description)
-                : undefined
-            }
-            onCapture={() =>
-              selectedEmotionId
-                ? handleCaptureEmotion(selectedEmotionId)
-                : undefined
-            }
-            onClear={() =>
-              selectedEmotionId
-                ? handleClearEmotionValues(selectedEmotionId)
-                : undefined
-            }
-            onInputValueChange={(inputId, value) =>
-              selectedEmotionId
-                ? handleEmotionInputValueChange(
-                    selectedEmotionId,
-                    inputId,
-                    value,
-                  )
-                : undefined
-            }
-            onRemoveInput={(inputId) =>
-              selectedEmotionId
-                ? handleRemoveEmotionInput(selectedEmotionId, inputId)
-                : undefined
-            }
-            onAddInput={(inputId) =>
-              selectedEmotionId
-                ? handleAddEmotionInput(selectedEmotionId, inputId)
-                : undefined
-            }
-          />
+          {isNeutralSelected ? (
+            <NeutralPoseEditor
+              inputs={availableStandardInputs}
+              neutralInputs={neutralInputs}
+              onChange={handleNeutralInputChange}
+            />
+          ) : (
+            <EmotionEditor
+              emotion={selectedEmotion}
+              neutralInputs={neutralInputs}
+              inputs={availableStandardInputs}
+              onRename={(name) =>
+                activeEmotionId
+                  ? handleRenameEmotion(activeEmotionId, name)
+                  : undefined
+              }
+              onDescriptionChange={(description) =>
+                activeEmotionId
+                  ? handleEmotionDescriptionChange(activeEmotionId, description)
+                  : undefined
+              }
+              onCapture={() =>
+                activeEmotionId
+                  ? handleCaptureEmotion(activeEmotionId)
+                  : undefined
+              }
+              onClear={() =>
+                activeEmotionId
+                  ? handleClearEmotionValues(activeEmotionId)
+                  : undefined
+              }
+              onInputValueChange={(inputId, value) =>
+                activeEmotionId
+                  ? handleEmotionInputValueChange(
+                      activeEmotionId,
+                      inputId,
+                      value,
+                    )
+                  : undefined
+              }
+              onRemoveInput={(inputId) =>
+                activeEmotionId
+                  ? handleRemoveEmotionInput(activeEmotionId, inputId)
+                  : undefined
+              }
+              onAddInput={(inputId) =>
+                activeEmotionId
+                  ? handleAddEmotionInput(activeEmotionId, inputId)
+                  : undefined
+              }
+            />
+          )}
         </section>
       </main>
     </div>
