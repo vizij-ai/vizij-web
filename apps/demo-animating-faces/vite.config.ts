@@ -1,0 +1,38 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+
+export default defineConfig({
+  plugins: [react()],
+  assetsInclude: ["**/*.glb"],
+  server: {
+    fs: {
+      allow: ["../../../"],
+    },
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/animation-react/**",
+        "!**/node_modules/@vizij/orchestrator-wasm/**",
+        "!**/node_modules/@vizij/orchestrator-react/**",
+        "!**/node_modules/@vizij/node-graph-react/**",
+      ],
+    },
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+  },
+  optimizeDeps: {
+    exclude: [
+      "@vizij/animation-wasm",
+      "@vizij/orchestrator-wasm",
+    ],
+    include: [
+      "@vizij/animation-react",
+      "@vizij/orchestrator-react",
+      "@vizij/node-graph-react",
+    ],
+    force: true,
+  },
+});
