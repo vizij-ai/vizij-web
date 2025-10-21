@@ -4,21 +4,6 @@ import { useOrchestrator } from "@vizij/orchestrator-react";
 import { useAppState } from "../state/AppStateContext";
 import type { RigDefinition } from "../orchestrator/useOrchestratorMerging";
 
-function extractDefault(value: unknown): number {
-  if (typeof value === "number") {
-    return value;
-  }
-  if (value && typeof value === "object") {
-    if (typeof (value as any).float === "number") {
-      return (value as any).float as number;
-    }
-    if (typeof (value as any).value === "number") {
-      return (value as any).value as number;
-    }
-  }
-  return 0;
-}
-
 function createPresetId(): string {
   if (
     typeof crypto !== "undefined" &&
@@ -29,32 +14,15 @@ function createPresetId(): string {
   return `preset-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function isScalePath(path: string): boolean {
-  return path.toLowerCase().includes("scale");
-}
-
-function getSliderBounds(input: RigDefinition["inputs"][number]): {
+function getSliderBounds(_input: RigDefinition["inputs"][number]): {
   min: number;
   max: number;
 } {
-  if (isScalePath(input.path)) {
-    return { min: 0, max: 2 };
-  }
   return { min: -1, max: 1 };
 }
 
-function getInputDefaultValue(input: RigDefinition["inputs"][number]): number {
-  if (isScalePath(input.path)) {
-    return 1;
-  }
-  return extractDefault(input.defaultValue);
-}
-
-function clampValue(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
-  return Math.min(max, Math.max(min, value));
+function getInputDefaultValue(_input: RigDefinition["inputs"][number]): number {
+  return 0;
 }
 
 type RigControlsPanelProps = {
@@ -121,13 +89,10 @@ export function RigControlsPanel({
     }
     activeRigs.forEach((rig) => {
       rig.inputs.forEach((input) => {
-        const bounds = getSliderBounds(input);
+        // const bounds = getSliderBounds(input);
         const defaultValue = getInputDefaultValue(input);
         const stored = sliderValues[input.uiPath];
-        const value =
-          stored === undefined
-            ? defaultValue
-            : clampValue(stored, bounds.min, bounds.max);
+        const value = stored === undefined ? defaultValue : stored;
         if (stored !== undefined && stored !== value) {
           setSliderValue(input.uiPath, value);
         }
@@ -225,15 +190,8 @@ export function RigControlsPanel({
               const inputDef = rig.inputs.find(
                 (entry) => entry.uiPath === uiPath,
               );
-              const bounds = inputDef
-                ? getSliderBounds(inputDef)
-                : { min: -1, max: 1 };
               const fallback = inputDef ? getInputDefaultValue(inputDef) : 0;
-              const nextValue = clampValue(
-                Number.isFinite(value) ? value : fallback,
-                bounds.min,
-                bounds.max,
-              );
+              const nextValue = Number.isFinite(value) ? value : fallback;
               setSliderValue(uiPath, nextValue);
               safeSetInput(uiPath, { float: nextValue });
             });
@@ -295,9 +253,7 @@ export function RigControlsPanel({
                         const defaultValue = getInputDefaultValue(input);
                         const stored = sliderValues[input.uiPath];
                         const currentValue =
-                          stored === undefined
-                            ? defaultValue
-                            : clampValue(stored, bounds.min, bounds.max);
+                          stored === undefined ? defaultValue : stored;
                         return (
                           <label key={input.uiPath} className="rig-input">
                             <span className="rig-input-label">
@@ -319,11 +275,7 @@ export function RigControlsPanel({
                                 const parsed = Number.parseFloat(
                                   event.target.value,
                                 );
-                                const nextValue = clampValue(
-                                  parsed,
-                                  bounds.min,
-                                  bounds.max,
-                                );
+                                const nextValue = parsed;
                                 setSliderValue(input.uiPath, nextValue);
                                 safeSetInput(input.uiPath, {
                                   float: nextValue,
@@ -341,11 +293,9 @@ export function RigControlsPanel({
                                   event.target.value,
                                 );
                                 const fallback = getInputDefaultValue(input);
-                                const nextValue = clampValue(
-                                  Number.isFinite(parsed) ? parsed : fallback,
-                                  bounds.min,
-                                  bounds.max,
-                                );
+                                const nextValue = Number.isFinite(parsed)
+                                  ? parsed
+                                  : fallback;
                                 setSliderValue(input.uiPath, nextValue);
                                 safeSetInput(input.uiPath, {
                                   float: nextValue,

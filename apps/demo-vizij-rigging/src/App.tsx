@@ -190,7 +190,7 @@ export default function App(): JSX.Element {
   const [graphLoaded, setGraphLoaded] = useState(false);
   const [neutralInputs, setNeutralInputs] =
     useState<Record<StandardInputId, number>>(createNeutralInputs);
-  const [visemeEnabled, setVisemeEnabled] = useState(false);
+  // const [visemeEnabled, setVisemeEnabled] = useState(false);
   const [emotions, setEmotions] = useState<EmotionDefinition[]>([]);
   const [selectedEmotionId, setSelectedEmotionId] = useState<string | null>(
     NEUTRAL_POSE_ID,
@@ -310,10 +310,10 @@ export default function App(): JSX.Element {
               }
             }
           }
-        if (remap) {
-          break;
+          if (remap) {
+            break;
+          }
         }
-      }
 
         let defaultNumeric: number | undefined;
         if (defaultValue && typeof defaultValue === "object") {

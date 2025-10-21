@@ -45,10 +45,10 @@ function input(
   };
 }
 
-const POS_DEFAULTS = { value: 0, min: -0.3, max: 0.3 };
-const SCALE_DEFAULTS = { value: 1, min: 0, max: 2 };
+const POS_DEFAULTS = { value: 0, min: -1, max: 1 };
+const SCALE_DEFAULTS = { value: 0, min: -1, max: 1 };
 const MORPH_DEFAULTS = { value: 0, min: -1, max: 1 };
-const ROT_DEFAULTS = { value: 0, min: -1.6, max: 1.6 };
+const ROT_DEFAULTS = { value: 0, min: -1, max: 1 };
 
 export const STANDARD_RIG_INPUTS: StandardRigInput[] = [
   input("/mouth/pos/x", "Mouth Pos X", "mouth", POS_DEFAULTS),
