@@ -22,6 +22,7 @@
     "@eslint/plugin-kit": "0.4.0",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/node-graph-wasm": "^0.4.1",
+    "@vizij/value-json": "^0.1.0",
     "react": "18.x",
     "react-dom": "18.x",
     "reactflow": "11.x",

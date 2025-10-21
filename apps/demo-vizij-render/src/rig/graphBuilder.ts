@@ -1,9 +1,6 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import {
-  STANDARD_RIG_INPUTS_BY_ID,
-  type StandardRigInput,
-} from "./standardRigInputs";
+import type { StandardRigInput } from "./standardRigInputs";
 import type { AnimatableComponent } from "./animatableMetadata";
 import { buildAnimatableValue } from "./animatableMetadata";
 import type { BindingMap } from "./state";
@@ -17,6 +14,7 @@ interface BuildGraphOptions {
   animatables: Record<string, AnimatableValue>;
   components: AnimatableComponent[];
   bindings: BindingMap;
+  inputsById: Map<string, StandardRigInput>;
 }
 
 export interface GraphBindingSummary {
@@ -126,6 +124,7 @@ export function buildRigGraphSpec({
   animatables,
   components,
   bindings,
+  inputsById,
 }: BuildGraphOptions): BuildGraphResult {
   const nodes: NodeSpec[] = [];
   const edges: NonNullable<GraphSpec["edges"]> = [];
@@ -144,7 +143,7 @@ export function buildRigGraphSpec({
     if (existing) {
       return existing;
     }
-    const input = STANDARD_RIG_INPUTS_BY_ID.get(inputId);
+    const input = inputsById.get(inputId);
     if (!input) {
       return null;
     }

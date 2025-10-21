@@ -276,7 +276,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) 1fr 120px;
   gap: 0.6rem;
-  align-items: center;
+  align-items: start;
 }
 
 .feature-panel__input-meta {
@@ -301,6 +301,153 @@ button:disabled {
   border: 1px solid #1e293b;
   border-radius: 0.5rem;
   color: inherit;
+}
+
+.feature-panel__input-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.feature-panel__input-add {
+  background: none;
+  border: 1px dashed #334155;
+  color: #e2e8f0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feature-panel__input-add:hover {
+  background: rgba(51, 65, 85, 0.2);
+}
+
+.feature-panel__input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid #1e293b;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.feature-panel__input-form-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .feature-panel__input-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .feature-panel__input-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.feature-panel__input-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.feature-panel__input-form-grid input,
+.feature-panel__input-form-grid select {
+  padding: 0.5rem 0.6rem;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  color: inherit;
+}
+
+.feature-panel__input-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #f87171;
+}
+
+.feature-panel__input-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.feature-panel__input-form-actions button {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #2563eb;
+  background: #1d4ed8;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feature-panel__input-cancel {
+  background: none;
+  border-color: #334155;
+  color: #cbd5f5;
+}
+
+.feature-panel__input-cancel:hover {
+  background: rgba(51, 65, 85, 0.2);
+}
+
+.feature-panel__input-number-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.feature-panel__input-number-wrapper .feature-panel__input-number {
+  flex: 1 1 auto;
+}
+
+.feature-panel__input-delete {
+  background: none;
+  border: 1px solid #334155;
+  color: #fca5a5;
+  font-size: 1rem;
+  line-height: 1;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+.feature-panel__input-delete:hover {
+  border-color: rgba(252, 165, 165, 0.65);
+  background: rgba(252, 165, 165, 0.12);
+}
+
+.feature-panel__input-tracker {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  grid-column: 1 / -1;
+}
+
+.feature-panel__input-tracker--unmapped {
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.feature-panel__inputs-empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
 }
 
 .feature-panel__filters {
@@ -481,6 +628,35 @@ button:disabled {
   border: 1px solid #1e293b;
   border-radius: 0.5rem;
   color: inherit;
+}
+
+.feature-row__binding-matrix-cell--unbound {
+  background: rgba(248, 113, 113, 0.08);
+  border-radius: 0.5rem;
+}
+
+.feature-row__binding-matrix-cell--unbound select,
+.feature-row__binding-matrix-cell--unbound input {
+  border-color: rgba(248, 113, 113, 0.7);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fee2e2;
+}
+
+.feature-row__binding-matrix-cell--unbound button {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+}
+
+.feature-row__binding-matrix-cell--unbound button:hover {
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.feature-row__binding-select {
+  width: 100%;
+}
+
+.feature-row__binding-select--unbound {
+  color: #fee2e2;
 }
 
 .feature-row__binding-matrix-cell--header {
@@ -847,6 +1023,7 @@ button:disabled {
 
 .feature-row__rig-preview-row {
   width: 100%;
+  align-items: center;
 }
 
 .feature-row__field {

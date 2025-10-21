@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
+    "@vizij/node-graph-wasm": "^0.4.1",
     "@vizij/render": "workspace:*",
     "@vizij/utils": "workspace:*",
     "react": "^18.2.0",

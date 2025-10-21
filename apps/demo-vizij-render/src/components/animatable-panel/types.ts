@@ -17,7 +17,10 @@ import type {
   StandardInputValues,
   RemapSettings,
 } from "../../rig/state";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
+import type {
+  StandardRigInput,
+  StandardRigInputDraft,
+} from "../../rig/standardRigInputs";
 import type { VectorDescriptorType } from "../../rig/bounds";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "./constants";
 
@@ -90,6 +93,9 @@ export interface AnimatableValuesPanelProps {
   onResetBinding(targetId: string): void;
   inputValues: StandardInputValues;
   onInputValueChange(inputId: string, value: number): void;
+  standardInputs: StandardRigInput[];
+  onCreateStandardInput(draft: StandardRigInputDraft): void;
+  onDeleteStandardInput(inputId: string): void;
 }
 
 export type BindingTarget = {
@@ -142,6 +148,9 @@ export interface FeatureRowProps {
   onResetBinding: (targetId: string) => void;
   inputValues: StandardInputValues;
   onInputValueChange: (inputId: string, value: number) => void;
+  standardInputs: StandardRigInput[];
+  standardInputLookup: Map<string, StandardRigInput>;
+  inputRanges: Map<string, { min: number; max: number }>;
   isCollapsed: boolean;
   onToggleCollapse: (id: string) => void;
 }

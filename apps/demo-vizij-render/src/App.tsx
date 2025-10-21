@@ -37,8 +37,10 @@ import {
   type RemapSettings,
 } from "./rig/state";
 import {
-  STANDARD_RIG_INPUTS_BY_ID,
+  STANDARD_RIG_INPUTS,
+  createStandardRigInput,
   type StandardRigInput,
+  type StandardRigInputDraft,
 } from "./rig/standardRigInputs";
 import { buildRigGraphSpec } from "./rig/graphBuilder";
 import { loadRigState, saveRigState } from "./rig/persistence";
@@ -207,9 +209,12 @@ export default function App() {
   const clearSelection = useVizijStore((state) => state.clearSelection);
   const setStoreState = useVizijStoreSetter();
 
+  const [standardInputs, setStandardInputs] = useState<StandardRigInput[]>(() =>
+    STANDARD_RIG_INPUTS.slice(),
+  );
   const [faceId, setFaceId] = useState<string>("robot");
   const [inputValues, setInputValues] = useState<StandardInputValues>(() =>
-    createDefaultInputValues(),
+    createDefaultInputValues(STANDARD_RIG_INPUTS),
   );
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
@@ -230,6 +235,54 @@ export default function App() {
     );
   }, [animatableComponents]);
 
+  const standardInputsById = useMemo(
+    () => new Map(standardInputs.map((input) => [input.id, input])),
+    [standardInputs],
+  );
+
+  useEffect(() => {
+    setInputValues((previous) => {
+      let changed = false;
+      const next: StandardInputValues = {};
+      standardInputs.forEach((input) => {
+        if (Object.prototype.hasOwnProperty.call(previous, input.id)) {
+          next[input.id] = previous[input.id];
+        } else {
+          next[input.id] = input.defaultValue;
+          changed = true;
+        }
+      });
+      if (Object.keys(previous).length !== standardInputs.length || changed) {
+        return next;
+      }
+      return previous;
+    });
+  }, [standardInputs]);
+
+  useEffect(() => {
+    const validIds = new Set(standardInputs.map((input) => input.id));
+    setBindings((previous) => {
+      let changed = false;
+      const next: BindingMap = {};
+      Object.entries(previous).forEach(([key, binding]) => {
+        if (!binding) {
+          return;
+        }
+        next[key] = binding;
+        if (binding.inputId && !validIds.has(binding.inputId)) {
+          const component = componentsById.get(key);
+          next[key] = {
+            targetId: binding.targetId,
+            inputId: null,
+            remap: component ? createDefaultRemap(component) : binding.remap,
+          };
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [componentsById, standardInputs]);
+
   const handleInputValueChange = useCallback(
     (inputId: string, value: number) => {
       setInputValues((previous) => ({
@@ -247,9 +300,7 @@ export default function App() {
         return;
       }
       const inputMeta: StandardRigInput | undefined =
-        nextInputId !== null
-          ? STANDARD_RIG_INPUTS_BY_ID.get(nextInputId)
-          : undefined;
+        nextInputId !== null ? standardInputsById.get(nextInputId) : undefined;
       setBindings((previous) => {
         const fallback: AnimatableBinding = {
           targetId,
@@ -267,7 +318,7 @@ export default function App() {
         };
       });
     },
-    [componentsById],
+    [componentsById, standardInputsById],
   );
 
   const handleBindingRemapChange = useCallback(
@@ -315,6 +366,55 @@ export default function App() {
     [componentsById],
   );
 
+  const handleCreateStandardInput = useCallback(
+    (draft: StandardRigInputDraft) => {
+      let createdInput: StandardRigInput | null = null;
+      setStandardInputs((previous) => {
+        const existingIds = new Set(previous.map((input) => input.id));
+        let candidate = createStandardRigInput(draft);
+        if (existingIds.has(candidate.id)) {
+          const baseSegments = candidate.path
+            .split("/")
+            .filter((segment) => segment.length > 0);
+          const targetIndex =
+            baseSegments.length > 0 ? baseSegments.length - 1 : 0;
+          const baseLeaf =
+            baseSegments[targetIndex] ??
+            (candidate.id ? candidate.id.replace(/^_+/, "") : "input");
+          let suffix = 2;
+          let resolved = candidate;
+          while (existingIds.has(resolved.id)) {
+            const nextSegments =
+              baseSegments.length > 0 ? baseSegments.slice() : [baseLeaf];
+            nextSegments[targetIndex] = `${baseLeaf}_${suffix}`;
+            const nextPath = `/${nextSegments.join("/")}`;
+            resolved = createStandardRigInput({
+              ...draft,
+              path: nextPath,
+            });
+            suffix += 1;
+          }
+          candidate = resolved;
+        }
+        createdInput = candidate;
+        return [...previous, candidate];
+      });
+      if (createdInput) {
+        setInputValues((previous) => ({
+          ...previous,
+          [createdInput!.id]: createdInput!.defaultValue,
+        }));
+      }
+    },
+    [setInputValues],
+  );
+
+  const handleDeleteStandardInput = useCallback((inputId: string) => {
+    setStandardInputs((previous) =>
+      previous.filter((input) => input.id !== inputId),
+    );
+  }, []);
+
   const handleFaceIdChange = useCallback((next: string) => {
     setFaceId(sanitizeFaceId(next));
   }, []);
@@ -355,10 +455,17 @@ export default function App() {
     const persisted = loadRigState(faceId);
     skipPersistRef.current = true;
     if (persisted) {
+      const storedInputs =
+        persisted.standardInputs?.map((input) =>
+          createStandardRigInput(input),
+        ) ?? STANDARD_RIG_INPUTS.slice();
+      setStandardInputs(storedInputs);
       setInputValues(persisted.inputValues);
       setBindings(reconcileBindings(persisted.bindings, animatableComponents));
     } else {
-      setInputValues(createDefaultInputValues());
+      const defaults = STANDARD_RIG_INPUTS.slice();
+      setStandardInputs(defaults);
+      setInputValues(createDefaultInputValues(defaults));
       setBindings(createDefaultBindings(animatableComponents));
     }
     setTimeout(() => {
@@ -379,8 +486,9 @@ export default function App() {
       faceId,
       bindings,
       inputValues,
+      standardInputs,
     });
-  }, [animatableComponents, bindings, faceId, inputValues]);
+  }, [animatableComponents, bindings, faceId, inputValues, standardInputs]);
 
   const rootRenderable = rootId
     ? (world[rootId] as Group | undefined)
@@ -408,7 +516,7 @@ export default function App() {
       if (!binding || !binding.inputId) {
         return;
       }
-      const inputMeta = STANDARD_RIG_INPUTS_BY_ID.get(binding.inputId);
+      const inputMeta = standardInputsById.get(binding.inputId);
       const sourceValue =
         inputValues[binding.inputId] ?? inputMeta?.defaultValue ?? 0;
       const outputValue = remapValue(sourceValue, binding.remap);
@@ -447,7 +555,14 @@ export default function App() {
     });
 
     drivenAnimatablesRef.current = nextDriven;
-  }, [animatableComponents, animatables, bindings, inputValues, setValue]);
+  }, [
+    animatableComponents,
+    animatables,
+    bindings,
+    inputValues,
+    setValue,
+    standardInputsById,
+  ]);
 
   const loadVizij = useCallback(
     async (
@@ -570,6 +685,7 @@ export default function App() {
       animatables: effectiveAnimatables,
       components: animatableComponents,
       bindings,
+      inputsById: standardInputsById,
     });
 
     const baseName = fileName.replace(/\.json$/i, "");
@@ -594,6 +710,7 @@ export default function App() {
     collectAnimatableExportState,
     faceId,
     graphFileName,
+    standardInputsById,
   ]);
 
   const handleExportGlb = useCallback(async () => {
@@ -821,6 +938,9 @@ export default function App() {
           onResetBinding={handleResetBinding}
           inputValues={inputValues}
           onInputValueChange={handleInputValueChange}
+          standardInputs={standardInputs}
+          onCreateStandardInput={handleCreateStandardInput}
+          onDeleteStandardInput={handleDeleteStandardInput}
         />
       </aside>
     </div>

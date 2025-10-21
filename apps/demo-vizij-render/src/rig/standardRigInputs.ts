@@ -1,14 +1,18 @@
-export type RigInputGroup =
-  | "mouth"
-  | "left_eye"
-  | "left_eye_highlight"
-  | "left_eye_top_eyelid"
-  | "left_eye_brow"
-  | "right_eye"
-  | "right_eye_highlight"
-  | "right_eye_bottom_eyelid"
-  | "right_eye_top_eyelid"
-  | "right_eye_brow";
+export const RIG_INPUT_GROUPS = [
+  "mouth",
+  "left_eye",
+  "left_eye_highlight",
+  "left_eye_top_eyelid",
+  "left_eye_bottom_eyelid",
+  "left_eye_brow",
+  "right_eye",
+  "right_eye_highlight",
+  "right_eye_bottom_eyelid",
+  "right_eye_top_eyelid",
+  "right_eye_brow",
+] as const;
+
+export type RigInputGroup = string;
 
 export interface StandardRigInput {
   id: string;
@@ -31,6 +35,63 @@ export interface StandardRigInput {
   };
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export function normalizeStandardRigInputPath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return "/custom/input";
+  }
+  let normalized = trimmed.replace(/\\/g, "/");
+  normalized = normalized.replace(/\/\/+/g, "/");
+  if (!normalized.startsWith("/")) {
+    normalized = `/${normalized}`;
+  }
+  if (normalized.length > 1 && normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
+function deriveStandardRigInputId(path: string): string {
+  return path.replace(/\//g, "_").replace(/^_+/, "");
+}
+
+export interface StandardRigInputInit
+  extends Omit<StandardRigInput, "id" | "path"> {
+  path: string;
+  id?: string;
+}
+
+export type StandardRigInputDraft = Omit<StandardRigInputInit, "id">;
+
+export function createStandardRigInput(
+  init: StandardRigInputInit,
+): StandardRigInput {
+  const path = normalizeStandardRigInputPath(init.path);
+  const id = init.id ?? deriveStandardRigInputId(path);
+  const rangeMin = Math.min(init.range.min, init.range.max);
+  const rangeMax = Math.max(init.range.min, init.range.max);
+  const defaultValue = Math.min(
+    rangeMax,
+    Math.max(rangeMin, init.defaultValue),
+  );
+  const label = normalizeWhitespace(init.label || path);
+  return {
+    id,
+    path,
+    label,
+    group: init.group,
+    defaultValue,
+    range: {
+      min: rangeMin,
+      max: rangeMax,
+    },
+  };
+}
+
 function input(
   path: string,
   label: string,
@@ -41,9 +102,7 @@ function input(
     max: number;
   },
 ): StandardRigInput {
-  const id = path.replace(/\//g, "_").replace(/^_+/, "");
-  return {
-    id,
+  return createStandardRigInput({
     path,
     label,
     group,
@@ -52,11 +111,11 @@ function input(
       min: defaults.min,
       max: defaults.max,
     },
-  };
+  });
 }
 
 const POS_DEFAULTS = { value: 0, min: -1, max: 1 };
-const SCALE_DEFAULTS = { value: 1, min: 0, max: 2 };
+const SCALE_DEFAULTS = { value: 0, min: -1, max: 1 };
 const MORPH_DEFAULTS = { value: 0, min: -1, max: 1 };
 const ROT_DEFAULTS = { value: 0, min: -1.6, max: 1.6 };
 
@@ -79,6 +138,18 @@ export const STANDARD_RIG_INPUTS: StandardRigInput[] = [
     "Left Eye Highlight Scale Y",
     "left_eye_highlight",
     SCALE_DEFAULTS,
+  ),
+  input(
+    "/left_eye_bottom_eyelid/pos/y",
+    "Left Bottom Eyelid Pos Y",
+    "left_eye_bottom_eyelid",
+    POS_DEFAULTS,
+  ),
+  input(
+    "/left_eye_bottom_eyelid/rot/z",
+    "Left Bottom Eyelid Rot Z",
+    "left_eye_bottom_eyelid",
+    ROT_DEFAULTS,
   ),
   input(
     "/left_eye_top_eyelid/pos/y",

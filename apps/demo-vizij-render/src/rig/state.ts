@@ -96,18 +96,30 @@ function migrateLegacyRemap(
     const inHigh = isFiniteNumber(legacy.inHigh)
       ? legacy.inHigh
       : defaults.inHigh;
+    let outLow = isFiniteNumber(legacy.outLow)
+      ? legacy.outLow
+      : defaults.outLow;
+    let outHigh = isFiniteNumber(legacy.outHigh)
+      ? legacy.outHigh
+      : defaults.outHigh;
+    if (outLow > outHigh) {
+      const low = outHigh;
+      const high = outLow;
+      outLow = low;
+      outHigh = high;
+    }
     const outAnchor = clamp(
       isFiniteNumber(legacy.outAnchor) ? legacy.outAnchor : defaults.outAnchor,
-      defaults.outLow,
-      defaults.outHigh,
+      outLow,
+      outHigh,
     );
     return {
       inLow,
       inAnchor,
       inHigh,
-      outLow: defaults.outLow,
+      outLow,
       outAnchor,
-      outHigh: defaults.outHigh,
+      outHigh,
     };
   }
 
@@ -175,9 +187,11 @@ export function createDefaultBindings(
   return bindings;
 }
 
-export function createDefaultInputValues(): StandardInputValues {
+export function createDefaultInputValues(
+  inputs: StandardRigInput[] = STANDARD_RIG_INPUTS,
+): StandardInputValues {
   const values: StandardInputValues = {};
-  STANDARD_RIG_INPUTS.forEach((input) => {
+  inputs.forEach((input) => {
     values[input.id] = input.defaultValue;
   });
   return values;
@@ -243,14 +257,22 @@ export function reconcileBindings(
   components.forEach((component) => {
     const existing = previous[component.id];
     if (existing) {
-      const needsOutUpdate =
-        Math.abs(existing.remap.outLow - component.range.min) > EPSILON ||
-        Math.abs(existing.remap.outHigh - component.range.max) > EPSILON;
       const remap = normalizeRemap(existing.remap, component);
       const outputDefaults = deriveOutputDefaults(component);
-      if (needsOutUpdate) {
+      if (!Number.isFinite(remap.outLow)) {
         remap.outLow = outputDefaults.outLow;
+      }
+      if (!Number.isFinite(remap.outHigh)) {
         remap.outHigh = outputDefaults.outHigh;
+      }
+      if (!Number.isFinite(remap.outAnchor)) {
+        remap.outAnchor = outputDefaults.outAnchor;
+      }
+      if (remap.outLow > remap.outHigh) {
+        const low = remap.outHigh;
+        const high = remap.outLow;
+        remap.outLow = low;
+        remap.outHigh = high;
       }
       remap.outAnchor = clamp(remap.outAnchor, remap.outLow, remap.outHigh);
       next[component.id] = {

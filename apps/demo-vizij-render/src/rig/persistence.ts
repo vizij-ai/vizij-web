@@ -1,4 +1,5 @@
 import type { BindingMap, StandardInputValues } from "./state";
+import type { StandardRigInput } from "./standardRigInputs";
 
 const STORAGE_KEY = "vizij:rig-authoring:v1";
 
@@ -6,6 +7,7 @@ interface PersistedRigState {
   faceId: string;
   bindings: BindingMap;
   inputValues: StandardInputValues;
+  standardInputs?: StandardRigInput[];
 }
 
 type PersistedRigStateMap = Record<string, PersistedRigState>;

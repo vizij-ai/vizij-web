@@ -1,9 +1,5 @@
 import { Fragment, useCallback, type ChangeEvent } from "react";
 import { formatRawValue } from "../../utils/format";
-import {
-  STANDARD_RIG_INPUTS,
-  findStandardRigInput,
-} from "../../rig/standardRigInputs";
 import type { StandardRigInput } from "../../rig/standardRigInputs";
 import { createDefaultRemap } from "../../rig/state";
 import type {
@@ -40,6 +36,9 @@ export function FeatureRow({
   onResetBinding,
   inputValues,
   onInputValueChange,
+  standardInputs,
+  standardInputLookup,
+  inputRanges,
   isCollapsed,
   onToggleCollapse,
 }: FeatureRowProps) {
@@ -71,42 +70,52 @@ export function FeatureRow({
     return (
       <div className={matrixClass}>
         <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label" />
-        {targets.map((target) => (
-          <div
-            key={`${target.targetId}-header`}
-            className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--header"
-          >
-            {target.label}
-          </div>
-        ))}
+        {targets.map((target) => {
+          const isUnbound = !target.binding?.inputId;
+          const headerClass = `feature-row__binding-matrix-cell feature-row__binding-matrix-cell--header${
+            isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
+          }`;
+          return (
+            <div key={`${target.targetId}-header`} className={headerClass}>
+              {target.label}
+            </div>
+          );
+        })}
 
         <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
           Standard input
         </div>
-        {targets.map((target) => (
-          <div
-            key={`${target.targetId}-input`}
-            className="feature-row__binding-matrix-cell"
-          >
-            <select
-              value={target.binding?.inputId ?? ""}
-              onChange={(event) =>
-                onBindingInputChange(
-                  target.targetId,
-                  event.target.value ? event.target.value : null,
-                )
-              }
-              aria-label={`${target.label} standard input`}
-            >
-              <option value="">Unbound</option>
-              {STANDARD_RIG_INPUTS.map((input) => (
-                <option key={input.id} value={input.id}>
-                  {formatStandardInputLabel(input)}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
+        {targets.map((target) => {
+          const isUnbound = !target.binding?.inputId;
+          const cellClass = `feature-row__binding-matrix-cell${
+            isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
+          }`;
+          const selectClass = isUnbound
+            ? "feature-row__binding-select feature-row__binding-select--unbound"
+            : "feature-row__binding-select";
+          return (
+            <div key={`${target.targetId}-input`} className={cellClass}>
+              <select
+                className={selectClass}
+                value={target.binding?.inputId ?? ""}
+                onChange={(event) =>
+                  onBindingInputChange(
+                    target.targetId,
+                    event.target.value ? event.target.value : null,
+                  )
+                }
+                aria-label={`${target.label} standard input`}
+              >
+                <option value="">Unbound</option>
+                {standardInputs.map((input) => (
+                  <option key={input.id} value={input.id}>
+                    {formatStandardInputLabel(input)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
 
         {bindingFieldOrder.map((field) => (
           <Fragment key={`binding-row-${field}`}>
@@ -114,13 +123,14 @@ export function FeatureRow({
               {bindingFieldLabels[field]}
             </div>
             {targets.map((target) => {
+              const isUnbound = !target.binding?.inputId;
+              const cellClass = `feature-row__binding-matrix-cell${
+                isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
+              }`;
               const defaults = createDefaultRemap(target.component);
               const remap = target.binding?.remap ?? defaults;
               return (
-                <div
-                  key={`${target.targetId}-${field}`}
-                  className="feature-row__binding-matrix-cell"
-                >
+                <div key={`${target.targetId}-${field}`} className={cellClass}>
                   <input
                     type="number"
                     value={remap[field]}
@@ -142,19 +152,22 @@ export function FeatureRow({
         <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
           Actions
         </div>
-        {targets.map((target) => (
-          <div
-            key={`${target.targetId}-actions`}
-            className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--actions"
-          >
-            <button
-              type="button"
-              onClick={() => onResetBinding(target.targetId)}
-            >
-              Reset
-            </button>
-          </div>
-        ))}
+        {targets.map((target) => {
+          const isUnbound = !target.binding?.inputId;
+          const cellClass = `feature-row__binding-matrix-cell feature-row__binding-matrix-cell--actions${
+            isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
+          }`;
+          return (
+            <div key={`${target.targetId}-actions`} className={cellClass}>
+              <button
+                type="button"
+                onClick={() => onResetBinding(target.targetId)}
+              >
+                Reset
+              </button>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -176,7 +189,7 @@ export function FeatureRow({
       if (uniqueInputs.has(inputId)) {
         return;
       }
-      const inputMeta = findStandardRigInput(inputId);
+      const inputMeta = standardInputLookup.get(inputId);
       if (!inputMeta) {
         return;
       }
@@ -195,10 +208,8 @@ export function FeatureRow({
       <div className="feature-row__rig-preview">
         <div className="feature-row__rig-preview-inputs">
           {Array.from(uniqueInputs.entries()).map(([inputId, entry]) => {
-            const step = Math.max(
-              (entry.input.range.max - entry.input.range.min) / 200,
-              0.001,
-            );
+            const range = inputRanges.get(inputId) ?? entry.input.range;
+            const step = Math.max((range.max - range.min) / 200, 0.001);
             return (
               <div
                 key={inputId}
@@ -210,8 +221,8 @@ export function FeatureRow({
                 </div>
                 <input
                   type="range"
-                  min={entry.input.range.min}
-                  max={entry.input.range.max}
+                  min={range.min}
+                  max={range.max}
                   step={step}
                   value={entry.value}
                   onChange={(event) => {
@@ -221,20 +232,22 @@ export function FeatureRow({
                     }
                   }}
                 />
-                <input
-                  className="feature-panel__input-number"
-                  type="number"
-                  min={entry.input.range.min}
-                  max={entry.input.range.max}
-                  step={step}
-                  value={entry.value}
-                  onChange={(event) => {
-                    const parsed = Number(event.target.value);
-                    if (Number.isFinite(parsed)) {
-                      onInputValueChange(inputId, parsed);
-                    }
-                  }}
-                />
+                <div className="feature-panel__input-number-wrapper">
+                  <input
+                    className="feature-panel__input-number"
+                    type="number"
+                    min={range.min}
+                    max={range.max}
+                    step={step}
+                    value={entry.value}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value);
+                      if (Number.isFinite(parsed)) {
+                        onInputValueChange(inputId, parsed);
+                      }
+                    }}
+                  />
+                </div>
               </div>
             );
           })}

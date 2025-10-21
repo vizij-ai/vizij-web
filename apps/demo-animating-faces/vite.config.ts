@@ -24,10 +24,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: [
-      "@vizij/animation-wasm",
-      "@vizij/orchestrator-wasm",
-    ],
+    exclude: ["@vizij/animation-wasm", "@vizij/orchestrator-wasm"],
     include: [
       "@vizij/animation-react",
       "@vizij/orchestrator-react",
