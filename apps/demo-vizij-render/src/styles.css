@@ -638,8 +638,15 @@ button:disabled {
 .feature-row__binding-matrix-cell--unbound select,
 .feature-row__binding-matrix-cell--unbound input {
   border-color: rgba(248, 113, 113, 0.7);
-  background: rgba(248, 113, 113, 0.08);
+  background: #0f172a;
   color: #fee2e2;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.16);
+}
+
+.feature-row__binding-matrix-cell--unbound select:focus,
+.feature-row__binding-matrix-cell--unbound input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.4);
 }
 
 .feature-row__binding-matrix-cell--unbound button {
