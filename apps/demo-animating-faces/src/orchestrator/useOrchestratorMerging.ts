@@ -476,8 +476,8 @@ export function useOrchestratorMerging(namespace: string): MergeResult {
           id: `graph:${namespace}:merged`,
           graphs,
           strategy: {
-            outputs: "blend",
-            intermediate: "blend",
+            outputs: "add",
+            intermediate: "add",
           },
         });
 

@@ -29,7 +29,7 @@
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
-    "@vizij/orchestrator-wasm": "^0.2.1",
+    "@vizij/orchestrator-wasm": "^0.2.2",
     "@vizij/value-json": "^0.1.0",
     "react": "^18.2.0"
   },
