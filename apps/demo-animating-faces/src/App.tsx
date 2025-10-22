@@ -106,94 +106,103 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        <section className="panel" aria-labelledby="bootstrap-panel-title">
-          <header className="panel-header">
-            <h2 id="bootstrap-panel-title">Bootstrap Checklist</h2>
-            {!ready ? (
-              <button
-                type="button"
-                onClick={start}
-                disabled={!canStartOrchestrator}
-                title={!canStartOrchestrator ? startDisabledReason : undefined}
-              >
-                {initializing ? "Starting…" : "Start Orchestrator"}
-              </button>
-            ) : null}
-          </header>
-          <div className="panel-body list-body">
-            <ul>
-              <li>
-                <span className="item-label">GLB loader</span>
-                <span className="item-value">
-                  {glbStatus.loading
-                    ? "Loading"
-                    : glbStatus.ready
-                      ? "Ready"
-                      : "Pending"}
-                </span>
-              </li>
-              <li>
-                <span className="item-label">Orchestrator runtime</span>
-                <span className="item-value">
-                  {ready ? "Ready" : initializing ? "Starting" : "Idle"}
-                </span>
-              </li>
-              <li>
-                <span className="item-label">Registered controllers</span>
-                <span className="item-value">
-                  {controllerCounts
-                    ? `${controllerCounts.graphs} graphs, ${controllerCounts.animations} animations`
-                    : "None"}
-                </span>
-              </li>
-              <li>
-                <span className="item-label">Active high-level rigs</span>
-                <span className="item-value">
-                  {state.selectedRigIds.length}
-                </span>
-              </li>
-            </ul>
-            {error ? (
-              <div className="panel-error">
-                Failed to initialise orchestrator: {error}
-              </div>
-            ) : null}
-            {!error && orchestratorError ? (
-              <div className="panel-error">
-                Failed to merge graphs: {orchestratorError}
-              </div>
-            ) : null}
-          </div>
-        </section>
+        <div className="app-column app-column-left">
+          <section className="panel" aria-labelledby="bootstrap-panel-title">
+            <header className="panel-header">
+              <h2 id="bootstrap-panel-title">Bootstrap Checklist</h2>
+              {!ready ? (
+                <button
+                  type="button"
+                  onClick={start}
+                  disabled={!canStartOrchestrator}
+                  title={
+                    !canStartOrchestrator ? startDisabledReason : undefined
+                  }
+                >
+                  {initializing ? "Starting…" : "Start Orchestrator"}
+                </button>
+              ) : null}
+            </header>
+            <div className="panel-body list-body">
+              <ul>
+                <li>
+                  <span className="item-label">GLB loader</span>
+                  <span className="item-value">
+                    {glbStatus.loading
+                      ? "Loading"
+                      : glbStatus.ready
+                        ? "Ready"
+                        : "Pending"}
+                  </span>
+                </li>
+                <li>
+                  <span className="item-label">Orchestrator runtime</span>
+                  <span className="item-value">
+                    {ready ? "Ready" : initializing ? "Starting" : "Idle"}
+                  </span>
+                </li>
+                <li>
+                  <span className="item-label">Registered controllers</span>
+                  <span className="item-value">
+                    {controllerCounts
+                      ? `${controllerCounts.graphs} graphs, ${controllerCounts.animations} animations`
+                      : "None"}
+                  </span>
+                </li>
+                <li>
+                  <span className="item-label">Active high-level rigs</span>
+                  <span className="item-value">
+                    {state.selectedRigIds.length}
+                  </span>
+                </li>
+              </ul>
+              {error ? (
+                <div className="panel-error">
+                  Failed to initialise orchestrator: {error}
+                </div>
+              ) : null}
+              {!error && orchestratorError ? (
+                <div className="panel-error">
+                  Failed to merge graphs: {orchestratorError}
+                </div>
+              ) : null}
+            </div>
+          </section>
+          <AssetLoaderPanel />
+        </div>
 
-        <FaceViewport
-          namespace={namespace}
-          rootId={glbStatus.rootId}
-          loading={glbStatus.loading}
-          error={glbStatus.error}
-        />
+        <div className="app-column app-column-center">
+          <FaceViewport
+            namespace={namespace}
+            rootId={glbStatus.rootId}
+            loading={glbStatus.loading}
+            error={glbStatus.error}
+          />
+          <DiagnosticsPanel
+            rigDefinitions={rigDefinitions}
+            mergedGraphSummary={mergedGraphSummary}
+            uiInputPaths={uiInputPaths}
+            animationInputPaths={animationInputPaths}
+            warnings={warnings}
+            graphConfigs={graphConfigs}
+            renderOutputPaths={renderOutputPaths}
+          />
+        </div>
 
-        <AssetLoaderPanel />
-        <RigControlsPanel
-          rigDefinitions={rigDefinitions}
-          lowLevelDefinition={lowLevelDefinition}
-          orchestratorReady={ready}
-        />
-        <AnimationPanel
-          animationInputPaths={animationInputPaths}
-          rigDefinitions={rigDefinitions}
-          lowLevelDefinition={lowLevelDefinition}
-          orchestratorReady={ready}
-        />
-        <DiagnosticsPanel
-          rigDefinitions={rigDefinitions}
-          mergedGraphSummary={mergedGraphSummary}
-          uiInputPaths={uiInputPaths}
-          animationInputPaths={animationInputPaths}
-          warnings={warnings}
-          graphConfigs={graphConfigs}
-          renderOutputPaths={renderOutputPaths}
-        />
+        <div className="app-column app-column-right">
+          <RigControlsPanel
+            rigDefinitions={rigDefinitions}
+            lowLevelDefinition={lowLevelDefinition}
+            orchestratorReady={ready}
+          />
+          <AnimationPanel
+            animationInputPaths={animationInputPaths}
+            rigDefinitions={rigDefinitions}
+            lowLevelDefinition={lowLevelDefinition}
+            orchestratorReady={ready}
+          />
+        </div>
+
         <RenderOrchestratorBridge
           namespace={namespace}
           outputPaths={renderOutputPaths}

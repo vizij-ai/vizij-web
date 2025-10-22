@@ -93,9 +93,24 @@ html,
 .app-main {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(24rem, 28rem) 1fr;
+  grid-template-columns: minmax(20rem, 24rem) minmax(28rem, 1fr) minmax(
+      20rem,
+      26rem
+    );
   gap: 1.5rem;
   padding: 1.5rem 2rem 2.5rem;
+  align-items: start;
+}
+
+.app-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+}
+
+.app-column-center {
+  gap: 1.25rem;
 }
 
 .panel {
@@ -184,9 +199,28 @@ html,
   overflow: hidden;
 }
 
+@media (max-width: 1440px) {
+  .app-main {
+    grid-template-columns: minmax(20rem, 26rem) minmax(28rem, 1fr);
+  }
+
+  .app-column-right {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 1080px) {
   .app-main {
     grid-template-columns: 1fr;
+    padding: 1.25rem 1.5rem 2rem;
+  }
+
+  .app-column {
+    gap: 1.25rem;
+  }
+
+  .app-column-right {
+    grid-column: auto;
   }
 
   .panel {
@@ -731,53 +765,159 @@ button.delete:hover {
 }
 
 .diagnostics-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 1rem;
-}
-
-.diag-section {
-  background: rgba(9, 13, 20, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 0.75rem;
-  padding: 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1.25rem;
 }
 
-.diag-section h3 {
+.diag-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.diag-block h3 {
   margin: 0;
   font-size: 0.95rem;
 }
 
-.diag-section ul {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.85rem;
+.diag-block-header {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.diag-section details {
+.diag-meta {
+  font-size: 0.75rem;
+  color: rgba(233, 237, 245, 0.65);
+}
+
+.timing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.timing-item {
+  background: rgba(12, 16, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.timing-item dt {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(233, 237, 245, 0.68);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timing-item dd {
+  margin: 0.35rem 0 0;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.diag-table th {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.6rem 0.75rem 0.6rem 0;
+  color: rgba(233, 237, 245, 0.72);
+  font-weight: 600;
+  width: 11rem;
+}
+
+.diag-table td {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.diag-table tr:last-child th,
+.diag-table tr:last-child td {
+  border-bottom: none;
+}
+
+.diag-table details {
   background: rgba(255, 255, 255, 0.02);
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.6rem;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.6rem;
+  margin-top: 0.45rem;
 }
 
-.diag-section details + details {
-  margin-top: 0.4rem;
+.diag-table details:first-of-type {
+  margin-top: 0.6rem;
 }
 
-.diag-section summary {
+.diag-table summary {
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   list-style: none;
 }
 
-.diag-section summary::-webkit-details-marker {
+.diag-table summary::-webkit-details-marker {
+  display: none;
+}
+
+.diag-table details ul,
+.diag-warning-groups ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.diag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.diag-list strong {
+  font-weight: 600;
+}
+
+.diag-list .diag-meta {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.diag-list-compact {
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.diag-warning-groups details {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.diag-warning-groups details + details {
+  margin-top: 0.4rem;
+}
+
+.diag-warning-groups summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
+  list-style: none;
+}
+
+.diag-warning-groups summary::-webkit-details-marker {
   display: none;
 }
 
