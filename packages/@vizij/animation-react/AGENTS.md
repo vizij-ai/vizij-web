@@ -1,10 +1,12 @@
 # Agent Notes · @vizij/animation-react
 
-- Use `pnpm --filter "@vizij/animation-react"` to run `build`, `test`, `typecheck`, `lint`, and `clean`. Builds rely on `tsc`; do not check in `dist/`.
+- Use `pnpm --filter "@vizij/animation-react"` to run `build`, `test`, `typecheck`, `lint`, `clean`, and `dev`. Builds run through `tsup`; keep artefacts confined to `dist/`.
 - Keep API changes in sync with `@vizij/animation-wasm` (published from `vizij-rs`). Update dependency ranges and value helper exports when the WASM ABI changes.
 - Update demo apps (`apps/demo-animation`, `apps/demo-animation-studio`) alongside behaviour changes so examples stay accurate.
-- Before publishing, execute:
+- Before publishing, generate a changeset and execute:
   ```bash
+  pnpm changeset
+  pnpm version:packages
   pnpm install
   pnpm --filter "@vizij/animation-react" build
   pnpm --filter "@vizij/animation-react" test

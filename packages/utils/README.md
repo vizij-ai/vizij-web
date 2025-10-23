@@ -88,7 +88,11 @@ pnpm --filter "@vizij/utils" typecheck
 
 Releases flow through [`.github/workflows/publish-npm.yml`](../../.github/workflows/publish-npm.yml).
 
-1. Bump the version in `package.json` and capture changes in documentation or changelog.
+1. Record a changeset and apply the version bump:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate locally:
    ```bash
    pnpm install
@@ -97,7 +101,7 @@ Releases flow through [`.github/workflows/publish-npm.yml`](../../.github/workfl
    pnpm --filter "@vizij/utils" typecheck
    pnpm --filter "@vizij/utils" exec npm pack --dry-run
    ```
-3. Push a tag with the `npm-utils-vX.Y.Z` pattern (for example, `npm-utils-v0.2.0`). The workflow publishes and records provenance automatically.
+3. Push a tag with the `npm-utils-vX.Y.Z` pattern (for example, `npm-utils-v0.3.0`). The workflow publishes and records provenance automatically.
 
 ---
 

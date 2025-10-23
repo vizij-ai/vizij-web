@@ -110,7 +110,11 @@ This package uses `tsc` for builds. `vitest` is configured for fast structural t
 
 Publishing is automated via [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
-1. Update `package.json` with the new version and document schema changes.
+1. Create a changeset and apply the version bump:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate locally:
    ```bash
    pnpm install
@@ -121,8 +125,8 @@ Publishing is automated via [`.github/workflows/publish-npm.yml`](../../../.gith
    ```
 3. Push a tag that matches `npm-config-vX.Y.Z`:
    ```bash
-   git tag npm-config-v0.2.0
-   git push origin npm-config-v0.2.0
+   git tag npm-config-v0.3.0
+   git push origin npm-config-v0.3.0
    ```
 
 The workflow will build, test, and publish to npm with provenance metadata.

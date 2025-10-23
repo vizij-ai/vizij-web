@@ -154,7 +154,12 @@ The workflow at [`.github/workflows/publish-npm.yml`](.github/workflows/publish-
 
 ### Release preparation
 
-1. Update the package’s `package.json` version and changelog/README (keep cross-repo dependency ranges in sync with `vizij-rs` WASM packages).
+1. Generate a changeset to bump versions and capture notes:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
+   Keep dependency ranges in sync with the latest `vizij-rs` WASM publishes.
 2. Install dependencies and verify the build locally:
    ```bash
    pnpm install

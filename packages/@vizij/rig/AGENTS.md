@@ -1,10 +1,12 @@
 # Agent Notes · @vizij/rig
 
-- Run scripts with `pnpm --filter "@vizij/rig"` (`build`, `typecheck`, `test`, `clean`). Builds use `tsc`; keep outputs in `dist/`.
-- Hooks depend on `@vizij/render` and `@vizij/config`. When changing loader behaviour, check the demo apps (`apps/demo-vizij-rigging`, `apps/demo-render-no-rig`) and update docs accordingly.
+- Run scripts with `pnpm --filter "@vizij/rig"` (`build`, `typecheck`, `test`, `clean`, `dev`). Bundles are emitted via `tsup`; keep outputs limited to `dist/`.
+- Hooks depend on `@vizij/render`, `@vizij/config`, and `@vizij/utils`. When changing loader behaviour, check demo apps (`apps/demo-vizij-rigging`, `apps/demo-render-no-rig`) and update docs accordingly.
 - The loaders deduplicate GLB imports based on `glb` + rig JSON. Maintain this contract if you refactor caching.
-- Before publishing, bump `package.json` and run:
+- Before publishing, run:
   ```bash
+  pnpm changeset
+  pnpm version:packages
   pnpm install
   pnpm --filter "@vizij/rig" build
   pnpm --filter "@vizij/rig" typecheck

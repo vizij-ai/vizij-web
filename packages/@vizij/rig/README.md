@@ -105,7 +105,11 @@ The package uses `tsc` for builds and Vitest for smoke tests. When adding new ho
 
 Releases run through [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
-1. Synchronise dependency versions (`@vizij/render`, `@vizij/config`, `@vizij/utils`) and bump this package’s `version`.
+1. Synchronise dependency versions (`@vizij/render`, `@vizij/config`, `@vizij/utils`) and generate a changeset:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate:
    ```bash
    pnpm install
@@ -114,7 +118,7 @@ Releases run through [`.github/workflows/publish-npm.yml`](../../../.github/work
    pnpm --filter "@vizij/rig" test
    pnpm --filter "@vizij/rig" exec npm pack --dry-run
    ```
-3. Push `npm-rig-vX.Y.Z` (for example, `npm-rig-v0.2.0`). The workflow will publish the package with provenance metadata.
+3. Push `npm-rig-vX.Y.Z` (for example, `npm-rig-v0.3.0`). The workflow will publish the package with provenance metadata.
 
 ---
 

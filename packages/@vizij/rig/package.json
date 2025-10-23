@@ -1,23 +1,25 @@
 {
   "name": "@vizij/rig",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
     "dist",
-    "src"
+    "README.md"
   ],
   "scripts": {
-    "dev": "tsc -p tsconfig.json --watch",
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch --external react,@vizij/config,@vizij/render,@vizij/utils",
+    "build": "tsup src/index.ts --format esm,cjs --dts --external react,@vizij/config,@vizij/render,@vizij/utils",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
     "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
@@ -26,18 +28,27 @@
     "test": "vitest --run --passWithNoTests",
     "clean": "rm -rf dist coverage tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo",
     "reset": "rm -rf node_modules",
-    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
+    "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
     "@vizij/config": "workspace:*",
     "@vizij/render": "workspace:*",
-    "@vizij/utils": "workspace:*",
-    "react": "^18.0.0"
+    "@vizij/utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
     "@types/node": "^24.7.0",
     "@types/react": "^18.2.0",
     "prettier": "^3.4.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "tsup": "^8.0.1",
+    "typescript": "^5.5.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

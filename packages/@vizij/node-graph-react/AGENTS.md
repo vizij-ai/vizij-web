@@ -1,10 +1,12 @@
 # Agent Notes · @vizij/node-graph-react
 
-- Run commands via `pnpm --filter "@vizij/node-graph-react"` (`build`, `test`, `typecheck`, `lint`, `clean`). Builds use `tsc`; ensure declaration files land in `dist/`.
+- Run commands via `pnpm --filter "@vizij/node-graph-react"` (`build`, `test`, `typecheck`, `lint`, `clean`, `dev`). Bundles are produced with `tsup`; declarations live in `dist/`.
 - Coordinate ABI or API changes with `@vizij/node-graph-wasm` (from `vizij-rs`). Update dependency versions and ensure compatibility helpers (`compat.tsx`) evolve in lock-step.
 - Maintain documentation and demos (`apps/demo-graph`, `apps/demo-animation-graph`) when adding or removing hooks.
 - Pre-publish checklist:
   ```bash
+  pnpm changeset
+  pnpm version:packages
   pnpm install
   pnpm --filter "@vizij/node-graph-react" build
   pnpm --filter "@vizij/node-graph-react" test

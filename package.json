@@ -32,9 +32,13 @@
     "typecheck:all": "pnpm -r --no-bail run --if-present typecheck",
     "clean": "pnpm -r run --if-present clean",
     "reset": "pnpm -r run --if-present reset && rm -rf node_modules",
-    "reset:hard": "pnpm -r run --if-present reset:hard && rm -rf node_modules pnpm-lock.yaml"
+    "reset:hard": "pnpm -r run --if-present reset:hard && rm -rf node_modules pnpm-lock.yaml",
+    "changeset": "changeset",
+    "version:packages": "changeset version",
+    "release": "pnpm install --frozen-lockfile && pnpm run build:packages && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.7",
     "@eslint/js": "^9.19.0",
     "eslint": "^9.19.0",
     "eslint-plugin-import": "^2.31.0",

@@ -180,7 +180,11 @@ Vitest tests mock the wasm binding to keep execution fast. When you want end-to-
 
 The tag-driven workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml) publishes this package.
 
-1. Bump `version` in `package.json` and refresh documentation or changelog notes.
+1. Create a changeset and apply the version bump:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate locally:
    ```bash
    pnpm install

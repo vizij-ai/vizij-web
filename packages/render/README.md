@@ -110,9 +110,10 @@ pnpm --filter "@vizij/render" build
 pnpm --filter "@vizij/render" test
 pnpm --filter "@vizij/render" typecheck
 pnpm --filter "@vizij/render" lint
+pnpm --filter "@vizij/render" size
 ```
 
-`tsup` produces both ESM and CJS bundles with type declarations. Tests run via Vitest (currently smoke-level). Consider adding `size-limit` assertions for significant changes to keep bundle size predictable.
+`tsup` produces both ESM and CJS bundles with type declarations. Tests run via Vitest (currently smoke-level), and `size-limit` guards against unexpected bundle growth.
 
 ---
 
@@ -120,7 +121,11 @@ pnpm --filter "@vizij/render" lint
 
 Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/workflows/publish-npm.yml).
 
-1. Align dependency versions (`three`, `@react-three/*`, `zustand`, Vizij packages) and bump `package.json`.
+1. Align dependency versions (`three`, `@react-three/*`, `zustand`, Vizij packages) and generate a changeset:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate locally:
    ```bash
    pnpm install

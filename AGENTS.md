@@ -110,7 +110,12 @@ mismatches. Relink after switching branches or cleaning lockfiles.
 
 - Releases are automated by `.github/workflows/publish-npm.yml`. Push a tag that
   matches `npm-<package>-vX.Y.Z` to trigger the job.
-- Before tagging, bump the package version, update docs/changelog, and run:
+- Before tagging, generate a changeset and apply version bumps:
+  ```bash
+  pnpm changeset
+  pnpm version:packages
+  ```
+- Then update docs/changelogs and run:
   ```bash
   pnpm install
   pnpm --filter "@vizij/<package>"... run build

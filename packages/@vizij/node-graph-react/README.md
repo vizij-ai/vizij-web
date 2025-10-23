@@ -198,7 +198,11 @@ Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise t
 
 Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
-1. Update `package.json` with the new version and document the changes.
+1. Run a changeset and apply version bumps:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Validate locally:
    ```bash
    pnpm install

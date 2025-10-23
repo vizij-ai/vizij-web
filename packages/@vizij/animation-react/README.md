@@ -189,7 +189,11 @@ Vitest mocks the wasm binding to keep tests fast; end-to-end checks can be exerc
 
 This package is published via the repository-wide workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml). To cut a release:
 
-1. Bump the `version` in `package.json` and update this README/changelog entry.
+1. Generate a changeset and apply version bumps:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
 2. Verify the package locally:
    ```bash
    pnpm install
