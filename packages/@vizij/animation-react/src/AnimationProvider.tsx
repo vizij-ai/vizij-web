@@ -5,7 +5,6 @@ import {
   type StoredAnimation,
   type Inputs,
   type OutputsWithDerivatives,
-  type Config,
   type InstanceUpdate,
   type AnimationInfo,
   type PlayerInfo,

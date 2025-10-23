@@ -55,10 +55,10 @@ importers:
         version: link:../../packages/@vizij/orchestrator-react
       '@vizij/render':
         specifier: workspace:*
-        version: link:../../packages/render
+        version: link:../../packages/@vizij/render
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: link:../../packages/@vizij/utils
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -319,10 +319,10 @@ importers:
         version: link:../../packages/@vizij/orchestrator-react
       '@vizij/render':
         specifier: workspace:*
-        version: link:../../packages/render
+        version: link:../../packages/@vizij/render
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: link:../../packages/@vizij/utils
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -365,10 +365,10 @@ importers:
         version: 0.4.1
       '@vizij/render':
         specifier: workspace:*
-        version: link:../../packages/render
+        version: link:../../packages/@vizij/render
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: link:../../packages/@vizij/utils
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -411,10 +411,10 @@ importers:
         version: 0.4.1
       '@vizij/render':
         specifier: workspace:*
-        version: link:../../packages/render
+        version: link:../../packages/@vizij/render
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: link:../../packages/@vizij/utils
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -509,13 +509,13 @@ importers:
         version: link:../../packages/@vizij/config
       '@vizij/render':
         specifier: workspace:*
-        version: link:../../packages/render
+        version: link:../../packages/@vizij/render
       '@vizij/rig':
         specifier: workspace:*
         version: link:../../packages/@vizij/rig
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: link:../../packages/@vizij/utils
       d3-interpolate:
         specifier: ^3.0.1
         version: 3.0.1
@@ -649,7 +649,7 @@ importers:
     dependencies:
       '@vizij/utils':
         specifier: workspace:*
-        version: link:../../utils
+        version: link:../utils
     devDependencies:
       prettier:
         specifier: ^3.4.2
@@ -738,44 +738,7 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.7.0)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.1)
 
-  packages/@vizij/rig:
-    dependencies:
-      '@vizij/config':
-        specifier: workspace:*
-        version: link:../config
-      '@vizij/render':
-        specifier: workspace:*
-        version: link:../../render
-      '@vizij/utils':
-        specifier: workspace:*
-        version: link:../../utils
-      react:
-        specifier: '>=18'
-        version: 18.3.1
-      react-dom:
-        specifier: '>=18'
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^24.7.0
-        version: 24.7.0
-      '@types/react':
-        specifier: ^18.2.0
-        version: 18.3.26
-      prettier:
-        specifier: ^3.4.2
-        version: 3.6.2
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.0(@swc/core@1.13.5(@swc/helpers@0.5.17))(jiti@2.6.1)(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.5.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.4(@types/node@24.7.0)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.1)
-
-  packages/render:
+  packages/@vizij/render:
     dependencies:
       '@semio/ui':
         specifier: '*'
@@ -851,7 +814,44 @@ importers:
         specifier: ^5.0.2
         version: 5.0.8(@types/react@18.3.26)(immer@10.1.3)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
 
-  packages/utils:
+  packages/@vizij/rig:
+    dependencies:
+      '@vizij/config':
+        specifier: workspace:*
+        version: link:../config
+      '@vizij/render':
+        specifier: workspace:*
+        version: link:../render
+      '@vizij/utils':
+        specifier: workspace:*
+        version: link:../utils
+      react:
+        specifier: '>=18'
+        version: 18.3.1
+      react-dom:
+        specifier: '>=18'
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.7.0
+        version: 24.7.0
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.26
+      prettier:
+        specifier: ^3.4.2
+        version: 3.6.2
+      tsup:
+        specifier: ^8.0.1
+        version: 8.5.0(@swc/core@1.13.5(@swc/helpers@0.5.17))(jiti@2.6.1)(postcss@8.5.6)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@24.7.0)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.1)
+
+  packages/@vizij/utils:
     devDependencies:
       prettier:
         specifier: ^3.4.2

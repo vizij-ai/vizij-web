@@ -18,13 +18,6 @@ import { computeNumberBounds, computeVectorBounds } from "../../rig/bounds";
 import { APPROX_EQUAL_EPSILON } from "./constants";
 import type { FeatureEntry, VectorFeatureEntry, RenderableLike } from "./types";
 
-export function cloneRawValue<T extends RawValue>(value: T): T {
-  if (value && typeof value === "object") {
-    return JSON.parse(JSON.stringify(value)) as T;
-  }
-  return value;
-}
-
 export function formatStandardInputLabel(input: StandardRigInput): string {
   const groupName = input.group.replace(/_/g, " ");
   return `${input.label} · ${groupName}`;

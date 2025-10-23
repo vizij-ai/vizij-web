@@ -1,21 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  useVizijStore,
-  useVizijStoreSetter,
-  type Selection,
-} from "@vizij/render";
+import { useCallback, useMemo, useState } from "react";
+import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { getLookup, RawValue, AnimatableValue } from "@vizij/utils";
 import type { StandardRigInput } from "../../rig/standardRigInputs";
 import type { AnimatableComponent } from "../../rig/animatableMetadata";
 import { DEFAULT_NAMESPACE } from "./constants";
 import type { FeatureEntry, AnimatableValuesPanelProps } from "./types";
-import { buildFeatureEntries } from "./featureEntries";
 import {
-  cloneRawValue,
   buildDefaultAnimatable,
   isAnimatableReferencedElsewhere,
 } from "./panelUtils";
-import { FeatureRow } from "./FeatureRow";
+import { cloneRawValue } from "../../utils/rawValue";
+import { promptDialog, confirmDialog, alertDialog } from "../../utils/dialogs";
+import { StandardInputsSection } from "./StandardInputsSection";
+import { SelectionStack } from "./SelectionStack";
+import { FeatureGroupList } from "./FeatureGroupList";
+import { useFeatureCatalogue } from "./useFeatureCatalogue";
 
 export function AnimatableValuesPanel({
   namespace,
@@ -42,10 +41,6 @@ export function AnimatableValuesPanel({
   const setStoreState = useVizijStoreSetter();
 
   const [rigCollapsed, setRigCollapsed] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [collapsedFeatureRows, setCollapsedFeatureRows] = useState<Set<string>>(
-    () => new Set(),
-  );
 
   const componentsById = useMemo(
     () =>
@@ -62,10 +57,7 @@ export function AnimatableValuesPanel({
 
   const requestCreateStandardInput = useCallback(
     (suggestedPath?: string): StandardRigInput | null => {
-      if (typeof window === "undefined") {
-        return null;
-      }
-      const response = window.prompt(
+      const response = promptDialog(
         "Enter the rig path for the new standard input (e.g., /eyes/blink)",
         suggestedPath ?? "/",
       );
@@ -74,7 +66,7 @@ export function AnimatableValuesPanel({
       }
       const trimmed = response.trim();
       if (!trimmed) {
-        window.alert?.("Path cannot be empty.");
+        alertDialog("Path cannot be empty.");
         return null;
       }
       return onCreateStandardInput(trimmed);
@@ -129,12 +121,23 @@ export function AnimatableValuesPanel({
     return usage;
   }, [bindings, components]);
 
+  const {
+    searchTerm,
+    setSearchTerm,
+    groupedEntries,
+    collapsedGroups,
+    collapsedFeatureRows,
+    toggleGroup,
+    toggleFeatureCollapse,
+  } = useFeatureCatalogue({
+    world,
+    animatables,
+    selectionStack,
+  });
+
   const handleDeleteInput = useCallback(
     (input: StandardRigInput) => {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm(`Delete standard input "${input.label}"?`)
-      ) {
+      if (!confirmDialog(`Delete standard input "${input.label}"?`)) {
         return;
       }
       onDeleteStandardInput(input.id);
@@ -144,10 +147,7 @@ export function AnimatableValuesPanel({
 
   const handleEditInput = useCallback(
     (input: StandardRigInput) => {
-      if (typeof window === "undefined") {
-        return;
-      }
-      const nextPath = window.prompt(
+      const nextPath = promptDialog(
         `Update the path for "${input.label}"`,
         input.path,
       );
@@ -155,10 +155,10 @@ export function AnimatableValuesPanel({
         return;
       }
       if (!nextPath.trim()) {
-        window.alert?.("Path cannot be empty.");
+        alertDialog("Path cannot be empty.");
         return;
       }
-      const nextLabel = window.prompt(
+      const nextLabel = promptDialog(
         `Update the label for "${input.label}" (leave empty to derive from the path)`,
         input.label,
       );
@@ -182,8 +182,7 @@ export function AnimatableValuesPanel({
         return;
       }
       if (
-        typeof window !== "undefined" &&
-        !window.confirm(
+        !confirmDialog(
           `Clear ${boundTargets.length} mapping${boundTargets.length === 1 ? "" : "s"} for "${input.label}"?`,
         )
       ) {
@@ -195,158 +194,6 @@ export function AnimatableValuesPanel({
     },
     [bindings, onBindingInputChange],
   );
-
-  const toggleFeatureCollapse = useCallback((id: string) => {
-    setCollapsedFeatureRows((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
-  const featureEntries = useMemo(
-    () => buildFeatureEntries(world, animatables),
-    [world, animatables],
-  );
-
-  const selectionKey = useCallback(
-    (sel: Selection) => `${sel.namespace}:${sel.type}:${sel.id}`,
-    [],
-  );
-
-  const activeSelection = selectionStack[0] ?? null;
-
-  const filteredEntries = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    return featureEntries.filter((entry) => {
-      if (activeSelection && entry.elementId !== activeSelection.id) {
-        return false;
-      }
-      if (!normalized) {
-        return true;
-      }
-      const haystack =
-        `${entry.featureLabel} ${entry.elementName} ${entry.elementType}`.toLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [featureEntries, searchTerm, activeSelection]);
-
-  const groupedEntries = useMemo(() => {
-    const grouped = new Map<string, FeatureEntry[]>();
-    filteredEntries.forEach((entry) => {
-      if (!grouped.has(entry.elementId)) {
-        grouped.set(entry.elementId, []);
-      }
-      grouped.get(entry.elementId)!.push(entry);
-    });
-    return Array.from(grouped.entries()).map(([elementId, entries]) => {
-      const descriptor = entries[0];
-      return {
-        elementId,
-        elementName: descriptor.elementName,
-        elementType: descriptor.elementType,
-        entries,
-      };
-    });
-  }, [filteredEntries]);
-
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const knownGroupIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    setCollapsedGroups((previous) => {
-      let changed = false;
-      const next = new Set(previous);
-      const currentIds = new Set(
-        groupedEntries.map((group) => group.elementId),
-      );
-
-      // Remove stale ids and forget them.
-      previous.forEach((id) => {
-        if (!currentIds.has(id)) {
-          next.delete(id);
-          knownGroupIdsRef.current.delete(id);
-          changed = true;
-        }
-      });
-
-      // Ensure new groups start collapsed.
-      groupedEntries.forEach((group) => {
-        if (!knownGroupIdsRef.current.has(group.elementId)) {
-          knownGroupIdsRef.current.add(group.elementId);
-          next.add(group.elementId);
-          changed = true;
-        }
-      });
-
-      return changed ? next : previous;
-    });
-  }, [groupedEntries]);
-
-  useEffect(() => {
-    if (!activeSelection) {
-      return;
-    }
-    setCollapsedGroups((previous) => {
-      if (!previous.has(activeSelection.id)) {
-        return previous;
-      }
-      const next = new Set(previous);
-      next.delete(activeSelection.id);
-      return next;
-    });
-  }, [activeSelection]);
-
-  useEffect(() => {
-    setCollapsedFeatureRows((previous) => {
-      const valid = new Set(filteredEntries.map((entry) => entry.id));
-      let modified = false;
-      const next = new Set<string>();
-      previous.forEach((id) => {
-        if (valid.has(id)) {
-          next.add(id);
-        } else {
-          modified = true;
-        }
-      });
-      return modified ? next : previous;
-    });
-  }, [filteredEntries]);
-
-  useEffect(() => {
-    if (!activeSelection) {
-      return;
-    }
-    setCollapsedFeatureRows((previous) => {
-      let modified = false;
-      const next = new Set(previous);
-      filteredEntries.forEach((entry) => {
-        if (entry.elementId === activeSelection.id && next.has(entry.id)) {
-          next.delete(entry.id);
-          modified = true;
-        }
-      });
-      return modified ? next : previous;
-    });
-  }, [filteredEntries, activeSelection]);
-
-  const toggleGroup = useCallback((elementId: string) => {
-    setCollapsedGroups((previous) => {
-      const next = new Set(previous);
-      if (next.has(elementId)) {
-        next.delete(elementId);
-      } else {
-        next.add(elementId);
-      }
-      return next;
-    });
-  }, []);
 
   const updateAnimatableDescriptor = useCallback(
     (
@@ -590,162 +437,29 @@ export function AnimatableValuesPanel({
     [updateAnimatableDescriptor],
   );
 
+  const filteredCount = groupedEntries.reduce(
+    (total, group) => total + group.entries.length,
+    0,
+  );
+
   return (
     <div className="sidebar__panel feature-panel">
-      <section className="feature-panel__rig">
-        <div className="feature-panel__rig-header">
-          <button
-            type="button"
-            className="feature-panel__collapse-btn"
-            onClick={() => setRigCollapsed((prev) => !prev)}
-            aria-expanded={!rigCollapsed}
-            aria-controls="feature-panel-rig-body"
-          >
-            {rigCollapsed ? "+" : "−"}
-          </button>
-          <div className="feature-panel__rig-summary">
-            <h2 className="feature-panel__rig-title">Rig Mapping</h2>
-            <p className="feature-panel__rig-description">
-              Bind standard rig inputs to animatables and preview their remapped
-              values.
-            </p>
-          </div>
-        </div>
-        {!rigCollapsed && (
-          <div id="feature-panel-rig-body" className="feature-panel__rig-body">
-            <label
-              className="feature-panel__label"
-              htmlFor="feature-panel-face"
-            >
-              Face / rig identifier
-            </label>
-            <input
-              id="feature-panel-face"
-              type="text"
-              value={faceId}
-              spellCheck={false}
-              onChange={(event) => onFaceIdChange(event.target.value)}
-            />
-            <div className="feature-panel__inputs">
-              <div className="feature-panel__input-actions">
-                <button
-                  type="button"
-                  onClick={handleCreateInputClick}
-                  className="feature-panel__input-add"
-                >
-                  Add standard input
-                </button>
-              </div>
-              {standardInputs.map((input) => {
-                const range = effectiveInputRanges.get(input.id) ?? input.range;
-                const value = inputValues[input.id] ?? input.defaultValue;
-                const step = Math.max((range.max - range.min) / 200, 0.001);
-                const usage = inputUsage.get(input.id) ?? [];
-                const hasMappings = usage.length > 0;
-                return (
-                  <div key={input.id} className="feature-panel__input-row">
-                    <div className="feature-panel__input-meta">
-                      <div className="feature-panel__input-meta-header">
-                        <strong>{input.label}</strong>
-                        <div className="feature-panel__input-meta-actions">
-                          <button
-                            type="button"
-                            className="feature-panel__input-action"
-                            onClick={() => handleEditInput(input)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="feature-panel__input-action feature-panel__input-action--secondary"
-                            onClick={() => handleClearInputMappings(input)}
-                            disabled={!hasMappings}
-                            title={
-                              hasMappings
-                                ? undefined
-                                : "No mappings to clear yet"
-                            }
-                          >
-                            Clear mappings
-                          </button>
-                        </div>
-                      </div>
-                      <span>{input.path}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={range.min}
-                      max={range.max}
-                      step={step}
-                      value={value}
-                      onChange={(event) =>
-                        onInputValueChange(input.id, Number(event.target.value))
-                      }
-                    />
-                    <div className="feature-panel__input-number-wrapper">
-                      <input
-                        className="feature-panel__input-number"
-                        type="number"
-                        value={value}
-                        min={range.min}
-                        max={range.max}
-                        step={step}
-                        onChange={(event) =>
-                          onInputValueChange(
-                            input.id,
-                            Number(event.target.value),
-                          )
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="feature-panel__input-delete"
-                        onClick={() => handleDeleteInput(input)}
-                        aria-label={`Delete ${input.label} input`}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="feature-panel__input-tracker">
-                      <span className="feature-panel__input-tracker-label">
-                        Mapped to:
-                      </span>
-                      {hasMappings ? (
-                        <ul className="feature-panel__input-tracker-list">
-                          {usage.map(({ targetId, label }) => (
-                            <li key={targetId}>
-                              <button
-                                type="button"
-                                className="feature-panel__input-tracker-chip"
-                                onClick={() =>
-                                  onBindingInputChange(targetId, null)
-                                }
-                                title={`Remove mapping from ${label}`}
-                              >
-                                {label}
-                                <span aria-hidden="true">×</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="feature-panel__input-tracker--unmapped">
-                          Unmapped
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {standardInputs.length === 0 && (
-                <p className="feature-panel__inputs-empty">
-                  No standard inputs defined yet.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
+      <StandardInputsSection
+        faceId={faceId}
+        onFaceIdChange={onFaceIdChange}
+        isCollapsed={rigCollapsed}
+        onToggleCollapsed={() => setRigCollapsed((prev) => !prev)}
+        standardInputs={standardInputs}
+        inputValues={inputValues}
+        effectiveInputRanges={effectiveInputRanges}
+        inputUsage={inputUsage}
+        onInputValueChange={onInputValueChange}
+        onCreateInput={handleCreateInputClick}
+        onEditInput={handleEditInput}
+        onClearInputMappings={handleClearInputMappings}
+        onDeleteInput={handleDeleteInput}
+        onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
+      />
       <div className="feature-panel__filters">
         <input
           type="search"
@@ -776,106 +490,41 @@ export function AnimatableValuesPanel({
           </button>
         )}
       </div>
-      {selectionStack.length > 0 && (
-        <div
-          className="feature-panel__stack"
-          role="group"
-          aria-label="Selection stack"
-        >
-          <h3 className="feature-panel__stack-title">Selection stack</h3>
-          <ol className="feature-panel__stack-list">
-            {selectionStack.map((sel, index) => {
-              const renderable = world[sel.id];
-              const label = renderable?.name || sel.id;
-              const isActive = index === 0;
-              return (
-                <li
-                  key={selectionKey(sel)}
-                  className={`feature-panel__stack-item${isActive ? " feature-panel__stack-item--active" : ""}`}
-                >
-                  <button
-                    type="button"
-                    className="feature-panel__stack-button"
-                    onClick={() => onFocusSelectionIndex(index)}
-                    disabled={isActive}
-                  >
-                    <span className="feature-panel__stack-label">{label}</span>
-                    <span className="feature-panel__stack-meta">
-                      {sel.type}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      )}
+      <SelectionStack
+        selectionStack={selectionStack}
+        world={world}
+        onFocusSelectionIndex={onFocusSelectionIndex}
+      />
       <div className="sidebar__panel-header">
         <h2 className="sidebar__panel-title">Features</h2>
-        <span className="sidebar__badge">{filteredEntries.length}</span>
+        <span className="sidebar__badge">{filteredCount}</span>
       </div>
-      {filteredEntries.length === 0 ? (
-        <p className="sidebar__empty">No features match the current filters.</p>
-      ) : (
-        <div className="feature-panel__groups">
-          {groupedEntries.map((group) => (
-            <section className="feature-group" key={group.elementId}>
-              <header className="feature-group__header">
-                <button
-                  type="button"
-                  className="feature-group__toggle-btn"
-                  onClick={() => toggleGroup(group.elementId)}
-                  aria-expanded={!collapsedGroups.has(group.elementId)}
-                  aria-label={
-                    collapsedGroups.has(group.elementId)
-                      ? `Expand ${group.elementName}`
-                      : `Collapse ${group.elementName}`
-                  }
-                >
-                  {collapsedGroups.has(group.elementId) ? "+" : "−"}
-                </button>
-                <div className="feature-group__summary">
-                  <h3 className="feature-group__title">{group.elementName}</h3>
-                  <span className="feature-group__type">
-                    {group.elementType}
-                  </span>
-                </div>
-              </header>
-              {!collapsedGroups.has(group.elementId) && (
-                <div className="feature-group__body">
-                  {group.entries.map((entry) => (
-                    <FeatureRow
-                      key={entry.id}
-                      entry={entry}
-                      namespace={namespace}
-                      onToggleAnimated={handleAnimatedToggle}
-                      onNameChange={handleNameChange}
-                      onLabelChange={handleLabelChange}
-                      onDefaultChange={handleDefaultUpdate}
-                      onConstraintChange={handleConstraintUpdate}
-                      onStaticUpdate={updateStaticFeature}
-                      setValue={setValue}
-                      bindings={bindings}
-                      componentsById={componentsById}
-                      onBindingInputChange={onBindingInputChange}
-                      onBindingRemapChange={onBindingRemapChange}
-                      onResetBinding={onResetBinding}
-                      inputValues={inputValues}
-                      onInputValueChange={onInputValueChange}
-                      standardInputs={standardInputs}
-                      standardInputLookup={standardInputLookup}
-                      inputRanges={effectiveInputRanges}
-                      isCollapsed={collapsedFeatureRows.has(entry.id)}
-                      onToggleCollapse={toggleFeatureCollapse}
-                      onRequestCreateStandardInput={requestCreateStandardInput}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
-      )}
+      <FeatureGroupList
+        groups={groupedEntries}
+        collapsedGroups={collapsedGroups}
+        collapsedFeatureRows={collapsedFeatureRows}
+        onToggleGroup={toggleGroup}
+        onToggleFeatureCollapse={toggleFeatureCollapse}
+        namespace={namespace}
+        onToggleAnimated={handleAnimatedToggle}
+        onNameChange={handleNameChange}
+        onLabelChange={handleLabelChange}
+        onDefaultChange={handleDefaultUpdate}
+        onConstraintChange={handleConstraintUpdate}
+        onStaticUpdate={updateStaticFeature}
+        setValue={setValue}
+        bindings={bindings}
+        componentsById={componentsById}
+        onBindingInputChange={onBindingInputChange}
+        onBindingRemapChange={onBindingRemapChange}
+        onResetBinding={onResetBinding}
+        inputValues={inputValues}
+        onInputValueChange={onInputValueChange}
+        standardInputs={standardInputs}
+        standardInputLookup={standardInputLookup}
+        inputRanges={effectiveInputRanges}
+        onRequestCreateStandardInput={requestCreateStandardInput}
+      />
     </div>
   );
 }
