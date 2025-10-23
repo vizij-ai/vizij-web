@@ -15,7 +15,8 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 5. [Scripts](#scripts)
 6. [Local WASM Development](#local-wasm-development)
 7. [Development Tips](#development-tips)
-8. [Related Repositories](#related-repositories)
+8. [Publishing Packages](#publishing-packages)
+9. [Related Repositories](#related-repositories)
 
 ---
 
@@ -144,6 +145,43 @@ Vite configuration essentials (already applied in apps):
 - Set `USE_LINKED_WASM=1` (where provided) to toggle behaviour when running against local builds.
 - CI and git hooks expect formatted code; run `pnpm run lint` / `pnpm run typecheck` before pushing large changes.
 - When Vite cache issues arise, `pnpm run clean` or `pnpm run reset` usually resolves them.
+
+---
+
+## Publishing Packages
+
+The workflow at [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) publishes each npm package when a matching tag is pushed. Tags follow the pattern `npm-<package>-vX.Y.Z` and trigger a build, test, dry-run pack, and publish with provenance enabled.
+
+### Release preparation
+
+1. Update the package’s `package.json` version and changelog/README (keep cross-repo dependency ranges in sync with `vizij-rs` WASM packages).
+2. Install dependencies and verify the build locally:
+   ```bash
+   pnpm install
+   pnpm --filter "@vizij/<package>"... run build
+   pnpm --filter "@vizij/<package>" run test
+   pnpm --filter "@vizij/<package>" run typecheck
+   pnpm --filter "@vizij/<package>" exec npm pack --dry-run
+   ```
+3. Commit changes, then create and push the tag:
+   ```bash
+   git tag npm-<package>-vX.Y.Z
+   git push origin npm-<package>-vX.Y.Z
+   ```
+
+### Tag reference
+
+| Package                     | Tag prefix                 | Notes                                                                                      |
+| --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
+| `@vizij/utils`              | `npm-utils-v`              | Publish first; consumed by most other packages.                                            |
+| `@vizij/render`             | `npm-render-v`             | Depends on `@vizij/utils`.                                                                 |
+| `@vizij/animation-react`    | `npm-animation-react-v`    | Requires `@vizij/animation-wasm` from `vizij-rs` to be up to date.                         |
+| `@vizij/node-graph-react`   | `npm-node-graph-react-v`   | Requires `@vizij/node-graph-wasm` from `vizij-rs`.                                         |
+| `@vizij/orchestrator-react` | `npm-orchestrator-react-v` | Requires `@vizij/orchestrator-wasm` from `vizij-rs`.                                       |
+| `@vizij/config`             | `npm-config-v`             | Pure TypeScript exports; update alongside schema changes.                                  |
+| `@vizij/rig`                | `npm-rig-v`                | Depends on `@vizij/render`, `@vizij/utils`, and `@vizij/config`; release after those tags. |
+
+The action logs the npm publish output. If a publish needs to be re-run, delete the tag locally and remotely (`git tag -d ...`, `git push origin :<tag>`), fix the issue, and push a new tag.
 
 ---
 

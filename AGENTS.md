@@ -106,6 +106,29 @@ mismatches. Relink after switching branches or cleaning lockfiles.
 - Avoid committing `dist/` unless a release workflow demands it. Rebuild before
   publishing and keep metadata in sync (`package.json`, changelog if added).
 
+## Publishing npm Packages
+
+- Releases are automated by `.github/workflows/publish-npm.yml`. Push a tag that
+  matches `npm-<package>-vX.Y.Z` to trigger the job.
+- Before tagging, bump the package version, update docs/changelog, and run:
+  ```bash
+  pnpm install
+  pnpm --filter "@vizij/<package>"... run build
+  pnpm --filter "@vizij/<package>" run test
+  pnpm --filter "@vizij/<package>" run typecheck
+  pnpm --filter "@vizij/<package>" exec npm pack --dry-run
+  ```
+- Tag mapping:
+  - `npm-utils-v*` → `@vizij/utils` (publish first; other packages depend on it).
+  - `npm-render-v*` → `@vizij/render`.
+  - `npm-animation-react-v*` → `@vizij/animation-react`.
+  - `npm-node-graph-react-v*` → `@vizij/node-graph-react`.
+  - `npm-orchestrator-react-v*` → `@vizij/orchestrator-react`.
+  - `npm-config-v*` → `@vizij/config`.
+  - `npm-rig-v*` → `@vizij/rig` (requires the render/config/utils releases).
+- If a publish fails, delete the tag locally and on origin, address the issue,
+  then push a new tag.
+
 ## Tooling and Git Hooks
 
 - Install repo hooks once per machine:
@@ -122,7 +145,7 @@ mismatches. Relink after switching branches or cleaning lockfiles.
 
 - The React packages depend on the WASM crates shipped from `vizij-rs`. Publish
   the WASM packages first, then update dependency ranges here before releasing
-  React packages.
+  React packages or the render bundle.
 - Coordinate changes that affect both repos—document JSON schema or ABI updates
   in changelog/README pairs and mention migration steps in PR descriptions.
 - Demo apps often reference local assets; document any manual asset copy steps

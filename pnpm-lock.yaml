@@ -686,8 +686,8 @@ importers:
   packages/@vizij/orchestrator-react:
     dependencies:
       '@vizij/orchestrator-wasm':
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.2.3
+        version: 0.2.3
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -2914,8 +2914,8 @@ packages:
   '@vizij/node-graph-wasm@0.4.1':
     resolution: {integrity: sha512-UO+r/ryzqVu37QloJgRyJnMv/HBOKYD/u1WleUtMLJ/bPMs7MXBy/TKyFuQ0aq7rb6y6NECyULw7xV5ZEQjKYA==}
 
-  '@vizij/orchestrator-wasm@0.2.1':
-    resolution: {integrity: sha512-avEO2tR76fhr/26oOhQh2zag8GIpfYGFOishQhlbyVJdrLwI6FqNoQ0HX/0jXzb5NsDo7KGWEWcdslCacqLuPA==}
+  '@vizij/orchestrator-wasm@0.2.3':
+    resolution: {integrity: sha512-PJwfOPj6NKdYnHi/BqJdgRC03DW0zQ99sEeyTReP8p3tVOeqTZcKu8gyuuxzrD5HicxQZjur99Esu+Z1TI5slA==}
 
   '@vizij/value-json@0.1.0':
     resolution: {integrity: sha512-NzSX14YLnA1ZPaxib0qhgHn5+cVxPZpiTINhqfQwD07FBtkLHPNh/FdQTUmyNAdhZB/RVvdobbEnFCEVLRQJqw==}
@@ -7876,7 +7876,7 @@ snapshots:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
-  '@vizij/orchestrator-wasm@0.2.1':
+  '@vizij/orchestrator-wasm@0.2.3':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0

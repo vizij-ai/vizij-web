@@ -1,0 +1,214 @@
+name: publish-npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "npm-utils-v*.*.*"
+      - "npm-render-v*.*.*"
+      - "npm-animation-react-v*.*.*"
+      - "npm-node-graph-react-v*.*.*"
+      - "npm-orchestrator-react-v*.*.*"
+      - "npm-config-v*.*.*"
+      - "npm-rig-v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish_utils:
+    if: startsWith(github.ref, 'refs/tags/npm-utils-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/utils..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/utils" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/utils" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/utils" exec npm pack --dry-run
+      - name: Publish @vizij/utils
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/utils" exec npm publish --access public --provenance
+
+  publish_render:
+    if: startsWith(github.ref, 'refs/tags/npm-render-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/render..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/render" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/render" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/render" exec npm pack --dry-run
+      - name: Publish @vizij/render
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/render" exec npm publish --access public --provenance
+
+  publish_animation_react:
+    if: startsWith(github.ref, 'refs/tags/npm-animation-react-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/animation-react..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/animation-react" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/animation-react" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
+      - name: Publish @vizij/animation-react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/animation-react" exec npm publish --access public --provenance
+
+  publish_node_graph_react:
+    if: startsWith(github.ref, 'refs/tags/npm-node-graph-react-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/node-graph-react..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/node-graph-react" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/node-graph-react" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
+      - name: Publish @vizij/node-graph-react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/node-graph-react" exec npm publish --access public --provenance
+
+  publish_orchestrator_react:
+    if: startsWith(github.ref, 'refs/tags/npm-orchestrator-react-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/orchestrator-react..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/orchestrator-react" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/orchestrator-react" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/orchestrator-react" exec npm pack --dry-run
+      - name: Publish @vizij/orchestrator-react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/orchestrator-react" exec npm publish --access public --provenance
+
+  publish_config:
+    if: startsWith(github.ref, 'refs/tags/npm-config-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/config..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/config" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/config" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/config" exec npm pack --dry-run
+      - name: Publish @vizij/config
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/config" exec npm publish --access public --provenance
+
+  publish_rig:
+    if: startsWith(github.ref, 'refs/tags/npm-rig-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build package and dependencies
+        run: pnpm --filter "@vizij/rig..." run build
+      - name: Test package
+        run: pnpm --filter "@vizij/rig" run test
+      - name: Typecheck package
+        run: pnpm --filter "@vizij/rig" run typecheck
+      - name: npm pack dry-run
+        run: pnpm --filter "@vizij/rig" exec npm pack --dry-run
+      - name: Publish @vizij/rig
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm --filter "@vizij/rig" exec npm publish --access public --provenance

@@ -10,11 +10,13 @@ This package layers a declarative provider and hook set on top of `@vizij/orches
 
 1. [Overview](#overview)
 2. [Installation](#installation)
-3. [Quick Start](#quick-start)
-4. [Core Concepts](#core-concepts)
-5. [Hook Reference](#hook-reference)
-6. [Development & Testing](#development--testing)
-7. [Related Packages](#related-packages)
+3. [Peer Dependencies](#peer-dependencies)
+4. [Quick Start](#quick-start)
+5. [Core Concepts](#core-concepts)
+6. [Hook Reference](#hook-reference)
+7. [Development & Testing](#development--testing)
+8. [Publishing](#publishing)
+9. [Related Packages](#related-packages)
 
 ---
 
@@ -31,10 +33,27 @@ This package layers a declarative provider and hook set on top of `@vizij/orches
 ## Installation
 
 ```bash
+# pnpm
+pnpm add @vizij/orchestrator-react @vizij/orchestrator-wasm react react-dom
+
+# npm
 npm install @vizij/orchestrator-react @vizij/orchestrator-wasm react react-dom
+
+# yarn
+yarn add @vizij/orchestrator-react @vizij/orchestrator-wasm react react-dom
 ```
 
 If you consume locally linked WASM packages from `vizij-rs`, configure your Vite dev server to preserve symlinks, exclude the wasm pkg from pre-bundling, and enable COOP/COEP headers. See the Vizij web monorepo README for an end-to-end example.
+
+---
+
+## Peer Dependencies
+
+- `react >= 18`
+- `react-dom >= 18`
+- `@vizij/orchestrator-wasm` (publish from `vizij-rs` first, then update this dependency range)
+
+Double-check these ranges before releasing to avoid duplicate React copies or mismatched orchestrator ABI versions.
 
 ---
 
@@ -154,6 +173,29 @@ pnpm --filter "@vizij/orchestrator-react" typecheck
 ```
 
 Vitest tests mock the wasm binding to keep execution fast. When you want end-to-end coverage against the real `vizij-orchestrator-wasm` build, rebuild the WASM package in `vizij-rs` (`pnpm run build:wasm:orchestrator`) and launch the `apps/demo-orchestrator` workspace.
+
+---
+
+## Publishing
+
+The tag-driven workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml) publishes this package.
+
+1. Bump `version` in `package.json` and refresh documentation or changelog notes.
+2. Validate locally:
+   ```bash
+   pnpm install
+   pnpm --filter "@vizij/orchestrator-react" build
+   pnpm --filter "@vizij/orchestrator-react" test
+   pnpm --filter "@vizij/orchestrator-react" typecheck
+   pnpm --filter "@vizij/orchestrator-react" exec npm pack --dry-run
+   ```
+3. Push a tag of the form `npm-orchestrator-react-vX.Y.Z`:
+   ```bash
+   git tag npm-orchestrator-react-v0.3.0
+   git push origin npm-orchestrator-react-v0.3.0
+   ```
+
+Successful runs publish with provenance metadata using `NODE_AUTH_TOKEN`.
 
 ---
 
