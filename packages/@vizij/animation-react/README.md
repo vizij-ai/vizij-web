@@ -10,12 +10,14 @@ This package wraps `@vizij/animation-wasm` with React-friendly primitives so app
 
 1. [Overview](#overview)
 2. [Installation](#installation)
-3. [Quick Start](#quick-start)
-4. [Provider & Context](#provider--context)
-5. [Hooks](#hooks)
-6. [Helpers](#helpers)
-7. [Development & Testing](#development--testing)
-8. [Related Packages](#related-packages)
+3. [Peer Dependencies](#peer-dependencies)
+4. [Quick Start](#quick-start)
+5. [Provider & Context](#provider--context)
+6. [Hooks](#hooks)
+7. [Helpers](#helpers)
+8. [Development & Testing](#development--testing)
+9. [Publishing](#publishing)
+10. [Related Packages](#related-packages)
 
 ---
 
@@ -32,11 +34,27 @@ This package wraps `@vizij/animation-wasm` with React-friendly primitives so app
 ## Installation
 
 ```bash
+# pnpm
+pnpm add @vizij/animation-react @vizij/animation-wasm react react-dom
+
+# npm
 npm install @vizij/animation-react @vizij/animation-wasm react react-dom
-# or pnpm add …
+
+# yarn
+yarn add @vizij/animation-react @vizij/animation-wasm react react-dom
 ```
 
 During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation-wasm` from pre-bundling (see the [`vizij-web` README](../../README.md#local-wasm-development) for a Vite example).
+
+---
+
+## Peer Dependencies
+
+- `react >= 18`
+- `react-dom >= 18`
+- `@vizij/animation-wasm` (keep the version in sync with the `vizij-rs` publish)
+
+When working from source, update these ranges before cutting a release so downstream apps do not end up with duplicate React copies or mismatched WASM ABIs.
 
 ---
 
@@ -164,6 +182,29 @@ pnpm --filter "@vizij/animation-react" typecheck
 ```
 
 Vitest mocks the wasm binding to keep tests fast; end-to-end checks can be exercised via demo apps (e.g., `apps/demo-animation-studio`) after linking local builds.
+
+---
+
+## Publishing
+
+This package is published via the repository-wide workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml). To cut a release:
+
+1. Bump the `version` in `package.json` and update this README/changelog entry.
+2. Verify the package locally:
+   ```bash
+   pnpm install
+   pnpm --filter "@vizij/animation-react" build
+   pnpm --filter "@vizij/animation-react" test
+   pnpm --filter "@vizij/animation-react" typecheck
+   pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
+   ```
+3. Tag the commit using the `npm-animation-react-vX.Y.Z` pattern and push the tag:
+   ```bash
+   git tag npm-animation-react-v0.3.0
+   git push origin npm-animation-react-v0.3.0
+   ```
+
+The workflow builds with the latest linked dependencies, runs tests, and publishes with provenance metadata if the job succeeds.
 
 ---
 
