@@ -17,10 +17,7 @@ import type {
   StandardInputValues,
   RemapSettings,
 } from "../../rig/state";
-import type {
-  StandardRigInput,
-  StandardRigInputDraft,
-} from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "../../rig/standardRigInputs";
 import type { VectorDescriptorType } from "../../rig/bounds";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "./constants";
 
@@ -94,7 +91,11 @@ export interface AnimatableValuesPanelProps {
   inputValues: StandardInputValues;
   onInputValueChange(inputId: string, value: number): void;
   standardInputs: StandardRigInput[];
-  onCreateStandardInput(draft: StandardRigInputDraft): void;
+  onCreateStandardInput(path: string): StandardRigInput | null;
+  onUpdateStandardInput(
+    inputId: string,
+    updates: { path?: string; label?: string },
+  ): void;
   onDeleteStandardInput(inputId: string): void;
 }
 
@@ -153,6 +154,9 @@ export interface FeatureRowProps {
   inputRanges: Map<string, { min: number; max: number }>;
   isCollapsed: boolean;
   onToggleCollapse: (id: string) => void;
+  onRequestCreateStandardInput: (
+    suggestedPath?: string,
+  ) => StandardRigInput | null;
 }
 
 export type { VectorDescriptorType };

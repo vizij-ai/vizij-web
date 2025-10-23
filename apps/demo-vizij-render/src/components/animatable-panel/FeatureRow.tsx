@@ -39,6 +39,7 @@ export function FeatureRow({
   standardInputs,
   standardInputLookup,
   inputRanges,
+  onRequestCreateStandardInput,
   isCollapsed,
   onToggleCollapse,
 }: FeatureRowProps) {
@@ -60,12 +61,25 @@ export function FeatureRow({
     "outHigh",
   ];
 
+  const handleCreateAndBind = useCallback(
+    (target: BindingTarget) => {
+      const created = onRequestCreateStandardInput();
+      if (created) {
+        onBindingInputChange(target.targetId, created.id);
+      }
+    },
+    [onBindingInputChange, onRequestCreateStandardInput],
+  );
+
   const renderBindingMatrix = (targets: BindingTarget[]) => {
     if (!targets.length) {
       return null;
     }
     const columnCount = targets.length;
     const matrixClass = `feature-row__binding-matrix feature-row__binding-matrix--columns-${columnCount}`;
+    const hasBoundInputs = targets.some((target) =>
+      Boolean(target.binding?.inputId),
+    );
 
     return (
       <div className={matrixClass}>
@@ -95,59 +109,82 @@ export function FeatureRow({
             : "feature-row__binding-select";
           return (
             <div key={`${target.targetId}-input`} className={cellClass}>
-              <select
-                className={selectClass}
-                value={target.binding?.inputId ?? ""}
-                onChange={(event) =>
-                  onBindingInputChange(
-                    target.targetId,
-                    event.target.value ? event.target.value : null,
-                  )
-                }
-                aria-label={`${target.label} standard input`}
-              >
-                <option value="">Unbound</option>
-                {standardInputs.map((input) => (
-                  <option key={input.id} value={input.id}>
-                    {formatStandardInputLabel(input)}
-                  </option>
-                ))}
-              </select>
+              <div className="feature-row__binding-select-row">
+                <select
+                  className={selectClass}
+                  value={target.binding?.inputId ?? ""}
+                  onChange={(event) =>
+                    onBindingInputChange(
+                      target.targetId,
+                      event.target.value ? event.target.value : null,
+                    )
+                  }
+                  aria-label={`${target.label} standard input`}
+                >
+                  <option value="">Unbound</option>
+                  {standardInputs.map((input) => (
+                    <option key={input.id} value={input.id}>
+                      {formatStandardInputLabel(input)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="feature-row__binding-add-btn"
+                  onClick={() => handleCreateAndBind(target)}
+                >
+                  Add
+                </button>
+              </div>
             </div>
           );
         })}
 
-        {bindingFieldOrder.map((field) => (
-          <Fragment key={`binding-row-${field}`}>
-            <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
-              {bindingFieldLabels[field]}
-            </div>
-            {targets.map((target) => {
-              const isUnbound = !target.binding?.inputId;
-              const cellClass = `feature-row__binding-matrix-cell${
-                isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
-              }`;
-              const defaults = createDefaultRemap(target.component);
-              const remap = target.binding?.remap ?? defaults;
-              return (
-                <div key={`${target.targetId}-${field}`} className={cellClass}>
-                  <input
-                    type="number"
-                    value={remap[field]}
-                    step={0.01}
-                    onChange={(event) => {
-                      const parsed = Number(event.target.value);
-                      if (Number.isFinite(parsed)) {
-                        onBindingRemapChange(target.targetId, field, parsed);
-                      }
-                    }}
-                    aria-label={`${target.label} ${bindingFieldLabels[field]}`}
-                  />
-                </div>
-              );
-            })}
-          </Fragment>
-        ))}
+        {hasBoundInputs &&
+          bindingFieldOrder.map((field) => (
+            <Fragment key={`binding-row-${field}`}>
+              <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
+                {bindingFieldLabels[field]}
+              </div>
+              {targets.map((target) => {
+                const isUnbound = !target.binding?.inputId;
+                const cellClass = `feature-row__binding-matrix-cell${
+                  isUnbound ? " feature-row__binding-matrix-cell--unbound" : ""
+                }`;
+                const defaults = createDefaultRemap(target.component);
+                const remap = target.binding?.remap ?? defaults;
+                return (
+                  <div
+                    key={`${target.targetId}-${field}`}
+                    className={cellClass}
+                  >
+                    {isUnbound ? (
+                      <span className="feature-row__binding-placeholder">
+                        Bind to edit
+                      </span>
+                    ) : (
+                      <input
+                        type="number"
+                        value={remap[field]}
+                        step={0.01}
+                        onChange={(event) => {
+                          const parsed = Number(event.target.value);
+                          if (Number.isFinite(parsed)) {
+                            onBindingRemapChange(
+                              target.targetId,
+                              field,
+                              parsed,
+                            );
+                          }
+                        }}
+                        aria-label={`${target.label} ${bindingFieldLabels[field]}`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
 
         <div className="feature-row__binding-matrix-cell feature-row__binding-matrix-cell--label">
           Actions

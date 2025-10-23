@@ -1,7 +1,4 @@
-import {
-  STANDARD_RIG_INPUTS,
-  type StandardRigInput,
-} from "./standardRigInputs";
+import type { StandardRigInput } from "./standardRigInputs";
 import type { AnimatableComponent } from "./animatableMetadata";
 
 export interface RemapSettings {
@@ -188,7 +185,7 @@ export function createDefaultBindings(
 }
 
 export function createDefaultInputValues(
-  inputs: StandardRigInput[] = STANDARD_RIG_INPUTS,
+  inputs: StandardRigInput[] = [],
 ): StandardInputValues {
   const values: StandardInputValues = {};
   inputs.forEach((input) => {

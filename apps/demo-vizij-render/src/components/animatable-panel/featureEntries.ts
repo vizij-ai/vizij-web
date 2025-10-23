@@ -9,6 +9,24 @@ import {
 } from "./types";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "./constants";
 
+const FEATURE_SORT_SEQUENCE = [
+  "translation",
+  "scale",
+  "rotation",
+  "opacity",
+  "color",
+] as const;
+
+const FEATURE_SORT_ORDER = new Map<string, number>(
+  FEATURE_SORT_SEQUENCE.map((key, index) => [key, index]),
+);
+
+function getFeatureSortRank(featureKey: string): number {
+  const normalized = featureKey.toLowerCase();
+  const rank = FEATURE_SORT_ORDER.get(normalized);
+  return rank !== undefined ? rank : FEATURE_SORT_SEQUENCE.length;
+}
+
 function formatFeatureLabel(key: string): string {
   if (!key) return "Feature";
   return key
@@ -185,6 +203,11 @@ export function buildFeatureEntries(
 
   return entries.sort((a, b) => {
     if (a.elementName === b.elementName) {
+      const rankA = getFeatureSortRank(a.featureKey);
+      const rankB = getFeatureSortRank(b.featureKey);
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
       return a.featureLabel.localeCompare(b.featureLabel);
     }
     return a.elementName.localeCompare(b.elementName);

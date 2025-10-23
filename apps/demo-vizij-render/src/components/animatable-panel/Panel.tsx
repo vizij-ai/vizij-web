@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
 import {
   useVizijStore,
   useVizijStoreSetter,
   type Selection,
 } from "@vizij/render";
 import { getLookup, RawValue, AnimatableValue } from "@vizij/utils";
-import {
-  RIG_INPUT_GROUPS,
-  type StandardRigInput,
-  type StandardRigInputDraft,
-} from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "../../rig/standardRigInputs";
 import type { AnimatableComponent } from "../../rig/animatableMetadata";
 import { DEFAULT_NAMESPACE } from "./constants";
 import type { FeatureEntry, AnimatableValuesPanelProps } from "./types";
@@ -21,8 +16,6 @@ import {
   isAnimatableReferencedElsewhere,
 } from "./panelUtils";
 import { FeatureRow } from "./FeatureRow";
-
-const CUSTOM_GROUP_OPTION = "__custom_group__";
 
 export function AnimatableValuesPanel({
   namespace,
@@ -40,6 +33,7 @@ export function AnimatableValuesPanel({
   onInputValueChange,
   standardInputs,
   onCreateStandardInput,
+  onUpdateStandardInput,
   onDeleteStandardInput,
 }: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
@@ -61,55 +55,36 @@ export function AnimatableValuesPanel({
     [components],
   );
 
-  const [customGroups, setCustomGroups] = useState<string[]>([]);
-
-  useEffect(() => {
-    const defaults = new Set<string>(RIG_INPUT_GROUPS);
-    const extras = Array.from(
-      new Set(
-        standardInputs
-          .map((input) => input.group.trim())
-          .filter(
-            (group): group is string => Boolean(group) && !defaults.has(group),
-          ),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-    setCustomGroups((previous) => {
-      if (
-        previous.length === extras.length &&
-        previous.every((value, index) => value === extras[index])
-      ) {
-        return previous;
-      }
-      return extras;
-    });
-  }, [standardInputs]);
-
-  const availableGroups = useMemo(() => {
-    const ordered: string[] = [];
-    const seen = new Set<string>();
-    RIG_INPUT_GROUPS.forEach((group) => {
-      if (!seen.has(group)) {
-        ordered.push(group);
-        seen.add(group);
-      }
-    });
-    customGroups.forEach((group) => {
-      if (!seen.has(group)) {
-        ordered.push(group);
-        seen.add(group);
-      }
-    });
-    return ordered;
-  }, [customGroups]);
-
-  const defaultGroupOption =
-    availableGroups[0] ?? RIG_INPUT_GROUPS[0] ?? CUSTOM_GROUP_OPTION;
-
   const standardInputLookup = useMemo(
     () => new Map(standardInputs.map((input) => [input.id, input])),
     [standardInputs],
   );
+
+  const requestCreateStandardInput = useCallback(
+    (suggestedPath?: string): StandardRigInput | null => {
+      if (typeof window === "undefined") {
+        return null;
+      }
+      const response = window.prompt(
+        "Enter the rig path for the new standard input (e.g., /eyes/blink)",
+        suggestedPath ?? "/",
+      );
+      if (response === null) {
+        return null;
+      }
+      const trimmed = response.trim();
+      if (!trimmed) {
+        window.alert?.("Path cannot be empty.");
+        return null;
+      }
+      return onCreateStandardInput(trimmed);
+    },
+    [onCreateStandardInput],
+  );
+
+  const handleCreateInputClick = useCallback(() => {
+    requestCreateStandardInput();
+  }, [requestCreateStandardInput]);
 
   const effectiveInputRanges = useMemo(() => {
     const map = new Map<string, { min: number; max: number }>();
@@ -134,141 +109,25 @@ export function AnimatableValuesPanel({
   }, [bindings, standardInputs]);
 
   const inputUsage = useMemo(() => {
-    const usage = new Map<string, Set<string>>();
+    const usage = new Map<string, { targetId: string; label: string }[]>();
     components.forEach((component) => {
       const binding = bindings[component.id];
       if (!binding || !binding.inputId) {
         return;
       }
       if (!usage.has(binding.inputId)) {
-        usage.set(binding.inputId, new Set());
+        usage.set(binding.inputId, []);
       }
-      usage.get(binding.inputId)!.add(component.label);
+      usage.get(binding.inputId)!.push({
+        targetId: component.id,
+        label: component.label,
+      });
     });
-    const summary = new Map<string, string[]>();
-    usage.forEach((labels, inputId) => {
-      summary.set(
-        inputId,
-        Array.from(labels).sort((a, b) => a.localeCompare(b)),
-      );
+    usage.forEach((entries) => {
+      entries.sort((a, b) => a.label.localeCompare(b.label));
     });
-    return summary;
+    return usage;
   }, [bindings, components]);
-
-  const [isAddingInput, setIsAddingInput] = useState(false);
-  const [inputDraft, setInputDraft] = useState(() => ({
-    label: "",
-    path: "",
-    groupOption: defaultGroupOption,
-    customGroup: "",
-    min: "-1",
-    max: "1",
-    defaultValue: "0",
-  }));
-  const [inputDraftError, setInputDraftError] = useState<string | null>(null);
-
-  const resetInputDraft = useCallback(() => {
-    setInputDraft({
-      label: "",
-      path: "",
-      groupOption: defaultGroupOption,
-      customGroup: "",
-      min: "-1",
-      max: "1",
-      defaultValue: "0",
-    });
-    setInputDraftError(null);
-  }, [defaultGroupOption]);
-
-  useEffect(() => {
-    setInputDraft((previous) => {
-      if (previous.groupOption === CUSTOM_GROUP_OPTION) {
-        return previous;
-      }
-      if (
-        previous.groupOption &&
-        availableGroups.includes(previous.groupOption)
-      ) {
-        return previous;
-      }
-      return {
-        ...previous,
-        groupOption: defaultGroupOption,
-      };
-    });
-  }, [availableGroups, defaultGroupOption]);
-
-  const groupOptions = useMemo(() => {
-    if (
-      inputDraft.groupOption !== CUSTOM_GROUP_OPTION &&
-      inputDraft.groupOption &&
-      !availableGroups.includes(inputDraft.groupOption)
-    ) {
-      return [inputDraft.groupOption, ...availableGroups];
-    }
-    return availableGroups;
-  }, [availableGroups, inputDraft.groupOption]);
-
-  const handleToggleCreateInput = useCallback(() => {
-    resetInputDraft();
-    setIsAddingInput((previous) => !previous);
-  }, [resetInputDraft]);
-
-  const handleCancelCreate = useCallback(() => {
-    setIsAddingInput(false);
-    resetInputDraft();
-  }, [resetInputDraft]);
-
-  const handleCreateInputSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setInputDraftError(null);
-      const trimmedPath = inputDraft.path.trim();
-      if (!trimmedPath) {
-        setInputDraftError("Enter a rig path.");
-        return;
-      }
-      const minValue = Number.parseFloat(inputDraft.min);
-      const maxValue = Number.parseFloat(inputDraft.max);
-      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-        setInputDraftError("Input range must be numeric.");
-        return;
-      }
-      if (Math.abs(minValue - maxValue) < 1e-6) {
-        setInputDraftError("Input range must span a non-zero interval.");
-        return;
-      }
-      const rangeMin = Math.min(minValue, maxValue);
-      const rangeMax = Math.max(minValue, maxValue);
-      const parsedDefault = Number.parseFloat(inputDraft.defaultValue);
-      const resolvedGroup =
-        inputDraft.groupOption === CUSTOM_GROUP_OPTION
-          ? inputDraft.customGroup.trim()
-          : inputDraft.groupOption;
-      if (!resolvedGroup) {
-        setInputDraftError("Enter a group name.");
-        return;
-      }
-      const defaultValue = Number.isFinite(parsedDefault)
-        ? Math.min(rangeMax, Math.max(rangeMin, parsedDefault))
-        : 0;
-      const normalizedLabel = inputDraft.label.trim();
-      const draft: StandardRigInputDraft = {
-        path: trimmedPath,
-        label: normalizedLabel || trimmedPath,
-        group: resolvedGroup,
-        defaultValue,
-        range: {
-          min: rangeMin,
-          max: rangeMax,
-        },
-      };
-      onCreateStandardInput(draft);
-      setIsAddingInput(false);
-      resetInputDraft();
-    },
-    [inputDraft, onCreateStandardInput, resetInputDraft],
-  );
 
   const handleDeleteInput = useCallback(
     (input: StandardRigInput) => {
@@ -281,6 +140,60 @@ export function AnimatableValuesPanel({
       onDeleteStandardInput(input.id);
     },
     [onDeleteStandardInput],
+  );
+
+  const handleEditInput = useCallback(
+    (input: StandardRigInput) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const nextPath = window.prompt(
+        `Update the path for "${input.label}"`,
+        input.path,
+      );
+      if (nextPath === null) {
+        return;
+      }
+      if (!nextPath.trim()) {
+        window.alert?.("Path cannot be empty.");
+        return;
+      }
+      const nextLabel = window.prompt(
+        `Update the label for "${input.label}" (leave empty to derive from the path)`,
+        input.label,
+      );
+      if (nextLabel === null) {
+        return;
+      }
+      onUpdateStandardInput(input.id, {
+        path: nextPath,
+        label: nextLabel,
+      });
+    },
+    [onUpdateStandardInput],
+  );
+
+  const handleClearInputMappings = useCallback(
+    (input: StandardRigInput) => {
+      const boundTargets = Object.entries(bindings)
+        .filter(([, binding]) => binding?.inputId === input.id)
+        .map(([targetId]) => targetId);
+      if (boundTargets.length === 0) {
+        return;
+      }
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(
+          `Clear ${boundTargets.length} mapping${boundTargets.length === 1 ? "" : "s"} for "${input.label}"?`,
+        )
+      ) {
+        return;
+      }
+      boundTargets.forEach((targetId) => {
+        onBindingInputChange(targetId, null);
+      });
+    },
+    [bindings, onBindingInputChange],
   );
 
   const toggleFeatureCollapse = useCallback((id: string) => {
@@ -717,172 +630,46 @@ export function AnimatableValuesPanel({
               <div className="feature-panel__input-actions">
                 <button
                   type="button"
-                  onClick={handleToggleCreateInput}
+                  onClick={handleCreateInputClick}
                   className="feature-panel__input-add"
                 >
-                  {isAddingInput ? "Close input creator" : "Add standard input"}
+                  Add standard input
                 </button>
               </div>
-              {isAddingInput && (
-                <form
-                  className="feature-panel__input-form"
-                  onSubmit={handleCreateInputSubmit}
-                >
-                  <div className="feature-panel__input-form-grid">
-                    <label>
-                      Label
-                      <input
-                        type="text"
-                        value={inputDraft.label}
-                        spellCheck={false}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            label: nextValue,
-                          }));
-                          setInputDraftError(null);
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Path
-                      <input
-                        type="text"
-                        value={inputDraft.path}
-                        spellCheck={false}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            path: nextValue,
-                          }));
-                          setInputDraftError(null);
-                        }}
-                        placeholder="/my/input/path"
-                      />
-                    </label>
-                    <label>
-                      Group
-                      <select
-                        value={inputDraft.groupOption}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            groupOption: nextValue,
-                            customGroup:
-                              nextValue === CUSTOM_GROUP_OPTION
-                                ? previous.customGroup
-                                : "",
-                          }));
-                          setInputDraftError(null);
-                        }}
-                      >
-                        {groupOptions.map((group) => (
-                          <option key={group} value={group}>
-                            {group.replace(/_/g, " ")}
-                          </option>
-                        ))}
-                        <option value={CUSTOM_GROUP_OPTION}>
-                          Create new group…
-                        </option>
-                      </select>
-                    </label>
-                    {inputDraft.groupOption === CUSTOM_GROUP_OPTION && (
-                      <label>
-                        New group
-                        <input
-                          type="text"
-                          value={inputDraft.customGroup}
-                          spellCheck={false}
-                          onChange={(event) => {
-                            const nextValue = event.target.value;
-                            setInputDraft((previous) => ({
-                              ...previous,
-                              customGroup: nextValue,
-                            }));
-                            setInputDraftError(null);
-                          }}
-                          placeholder="eyes_secondary"
-                        />
-                      </label>
-                    )}
-                    <label>
-                      Default value
-                      <input
-                        type="number"
-                        value={inputDraft.defaultValue}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            defaultValue: nextValue,
-                          }));
-                          setInputDraftError(null);
-                        }}
-                        step="0.1"
-                      />
-                    </label>
-                    <label>
-                      Range min
-                      <input
-                        type="number"
-                        value={inputDraft.min}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            min: nextValue,
-                          }));
-                          setInputDraftError(null);
-                        }}
-                        step="0.1"
-                      />
-                    </label>
-                    <label>
-                      Range max
-                      <input
-                        type="number"
-                        value={inputDraft.max}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setInputDraft((previous) => ({
-                            ...previous,
-                            max: nextValue,
-                          }));
-                          setInputDraftError(null);
-                        }}
-                        step="0.1"
-                      />
-                    </label>
-                  </div>
-                  {inputDraftError && (
-                    <p className="feature-panel__input-error">
-                      {inputDraftError}
-                    </p>
-                  )}
-                  <div className="feature-panel__input-form-actions">
-                    <button type="submit">Create input</button>
-                    <button
-                      type="button"
-                      onClick={handleCancelCreate}
-                      className="feature-panel__input-cancel"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
               {standardInputs.map((input) => {
                 const range = effectiveInputRanges.get(input.id) ?? input.range;
                 const value = inputValues[input.id] ?? input.defaultValue;
                 const step = Math.max((range.max - range.min) / 200, 0.001);
                 const usage = inputUsage.get(input.id) ?? [];
+                const hasMappings = usage.length > 0;
                 return (
                   <div key={input.id} className="feature-panel__input-row">
                     <div className="feature-panel__input-meta">
-                      <strong>{input.label}</strong>
+                      <div className="feature-panel__input-meta-header">
+                        <strong>{input.label}</strong>
+                        <div className="feature-panel__input-meta-actions">
+                          <button
+                            type="button"
+                            className="feature-panel__input-action"
+                            onClick={() => handleEditInput(input)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="feature-panel__input-action feature-panel__input-action--secondary"
+                            onClick={() => handleClearInputMappings(input)}
+                            disabled={!hasMappings}
+                            title={
+                              hasMappings
+                                ? undefined
+                                : "No mappings to clear yet"
+                            }
+                          >
+                            Clear mappings
+                          </button>
+                        </div>
+                      </div>
                       <span>{input.path}</span>
                     </div>
                     <input
@@ -919,16 +706,34 @@ export function AnimatableValuesPanel({
                         ×
                       </button>
                     </div>
-                    <p className="feature-panel__input-tracker">
-                      Mapped to:{" "}
-                      {usage.length > 0 ? (
-                        usage.join(", ")
+                    <div className="feature-panel__input-tracker">
+                      <span className="feature-panel__input-tracker-label">
+                        Mapped to:
+                      </span>
+                      {hasMappings ? (
+                        <ul className="feature-panel__input-tracker-list">
+                          {usage.map(({ targetId, label }) => (
+                            <li key={targetId}>
+                              <button
+                                type="button"
+                                className="feature-panel__input-tracker-chip"
+                                onClick={() =>
+                                  onBindingInputChange(targetId, null)
+                                }
+                                title={`Remove mapping from ${label}`}
+                              >
+                                {label}
+                                <span aria-hidden="true">×</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       ) : (
                         <span className="feature-panel__input-tracker--unmapped">
                           Unmapped
                         </span>
                       )}
-                    </p>
+                    </div>
                   </div>
                 );
               })}
@@ -1062,6 +867,7 @@ export function AnimatableValuesPanel({
                       inputRanges={effectiveInputRanges}
                       isCollapsed={collapsedFeatureRows.has(entry.id)}
                       onToggleCollapse={toggleFeatureCollapse}
+                      onRequestCreateStandardInput={requestCreateStandardInput}
                     />
                   ))}
                 </div>

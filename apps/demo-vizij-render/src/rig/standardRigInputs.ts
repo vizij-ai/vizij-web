@@ -1,17 +1,3 @@
-export const RIG_INPUT_GROUPS = [
-  "mouth",
-  "left_eye",
-  "left_eye_highlight",
-  "left_eye_top_eyelid",
-  "left_eye_bottom_eyelid",
-  "left_eye_brow",
-  "right_eye",
-  "right_eye_highlight",
-  "right_eye_bottom_eyelid",
-  "right_eye_top_eyelid",
-  "right_eye_brow",
-] as const;
-
 export type RigInputGroup = string;
 
 export interface StandardRigInput {
@@ -65,8 +51,6 @@ export interface StandardRigInputInit
   id?: string;
 }
 
-export type StandardRigInputDraft = Omit<StandardRigInputInit, "id">;
-
 export function createStandardRigInput(
   init: StandardRigInputInit,
 ): StandardRigInput {
@@ -92,157 +76,52 @@ export function createStandardRigInput(
   };
 }
 
-function input(
-  path: string,
-  label: string,
-  group: RigInputGroup,
-  defaults: {
-    value: number;
-    min: number;
-    max: number;
-  },
-): StandardRigInput {
-  return createStandardRigInput({
-    path,
-    label,
-    group,
-    defaultValue: defaults.value,
-    range: {
-      min: defaults.min,
-      max: defaults.max,
-    },
-  });
+function capitalize(word: string): string {
+  if (!word) {
+    return word;
+  }
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-const POS_DEFAULTS = { value: 0, min: -1, max: 1 };
-const SCALE_DEFAULTS = { value: 0, min: -1, max: 1 };
-const MORPH_DEFAULTS = { value: 0, min: -1, max: 1 };
-const ROT_DEFAULTS = { value: 0, min: -1, max: 1 };
+export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
+  const withoutLeading = normalizedPath.startsWith("/")
+    ? normalizedPath.slice(1)
+    : normalizedPath;
+  if (!withoutLeading) {
+    return "Custom Input";
+  }
+  const words = withoutLeading
+    .split("/")
+    .flatMap((segment) =>
+      segment.replace(/[_-]+/g, " ").split(" ").filter(Boolean),
+    )
+    .map(capitalize);
+  return words.length > 0 ? words.join(" ") : "Custom Input";
+}
 
-export const STANDARD_RIG_INPUTS: StandardRigInput[] = [
-  input("/mouth/pos/x", "Mouth Pos X", "mouth", POS_DEFAULTS),
-  input("/mouth/pos/y", "Mouth Pos Y", "mouth", POS_DEFAULTS),
-  input("/mouth/scale/x", "Mouth Scale X", "mouth", SCALE_DEFAULTS),
-  input("/mouth/scale/y", "Mouth Scale Y", "mouth", SCALE_DEFAULTS),
-  input("/mouth/morph", "Mouth Morph", "mouth", MORPH_DEFAULTS),
-  input("/left_eye/pos/x", "Left Eye Pos X", "left_eye", POS_DEFAULTS),
-  input("/left_eye/pos/y", "Left Eye Pos Y", "left_eye", POS_DEFAULTS),
-  input(
-    "/left_eye_highlight/scale/x",
-    "Left Eye Highlight Scale X",
-    "left_eye_highlight",
-    SCALE_DEFAULTS,
-  ),
-  input(
-    "/left_eye_highlight/scale/y",
-    "Left Eye Highlight Scale Y",
-    "left_eye_highlight",
-    SCALE_DEFAULTS,
-  ),
-  input(
-    "/left_eye_bottom_eyelid/pos/y",
-    "Left Bottom Eyelid Pos Y",
-    "left_eye_bottom_eyelid",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/left_eye_bottom_eyelid/rot/z",
-    "Left Bottom Eyelid Rot Z",
-    "left_eye_bottom_eyelid",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/left_eye_top_eyelid/pos/y",
-    "Left Top Eyelid Pos Y",
-    "left_eye_top_eyelid",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/left_eye_top_eyelid/rot/z",
-    "Left Top Eyelid Rot Z",
-    "left_eye_top_eyelid",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/left_eye_brow/pos/y",
-    "Left Brow Pos Y",
-    "left_eye_brow",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/left_eye_brow/rot/z",
-    "Left Brow Rot Z",
-    "left_eye_brow",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/left_eye_brow/scale/x",
-    "Left Brow Scale X",
-    "left_eye_brow",
-    SCALE_DEFAULTS,
-  ),
-  input("/right_eye/pos/x", "Right Eye Pos X", "right_eye", POS_DEFAULTS),
-  input("/right_eye/pos/y", "Right Eye Pos Y", "right_eye", POS_DEFAULTS),
-  input(
-    "/right_eye_highlight/scale/x",
-    "Right Eye Highlight Scale X",
-    "right_eye_highlight",
-    SCALE_DEFAULTS,
-  ),
-  input(
-    "/right_eye_highlight/scale/y",
-    "Right Eye Highlight Scale Y",
-    "right_eye_highlight",
-    SCALE_DEFAULTS,
-  ),
-  input(
-    "/right_eye_bottom_eyelid/pos/y",
-    "Right Bottom Eyelid Pos Y",
-    "right_eye_bottom_eyelid",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/right_eye_bottom_eyelid/rot/z",
-    "Right Bottom Eyelid Rot Z",
-    "right_eye_bottom_eyelid",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/right_eye_top_eyelid/pos/y",
-    "Right Top Eyelid Pos Y",
-    "right_eye_top_eyelid",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/right_eye_top_eyelid/rot/z",
-    "Right Top Eyelid Rot Z",
-    "right_eye_top_eyelid",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/right_eye_brow/pos/y",
-    "Right Brow Pos Y",
-    "right_eye_brow",
-    POS_DEFAULTS,
-  ),
-  input(
-    "/right_eye_brow/rot/z",
-    "Right Brow Rot Z",
-    "right_eye_brow",
-    ROT_DEFAULTS,
-  ),
-  input(
-    "/right_eye_brow/scale/x",
-    "Right Brow Scale X",
-    "right_eye_brow",
-    SCALE_DEFAULTS,
-  ),
-];
+export function deriveGroupFromNormalizedPath(normalizedPath: string): string {
+  const withoutLeading = normalizedPath.startsWith("/")
+    ? normalizedPath.slice(1)
+    : normalizedPath;
+  if (!withoutLeading) {
+    return "custom";
+  }
+  const [first] = withoutLeading.split("/");
+  return first || "custom";
+}
 
-export const STANDARD_RIG_INPUTS_BY_ID = new Map(
-  STANDARD_RIG_INPUTS.map((item) => [item.id, item]),
-);
-
-export function findStandardRigInput(id: string): StandardRigInput | undefined {
-  return STANDARD_RIG_INPUTS_BY_ID.get(id);
+export function createStandardRigInputFromPath(path: string): StandardRigInput {
+  const normalized = normalizeStandardRigInputPath(path);
+  const label = deriveLabelFromNormalizedPath(normalized);
+  const group = deriveGroupFromNormalizedPath(normalized);
+  return createStandardRigInput({
+    path: normalized,
+    label,
+    group,
+    defaultValue: 0,
+    range: {
+      min: -1,
+      max: 1,
+    },
+  });
 }

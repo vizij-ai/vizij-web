@@ -37,24 +37,15 @@ import {
   type RemapSettings,
 } from "./rig/state";
 import {
-  STANDARD_RIG_INPUTS,
   createStandardRigInput,
+  createStandardRigInputFromPath,
+  deriveGroupFromNormalizedPath,
+  deriveLabelFromNormalizedPath,
+  normalizeStandardRigInputPath,
   type StandardRigInput,
-  type StandardRigInputDraft,
 } from "./rig/standardRigInputs";
 import { buildRigGraphSpec } from "./rig/graphBuilder";
 import { loadRigState, saveRigState } from "./rig/persistence";
-
-const SAMPLE_ASSETS = [
-  {
-    label: "Hugo sample",
-    url: "/samples/Hugo.glb",
-  },
-  {
-    label: "Quori sample",
-    url: "/samples/Quori.glb",
-  },
-] as const;
 
 const DEFAULT_NAMESPACE = "default";
 
@@ -209,12 +200,10 @@ export default function App() {
   const clearSelection = useVizijStore((state) => state.clearSelection);
   const setStoreState = useVizijStoreSetter();
 
-  const [standardInputs, setStandardInputs] = useState<StandardRigInput[]>(() =>
-    STANDARD_RIG_INPUTS.slice(),
-  );
+  const [standardInputs, setStandardInputs] = useState<StandardRigInput[]>([]);
   const [faceId, setFaceId] = useState<string>("robot");
   const [inputValues, setInputValues] = useState<StandardInputValues>(() =>
-    createDefaultInputValues(STANDARD_RIG_INPUTS),
+    createDefaultInputValues(),
   );
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
@@ -367,11 +356,11 @@ export default function App() {
   );
 
   const handleCreateStandardInput = useCallback(
-    (draft: StandardRigInputDraft) => {
+    (path: string): StandardRigInput | null => {
       let createdInput: StandardRigInput | null = null;
       setStandardInputs((previous) => {
         const existingIds = new Set(previous.map((input) => input.id));
-        let candidate = createStandardRigInput(draft);
+        let candidate = createStandardRigInputFromPath(path);
         if (existingIds.has(candidate.id)) {
           const baseSegments = candidate.path
             .split("/")
@@ -388,25 +377,80 @@ export default function App() {
               baseSegments.length > 0 ? baseSegments.slice() : [baseLeaf];
             nextSegments[targetIndex] = `${baseLeaf}_${suffix}`;
             const nextPath = `/${nextSegments.join("/")}`;
-            resolved = createStandardRigInput({
-              ...draft,
-              path: nextPath,
-            });
+            resolved = createStandardRigInputFromPath(nextPath);
             suffix += 1;
           }
           candidate = resolved;
         }
         createdInput = candidate;
+        setInputValues((prev) => ({
+          ...prev,
+          [candidate.id]: candidate.defaultValue,
+        }));
         return [...previous, candidate];
       });
-      if (createdInput) {
-        setInputValues((previous) => ({
-          ...previous,
-          [createdInput!.id]: createdInput!.defaultValue,
-        }));
-      }
+      return createdInput;
     },
     [setInputValues],
+  );
+
+  const handleUpdateStandardInput = useCallback(
+    (inputId: string, updates: { path?: string; label?: string }) => {
+      setStandardInputs((previous) => {
+        const index = previous.findIndex((input) => input.id === inputId);
+        if (index === -1) {
+          return previous;
+        }
+        const current = previous[index];
+        if (updates.path !== undefined && !updates.path.trim()) {
+          if (typeof window !== "undefined") {
+            window.alert?.("Path cannot be empty.");
+          }
+          return previous;
+        }
+        const requestedPath =
+          updates.path !== undefined ? updates.path : current.path;
+        const normalizedPath = normalizeStandardRigInputPath(requestedPath);
+        const isPathChanged = normalizedPath !== current.path;
+        if (
+          isPathChanged &&
+          previous.some(
+            (input, idx) => idx !== index && input.path === normalizedPath,
+          )
+        ) {
+          if (typeof window !== "undefined") {
+            window.alert?.(
+              `Another standard input already uses the path "${normalizedPath}".`,
+            );
+          }
+          return previous;
+        }
+        const trimmedLabel =
+          updates.label !== undefined ? updates.label.trim() : undefined;
+        const nextLabel =
+          trimmedLabel && trimmedLabel.length > 0
+            ? trimmedLabel
+            : updates.label !== undefined
+              ? deriveLabelFromNormalizedPath(normalizedPath)
+              : current.label;
+        const nextGroup = deriveGroupFromNormalizedPath(normalizedPath);
+        const updated = createStandardRigInput({
+          id: current.id,
+          path: normalizedPath,
+          label: nextLabel,
+          group: nextGroup,
+          defaultValue: current.defaultValue,
+          range: {
+            min: current.range.min,
+            max: current.range.max,
+          },
+        });
+        const next = previous.slice();
+        next[index] = updated;
+        return next;
+      });
+    },
+    [],
   );
 
   const handleDeleteStandardInput = useCallback((inputId: string) => {
@@ -458,14 +502,13 @@ export default function App() {
       const storedInputs =
         persisted.standardInputs?.map((input) =>
           createStandardRigInput(input),
-        ) ?? STANDARD_RIG_INPUTS.slice();
+        ) ?? [];
       setStandardInputs(storedInputs);
       setInputValues(persisted.inputValues);
       setBindings(reconcileBindings(persisted.bindings, animatableComponents));
     } else {
-      const defaults = STANDARD_RIG_INPUTS.slice();
-      setStandardInputs(defaults);
-      setInputValues(createDefaultInputValues(defaults));
+      setStandardInputs([]);
+      setInputValues(createDefaultInputValues());
       setBindings(createDefaultBindings(animatableComponents));
     }
     setTimeout(() => {
@@ -625,17 +668,6 @@ export default function App() {
       );
     },
     [assetUrl, loadVizij],
-  );
-
-  const handleLoadSample = useCallback(
-    async (sampleUrl: string, label: string) => {
-      setAssetUrl(sampleUrl);
-      await loadVizij(
-        () => loadGLTF(sampleUrl, [DEFAULT_NAMESPACE], true),
-        label,
-      );
-    },
-    [loadVizij],
   );
 
   const collectAnimatableExportState = useCallback(() => {
@@ -811,19 +843,6 @@ export default function App() {
                 </button>
               </div>
             </form>
-            <div className="sidebar__samples">
-              <h3>Quick samples</h3>
-              {SAMPLE_ASSETS.map((sample) => (
-                <button
-                  key={sample.url}
-                  type="button"
-                  onClick={() => handleLoadSample(sample.url, sample.label)}
-                  disabled={isLoading}
-                >
-                  {sample.label}
-                </button>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -940,6 +959,7 @@ export default function App() {
           onInputValueChange={handleInputValueChange}
           standardInputs={standardInputs}
           onCreateStandardInput={handleCreateStandardInput}
+          onUpdateStandardInput={handleUpdateStandardInput}
           onDeleteStandardInput={handleDeleteStandardInput}
         />
       </aside>
