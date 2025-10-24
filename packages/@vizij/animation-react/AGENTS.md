@@ -2,7 +2,7 @@
 
 - Use `pnpm --filter "@vizij/animation-react"` to run `build`, `test`, `typecheck`, `lint`, `clean`, and `dev`. Builds run through `tsup`; keep artefacts confined to `dist/`.
 - Keep API changes in sync with `@vizij/animation-wasm` (published from `vizij-rs`). Update dependency ranges and value helper exports when the WASM ABI changes.
-- Update demo apps (`apps/demo-animation`, `apps/demo-animation-studio`) alongside behaviour changes so examples stay accurate.
+- Update the animation-focused demos (`apps/demo-animation-studio`, `apps/minimal-demo-animation`, `apps/minimal-demo-animation-graph`, `apps/demo-vizij-player`) alongside behaviour changes so examples stay accurate.
 - Before publishing, generate a changeset and execute:
   ```bash
   pnpm changeset

@@ -1,7 +1,7 @@
 # Agent Notes · @vizij/utils
 
 - Invoke scripts with `pnpm --filter "@vizij/utils"` (`build`, `test`, `typecheck`, `clean`, `dev`). Builds run through `tsup`; keep emitted files in `dist/`.
-- Treat this package as the source of truth for shared value types. Coordinate changes with `@vizij/config`, `@vizij/render`, and the React bindings before renaming or reshaping interfaces.
+- Treat this package as the source of truth for shared value types. Coordinate changes with `@vizij/render`, `@vizij/animation-react`, `@vizij/node-graph-react`, and `@vizij/orchestrator-react` before renaming or reshaping interfaces.
 - Avoid adding React-specific code here—keep utilities framework agnostic.
 - Prior to publishing, run:
   ```bash

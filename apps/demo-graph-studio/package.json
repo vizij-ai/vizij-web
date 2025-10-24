@@ -1,0 +1,48 @@
+{
+  "name": "demo-graph-studio",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Demo Node Graph Editor app — built on @vizij/node-graph-react and node-graph-wasm",
+  "main": "src/main.tsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "test": "vitest --run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
+  },
+  "dependencies": {
+    "@eslint/plugin-kit": "0.4.0",
+    "@vizij/node-graph-react": "workspace:*",
+    "@vizij/node-graph-wasm": "^0.4.1",
+    "@vizij/value-json": "^0.1.0",
+    "react": "18.x",
+    "react-dom": "18.x",
+    "reactflow": "11.x",
+    "zustand": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "eslint": "^9.19.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.3.6",
+    "vitest": "^3.2.4",
+    "prettier": "^3.4.2"
+  },
+  "keywords": [
+    "vizij",
+    "node-graph",
+    "editor",
+    "react",
+    "reactflow"
+  ],
+  "author": "Vizij",
+  "license": "MIT"
+}

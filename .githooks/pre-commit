@@ -8,15 +8,7 @@ if [[ "${SKIP_GIT_HOOKS:-0}" == "1" ]]; then
   exit 0
 fi
 
-echo "[vizij-web pre-commit] Prettier write"
-# Use local prettier if present; fallback to npx
-if command -v prettier &>/dev/null; then
-  prettier --write .
-else
-  npx -y prettier --write .
-fi
-
-echo "[vizij-web pre-commit] ESLint (all workspaces with a lint script)"
-npm -ws --if-present run lint
+echo "[vizij-web pre-commit] Format (pnpm run prep)"
+pnpm run prep
 
 echo "[vizij-web pre-commit] OK"

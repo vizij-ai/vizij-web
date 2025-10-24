@@ -142,7 +142,6 @@ Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/w
 ## Related Packages
 
 - [`@vizij/rig`](../@vizij/rig/README.md) – Hooks that consume the renderer to load rigged models.
-- [`@vizij/config`](../@vizij/config/README.md) – Rig definitions and channel archetypes used by controllers.
 - [`@vizij/animation-react`](../@vizij/animation-react/README.md) – React bindings that feed animation values back into the renderer.
 
 Questions or contributions? Open an issue so we can keep the renderer API and docs sharp for the whole Vizij ecosystem. 🎨

@@ -1,5 +1,4 @@
-import { ChangeEvent, useMemo } from "react";
-import type { FaceConfig } from "../data/faces";
+import { ChangeEvent } from "react";
 
 interface LoaderStatus {
   loading: boolean;
@@ -9,9 +8,6 @@ interface LoaderStatus {
 }
 
 interface FaceLoaderPanelProps {
-  faces: FaceConfig[];
-  selectedFaceId: string | null;
-  onSelectFace: (faceId: string) => void;
   onUploadGlb: (file: File) => void;
   onImportLowLevelGraph: (file: File) => void;
   loaderStatus: LoaderStatus;
@@ -20,20 +16,12 @@ interface FaceLoaderPanelProps {
 }
 
 export function FaceLoaderPanel({
-  faces,
-  selectedFaceId,
-  onSelectFace,
   onUploadGlb,
   onImportLowLevelGraph,
   loaderStatus,
   graphLoaded,
   graphError,
 }: FaceLoaderPanelProps) {
-  const currentFaceName = useMemo(() => {
-    const face = faces.find((item) => item.id === selectedFaceId);
-    return face?.name ?? "Custom";
-  }, [faces, selectedFaceId]);
-
   const handleGlbInput = (event: ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files?.length) {
       return;
@@ -56,23 +44,6 @@ export function FaceLoaderPanel({
         <h2>1 · Load Face Asset</h2>
       </div>
       <div className="panel-body">
-        <label className="field-label" htmlFor="face-select">
-          Sample faces
-        </label>
-        <select
-          id="face-select"
-          className="select"
-          value={selectedFaceId ?? ""}
-          onChange={(event) => onSelectFace(event.target.value)}
-        >
-          {faces.map((face) => (
-            <option key={face.id} value={face.id}>
-              {face.name}
-            </option>
-          ))}
-          <option value="">Custom</option>
-        </select>
-
         <div className="upload-row">
           <label className="field-label" htmlFor="glb-upload">
             Load GLB (from demo-render export)
@@ -100,7 +71,6 @@ export function FaceLoaderPanel({
         <div className="status-block">
           <div className="status-row">
             <span className="status-label">Face:</span>
-            <span className="status-value">{currentFaceName}</span>
           </div>
           <div className="status-row">
             <span className="status-label">Asset:</span>

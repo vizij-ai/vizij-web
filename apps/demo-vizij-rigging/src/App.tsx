@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  loadGLTF,
   loadGLTFFromBlob,
   useVizijStore,
   useVizijStoreSetter,
@@ -18,7 +17,6 @@ import {
   type WriteOpJSON,
 } from "@vizij/node-graph-react";
 
-import { FACES, getFaceById } from "./data/faces";
 import type { StandardRigInput } from "./low-level/standardRigInputs";
 import {
   createNeutralInputs,
@@ -83,17 +81,6 @@ function stripNamespaceValues(
   return next;
 }
 
-function sanitizeFaceId(value: string): string {
-  const normalised = value
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9_-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-  return normalised || "face";
-}
-
 function sanitizeSlug(value: string, fallback: string): string {
   const slug = value
     .trim()
@@ -101,38 +88,6 @@ function sanitizeSlug(value: string, fallback: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || fallback;
-}
-
-function normaliseAssetLabel(label: string): string {
-  const trimmed = label.trim();
-  if (!trimmed) {
-    return "asset";
-  }
-  const withoutParams = trimmed.split(/[?#]/, 1)[0];
-  const withForwardSlashes = withoutParams.replace(/\\/g, "/");
-  const segments = withForwardSlashes.split("/");
-  const last = segments[segments.length - 1] ?? trimmed;
-  const withoutExtension = last.replace(/\.[^.]+$/, "");
-  return withoutExtension || last;
-}
-
-function deriveFaceIdFromSource(
-  sourceName: string | null,
-  rootRenderable: Group | undefined,
-): string {
-  if (sourceName) {
-    const normalised = normaliseAssetLabel(sourceName);
-    if (normalised) {
-      return sanitizeFaceId(normalised);
-    }
-  }
-  if (rootRenderable?.name) {
-    return sanitizeFaceId(rootRenderable.name);
-  }
-  if (rootRenderable?.id) {
-    return sanitizeFaceId(rootRenderable.id);
-  }
-  return "face";
 }
 
 function createEmotion(name: string): EmotionDefinition {
@@ -171,12 +126,9 @@ function downloadJSON(filename: string, payload: unknown): void {
 }
 
 export default function App(): JSX.Element {
-  const [selectedFaceId, setSelectedFaceId] = useState<string | null>(
-    FACES[0]?.id ?? null,
-  );
-  const [activeFaceId, setActiveFaceId] = useState<string | null>(
-    FACES[0]?.id ?? null,
-  );
+  // const [activeFaceId, setActiveFaceId] = useState<string | null>(
+  //   FACES[0]?.id ?? null,
+  // );
   const [rootId, setRootId] = useState<string | null>(null);
   const [loaderStatus, setLoaderStatus] = useState<LoaderStatus>(
     INITIAL_LOADER_STATUS,
@@ -719,11 +671,7 @@ export default function App(): JSX.Element {
   ]);
 
   const handleAfterLoad = useCallback(
-    (
-      world: World,
-      animatablesMap: Record<string, AnimatableValue>,
-      sourceName: string | null,
-    ) => {
+    (world: World, animatablesMap: Record<string, AnimatableValue>) => {
       const root = findRootId(world);
       if (!root) {
         throw new Error("Unable to determine Vizij root for asset.");
@@ -737,11 +685,7 @@ export default function App(): JSX.Element {
         ),
       }));
 
-      const rootRenderable = world[root] as Group | undefined;
-      const faceId = deriveFaceIdFromSource(sourceName, rootRenderable);
-
       setRootId(root);
-      setActiveFaceId(faceId);
     },
     [addWorldElements, setStoreState],
   );
@@ -759,7 +703,7 @@ export default function App(): JSX.Element {
       });
       try {
         const [world, loadedAnimatables] = await loader();
-        handleAfterLoad(world, loadedAnimatables, label);
+        handleAfterLoad(world, loadedAnimatables);
         setLoaderStatus({
           loading: false,
           ready: true,
@@ -779,36 +723,8 @@ export default function App(): JSX.Element {
     [handleAfterLoad],
   );
 
-  const handleSelectFace = useCallback(
-    (faceId: string) => {
-      const face = getFaceById(faceId);
-      setSelectedFaceId(face ? face.id : null);
-      if (!face) {
-        setLowLevelGraphSpec(null);
-        setLowLevelGraphError(null);
-        setGraphLoaded(false);
-        return;
-      }
-      setLowLevelGraphSpec(null);
-      setLowLevelGraphError(null);
-      setGraphLoaded(false);
-      void loadAsset(
-        () =>
-          loadGLTF(
-            face.asset,
-            [face.namespace ?? DEFAULT_NAMESPACE],
-            face.aggressiveImport ?? true,
-            face.bounds,
-          ),
-        face.name,
-      );
-    },
-    [loadAsset],
-  );
-
   const handleUploadGlb = useCallback(
     (file: File) => {
-      setSelectedFaceId(null);
       setLowLevelGraphSpec(null);
       setLowLevelGraphError(null);
       setGraphLoaded(false);
@@ -1018,7 +934,7 @@ export default function App(): JSX.Element {
       setGraphSummary(null);
       return;
     }
-    const resolvedFaceId = lowLevelFaceId ?? activeFaceId ?? null;
+    const resolvedFaceId = lowLevelFaceId ?? null;
     const { spec, summary } = buildPoseGraphSpec({
       faceId: resolvedFaceId,
       neutralInputs: savedNeutral,
@@ -1028,7 +944,6 @@ export default function App(): JSX.Element {
     setGraphSpec(spec);
     setGraphSummary(summary);
   }, [
-    activeFaceId,
     availableStandardInputs,
     emotions,
     graphLoaded,
@@ -1086,7 +1001,7 @@ export default function App(): JSX.Element {
 
   const handleExportRigConfig = useCallback(() => {
     const config = buildRigConfig({
-      faceId: activeFaceId ?? lowLevelFaceId,
+      faceId: lowLevelFaceId,
       neutralInputs: savedNeutral,
       emotions,
       previous: configFile,
@@ -1096,28 +1011,21 @@ export default function App(): JSX.Element {
     const rigSlug = sanitizeSlug(rigName, "rig");
     downloadJSON(`${faceSlug}_${rigSlug}_rig_config.json`, config);
     setConfigFile(config);
-  }, [
-    activeFaceId,
-    configFile,
-    emotions,
-    lowLevelFaceId,
-    rigName,
-    savedNeutral,
-  ]);
+  }, [configFile, emotions, lowLevelFaceId, rigName, savedNeutral]);
 
   const handleExportGraph = useCallback(() => {
     if (!graphSpec) {
       window.alert("Generate the graph before exporting.");
       return;
     }
-    const exportFaceId = activeFaceId ?? lowLevelFaceId ?? "face";
+    const exportFaceId = lowLevelFaceId ?? "face";
     const faceSlug = sanitizeSlug(exportFaceId, "face");
     const rigSlug = sanitizeSlug(rigName, "rig");
     downloadJSON(`${faceSlug}_${rigSlug}_rig.json`, graphSpec);
     if (graphSummary) {
       downloadJSON(`${faceSlug}_${rigSlug}_rig.summary.json`, graphSummary);
     }
-  }, [activeFaceId, graphSpec, graphSummary, lowLevelFaceId, rigName]);
+  }, [graphSpec, graphSummary, lowLevelFaceId, rigName]);
 
   const handleImportRigConfig = useCallback(async (file: File) => {
     try {
@@ -1184,9 +1092,6 @@ export default function App(): JSX.Element {
       <main className="app-main">
         <section className="column column-left">
           <FaceLoaderPanel
-            faces={FACES}
-            selectedFaceId={selectedFaceId}
-            onSelectFace={handleSelectFace}
             onUploadGlb={handleUploadGlb}
             onImportLowLevelGraph={handleImportLowLevelGraph}
             loaderStatus={loaderStatus}
@@ -1212,7 +1117,7 @@ export default function App(): JSX.Element {
           />
           <GraphSummaryPanel
             summary={graphSummary}
-            faceId={lowLevelFaceId ?? activeFaceId}
+            faceId={lowLevelFaceId}
             configIssues={configValidationIssues}
             onExportConfig={handleExportRigConfig}
             onExportGraph={handleExportGraph}

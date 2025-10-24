@@ -107,7 +107,6 @@ Releases flow through [`.github/workflows/publish-npm.yml`](../../.github/workfl
 
 ## Related Packages
 
-- [`@vizij/config`](../@vizij/config/README.md) – Builds on these types to define rig/channel metadata.
 - [`@vizij/animation-react`](../@vizij/animation-react/README.md) – Re-exports value helpers for React consumers.
 - [`@vizij/render`](../render/README.md) – Uses the namespace helpers to manage store ids.
 

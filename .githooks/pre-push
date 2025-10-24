@@ -7,27 +7,13 @@ if [[ "${SKIP_GIT_HOOKS:-0}" == "1" ]]; then
   exit 0
 fi
 
-echo "[vizij-web pre-push] Prettier check"
-if command -v prettier &>/dev/null; then
-  prettier --check .
-else
-  npx -y prettier --check .
-fi
+echo "[vizij-web pre-push] pnpm run prep:push"
+CI=1 pnpm run prep:push
 
-echo "[vizij-web pre-push] ESLint (all workspaces with a lint script)"
-npm -ws --if-present run lint
-
-echo "[vizij-web pre-push] Typecheck (all workspaces with a typecheck script)"
-npm -ws --if-present run typecheck
-
-echo "[vizij-web pre-push] Unit tests (all workspaces with a test script)"
-# Run tests in CI/non-watch mode to avoid hanging interactive watch sessions.
-CI=1 npm -ws --if-present run test
-
-# Optional: run builds to catch bundling/tsconfigs issues early
+# Optional: run additional builds to catch bundling/tsconfig issues early
 if [[ "${HOOK_RUN_WEB_BUILD:-0}" == "1" ]]; then
-  echo "[vizij-web pre-push] Build (all workspaces with a build script)"
-  npm -ws --if-present run build
+  echo "[vizij-web pre-push] Extra build (HOOK_RUN_WEB_BUILD=1)"
+  pnpm run build
 fi
 
 echo "[vizij-web pre-push] OK"

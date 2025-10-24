@@ -20,5 +20,5 @@ jobs:
           node-version: "lts/*"
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter "@vizij/animation-react" build
-      - run: pnpm --filter demo-animation build
+      - run: pnpm run build
+      - run: pnpm run prep

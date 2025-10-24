@@ -2,7 +2,7 @@
 
 - Run commands via `pnpm --filter "@vizij/node-graph-react"` (`build`, `test`, `typecheck`, `lint`, `clean`, `dev`). Bundles are produced with `tsup`; declarations live in `dist/`.
 - Coordinate ABI or API changes with `@vizij/node-graph-wasm` (from `vizij-rs`). Update dependency versions and ensure compatibility helpers (`compat.tsx`) evolve in lock-step.
-- Maintain documentation and demos (`apps/demo-graph`, `apps/demo-animation-graph`) when adding or removing hooks.
+- Maintain documentation and demos (`apps/demo-graph-studio`, `apps/minimal-demo-graph`, `apps/minimal-demo-animation-graph`) when adding or removing hooks.
 - Pre-publish checklist:
   ```bash
   pnpm changeset

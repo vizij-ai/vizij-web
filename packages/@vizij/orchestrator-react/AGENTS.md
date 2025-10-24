@@ -2,7 +2,7 @@
 
 - Invoke scripts with `pnpm --filter "@vizij/orchestrator-react"` (`build`, `test`, `typecheck`, `lint`, `clean`, `dev`). Bundles are produced with `tsup`.
 - Keep this package aligned with `@vizij/orchestrator-wasm`. When the WASM crate changes ABI versions, update dependency ranges, helpers, and docs together.
-- Check orchestrator-focused demos (`apps/demo-orchestrator`, `apps/demo-animating-faces`) after modifying hooks or provider behaviour.
+- Check orchestrator-focused demos (`apps/demo-vizij-player`, `apps/minimal-demo-orchestrator`) after modifying hooks or provider behaviour.
 - Before publishing, run:
   ```bash
   pnpm changeset

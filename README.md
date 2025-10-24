@@ -35,25 +35,24 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | Package                     | Path                                 | Summary                                                       | Key scripts                                  |
 | --------------------------- | ------------------------------------ | ------------------------------------------------------------- | -------------------------------------------- |
 | `@vizij/animation-react`    | `packages/@vizij/animation-react`    | React provider for the animation WASM engine.                 | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/config`             | `packages/@vizij/config`             | Canonical rig/channel definitions + utilities.                | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/node-graph-react`   | `packages/@vizij/node-graph-react`   | React provider & hooks for node graphs.                       | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/orchestrator-react` | `packages/@vizij/orchestrator-react` | React orchestrator bindings.                                  | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/rig`                | `packages/@vizij/rig`                | Helpers for loading rigged GLTF characters into the renderer. | `dev`, `build`, `typecheck`, `clean`         |
-| `vizij`                     | `packages/render`                    | Three.js renderer, store, controllers.                        | `dev`, `build`, `lint`, `clean`              |
-| `@vizij/utils`              | `packages/utils`                     | Shared math/value utilities.                                  | `dev`, `build`, `test`, `clean`              |
+| `@vizij/orchestrator-react` | `packages/@vizij/orchestrator-react` | React orchestrator bindings and hooks.                        | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/render`             | `packages/@vizij/render`             | Three.js renderer + controllers for Vizij rigs.               | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/utils`              | `packages/@vizij/utils`              | Shared math/value utilities consumed across packages/apps.    | `dev`, `build`, `test`, `clean`              |
 
 ### Apps
 
-| App                     | Path                         | Purpose                                                                             | Typical scripts                                         |
-| ----------------------- | ---------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `website`               | `apps/website`               | Marketing/docs site sharing Vizij components.                                       | `dev`, `build`, `typecheck`, `lint`, `preview`, `clean` |
-| `node-graph-editor`     | `apps/node-graph-editor`     | Authoring tool for Vizij graphs.                                                    | `dev`, `build`, `test`, `typecheck`, `lint`, `preview`  |
-| `demo-animation-studio` | `apps/demo-animation-studio` | Playground for animation presets & rig control.                                     | `dev`, `build`, `typecheck`, `preview`                  |
-| `demo-animation`        | `apps/demo-animation`        | Minimal animation player sample.                                                    | `dev`, `build`, `typecheck`, `preview`                  |
-| `demo-animation-graph`  | `apps/demo-animation-graph`  | Animation graph showcase combining node graphs and animation outputs.               | `dev`, `build`, `typecheck`, `preview`                  |
-| `demo-graph`            | `apps/demo-graph`            | Minimal node graph consumer sample.                                                 | `dev`, `build`, `typecheck`, `preview`                  |
-| `demo-orchestrator`     | `apps/demo-orchestrator`     | Orchestrator showcase (graphs + animations).                                        | `dev`, `build`, `typecheck`, `preview`                  |
-| `demo-render-no-rig`    | `apps/demo-render-no-rig`    | Renderer showcase without rigging layer (basic face control & orchestration panel). | `dev`, `build`, `typecheck`, `preview`                  |
+| App                          | Path                                  | Purpose                                                                             | Typical scripts                                         |
+| ---------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `demo-animation-studio`      | `apps/demo-animation-studio`          | Playground for animation presets & advanced rig control.                            | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-graph-studio`          | `apps/demo-graph-studio`              | Work-in-progress Vizij node graph editor.                                           | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-vizij-authoring`       | `apps/demo-vizij-authoring`           | Inspect Vizij assets, tweak metadata, and export GLBs.                              | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-vizij-player`          | `apps/demo-vizij-player`              | Authoring surface for facial rigs and orchestrator-driven playback.                 | `dev`, `build`, `typecheck`, `preview`                  |
+| `demo-vizij-rigging`         | `apps/demo-vizij-rigging`             | Create high-level emotion rigs from low-level Vizij mappings.                       | `dev`, `build`, `typecheck`, `preview`                  |
+| `minimal-demo-animation`     | `apps/minimal-demo-animation`         | Minimal animation runtime example for quick smoke tests.                            | `dev`, `build`, `typecheck`, `preview`                  |
+| `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).                   | `dev`, `build`, `typecheck`, `preview`                  |
+| `minimal-demo-graph`         | `apps/minimal-demo-graph`             | Lightweight node-graph playground (inputs, outputs, staging behaviour).             | `dev`, `build`, `typecheck`, `preview`                  |
+| `minimal-demo-orchestrator`  | `apps/minimal-demo-orchestrator`      | Orchestrator blackboard visualiser with canned controllers.                         | `dev`, `build`, `typecheck`, `preview`                  |
 
 ---
 
@@ -84,8 +83,8 @@ When linking local WASM builds you’ll also need the Rust toolchain from [`vizi
    ```
 3. Start a dev server:
    ```bash
-   pnpm run dev:website
-   # or any app via pnpm --filter "<workspace>" dev
+   pnpm run dev:demo-animation-studio
+   # or start any other app via pnpm --filter "<workspace>" dev
    ```
 
 ---
@@ -94,17 +93,18 @@ When linking local WASM builds you’ll also need the Rust toolchain from [`vizi
 
 From the repo root:
 
-| Command                                  | Description                                                  |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| `pnpm run dev:<app>`                     | Start any app (`dev:animation`, etc.).                       |
-| `pnpm run build`                         | Build all packages and apps.                                 |
-| `pnpm run build:packages` / `build:apps` | Targeted builds.                                             |
-| `pnpm run typecheck`                     | Run TypeScript checks across workspaces.                     |
-| `pnpm run test`                          | Execute all test scripts (Vitest).                           |
-| `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.    |
-| `pnpm run clean`                         | Remove workspace build outputs.                              |
-| `pnpm run reset`                         | Remove every `node_modules`/cache (:hard to remove locks).   |
-| `pnpm run link:wasm`                     | Link locally built `@vizij/*-wasm` packages from `vizij-rs`. |
+| Command                                  | Description                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `pnpm run dev:<workspace>`               | Start a specific app (e.g. `dev:demo-vizij-player`, `dev:minimal-demo-graph`).               |
+| `pnpm run build`                         | Build packages then apps in dependency order.                                                |
+| `pnpm run build:packages` / `build:apps` | Run just the package builds or just the app builds.                                          |
+| `pnpm run prep`                          | Format, then lint, then run `typecheck:all` across the workspace.                            |
+| `pnpm run prep:push`                     | Full validation: format → clean → build → lint → `typecheck:all` → test (CI-friendly).       |
+| `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.                                    |
+| `pnpm run typecheck` / `typecheck:all`   | Regular type checks (`typecheck`) or no-bail mode that surfaces every failure (`typecheck:all`). |
+| `pnpm run test`                          | Execute all test scripts (Vitest).                                                           |
+| `pnpm run clean`                         | Remove workspace build outputs.                                                              |
+| `pnpm run reset` / `reset:hard`          | Drop `node_modules` (and lockfiles via `reset:hard`) to rebuild the workspace from scratch.   |
 
 Use `pnpm --filter "<workspace>" <script>` when you want to target a specific package/app.
 
@@ -119,9 +119,9 @@ When you need edits from the Rust workspace:
    pnpm run link:wasm
    # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
    ```
-2. Back in this repo:
+2. Back in this repo, reinstall to pick up the new symlinks:
    ```bash
-   pnpm run link:wasm
+   pnpm install
    ```
 
 Tips:
@@ -183,8 +183,6 @@ The workflow at [`.github/workflows/publish-npm.yml`](.github/workflows/publish-
 | `@vizij/animation-react`    | `npm-animation-react-v`    | Requires `@vizij/animation-wasm` from `vizij-rs` to be up to date.                         |
 | `@vizij/node-graph-react`   | `npm-node-graph-react-v`   | Requires `@vizij/node-graph-wasm` from `vizij-rs`.                                         |
 | `@vizij/orchestrator-react` | `npm-orchestrator-react-v` | Requires `@vizij/orchestrator-wasm` from `vizij-rs`.                                       |
-| `@vizij/config`             | `npm-config-v`             | Pure TypeScript exports; update alongside schema changes.                                  |
-| `@vizij/rig`                | `npm-rig-v`                | Depends on `@vizij/render`, `@vizij/utils`, and `@vizij/config`; release after those tags. |
 
 The action logs the npm publish output. If a publish needs to be re-run, delete the tag locally and remotely (`git tag -d ...`, `git push origin :<tag>`), fix the issue, and push a new tag.
 
