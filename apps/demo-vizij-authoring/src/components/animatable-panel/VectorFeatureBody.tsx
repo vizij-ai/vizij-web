@@ -1,11 +1,11 @@
-import { computeVectorBounds } from "../../rig/bounds";
+import { computeVectorBounds } from "@vizij/utils";
 import type {
   AnimatableColor,
   AnimatableEuler,
   AnimatableVector3,
   RawValue,
 } from "@vizij/utils";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { StandardInputValues } from "../../rig/state";
 import {
   ensureVectorValue,

@@ -13,9 +13,9 @@ import {
   type RawValue,
   type RawVector3,
 } from "@vizij/utils";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
-import { computeNumberBounds, computeVectorBounds } from "../../rig/bounds";
-import { APPROX_EQUAL_EPSILON } from "./constants";
+import type { StandardRigInput } from "@vizij/utils";
+import { computeNumberBounds, computeVectorBounds } from "@vizij/utils";
+import { APPROX_EQUAL_EPSILON } from "../../utils/constants";
 import type { FeatureEntry, VectorFeatureEntry, RenderableLike } from "./types";
 
 export function formatStandardInputLabel(input: StandardRigInput): string {

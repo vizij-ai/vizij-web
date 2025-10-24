@@ -1,5 +1,5 @@
 import { ChangeEvent, useMemo, useState } from "react";
-import type { StandardRigInput } from "../low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { EmotionDefinition } from "../rigging/types";
 
 interface EmotionEditorProps {

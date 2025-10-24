@@ -1,5 +1,5 @@
 import { ChangeEvent } from "react";
-import type { StandardRigInput } from "../low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { StandardInputId } from "../rigging/types";
 
 interface LowLevelInputsPanelProps {

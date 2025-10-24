@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { AnimatableValue } from "@vizij/utils";
-import type { StandardRigInput } from "../low-level/standardRigInputs";
-import type { AnimatableComponent } from "../low-level/animatableMetadata";
+import type { StandardRigInput } from "@vizij/utils";
+import type { AnimatableComponent } from "@vizij/utils";
 import type {
   LowLevelBinding,
   LowLevelRigSummary,

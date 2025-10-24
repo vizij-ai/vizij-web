@@ -1,8 +1,8 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { StandardRigInput } from "./standardRigInputs";
-import type { AnimatableComponent } from "./animatableMetadata";
-import { buildAnimatableValue } from "./animatableMetadata";
+import type { StandardRigInput } from "@vizij/utils";
+import type { AnimatableComponent } from "@vizij/utils";
+import { buildAnimatableValue } from "@vizij/utils";
 import type { BindingMap } from "./state";
 import { createDefaultRemap, type RemapSettings } from "./state";
 

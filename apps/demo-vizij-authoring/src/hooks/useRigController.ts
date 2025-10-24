@@ -14,7 +14,7 @@ import {
   buildAnimatableValue,
   type ComponentOverrideMap,
   type AnimatableComponent as AnimComponent,
-} from "../rig/animatableMetadata";
+} from "@vizij/utils";
 import {
   createDefaultBindings,
   createDefaultInputValues,
@@ -34,10 +34,10 @@ import {
   deriveLabelFromNormalizedPath,
   normalizeStandardRigInputPath,
   type StandardRigInput,
-} from "../rig/standardRigInputs";
+} from "@vizij/utils";
 import { loadRigState, saveRigState } from "../rig/persistence";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
-import { cloneRawValue, rawValuesEqual } from "../utils/rawValue";
+import { cloneRawValue, rawValuesEqual } from "@vizij/utils";
 import { alertDialog } from "../utils/dialogs";
 
 interface UseRigControllerOptions {

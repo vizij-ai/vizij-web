@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { buildPoseGraphSpec } from "./graphBuilder";
-import type { StandardRigInput } from "../low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 
 function makeStandardInput(
   overrides: Partial<StandardRigInput> = {},

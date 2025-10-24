@@ -1,4 +1,4 @@
-export { DEFAULT_NAMESPACE } from "../../constants";
+export const DEFAULT_NAMESPACE = "default";
 
 export const XYZ_COMPONENTS = ["x", "y", "z"] as const;
 export const RGB_COMPONENTS = ["r", "g", "b"] as const;

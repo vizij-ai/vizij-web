@@ -1,4 +1,4 @@
-import type { StandardRigInput } from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { StandardInputValues } from "../../rig/state";
 import type { BindingTarget } from "./types";
 

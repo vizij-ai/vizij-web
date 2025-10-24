@@ -1,6 +1,6 @@
 import { Fragment, useCallback } from "react";
 import { createDefaultRemap } from "../../rig/state";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { BindingTarget, BindingField } from "./types";
 import { formatStandardInputLabel } from "./panelUtils";
 

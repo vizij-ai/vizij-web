@@ -17,7 +17,7 @@ import {
   type WriteOpJSON,
 } from "@vizij/node-graph-react";
 
-import type { StandardRigInput } from "./low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import {
   createNeutralInputs,
   ensureNeutralDefaults,

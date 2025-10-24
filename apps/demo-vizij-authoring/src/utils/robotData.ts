@@ -1,5 +1,5 @@
 import type { AnimatableValue } from "@vizij/utils";
-import { cloneRawValue } from "./rawValue";
+import { cloneRawValue } from "@vizij/utils";
 
 type Traversable = {
   traverse: (callback: (object: Record<string, any>) => void) => void;

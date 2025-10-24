@@ -1,4 +1,4 @@
-import type { StandardRigInput } from "../low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 
 export type StandardInputId = StandardRigInput["id"];
 

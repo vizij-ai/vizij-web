@@ -1,4 +1,4 @@
-import type { RawValue } from "@vizij/utils";
+import type { RawValue } from "../animated-values";
 
 export function cloneRawValue<T extends RawValue>(value: T): T {
   if (value && typeof value === "object") {

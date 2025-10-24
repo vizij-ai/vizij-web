@@ -1,15 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { getLookup, RawValue, AnimatableValue } from "@vizij/utils";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
-import type { AnimatableComponent } from "../../rig/animatableMetadata";
-import { DEFAULT_NAMESPACE } from "./constants";
+import type { StandardRigInput } from "@vizij/utils";
+import type { AnimatableComponent } from "@vizij/utils";
+import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import type { FeatureEntry, AnimatableValuesPanelProps } from "./types";
 import {
   buildDefaultAnimatable,
   isAnimatableReferencedElsewhere,
 } from "./panelUtils";
-import { cloneRawValue } from "../../utils/rawValue";
+import { cloneRawValue } from "@vizij/utils";
 import { promptDialog, confirmDialog, alertDialog } from "../../utils/dialogs";
 import { StandardInputsSection } from "./StandardInputsSection";
 import { SelectionStack } from "./SelectionStack";

@@ -5,7 +5,7 @@ import {
   reconcileBindings,
   type BindingMap,
 } from "./state";
-import type { AnimatableComponent } from "./animatableMetadata";
+import type { AnimatableComponent } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {
   id: "jaw_open",

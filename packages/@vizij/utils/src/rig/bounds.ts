@@ -1,4 +1,9 @@
-import type { RawColor, RawEuler, RawVector2, RawVector3 } from "@vizij/utils";
+import type {
+  RawColor,
+  RawEuler,
+  RawVector2,
+  RawVector3,
+} from "../animated-values";
 
 function computeTranslationBounds(componentValue: number): [number, number] {
   if (Math.abs(componentValue) < 1e-4) {

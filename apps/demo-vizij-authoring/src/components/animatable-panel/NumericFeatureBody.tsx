@@ -1,6 +1,6 @@
-import { computeNumberBounds } from "../../rig/bounds";
+import { computeNumberBounds } from "@vizij/utils";
 import type { AnimatableNumber, RawValue } from "@vizij/utils";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import type { StandardInputValues } from "../../rig/state";
 import { isApproximatelyEqual } from "./panelUtils";
 import { BindingMatrix } from "./BindingMatrix";

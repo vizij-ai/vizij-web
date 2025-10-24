@@ -7,7 +7,7 @@ import {
   VectorDescriptorType,
   VectorComponent,
 } from "./types";
-import { RGB_COMPONENTS, XYZ_COMPONENTS } from "./constants";
+import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
 
 const FEATURE_SORT_SEQUENCE = [
   "translation",

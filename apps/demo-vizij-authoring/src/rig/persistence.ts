@@ -1,5 +1,5 @@
 import type { BindingMap, StandardInputValues } from "./state";
-import type { StandardRigInput } from "./standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 
 const STORAGE_KEY = "vizij:rig-authoring:v1";
 

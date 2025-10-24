@@ -1,5 +1,5 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
-import type { StandardRigInput } from "../low-level/standardRigInputs";
+import type { StandardRigInput } from "@vizij/utils";
 import { buildRigInputPath } from "./utils";
 import type {
   EmotionDefinition,

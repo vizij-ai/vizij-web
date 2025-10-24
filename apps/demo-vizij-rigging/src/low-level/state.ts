@@ -1,8 +1,5 @@
-import {
-  STANDARD_RIG_INPUTS,
-  type StandardRigInput,
-} from "./standardRigInputs";
-import type { AnimatableComponent } from "./animatableMetadata";
+import { STANDARD_RIG_INPUTS, type StandardRigInput } from "@vizij/utils";
+import type { AnimatableComponent } from "@vizij/utils";
 
 export interface RemapSettings {
   inMin: number;

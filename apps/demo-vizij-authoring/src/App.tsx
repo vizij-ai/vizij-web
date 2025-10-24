@@ -10,7 +10,7 @@ import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
 import { AssetLoaderPanel } from "./components/app/AssetLoaderPanel";
 import { ExportPanel } from "./components/app/ExportPanel";
 import { Viewer } from "./components/app/Viewer";
-import { DEFAULT_NAMESPACE } from "./constants";
+import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { useRigController } from "./hooks/useRigController";
 import { waitForNextFrame } from "./utils/frame";

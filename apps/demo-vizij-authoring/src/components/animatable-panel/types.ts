@@ -10,16 +10,16 @@ import type {
   AnimatableColor,
 } from "@vizij/utils";
 import type { Selection } from "@vizij/render";
-import type { AnimatableComponent } from "../../rig/animatableMetadata";
+import type { AnimatableComponent } from "@vizij/utils";
 import type {
   BindingMap,
   AnimatableBinding,
   StandardInputValues,
   RemapSettings,
 } from "../../rig/state";
-import type { StandardRigInput } from "../../rig/standardRigInputs";
-import type { VectorDescriptorType } from "../../rig/bounds";
-import { RGB_COMPONENTS, XYZ_COMPONENTS } from "./constants";
+import type { StandardRigInput } from "@vizij/utils";
+import type { VectorDescriptorType } from "@vizij/utils";
+import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
 
 export type VectorComponent =
   | (typeof XYZ_COMPONENTS)[number]
