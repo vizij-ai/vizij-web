@@ -338,7 +338,7 @@ function applyBlendStrategy(
     nodes.push({ id: weightsNodeId, type: "join" });
     const weightResolver =
       resolveWeight ??
-      ((driver: RigDriver, output: RigDriverOutput) =>
+      ((_driver: RigDriver, _output: RigDriverOutput) =>
         strategy === "average" && operands.length > 0
           ? 1 / operands.length
           : 1);

@@ -17,7 +17,6 @@ import {
 } from "@vizij/utils";
 import {
   createDefaultBindings,
-  createDefaultInputValues,
   reconcileBindings,
   updateBindingWithInput,
   remapValue,
@@ -35,10 +34,18 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { loadRigState, saveRigState } from "../rig/persistence";
+import {
+  loadRigState,
+  saveRigState,
+  type PersistedAutoStandardInput,
+} from "../rig/persistence";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { cloneRawValue, rawValuesEqual } from "@vizij/utils";
 import { alertDialog } from "../utils/dialogs";
+import {
+  buildAutoRigInputBlueprints,
+  type AutoRigInputBlueprintMetadata,
+} from "../rig/autoInputs";
 
 interface UseRigControllerOptions {
   namespace: string;
@@ -48,9 +55,30 @@ interface UseRigControllerOptions {
 
 type AnimatableComponent = AnimComponent;
 
+type ManagedStandardInputSource = "auto" | "custom";
+
+export interface ManagedStandardInput {
+  input: StandardRigInput;
+  source: ManagedStandardInputSource;
+  disabled: boolean;
+  metadata?: AutoRigInputBlueprintMetadata;
+}
+
+interface AutoInputState {
+  input: StandardRigInput;
+  disabled: boolean;
+  metadata: AutoRigInputBlueprintMetadata;
+  generatedLabel: string;
+  generatedDefaultValue: number;
+  generatedRange: { min: number; max: number };
+}
+
 export interface RigController {
   faceId: string;
   setFaceId: (next: string) => void;
+  managedStandardInputs: ManagedStandardInput[];
+  standardInputRoots: string[];
+  selectedStandardInputRoots: string[];
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
@@ -70,12 +98,14 @@ export interface RigController {
     value: number,
   ) => void;
   handleResetBinding: (targetId: string) => void;
-  handleCreateStandardInput: (path: string) => StandardRigInput | null;
+  handleToggleStandardInput: (path: string, enabled: boolean) => void;
+  handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
   handleUpdateStandardInput: (
     inputId: string,
     updates: { path?: string; label?: string },
   ) => void;
-  handleDeleteStandardInput: (inputId: string) => void;
+  handleDeleteCustomStandardInput: (inputId: string) => void;
+  handleSelectStandardInputRoots: (roots: string[]) => void;
   handleFaceIdChange: (value: string) => void;
   handleFocusSelectionIndex: (index: number) => void;
   handleClearSelection: () => void;
@@ -102,13 +132,22 @@ export function useRigController({
   const setStoreState = useVizijStoreSetter();
 
   const [faceId, setFaceIdState] = useState<string>("robot");
-  const [standardInputs, setStandardInputs] = useState<StandardRigInput[]>([]);
-  const [inputValues, setInputValues] = useState<StandardInputValues>(() =>
-    createDefaultInputValues(),
+  const [autoInputs, setAutoInputs] = useState<Map<string, AutoInputState>>(
+    () => new Map(),
   );
+  const autoInputsRef = useRef(autoInputs);
+  const [customInputs, setCustomInputs] = useState<StandardRigInput[]>([]);
+  const [selectedStandardInputRoots, setSelectedStandardInputRoots] = useState<
+    string[]
+  >([]);
+  const [inputValues, setInputValues] = useState<StandardInputValues>({});
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
   );
+
+  const persistedAutoInputsRef = useRef<
+    Map<string, PersistedAutoStandardInput>
+  >(new Map());
 
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const lastAutoFaceIdRef = useRef<string | null>(null);
@@ -128,6 +167,199 @@ export function useRigController({
     [animatableComponents],
   );
 
+  const autoBlueprintResult = useMemo(() => {
+    return buildAutoRigInputBlueprints(
+      world,
+      animatables,
+      animatableComponents,
+    );
+  }, [animatableComponents, animatables, world]);
+
+  const autoBlueprints = autoBlueprintResult.blueprints;
+  const standardInputRoots = autoBlueprintResult.roots;
+  const componentPathMap = autoBlueprintResult.componentPathMap;
+
+  const componentPathMapRef = useRef(componentPathMap);
+
+  useEffect(() => {
+    componentPathMapRef.current = componentPathMap;
+  }, [componentPathMap]);
+
+  const componentsByIdRef = useRef(componentsById);
+
+  useEffect(() => {
+    componentsByIdRef.current = componentsById;
+  }, [componentsById]);
+
+  useEffect(() => {
+    setAutoInputs((previous) => {
+      const next = new Map<string, AutoInputState>();
+      const persisted = persistedAutoInputsRef.current;
+
+      autoBlueprints.forEach((blueprint) => {
+        const existing = previous.get(blueprint.path);
+        const persistedEntry = persisted.get(blueprint.path);
+        const disabled =
+          existing?.disabled ?? persistedEntry?.disabled ?? false;
+
+        if (existing) {
+          const labelMatchesGenerated =
+            existing.input.label === existing.generatedLabel;
+          const rangeMatchesGenerated =
+            existing.input.range.min === existing.generatedRange.min &&
+            existing.input.range.max === existing.generatedRange.max;
+          const defaultMatchesGenerated =
+            existing.input.defaultValue === existing.generatedDefaultValue;
+
+          const nextLabel = labelMatchesGenerated
+            ? (persistedEntry?.label ?? blueprint.input.label)
+            : existing.input.label;
+          const nextDefaultValue = defaultMatchesGenerated
+            ? (persistedEntry?.defaultValue ?? blueprint.input.defaultValue)
+            : existing.input.defaultValue;
+          const persistedRangeMin =
+            persistedEntry?.range?.min ?? blueprint.input.range.min;
+          const persistedRangeMax =
+            persistedEntry?.range?.max ?? blueprint.input.range.max;
+          const nextRangeMin = rangeMatchesGenerated
+            ? persistedRangeMin
+            : existing.input.range.min;
+          const nextRangeMax = rangeMatchesGenerated
+            ? persistedRangeMax
+            : existing.input.range.max;
+
+          const updatedInput = createStandardRigInput({
+            id: existing.input.id,
+            path: blueprint.input.path,
+            label: nextLabel,
+            group: blueprint.input.group,
+            defaultValue: nextDefaultValue,
+            range: {
+              min: nextRangeMin,
+              max: nextRangeMax,
+            },
+          });
+
+          next.set(blueprint.path, {
+            input: updatedInput,
+            disabled,
+            metadata: blueprint.metadata,
+            generatedLabel: blueprint.input.label,
+            generatedDefaultValue: blueprint.input.defaultValue,
+            generatedRange: {
+              min: blueprint.input.range.min,
+              max: blueprint.input.range.max,
+            },
+          });
+        } else {
+          const input = createStandardRigInput({
+            id: blueprint.input.id,
+            path: blueprint.input.path,
+            label: persistedEntry?.label ?? blueprint.input.label,
+            group: blueprint.input.group,
+            defaultValue:
+              persistedEntry?.defaultValue ?? blueprint.input.defaultValue,
+            range: {
+              min: persistedEntry?.range?.min ?? blueprint.input.range.min,
+              max: persistedEntry?.range?.max ?? blueprint.input.range.max,
+            },
+          });
+
+          next.set(blueprint.path, {
+            input,
+            disabled,
+            metadata: blueprint.metadata,
+            generatedLabel: blueprint.input.label,
+            generatedDefaultValue: blueprint.input.defaultValue,
+            generatedRange: {
+              min: blueprint.input.range.min,
+              max: blueprint.input.range.max,
+            },
+          });
+        }
+
+        persisted.delete(blueprint.path);
+      });
+
+      previous.forEach((entry, path) => {
+        if (!next.has(path)) {
+          next.set(path, {
+            ...entry,
+            disabled: true,
+          });
+        }
+      });
+
+      persistedAutoInputsRef.current = persisted;
+      return next;
+    });
+  }, [autoBlueprints]);
+
+  const managedStandardInputs = useMemo<ManagedStandardInput[]>(() => {
+    const entries: ManagedStandardInput[] = [];
+    const blueprintPaths = new Set<string>();
+
+    autoBlueprints.forEach((blueprint) => {
+      blueprintPaths.add(blueprint.path);
+      const entry = autoInputs.get(blueprint.path);
+      if (!entry) {
+        return;
+      }
+      entries.push({
+        input: entry.input,
+        source: "auto",
+        disabled: entry.disabled,
+        metadata: entry.metadata,
+      });
+    });
+
+    autoInputs.forEach((entry, path) => {
+      if (blueprintPaths.has(path)) {
+        return;
+      }
+      entries.push({
+        input: entry.input,
+        source: "auto",
+        disabled: entry.disabled,
+        metadata: entry.metadata,
+      });
+    });
+
+    customInputs.forEach((input) => {
+      entries.push({
+        input,
+        source: "custom",
+        disabled: false,
+      });
+    });
+
+    return entries;
+  }, [autoBlueprints, autoInputs, customInputs]);
+
+  useEffect(() => {
+    if (selectedStandardInputRoots.length === 0) {
+      return;
+    }
+    const validRoots = new Set<string>(standardInputRoots);
+    customInputs.forEach((input) => {
+      validRoots.add(input.group || "custom");
+    });
+    const filtered = selectedStandardInputRoots.filter((root) =>
+      validRoots.has(root),
+    );
+    if (filtered.length !== selectedStandardInputRoots.length) {
+      setSelectedStandardInputRoots(filtered);
+    }
+  }, [customInputs, selectedStandardInputRoots, standardInputRoots]);
+
+  const standardInputs = useMemo(
+    () =>
+      managedStandardInputs
+        .filter((entry) => !entry.disabled)
+        .map((entry) => entry.input),
+    [managedStandardInputs],
+  );
+
   const standardInputsById = useMemo(
     () => new Map(standardInputs.map((input) => [input.id, input])),
     [standardInputs],
@@ -138,23 +370,77 @@ export function useRigController({
   }, [rootId, world]);
 
   useEffect(() => {
-    setInputValues((previous) => {
+    autoInputsRef.current = autoInputs;
+  }, [autoInputs]);
+
+  useEffect(() => {
+    if (autoInputs.size === 0) {
+      return;
+    }
+    setBindings((previous) => {
       let changed = false;
-      const next: StandardInputValues = {};
-      standardInputs.forEach((input) => {
-        if (Object.prototype.hasOwnProperty.call(previous, input.id)) {
-          next[input.id] = previous[input.id];
-        } else {
-          next[input.id] = input.defaultValue;
+      const next: BindingMap = { ...previous };
+
+      autoBlueprints.forEach((blueprint) => {
+        const entry = autoInputs.get(blueprint.path);
+        if (!entry || entry.disabled) {
+          return;
+        }
+        const componentId = blueprint.metadata.componentId;
+        const component = componentsByIdRef.current.get(componentId);
+        if (!component) {
+          return;
+        }
+        const existing = next[componentId] ?? {
+          targetId: componentId,
+          inputId: null,
+          remap: createDefaultRemap(component),
+        };
+        if (existing.inputId) {
+          return;
+        }
+        const updated = updateBindingWithInput(
+          existing,
+          component,
+          entry.input,
+        );
+        if (updated !== existing) {
+          next[componentId] = updated;
+          changed = true;
+        } else if (!Object.prototype.hasOwnProperty.call(next, componentId)) {
+          next[componentId] = existing;
+        }
+      });
+
+      return changed ? next : previous;
+    });
+  }, [autoBlueprints, autoInputs]);
+
+  useEffect(() => {
+    setInputValues((previous) => {
+      const next: StandardInputValues = { ...previous };
+      let changed = false;
+      const validIds = new Set<string>();
+
+      managedStandardInputs.forEach((entry) => {
+        const inputId = entry.input.id;
+        validIds.add(inputId);
+        if (!Object.prototype.hasOwnProperty.call(next, inputId)) {
+          next[inputId] = entry.input.defaultValue;
           changed = true;
         }
       });
-      if (Object.keys(previous).length !== standardInputs.length || changed) {
-        return next;
-      }
-      return previous;
+
+      Object.keys(next).forEach((inputId) => {
+        if (!validIds.has(inputId)) {
+          delete next[inputId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : previous;
     });
-  }, [standardInputs]);
+  }, [managedStandardInputs]);
 
   useEffect(() => {
     const validIds = new Set(standardInputs.map((input) => input.id));
@@ -188,6 +474,19 @@ export function useRigController({
       }));
     },
     [],
+  );
+
+  const handleSelectStandardInputRoots = useCallback(
+    (nextRoots: string[]) => {
+      const validSet = new Set<string>();
+      nextRoots.forEach((root) => {
+        if (standardInputRoots.includes(root)) {
+          validSet.add(root);
+        }
+      });
+      setSelectedStandardInputRoots(Array.from(validSet));
+    },
+    [standardInputRoots],
   );
 
   const handleBindingInputChange = useCallback(
@@ -263,12 +562,19 @@ export function useRigController({
     [componentsById],
   );
 
-  const handleCreateStandardInput = useCallback(
+  const handleCreateCustomStandardInput = useCallback(
     (path: string): StandardRigInput | null => {
       let createdInput: StandardRigInput | null = null;
-      setStandardInputs((previous) => {
+      const normalizedPath = normalizeStandardRigInputPath(path);
+      setCustomInputs((previous) => {
+        const autoIds = new Set(
+          Array.from(autoInputsRef.current.values()).map(
+            (entry) => entry.input.id,
+          ),
+        );
         const existingIds = new Set(previous.map((input) => input.id));
-        let candidate = createStandardRigInputFromPath(path);
+        autoIds.forEach((id) => existingIds.add(id));
+        let candidate = createStandardRigInputFromPath(normalizedPath);
         if (existingIds.has(candidate.id)) {
           const baseSegments = candidate.path
             .split("/")
@@ -291,20 +597,68 @@ export function useRigController({
           candidate = resolved;
         }
         createdInput = candidate;
-        setInputValues((prev) => ({
-          ...prev,
-          [candidate.id]: candidate.defaultValue,
-        }));
         return [...previous, candidate];
       });
-      return createdInput;
+      if (createdInput === null) {
+        return null;
+      }
+      const created: StandardRigInput = createdInput;
+      setInputValues((previous) => ({
+        ...previous,
+        [created.id]: created.defaultValue,
+      }));
+      return created;
     },
     [],
   );
 
   const handleUpdateStandardInput = useCallback(
     (inputId: string, updates: { path?: string; label?: string }) => {
-      setStandardInputs((previous) => {
+      const autoEntry = Array.from(autoInputsRef.current.entries()).find(
+        ([, entry]) => entry.input.id === inputId,
+      );
+      if (autoEntry) {
+        if (updates.path !== undefined) {
+          alertDialog(
+            "Auto-generated inputs follow the scene hierarchy and cannot change path.",
+          );
+          return;
+        }
+        if (updates.label === undefined) {
+          return;
+        }
+        const trimmedLabel = updates.label.trim();
+        const nextLabel =
+          trimmedLabel.length > 0
+            ? trimmedLabel
+            : deriveLabelFromNormalizedPath(autoEntry[1].input.path);
+        setAutoInputs((previous) => {
+          const current = previous.get(autoEntry[0]);
+          if (!current || current.input.label === nextLabel) {
+            return previous;
+          }
+          const updatedInput = createStandardRigInput({
+            id: current.input.id,
+            path: current.input.path,
+            label: nextLabel,
+            group: current.input.group,
+            defaultValue: current.input.defaultValue,
+            range: {
+              min: current.input.range.min,
+              max: current.input.range.max,
+            },
+          });
+          const next = new Map(previous);
+          next.set(autoEntry[0], {
+            ...current,
+            input: updatedInput,
+          });
+          return next;
+        });
+        return;
+      }
+
+      setCustomInputs((previous) => {
         const index = previous.findIndex((input) => input.id === inputId);
         if (index === -1) {
           return previous;
@@ -317,12 +671,16 @@ export function useRigController({
         const requestedPath =
           updates.path !== undefined ? updates.path : current.path;
         const normalizedPath = normalizeStandardRigInputPath(requestedPath);
-        const isPathChanged = normalizedPath !== current.path;
         if (
-          isPathChanged &&
-          previous.some(
+          updates.path !== undefined &&
+          (previous.some(
             (input, idx) => idx !== index && input.path === normalizedPath,
-          )
+          ) ||
+            Array.from(autoInputsRef.current.values()).some(
+              (entry) =>
+                entry.input.path === normalizedPath &&
+                entry.input.id !== inputId,
+            ))
         ) {
           alertDialog(
             `Another standard input already uses the path "${normalizedPath}".`,
@@ -337,6 +695,9 @@ export function useRigController({
             : updates.label !== undefined
               ? deriveLabelFromNormalizedPath(normalizedPath)
               : current.label;
+        if (normalizedPath === current.path && nextLabel === current.label) {
+          return previous;
+        }
         const nextGroup = deriveGroupFromNormalizedPath(normalizedPath);
         const updated = createStandardRigInput({
           id: current.id,
@@ -357,11 +718,102 @@ export function useRigController({
     [],
   );
 
-  const handleDeleteStandardInput = useCallback((inputId: string) => {
-    setStandardInputs((previous) =>
-      previous.filter((input) => input.id !== inputId),
-    );
-  }, []);
+  const handleDeleteCustomStandardInput = useCallback(
+    (inputId: string) => {
+      const isAuto = Array.from(autoInputsRef.current.values()).some(
+        (entry) => entry.input.id === inputId,
+      );
+      if (isAuto) {
+        return;
+      }
+      setCustomInputs((previous) =>
+        previous.filter((input) => input.id !== inputId),
+      );
+      setInputValues((previous) => {
+        if (!Object.prototype.hasOwnProperty.call(previous, inputId)) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[inputId];
+        return next;
+      });
+      setBindings((previous) => {
+        let changed = false;
+        const next: BindingMap = {};
+        Object.entries(previous).forEach(([key, binding]) => {
+          if (!binding) {
+            return;
+          }
+          if (binding.inputId === inputId) {
+            const component = componentsByIdRef.current.get(key);
+            next[key] = {
+              targetId: binding.targetId,
+              inputId: null,
+              remap: component ? createDefaultRemap(component) : binding.remap,
+            };
+            changed = true;
+          } else {
+            next[key] = binding;
+          }
+        });
+        return changed ? next : previous;
+      });
+    },
+    [setBindings],
+  );
+
+  const handleToggleStandardInput = useCallback(
+    (path: string, enabled: boolean) => {
+      const normalizedPath = normalizeStandardRigInputPath(path);
+      const entry = autoInputsRef.current.get(normalizedPath);
+      if (!entry) {
+        return;
+      }
+      const nextDisabled = !enabled;
+      if (entry.disabled === nextDisabled) {
+        return;
+      }
+      setAutoInputs((previous) => {
+        const current = previous.get(normalizedPath);
+        if (!current || current.disabled === nextDisabled) {
+          return previous;
+        }
+        const next = new Map(previous);
+        next.set(normalizedPath, {
+          ...current,
+          disabled: nextDisabled,
+        });
+        return next;
+      });
+      if (!enabled) {
+        const inputId = entry.input.id;
+        setBindings((previous) => {
+          let changed = false;
+          const next: BindingMap = {};
+          Object.entries(previous).forEach(([key, binding]) => {
+            if (!binding) {
+              return;
+            }
+            if (binding.inputId === inputId) {
+              const component = componentsByIdRef.current.get(key);
+              next[key] = {
+                targetId: binding.targetId,
+                inputId: null,
+                remap: component
+                  ? createDefaultRemap(component)
+                  : binding.remap,
+              };
+              changed = true;
+            } else {
+              next[key] = binding;
+            }
+          });
+          return changed ? next : previous;
+        });
+      }
+    },
+    [setBindings],
+  );
 
   const setFaceId = useCallback((next: string) => {
     setFaceIdState(sanitizeFaceId(next));
@@ -405,17 +857,54 @@ export function useRigController({
     const persisted = loadRigState(faceId);
     skipPersistRef.current = true;
     if (persisted) {
-      const storedInputs =
-        persisted.standardInputs?.map((input) =>
+      const autoEntries = new Map<string, PersistedAutoStandardInput>();
+      const legacyCustomInputs: StandardRigInput[] = [];
+      if (Array.isArray(persisted.standardInputs)) {
+        persisted.standardInputs.forEach((entry) => {
+          if (
+            entry &&
+            typeof entry === "object" &&
+            "range" in entry &&
+            "defaultValue" in entry
+          ) {
+            legacyCustomInputs.push(
+              createStandardRigInput(entry as StandardRigInput),
+            );
+            return;
+          }
+          const descriptor = entry as PersistedAutoStandardInput;
+          const normalizedPath = normalizeStandardRigInputPath(descriptor.path);
+          autoEntries.set(normalizedPath, {
+            id: descriptor.id,
+            path: normalizedPath,
+            label: descriptor.label,
+            disabled: descriptor.disabled,
+            defaultValue: descriptor.defaultValue,
+            range: descriptor.range,
+          });
+        });
+      }
+      persistedAutoInputsRef.current = autoEntries;
+      const persistedCustom =
+        persisted.customStandardInputs?.map((input) =>
           createStandardRigInput(input),
         ) ?? [];
-      setStandardInputs(storedInputs);
-      setInputValues(persisted.inputValues);
+      setCustomInputs([...persistedCustom, ...legacyCustomInputs]);
+      setAutoInputs(new Map());
+      setInputValues(persisted.inputValues ?? {});
       setBindings(reconcileBindings(persisted.bindings, animatableComponents));
+      setSelectedStandardInputRoots(
+        Array.isArray(persisted.selectedStandardInputRoots)
+          ? persisted.selectedStandardInputRoots
+          : [],
+      );
     } else {
-      setStandardInputs([]);
-      setInputValues(createDefaultInputValues());
+      persistedAutoInputsRef.current = new Map();
+      setCustomInputs([]);
+      setAutoInputs(new Map());
+      setInputValues({});
       setBindings(createDefaultBindings(animatableComponents));
+      setSelectedStandardInputRoots([]);
     }
     setTimeout(() => {
       skipPersistRef.current = false;
@@ -431,13 +920,44 @@ export function useRigController({
     ) {
       return;
     }
+    const persistedAuto: PersistedAutoStandardInput[] = [];
+    autoInputs.forEach((entry, path) => {
+      persistedAuto.push({
+        id: entry.input.id,
+        path,
+        label: entry.input.label,
+        disabled: entry.disabled,
+        defaultValue:
+          entry.input.defaultValue !== entry.generatedDefaultValue
+            ? entry.input.defaultValue
+            : undefined,
+        range:
+          entry.input.range.min !== entry.generatedRange.min ||
+          entry.input.range.max !== entry.generatedRange.max
+            ? {
+                min: entry.input.range.min,
+                max: entry.input.range.max,
+              }
+            : undefined,
+      });
+    });
     saveRigState({
       faceId,
       bindings,
       inputValues,
-      standardInputs,
+      standardInputs: persistedAuto,
+      customStandardInputs: customInputs,
+      selectedStandardInputRoots,
     });
-  }, [animatableComponents, bindings, faceId, inputValues, standardInputs]);
+  }, [
+    animatableComponents,
+    autoInputs,
+    bindings,
+    customInputs,
+    faceId,
+    inputValues,
+    selectedStandardInputRoots,
+  ]);
 
   useEffect(() => {
     const auto = deriveAutoFaceId(sourceName, rootRenderable);
@@ -567,6 +1087,9 @@ export function useRigController({
   return {
     faceId,
     setFaceId,
+    managedStandardInputs,
+    standardInputRoots,
+    selectedStandardInputRoots,
     standardInputs,
     standardInputsById,
     inputValues,
@@ -582,9 +1105,11 @@ export function useRigController({
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,
-    handleCreateStandardInput,
+    handleToggleStandardInput,
+    handleCreateCustomStandardInput,
     handleUpdateStandardInput,
-    handleDeleteStandardInput,
+    handleDeleteCustomStandardInput,
+    handleSelectStandardInputRoots,
     handleFaceIdChange,
     handleFocusSelectionIndex,
     handleClearSelection,

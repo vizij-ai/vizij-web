@@ -38,6 +38,9 @@ export default function App() {
   const {
     faceId,
     handleFaceIdChange,
+    managedStandardInputs,
+    standardInputRoots,
+    selectedStandardInputRoots,
     standardInputs,
     standardInputsById,
     inputValues,
@@ -48,9 +51,11 @@ export default function App() {
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,
-    handleCreateStandardInput,
+    handleToggleStandardInput,
+    handleCreateCustomStandardInput,
     handleUpdateStandardInput,
-    handleDeleteStandardInput,
+    handleDeleteCustomStandardInput,
+    handleSelectStandardInputRoots,
     handleFocusSelectionIndex,
     handleClearSelection,
     setStoreState,
@@ -266,10 +271,15 @@ export default function App() {
           onResetBinding={handleResetBinding}
           inputValues={inputValues}
           onInputValueChange={handleInputValueChange}
+          managedStandardInputs={managedStandardInputs}
           standardInputs={standardInputs}
-          onCreateStandardInput={handleCreateStandardInput}
+          standardInputRoots={standardInputRoots}
+          selectedStandardInputRoots={selectedStandardInputRoots}
+          onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
+          onToggleStandardInput={handleToggleStandardInput}
+          onCreateCustomStandardInput={handleCreateCustomStandardInput}
           onUpdateStandardInput={handleUpdateStandardInput}
-          onDeleteStandardInput={handleDeleteStandardInput}
+          onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
         />
       </aside>
     </div>

@@ -20,6 +20,7 @@ import type {
 import type { StandardRigInput } from "@vizij/utils";
 import type { VectorDescriptorType } from "@vizij/utils";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
+import type { ManagedStandardInput } from "../../hooks/useRigController";
 
 export type VectorComponent =
   | (typeof XYZ_COMPONENTS)[number]
@@ -90,13 +91,18 @@ export interface AnimatableValuesPanelProps {
   onResetBinding(targetId: string): void;
   inputValues: StandardInputValues;
   onInputValueChange(inputId: string, value: number): void;
+  managedStandardInputs: ManagedStandardInput[];
   standardInputs: StandardRigInput[];
-  onCreateStandardInput(path: string): StandardRigInput | null;
+  standardInputRoots: string[];
+  selectedStandardInputRoots: string[];
+  onSelectedStandardInputRootsChange(next: string[]): void;
+  onToggleStandardInput(path: string, enabled: boolean): void;
+  onCreateCustomStandardInput(path: string): StandardRigInput | null;
   onUpdateStandardInput(
     inputId: string,
     updates: { path?: string; label?: string },
   ): void;
-  onDeleteStandardInput(inputId: string): void;
+  onDeleteCustomStandardInput(inputId: string): void;
 }
 
 export type BindingTarget = {
@@ -119,44 +125,51 @@ export type AnimatableDescriptors =
   | AnimatableEuler
   | AnimatableColor;
 
-export interface FeatureRowProps {
-  entry: FeatureEntry;
-  namespace: string;
-  onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
-  onNameChange: (entry: FeatureEntry, value: string) => void;
-  onLabelChange: (entry: FeatureEntry, value: string) => void;
-  onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
-  onConstraintChange: (
-    entry: FeatureEntry,
-    updater: (
-      constraints: NonNullable<AnimatableValue["constraints"]>,
-    ) => NonNullable<AnimatableValue["constraints"]>,
-  ) => void;
-  onStaticUpdate: (entry: FeatureEntry, value: RawValue) => void;
-  setValue: (
-    id: string,
-    namespace: string,
-    value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
-  ) => void;
-  bindings: BindingMap;
-  componentsById: Map<string, AnimatableComponent>;
-  onBindingInputChange: (targetId: string, inputId: string | null) => void;
-  onBindingRemapChange: (
-    targetId: string,
-    field: BindingField,
-    value: number,
-  ) => void;
-  onResetBinding: (targetId: string) => void;
-  inputValues: StandardInputValues;
-  onInputValueChange: (inputId: string, value: number) => void;
-  standardInputs: StandardRigInput[];
-  standardInputLookup: Map<string, StandardRigInput>;
-  inputRanges: Map<string, { min: number; max: number }>;
-  isCollapsed: boolean;
-  onToggleCollapse: (id: string) => void;
-  onRequestCreateStandardInput: (
-    suggestedPath?: string,
-  ) => StandardRigInput | null;
+export interface PropertyNode {
+  id: string;
+  label: string;
+  targetId: string | null;
+  componentKey?: VectorComponent;
 }
+
+export interface FieldNode {
+  id: string;
+  label: string;
+  properties: PropertyNode[];
+}
+
+export interface AnimatableTreeNode {
+  id: string;
+  label: string;
+  animatableId: string;
+  entry: FeatureEntry;
+  descriptor?: AnimatableValue;
+  type: FeatureEntry["type"];
+  vectorType?: VectorDescriptorType;
+  fields: FieldNode[];
+}
+
+export interface FeatureTreeNode {
+  id: string;
+  entry: FeatureEntry;
+  isAnimated: boolean;
+  animatable?: AnimatableTreeNode;
+  staticValue?: RawValue;
+  searchText: string;
+}
+
+export interface ShapeTreeNode {
+  id: string;
+  name: string;
+  type: string;
+  features: FeatureTreeNode[];
+}
+
+export type TreeNodeType =
+  | "shape"
+  | "feature"
+  | "animatable"
+  | "field"
+  | "property";
 
 export type { VectorDescriptorType };

@@ -1,10 +1,15 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { getLookup, RawValue, AnimatableValue } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import type { FeatureEntry, AnimatableValuesPanelProps } from "./types";
+import type {
+  FeatureEntry,
+  AnimatableValuesPanelProps,
+  ShapeTreeNode,
+  TreeNodeType,
+} from "./types";
 import {
   buildDefaultAnimatable,
   isAnimatableReferencedElsewhere,
@@ -13,11 +18,12 @@ import { cloneRawValue } from "@vizij/utils";
 import { promptDialog, confirmDialog, alertDialog } from "../../utils/dialogs";
 import { StandardInputsSection } from "./StandardInputsSection";
 import { SelectionStack } from "./SelectionStack";
-import { FeatureGroupList } from "./FeatureGroupList";
+import { AnimatableTree } from "./AnimatableTree";
 import { useFeatureCatalogue } from "./useFeatureCatalogue";
+import { useAnimatableTreeState } from "./useAnimatableTreeState";
 
 export function AnimatableValuesPanel({
-  namespace,
+  namespace: _namespace,
   faceId,
   onFaceIdChange,
   selectionStack,
@@ -30,14 +36,18 @@ export function AnimatableValuesPanel({
   onResetBinding,
   inputValues,
   onInputValueChange,
+  managedStandardInputs,
   standardInputs,
-  onCreateStandardInput,
+  standardInputRoots,
+  selectedStandardInputRoots,
+  onSelectedStandardInputRootsChange,
+  onToggleStandardInput,
+  onCreateCustomStandardInput,
   onUpdateStandardInput,
-  onDeleteStandardInput,
+  onDeleteCustomStandardInput,
 }: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
-  const setValue = useVizijStore((state) => state.setValue);
   const setStoreState = useVizijStoreSetter();
 
   const [rigCollapsed, setRigCollapsed] = useState(false);
@@ -55,6 +65,22 @@ export function AnimatableValuesPanel({
     [standardInputs],
   );
 
+  const managedInputsById = useMemo(
+    () =>
+      new Map(managedStandardInputs.map((entry) => [entry.input.id, entry])),
+    [managedStandardInputs],
+  );
+
+  const availableRoots = useMemo(() => {
+    const rootSet = new Set(standardInputRoots);
+    managedStandardInputs.forEach((entry) => {
+      if (entry.source === "custom") {
+        rootSet.add(entry.input.group || "custom");
+      }
+    });
+    return Array.from(rootSet).sort((a, b) => a.localeCompare(b));
+  }, [managedStandardInputs, standardInputRoots]);
+
   const requestCreateStandardInput = useCallback(
     (suggestedPath?: string): StandardRigInput | null => {
       const response = promptDialog(
@@ -69,14 +95,21 @@ export function AnimatableValuesPanel({
         alertDialog("Path cannot be empty.");
         return null;
       }
-      return onCreateStandardInput(trimmed);
+      return onCreateCustomStandardInput(trimmed);
     },
-    [onCreateStandardInput],
+    [onCreateCustomStandardInput],
   );
 
   const handleCreateInputClick = useCallback(() => {
     requestCreateStandardInput();
   }, [requestCreateStandardInput]);
+
+  const handleUpdateStandardInput = useCallback(
+    (inputId: string, updates: { path?: string; label?: string }) => {
+      onUpdateStandardInput(inputId, updates);
+    },
+    [onUpdateStandardInput],
+  );
 
   const effectiveInputRanges = useMemo(() => {
     const map = new Map<string, { min: number; max: number }>();
@@ -124,53 +157,74 @@ export function AnimatableValuesPanel({
   const {
     searchTerm,
     setSearchTerm,
-    groupedEntries,
-    collapsedGroups,
-    collapsedFeatureRows,
-    toggleGroup,
-    toggleFeatureCollapse,
+    activeSelection,
+    allShapes,
+    visibleShapes,
+    filteredFeatureCount,
   } = useFeatureCatalogue({
     world,
     animatables,
     selectionStack,
   });
 
+  const allTreeNodeKeys = useMemo(() => {
+    const keys: string[] = [];
+    const pushKey = (type: TreeNodeType, id: string) => {
+      keys.push(`${type}:${id}`);
+    };
+    const collect = (shape: ShapeTreeNode) => {
+      pushKey("shape", shape.id);
+      shape.features.forEach((feature) => {
+        pushKey("feature", feature.id);
+        if (feature.animatable) {
+          feature.animatable.fields.forEach((field) => {
+            field.properties.forEach((property) => {
+              pushKey("property", property.id);
+            });
+          });
+        }
+      });
+    };
+    allShapes.forEach(collect);
+    return keys;
+  }, [allShapes]);
+
+  const treeState = useAnimatableTreeState(
+    "demo-vizij-authoring",
+    allTreeNodeKeys,
+  );
+  const { isExpanded: isNodeExpanded, setExpanded: setNodeExpanded } =
+    treeState;
+
+  useEffect(() => {
+    if (!activeSelection) {
+      return;
+    }
+    if (!isNodeExpanded("shape", activeSelection.id)) {
+      setNodeExpanded("shape", activeSelection.id, true);
+    }
+  }, [activeSelection, isNodeExpanded, setNodeExpanded]);
+
   const handleDeleteInput = useCallback(
     (input: StandardRigInput) => {
-      if (!confirmDialog(`Delete standard input "${input.label}"?`)) {
+      const descriptor = managedInputsById.get(input.id);
+      if (!descriptor) {
         return;
       }
-      onDeleteStandardInput(input.id);
+      const isAuto = descriptor.source === "auto";
+      const message = isAuto
+        ? `Disable auto-generated input "${input.label}"?`
+        : `Delete standard input "${input.label}"?`;
+      if (!confirmDialog(message)) {
+        return;
+      }
+      if (isAuto) {
+        onToggleStandardInput(descriptor.input.path, false);
+        return;
+      }
+      onDeleteCustomStandardInput(input.id);
     },
-    [onDeleteStandardInput],
-  );
-
-  const handleEditInput = useCallback(
-    (input: StandardRigInput) => {
-      const nextPath = promptDialog(
-        `Update the path for "${input.label}"`,
-        input.path,
-      );
-      if (nextPath === null) {
-        return;
-      }
-      if (!nextPath.trim()) {
-        alertDialog("Path cannot be empty.");
-        return;
-      }
-      const nextLabel = promptDialog(
-        `Update the label for "${input.label}" (leave empty to derive from the path)`,
-        input.label,
-      );
-      if (nextLabel === null) {
-        return;
-      }
-      onUpdateStandardInput(input.id, {
-        path: nextPath,
-        label: nextLabel,
-      });
-    },
-    [onUpdateStandardInput],
+    [managedInputsById, onDeleteCustomStandardInput, onToggleStandardInput],
   );
 
   const handleClearInputMappings = useCallback(
@@ -437,11 +491,6 @@ export function AnimatableValuesPanel({
     [updateAnimatableDescriptor],
   );
 
-  const filteredCount = groupedEntries.reduce(
-    (total, group) => total + group.entries.length,
-    0,
-  );
-
   return (
     <div className="sidebar__panel feature-panel">
       <StandardInputsSection
@@ -449,15 +498,19 @@ export function AnimatableValuesPanel({
         onFaceIdChange={onFaceIdChange}
         isCollapsed={rigCollapsed}
         onToggleCollapsed={() => setRigCollapsed((prev) => !prev)}
-        standardInputs={standardInputs}
+        inputs={managedStandardInputs}
+        roots={availableRoots}
+        selectedRoots={selectedStandardInputRoots}
+        onSelectedRootsChange={onSelectedStandardInputRootsChange}
         inputValues={inputValues}
         effectiveInputRanges={effectiveInputRanges}
         inputUsage={inputUsage}
         onInputValueChange={onInputValueChange}
         onCreateInput={handleCreateInputClick}
-        onEditInput={handleEditInput}
+        onUpdateInput={handleUpdateStandardInput}
         onClearInputMappings={handleClearInputMappings}
         onDeleteInput={handleDeleteInput}
+        onToggleInput={onToggleStandardInput}
         onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
       />
       <div className="feature-panel__filters">
@@ -497,33 +550,28 @@ export function AnimatableValuesPanel({
       />
       <div className="sidebar__panel-header">
         <h2 className="sidebar__panel-title">Features</h2>
-        <span className="sidebar__badge">{filteredCount}</span>
+        <span className="sidebar__badge">{filteredFeatureCount}</span>
       </div>
-      <FeatureGroupList
-        groups={groupedEntries}
-        collapsedGroups={collapsedGroups}
-        collapsedFeatureRows={collapsedFeatureRows}
-        onToggleGroup={toggleGroup}
-        onToggleFeatureCollapse={toggleFeatureCollapse}
-        namespace={namespace}
+      <AnimatableTree
+        shapes={visibleShapes}
+        treeState={treeState}
+        componentsById={componentsById}
+        bindings={bindings}
+        standardInputs={standardInputs}
+        standardInputLookup={standardInputLookup}
+        inputValues={inputValues}
+        inputRanges={effectiveInputRanges}
+        onInputValueChange={onInputValueChange}
+        onBindingInputChange={onBindingInputChange}
+        onBindingRemapChange={onBindingRemapChange}
+        onResetBinding={onResetBinding}
+        onRequestCreateStandardInput={requestCreateStandardInput}
         onToggleAnimated={handleAnimatedToggle}
         onNameChange={handleNameChange}
         onLabelChange={handleLabelChange}
         onDefaultChange={handleDefaultUpdate}
         onConstraintChange={handleConstraintUpdate}
         onStaticUpdate={updateStaticFeature}
-        setValue={setValue}
-        bindings={bindings}
-        componentsById={componentsById}
-        onBindingInputChange={onBindingInputChange}
-        onBindingRemapChange={onBindingRemapChange}
-        onResetBinding={onResetBinding}
-        inputValues={inputValues}
-        onInputValueChange={onInputValueChange}
-        standardInputs={standardInputs}
-        standardInputLookup={standardInputLookup}
-        inputRanges={effectiveInputRanges}
-        onRequestCreateStandardInput={requestCreateStandardInput}
       />
     </div>
   );

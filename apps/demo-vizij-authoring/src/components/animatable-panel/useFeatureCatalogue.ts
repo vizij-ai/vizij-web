@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Selection } from "@vizij/render";
 import type { AnimatableValue } from "@vizij/utils";
 import { buildFeatureEntries } from "./featureEntries";
-import type { FeatureEntry } from "./types";
-
-interface FeatureGroup {
-  elementId: string;
-  elementName: string;
-  elementType: string;
-  entries: FeatureEntry[];
-}
+import type {
+  FeatureEntry,
+  ShapeTreeNode,
+  FeatureTreeNode,
+  FieldNode,
+  PropertyNode,
+} from "./types";
 
 interface UseFeatureCatalogueOptions {
   world: Record<string, any>;
@@ -21,11 +20,70 @@ interface FeatureCatalogueResult {
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   activeSelection: Selection | null;
-  groupedEntries: FeatureGroup[];
-  collapsedGroups: Set<string>;
-  collapsedFeatureRows: Set<string>;
-  toggleGroup: (elementId: string) => void;
-  toggleFeatureCollapse: (featureId: string) => void;
+  allShapes: ShapeTreeNode[];
+  visibleShapes: ShapeTreeNode[];
+  totalFeatureCount: number;
+  filteredFeatureCount: number;
+}
+
+function buildPropertyNodes(entry: FeatureEntry): FieldNode[] {
+  if (!entry.animated || !entry.animatableId) {
+    return [];
+  }
+
+  if (entry.type === "number") {
+    const property: PropertyNode = {
+      id: `${entry.id}:value`,
+      label: "Value",
+      targetId: entry.animatableId,
+    };
+    return [
+      {
+        id: `${entry.id}:field-value`,
+        label: "Value",
+        properties: [property],
+      },
+    ];
+  }
+
+  const properties: PropertyNode[] = entry.vector.components.map(
+    (component) => ({
+      id: `${entry.id}:${component}`,
+      label: component.toUpperCase(),
+      targetId: `${entry.animatableId}:${component}`,
+      componentKey: component,
+    }),
+  );
+
+  return [
+    {
+      id: `${entry.id}:field-components`,
+      label: "Components",
+      properties,
+    },
+  ];
+}
+
+function buildSearchText(entry: FeatureEntry, fields: FieldNode[]): string {
+  const parts = [
+    entry.featureLabel,
+    entry.featureKey,
+    entry.elementName,
+    entry.elementType,
+  ];
+  if (entry.descriptor?.name) {
+    parts.push(entry.descriptor.name);
+  }
+  if (entry.descriptor?.pub?.output) {
+    parts.push(entry.descriptor.pub.output);
+  }
+  fields.forEach((field) => {
+    parts.push(field.label);
+    field.properties.forEach((property) => {
+      parts.push(property.label);
+    });
+  });
+  return parts.join(" ").toLowerCase();
 }
 
 export function useFeatureCatalogue({
@@ -34,162 +92,109 @@ export function useFeatureCatalogue({
   selectionStack,
 }: UseFeatureCatalogueOptions): FeatureCatalogueResult {
   const [searchTerm, setSearchTerm] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [collapsedFeatureRows, setCollapsedFeatureRows] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const knownGroupIdsRef = useRef<Set<string>>(new Set());
 
   const featureEntries = useMemo(
     () => buildFeatureEntries(world, animatables),
     [animatables, world],
   );
 
+  const allShapes = useMemo<ShapeTreeNode[]>(() => {
+    const shapes = new Map<string, ShapeTreeNode>();
+
+    const ensureShape = (entry: FeatureEntry): ShapeTreeNode => {
+      const existing = shapes.get(entry.elementId);
+      if (existing) {
+        return existing;
+      }
+      const created: ShapeTreeNode = {
+        id: entry.elementId,
+        name: entry.elementName,
+        type: entry.elementType,
+        features: [],
+      };
+      shapes.set(entry.elementId, created);
+      return created;
+    };
+
+    featureEntries.forEach((entry) => {
+      const fields = buildPropertyNodes(entry);
+
+      const featureNode: FeatureTreeNode = {
+        id: entry.id,
+        entry,
+        isAnimated: entry.animated && Boolean(entry.animatableId),
+        animatable:
+          entry.animated && entry.animatableId
+            ? {
+                id: entry.animatableId,
+                label: entry.descriptor?.name ?? entry.featureLabel,
+                animatableId: entry.animatableId,
+                entry,
+                descriptor: entry.descriptor,
+                type: entry.type,
+                vectorType:
+                  entry.type === "vector3"
+                    ? entry.vector.descriptorType
+                    : undefined,
+                fields,
+              }
+            : undefined,
+        staticValue:
+          entry.animated && entry.animatableId
+            ? undefined
+            : (entry.staticValue ?? entry.descriptor?.default),
+        searchText: buildSearchText(entry, fields),
+      };
+
+      ensureShape(entry).features.push(featureNode);
+    });
+
+    return Array.from(shapes.values());
+  }, [featureEntries]);
+
   const activeSelection = selectionStack[0] ?? null;
 
-  const filteredEntries = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
-    return featureEntries.filter((entry) => {
-      if (activeSelection && entry.elementId !== activeSelection.id) {
-        return false;
-      }
-      if (!normalized) {
+  const visibleShapes = useMemo<ShapeTreeNode[]>(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const shapeFilter = activeSelection ? new Set([activeSelection.id]) : null;
+
+    return allShapes
+      .filter((shape) => {
+        if (shapeFilter && !shapeFilter.has(shape.id)) {
+          return false;
+        }
         return true;
-      }
-      const haystack =
-        `${entry.featureLabel} ${entry.elementName} ${entry.elementType}`.toLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [activeSelection, featureEntries, searchTerm]);
+      })
+      .map((shape) => {
+        const features = shape.features.filter((feature) => {
+          if (!normalizedSearch) {
+            return true;
+          }
+          return feature.searchText.includes(normalizedSearch);
+        });
+        return { ...shape, features };
+      })
+      .filter((shape) => shape.features.length > 0);
+  }, [activeSelection, allShapes, searchTerm]);
 
-  const groupedEntries = useMemo(() => {
-    const grouped = new Map<string, FeatureEntry[]>();
-    filteredEntries.forEach((entry) => {
-      if (!grouped.has(entry.elementId)) {
-        grouped.set(entry.elementId, []);
-      }
-      grouped.get(entry.elementId)!.push(entry);
-    });
-    return Array.from(grouped.entries()).map(([elementId, entries]) => {
-      const descriptor = entries[0];
-      return {
-        elementId,
-        elementName: descriptor.elementName,
-        elementType: descriptor.elementType,
-        entries,
-      };
-    });
-  }, [filteredEntries]);
+  const totalFeatureCount = useMemo(
+    () => allShapes.reduce((total, shape) => total + shape.features.length, 0),
+    [allShapes],
+  );
 
-  useEffect(() => {
-    setCollapsedGroups((previous) => {
-      let changed = false;
-      const next = new Set(previous);
-      const currentIds = new Set(
-        groupedEntries.map((group) => group.elementId),
-      );
-
-      previous.forEach((id) => {
-        if (!currentIds.has(id)) {
-          next.delete(id);
-          knownGroupIdsRef.current.delete(id);
-          changed = true;
-        }
-      });
-
-      groupedEntries.forEach((group) => {
-        if (!knownGroupIdsRef.current.has(group.elementId)) {
-          knownGroupIdsRef.current.add(group.elementId);
-          next.add(group.elementId);
-          changed = true;
-        }
-      });
-
-      return changed ? next : previous;
-    });
-  }, [groupedEntries]);
-
-  useEffect(() => {
-    if (!activeSelection) {
-      return;
-    }
-    setCollapsedGroups((previous) => {
-      if (!previous.has(activeSelection.id)) {
-        return previous;
-      }
-      const next = new Set(previous);
-      next.delete(activeSelection.id);
-      return next;
-    });
-  }, [activeSelection]);
-
-  useEffect(() => {
-    setCollapsedFeatureRows((previous) => {
-      const valid = new Set(filteredEntries.map((entry) => entry.id));
-      let modified = false;
-      const next = new Set<string>();
-      previous.forEach((id) => {
-        if (valid.has(id)) {
-          next.add(id);
-        } else {
-          modified = true;
-        }
-      });
-      return modified ? next : previous;
-    });
-  }, [filteredEntries]);
-
-  useEffect(() => {
-    if (!activeSelection) {
-      return;
-    }
-    setCollapsedFeatureRows((previous) => {
-      let modified = false;
-      const next = new Set(previous);
-      filteredEntries.forEach((entry) => {
-        if (entry.elementId === activeSelection.id && next.has(entry.id)) {
-          next.delete(entry.id);
-          modified = true;
-        }
-      });
-      return modified ? next : previous;
-    });
-  }, [filteredEntries, activeSelection]);
-
-  const toggleGroup = useCallback((elementId: string) => {
-    setCollapsedGroups((previous) => {
-      const next = new Set(previous);
-      if (next.has(elementId)) {
-        next.delete(elementId);
-      } else {
-        next.add(elementId);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleFeatureCollapse = useCallback((id: string) => {
-    setCollapsedFeatureRows((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+  const filteredFeatureCount = useMemo(
+    () =>
+      visibleShapes.reduce((total, shape) => total + shape.features.length, 0),
+    [visibleShapes],
+  );
 
   return {
     searchTerm,
     setSearchTerm,
     activeSelection,
-    groupedEntries,
-    collapsedGroups,
-    collapsedFeatureRows,
-    toggleGroup,
-    toggleFeatureCollapse,
+    allShapes,
+    visibleShapes,
+    totalFeatureCount,
+    filteredFeatureCount,
   };
 }

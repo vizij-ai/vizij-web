@@ -3,11 +3,29 @@ import type { StandardRigInput } from "@vizij/utils";
 
 const STORAGE_KEY = "vizij:rig-authoring:v1";
 
-interface PersistedRigState {
+export interface PersistedAutoStandardInput {
+  id: string;
+  path: string;
+  label?: string;
+  disabled?: boolean;
+  defaultValue?: number;
+  range?: {
+    min?: number;
+    max?: number;
+  };
+}
+
+export interface PersistedRigState {
   faceId: string;
   bindings: BindingMap;
   inputValues: StandardInputValues;
-  standardInputs?: StandardRigInput[];
+  /**
+   * Auto-generated standard inputs (persisted as lightweight descriptors).
+   * Legacy states may store full StandardRigInput objects here; callers must migrate.
+   */
+  standardInputs?: PersistedAutoStandardInput[] | StandardRigInput[];
+  customStandardInputs?: StandardRigInput[];
+  selectedStandardInputRoots?: string[];
 }
 
 type PersistedRigStateMap = Record<string, PersistedRigState>;
