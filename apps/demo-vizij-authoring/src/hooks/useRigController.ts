@@ -23,6 +23,7 @@ import {
   addBindingSlot,
   removeBindingSlot,
   updateBindingExpression,
+  updateBindingSlotAlias,
   updateBindingSlotRemap,
   PRIMARY_SLOT_ID,
   type BindingMap,
@@ -196,6 +197,11 @@ export interface RigController {
   handleAddBindingSlot: (targetId: string) => void;
   handleRemoveBindingSlot: (targetId: string, slotId: string) => void;
   handleUpdateBindingExpression: (targetId: string, expression: string) => void;
+  handleUpdateBindingSlotAlias: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
   handleUpdateFeatureLabel: (
     featureId: string,
     defaultLabel: string,
@@ -793,6 +799,30 @@ export function useRigController({
           return previous;
         }
         const next = updateBindingExpression(binding, component, expression);
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: next,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleUpdateBindingSlotAlias = useCallback(
+    (targetId: string, slotId: string, alias: string) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const next = updateBindingSlotAlias(binding, component, slotId, alias);
         if (next === binding) {
           return previous;
         }
@@ -1532,6 +1562,7 @@ export function useRigController({
     handleAddBindingSlot,
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
+    handleUpdateBindingSlotAlias,
     handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
     handleFaceIdChange,

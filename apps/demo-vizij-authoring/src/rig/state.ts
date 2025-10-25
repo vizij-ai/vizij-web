@@ -34,6 +34,7 @@ const DEFAULT_INPUT_ANCHOR = 0;
 
 const EPSILON = 1e-6;
 const LEGACY_SLOT_PATTERN = /^slot_(\d+)$/i;
+const ALIAS_SANITIZE_PATTERN = /[^A-Za-z0-9_]+/g;
 
 export const PRIMARY_SLOT_ID = "s1";
 export const PRIMARY_SLOT_ALIAS = "s1";
@@ -73,11 +74,51 @@ function normalizeSlotAlias(
   return { alias: defaultSlotId(index), replaced: null };
 }
 
+function sanitizeAliasInput(
+  raw: string,
+  fallback: string,
+  index: number,
+): string {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return fallback || defaultSlotId(index);
+  }
+  let sanitized = trimmed
+    .replace(/\s+/g, "_")
+    .replace(ALIAS_SANITIZE_PATTERN, "");
+  if (sanitized.length === 0) {
+    sanitized = fallback || defaultSlotId(index);
+  }
+  if (/^\d/.test(sanitized)) {
+    sanitized = `s${sanitized}`;
+  }
+  return sanitized;
+}
+
+function ensureUniqueAlias(candidate: string, existing: Set<string>): string {
+  if (!existing.has(candidate.toLowerCase())) {
+    existing.add(candidate.toLowerCase());
+    return candidate;
+  }
+  let suffix = 2;
+  let next = `${candidate}_${suffix}`;
+  while (existing.has(next.toLowerCase())) {
+    suffix += 1;
+    next = `${candidate}_${suffix}`;
+  }
+  existing.add(next.toLowerCase());
+  return next;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function rewriteLegacyExpression(
   expression: string,
   replacements: Map<string, string>,
 ): string {
-  if (replacements.size === 0 || expression.trim().length === 0) {
+  if (expression.trim().length === 0) {
     return expression;
   }
   return expression.replace(/\bslot_(\d+)\b/gi, (match, digits) => {
@@ -472,6 +513,59 @@ export function removeBindingSlot(
     };
   }
   return nextBinding;
+}
+
+export function updateBindingSlotAlias(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+  slotId: string,
+  nextAlias: string,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, component);
+  const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
+  if (slotIndex < 0) {
+    return base;
+  }
+  const slots = base.slots.map((slot) => ({ ...slot }));
+  const currentSlot = slots[slotIndex]!;
+  const fallbackAlias =
+    currentSlot.alias || currentSlot.id || defaultSlotId(slotIndex);
+  const sanitized = sanitizeAliasInput(nextAlias, fallbackAlias, slotIndex);
+  const existingAliases = new Set<string>();
+  slots.forEach((slot, index) => {
+    if (index === slotIndex) {
+      return;
+    }
+    if (slot.alias) {
+      existingAliases.add(slot.alias.toLowerCase());
+    }
+  });
+  const uniqueAlias = ensureUniqueAlias(sanitized, existingAliases);
+  const previousAlias = currentSlot.alias;
+  slots[slotIndex] = {
+    ...currentSlot,
+    alias: uniqueAlias,
+  };
+
+  let nextExpression = base.expression;
+  if (
+    previousAlias &&
+    previousAlias !== uniqueAlias &&
+    typeof nextExpression === "string"
+  ) {
+    const pattern = new RegExp(`\\b${escapeRegExp(previousAlias)}\\b`, "g");
+    nextExpression = nextExpression.replace(pattern, uniqueAlias);
+  }
+
+  const updated = ensurePrimarySlot(
+    {
+      ...base,
+      slots,
+      expression: nextExpression,
+    },
+    component,
+  );
+  return updated;
 }
 
 export function updateBindingExpression(

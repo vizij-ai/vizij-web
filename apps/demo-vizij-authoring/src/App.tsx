@@ -62,6 +62,7 @@ export default function App() {
     handleAddBindingSlot,
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
+    handleUpdateBindingSlotAlias,
     handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
     handleFocusSelectionIndex,
@@ -295,6 +296,7 @@ export default function App() {
           onAddBindingSlot={handleAddBindingSlot}
           onRemoveBindingSlot={handleRemoveBindingSlot}
           onBindingExpressionChange={handleUpdateBindingExpression}
+          onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
           onFeatureLabelChange={(entry, value) =>
             handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)
           }

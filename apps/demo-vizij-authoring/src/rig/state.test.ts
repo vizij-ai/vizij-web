@@ -4,6 +4,8 @@ import {
   createDefaultBinding,
   createDefaultRemap,
   reconcileBindings,
+  updateBindingSlotAlias,
+  addBindingSlot,
   type BindingMap,
 } from "./state";
 import type { AnimatableComponent } from "@vizij/utils";
@@ -95,23 +97,11 @@ describe("reconcileBindings", () => {
 
   it("normalizes legacy slot identifiers and expressions", () => {
     const base = createDefaultBinding(COMPONENT);
+    const next = addBindingSlot(base, COMPONENT);
     const bindings: BindingMap = {
       [COMPONENT.id]: {
-        ...base,
+        ...next,
         expression: "slot_1 + slot_2",
-        slots: [
-          {
-            ...base.slots[0],
-            id: "slot_1",
-            alias: "slot_1",
-          },
-          {
-            id: "slot_2",
-            alias: "slot_2",
-            inputId: null,
-            remap: { ...createDefaultRemap(COMPONENT) },
-          },
-        ],
       },
     };
 
@@ -124,5 +114,21 @@ describe("reconcileBindings", () => {
     expect(normalized?.slots[1]?.id).toBe("s2");
     expect(normalized?.slots[1]?.alias).toBe("s2");
     expect(normalized?.expression).toBe("s1 + s2");
+  });
+
+  it("updates slot aliases and rewrites expressions", () => {
+    const base = addBindingSlot(createDefaultBinding(COMPONENT), COMPONENT);
+    base.expression = "s1 + s2";
+    const updated = updateBindingSlotAlias(base, COMPONENT, "s2", "Upper Lip");
+    expect(updated.slots[1]?.alias).toBe("Upper_Lip");
+    expect(updated.expression).toBe("s1 + Upper_Lip");
+  });
+
+  it("ensures alias uniqueness when duplicates are requested", () => {
+    const base = addBindingSlot(createDefaultBinding(COMPONENT), COMPONENT);
+    const first = updateBindingSlotAlias(base, COMPONENT, "s1", "driver");
+    const second = updateBindingSlotAlias(first, COMPONENT, "s2", "driver");
+    expect(second.slots[0]?.alias).toBe("driver");
+    expect(second.slots[1]?.alias).toBe("driver_2");
   });
 });

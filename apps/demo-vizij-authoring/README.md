@@ -10,6 +10,9 @@ a GLB.
 - **Inspect** – Hover over any rendered element to see its metadata, animatable properties,
   and current values.
 - **Export** – Download the currently loaded Vizij as `scene.glb`.
+- **Author expressions** – Combine multiple control slots with `+`, `-`, `*`, `/`, and parentheses; the canvas reflects changes immediately and highlights invalid math.
+- **Curate labels** – Rename features inline, reset to the original asset label with a click, and see overrides at-a-glance.
+- **Refine slots** – Add additional slot inputs, rename their aliases, and manage per-slot remaps without leaving the feature inspector.
 
 ## Scripts
 

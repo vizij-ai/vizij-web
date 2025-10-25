@@ -67,6 +67,11 @@ interface PropertyBindingRowProps {
   onAddBindingSlot: (targetId: string) => void;
   onRemoveBindingSlot: (targetId: string, slotId: string) => void;
   onBindingExpressionChange: (targetId: string, expression: string) => void;
+  onBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
   outputControls?: OutputControlConfig;
 }
 
@@ -83,6 +88,7 @@ function PropertyBindingRow({
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
+  onBindingSlotAliasChange,
   outputControls,
 }: PropertyBindingRowProps) {
   const expanded = treeState.isExpanded("property", property.id);
@@ -155,9 +161,20 @@ function PropertyBindingRow({
               return (
                 <div key={slot.id} className="feature-tree__binding-slot">
                   <div className="feature-tree__binding-slot-header">
-                    <span className="feature-tree__binding-slot-alias">
-                      {slot.alias}
-                    </span>
+                    <input
+                      className="feature-tree__binding-slot-alias-input"
+                      value={slot.alias}
+                      placeholder={slot.id}
+                      onChange={(event) =>
+                        onBindingSlotAliasChange(
+                          targetId,
+                          slot.id,
+                          event.target.value,
+                        )
+                      }
+                      aria-label={`Alias for ${bindingTarget.label} slot ${index + 1}`}
+                      spellCheck={false}
+                    />
                     {index > 0 && (
                       <button
                         type="button"
@@ -495,6 +512,11 @@ interface PropertyControlsProps {
   onAddBindingSlot: (targetId: string) => void;
   onRemoveBindingSlot: (targetId: string, slotId: string) => void;
   onBindingExpressionChange: (targetId: string, expression: string) => void;
+  onBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -520,6 +542,7 @@ function PropertyControls({
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
+  onBindingSlotAliasChange,
   onDefaultChange,
   onConstraintChange,
 }: PropertyControlsProps) {
@@ -722,6 +745,7 @@ function PropertyControls({
         onAddBindingSlot={onAddBindingSlot}
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
+        onBindingSlotAliasChange={onBindingSlotAliasChange}
         outputControls={outputControls}
       />
     );
@@ -778,6 +802,11 @@ interface FeatureNodeProps {
   onAddBindingSlot: (targetId: string) => void;
   onRemoveBindingSlot: (targetId: string, slotId: string) => void;
   onBindingExpressionChange: (targetId: string, expression: string) => void;
+  onBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onNameChange: (entry: FeatureEntry, value: string) => void;
@@ -810,6 +839,7 @@ function FeatureNode({
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
+  onBindingSlotAliasChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onNameChange,
@@ -869,6 +899,9 @@ function FeatureNode({
         : "—";
   }, [feature]);
 
+  const hasCustomLabel =
+    feature.entry.featureLabel.trim() !== feature.entry.defaultLabel.trim();
+
   return (
     <div className="feature-tree__feature">
       <header className="feature-tree__feature-header">
@@ -881,15 +914,32 @@ function FeatureNode({
             {expanded ? "−" : "+"}
           </button>
           <div className="feature-tree__feature-title">
-            <input
-              className="feature-tree__feature-name-input"
-              value={feature.entry.featureLabel}
-              placeholder={feature.entry.defaultLabel}
-              onChange={(event) =>
-                onFeatureLabelChange(feature.entry, event.target.value)
-              }
-              spellCheck={false}
-            />
+            <div className="feature-tree__feature-name-row">
+              <input
+                className={`feature-tree__feature-name-input${hasCustomLabel ? " feature-tree__feature-name-input--overridden" : ""}`}
+                value={feature.entry.featureLabel}
+                placeholder={feature.entry.defaultLabel}
+                onChange={(event) =>
+                  onFeatureLabelChange(feature.entry, event.target.value)
+                }
+                aria-label={`Name for ${feature.entry.elementName} ${feature.entry.featureKey}`}
+                spellCheck={false}
+              />
+              {hasCustomLabel && (
+                <button
+                  type="button"
+                  className="feature-tree__feature-reset"
+                  onClick={() =>
+                    onFeatureLabelChange(
+                      feature.entry,
+                      feature.entry.defaultLabel,
+                    )
+                  }
+                >
+                  Reset
+                </button>
+              )}
+            </div>
             <span className="feature-tree__feature-summary">
               {summaryValue}
             </span>
@@ -936,6 +986,7 @@ function FeatureNode({
                 onAddBindingSlot={onAddBindingSlot}
                 onRemoveBindingSlot={onRemoveBindingSlot}
                 onBindingExpressionChange={onBindingExpressionChange}
+                onBindingSlotAliasChange={onBindingSlotAliasChange}
                 onDefaultChange={onDefaultChange}
                 onConstraintChange={onConstraintChange}
               />
@@ -981,6 +1032,11 @@ interface AnimatableTreeProps {
   onAddBindingSlot: (targetId: string) => void;
   onRemoveBindingSlot: (targetId: string, slotId: string) => void;
   onBindingExpressionChange: (targetId: string, expression: string) => void;
+  onBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onNameChange: (entry: FeatureEntry, value: string) => void;
@@ -1013,6 +1069,7 @@ export function AnimatableTree({
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
+  onBindingSlotAliasChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onNameChange,
@@ -1069,6 +1126,7 @@ export function AnimatableTree({
                     onAddBindingSlot={onAddBindingSlot}
                     onRemoveBindingSlot={onRemoveBindingSlot}
                     onBindingExpressionChange={onBindingExpressionChange}
+                    onBindingSlotAliasChange={onBindingSlotAliasChange}
                     onFeatureLabelChange={onFeatureLabelChange}
                     onToggleAnimated={onToggleAnimated}
                     onNameChange={onNameChange}

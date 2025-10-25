@@ -52,6 +52,7 @@ export function AnimatableValuesPanel({
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
+  onBindingSlotAliasChange,
   onFeatureLabelChange,
 }: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
@@ -598,6 +599,7 @@ export function AnimatableValuesPanel({
         onAddBindingSlot={onAddBindingSlot}
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
+        onBindingSlotAliasChange={onBindingSlotAliasChange}
         onFeatureLabelChange={handleFeatureLabelChange}
         onToggleAnimated={handleAnimatedToggle}
         onNameChange={handleNameChange}

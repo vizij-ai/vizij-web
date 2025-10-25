@@ -116,6 +116,11 @@ export interface AnimatableValuesPanelProps {
   onAddBindingSlot(targetId: string): void;
   onRemoveBindingSlot(targetId: string, slotId: string): void;
   onBindingExpressionChange(targetId: string, expression: string): void;
+  onBindingSlotAliasChange(
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ): void;
   onFeatureLabelChange(entry: FeatureEntry, value: string): void;
 }
 

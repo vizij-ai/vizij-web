@@ -16,3 +16,5 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 - Keep bundled sample assets documented in the README; note any manual steps for adding new GLBs.
 - Ensure file import/export flows handle both local file inputs and remote URLs gracefully.
 - When editing the panel system, preserve accessibility hints and avoid introducing blocking async calls on the main thread.
+- Expression math now supports the full `+ - * /` set with parentheses—prefer building atop the existing helpers instead of re-parsing strings.
+- Feature labels and slot aliases are user-editable; surface resets and uniqueness checks whenever you touch related UI.
