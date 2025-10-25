@@ -12,14 +12,12 @@ import { getLookup } from "@vizij/utils";
 import {
   extractAnimatableComponents,
   buildAnimatableValue,
-  type ComponentOverrideMap,
   type AnimatableComponent as AnimComponent,
 } from "@vizij/utils";
 import {
   createDefaultBindings,
   reconcileBindings,
   updateBindingWithInput,
-  remapValue,
   createDefaultRemap,
   type BindingMap,
   type AnimatableBinding,
@@ -46,6 +44,82 @@ import {
   buildAutoRigInputBlueprints,
   type AutoRigInputBlueprintMetadata,
 } from "../rig/autoInputs";
+import { buildRigGraphSpec, type BuildGraphResult } from "../rig/graphBuilder";
+import {
+  useGraphInstance,
+  valueAsColorRgba,
+  valueAsNumber,
+  valueAsVector,
+  type ValueJSON,
+  type WriteOpJSON,
+} from "@vizij/node-graph-react";
+
+function convertValueJSONToRaw(
+  animatable: AnimatableValue | undefined,
+  value: ValueJSON | undefined,
+): RawValue | undefined {
+  if (!animatable) {
+    return undefined;
+  }
+  switch (animatable.type) {
+    case "number": {
+      const num = valueAsNumber(value);
+      if (typeof num === "number" && Number.isFinite(num)) {
+        return num;
+      }
+      break;
+    }
+    case "vector2": {
+      const vec = valueAsVector(value);
+      if (vec && vec.length >= 2) {
+        return {
+          x: Number(vec[0] ?? 0),
+          y: Number(vec[1] ?? 0),
+        };
+      }
+      break;
+    }
+    case "vector3":
+    case "euler": {
+      const vec = valueAsVector(value);
+      if (vec && vec.length >= 3) {
+        return {
+          x: Number(vec[0] ?? 0),
+          y: Number(vec[1] ?? 0),
+          z: Number(vec[2] ?? 0),
+        };
+      }
+      break;
+    }
+    case "rgb": {
+      const color = valueAsColorRgba(value);
+      if (Array.isArray(color)) {
+        const [r = 0, g = 0, b = 0] = color;
+        return {
+          r: Number(r ?? 0),
+          g: Number(g ?? 0),
+          b: Number(b ?? 0),
+        };
+      }
+      const vec = valueAsVector(value);
+      if (vec && vec.length >= 3) {
+        return {
+          r: Number(vec[0] ?? 0),
+          g: Number(vec[1] ?? 0),
+          b: Number(vec[2] ?? 0),
+        };
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  const fallback = animatable.default as RawValue;
+  if (fallback && typeof fallback === "object") {
+    return JSON.parse(JSON.stringify(fallback)) as RawValue;
+  }
+  return fallback;
+}
 
 interface UseRigControllerOptions {
   namespace: string;
@@ -76,6 +150,8 @@ interface AutoInputState {
 export interface RigController {
   faceId: string;
   setFaceId: (next: string) => void;
+  graphStatus: "idle" | "loading" | "ready" | "error";
+  graphError: string | null;
   managedStandardInputs: ManagedStandardInput[];
   standardInputRoots: string[];
   selectedStandardInputRoots: string[];
@@ -131,6 +207,19 @@ export function useRigController({
   const clearSelection = useVizijStore((state) => state.clearSelection);
   const setStoreState = useVizijStoreSetter();
 
+  const {
+    loadGraph: loadRigGraph,
+    unloadGraph: unloadRigGraph,
+    evalAll: evalRigGraph,
+    stageInput: stageRigInput,
+    clearStaged: clearRigStaged,
+  } = useGraphInstance(undefined, { autoEval: false });
+
+  const [graphStatus, setGraphStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [graphError, setGraphError] = useState<string | null>(null);
+
   const [faceId, setFaceIdState] = useState<string>("robot");
   const [autoInputs, setAutoInputs] = useState<Map<string, AutoInputState>>(
     () => new Map(),
@@ -150,6 +239,7 @@ export function useRigController({
   >(new Map());
 
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
+  const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
   const lastAutoFaceIdRef = useRef<string | null>(null);
   const lastLoadedFaceIdRef = useRef<string | null>(null);
   const skipPersistRef = useRef(false);
@@ -177,13 +267,6 @@ export function useRigController({
 
   const autoBlueprints = autoBlueprintResult.blueprints;
   const standardInputRoots = autoBlueprintResult.roots;
-  const componentPathMap = autoBlueprintResult.componentPathMap;
-
-  const componentPathMapRef = useRef(componentPathMap);
-
-  useEffect(() => {
-    componentPathMapRef.current = componentPathMap;
-  }, [componentPathMap]);
 
   const componentsByIdRef = useRef(componentsById);
 
@@ -364,6 +447,55 @@ export function useRigController({
     () => new Map(standardInputs.map((input) => [input.id, input])),
     [standardInputs],
   );
+
+  const standardInputsByPath = useMemo(
+    () =>
+      new Map<string, StandardRigInput>(
+        standardInputs.map((input) => [input.path, input]),
+      ),
+    [standardInputs],
+  );
+
+  const rigGraphBuild = useMemo<BuildGraphResult | null>(() => {
+    if (!faceId) {
+      return null;
+    }
+    return buildRigGraphSpec({
+      faceId,
+      animatables,
+      components: animatableComponents,
+      bindings,
+      inputsById: standardInputsById,
+    });
+  }, [animatableComponents, animatables, bindings, faceId, standardInputsById]);
+
+  const graphSpecSignature = useMemo(() => {
+    if (!rigGraphBuild) {
+      return null;
+    }
+    try {
+      return JSON.stringify(rigGraphBuild.spec);
+    } catch (err) {
+      console.error("Failed to serialise rig graph spec signature", err);
+      return `${Date.now()}`;
+    }
+  }, [rigGraphBuild]);
+
+  const resetDrivenAnimatables = useCallback(() => {
+    if (drivenAnimatablesRef.current.size === 0) {
+      return;
+    }
+    const next = drivenAnimatablesRef.current;
+    drivenAnimatablesRef.current = new Set();
+    next.forEach((animId) => {
+      const animatable = animatables[animId];
+      if (!animatable) {
+        return;
+      }
+      const resetValue = buildAnimatableValue(animatable, undefined);
+      setValue(animId, namespace, resetValue);
+    });
+  }, [animatables, namespace, setValue]);
 
   const rootRenderable = useMemo(() => {
     return rootId ? (world[rootId] as Group | undefined) : undefined;
@@ -975,36 +1107,114 @@ export function useRigController({
   }, [faceId, rootRenderable, setFaceId, sourceName]);
 
   useEffect(() => {
-    const overrides = new Map<string, ComponentOverrideMap | number>();
-    animatableComponents.forEach((component) => {
-      const binding = bindings[component.id];
-      if (!binding || !binding.inputId) {
+    if (!graphSpecSignature || !rigGraphBuild) {
+      setGraphStatus("idle");
+      setGraphError(null);
+      graphSummaryRef.current = null;
+      resetDrivenAnimatables();
+      unloadRigGraph();
+      clearRigStaged();
+      return;
+    }
+
+    let cancelled = false;
+
+    setGraphStatus("loading");
+    setGraphError(null);
+
+    (async () => {
+      try {
+        await loadRigGraph(rigGraphBuild.spec);
+        if (cancelled) {
+          return;
+        }
+        graphSummaryRef.current = rigGraphBuild.summary;
+        setGraphStatus("ready");
+        setGraphError(null);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        graphSummaryRef.current = null;
+        setGraphStatus("error");
+        setGraphError(err instanceof Error ? err.message : String(err));
+        resetDrivenAnimatables();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      graphSummaryRef.current = null;
+      resetDrivenAnimatables();
+      unloadRigGraph();
+      clearRigStaged();
+    };
+  }, [
+    clearRigStaged,
+    graphSpecSignature,
+    loadRigGraph,
+    resetDrivenAnimatables,
+    rigGraphBuild,
+    unloadRigGraph,
+  ]);
+
+  useEffect(() => {
+    const summary = graphSummaryRef.current;
+    if (graphStatus !== "ready" || !summary) {
+      resetDrivenAnimatables();
+      return;
+    }
+
+    clearRigStaged();
+
+    const inputPaths = Array.isArray(summary.inputs) ? summary.inputs : [];
+    inputPaths.forEach((graphPath) => {
+      if (typeof graphPath !== "string") {
         return;
       }
-      const inputMeta = standardInputsById.get(binding.inputId);
-      const sourceValue =
-        inputValues[binding.inputId] ?? inputMeta?.defaultValue ?? 0;
-      const outputValue = remapValue(sourceValue, binding.remap);
-      const existing = overrides.get(component.animatableId);
-      if (component.component) {
-        const nextOverrides: ComponentOverrideMap =
-          existing && typeof existing !== "number" ? { ...existing } : {};
-        nextOverrides[component.component] = outputValue;
-        overrides.set(component.animatableId, nextOverrides);
-      } else {
-        overrides.set(component.animatableId, outputValue);
+      let value = 0;
+      const segments = graphPath.split("/");
+      if (segments.length >= 3) {
+        const normalized = `/${segments.slice(2).join("/")}`;
+        const inputMeta = standardInputsByPath.get(normalized);
+        if (inputMeta) {
+          const stored =
+            inputValues[inputMeta.id] ?? inputMeta.defaultValue ?? 0;
+          value = Number.isFinite(stored) ? Number(stored) : 0;
+        }
       }
+      stageRigInput(graphPath, { float: value });
     });
 
+    const result = evalRigGraph();
+    if (!result) {
+      resetDrivenAnimatables();
+      return;
+    }
+
+    const writes: WriteOpJSON[] = Array.isArray((result as any)?.writes)
+      ? ((result as any).writes as WriteOpJSON[])
+      : [];
+
     const nextDriven = new Set<string>();
-    overrides.forEach((override, animId) => {
-      const animatable = animatables[animId];
+
+    writes.forEach((write) => {
+      if (!write || typeof write.path !== "string") {
+        return;
+      }
+      const animatable = animatables[write.path];
       if (!animatable) {
         return;
       }
-      const rawValue = buildAnimatableValue(animatable, override);
-      setValue(animId, namespace, rawValue);
-      nextDriven.add(animId);
+      const rawValue = convertValueJSONToRaw(
+        animatable,
+        write.value as ValueJSON,
+      );
+      if (rawValue === undefined) {
+        return;
+      }
+      setValue(write.path, namespace, rawValue);
+      nextDriven.add(write.path);
     });
 
     drivenAnimatablesRef.current.forEach((animId) => {
@@ -1021,13 +1231,16 @@ export function useRigController({
 
     drivenAnimatablesRef.current = nextDriven;
   }, [
-    animatableComponents,
     animatables,
-    bindings,
+    clearRigStaged,
+    evalRigGraph,
+    graphStatus,
     inputValues,
     namespace,
+    resetDrivenAnimatables,
     setValue,
-    standardInputsById,
+    stageRigInput,
+    standardInputsByPath,
   ]);
 
   const collectAnimatableExportState = useCallback(() => {
@@ -1087,6 +1300,8 @@ export function useRigController({
   return {
     faceId,
     setFaceId,
+    graphStatus,
+    graphError,
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,

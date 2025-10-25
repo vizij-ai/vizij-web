@@ -26,6 +26,8 @@ export function AnimatableValuesPanel({
   namespace: _namespace,
   faceId,
   onFaceIdChange,
+  graphStatus,
+  graphError,
   selectionStack,
   onFocusSelectionIndex,
   onClearSelection,
@@ -512,6 +514,8 @@ export function AnimatableValuesPanel({
         onDeleteInput={handleDeleteInput}
         onToggleInput={onToggleStandardInput}
         onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
+        graphStatus={graphStatus}
+        graphError={graphError}
       />
       <div className="feature-panel__filters">
         <input

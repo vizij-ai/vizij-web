@@ -38,6 +38,8 @@ export default function App() {
   const {
     faceId,
     handleFaceIdChange,
+    graphStatus,
+    graphError,
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,
@@ -261,6 +263,8 @@ export default function App() {
           namespace={DEFAULT_NAMESPACE}
           faceId={faceId}
           onFaceIdChange={handleFaceIdChange}
+          graphStatus={graphStatus}
+          graphError={graphError}
           selectionStack={selectionStack}
           onFocusSelectionIndex={handleFocusSelectionIndex}
           onClearSelection={handleClearSelection}

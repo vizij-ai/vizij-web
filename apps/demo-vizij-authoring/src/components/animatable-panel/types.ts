@@ -77,6 +77,8 @@ export interface AnimatableValuesPanelProps {
   namespace: string;
   faceId: string;
   onFaceIdChange(faceId: string): void;
+  graphStatus: "idle" | "loading" | "ready" | "error";
+  graphError: string | null;
   selectionStack: Selection[];
   onFocusSelectionIndex(index: number): void;
   onClearSelection(): void;

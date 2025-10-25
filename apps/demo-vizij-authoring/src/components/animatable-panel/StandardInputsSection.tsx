@@ -30,6 +30,8 @@ interface StandardInputsSectionProps {
   onDeleteInput: (input: StandardRigInput) => void;
   onToggleInput: (path: string, enabled: boolean) => void;
   onUnbindTarget: (targetId: string) => void;
+  graphStatus: "idle" | "loading" | "ready" | "error";
+  graphError: string | null;
 }
 
 const ROOT_FALLBACK = "custom";
@@ -72,7 +74,21 @@ export function StandardInputsSection({
   onDeleteInput,
   onToggleInput,
   onUnbindTarget,
+  graphStatus,
+  graphError,
 }: StandardInputsSectionProps) {
+  const graphStatusMessage = useMemo(() => {
+    if (graphStatus === "error") {
+      return graphError
+        ? `Rig graph failed to load: ${graphError}`
+        : "Rig graph failed to load.";
+    }
+    if (graphStatus === "loading") {
+      return "Building rig graph…";
+    }
+    return null;
+  }, [graphError, graphStatus]);
+
   const selectedSet = useMemo(
     () => new Set<string>(selectedRoots),
     [selectedRoots],
@@ -156,6 +172,14 @@ export function StandardInputsSection({
       </div>
       {!isCollapsed && (
         <div id="feature-panel-rig-body" className="feature-panel__rig-body">
+          {graphStatusMessage && (
+            <p
+              className={`feature-panel__rig-status feature-panel__rig-status--${graphStatus}`}
+              role={graphStatus === "error" ? "alert" : undefined}
+            >
+              {graphStatusMessage}
+            </p>
+          )}
           <label className="feature-panel__label" htmlFor="feature-panel-face">
             Face / rig identifier
           </label>

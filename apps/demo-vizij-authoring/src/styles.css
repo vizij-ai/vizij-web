@@ -261,6 +261,21 @@ button:disabled {
   line-height: 1.4;
 }
 
+.feature-panel__rig-status {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.feature-panel__rig-status--loading {
+  color: #cbd5f5;
+}
+
+.feature-panel__rig-status--error {
+  color: #f87171;
+}
+
 .feature-panel__label {
   font-weight: 600;
   font-size: 0.85rem;
@@ -1380,8 +1395,9 @@ button:disabled {
 
 .feature-panel__input-text--path {
   flex: 1 1 220px;
-  font-family: "Fira Code", "JetBrains Mono", ui-monospace, SFMono-Regular,
-    Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    "Fira Code", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.75rem;
 }
 
