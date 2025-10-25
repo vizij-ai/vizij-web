@@ -14,6 +14,7 @@ interface UseFeatureCatalogueOptions {
   world: Record<string, any>;
   animatables: Record<string, AnimatableValue>;
   selectionStack: Selection[];
+  featureLabelOverrides: Record<string, string>;
 }
 
 interface FeatureCatalogueResult {
@@ -66,6 +67,7 @@ function buildPropertyNodes(entry: FeatureEntry): FieldNode[] {
 
 function buildSearchText(entry: FeatureEntry, fields: FieldNode[]): string {
   const parts = [
+    entry.defaultLabel,
     entry.featureLabel,
     entry.featureKey,
     entry.elementName,
@@ -90,12 +92,13 @@ export function useFeatureCatalogue({
   world,
   animatables,
   selectionStack,
+  featureLabelOverrides,
 }: UseFeatureCatalogueOptions): FeatureCatalogueResult {
   const [searchTerm, setSearchTerm] = useState("");
 
   const featureEntries = useMemo(
-    () => buildFeatureEntries(world, animatables),
-    [animatables, world],
+    () => buildFeatureEntries(world, animatables, featureLabelOverrides),
+    [animatables, featureLabelOverrides, world],
   );
 
   const allShapes = useMemo<ShapeTreeNode[]>(() => {

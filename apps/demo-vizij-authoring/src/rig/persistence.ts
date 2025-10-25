@@ -26,6 +26,7 @@ export interface PersistedRigState {
   standardInputs?: PersistedAutoStandardInput[] | StandardRigInput[];
   customStandardInputs?: StandardRigInput[];
   selectedStandardInputRoots?: string[];
+  featureLabels?: Record<string, string>;
 }
 
 type PersistedRigStateMap = Record<string, PersistedRigState>;

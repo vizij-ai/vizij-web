@@ -33,6 +33,8 @@ export function AnimatableValuesPanel({
   onClearSelection,
   components,
   bindings,
+  bindingIssues,
+  featureLabelOverrides,
   onBindingInputChange,
   onBindingRemapChange,
   onResetBinding,
@@ -47,6 +49,10 @@ export function AnimatableValuesPanel({
   onCreateCustomStandardInput,
   onUpdateStandardInput,
   onDeleteCustomStandardInput,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
+  onFeatureLabelChange,
 }: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
@@ -119,18 +125,23 @@ export function AnimatableValuesPanel({
       map.set(input.id, { min: input.range.min, max: input.range.max });
     });
     Object.values(bindings).forEach((binding) => {
-      if (!binding || !binding.inputId) {
+      if (!binding || !binding.slots) {
         return;
       }
-      const rangeMin = Math.min(binding.remap.inLow, binding.remap.inHigh);
-      const rangeMax = Math.max(binding.remap.inLow, binding.remap.inHigh);
-      const current = map.get(binding.inputId);
-      if (current) {
-        current.min = Math.min(current.min, rangeMin);
-        current.max = Math.max(current.max, rangeMax);
-      } else {
-        map.set(binding.inputId, { min: rangeMin, max: rangeMax });
-      }
+      binding.slots.forEach((slot) => {
+        if (!slot.inputId) {
+          return;
+        }
+        const rangeMin = Math.min(slot.remap.inLow, slot.remap.inHigh);
+        const rangeMax = Math.max(slot.remap.inLow, slot.remap.inHigh);
+        const current = map.get(slot.inputId);
+        if (current) {
+          current.min = Math.min(current.min, rangeMin);
+          current.max = Math.max(current.max, rangeMax);
+        } else {
+          map.set(slot.inputId, { min: rangeMin, max: rangeMax });
+        }
+      });
     });
     return map;
   }, [bindings, standardInputs]);
@@ -139,15 +150,20 @@ export function AnimatableValuesPanel({
     const usage = new Map<string, { targetId: string; label: string }[]>();
     components.forEach((component) => {
       const binding = bindings[component.id];
-      if (!binding || !binding.inputId) {
+      if (!binding || !binding.slots) {
         return;
       }
-      if (!usage.has(binding.inputId)) {
-        usage.set(binding.inputId, []);
-      }
-      usage.get(binding.inputId)!.push({
-        targetId: component.id,
-        label: component.label,
+      binding.slots.forEach((slot) => {
+        if (!slot.inputId) {
+          return;
+        }
+        if (!usage.has(slot.inputId)) {
+          usage.set(slot.inputId, []);
+        }
+        usage.get(slot.inputId)!.push({
+          targetId: component.id,
+          label: component.label,
+        });
       });
     });
     usage.forEach((entries) => {
@@ -167,6 +183,7 @@ export function AnimatableValuesPanel({
     world,
     animatables,
     selectionStack,
+    featureLabelOverrides,
   });
 
   const allTreeNodeKeys = useMemo(() => {
@@ -450,6 +467,13 @@ export function AnimatableValuesPanel({
     [updateAnimatableDescriptor],
   );
 
+  const handleFeatureLabelChange = useCallback(
+    (entry: FeatureEntry, nextLabel: string) => {
+      onFeatureLabelChange(entry, nextLabel);
+    },
+    [onFeatureLabelChange],
+  );
+
   const handleDefaultUpdate = useCallback(
     (entry: FeatureEntry, nextValue: RawValue) => {
       if (!entry.animatableId || !entry.descriptor) {
@@ -561,6 +585,7 @@ export function AnimatableValuesPanel({
         treeState={treeState}
         componentsById={componentsById}
         bindings={bindings}
+        bindingIssues={bindingIssues}
         standardInputs={standardInputs}
         standardInputLookup={standardInputLookup}
         inputValues={inputValues}
@@ -570,6 +595,10 @@ export function AnimatableValuesPanel({
         onBindingRemapChange={onBindingRemapChange}
         onResetBinding={onResetBinding}
         onRequestCreateStandardInput={requestCreateStandardInput}
+        onAddBindingSlot={onAddBindingSlot}
+        onRemoveBindingSlot={onRemoveBindingSlot}
+        onBindingExpressionChange={onBindingExpressionChange}
+        onFeatureLabelChange={handleFeatureLabelChange}
         onToggleAnimated={handleAnimatedToggle}
         onNameChange={handleNameChange}
         onLabelChange={handleLabelChange}

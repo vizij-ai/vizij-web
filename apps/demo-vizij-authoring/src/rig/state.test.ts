@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createDefaultBinding,
   createDefaultRemap,
   reconcileBindings,
   type BindingMap,
@@ -21,18 +22,27 @@ const COMPONENT: AnimatableComponent = {
 
 describe("reconcileBindings", () => {
   it("preserves custom output remap values", () => {
+    const base = createDefaultBinding(COMPONENT);
+    const customRemap = {
+      inLow: -2,
+      inAnchor: 0.5,
+      inHigh: 2,
+      outLow: -0.25,
+      outAnchor: 0.75,
+      outHigh: 1.5,
+    };
     const bindings: BindingMap = {
       [COMPONENT.id]: {
-        targetId: COMPONENT.id,
+        ...base,
         inputId: "standard/jaw_open",
-        remap: {
-          inLow: -2,
-          inAnchor: 0.5,
-          inHigh: 2,
-          outLow: -0.25,
-          outAnchor: 0.75,
-          outHigh: 1.5,
-        },
+        remap: { ...customRemap },
+        slots: [
+          {
+            ...base.slots[0],
+            inputId: "standard/jaw_open",
+            remap: { ...customRemap },
+          },
+        ],
       },
     };
 
@@ -47,9 +57,10 @@ describe("reconcileBindings", () => {
 
   it("fills missing outputs with defaults and clamps anchor between the range", () => {
     const defaults = createDefaultRemap(COMPONENT);
+    const base = createDefaultBinding(COMPONENT);
     const bindings: BindingMap = {
       [COMPONENT.id]: {
-        targetId: COMPONENT.id,
+        ...base,
         inputId: "standard/jaw_open",
         remap: {
           ...defaults,
@@ -57,6 +68,18 @@ describe("reconcileBindings", () => {
           outAnchor: 5,
           outHigh: -0.25,
         },
+        slots: [
+          {
+            ...base.slots[0],
+            inputId: "standard/jaw_open",
+            remap: {
+              ...defaults,
+              outLow: Number.NaN,
+              outAnchor: 5,
+              outHigh: -0.25,
+            },
+          },
+        ],
       },
     };
 
@@ -68,5 +91,38 @@ describe("reconcileBindings", () => {
     expect(remap?.outHigh).toBeCloseTo(-0.25);
     expect(remap?.outAnchor).toBeGreaterThanOrEqual(remap?.outLow ?? 0);
     expect(remap?.outAnchor).toBeLessThanOrEqual(remap?.outHigh ?? 0);
+  });
+
+  it("normalizes legacy slot identifiers and expressions", () => {
+    const base = createDefaultBinding(COMPONENT);
+    const bindings: BindingMap = {
+      [COMPONENT.id]: {
+        ...base,
+        expression: "slot_1 + slot_2",
+        slots: [
+          {
+            ...base.slots[0],
+            id: "slot_1",
+            alias: "slot_1",
+          },
+          {
+            id: "slot_2",
+            alias: "slot_2",
+            inputId: null,
+            remap: { ...createDefaultRemap(COMPONENT) },
+          },
+        ],
+      },
+    };
+
+    const result = reconcileBindings(bindings, [COMPONENT]);
+    const normalized = result[COMPONENT.id];
+
+    expect(normalized).toBeDefined();
+    expect(normalized?.slots[0]?.id).toBe("s1");
+    expect(normalized?.slots[0]?.alias).toBe("s1");
+    expect(normalized?.slots[1]?.id).toBe("s2");
+    expect(normalized?.slots[1]?.alias).toBe("s2");
+    expect(normalized?.expression).toBe("s1 + s2");
   });
 });

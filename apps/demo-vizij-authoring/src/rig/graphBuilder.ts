@@ -4,7 +4,18 @@ import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
 import { buildAnimatableValue } from "@vizij/utils";
 import type { BindingMap } from "./state";
-import { createDefaultRemap, type RemapSettings } from "./state";
+import {
+  createDefaultRemap,
+  ensureBindingStructure,
+  type RemapSettings,
+  PRIMARY_SLOT_ALIAS,
+  PRIMARY_SLOT_ID,
+} from "./state";
+import {
+  collectExpressionReferences,
+  parseControlExpression,
+  type ControlExpressionNode,
+} from "./expression";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
@@ -21,8 +32,12 @@ export interface GraphBindingSummary {
   targetId: string;
   animatableId: string;
   component?: VectorComponent;
+  slotId: string;
+  slotAlias: string;
   inputId: string | null;
   remap: RemapSettings;
+  expression: string;
+  issues?: string[];
 }
 
 export interface BuildGraphResult {
@@ -32,6 +47,10 @@ export interface BuildGraphResult {
     inputs: string[];
     outputs: string[];
     bindings: GraphBindingSummary[];
+  };
+  issues: {
+    byTarget: Record<string, string[]>;
+    fatal: string[];
   };
 }
 
@@ -119,6 +138,182 @@ function extractComponentDefault(
   return 0;
 }
 
+interface ExpressionBuildContext {
+  componentSafeId: string;
+  nodes: NodeSpec[];
+  edges: NonNullable<GraphSpec["edges"]>;
+  constants: Map<string, string>;
+  counter: number;
+}
+
+function getConstantNodeId(
+  context: ExpressionBuildContext,
+  value: number,
+): string {
+  const key = Number.isFinite(value) ? value.toString() : "NaN";
+  const existing = context.constants.get(key);
+  if (existing) {
+    return existing;
+  }
+  const nodeId = `const_${context.componentSafeId}_${context.constants.size + 1}`;
+  context.nodes.push({
+    id: nodeId,
+    type: "constant",
+    params: {
+      value: {
+        float: Number.isFinite(value) ? value : 0,
+      },
+    },
+  });
+  context.constants.set(key, nodeId);
+  return nodeId;
+}
+
+function createBinaryOperationNode(
+  context: ExpressionBuildContext,
+  operator: "add" | "subtract" | "multiply" | "divide",
+  leftId: string,
+  rightId: string,
+): string {
+  const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
+  context.nodes.push({
+    id: nodeId,
+    type: operator,
+  });
+  const leftInput =
+    operator === "subtract" || operator === "divide" ? "lhs" : "operand_1";
+  const rightInput =
+    operator === "subtract" || operator === "divide" ? "rhs" : "operand_2";
+  context.edges.push({
+    from: { node_id: leftId },
+    to: { node_id: nodeId, input: leftInput },
+  });
+  context.edges.push({
+    from: { node_id: rightId },
+    to: { node_id: nodeId, input: rightInput },
+  });
+  return nodeId;
+}
+
+function createVariadicOperationNode(
+  context: ExpressionBuildContext,
+  operator: "add" | "multiply",
+  operandIds: string[],
+): string {
+  if (operandIds.length === 0) {
+    return getConstantNodeId(context, operator === "add" ? 0 : 1);
+  }
+  if (operandIds.length === 1) {
+    return operandIds[0]!;
+  }
+  const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
+  context.nodes.push({
+    id: nodeId,
+    type: operator,
+  });
+  operandIds.forEach((operandId, index) => {
+    context.edges.push({
+      from: { node_id: operandId },
+      to: { node_id: nodeId, input: `operand_${index + 1}` },
+    });
+  });
+  return nodeId;
+}
+
+function collectOperands(
+  node: ControlExpressionNode,
+  operator: "+" | "*",
+  target: ControlExpressionNode[],
+): void {
+  if (node.type === "Binary" && node.operator === operator) {
+    collectOperands(node.left, operator, target);
+    collectOperands(node.right, operator, target);
+    return;
+  }
+  target.push(node);
+}
+
+function materializeExpression(
+  node: ControlExpressionNode,
+  context: ExpressionBuildContext,
+  aliasNodes: Map<string, string>,
+  issues: string[],
+): string {
+  switch (node.type) {
+    case "Literal": {
+      return getConstantNodeId(context, node.value);
+    }
+    case "Reference": {
+      const mapped = aliasNodes.get(node.name);
+      if (!mapped) {
+        issues.push(`Unknown control "${node.name}".`);
+        return getConstantNodeId(context, 0);
+      }
+      return mapped;
+    }
+    case "Unary": {
+      const operandId = materializeExpression(
+        node.operand,
+        context,
+        aliasNodes,
+        issues,
+      );
+      if (node.operator === "+") {
+        return operandId;
+      }
+      const negativeOne = getConstantNodeId(context, -1);
+      return createVariadicOperationNode(context, "multiply", [
+        negativeOne,
+        operandId,
+      ]);
+    }
+    case "Binary": {
+      const operator = node.operator;
+      switch (operator) {
+        case "+": {
+          const children: ControlExpressionNode[] = [];
+          collectOperands(node, "+", children);
+          const operandIds = children.map((child) =>
+            materializeExpression(child, context, aliasNodes, issues),
+          );
+          return createVariadicOperationNode(context, "add", operandIds);
+        }
+        case "-":
+          return createBinaryOperationNode(
+            context,
+            "subtract",
+            materializeExpression(node.left, context, aliasNodes, issues),
+            materializeExpression(node.right, context, aliasNodes, issues),
+          );
+        case "*": {
+          const children: ControlExpressionNode[] = [];
+          collectOperands(node, "*", children);
+          const operandIds = children.map((child) =>
+            materializeExpression(child, context, aliasNodes, issues),
+          );
+          return createVariadicOperationNode(context, "multiply", operandIds);
+        }
+        case "/":
+          return createBinaryOperationNode(
+            context,
+            "divide",
+            materializeExpression(node.left, context, aliasNodes, issues),
+            materializeExpression(node.right, context, aliasNodes, issues),
+          );
+        default: {
+          const unsupported = operator as string;
+          issues.push(`Unsupported operator "${unsupported}".`);
+          return getConstantNodeId(context, 0);
+        }
+      }
+    }
+    default: {
+      issues.push("Unsupported expression node.");
+      return getConstantNodeId(context, 0);
+    }
+  }
+}
+
 export function buildRigGraphSpec({
   faceId,
   animatables,
@@ -133,6 +328,7 @@ export function buildRigGraphSpec({
     { nodeId: string; input: StandardRigInput }
   >();
   const summaryBindings: GraphBindingSummary[] = [];
+  const bindingIssues = new Map<string, Set<string>>();
   const animatableEntries = new Map<string, AnimatableGraphEntry>();
   const outputs = new Set<string>();
 
@@ -182,59 +378,186 @@ export function buildRigGraphSpec({
   };
 
   components.forEach((component) => {
-    const binding = bindings[component.id];
+    const bindingRaw = bindings[component.id];
+    const binding = bindingRaw
+      ? ensureBindingStructure(bindingRaw, component)
+      : null;
     const entry = ensureAnimatableEntry(component.animatableId);
     if (!entry) {
       return;
     }
-    let valueNodeId: string;
 
-    if (binding && binding.inputId) {
-      const inputNode = ensureInputNode(binding.inputId);
-      if (!inputNode) {
-        return;
+    const key = component.component ?? "scalar";
+    let valueNodeId: string | null = null;
+
+    let hasActiveSlot = false;
+
+    if (binding) {
+      const componentSafeId = sanitizeNodeId(component.id);
+      const exprContext: ExpressionBuildContext = {
+        componentSafeId,
+        nodes,
+        edges,
+        constants: new Map(),
+        counter: 0,
+      };
+      const aliasNodes = new Map<string, string>();
+      const slotSummaries: GraphBindingSummary[] = [];
+      const expressionIssues: string[] = [];
+      const rawExpression =
+        typeof binding.expression === "string" ? binding.expression : "";
+      const trimmedExpression = rawExpression.trim();
+
+      binding.slots.forEach((slot, index) => {
+        const aliasBase = slot.alias?.trim() ?? "";
+        const fallbackAlias = `s${index + 1}`;
+        const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
+        const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
+        let slotOutputId: string;
+        if (slot.inputId) {
+          const inputNode = ensureInputNode(slot.inputId);
+          if (inputNode) {
+            const remapNodeId = `remap_${componentSafeId}_${sanitizeNodeId(slotId)}`;
+            nodes.push({
+              id: remapNodeId,
+              type: "centered_remap",
+              input_defaults: {
+                in_low: slot.remap.inLow,
+                in_anchor: slot.remap.inAnchor,
+                in_high: slot.remap.inHigh,
+                out_low: slot.remap.outLow,
+                out_anchor: slot.remap.outAnchor,
+                out_high: slot.remap.outHigh,
+              },
+            });
+            edges.push({
+              from: { node_id: inputNode.nodeId },
+              to: { node_id: remapNodeId, input: "in" },
+            });
+            slotOutputId = remapNodeId;
+            hasActiveSlot = true;
+          } else {
+            expressionIssues.push(`Missing standard input "${slot.inputId}".`);
+            slotOutputId = getConstantNodeId(exprContext, 0);
+          }
+        } else {
+          slotOutputId = getConstantNodeId(exprContext, 0);
+        }
+        aliasNodes.set(alias, slotOutputId);
+        slotSummaries.push({
+          targetId: component.id,
+          animatableId: component.animatableId,
+          component: component.component,
+          slotId,
+          slotAlias: alias,
+          inputId: slot.inputId ?? null,
+          remap: { ...slot.remap },
+          expression: trimmedExpression,
+        });
+      });
+
+      if (slotSummaries.length === 0) {
+        const alias = PRIMARY_SLOT_ALIAS;
+        aliasNodes.set(alias, getConstantNodeId(exprContext, 0));
+        slotSummaries.push({
+          targetId: component.id,
+          animatableId: component.animatableId,
+          component: component.component,
+          slotId: PRIMARY_SLOT_ID,
+          slotAlias: alias,
+          inputId: null,
+          remap: createDefaultRemap(component),
+          expression: trimmedExpression,
+        });
       }
-      const remapNodeId = `remap_${sanitizeNodeId(component.id)}`;
-      nodes.push({
-        id: remapNodeId,
-        type: "centered_remap",
-        input_defaults: {
-          in_low: binding.remap.inLow,
-          in_anchor: binding.remap.inAnchor,
-          in_high: binding.remap.inHigh,
-          out_low: binding.remap.outLow,
-          out_anchor: binding.remap.outAnchor,
-          out_high: binding.remap.outHigh,
-        },
+
+      const defaultAlias = slotSummaries[0]?.slotAlias ?? PRIMARY_SLOT_ALIAS;
+      const expressionText =
+        trimmedExpression.length > 0 ? trimmedExpression : defaultAlias;
+
+      const parseResult = parseControlExpression(expressionText);
+      let expressionAst: ControlExpressionNode | null = null;
+
+      if (parseResult.node && parseResult.errors.length === 0) {
+        const references = collectExpressionReferences(parseResult.node);
+        const missing: string[] = [];
+        references.forEach((ref) => {
+          if (!aliasNodes.has(ref)) {
+            missing.push(ref);
+          }
+        });
+        if (missing.length === 0) {
+          expressionAst = parseResult.node;
+        } else {
+          missing.forEach((ref) => {
+            expressionIssues.push(`Unknown control "${ref}".`);
+          });
+        }
+      } else {
+        parseResult.errors.forEach((error) => {
+          expressionIssues.push(error.message);
+        });
+      }
+
+      if (expressionAst) {
+        valueNodeId = materializeExpression(
+          expressionAst,
+          exprContext,
+          aliasNodes,
+          expressionIssues,
+        );
+      }
+
+      if (!valueNodeId) {
+        const fallbackAlias = aliasNodes.has(defaultAlias)
+          ? defaultAlias
+          : aliasNodes.keys().next().value;
+        valueNodeId =
+          (fallbackAlias ? aliasNodes.get(fallbackAlias) : undefined) ??
+          getConstantNodeId(exprContext, 0);
+      }
+
+      const issuesCopy = expressionIssues.length
+        ? [...new Set(expressionIssues)]
+        : undefined;
+      slotSummaries.forEach((summary) => {
+        summary.expression = expressionText;
+        if (issuesCopy && issuesCopy.length > 0) {
+          summary.issues = issuesCopy;
+          const issueSet =
+            bindingIssues.get(summary.targetId) ?? new Set<string>();
+          issuesCopy.forEach((issue) => issueSet.add(issue));
+          bindingIssues.set(summary.targetId, issueSet);
+        }
       });
-      edges.push({
-        from: { node_id: inputNode.nodeId },
-        to: { node_id: remapNodeId, input: "in" },
-      });
-      valueNodeId = remapNodeId;
-      entry.isDriven = true;
-      summaryBindings.push({
-        targetId: component.id,
-        animatableId: component.animatableId,
-        component: component.component,
-        inputId: binding.inputId,
-        remap: { ...binding.remap },
-      });
+      summaryBindings.push(...slotSummaries);
+
+      if (hasActiveSlot) {
+        entry.isDriven = true;
+      }
     } else {
-      const remap = binding?.remap ?? createDefaultRemap(component);
-      const key = component.component ?? "scalar";
-      entry.defaults.set(key, component.defaultValue);
       summaryBindings.push({
         targetId: component.id,
         animatableId: component.animatableId,
         component: component.component,
+        slotId: PRIMARY_SLOT_ID,
+        slotAlias: PRIMARY_SLOT_ALIAS,
         inputId: null,
-        remap: { ...remap },
+        remap: createDefaultRemap(component),
+        expression: PRIMARY_SLOT_ALIAS,
+        issues: ["Binding not found."],
       });
+      const fallbackIssues =
+        bindingIssues.get(component.id) ?? new Set<string>();
+      fallbackIssues.add("Binding not found.");
+      bindingIssues.set(component.id, fallbackIssues);
+    }
+
+    if (!valueNodeId || !hasActiveSlot) {
+      entry.defaults.set(key, component.defaultValue);
       return;
     }
 
-    const key = component.component ?? "scalar";
     entry.values.set(key, valueNodeId);
   });
 
@@ -365,6 +688,18 @@ export function buildRigGraphSpec({
     edges: updatedEdges.length ? updatedEdges : undefined,
   };
 
+  const issuesByTarget: Record<string, string[]> = {};
+  bindingIssues.forEach((issues, targetId) => {
+    if (issues.size === 0) {
+      return;
+    }
+    issuesByTarget[targetId] = Array.from(issues);
+  });
+  const fatalIssues = new Set<string>();
+  Object.values(issuesByTarget).forEach((issues) => {
+    issues.forEach((issue) => fatalIssues.add(issue));
+  });
+
   return {
     spec,
     summary: {
@@ -374,6 +709,10 @@ export function buildRigGraphSpec({
       ),
       outputs: dynamicOutputs,
       bindings: filteredSummaryBindings,
+    },
+    issues: {
+      byTarget: issuesByTarget,
+      fatal: Array.from(fatalIssues),
     },
   };
 }

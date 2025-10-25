@@ -8,7 +8,12 @@ import type {
 } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
 
-import type { AnimatableBinding, BindingMap, RemapSettings } from "./state";
+import {
+  ensureBindingStructure,
+  type AnimatableBinding,
+  type BindingMap,
+  type RemapSettings,
+} from "./state";
 
 interface BuildAuthoringDriverGraphOptions {
   faceId: string;
@@ -84,13 +89,14 @@ export function buildAuthoringDriverGraph(
     if (!component) {
       return;
     }
+    const normalized = ensureBindingStructure(binding, component);
 
-    const source = createSourceForBinding(binding, standardInputsById);
-    const transform = createCenteredRemapTransform(binding.remap);
+    const source = createSourceForBinding(normalized, standardInputsById);
+    const transform = createCenteredRemapTransform(normalized.remap);
     const target = createTargetForComponent(component);
 
     drivers.push({
-      id: `remap:${binding.targetId}`,
+      id: `remap:${normalized.targetId}`,
       kind: "remap",
       source,
       outputs: [
@@ -100,10 +106,10 @@ export function buildAuthoringDriverGraph(
         },
       ],
       metadata: {
-        targetId: binding.targetId,
+        targetId: normalized.targetId,
         animatableId: component.animatableId,
         animatableType: component.animatableType,
-        standardInputId: binding.inputId ?? null,
+        standardInputId: normalized.inputId ?? null,
       },
     });
   });

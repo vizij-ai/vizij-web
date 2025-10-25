@@ -16,11 +16,16 @@ import {
 } from "@vizij/utils";
 import {
   createDefaultBindings,
+  createDefaultBinding,
   reconcileBindings,
   updateBindingWithInput,
-  createDefaultRemap,
+  ensureBindingStructure,
+  addBindingSlot,
+  removeBindingSlot,
+  updateBindingExpression,
+  updateBindingSlotRemap,
+  PRIMARY_SLOT_ID,
   type BindingMap,
-  type AnimatableBinding,
   type StandardInputValues,
   type RemapSettings,
 } from "../rig/state";
@@ -152,6 +157,8 @@ export interface RigController {
   setFaceId: (next: string) => void;
   graphStatus: "idle" | "loading" | "ready" | "error";
   graphError: string | null;
+  bindingIssues: Map<string, readonly string[]>;
+  featureLabelOverrides: Record<string, string>;
   managedStandardInputs: ManagedStandardInput[];
   standardInputRoots: string[];
   selectedStandardInputRoots: string[];
@@ -167,11 +174,16 @@ export interface RigController {
   selectionStack: Selection[];
   inputRanges: Map<string, { min: number; max: number }>;
   handleInputValueChange: (inputId: string, value: number) => void;
-  handleBindingInputChange: (targetId: string, inputId: string | null) => void;
+  handleBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
   handleBindingRemapChange: (
     targetId: string,
     field: keyof RemapSettings,
     value: number,
+    slotId?: string,
   ) => void;
   handleResetBinding: (targetId: string) => void;
   handleToggleStandardInput: (path: string, enabled: boolean) => void;
@@ -181,6 +193,14 @@ export interface RigController {
     updates: { path?: string; label?: string },
   ) => void;
   handleDeleteCustomStandardInput: (inputId: string) => void;
+  handleAddBindingSlot: (targetId: string) => void;
+  handleRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  handleUpdateBindingExpression: (targetId: string, expression: string) => void;
+  handleUpdateFeatureLabel: (
+    featureId: string,
+    defaultLabel: string,
+    value: string,
+  ) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleFaceIdChange: (value: string) => void;
   handleFocusSelectionIndex: (index: number) => void;
@@ -233,6 +253,9 @@ export function useRigController({
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
   );
+  const [featureLabelOverrides, setFeatureLabelOverrides] = useState<
+    Record<string, string>
+  >({});
 
   const persistedAutoInputsRef = useRef<
     Map<string, PersistedAutoStandardInput>
@@ -262,8 +285,9 @@ export function useRigController({
       world,
       animatables,
       animatableComponents,
+      featureLabelOverrides,
     );
-  }, [animatableComponents, animatables, world]);
+  }, [animatableComponents, animatables, featureLabelOverrides, world]);
 
   const autoBlueprints = autoBlueprintResult.blueprints;
   const standardInputRoots = autoBlueprintResult.roots;
@@ -473,6 +497,9 @@ export function useRigController({
     if (!rigGraphBuild) {
       return null;
     }
+    if (rigGraphBuild.issues.fatal.length > 0) {
+      return null;
+    }
     try {
       return JSON.stringify(rigGraphBuild.spec);
     } catch (err) {
@@ -480,6 +507,18 @@ export function useRigController({
       return `${Date.now()}`;
     }
   }, [rigGraphBuild]);
+
+  const bindingIssues = useMemo(
+    () =>
+      rigGraphBuild
+        ? new Map(
+            Object.entries(rigGraphBuild.issues.byTarget).map(
+              ([targetId, issues]) => [targetId, [...issues]],
+            ),
+          )
+        : new Map<string, readonly string[]>(),
+    [rigGraphBuild],
+  );
 
   const resetDrivenAnimatables = useCallback(() => {
     if (drivenAnimatablesRef.current.size === 0) {
@@ -523,24 +562,23 @@ export function useRigController({
         if (!component) {
           return;
         }
-        const existing = next[componentId] ?? {
-          targetId: componentId,
-          inputId: null,
-          remap: createDefaultRemap(component),
-        };
-        if (existing.inputId) {
+        const currentBinding = next[componentId];
+        const ensured =
+          currentBinding !== undefined
+            ? ensureBindingStructure(currentBinding, component)
+            : createDefaultBinding(component);
+        if (ensured !== currentBinding) {
+          next[componentId] = ensured;
+        }
+        if (ensured.inputId) {
           return;
         }
-        const updated = updateBindingWithInput(
-          existing,
-          component,
-          entry.input,
-        );
-        if (updated !== existing) {
+        const updated = updateBindingWithInput(ensured, component, entry.input);
+        if (updated !== ensured) {
           next[componentId] = updated;
           changed = true;
         } else if (!Object.prototype.hasOwnProperty.call(next, componentId)) {
-          next[componentId] = existing;
+          next[componentId] = ensured;
         }
       });
 
@@ -583,14 +621,24 @@ export function useRigController({
         if (!binding) {
           return;
         }
-        next[key] = binding;
-        if (binding.inputId && !validIds.has(binding.inputId)) {
-          const component = componentsById.get(key);
-          next[key] = {
-            targetId: binding.targetId,
-            inputId: null,
-            remap: component ? createDefaultRemap(component) : binding.remap,
-          };
+        const component = componentsById.get(key);
+        const ensured =
+          component !== undefined
+            ? ensureBindingStructure(binding, component)
+            : binding;
+        next[key] = ensured;
+        if (ensured !== binding) {
+          changed = true;
+        }
+        if (ensured.inputId && !validIds.has(ensured.inputId)) {
+          if (component) {
+            next[key] = updateBindingWithInput(ensured, component, undefined);
+          } else {
+            next[key] = {
+              ...ensured,
+              inputId: null,
+            };
+          }
           changed = true;
         }
       });
@@ -622,7 +670,7 @@ export function useRigController({
   );
 
   const handleBindingInputChange = useCallback(
-    (targetId: string, nextInputId: string | null) => {
+    (targetId: string, nextInputId: string | null, slotId?: string) => {
       const component = componentsById.get(targetId);
       if (!component) {
         return;
@@ -630,13 +678,15 @@ export function useRigController({
       const inputMeta =
         nextInputId !== null ? standardInputsById.get(nextInputId) : undefined;
       setBindings((previous) => {
-        const fallback: AnimatableBinding = {
-          targetId,
-          inputId: null,
-          remap: createDefaultRemap(component),
-        };
-        const current = previous[targetId] ?? fallback;
-        const updated = updateBindingWithInput(current, component, inputMeta);
+        const current = previous[targetId] ?? createDefaultBinding(component);
+        const ensured = ensureBindingStructure(current, component);
+        const targetSlotId = slotId ?? ensured.slots[0]?.id ?? PRIMARY_SLOT_ID;
+        const updated = updateBindingWithInput(
+          ensured,
+          component,
+          inputMeta,
+          targetSlotId,
+        );
         if (updated === current) {
           return previous;
         }
@@ -650,21 +700,130 @@ export function useRigController({
   );
 
   const handleBindingRemapChange = useCallback(
-    (targetId: string, field: keyof RemapSettings, value: number) => {
+    (
+      targetId: string,
+      field: keyof RemapSettings,
+      value: number,
+      slotId?: string,
+    ) => {
       setBindings((previous) => {
         const binding = previous[targetId];
         if (!binding) {
           return previous;
         }
+        const component = componentsById.get(targetId);
+        if (!component) {
+          return previous;
+        }
+        const targetSlotId =
+          slotId ?? binding.slots?.[0]?.id ?? PRIMARY_SLOT_ID;
+        const updated = updateBindingSlotRemap(
+          binding,
+          component,
+          targetSlotId,
+          field,
+          value,
+        );
+        if (updated === binding) {
+          return previous;
+        }
         return {
           ...previous,
-          [targetId]: {
-            ...binding,
-            remap: {
-              ...binding.remap,
-              [field]: value,
-            },
-          },
+          [targetId]: updated,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleAddBindingSlot = useCallback(
+    (targetId: string) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      setBindings((previous) => {
+        const current = previous[targetId] ?? createDefaultBinding(component);
+        const next = addBindingSlot(current, component);
+        if (next === current) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: next,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleRemoveBindingSlot = useCallback(
+    (targetId: string, slotId: string) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const next = removeBindingSlot(binding, component, slotId);
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: next,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleUpdateBindingExpression = useCallback(
+    (targetId: string, expression: string) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const next = updateBindingExpression(binding, component, expression);
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: next,
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleUpdateFeatureLabel = useCallback(
+    (featureId: string, defaultLabel: string, value: string) => {
+      const trimmed = value.trim();
+      const normalizedDefault = defaultLabel.trim();
+      setFeatureLabelOverrides((previous) => {
+        if (trimmed.length === 0 || trimmed === normalizedDefault) {
+          if (!(featureId in previous)) {
+            return previous;
+          }
+          const next = { ...previous };
+          delete next[featureId];
+          return next;
+        }
+        if (previous[featureId] === trimmed) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [featureId]: trimmed,
         };
       });
     },
@@ -683,11 +842,7 @@ export function useRigController({
         }
         return {
           ...previous,
-          [targetId]: {
-            targetId,
-            inputId: null,
-            remap: createDefaultRemap(component),
-          },
+          [targetId]: createDefaultBinding(component),
         };
       });
     },
@@ -876,17 +1031,27 @@ export function useRigController({
           if (!binding) {
             return;
           }
-          if (binding.inputId === inputId) {
-            const component = componentsByIdRef.current.get(key);
-            next[key] = {
-              targetId: binding.targetId,
-              inputId: null,
-              remap: component ? createDefaultRemap(component) : binding.remap,
-            };
-            changed = true;
-          } else {
+          const component = componentsByIdRef.current.get(key);
+          if (!component) {
             next[key] = binding;
+            return;
           }
+          const ensured = ensureBindingStructure(binding, component);
+          let updated = ensured;
+          ensured.slots.forEach((slot) => {
+            if (slot.inputId === inputId) {
+              updated = updateBindingWithInput(
+                updated,
+                component,
+                undefined,
+                slot.id,
+              );
+            }
+          });
+          if (updated !== binding) {
+            changed = true;
+          }
+          next[key] = updated;
         });
         return changed ? next : previous;
       });
@@ -926,19 +1091,27 @@ export function useRigController({
             if (!binding) {
               return;
             }
-            if (binding.inputId === inputId) {
-              const component = componentsByIdRef.current.get(key);
-              next[key] = {
-                targetId: binding.targetId,
-                inputId: null,
-                remap: component
-                  ? createDefaultRemap(component)
-                  : binding.remap,
-              };
-              changed = true;
-            } else {
+            const component = componentsByIdRef.current.get(key);
+            if (!component) {
               next[key] = binding;
+              return;
             }
+            const ensured = ensureBindingStructure(binding, component);
+            let updated = ensured;
+            ensured.slots.forEach((slot) => {
+              if (slot.inputId === inputId) {
+                updated = updateBindingWithInput(
+                  updated,
+                  component,
+                  undefined,
+                  slot.id,
+                );
+              }
+            });
+            if (updated !== binding) {
+              changed = true;
+            }
+            next[key] = updated;
           });
           return changed ? next : previous;
         });
@@ -1030,6 +1203,7 @@ export function useRigController({
           ? persisted.selectedStandardInputRoots
           : [],
       );
+      setFeatureLabelOverrides(persisted.featureLabels ?? {});
     } else {
       persistedAutoInputsRef.current = new Map();
       setCustomInputs([]);
@@ -1037,6 +1211,7 @@ export function useRigController({
       setInputValues({});
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
+      setFeatureLabelOverrides({});
     }
     setTimeout(() => {
       skipPersistRef.current = false;
@@ -1080,6 +1255,10 @@ export function useRigController({
       standardInputs: persistedAuto,
       customStandardInputs: customInputs,
       selectedStandardInputRoots,
+      featureLabels:
+        Object.keys(featureLabelOverrides).length > 0
+          ? featureLabelOverrides
+          : undefined,
     });
   }, [
     animatableComponents,
@@ -1087,6 +1266,7 @@ export function useRigController({
     bindings,
     customInputs,
     faceId,
+    featureLabelOverrides,
     inputValues,
     selectedStandardInputRoots,
   ]);
@@ -1107,7 +1287,30 @@ export function useRigController({
   }, [faceId, rootRenderable, setFaceId, sourceName]);
 
   useEffect(() => {
-    if (!graphSpecSignature || !rigGraphBuild) {
+    if (!rigGraphBuild) {
+      setGraphStatus("idle");
+      setGraphError(null);
+      graphSummaryRef.current = null;
+      resetDrivenAnimatables();
+      unloadRigGraph();
+      clearRigStaged();
+      return;
+    }
+
+    const fatalIssues = rigGraphBuild.issues.fatal;
+    if (fatalIssues.length > 0) {
+      graphSummaryRef.current = null;
+      resetDrivenAnimatables();
+      unloadRigGraph();
+      clearRigStaged();
+      setGraphStatus("error");
+      setGraphError(
+        fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; "),
+      );
+      return;
+    }
+
+    if (!graphSpecSignature) {
       setGraphStatus("idle");
       setGraphError(null);
       graphSummaryRef.current = null;
@@ -1302,6 +1505,8 @@ export function useRigController({
     setFaceId,
     graphStatus,
     graphError,
+    bindingIssues,
+    featureLabelOverrides,
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,
@@ -1324,6 +1529,10 @@ export function useRigController({
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
+    handleAddBindingSlot,
+    handleRemoveBindingSlot,
+    handleUpdateBindingExpression,
+    handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
     handleFaceIdChange,
     handleFocusSelectionIndex,

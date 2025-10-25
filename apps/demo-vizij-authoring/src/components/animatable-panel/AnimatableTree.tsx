@@ -27,13 +27,9 @@ import type {
   AnimatableColor,
   RawValue,
 } from "@vizij/utils";
-import {
-  createDefaultRemap,
-  type BindingMap,
-  type RemapSettings,
-  type StandardInputValues,
-} from "../../rig/state";
+import { type BindingMap, type StandardInputValues } from "../../rig/state";
 import type { StandardRigInput } from "@vizij/utils";
+import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
 
 type OutputControlConfig = {
   defaultValue: number;
@@ -52,40 +48,41 @@ interface PropertyBindingRowProps {
   bindingTarget: BindingTarget | undefined;
   treeState: AnimatableTreeState;
   standardInputs: StandardRigInput[];
-  onBindingInputChange: (targetId: string, inputId: string | null) => void;
+  standardInputLookup: Map<string, StandardRigInput>;
+  onBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
   onBindingRemapChange: (
     targetId: string,
     field: BindingField,
     value: number,
+    slotId?: string,
   ) => void;
   onResetBinding: (targetId: string) => void;
   onRequestCreateStandardInput: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
+  onAddBindingSlot: (targetId: string) => void;
+  onRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onBindingExpressionChange: (targetId: string, expression: string) => void;
   outputControls?: OutputControlConfig;
 }
-
-const remapInputFields: Array<{ field: BindingField; label: string }> = [
-  { field: "inLow", label: "Input low" },
-  { field: "inAnchor", label: "Input anchor" },
-  { field: "inHigh", label: "Input high" },
-];
-
-const remapOutputFields: Array<{ field: BindingField; label: string }> = [
-  { field: "outLow", label: "Output low" },
-  { field: "outAnchor", label: "Output anchor" },
-  { field: "outHigh", label: "Output high" },
-];
 
 function PropertyBindingRow({
   property,
   bindingTarget,
   treeState,
   standardInputs,
+  standardInputLookup,
   onBindingInputChange,
   onBindingRemapChange,
   onResetBinding,
   onRequestCreateStandardInput,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
   outputControls,
 }: PropertyBindingRowProps) {
   const expanded = treeState.isExpanded("property", property.id);
@@ -94,50 +91,38 @@ function PropertyBindingRow({
   }, [property.id, treeState]);
 
   const binding = bindingTarget?.binding ?? null;
-  const defaultRemap =
-    bindingTarget !== undefined
-      ? createDefaultRemap(bindingTarget.component)
-      : undefined;
-  const remap: RemapSettings | undefined =
-    binding?.remap ?? defaultRemap ?? undefined;
+  const targetId = bindingTarget?.targetId ?? null;
+  const slots = binding?.slots ?? [];
+  const expressionValue = binding?.expression ?? slots[0]?.alias ?? "";
+  const expressionIssues = bindingTarget?.issues ?? [];
 
-  const selectedInputId = binding?.inputId ?? "";
-  const handleSelectChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      if (!bindingTarget) {
-        return;
+  const aliasHints = slots
+    .map((slot) => {
+      const inputMeta =
+        slot.inputId !== null ? standardInputLookup.get(slot.inputId) : null;
+      if (inputMeta) {
+        return `${slot.alias} → ${inputMeta.label}`;
       }
-      const nextValue = event.target.value;
-      onBindingInputChange(
-        bindingTarget.targetId,
-        nextValue.length > 0 ? nextValue : null,
-      );
-    },
-    [bindingTarget, onBindingInputChange],
-  );
+      return slot.alias;
+    })
+    .filter(Boolean)
+    .join(", ");
 
-  const handleClear = useCallback(() => {
-    if (!bindingTarget) {
+  const handleAddSlotClick = useCallback(() => {
+    if (!targetId) {
       return;
     }
-    onBindingInputChange(bindingTarget.targetId, null);
-  }, [bindingTarget, onBindingInputChange]);
+    onAddBindingSlot(targetId);
+  }, [onAddBindingSlot, targetId]);
 
-  const handleReset = useCallback(() => {
-    if (!bindingTarget) {
-      return;
-    }
-    onResetBinding(bindingTarget.targetId);
-  }, [bindingTarget, onResetBinding]);
-
-  const handleRemapChange = useCallback(
-    (field: BindingField, value: number) => {
-      if (!bindingTarget) {
+  const handleExpressionChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (!targetId) {
         return;
       }
-      onBindingRemapChange(bindingTarget.targetId, field, value);
+      onBindingExpressionChange(targetId, event.target.value);
     },
-    [bindingTarget, onBindingRemapChange],
+    [onBindingExpressionChange, targetId],
   );
 
   return (
@@ -152,178 +137,217 @@ function PropertyBindingRow({
           {expanded ? "−" : "+"}
         </button>
         <span className="feature-tree__property-label">{property.label}</span>
-        <div className="feature-tree__property-binding">
-          <select
-            className="feature-tree__property-select"
-            value={selectedInputId}
-            onChange={handleSelectChange}
-            disabled={!bindingTarget}
-            aria-label={`${property.label} standard input`}
-          >
-            <option value="">Unbound</option>
-            {standardInputs.map((input) => (
-              <option key={input.id} value={input.id}>
-                {input.label}
-              </option>
-            ))}
-          </select>
+        {bindingTarget && (
           <button
             type="button"
             className="feature-panel__input-action feature-panel__input-action--secondary feature-tree__unbind-btn"
-            onClick={handleClear}
-            disabled={!bindingTarget || !binding?.inputId}
+            onClick={() => onResetBinding(bindingTarget.targetId)}
           >
-            Unbind
+            Reset
           </button>
-        </div>
+        )}
       </div>
-      {expanded && (
-        <div className="feature-tree__property-details">
-          <div className="feature-tree__matrix-columns">
-            <div className="feature-tree__property-column">
-              <h4>Input</h4>
-              <div className="feature-tree__matrix-grid">
-                {remapInputFields.map(({ field, label }) => (
-                  <label key={field}>
-                    <span>{label}</span>
-                    <input
-                      type="number"
-                      step={0.01}
-                      value={remap ? remap[field] : 0}
-                      disabled={!binding}
+      {expanded && bindingTarget && binding && targetId && (
+        <div className="feature-tree__binding-editor">
+          <div className="feature-tree__binding-slots">
+            {slots.map((slot, index) => {
+              const slotInputId = slot.inputId ?? "";
+              return (
+                <div key={slot.id} className="feature-tree__binding-slot">
+                  <div className="feature-tree__binding-slot-header">
+                    <span className="feature-tree__binding-slot-alias">
+                      {slot.alias}
+                    </span>
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        className="feature-panel__input-action feature-panel__input-action--danger feature-tree__binding-slot-remove"
+                        onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="feature-tree__binding-slot-controls">
+                    <select
+                      className="feature-tree__property-select"
+                      value={slotInputId}
                       onChange={(event) => {
-                        if (!binding) {
-                          return;
-                        }
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) {
-                          handleRemapChange(field, parsed);
-                        }
+                        const nextValue = event.target.value;
+                        onBindingInputChange(
+                          targetId,
+                          nextValue.length > 0 ? nextValue : null,
+                          slot.id,
+                        );
                       }}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="feature-tree__property-column">
-              <h4>Output</h4>
-              <div className="feature-tree__matrix-grid">
-                {remapOutputFields.map(({ field, label }) => (
-                  <label key={field}>
-                    <span>{label}</span>
-                    <input
-                      type="number"
-                      step={0.01}
-                      value={remap ? remap[field] : 0}
-                      disabled={!binding}
-                      onChange={(event) => {
-                        if (!binding) {
-                          return;
-                        }
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) {
-                          handleRemapChange(field, parsed);
-                        }
-                      }}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="feature-tree__property-column">
-              <h4>Animatable</h4>
-              {outputControls ? (
-                <div className="feature-tree__matrix-grid">
-                  <label>
-                    <span>Min</span>
-                    <input
-                      type="number"
-                      step={outputControls.step}
-                      min={outputControls.minLimit}
-                      max={outputControls.maxLimit}
-                      value={
-                        outputControls.minValue !== null
-                          ? outputControls.minValue
-                          : ""
+                    >
+                      <option value="">Unbound</option>
+                      {standardInputs.map((input) => (
+                        <option key={input.id} value={input.id}>
+                          {input.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--secondary"
+                      onClick={() =>
+                        onBindingInputChange(targetId, null, slot.id)
                       }
-                      disabled={!binding}
-                      onChange={(event) => {
-                        if (!binding) {
-                          return;
-                        }
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) {
-                          outputControls.onMinChange(parsed);
-                        }
-                      }}
-                    />
-                  </label>
-                  <label>
-                    <span>Default</span>
-                    <input
-                      type="number"
-                      step={outputControls.step}
-                      min={outputControls.minLimit}
-                      max={outputControls.maxLimit}
-                      value={outputControls.defaultValue}
-                      disabled={!binding}
-                      onChange={(event) => {
-                        if (!binding) {
-                          return;
-                        }
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) {
-                          outputControls.onDefaultChange(parsed);
+                      disabled={!slot.inputId}
+                    >
+                      Unbind
+                    </button>
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--secondary"
+                      onClick={() => {
+                        const created = onRequestCreateStandardInput();
+                        if (created) {
+                          onBindingInputChange(targetId, created.id, slot.id);
                         }
                       }}
-                    />
-                  </label>
-                  <label>
-                    <span>Max</span>
-                    <input
-                      type="number"
-                      step={outputControls.step}
-                      min={outputControls.minLimit}
-                      max={outputControls.maxLimit}
-                      value={
-                        outputControls.maxValue !== null
-                          ? outputControls.maxValue
-                          : ""
-                      }
-                      disabled={!binding}
-                      onChange={(event) => {
-                        if (!binding) {
-                          return;
-                        }
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) {
-                          outputControls.onMaxChange(parsed);
-                        }
-                      }}
-                    />
-                  </label>
+                    >
+                      New input
+                    </button>
+                  </div>
+                  <div className="feature-tree__matrix-columns feature-tree__matrix-columns--slots">
+                    <div className="feature-tree__property-column">
+                      <h4>Input remap</h4>
+                      <div className="feature-tree__matrix-grid">
+                        {REMAP_INPUT_FIELDS.map(({ field, label }) => (
+                          <label key={field}>
+                            <span>{label}</span>
+                            <input
+                              type="number"
+                              step={0.01}
+                              value={slot.remap[field]}
+                              onChange={(event) => {
+                                const parsed = Number(event.target.value);
+                                if (Number.isFinite(parsed)) {
+                                  onBindingRemapChange(
+                                    targetId,
+                                    field,
+                                    parsed,
+                                    slot.id,
+                                  );
+                                }
+                              }}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="feature-tree__property-column">
+                      <h4>Output remap</h4>
+                      <div className="feature-tree__matrix-grid">
+                        {REMAP_OUTPUT_FIELDS.map(({ field, label }) => (
+                          <label key={field}>
+                            <span>{label}</span>
+                            <input
+                              type="number"
+                              step={0.01}
+                              value={slot.remap[field]}
+                              onChange={(event) => {
+                                const parsed = Number(event.target.value);
+                                if (Number.isFinite(parsed)) {
+                                  onBindingRemapChange(
+                                    targetId,
+                                    field,
+                                    parsed,
+                                    slot.id,
+                                  );
+                                }
+                              }}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <p className="feature-tree__remap-placeholder">
-                  Static properties do not expose animatable ranges.
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="feature-tree__property-footer">
+              );
+            })}
             <button
               type="button"
-              className="feature-panel__input-action"
-              onClick={handleReset}
-              disabled={!bindingTarget || !binding}
+              className="feature-panel__input-action feature-panel__input-action--secondary feature-tree__slot-add"
+              onClick={handleAddSlotClick}
             >
-              Reset remap
+              Add control
             </button>
           </div>
-          {!binding && (
-            <p className="feature-tree__remap-placeholder">
-              Bind this component to configure remaps and ranges.
-            </p>
+          <div className="feature-tree__expression-editor">
+            <label htmlFor={`binding-expression-${property.id}`}>
+              Expression
+            </label>
+            <textarea
+              id={`binding-expression-${property.id}`}
+              value={expressionValue}
+              onChange={handleExpressionChange}
+              aria-invalid={expressionIssues.length > 0}
+              spellCheck={false}
+            />
+            {aliasHints && (
+              <p className="feature-tree__expression-hints">
+                Aliases: {aliasHints}
+              </p>
+            )}
+            {expressionIssues.length > 0 && (
+              <ul className="feature-tree__expression-errors">
+                {expressionIssues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {outputControls && (
+            <div className="feature-tree__property-column">
+              <h4>Output defaults</h4>
+              <div className="feature-tree__matrix-grid">
+                <label>
+                  <span>Default</span>
+                  <input
+                    type="number"
+                    step={0.01}
+                    value={outputControls.defaultValue}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value);
+                      if (Number.isFinite(parsed)) {
+                        outputControls.onDefaultChange(parsed);
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>Min</span>
+                  <input
+                    type="number"
+                    step={0.01}
+                    value={outputControls.minValue ?? ""}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value);
+                      if (Number.isFinite(parsed)) {
+                        outputControls.onMinChange(parsed);
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>Max</span>
+                  <input
+                    type="number"
+                    step={0.01}
+                    value={outputControls.maxValue ?? ""}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value);
+                      if (Number.isFinite(parsed)) {
+                        outputControls.onMaxChange(parsed);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -453,16 +477,24 @@ interface PropertyControlsProps {
   inputRanges: Map<string, { min: number; max: number }>;
   bindingTargets: BindingTarget[];
   onInputValueChange: (inputId: string, value: number) => void;
-  onBindingInputChange: (targetId: string, inputId: string | null) => void;
+  onBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
   onBindingRemapChange: (
     targetId: string,
     field: BindingField,
     value: number,
+    slotId?: string,
   ) => void;
   onResetBinding: (targetId: string) => void;
   onRequestCreateStandardInput: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
+  onAddBindingSlot: (targetId: string) => void;
+  onRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onBindingExpressionChange: (targetId: string, expression: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -485,6 +517,9 @@ function PropertyControls({
   onBindingRemapChange,
   onResetBinding,
   onRequestCreateStandardInput,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
   onDefaultChange,
   onConstraintChange,
 }: PropertyControlsProps) {
@@ -679,10 +714,14 @@ function PropertyControls({
         bindingTarget={bindingTarget}
         treeState={treeState}
         standardInputs={standardInputs}
+        standardInputLookup={standardInputLookup}
         onBindingInputChange={onBindingInputChange}
         onBindingRemapChange={onBindingRemapChange}
         onResetBinding={onResetBinding}
         onRequestCreateStandardInput={onRequestCreateStandardInput}
+        onAddBindingSlot={onAddBindingSlot}
+        onRemoveBindingSlot={onRemoveBindingSlot}
+        onBindingExpressionChange={onBindingExpressionChange}
         outputControls={outputControls}
       />
     );
@@ -715,22 +754,32 @@ interface FeatureNodeProps {
   treeState: AnimatableTreeState;
   componentsById: Map<string, AnimatableComponent>;
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
   inputRanges: Map<string, { min: number; max: number }>;
   onInputValueChange: (inputId: string, value: number) => void;
-  onBindingInputChange: (targetId: string, inputId: string | null) => void;
+  onBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
   onBindingRemapChange: (
     targetId: string,
     field: BindingField,
     value: number,
+    slotId?: string,
   ) => void;
   onResetBinding: (targetId: string) => void;
   onRequestCreateStandardInput: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
+  onAddBindingSlot: (targetId: string) => void;
+  onRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onBindingExpressionChange: (targetId: string, expression: string) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
+  onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onNameChange: (entry: FeatureEntry, value: string) => void;
   onLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -748,6 +797,7 @@ function FeatureNode({
   treeState,
   componentsById,
   bindings,
+  bindingIssues,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -757,7 +807,11 @@ function FeatureNode({
   onBindingRemapChange,
   onResetBinding,
   onRequestCreateStandardInput,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
   onToggleAnimated,
+  onFeatureLabelChange,
   onNameChange,
   onLabelChange,
   onDefaultChange,
@@ -782,6 +836,7 @@ function FeatureNode({
           targetId: feature.entry.animatableId,
           binding: bindings[feature.entry.animatableId],
           component: componentMeta,
+          issues: bindingIssues.get(feature.entry.animatableId),
         });
       }
     } else {
@@ -794,6 +849,7 @@ function FeatureNode({
             targetId,
             binding: bindings[targetId],
             component: componentMeta,
+            issues: bindingIssues.get(targetId),
           });
         }
       });
@@ -825,7 +881,15 @@ function FeatureNode({
             {expanded ? "−" : "+"}
           </button>
           <div className="feature-tree__feature-title">
-            <strong>{feature.entry.featureLabel}</strong>
+            <input
+              className="feature-tree__feature-name-input"
+              value={feature.entry.featureLabel}
+              placeholder={feature.entry.defaultLabel}
+              onChange={(event) =>
+                onFeatureLabelChange(feature.entry, event.target.value)
+              }
+              spellCheck={false}
+            />
             <span className="feature-tree__feature-summary">
               {summaryValue}
             </span>
@@ -869,6 +933,9 @@ function FeatureNode({
                 onBindingRemapChange={onBindingRemapChange}
                 onResetBinding={onResetBinding}
                 onRequestCreateStandardInput={onRequestCreateStandardInput}
+                onAddBindingSlot={onAddBindingSlot}
+                onRemoveBindingSlot={onRemoveBindingSlot}
+                onBindingExpressionChange={onBindingExpressionChange}
                 onDefaultChange={onDefaultChange}
                 onConstraintChange={onConstraintChange}
               />
@@ -890,22 +957,32 @@ interface AnimatableTreeProps {
   treeState: AnimatableTreeState;
   componentsById: Map<string, AnimatableComponent>;
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
   inputRanges: Map<string, { min: number; max: number }>;
   onInputValueChange: (inputId: string, value: number) => void;
-  onBindingInputChange: (targetId: string, inputId: string | null) => void;
+  onBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
   onBindingRemapChange: (
     targetId: string,
     field: BindingField,
     value: number,
+    slotId?: string,
   ) => void;
   onResetBinding: (targetId: string) => void;
   onRequestCreateStandardInput: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
+  onAddBindingSlot: (targetId: string) => void;
+  onRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onBindingExpressionChange: (targetId: string, expression: string) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
+  onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onNameChange: (entry: FeatureEntry, value: string) => void;
   onLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -923,6 +1000,7 @@ export function AnimatableTree({
   treeState,
   componentsById,
   bindings,
+  bindingIssues,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -932,7 +1010,11 @@ export function AnimatableTree({
   onBindingRemapChange,
   onResetBinding,
   onRequestCreateStandardInput,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
   onToggleAnimated,
+  onFeatureLabelChange,
   onNameChange,
   onLabelChange,
   onDefaultChange,
@@ -974,6 +1056,7 @@ export function AnimatableTree({
                     treeState={treeState}
                     componentsById={componentsById}
                     bindings={bindings}
+                    bindingIssues={bindingIssues}
                     standardInputs={standardInputs}
                     standardInputLookup={standardInputLookup}
                     inputValues={inputValues}
@@ -983,6 +1066,10 @@ export function AnimatableTree({
                     onBindingRemapChange={onBindingRemapChange}
                     onResetBinding={onResetBinding}
                     onRequestCreateStandardInput={onRequestCreateStandardInput}
+                    onAddBindingSlot={onAddBindingSlot}
+                    onRemoveBindingSlot={onRemoveBindingSlot}
+                    onBindingExpressionChange={onBindingExpressionChange}
+                    onFeatureLabelChange={onFeatureLabelChange}
                     onToggleAnimated={onToggleAnimated}
                     onNameChange={onNameChange}
                     onLabelChange={onLabelChange}

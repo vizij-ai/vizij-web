@@ -10,10 +10,19 @@ export interface RemapSettings {
   outHigh: number;
 }
 
+export interface AnimatableBindingSlot {
+  id: string;
+  alias: string;
+  inputId: string | null;
+  remap: RemapSettings;
+}
+
 export interface AnimatableBinding {
   targetId: string;
   inputId: string | null;
   remap: RemapSettings;
+  slots: AnimatableBindingSlot[];
+  expression: string;
 }
 
 export type BindingMap = Record<string, AnimatableBinding>;
@@ -24,6 +33,61 @@ const DEFAULT_INPUT_RANGE = { min: -1, max: 1 };
 const DEFAULT_INPUT_ANCHOR = 0;
 
 const EPSILON = 1e-6;
+const LEGACY_SLOT_PATTERN = /^slot_(\d+)$/i;
+
+export const PRIMARY_SLOT_ID = "s1";
+export const PRIMARY_SLOT_ALIAS = "s1";
+
+function defaultSlotId(index: number): string {
+  return `s${index + 1}`;
+}
+
+function normalizeSlotId(value: string | undefined, index: number): string {
+  if (value && value.length > 0) {
+    const match = value.match(LEGACY_SLOT_PATTERN);
+    if (match) {
+      const suffix = match[1] ?? String(index + 1);
+      return `s${suffix}`;
+    }
+    return value;
+  }
+  return defaultSlotId(index);
+}
+
+function normalizeSlotAlias(
+  value: string | undefined,
+  fallback: string,
+  index: number,
+): { alias: string; replaced: string | null } {
+  if (value && value.length > 0) {
+    const match = value.match(LEGACY_SLOT_PATTERN);
+    if (match) {
+      const suffix = match[1] ?? String(index + 1);
+      return { alias: `s${suffix}`, replaced: value };
+    }
+    return { alias: value, replaced: null };
+  }
+  if (fallback && fallback.length > 0) {
+    return { alias: fallback, replaced: null };
+  }
+  return { alias: defaultSlotId(index), replaced: null };
+}
+
+function rewriteLegacyExpression(
+  expression: string,
+  replacements: Map<string, string>,
+): string {
+  if (replacements.size === 0 || expression.trim().length === 0) {
+    return expression;
+  }
+  return expression.replace(/\bslot_(\d+)\b/gi, (match, digits) => {
+    const replacement = replacements.get(match);
+    if (replacement) {
+      return replacement;
+    }
+    return `s${digits}`;
+  });
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -155,6 +219,46 @@ function normalizeRemap(
   return migrateLegacyRemap(remap, component);
 }
 
+function cloneRemap(remap: RemapSettings): RemapSettings {
+  return {
+    inLow: remap.inLow,
+    inAnchor: remap.inAnchor,
+    inHigh: remap.inHigh,
+    outLow: remap.outLow,
+    outAnchor: remap.outAnchor,
+    outHigh: remap.outHigh,
+  };
+}
+
+function sanitizeRemap(
+  remap: RemapSettings | LegacyRemapSettings | undefined,
+  component: AnimatableComponent,
+): RemapSettings {
+  const normalized = normalizeRemap(remap, component);
+  const outputDefaults = deriveOutputDefaults(component);
+  if (!Number.isFinite(normalized.outLow)) {
+    normalized.outLow = outputDefaults.outLow;
+  }
+  if (!Number.isFinite(normalized.outHigh)) {
+    normalized.outHigh = outputDefaults.outHigh;
+  }
+  if (!Number.isFinite(normalized.outAnchor)) {
+    normalized.outAnchor = outputDefaults.outAnchor;
+  }
+  if (normalized.outLow > normalized.outHigh) {
+    const low = normalized.outHigh;
+    const high = normalized.outLow;
+    normalized.outLow = low;
+    normalized.outHigh = high;
+  }
+  normalized.outAnchor = clamp(
+    normalized.outAnchor,
+    normalized.outLow,
+    normalized.outHigh,
+  );
+  return normalized;
+}
+
 export function createDefaultRemap(
   component: AnimatableComponent,
 ): RemapSettings {
@@ -175,13 +279,111 @@ export function createDefaultBindings(
 ): BindingMap {
   const bindings: BindingMap = {};
   components.forEach((component) => {
-    bindings[component.id] = {
-      targetId: component.id,
-      inputId: null,
-      remap: createDefaultRemap(component),
-    };
+    bindings[component.id] = createDefaultBinding(component);
   });
   return bindings;
+}
+
+export function createDefaultBinding(
+  component: AnimatableComponent,
+): AnimatableBinding {
+  const remap = createDefaultRemap(component);
+  return {
+    targetId: component.id,
+    inputId: null,
+    remap,
+    slots: [
+      {
+        id: PRIMARY_SLOT_ID,
+        alias: PRIMARY_SLOT_ALIAS,
+        inputId: null,
+        remap: cloneRemap(remap),
+      },
+    ],
+    expression: PRIMARY_SLOT_ALIAS,
+  };
+}
+
+function ensurePrimarySlot(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+): AnimatableBinding {
+  const normalizedBindingRemap = sanitizeRemap(binding.remap, component);
+  const aliasReplacements = new Map<string, string>();
+  const sourceSlots =
+    Array.isArray(binding.slots) && binding.slots.length > 0
+      ? binding.slots
+      : [
+          {
+            id: PRIMARY_SLOT_ID,
+            alias: PRIMARY_SLOT_ALIAS,
+            inputId: binding.inputId ?? null,
+            remap: cloneRemap(normalizedBindingRemap),
+          },
+        ];
+
+  const normalizedSlots: AnimatableBindingSlot[] = sourceSlots.map(
+    (slot, index) => {
+      const normalizedId = normalizeSlotId(slot.id, index);
+      const { alias: normalizedAlias, replaced } = normalizeSlotAlias(
+        slot.alias,
+        normalizedId,
+        index,
+      );
+      if (replaced && replaced !== normalizedAlias) {
+        aliasReplacements.set(replaced, normalizedAlias);
+      }
+      const slotRemapSource =
+        slot.remap ??
+        (index === 0 ? normalizedBindingRemap : createDefaultRemap(component));
+      const normalizedSlotRemap = sanitizeRemap(slotRemapSource, component);
+      const inputId =
+        slot.inputId !== undefined && slot.inputId !== null
+          ? slot.inputId
+          : index === 0
+            ? (binding.inputId ?? null)
+            : null;
+      return {
+        id: normalizedId,
+        alias: normalizedAlias,
+        inputId,
+        remap: cloneRemap(normalizedSlotRemap),
+      };
+    },
+  );
+
+  const primary = normalizedSlots[0];
+  const primaryRemap = sanitizeRemap(primary.remap, component);
+  normalizedSlots[0] = {
+    ...primary,
+    id: primary.id || PRIMARY_SLOT_ID,
+    alias: primary.alias || PRIMARY_SLOT_ALIAS,
+    inputId: primary.inputId ?? binding.inputId ?? null,
+    remap: cloneRemap(primaryRemap),
+  };
+  normalizedSlots.slice(1).forEach((slot, index) => {
+    const slotRemap = sanitizeRemap(slot.remap, component);
+    normalizedSlots[index + 1] = {
+      ...slot,
+      id: slot.id || defaultSlotId(index + 1),
+      alias: slot.alias || defaultSlotId(index + 1),
+      remap: cloneRemap(slotRemap),
+    };
+  });
+
+  const rawExpression =
+    typeof binding.expression === "string" ? binding.expression.trim() : "";
+  let expression =
+    rawExpression.length > 0 ? rawExpression : normalizedSlots[0].alias;
+  expression = rewriteLegacyExpression(expression, aliasReplacements);
+
+  return {
+    ...binding,
+    inputId: normalizedSlots[0].inputId ?? null,
+    remap: cloneRemap(primaryRemap),
+    slots: normalizedSlots,
+    expression,
+  };
 }
 
 export function createDefaultInputValues(
@@ -194,34 +396,222 @@ export function createDefaultInputValues(
   return values;
 }
 
+export function ensureBindingStructure(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+): AnimatableBinding {
+  return ensurePrimarySlot(binding, component);
+}
+
+export function getPrimaryBindingSlot(
+  binding: AnimatableBinding,
+): AnimatableBindingSlot | null {
+  if (!binding.slots || binding.slots.length === 0) {
+    return null;
+  }
+  return binding.slots[0];
+}
+
+export function addBindingSlot(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, component);
+  const nextIndex = base.slots.length + 1;
+  const slotId = defaultSlotId(nextIndex - 1);
+  const alias = slotId;
+  const remap = createDefaultRemap(component);
+  const nextSlots = [
+    ...base.slots,
+    {
+      id: slotId,
+      alias,
+      inputId: null,
+      remap: cloneRemap(remap),
+    },
+  ];
+  return ensurePrimarySlot(
+    {
+      ...base,
+      slots: nextSlots,
+    },
+    component,
+  );
+}
+
+export function removeBindingSlot(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+  slotId: string,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, component);
+  if (base.slots.length <= 1) {
+    return base;
+  }
+  const nextSlots = base.slots.filter((slot) => slot.id !== slotId);
+  if (nextSlots.length === base.slots.length) {
+    return base;
+  }
+  const nextBinding = ensurePrimarySlot(
+    {
+      ...base,
+      slots: nextSlots,
+    },
+    component,
+  );
+  if (!nextBinding.expression) {
+    return nextBinding;
+  }
+  const hasExpressionAlias = nextBinding.slots.some(
+    (slot) => slot.alias === nextBinding.expression,
+  );
+  if (!hasExpressionAlias) {
+    return {
+      ...nextBinding,
+      expression: nextBinding.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS,
+    };
+  }
+  return nextBinding;
+}
+
+export function updateBindingExpression(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+  expression: string,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, component);
+  const trimmed = expression.trim();
+  return {
+    ...base,
+    expression:
+      trimmed.length > 0
+        ? trimmed
+        : (base.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS),
+  };
+}
+
+export function updateBindingSlotRemap(
+  binding: AnimatableBinding,
+  component: AnimatableComponent,
+  slotId: string,
+  field: keyof RemapSettings,
+  value: number,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, component);
+  const nextSlots = base.slots.map((slot) => {
+    if (slot.id !== slotId) {
+      return slot;
+    }
+    const updatedRemap: RemapSettings = {
+      ...slot.remap,
+      [field]: value,
+    } as RemapSettings;
+    const sanitized = sanitizeRemap(updatedRemap, component);
+    return {
+      ...slot,
+      remap: cloneRemap(sanitized),
+    };
+  });
+  const updated = ensurePrimarySlot(
+    {
+      ...base,
+      slots: nextSlots,
+    },
+    component,
+  );
+  if (updated.slots[0]?.id === slotId) {
+    updated.remap = {
+      ...updated.remap,
+      [field]: value,
+    };
+  }
+  return updated;
+}
+
 export function updateBindingWithInput(
   binding: AnimatableBinding,
   component: AnimatableComponent,
   input: StandardRigInput | undefined,
+  slotId: string = PRIMARY_SLOT_ID,
 ): AnimatableBinding {
-  if (!input) {
-    return {
-      ...binding,
+  const base = ensurePrimarySlot(binding, component);
+  const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
+
+  const effectiveIndex = slotIndex >= 0 ? slotIndex : base.slots.length;
+
+  const slots = base.slots.map((slot) => ({
+    ...slot,
+    remap: cloneRemap(slot.remap),
+  }));
+
+  if (slotIndex === -1) {
+    const alias =
+      slotId === PRIMARY_SLOT_ID && slots.length === 0
+        ? PRIMARY_SLOT_ALIAS
+        : slotId;
+    slots.push({
+      id: slotId,
+      alias,
       inputId: null,
-      remap: {
-        ...normalizeRemap(binding.remap, component),
-        inLow: DEFAULT_INPUT_RANGE.min,
-        inAnchor: DEFAULT_INPUT_ANCHOR,
-        inHigh: DEFAULT_INPUT_RANGE.max,
-      },
+      remap: cloneRemap(createDefaultRemap(component)),
+    });
+  }
+
+  const currentSlot = slots[effectiveIndex];
+
+  if (!input) {
+    const normalizedSlotRemap = sanitizeRemap(currentSlot.remap, component);
+    const updatedRemap: RemapSettings = {
+      ...normalizedSlotRemap,
+      inLow: DEFAULT_INPUT_RANGE.min,
+      inAnchor: DEFAULT_INPUT_ANCHOR,
+      inHigh: DEFAULT_INPUT_RANGE.max,
+    };
+    slots[effectiveIndex] = {
+      ...currentSlot,
+      inputId: null,
+      remap: cloneRemap(updatedRemap),
+    };
+    if (effectiveIndex === 0) {
+      return {
+        ...base,
+        inputId: null,
+        remap: cloneRemap(updatedRemap),
+        slots,
+      };
+    }
+    return {
+      ...base,
+      slots,
     };
   }
-  const normalized = normalizeRemap(binding.remap, component);
-  return {
-    ...binding,
+
+  const normalizedRemap = sanitizeRemap(currentSlot.remap, component);
+  const updatedRemap: RemapSettings = {
+    ...normalizedRemap,
+    inLow: input.range.min,
+    inAnchor: clamp(input.defaultValue, input.range.min, input.range.max),
+    inHigh: input.range.max,
+    ...deriveOutputDefaults(component),
+  };
+  slots[effectiveIndex] = {
+    ...currentSlot,
     inputId: input.id,
-    remap: {
-      ...normalized,
-      inLow: input.range.min,
-      inAnchor: clamp(input.defaultValue, input.range.min, input.range.max),
-      inHigh: input.range.max,
-      ...deriveOutputDefaults(component),
-    },
+    remap: cloneRemap(updatedRemap),
+  };
+
+  if (effectiveIndex === 0) {
+    return {
+      ...base,
+      inputId: input.id,
+      remap: cloneRemap(updatedRemap),
+      slots,
+    };
+  }
+
+  return {
+    ...base,
+    slots,
   };
 }
 
@@ -254,35 +644,43 @@ export function reconcileBindings(
   components.forEach((component) => {
     const existing = previous[component.id];
     if (existing) {
-      const remap = normalizeRemap(existing.remap, component);
-      const outputDefaults = deriveOutputDefaults(component);
-      if (!Number.isFinite(remap.outLow)) {
-        remap.outLow = outputDefaults.outLow;
-      }
-      if (!Number.isFinite(remap.outHigh)) {
-        remap.outHigh = outputDefaults.outHigh;
-      }
-      if (!Number.isFinite(remap.outAnchor)) {
-        remap.outAnchor = outputDefaults.outAnchor;
-      }
-      if (remap.outLow > remap.outHigh) {
-        const low = remap.outHigh;
-        const high = remap.outLow;
-        remap.outLow = low;
-        remap.outHigh = high;
-      }
-      remap.outAnchor = clamp(remap.outAnchor, remap.outLow, remap.outHigh);
+      const ensured = ensurePrimarySlot(existing, component);
+      const aliasReplacements = new Map<string, string>();
+      const slots = ensured.slots.map((slot, index) => {
+        const normalizedId = normalizeSlotId(slot.id, index);
+        const { alias: normalizedAlias, replaced } = normalizeSlotAlias(
+          slot.alias,
+          normalizedId,
+          index,
+        );
+        if (replaced && replaced !== normalizedAlias) {
+          aliasReplacements.set(replaced, normalizedAlias);
+        }
+        const slotRemap = sanitizeRemap(slot.remap, component);
+        return {
+          ...slot,
+          id: normalizedId,
+          alias: normalizedAlias,
+          remap: cloneRemap(slotRemap),
+        };
+      });
+      const primary = slots[0];
+      let expression =
+        typeof ensured.expression === "string" &&
+        ensured.expression.trim().length > 0
+          ? ensured.expression.trim()
+          : primary.alias;
+      expression = rewriteLegacyExpression(expression, aliasReplacements);
       next[component.id] = {
-        ...existing,
+        ...ensured,
         targetId: component.id,
-        remap,
+        inputId: primary.inputId ?? null,
+        remap: cloneRemap(primary.remap),
+        slots,
+        expression,
       };
     } else {
-      next[component.id] = {
-        targetId: component.id,
-        inputId: null,
-        remap: createDefaultRemap(component),
-      };
+      next[component.id] = createDefaultBinding(component);
     }
   });
   return next;

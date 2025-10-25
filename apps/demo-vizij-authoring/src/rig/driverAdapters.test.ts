@@ -5,6 +5,7 @@ import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
 import { buildGraphFromDrivers } from "@vizij/utils";
 
 import { buildAuthoringDriverGraph } from "./driverAdapters";
+import { createDefaultBinding } from "./state";
 
 describe("buildAuthoringDriverGraph", () => {
   it("converts bindings into remap drivers", () => {
@@ -35,21 +36,31 @@ describe("buildAuthoringDriverGraph", () => {
     };
     const componentsById = new Map([[component.id, component]]);
 
+    const remap = {
+      inLow: -1,
+      inAnchor: 0,
+      inHigh: 1,
+      outLow: -0.5,
+      outAnchor: 0,
+      outHigh: 0.5,
+    };
+    const baseBinding = createDefaultBinding(component);
+
     const driverGraph = buildAuthoringDriverGraph({
       faceId: "robot",
       namespace: "default",
       bindings: {
         [component.id]: {
-          targetId: component.id,
+          ...baseBinding,
           inputId: "mouth_pos_x",
-          remap: {
-            inLow: -1,
-            inAnchor: 0,
-            inHigh: 1,
-            outLow: -0.5,
-            outAnchor: 0,
-            outHigh: 0.5,
-          },
+          remap: { ...remap },
+          slots: [
+            {
+              ...baseBinding.slots[0],
+              inputId: "mouth_pos_x",
+              remap: { ...remap },
+            },
+          ],
         },
       },
       componentsById,
@@ -98,22 +109,31 @@ describe("buildAuthoringDriverGraph", () => {
       },
     };
     const componentsById = new Map([[component.id, component]]);
+    const baseBinding = createDefaultBinding(component);
+    const remap = {
+      inLow: -1,
+      inAnchor: 0,
+      inHigh: 1,
+      outLow: 0,
+      outAnchor: 0,
+      outHigh: 1,
+    };
 
     const driverGraph = buildAuthoringDriverGraph({
       faceId: "robot",
       namespace: "default",
       bindings: {
         [component.id]: {
-          targetId: component.id,
+          ...baseBinding,
           inputId: null,
-          remap: {
-            inLow: -1,
-            inAnchor: 0,
-            inHigh: 1,
-            outLow: 0,
-            outAnchor: 0,
-            outHigh: 1,
-          },
+          remap: { ...remap },
+          slots: [
+            {
+              ...baseBinding.slots[0],
+              inputId: null,
+              remap: { ...remap },
+            },
+          ],
         },
       },
       componentsById,

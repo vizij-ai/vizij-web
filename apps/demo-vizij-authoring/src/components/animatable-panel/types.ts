@@ -34,6 +34,7 @@ export interface BaseFeatureEntry {
   elementName: string;
   elementType: string;
   featureKey: string;
+  defaultLabel: string;
   featureLabel: string;
   animated: boolean;
   animatableId?: string;
@@ -84,11 +85,18 @@ export interface AnimatableValuesPanelProps {
   onClearSelection(): void;
   components: AnimatableComponent[];
   bindings: BindingMap;
-  onBindingInputChange(targetId: string, inputId: string | null): void;
+  bindingIssues: Map<string, readonly string[]>;
+  featureLabelOverrides: Record<string, string>;
+  onBindingInputChange(
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ): void;
   onBindingRemapChange(
     targetId: string,
     field: BindingField,
     value: number,
+    slotId?: string,
   ): void;
   onResetBinding(targetId: string): void;
   inputValues: StandardInputValues;
@@ -105,6 +113,10 @@ export interface AnimatableValuesPanelProps {
     updates: { path?: string; label?: string },
   ): void;
   onDeleteCustomStandardInput(inputId: string): void;
+  onAddBindingSlot(targetId: string): void;
+  onRemoveBindingSlot(targetId: string, slotId: string): void;
+  onBindingExpressionChange(targetId: string, expression: string): void;
+  onFeatureLabelChange(entry: FeatureEntry, value: string): void;
 }
 
 export type BindingTarget = {
@@ -112,6 +124,7 @@ export type BindingTarget = {
   targetId: string;
   binding: AnimatableBinding | undefined;
   component: AnimatableComponent;
+  issues?: readonly string[];
 };
 
 export type RigInputDescriptor = {

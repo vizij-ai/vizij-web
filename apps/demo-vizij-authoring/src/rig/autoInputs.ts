@@ -168,8 +168,13 @@ export function buildAutoRigInputBlueprints(
   world: Record<string, any>,
   animatables: Record<string, AnimatableValue>,
   components: AnimatableComponent[],
+  labelOverrides: Record<string, string> = {},
 ): AutoRigInputBlueprintResult {
-  const featureEntries = buildFeatureEntries(world, animatables);
+  const featureEntries = buildFeatureEntries(
+    world,
+    animatables,
+    labelOverrides,
+  );
   const groupedComponents = groupComponentsByAnimatable(components);
   const registry = new Set<string>();
   const blueprints: AutoRigInputBlueprint[] = [];

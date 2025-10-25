@@ -34,6 +34,18 @@ function formatFeatureLabel(key: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function deriveFeatureLabel(
+  featureKey: string,
+  descriptor: AnimatableValue | undefined,
+): string {
+  const descriptorLabel =
+    descriptor?.pub?.output?.trim() || descriptor?.name?.trim();
+  if (descriptorLabel && descriptorLabel.length > 0) {
+    return descriptorLabel;
+  }
+  return formatFeatureLabel(featureKey);
+}
+
 function getComponentsForDescriptor(
   descriptorType: VectorDescriptorType,
 ): readonly VectorComponent[] {
@@ -96,6 +108,7 @@ function resolveSupportedKind(
 export function buildFeatureEntries(
   world: Record<string, RenderableLike>,
   animatables: Record<string, AnimatableValue>,
+  labelOverrides: Record<string, string> = {},
 ): FeatureEntry[] {
   const entries: FeatureEntry[] = [];
 
@@ -124,14 +137,21 @@ export function buildFeatureEntries(
           return;
         }
 
+        const entryId = `${renderable.id}:${featureKey}`;
+        const defaultLabel = deriveFeatureLabel(featureKey, descriptor);
+        const override = labelOverrides[entryId]?.trim();
+        const featureLabel =
+          override && override.length > 0 ? override : defaultLabel;
+
         if (supported.type === "number") {
           entries.push({
-            id: `${renderable.id}:${featureKey}`,
+            id: entryId,
             elementId: renderable.id,
             elementName,
             elementType: renderable.type,
             featureKey,
-            featureLabel: formatFeatureLabel(featureKey),
+            defaultLabel,
+            featureLabel,
             animated: true,
             animatableId: feature.value,
             descriptor,
@@ -141,12 +161,13 @@ export function buildFeatureEntries(
         }
 
         entries.push({
-          id: `${renderable.id}:${featureKey}`,
+          id: entryId,
           elementId: renderable.id,
           elementName,
           elementType: renderable.type,
           featureKey,
-          featureLabel: formatFeatureLabel(featureKey),
+          defaultLabel,
+          featureLabel,
           animated: true,
           animatableId: feature.value,
           descriptor,
@@ -168,14 +189,21 @@ export function buildFeatureEntries(
         return;
       }
 
+      const entryId = `${renderable.id}:${featureKey}`;
+      const defaultLabel = deriveFeatureLabel(featureKey, undefined);
+      const override = labelOverrides[entryId]?.trim();
+      const featureLabel =
+        override && override.length > 0 ? override : defaultLabel;
+
       if (supported.type === "number") {
         entries.push({
-          id: `${renderable.id}:${featureKey}`,
+          id: entryId,
           elementId: renderable.id,
           elementName,
           elementType: renderable.type,
           featureKey,
-          featureLabel: formatFeatureLabel(featureKey),
+          defaultLabel,
+          featureLabel,
           animated: false,
           staticValue: feature.value,
           type: "number",
@@ -184,12 +212,13 @@ export function buildFeatureEntries(
       }
 
       entries.push({
-        id: `${renderable.id}:${featureKey}`,
+        id: entryId,
         elementId: renderable.id,
         elementName,
         elementType: renderable.type,
         featureKey,
-        featureLabel: formatFeatureLabel(featureKey),
+        defaultLabel,
+        featureLabel,
         animated: false,
         staticValue: feature.value,
         type: "vector3",

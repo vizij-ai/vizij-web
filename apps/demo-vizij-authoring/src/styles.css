@@ -771,6 +771,7 @@ button:disabled {
   padding-top: 0.85rem;
   border-top: 1px solid #1e293b;
   font-size: 0.8rem;
+  align-items: flex-start;
 }
 
 .feature-row__binding-matrix--columns-1 {
@@ -788,6 +789,12 @@ button:disabled {
 .feature-row__binding-matrix-cell {
   display: flex;
   align-items: center;
+}
+
+.feature-row__binding-matrix-cell--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
 }
 
 .feature-row__binding-matrix-cell select,
@@ -897,6 +904,23 @@ button:disabled {
 
 .feature-row__binding-matrix-cell--actions button:hover {
   background: rgba(51, 65, 85, 0.35);
+}
+
+.feature-row__binding-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feature-row__binding-slot-list .feature-tree__binding-slot {
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.feature-row__binding-slot-list .feature-tree__binding-slot-header {
+  margin-bottom: 0.5rem;
 }
 
 .hover-details {
@@ -1234,6 +1258,35 @@ button:disabled {
 .feature-row__rig-preview-row {
   width: 100%;
   align-items: center;
+}
+
+.feature-row__rig-preview-aliases {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+  list-style: disc;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.feature-row__rig-preview-aliases li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.feature-row__rig-preview-alias {
+  font-weight: 600;
+  color: #cbd5f5;
+}
+
+.feature-row__rig-preview-target {
+  font-size: 0.7rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .feature-row__field {
@@ -1649,10 +1702,28 @@ button:disabled {
   gap: 0.16rem;
 }
 
-.feature-tree__feature-title strong {
+.feature-tree__feature-name-input {
+  width: 100%;
   font-size: 0.9rem;
   font-weight: 600;
   color: #e2e8f0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  padding: 0.15rem 0.35rem;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.feature-tree__feature-name-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.feature-tree__feature-name-input::placeholder {
+  color: #64748b;
 }
 
 .feature-tree__feature-summary {
@@ -1911,6 +1982,102 @@ button:disabled {
   padding-top: 0.25rem;
 }
 
+.feature-tree__binding-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.feature-tree__binding-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.feature-tree__binding-slot {
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.6rem;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feature-tree__binding-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.feature-tree__binding-slot-alias {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5f5;
+}
+
+.feature-tree__binding-slot-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.feature-tree__binding-slot-remove {
+  padding: 0.25rem 0.65rem;
+}
+
+.feature-tree__slot-add {
+  align-self: flex-start;
+}
+
+.feature-tree__expression-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.feature-tree__expression-editor label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #cbd5f5;
+}
+
+.feature-tree__expression-editor textarea {
+  min-height: 3.2rem;
+  border-radius: 0.5rem;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  color: inherit;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.feature-tree__expression-hints {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.feature-tree__expression-editor textarea[aria-invalid="true"] {
+  border-color: #f87171;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35);
+}
+
+.feature-tree__expression-errors {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.7rem;
+  color: #fca5a5;
+}
+
+.feature-tree__expression-errors li {
+  margin: 0;
+  list-style: disc;
+}
+
 .feature-tree__remap-section {
   display: flex;
   flex-direction: column;
@@ -1979,6 +2146,12 @@ button:disabled {
   gap: 0.45rem;
   overflow-x: auto;
   padding-bottom: 0.1rem;
+}
+
+.feature-tree__matrix-columns--slots {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  overflow: visible;
 }
 
 .feature-tree__property-column {

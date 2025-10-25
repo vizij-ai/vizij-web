@@ -40,6 +40,8 @@ export default function App() {
     handleFaceIdChange,
     graphStatus,
     graphError,
+    bindingIssues,
+    featureLabelOverrides,
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,
@@ -57,6 +59,10 @@ export default function App() {
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
+    handleAddBindingSlot,
+    handleRemoveBindingSlot,
+    handleUpdateBindingExpression,
+    handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
     handleFocusSelectionIndex,
     handleClearSelection,
@@ -270,6 +276,8 @@ export default function App() {
           onClearSelection={handleClearSelection}
           components={animatableComponents}
           bindings={bindings}
+          bindingIssues={bindingIssues}
+          featureLabelOverrides={featureLabelOverrides}
           onBindingInputChange={handleBindingInputChange}
           onBindingRemapChange={handleBindingRemapChange}
           onResetBinding={handleResetBinding}
@@ -284,6 +292,12 @@ export default function App() {
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
           onUpdateStandardInput={handleUpdateStandardInput}
           onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
+          onAddBindingSlot={handleAddBindingSlot}
+          onRemoveBindingSlot={handleRemoveBindingSlot}
+          onBindingExpressionChange={handleUpdateBindingExpression}
+          onFeatureLabelChange={(entry, value) =>
+            handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)
+          }
         />
       </aside>
     </div>
