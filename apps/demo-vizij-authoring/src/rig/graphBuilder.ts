@@ -3,14 +3,20 @@ import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
 import { buildAnimatableValue } from "@vizij/utils";
+import { SELF_BINDING_ID } from "@vizij/utils";
 import type { BindingMap } from "./state";
 import {
   createDefaultRemap,
   ensureBindingStructure,
-  type RemapSettings,
+  bindingTargetFromComponent,
+  bindingTargetFromInput,
+  type AnimatableBinding,
+  type BindingTarget,
+  type InputBindingMap,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
 } from "./state";
+import type { RemapSettings } from "@vizij/utils";
 import {
   collectExpressionReferences,
   parseControlExpression,
@@ -20,12 +26,203 @@ import {
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
 
+interface BindingGraphContext {
+  nodes: NodeSpec[];
+  edges: NonNullable<GraphSpec["edges"]>;
+  ensureInputNode: (
+    inputId: string,
+  ) => { nodeId: string; input: StandardRigInput } | null;
+  bindingIssues: Map<string, Set<string>>;
+  summaryBindings: GraphBindingSummary[];
+}
+
+interface EvaluateBindingArgs {
+  binding: AnimatableBinding;
+  target: BindingTarget;
+  targetId: string;
+  animatableId: string;
+  component?: VectorComponent;
+  safeId: string;
+  context: BindingGraphContext;
+  selfNodeId?: string;
+}
+
+function evaluateBinding({
+  binding,
+  target,
+  targetId,
+  animatableId,
+  component,
+  safeId,
+  context,
+  selfNodeId,
+}: EvaluateBindingArgs): {
+  valueNodeId: string | null;
+  hasActiveSlot: boolean;
+} {
+  const { nodes, edges, ensureInputNode, bindingIssues, summaryBindings } =
+    context;
+  const exprContext: ExpressionBuildContext = {
+    componentSafeId: safeId,
+    nodes,
+    edges,
+    constants: new Map(),
+    counter: 0,
+  };
+  const aliasNodes = new Map<string, string>();
+  const slotSummaries: GraphBindingSummary[] = [];
+  const expressionIssues: string[] = [];
+  const rawExpression =
+    typeof binding.expression === "string" ? binding.expression : "";
+  const trimmedExpression = rawExpression.trim();
+  let hasActiveSlot = false;
+
+  binding.slots.forEach((slot, index) => {
+    const aliasBase = slot.alias?.trim() ?? "";
+    const fallbackAlias = `s${index + 1}`;
+    const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
+    const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
+    let slotOutputId: string;
+    if (slot.inputId === SELF_BINDING_ID) {
+      if (selfNodeId) {
+        slotOutputId = selfNodeId;
+        hasActiveSlot = true;
+      } else {
+        expressionIssues.push("Self reference unavailable for this input.");
+        slotOutputId = getConstantNodeId(exprContext, target.defaultValue);
+      }
+    } else if (slot.inputId) {
+      const inputNode = ensureInputNode(slot.inputId);
+      if (inputNode) {
+        const remapNodeId = `remap_${safeId}_${sanitizeNodeId(slotId)}`;
+        nodes.push({
+          id: remapNodeId,
+          type: "centered_remap",
+          input_defaults: {
+            in_low: slot.remap.inLow,
+            in_anchor: slot.remap.inAnchor,
+            in_high: slot.remap.inHigh,
+            out_low: slot.remap.outLow,
+            out_anchor: slot.remap.outAnchor,
+            out_high: slot.remap.outHigh,
+          },
+        });
+        edges.push({
+          from: { node_id: inputNode.nodeId },
+          to: { node_id: remapNodeId, input: "in" },
+        });
+        slotOutputId = remapNodeId;
+        hasActiveSlot = true;
+      } else {
+        expressionIssues.push(`Missing standard input "${slot.inputId}".`);
+        slotOutputId = getConstantNodeId(exprContext, 0);
+      }
+    } else {
+      slotOutputId = getConstantNodeId(exprContext, 0);
+    }
+    aliasNodes.set(alias, slotOutputId);
+    slotSummaries.push({
+      targetId,
+      animatableId,
+      component,
+      slotId,
+      slotAlias: alias,
+      inputId: slot.inputId ?? null,
+      remap: { ...slot.remap },
+      expression: trimmedExpression,
+    });
+  });
+
+  if (slotSummaries.length === 0) {
+    const alias = PRIMARY_SLOT_ALIAS;
+    aliasNodes.set(alias, getConstantNodeId(exprContext, 0));
+    slotSummaries.push({
+      targetId,
+      animatableId,
+      component,
+      slotId: PRIMARY_SLOT_ID,
+      slotAlias: alias,
+      inputId: null,
+      remap: createDefaultRemap(target),
+      expression: trimmedExpression,
+    });
+  }
+
+  const defaultAlias = slotSummaries[0]?.slotAlias ?? PRIMARY_SLOT_ALIAS;
+  const expressionText =
+    trimmedExpression.length > 0 ? trimmedExpression : defaultAlias;
+
+  const parseResult = parseControlExpression(expressionText);
+  let expressionAst: ControlExpressionNode | null = null;
+
+  if (parseResult.node && parseResult.errors.length === 0) {
+    const references = collectExpressionReferences(parseResult.node);
+    const missing: string[] = [];
+    references.forEach((ref) => {
+      if (!aliasNodes.has(ref)) {
+        missing.push(ref);
+      }
+    });
+    if (missing.length === 0) {
+      expressionAst = parseResult.node;
+    } else {
+      missing.forEach((ref) => {
+        expressionIssues.push(`Unknown control "${ref}".`);
+      });
+    }
+  } else {
+    parseResult.errors.forEach((error) => {
+      expressionIssues.push(error.message);
+    });
+  }
+
+  let valueNodeId: string | null = null;
+
+  if (expressionAst) {
+    valueNodeId = materializeExpression(
+      expressionAst,
+      exprContext,
+      aliasNodes,
+      expressionIssues,
+    );
+  }
+
+  if (!valueNodeId) {
+    const fallbackAlias = aliasNodes.has(defaultAlias)
+      ? defaultAlias
+      : aliasNodes.keys().next().value;
+    valueNodeId =
+      (fallbackAlias ? aliasNodes.get(fallbackAlias) : undefined) ??
+      getConstantNodeId(exprContext, 0);
+  }
+
+  const issuesCopy = expressionIssues.length
+    ? [...new Set(expressionIssues)]
+    : undefined;
+  slotSummaries.forEach((summary) => {
+    summary.expression = expressionText;
+    if (issuesCopy && issuesCopy.length > 0) {
+      summary.issues = issuesCopy;
+      const issueSet = bindingIssues.get(summary.targetId) ?? new Set<string>();
+      issuesCopy.forEach((issue) => issueSet.add(issue));
+      bindingIssues.set(summary.targetId, issueSet);
+    }
+  });
+  summaryBindings.push(...slotSummaries);
+
+  return {
+    valueNodeId,
+    hasActiveSlot,
+  };
+}
+
 interface BuildGraphOptions {
   faceId: string;
   animatables: Record<string, AnimatableValue>;
   components: AnimatableComponent[];
   bindings: BindingMap;
   inputsById: Map<string, StandardRigInput>;
+  inputBindings: InputBindingMap;
 }
 
 export interface GraphBindingSummary {
@@ -160,9 +357,7 @@ function getConstantNodeId(
     id: nodeId,
     type: "constant",
     params: {
-      value: {
-        float: Number.isFinite(value) ? value : 0,
-      },
+      value: Number.isFinite(value) ? value : 0,
     },
   });
   context.constants.set(key, nodeId);
@@ -320,6 +515,7 @@ export function buildRigGraphSpec({
   components,
   bindings,
   inputsById,
+  inputBindings,
 }: BuildGraphOptions): BuildGraphResult {
   const nodes: NodeSpec[] = [];
   const edges: NonNullable<GraphSpec["edges"]> = [];
@@ -327,6 +523,8 @@ export function buildRigGraphSpec({
     string,
     { nodeId: string; input: StandardRigInput }
   >();
+  const buildingDerived = new Set<string>();
+  const computedInputs = new Set<string>();
   const summaryBindings: GraphBindingSummary[] = [];
   const bindingIssues = new Map<string, Set<string>>();
   const animatableEntries = new Map<string, AnimatableGraphEntry>();
@@ -343,6 +541,72 @@ export function buildRigGraphSpec({
     if (!input) {
       return null;
     }
+
+    const inputBindingRaw = inputBindings[inputId];
+    if (inputBindingRaw) {
+      if (buildingDerived.has(inputId)) {
+        const issueSet = bindingIssues.get(inputId) ?? new Set<string>();
+        issueSet.add("Derived input cycle detected.");
+        bindingIssues.set(inputId, issueSet);
+        return null;
+      }
+      buildingDerived.add(inputId);
+      try {
+        const target = bindingTargetFromInput(input);
+        const binding = ensureBindingStructure(inputBindingRaw, target);
+        const requiresSelf =
+          binding.inputId === SELF_BINDING_ID ||
+          binding.slots.some((slot) => slot.inputId === SELF_BINDING_ID);
+        let selfNodeId: string | undefined;
+        if (requiresSelf) {
+          const sliderNodeId = `input_raw_${sanitizeNodeId(inputId)}`;
+          nodes.push({
+            id: sliderNodeId,
+            type: "input",
+            params: {
+              path: buildRigInputPath(faceId, input.path),
+            },
+          });
+          selfNodeId = sliderNodeId;
+        }
+        const { valueNodeId, hasActiveSlot } = evaluateBinding({
+          binding,
+          target,
+          targetId: inputId,
+          animatableId: inputId,
+          component: undefined,
+          safeId: sanitizeNodeId(inputId),
+          context: {
+            nodes,
+            edges,
+            ensureInputNode,
+            bindingIssues,
+            summaryBindings,
+          },
+          selfNodeId,
+        });
+        if (!valueNodeId || !hasActiveSlot) {
+          const constNodeId = `derived_default_${sanitizeNodeId(inputId)}`;
+          nodes.push({
+            id: constNodeId,
+            type: "constant",
+            params: {
+              value: input.defaultValue,
+            },
+          });
+          const record = { nodeId: constNodeId, input };
+          inputNodes.set(inputId, record);
+          return record;
+        }
+        computedInputs.add(inputId);
+        const record = { nodeId: valueNodeId, input };
+        inputNodes.set(inputId, record);
+        return record;
+      } finally {
+        buildingDerived.delete(inputId);
+      }
+    }
+
     const nodeId = `input_${sanitizeNodeId(inputId)}`;
     nodes.push({
       id: nodeId,
@@ -379,8 +643,9 @@ export function buildRigGraphSpec({
 
   components.forEach((component) => {
     const bindingRaw = bindings[component.id];
+    const target = bindingTargetFromComponent(component);
     const binding = bindingRaw
-      ? ensureBindingStructure(bindingRaw, component)
+      ? ensureBindingStructure(bindingRaw, target)
       : null;
     const entry = ensureAnimatableEntry(component.animatableId);
     if (!entry) {
@@ -393,146 +658,25 @@ export function buildRigGraphSpec({
     let hasActiveSlot = false;
 
     if (binding) {
-      const componentSafeId = sanitizeNodeId(component.id);
-      const exprContext: ExpressionBuildContext = {
-        componentSafeId,
-        nodes,
-        edges,
-        constants: new Map(),
-        counter: 0,
-      };
-      const aliasNodes = new Map<string, string>();
-      const slotSummaries: GraphBindingSummary[] = [];
-      const expressionIssues: string[] = [];
-      const rawExpression =
-        typeof binding.expression === "string" ? binding.expression : "";
-      const trimmedExpression = rawExpression.trim();
-
-      binding.slots.forEach((slot, index) => {
-        const aliasBase = slot.alias?.trim() ?? "";
-        const fallbackAlias = `s${index + 1}`;
-        const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
-        const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
-        let slotOutputId: string;
-        if (slot.inputId) {
-          const inputNode = ensureInputNode(slot.inputId);
-          if (inputNode) {
-            const remapNodeId = `remap_${componentSafeId}_${sanitizeNodeId(slotId)}`;
-            nodes.push({
-              id: remapNodeId,
-              type: "centered_remap",
-              input_defaults: {
-                in_low: slot.remap.inLow,
-                in_anchor: slot.remap.inAnchor,
-                in_high: slot.remap.inHigh,
-                out_low: slot.remap.outLow,
-                out_anchor: slot.remap.outAnchor,
-                out_high: slot.remap.outHigh,
-              },
-            });
-            edges.push({
-              from: { node_id: inputNode.nodeId },
-              to: { node_id: remapNodeId, input: "in" },
-            });
-            slotOutputId = remapNodeId;
-            hasActiveSlot = true;
-          } else {
-            expressionIssues.push(`Missing standard input "${slot.inputId}".`);
-            slotOutputId = getConstantNodeId(exprContext, 0);
-          }
-        } else {
-          slotOutputId = getConstantNodeId(exprContext, 0);
-        }
-        aliasNodes.set(alias, slotOutputId);
-        slotSummaries.push({
+      const { valueNodeId: producedNodeId, hasActiveSlot: active } =
+        evaluateBinding({
+          binding,
+          target,
           targetId: component.id,
           animatableId: component.animatableId,
           component: component.component,
-          slotId,
-          slotAlias: alias,
-          inputId: slot.inputId ?? null,
-          remap: { ...slot.remap },
-          expression: trimmedExpression,
+          safeId: sanitizeNodeId(component.id),
+          context: {
+            nodes,
+            edges,
+            ensureInputNode,
+            bindingIssues,
+            summaryBindings,
+          },
         });
-      });
-
-      if (slotSummaries.length === 0) {
-        const alias = PRIMARY_SLOT_ALIAS;
-        aliasNodes.set(alias, getConstantNodeId(exprContext, 0));
-        slotSummaries.push({
-          targetId: component.id,
-          animatableId: component.animatableId,
-          component: component.component,
-          slotId: PRIMARY_SLOT_ID,
-          slotAlias: alias,
-          inputId: null,
-          remap: createDefaultRemap(component),
-          expression: trimmedExpression,
-        });
-      }
-
-      const defaultAlias = slotSummaries[0]?.slotAlias ?? PRIMARY_SLOT_ALIAS;
-      const expressionText =
-        trimmedExpression.length > 0 ? trimmedExpression : defaultAlias;
-
-      const parseResult = parseControlExpression(expressionText);
-      let expressionAst: ControlExpressionNode | null = null;
-
-      if (parseResult.node && parseResult.errors.length === 0) {
-        const references = collectExpressionReferences(parseResult.node);
-        const missing: string[] = [];
-        references.forEach((ref) => {
-          if (!aliasNodes.has(ref)) {
-            missing.push(ref);
-          }
-        });
-        if (missing.length === 0) {
-          expressionAst = parseResult.node;
-        } else {
-          missing.forEach((ref) => {
-            expressionIssues.push(`Unknown control "${ref}".`);
-          });
-        }
-      } else {
-        parseResult.errors.forEach((error) => {
-          expressionIssues.push(error.message);
-        });
-      }
-
-      if (expressionAst) {
-        valueNodeId = materializeExpression(
-          expressionAst,
-          exprContext,
-          aliasNodes,
-          expressionIssues,
-        );
-      }
-
-      if (!valueNodeId) {
-        const fallbackAlias = aliasNodes.has(defaultAlias)
-          ? defaultAlias
-          : aliasNodes.keys().next().value;
-        valueNodeId =
-          (fallbackAlias ? aliasNodes.get(fallbackAlias) : undefined) ??
-          getConstantNodeId(exprContext, 0);
-      }
-
-      const issuesCopy = expressionIssues.length
-        ? [...new Set(expressionIssues)]
-        : undefined;
-      slotSummaries.forEach((summary) => {
-        summary.expression = expressionText;
-        if (issuesCopy && issuesCopy.length > 0) {
-          summary.issues = issuesCopy;
-          const issueSet =
-            bindingIssues.get(summary.targetId) ?? new Set<string>();
-          issuesCopy.forEach((issue) => issueSet.add(issue));
-          bindingIssues.set(summary.targetId, issueSet);
-        }
-      });
-      summaryBindings.push(...slotSummaries);
-
-      if (hasActiveSlot) {
+      valueNodeId = producedNodeId;
+      hasActiveSlot = active;
+      if (active) {
         entry.isDriven = true;
       }
     } else {
@@ -543,7 +687,7 @@ export function buildRigGraphSpec({
         slotId: PRIMARY_SLOT_ID,
         slotAlias: PRIMARY_SLOT_ALIAS,
         inputId: null,
-        remap: createDefaultRemap(component),
+        remap: createDefaultRemap(target),
         expression: PRIMARY_SLOT_ALIAS,
         issues: ["Binding not found."],
       });
@@ -679,8 +823,11 @@ export function buildRigGraphSpec({
     .map((node) => nodeById.get(node.id) ?? node);
 
   const dynamicOutputs = Array.from(outputs);
-  const filteredSummaryBindings = summaryBindings.filter((binding) =>
-    outputs.has(binding.animatableId),
+  const computedInputList = Array.from(computedInputs);
+  const filteredSummaryBindings = summaryBindings.filter(
+    (binding) =>
+      outputs.has(binding.animatableId) ||
+      computedInputs.has(binding.animatableId),
   );
 
   const spec: GraphSpec = {
@@ -707,7 +854,7 @@ export function buildRigGraphSpec({
       inputs: Array.from(inputNodes.values()).map(({ input }) =>
         buildRigInputPath(faceId, input.path),
       ),
-      outputs: dynamicOutputs,
+      outputs: [...dynamicOutputs, ...computedInputList],
       bindings: filteredSummaryBindings,
     },
     issues: {

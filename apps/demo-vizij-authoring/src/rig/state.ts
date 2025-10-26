@@ -1,31 +1,55 @@
-import type { StandardRigInput } from "@vizij/utils";
-import type { AnimatableComponent } from "@vizij/utils";
+import {
+  cloneRemapSettings,
+  SELF_BINDING_ID,
+  type StandardRigInput,
+  type AnimatableComponent,
+  type RigBindingDefinition,
+  type RigBindingSlot,
+  type RemapSettings,
+} from "@vizij/utils";
 
-export interface RemapSettings {
-  inLow: number;
-  inAnchor: number;
-  inHigh: number;
-  outLow: number;
-  outAnchor: number;
-  outHigh: number;
-}
+export type AnimatableBindingSlot = RigBindingSlot;
 
-export interface AnimatableBindingSlot {
-  id: string;
-  alias: string;
-  inputId: string | null;
-  remap: RemapSettings;
-}
-
-export interface AnimatableBinding {
+export interface AnimatableBinding extends RigBindingDefinition {
   targetId: string;
-  inputId: string | null;
-  remap: RemapSettings;
   slots: AnimatableBindingSlot[];
-  expression: string;
+}
+
+export interface BindingTarget {
+  id: string;
+  defaultValue: number;
+  range: {
+    min: number;
+    max: number;
+  };
+}
+
+export function bindingTargetFromComponent(
+  component: AnimatableComponent,
+): BindingTarget {
+  return {
+    id: component.id,
+    defaultValue: component.defaultValue,
+    range: {
+      min: component.range.min,
+      max: component.range.max,
+    },
+  };
+}
+
+export function bindingTargetFromInput(input: StandardRigInput): BindingTarget {
+  return {
+    id: input.id,
+    defaultValue: input.defaultValue,
+    range: {
+      min: input.range.min,
+      max: input.range.max,
+    },
+  };
 }
 
 export type BindingMap = Record<string, AnimatableBinding>;
+export type InputBindingMap = Record<string, AnimatableBinding>;
 
 export type StandardInputValues = Record<string, number>;
 
@@ -145,13 +169,13 @@ type LegacyRemapSettings = Partial<{
   outMax: number;
 }>;
 
-function deriveOutputDefaults(component: AnimatableComponent): {
+function deriveOutputDefaults(target: BindingTarget): {
   outLow: number;
   outAnchor: number;
   outHigh: number;
 } {
-  const { min, max } = component.range;
-  const anchor = clamp(component.defaultValue, min, max);
+  const { min, max } = target.range;
+  const anchor = clamp(target.defaultValue, min, max);
   return {
     outLow: min,
     outAnchor: anchor,
@@ -173,10 +197,10 @@ function deriveInputDefaults(): {
 
 function migrateLegacyRemap(
   legacy: LegacyRemapSettings | RemapSettings,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): RemapSettings {
   const inputDefaults = deriveInputDefaults();
-  const outputDefaults = deriveOutputDefaults(component);
+  const outputDefaults = deriveOutputDefaults(target);
   const defaults: RemapSettings = {
     inLow: inputDefaults.inLow,
     inAnchor: inputDefaults.inAnchor,
@@ -252,31 +276,24 @@ function migrateLegacyRemap(
 
 function normalizeRemap(
   remap: RemapSettings | LegacyRemapSettings | undefined,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): RemapSettings {
   if (!remap) {
-    return createDefaultRemap(component);
+    return createDefaultRemap(target);
   }
-  return migrateLegacyRemap(remap, component);
+  return migrateLegacyRemap(remap, target);
 }
 
 function cloneRemap(remap: RemapSettings): RemapSettings {
-  return {
-    inLow: remap.inLow,
-    inAnchor: remap.inAnchor,
-    inHigh: remap.inHigh,
-    outLow: remap.outLow,
-    outAnchor: remap.outAnchor,
-    outHigh: remap.outHigh,
-  };
+  return cloneRemapSettings(remap);
 }
 
 function sanitizeRemap(
   remap: RemapSettings | LegacyRemapSettings | undefined,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): RemapSettings {
-  const normalized = normalizeRemap(remap, component);
-  const outputDefaults = deriveOutputDefaults(component);
+  const normalized = normalizeRemap(remap, target);
+  const outputDefaults = deriveOutputDefaults(target);
   if (!Number.isFinite(normalized.outLow)) {
     normalized.outLow = outputDefaults.outLow;
   }
@@ -300,11 +317,9 @@ function sanitizeRemap(
   return normalized;
 }
 
-export function createDefaultRemap(
-  component: AnimatableComponent,
-): RemapSettings {
+export function createDefaultRemap(target: BindingTarget): RemapSettings {
   const inputDefaults = deriveInputDefaults();
-  const outputDefaults = deriveOutputDefaults(component);
+  const outputDefaults = deriveOutputDefaults(target);
   return {
     inLow: inputDefaults.inLow,
     inAnchor: inputDefaults.inAnchor,
@@ -315,9 +330,7 @@ export function createDefaultRemap(
   };
 }
 
-export function createDefaultBindings(
-  components: AnimatableComponent[],
-): BindingMap {
+export function createDefaultBindings(components: BindingTarget[]): BindingMap {
   const bindings: BindingMap = {};
   components.forEach((component) => {
     bindings[component.id] = createDefaultBinding(component);
@@ -326,7 +339,7 @@ export function createDefaultBindings(
 }
 
 export function createDefaultBinding(
-  component: AnimatableComponent,
+  component: BindingTarget,
 ): AnimatableBinding {
   const remap = createDefaultRemap(component);
   return {
@@ -345,11 +358,34 @@ export function createDefaultBinding(
   };
 }
 
+export function createDefaultParentBinding(
+  component: BindingTarget,
+): AnimatableBinding {
+  const base = createDefaultBinding(component);
+  const ensured = ensurePrimarySlot(base, component);
+  const slots = ensured.slots.map((slot, index) => {
+    if (index === 0) {
+      return {
+        ...slot,
+        alias: "self",
+        inputId: SELF_BINDING_ID,
+      };
+    }
+    return slot;
+  });
+  return {
+    ...ensured,
+    inputId: SELF_BINDING_ID,
+    slots,
+    expression: "self",
+  };
+}
+
 function ensurePrimarySlot(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): AnimatableBinding {
-  const normalizedBindingRemap = sanitizeRemap(binding.remap, component);
+  const normalizedBindingRemap = sanitizeRemap(binding.remap, target);
   const aliasReplacements = new Map<string, string>();
   const sourceSlots =
     Array.isArray(binding.slots) && binding.slots.length > 0
@@ -376,8 +412,8 @@ function ensurePrimarySlot(
       }
       const slotRemapSource =
         slot.remap ??
-        (index === 0 ? normalizedBindingRemap : createDefaultRemap(component));
-      const normalizedSlotRemap = sanitizeRemap(slotRemapSource, component);
+        (index === 0 ? normalizedBindingRemap : createDefaultRemap(target));
+      const normalizedSlotRemap = sanitizeRemap(slotRemapSource, target);
       const inputId =
         slot.inputId !== undefined && slot.inputId !== null
           ? slot.inputId
@@ -394,16 +430,24 @@ function ensurePrimarySlot(
   );
 
   const primary = normalizedSlots[0];
-  const primaryRemap = sanitizeRemap(primary.remap, component);
+  const primaryRemap = sanitizeRemap(primary.remap, target);
+  const primaryInputId =
+    primary.inputId === SELF_BINDING_ID
+      ? SELF_BINDING_ID
+      : (primary.inputId ?? binding.inputId ?? null);
+  const primaryAlias =
+    primaryInputId === SELF_BINDING_ID
+      ? "self"
+      : primary.alias || PRIMARY_SLOT_ALIAS;
   normalizedSlots[0] = {
     ...primary,
     id: primary.id || PRIMARY_SLOT_ID,
-    alias: primary.alias || PRIMARY_SLOT_ALIAS,
-    inputId: primary.inputId ?? binding.inputId ?? null,
+    alias: primaryAlias,
+    inputId: primaryInputId,
     remap: cloneRemap(primaryRemap),
   };
   normalizedSlots.slice(1).forEach((slot, index) => {
-    const slotRemap = sanitizeRemap(slot.remap, component);
+    const slotRemap = sanitizeRemap(slot.remap, target);
     normalizedSlots[index + 1] = {
       ...slot,
       id: slot.id || defaultSlotId(index + 1),
@@ -439,9 +483,9 @@ export function createDefaultInputValues(
 
 export function ensureBindingStructure(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): AnimatableBinding {
-  return ensurePrimarySlot(binding, component);
+  return ensurePrimarySlot(binding, target);
 }
 
 export function getPrimaryBindingSlot(
@@ -455,13 +499,13 @@ export function getPrimaryBindingSlot(
 
 export function addBindingSlot(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   const nextIndex = base.slots.length + 1;
   const slotId = defaultSlotId(nextIndex - 1);
   const alias = slotId;
-  const remap = createDefaultRemap(component);
+  const remap = createDefaultRemap(target);
   const nextSlots = [
     ...base.slots,
     {
@@ -476,16 +520,16 @@ export function addBindingSlot(
       ...base,
       slots: nextSlots,
     },
-    component,
+    target,
   );
 }
 
 export function removeBindingSlot(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
   slotId: string,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   if (base.slots.length <= 1) {
     return base;
   }
@@ -498,7 +542,7 @@ export function removeBindingSlot(
       ...base,
       slots: nextSlots,
     },
-    component,
+    target,
   );
   if (!nextBinding.expression) {
     return nextBinding;
@@ -517,11 +561,11 @@ export function removeBindingSlot(
 
 export function updateBindingSlotAlias(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
   slotId: string,
   nextAlias: string,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
   if (slotIndex < 0) {
     return base;
@@ -563,17 +607,17 @@ export function updateBindingSlotAlias(
       slots,
       expression: nextExpression,
     },
-    component,
+    target,
   );
   return updated;
 }
 
 export function updateBindingExpression(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
   expression: string,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   const trimmed = expression.trim();
   return {
     ...base,
@@ -586,12 +630,12 @@ export function updateBindingExpression(
 
 export function updateBindingSlotRemap(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
   slotId: string,
   field: keyof RemapSettings,
   value: number,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   const nextSlots = base.slots.map((slot) => {
     if (slot.id !== slotId) {
       return slot;
@@ -600,7 +644,7 @@ export function updateBindingSlotRemap(
       ...slot.remap,
       [field]: value,
     } as RemapSettings;
-    const sanitized = sanitizeRemap(updatedRemap, component);
+    const sanitized = sanitizeRemap(updatedRemap, target);
     return {
       ...slot,
       remap: cloneRemap(sanitized),
@@ -611,7 +655,7 @@ export function updateBindingSlotRemap(
       ...base,
       slots: nextSlots,
     },
-    component,
+    target,
   );
   if (updated.slots[0]?.id === slotId) {
     updated.remap = {
@@ -624,11 +668,11 @@ export function updateBindingSlotRemap(
 
 export function updateBindingWithInput(
   binding: AnimatableBinding,
-  component: AnimatableComponent,
+  target: BindingTarget,
   input: StandardRigInput | undefined,
   slotId: string = PRIMARY_SLOT_ID,
 ): AnimatableBinding {
-  const base = ensurePrimarySlot(binding, component);
+  const base = ensurePrimarySlot(binding, target);
   const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
 
   const effectiveIndex = slotIndex >= 0 ? slotIndex : base.slots.length;
@@ -647,14 +691,14 @@ export function updateBindingWithInput(
       id: slotId,
       alias,
       inputId: null,
-      remap: cloneRemap(createDefaultRemap(component)),
+      remap: cloneRemap(createDefaultRemap(target)),
     });
   }
 
   const currentSlot = slots[effectiveIndex];
 
   if (!input) {
-    const normalizedSlotRemap = sanitizeRemap(currentSlot.remap, component);
+    const normalizedSlotRemap = sanitizeRemap(currentSlot.remap, target);
     const updatedRemap: RemapSettings = {
       ...normalizedSlotRemap,
       inLow: DEFAULT_INPUT_RANGE.min,
@@ -680,13 +724,13 @@ export function updateBindingWithInput(
     };
   }
 
-  const normalizedRemap = sanitizeRemap(currentSlot.remap, component);
+  const normalizedRemap = sanitizeRemap(currentSlot.remap, target);
   const updatedRemap: RemapSettings = {
     ...normalizedRemap,
     inLow: input.range.min,
     inAnchor: clamp(input.defaultValue, input.range.min, input.range.max),
     inHigh: input.range.max,
-    ...deriveOutputDefaults(component),
+    ...deriveOutputDefaults(target),
   };
   slots[effectiveIndex] = {
     ...currentSlot,
@@ -732,7 +776,7 @@ export function remapValue(value: number, remap: RemapSettings): number {
 
 export function reconcileBindings(
   previous: BindingMap,
-  components: AnimatableComponent[],
+  components: BindingTarget[],
 ): BindingMap {
   const next: BindingMap = {};
   components.forEach((component) => {
@@ -778,4 +822,38 @@ export function reconcileBindings(
     }
   });
   return next;
+}
+
+export function bindingToDefinition(
+  binding: AnimatableBinding,
+): RigBindingDefinition {
+  return {
+    inputId: binding.inputId ?? null,
+    remap: cloneRemap(binding.remap),
+    slots: binding.slots.map((slot) => ({
+      ...slot,
+      remap: cloneRemap(slot.remap),
+    })),
+    expression: binding.expression,
+  };
+}
+
+export function bindingFromDefinition(
+  target: BindingTarget,
+  definition: RigBindingDefinition | null | undefined,
+): AnimatableBinding {
+  if (!definition) {
+    return createDefaultBinding(target);
+  }
+  const binding: AnimatableBinding = {
+    targetId: target.id,
+    inputId: definition.inputId ?? null,
+    remap: cloneRemap(definition.remap),
+    slots: definition.slots.map((slot) => ({
+      ...slot,
+      remap: cloneRemap(slot.remap),
+    })),
+    expression: definition.expression,
+  };
+  return ensureBindingStructure(binding, target);
 }

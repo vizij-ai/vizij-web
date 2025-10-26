@@ -1,5 +1,5 @@
 import type { BindingMap, StandardInputValues } from "./state";
-import type { StandardRigInput } from "@vizij/utils";
+import type { RigBindingDefinition, StandardRigInput } from "@vizij/utils";
 
 const STORAGE_KEY = "vizij:rig-authoring:v1";
 
@@ -27,6 +27,11 @@ export interface PersistedRigState {
   customStandardInputs?: StandardRigInput[];
   selectedStandardInputRoots?: string[];
   featureLabels?: Record<string, string>;
+  /** @deprecated retained for backward compatibility with legacy saves */
+  derivedStandardInputs?: Record<string, RigBindingDefinition>;
+  /** Parent/child binding definitions keyed by standard input id */
+  inputBindingDefinitions?: Record<string, RigBindingDefinition>;
+  schemaVersion?: number;
 }
 
 type PersistedRigStateMap = Record<string, PersistedRigState>;

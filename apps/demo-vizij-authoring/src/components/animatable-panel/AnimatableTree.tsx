@@ -29,7 +29,7 @@ import type {
 } from "@vizij/utils";
 import { type BindingMap, type StandardInputValues } from "../../rig/state";
 import type { StandardRigInput } from "@vizij/utils";
-import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
+import { BindingEditor } from "./BindingEditor";
 
 type OutputControlConfig = {
   defaultValue: number;
@@ -92,283 +92,95 @@ function PropertyBindingRow({
   outputControls,
 }: PropertyBindingRowProps) {
   const expanded = treeState.isExpanded("property", property.id);
-  const toggleExpanded = useCallback(() => {
-    treeState.toggleNode("property", property.id);
-  }, [property.id, treeState]);
 
   const binding = bindingTarget?.binding ?? null;
   const targetId = bindingTarget?.targetId ?? null;
-  const slots = binding?.slots ?? [];
-  const expressionValue = binding?.expression ?? slots[0]?.alias ?? "";
-  const expressionIssues = bindingTarget?.issues ?? [];
 
-  const aliasHints = slots
-    .map((slot) => {
-      const inputMeta =
-        slot.inputId !== null ? standardInputLookup.get(slot.inputId) : null;
-      if (inputMeta) {
-        return `${slot.alias} → ${inputMeta.label}`;
-      }
-      return slot.alias;
-    })
-    .filter(Boolean)
-    .join(", ");
+  if (!bindingTarget || !binding || !targetId) {
+    return (
+      <div className="feature-tree__property-row">
+        <div className="feature-tree__property-main">
+          <span className="feature-tree__property-label">{property.label}</span>
+        </div>
+      </div>
+    );
+  }
 
-  const handleAddSlotClick = useCallback(() => {
-    if (!targetId) {
-      return;
-    }
-    onAddBindingSlot(targetId);
-  }, [onAddBindingSlot, targetId]);
+  const issueList = bindingTarget.issues ?? [];
 
-  const handleExpressionChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!targetId) {
-        return;
-      }
-      onBindingExpressionChange(targetId, event.target.value);
-    },
-    [onBindingExpressionChange, targetId],
-  );
+  const handleExpandedChange = (nextExpanded: boolean) => {
+    treeState.setExpanded("property", property.id, nextExpanded);
+  };
 
   return (
-    <div className="feature-tree__property-row">
-      <div className="feature-tree__property-main">
-        <button
-          type="button"
-          className="feature-tree__disclosure-btn"
-          onClick={toggleExpanded}
-          aria-expanded={expanded}
-        >
-          {expanded ? "−" : "+"}
-        </button>
-        <span className="feature-tree__property-label">{property.label}</span>
-        {bindingTarget && (
-          <button
-            type="button"
-            className="feature-panel__input-action feature-panel__input-action--secondary feature-tree__unbind-btn"
-            onClick={() => onResetBinding(bindingTarget.targetId)}
-          >
-            Reset
-          </button>
-        )}
-      </div>
-      {expanded && bindingTarget && binding && targetId && (
-        <div className="feature-tree__binding-editor">
-          <div className="feature-tree__binding-slots">
-            {slots.map((slot, index) => {
-              const slotInputId = slot.inputId ?? "";
-              return (
-                <div key={slot.id} className="feature-tree__binding-slot">
-                  <div className="feature-tree__binding-slot-header">
-                    <input
-                      className="feature-tree__binding-slot-alias-input"
-                      value={slot.alias}
-                      placeholder={slot.id}
-                      onChange={(event) =>
-                        onBindingSlotAliasChange(
-                          targetId,
-                          slot.id,
-                          event.target.value,
-                        )
-                      }
-                      aria-label={`Alias for ${bindingTarget.label} slot ${index + 1}`}
-                      spellCheck={false}
-                    />
-                    {index > 0 && (
-                      <button
-                        type="button"
-                        className="feature-panel__input-action feature-panel__input-action--danger feature-tree__binding-slot-remove"
-                        onClick={() => onRemoveBindingSlot(targetId, slot.id)}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="feature-tree__binding-slot-controls">
-                    <select
-                      className="feature-tree__property-select"
-                      value={slotInputId}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        onBindingInputChange(
-                          targetId,
-                          nextValue.length > 0 ? nextValue : null,
-                          slot.id,
-                        );
-                      }}
-                    >
-                      <option value="">Unbound</option>
-                      {standardInputs.map((input) => (
-                        <option key={input.id} value={input.id}>
-                          {input.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="feature-panel__input-action feature-panel__input-action--secondary"
-                      onClick={() =>
-                        onBindingInputChange(targetId, null, slot.id)
-                      }
-                      disabled={!slot.inputId}
-                    >
-                      Unbind
-                    </button>
-                    <button
-                      type="button"
-                      className="feature-panel__input-action feature-panel__input-action--secondary"
-                      onClick={() => {
-                        const created = onRequestCreateStandardInput();
-                        if (created) {
-                          onBindingInputChange(targetId, created.id, slot.id);
-                        }
-                      }}
-                    >
-                      New input
-                    </button>
-                  </div>
-                  <div className="feature-tree__matrix-columns feature-tree__matrix-columns--slots">
-                    <div className="feature-tree__property-column">
-                      <h4>Input remap</h4>
-                      <div className="feature-tree__matrix-grid">
-                        {REMAP_INPUT_FIELDS.map(({ field, label }) => (
-                          <label key={field}>
-                            <span>{label}</span>
-                            <input
-                              type="number"
-                              step={0.01}
-                              value={slot.remap[field]}
-                              onChange={(event) => {
-                                const parsed = Number(event.target.value);
-                                if (Number.isFinite(parsed)) {
-                                  onBindingRemapChange(
-                                    targetId,
-                                    field,
-                                    parsed,
-                                    slot.id,
-                                  );
-                                }
-                              }}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="feature-tree__property-column">
-                      <h4>Output remap</h4>
-                      <div className="feature-tree__matrix-grid">
-                        {REMAP_OUTPUT_FIELDS.map(({ field, label }) => (
-                          <label key={field}>
-                            <span>{label}</span>
-                            <input
-                              type="number"
-                              step={0.01}
-                              value={slot.remap[field]}
-                              onChange={(event) => {
-                                const parsed = Number(event.target.value);
-                                if (Number.isFinite(parsed)) {
-                                  onBindingRemapChange(
-                                    targetId,
-                                    field,
-                                    parsed,
-                                    slot.id,
-                                  );
-                                }
-                              }}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            <button
-              type="button"
-              className="feature-panel__input-action feature-panel__input-action--secondary feature-tree__slot-add"
-              onClick={handleAddSlotClick}
-            >
-              Add control
-            </button>
-          </div>
-          <div className="feature-tree__expression-editor">
-            <label htmlFor={`binding-expression-${property.id}`}>
-              Expression
+    <BindingEditor
+      binding={binding}
+      targetId={bindingTarget.targetId}
+      label={property.label}
+      standardInputs={standardInputs}
+      standardInputLookup={standardInputLookup}
+      issues={issueList}
+      onBindingInputChange={onBindingInputChange}
+      onBindingRemapChange={onBindingRemapChange}
+      onAddBindingSlot={onAddBindingSlot}
+      onRemoveBindingSlot={onRemoveBindingSlot}
+      onBindingExpressionChange={onBindingExpressionChange}
+      onBindingSlotAliasChange={onBindingSlotAliasChange}
+      onRequestCreateStandardInput={onRequestCreateStandardInput}
+      onResetBinding={onResetBinding}
+      expanded={expanded}
+      onExpandedChange={handleExpandedChange}
+    >
+      {outputControls && (
+        <div className="feature-tree__property-column">
+          <h4>Output defaults</h4>
+          <div className="feature-tree__matrix-grid">
+            <label>
+              <span>Default</span>
+              <input
+                type="number"
+                step={0.01}
+                value={outputControls.defaultValue}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    outputControls.onDefaultChange(parsed);
+                  }
+                }}
+              />
             </label>
-            <textarea
-              id={`binding-expression-${property.id}`}
-              value={expressionValue}
-              onChange={handleExpressionChange}
-              aria-invalid={expressionIssues.length > 0}
-              spellCheck={false}
-            />
-            {aliasHints && (
-              <p className="feature-tree__expression-hints">
-                Aliases: {aliasHints}
-              </p>
-            )}
-            {expressionIssues.length > 0 && (
-              <ul className="feature-tree__expression-errors">
-                {expressionIssues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-            )}
+            <label>
+              <span>Min</span>
+              <input
+                type="number"
+                step={0.01}
+                value={outputControls.minValue ?? ""}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    outputControls.onMinChange(parsed);
+                  }
+                }}
+              />
+            </label>
+            <label>
+              <span>Max</span>
+              <input
+                type="number"
+                step={0.01}
+                value={outputControls.maxValue ?? ""}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    outputControls.onMaxChange(parsed);
+                  }
+                }}
+              />
+            </label>
           </div>
-          {outputControls && (
-            <div className="feature-tree__property-column">
-              <h4>Output defaults</h4>
-              <div className="feature-tree__matrix-grid">
-                <label>
-                  <span>Default</span>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={outputControls.defaultValue}
-                    onChange={(event) => {
-                      const parsed = Number(event.target.value);
-                      if (Number.isFinite(parsed)) {
-                        outputControls.onDefaultChange(parsed);
-                      }
-                    }}
-                  />
-                </label>
-                <label>
-                  <span>Min</span>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={outputControls.minValue ?? ""}
-                    onChange={(event) => {
-                      const parsed = Number(event.target.value);
-                      if (Number.isFinite(parsed)) {
-                        outputControls.onMinChange(parsed);
-                      }
-                    }}
-                  />
-                </label>
-                <label>
-                  <span>Max</span>
-                  <input
-                    type="number"
-                    step={0.01}
-                    value={outputControls.maxValue ?? ""}
-                    onChange={(event) => {
-                      const parsed = Number(event.target.value);
-                      if (Number.isFinite(parsed)) {
-                        outputControls.onMaxChange(parsed);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
         </div>
       )}
-    </div>
+    </BindingEditor>
   );
 }
 

@@ -15,9 +15,9 @@ import type {
   BindingMap,
   AnimatableBinding,
   StandardInputValues,
-  RemapSettings,
+  InputBindingMap,
 } from "../../rig/state";
-import type { StandardRigInput } from "@vizij/utils";
+import type { StandardRigInput, RemapSettings } from "@vizij/utils";
 import type { VectorDescriptorType } from "@vizij/utils";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
 import type { ManagedStandardInput } from "../../hooks/useRigController";
@@ -85,6 +85,7 @@ export interface AnimatableValuesPanelProps {
   onClearSelection(): void;
   components: AnimatableComponent[];
   bindings: BindingMap;
+  inputBindings: InputBindingMap;
   bindingIssues: Map<string, readonly string[]>;
   featureLabelOverrides: Record<string, string>;
   onBindingInputChange(
@@ -108,6 +109,8 @@ export interface AnimatableValuesPanelProps {
   onSelectedStandardInputRootsChange(next: string[]): void;
   onToggleStandardInput(path: string, enabled: boolean): void;
   onCreateCustomStandardInput(path: string): StandardRigInput | null;
+  onLinkChildInput(parentId: string, childId: string): void;
+  onEnsureParentBinding(inputId: string): void;
   onUpdateStandardInput(
     inputId: string,
     updates: { path?: string; label?: string },
@@ -121,6 +124,26 @@ export interface AnimatableValuesPanelProps {
     slotId: string,
     alias: string,
   ): void;
+  onParentBindingInputChange(
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ): void;
+  onParentBindingRemapChange(
+    targetId: string,
+    field: BindingField,
+    value: number,
+    slotId?: string,
+  ): void;
+  onParentAddBindingSlot(targetId: string): void;
+  onParentRemoveBindingSlot(targetId: string, slotId: string): void;
+  onParentBindingExpressionChange(targetId: string, expression: string): void;
+  onParentBindingSlotAliasChange(
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ): void;
+  onParentResetBinding(targetId: string): void;
   onFeatureLabelChange(entry: FeatureEntry, value: string): void;
 }
 

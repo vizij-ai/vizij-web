@@ -1,5 +1,61 @@
 export type RigInputGroup = string;
 
+export interface RemapSettings {
+  inLow: number;
+  inAnchor: number;
+  inHigh: number;
+  outLow: number;
+  outAnchor: number;
+  outHigh: number;
+}
+
+export function cloneRemapSettings(remap: RemapSettings): RemapSettings {
+  return {
+    inLow: remap.inLow,
+    inAnchor: remap.inAnchor,
+    inHigh: remap.inHigh,
+    outLow: remap.outLow,
+    outAnchor: remap.outAnchor,
+    outHigh: remap.outHigh,
+  };
+}
+
+export interface RigBindingSlot {
+  id: string;
+  alias: string;
+  inputId: string | null;
+  remap: RemapSettings;
+}
+
+export function cloneRigBindingSlot(slot: RigBindingSlot): RigBindingSlot {
+  return {
+    id: slot.id,
+    alias: slot.alias,
+    inputId: slot.inputId,
+    remap: cloneRemapSettings(slot.remap),
+  };
+}
+
+export interface RigBindingDefinition {
+  inputId: string | null;
+  remap: RemapSettings;
+  slots: RigBindingSlot[];
+  expression: string;
+}
+
+export function cloneRigBindingDefinition(
+  definition: RigBindingDefinition,
+): RigBindingDefinition {
+  return {
+    inputId: definition.inputId,
+    remap: cloneRemapSettings(definition.remap),
+    slots: definition.slots.map(cloneRigBindingSlot),
+    expression: definition.expression,
+  };
+}
+
+export const SELF_BINDING_ID = "__self__";
+
 export interface StandardRigInput {
   id: string;
   /**
@@ -19,6 +75,14 @@ export interface StandardRigInput {
     min: number;
     max: number;
   };
+  /**
+   * Optional parent binding metadata for hierarchical remaps.
+   */
+  parentBinding?: RigBindingDefinition | null;
+  /**
+   * Cached child ids for quick tree traversal in authoring surfaces.
+   */
+  derivedChildren?: string[];
 }
 
 function normalizeWhitespace(value: string): string {
@@ -73,6 +137,10 @@ export function createStandardRigInput(
       min: rangeMin,
       max: rangeMax,
     },
+    parentBinding: init.parentBinding
+      ? cloneRigBindingDefinition(init.parentBinding)
+      : null,
+    derivedChildren: init.derivedChildren ? [...init.derivedChildren] : [],
   };
 }
 

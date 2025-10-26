@@ -32,6 +32,7 @@ export function AnimatableValuesPanel({
   onFocusSelectionIndex,
   onClearSelection,
   components,
+  inputBindings,
   bindings,
   bindingIssues,
   featureLabelOverrides,
@@ -47,12 +48,21 @@ export function AnimatableValuesPanel({
   onSelectedStandardInputRootsChange,
   onToggleStandardInput,
   onCreateCustomStandardInput,
+  onLinkChildInput,
+  onEnsureParentBinding,
   onUpdateStandardInput,
   onDeleteCustomStandardInput,
   onAddBindingSlot,
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onParentBindingInputChange,
+  onParentBindingRemapChange,
+  onParentAddBindingSlot,
+  onParentRemoveBindingSlot,
+  onParentBindingExpressionChange,
+  onParentBindingSlotAliasChange,
+  onParentResetBinding,
   onFeatureLabelChange,
 }: AnimatableValuesPanelProps) {
   const world = useVizijStore((state) => state.world);
@@ -148,7 +158,16 @@ export function AnimatableValuesPanel({
   }, [bindings, standardInputs]);
 
   const inputUsage = useMemo(() => {
-    const usage = new Map<string, { targetId: string; label: string }[]>();
+    const usage = new Map<
+      string,
+      { targetId: string; label: string; kind: "animatable" | "child" }[]
+    >();
+    const ensureBucket = (inputId: string) => {
+      if (!usage.has(inputId)) {
+        usage.set(inputId, []);
+      }
+      return usage.get(inputId)!;
+    };
     components.forEach((component) => {
       const binding = bindings[component.id];
       if (!binding || !binding.slots) {
@@ -158,12 +177,25 @@ export function AnimatableValuesPanel({
         if (!slot.inputId) {
           return;
         }
-        if (!usage.has(slot.inputId)) {
-          usage.set(slot.inputId, []);
-        }
-        usage.get(slot.inputId)!.push({
+        ensureBucket(slot.inputId).push({
           targetId: component.id,
           label: component.label,
+          kind: "animatable",
+        });
+      });
+    });
+    managedStandardInputs.forEach((entry) => {
+      const parentId = entry.input.id;
+      const children = entry.input.derivedChildren ?? [];
+      if (!children.length) {
+        return;
+      }
+      children.forEach((childId) => {
+        const childEntry = managedInputsById.get(childId);
+        ensureBucket(parentId).push({
+          targetId: childId,
+          label: childEntry ? childEntry.input.label : childId,
+          kind: "child",
         });
       });
     });
@@ -171,7 +203,7 @@ export function AnimatableValuesPanel({
       entries.sort((a, b) => a.label.localeCompare(b.label));
     });
     return usage;
-  }, [bindings, components]);
+  }, [bindings, components, managedInputsById, managedStandardInputs]);
 
   const {
     searchTerm,
@@ -526,19 +558,30 @@ export function AnimatableValuesPanel({
         isCollapsed={rigCollapsed}
         onToggleCollapsed={() => setRigCollapsed((prev) => !prev)}
         inputs={managedStandardInputs}
+        inputBindings={inputBindings}
         roots={availableRoots}
         selectedRoots={selectedStandardInputRoots}
         onSelectedRootsChange={onSelectedStandardInputRootsChange}
         inputValues={inputValues}
         effectiveInputRanges={effectiveInputRanges}
         inputUsage={inputUsage}
+        bindingIssues={bindingIssues}
         onInputValueChange={onInputValueChange}
         onCreateInput={handleCreateInputClick}
+        onLinkChildInput={onLinkChildInput}
+        onEnsureParentBinding={onEnsureParentBinding}
         onUpdateInput={handleUpdateStandardInput}
         onClearInputMappings={handleClearInputMappings}
         onDeleteInput={handleDeleteInput}
         onToggleInput={onToggleStandardInput}
         onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
+        onParentBindingInputChange={onParentBindingInputChange}
+        onParentBindingRemapChange={onParentBindingRemapChange}
+        onParentAddBindingSlot={onParentAddBindingSlot}
+        onParentRemoveBindingSlot={onParentRemoveBindingSlot}
+        onParentBindingExpressionChange={onParentBindingExpressionChange}
+        onParentBindingSlotAliasChange={onParentBindingSlotAliasChange}
+        onParentResetBinding={onParentResetBinding}
         graphStatus={graphStatus}
         graphError={graphError}
       />

@@ -7,8 +7,12 @@ import {
   type Group,
   type World,
 } from "@vizij/render";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
-import { getLookup } from "@vizij/utils";
+import {
+  getLookup,
+  SELF_BINDING_ID,
+  type AnimatableValue,
+  type RawValue,
+} from "@vizij/utils";
 import {
   extractAnimatableComponents,
   buildAnimatableValue,
@@ -17,6 +21,7 @@ import {
 import {
   createDefaultBindings,
   createDefaultBinding,
+  createDefaultParentBinding,
   reconcileBindings,
   updateBindingWithInput,
   ensureBindingStructure,
@@ -26,16 +31,25 @@ import {
   updateBindingSlotAlias,
   updateBindingSlotRemap,
   PRIMARY_SLOT_ID,
+  PRIMARY_SLOT_ALIAS,
+  bindingTargetFromComponent,
+  bindingTargetFromInput,
+  bindingFromDefinition,
+  bindingToDefinition,
+  type AnimatableBinding,
   type BindingMap,
+  type InputBindingMap,
+  type BindingTarget,
   type StandardInputValues,
-  type RemapSettings,
 } from "../rig/state";
+import type { RemapSettings } from "@vizij/utils";
 import {
   createStandardRigInput,
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
   deriveLabelFromNormalizedPath,
   normalizeStandardRigInputPath,
+  type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
 import {
@@ -167,6 +181,7 @@ export interface RigController {
   standardInputsById: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
   bindings: BindingMap;
+  inputBindings: InputBindingMap;
   animatableComponents: AnimatableComponent[];
   componentsById: Map<string, AnimatableComponent>;
   world: World;
@@ -189,6 +204,7 @@ export interface RigController {
   handleResetBinding: (targetId: string) => void;
   handleToggleStandardInput: (path: string, enabled: boolean) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
+  handleLinkChildInput: (parentId: string, childId: string) => void;
   handleUpdateStandardInput: (
     inputId: string,
     updates: { path?: string; label?: string },
@@ -207,6 +223,30 @@ export interface RigController {
     defaultLabel: string,
     value: string,
   ) => void;
+  handleEnsureParentBinding: (targetId: string) => void;
+  handleParentBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
+  handleParentBindingRemapChange: (
+    targetId: string,
+    field: keyof RemapSettings,
+    value: number,
+    slotId?: string,
+  ) => void;
+  handleParentAddBindingSlot: (targetId: string) => void;
+  handleParentRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  handleParentBindingExpressionChange: (
+    targetId: string,
+    expression: string,
+  ) => void;
+  handleParentBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
+  handleParentResetBinding: (targetId: string) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleFaceIdChange: (value: string) => void;
   handleFocusSelectionIndex: (index: number) => void;
@@ -259,6 +299,14 @@ export function useRigController({
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
   );
+  const [inputBindings, setInputBindings] = useState<InputBindingMap>({});
+  const isDev = process.env.NODE_ENV !== "production";
+  const debugLog = (...args: unknown[]) => {
+    if (isDev) {
+      // eslint-disable-next-line no-console -- debug logger
+      console.debug("[rig-controller]", ...args);
+    }
+  };
   const [featureLabelOverrides, setFeatureLabelOverrides] = useState<
     Record<string, string>
   >({});
@@ -266,6 +314,12 @@ export function useRigController({
   const persistedAutoInputsRef = useRef<
     Map<string, PersistedAutoStandardInput>
   >(new Map());
+  const pendingInputBindingDefinitionsRef = useRef<Record<
+    string,
+    RigBindingDefinition
+  > | null>(null);
+  const inputBindingsRef = useRef<InputBindingMap>(inputBindings);
+  const allStandardInputsRef = useRef<Map<string, StandardRigInput>>(new Map());
 
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
@@ -303,6 +357,10 @@ export function useRigController({
   useEffect(() => {
     componentsByIdRef.current = componentsById;
   }, [componentsById]);
+
+  useEffect(() => {
+    inputBindingsRef.current = inputBindings;
+  }, [inputBindings]);
 
   useEffect(() => {
     setAutoInputs((previous) => {
@@ -408,9 +466,53 @@ export function useRigController({
     });
   }, [autoBlueprints]);
 
+  const derivedChildrenMap = useMemo(() => {
+    const working = new Map<string, Set<string>>();
+
+    const record = (sourceId: string | null | undefined, childId: string) => {
+      if (!sourceId || sourceId === SELF_BINDING_ID) {
+        return;
+      }
+      let set = working.get(sourceId);
+      if (!set) {
+        set = new Set<string>();
+        working.set(sourceId, set);
+      }
+      set.add(childId);
+    };
+
+    Object.entries(inputBindings).forEach(([derivedId, binding]) => {
+      record(binding.inputId, derivedId);
+      binding.slots.forEach((slot) => {
+        record(slot.inputId, derivedId);
+      });
+    });
+
+    const result = new Map<string, string[]>();
+    working.forEach((value, key) => {
+      result.set(key, Array.from(value));
+    });
+    return result;
+  }, [inputBindings]);
+
   const managedStandardInputs = useMemo<ManagedStandardInput[]>(() => {
     const entries: ManagedStandardInput[] = [];
     const blueprintPaths = new Set<string>();
+
+    const enhanceInput = (input: StandardRigInput): StandardRigInput => {
+      const binding = inputBindings[input.id];
+      const target = bindingTargetFromInput(input);
+      const normalized = binding
+        ? ensureBindingStructure(binding, target)
+        : null;
+      const parentBinding = normalized ? bindingToDefinition(normalized) : null;
+      const children = derivedChildrenMap.get(input.id);
+      return {
+        ...input,
+        parentBinding,
+        derivedChildren: children ? [...children] : [],
+      };
+    };
 
     autoBlueprints.forEach((blueprint) => {
       blueprintPaths.add(blueprint.path);
@@ -419,7 +521,7 @@ export function useRigController({
         return;
       }
       entries.push({
-        input: entry.input,
+        input: enhanceInput(entry.input),
         source: "auto",
         disabled: entry.disabled,
         metadata: entry.metadata,
@@ -431,7 +533,7 @@ export function useRigController({
         return;
       }
       entries.push({
-        input: entry.input,
+        input: enhanceInput(entry.input),
         source: "auto",
         disabled: entry.disabled,
         metadata: entry.metadata,
@@ -440,14 +542,28 @@ export function useRigController({
 
     customInputs.forEach((input) => {
       entries.push({
-        input,
+        input: enhanceInput(input),
         source: "custom",
         disabled: false,
       });
     });
 
     return entries;
-  }, [autoBlueprints, autoInputs, customInputs]);
+  }, [
+    autoBlueprints,
+    autoInputs,
+    customInputs,
+    inputBindings,
+    derivedChildrenMap,
+  ]);
+
+  useEffect(() => {
+    const map = new Map<string, StandardRigInput>();
+    managedStandardInputs.forEach((entry) => {
+      map.set(entry.input.id, entry.input);
+    });
+    allStandardInputsRef.current = map;
+  }, [managedStandardInputs]);
 
   useEffect(() => {
     if (selectedStandardInputRoots.length === 0) {
@@ -486,6 +602,39 @@ export function useRigController({
     [standardInputs],
   );
 
+  const standardInputsByIdRef = useRef(standardInputsById);
+
+  useEffect(() => {
+    standardInputsByIdRef.current = standardInputsById;
+  }, [standardInputsById]);
+
+  useEffect(() => {
+    const pending = pendingInputBindingDefinitionsRef.current;
+    if (!pending || standardInputsById.size === 0) {
+      return;
+    }
+    const next: InputBindingMap = {};
+    Object.entries(pending).forEach(([inputId, definition]) => {
+      const input = standardInputsById.get(inputId);
+      if (!input) {
+        return;
+      }
+      const target = bindingTargetFromInput(input);
+      const binding = bindingFromDefinition(target, definition);
+      const hasParents =
+        (binding.inputId && binding.inputId !== SELF_BINDING_ID) ||
+        binding.slots.some(
+          (slot) => slot.inputId && slot.inputId !== SELF_BINDING_ID,
+        );
+      if (!hasParents) {
+        return;
+      }
+      next[inputId] = binding;
+    });
+    setInputBindings(next);
+    pendingInputBindingDefinitionsRef.current = null;
+  }, [standardInputsById]);
+
   const rigGraphBuild = useMemo<BuildGraphResult | null>(() => {
     if (!faceId) {
       return null;
@@ -496,8 +645,16 @@ export function useRigController({
       components: animatableComponents,
       bindings,
       inputsById: standardInputsById,
+      inputBindings,
     });
-  }, [animatableComponents, animatables, bindings, faceId, standardInputsById]);
+  }, [
+    animatableComponents,
+    animatables,
+    bindings,
+    inputBindings,
+    faceId,
+    standardInputsById,
+  ]);
 
   const graphSpecSignature = useMemo(() => {
     if (!rigGraphBuild) {
@@ -568,18 +725,19 @@ export function useRigController({
         if (!component) {
           return;
         }
+        const target = bindingTargetFromComponent(component);
         const currentBinding = next[componentId];
         const ensured =
           currentBinding !== undefined
-            ? ensureBindingStructure(currentBinding, component)
-            : createDefaultBinding(component);
+            ? ensureBindingStructure(currentBinding, target)
+            : createDefaultBinding(target);
         if (ensured !== currentBinding) {
           next[componentId] = ensured;
         }
         if (ensured.inputId) {
           return;
         }
-        const updated = updateBindingWithInput(ensured, component, entry.input);
+        const updated = updateBindingWithInput(ensured, target, entry.input);
         if (updated !== ensured) {
           next[componentId] = updated;
           changed = true;
@@ -630,7 +788,10 @@ export function useRigController({
         const component = componentsById.get(key);
         const ensured =
           component !== undefined
-            ? ensureBindingStructure(binding, component)
+            ? ensureBindingStructure(
+                binding,
+                bindingTargetFromComponent(component),
+              )
             : binding;
         next[key] = ensured;
         if (ensured !== binding) {
@@ -638,7 +799,11 @@ export function useRigController({
         }
         if (ensured.inputId && !validIds.has(ensured.inputId)) {
           if (component) {
-            next[key] = updateBindingWithInput(ensured, component, undefined);
+            next[key] = updateBindingWithInput(
+              ensured,
+              bindingTargetFromComponent(component),
+              undefined,
+            );
           } else {
             next[key] = {
               ...ensured,
@@ -664,15 +829,16 @@ export function useRigController({
 
   const handleSelectStandardInputRoots = useCallback(
     (nextRoots: string[]) => {
-      const validSet = new Set<string>();
-      nextRoots.forEach((root) => {
-        if (standardInputRoots.includes(root)) {
-          validSet.add(root);
-        }
+      const validRoots = new Set<string>(standardInputRoots);
+      managedStandardInputs.forEach((entry) => {
+        validRoots.add(entry.input.group || "custom");
       });
-      setSelectedStandardInputRoots(Array.from(validSet));
+      const normalized = Array.from(
+        new Set(nextRoots.filter((root) => validRoots.has(root))),
+      );
+      setSelectedStandardInputRoots(normalized);
     },
-    [standardInputRoots],
+    [managedStandardInputs, standardInputRoots],
   );
 
   const handleBindingInputChange = useCallback(
@@ -681,15 +847,16 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       const inputMeta =
         nextInputId !== null ? standardInputsById.get(nextInputId) : undefined;
       setBindings((previous) => {
-        const current = previous[targetId] ?? createDefaultBinding(component);
-        const ensured = ensureBindingStructure(current, component);
+        const current = previous[targetId] ?? createDefaultBinding(target);
+        const ensured = ensureBindingStructure(current, target);
         const targetSlotId = slotId ?? ensured.slots[0]?.id ?? PRIMARY_SLOT_ID;
         const updated = updateBindingWithInput(
           ensured,
-          component,
+          target,
           inputMeta,
           targetSlotId,
         );
@@ -721,11 +888,12 @@ export function useRigController({
         if (!component) {
           return previous;
         }
+        const target = bindingTargetFromComponent(component);
         const targetSlotId =
           slotId ?? binding.slots?.[0]?.id ?? PRIMARY_SLOT_ID;
         const updated = updateBindingSlotRemap(
           binding,
-          component,
+          target,
           targetSlotId,
           field,
           value,
@@ -748,9 +916,10 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       setBindings((previous) => {
-        const current = previous[targetId] ?? createDefaultBinding(component);
-        const next = addBindingSlot(current, component);
+        const current = previous[targetId] ?? createDefaultBinding(target);
+        const next = addBindingSlot(current, target);
         if (next === current) {
           return previous;
         }
@@ -769,12 +938,13 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       setBindings((previous) => {
         const binding = previous[targetId];
         if (!binding) {
           return previous;
         }
-        const next = removeBindingSlot(binding, component, slotId);
+        const next = removeBindingSlot(binding, target, slotId);
         if (next === binding) {
           return previous;
         }
@@ -793,12 +963,13 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       setBindings((previous) => {
         const binding = previous[targetId];
         if (!binding) {
           return previous;
         }
-        const next = updateBindingExpression(binding, component, expression);
+        const next = updateBindingExpression(binding, target, expression);
         if (next === binding) {
           return previous;
         }
@@ -817,12 +988,13 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       setBindings((previous) => {
         const binding = previous[targetId];
         if (!binding) {
           return previous;
         }
-        const next = updateBindingSlotAlias(binding, component, slotId, alias);
+        const next = updateBindingSlotAlias(binding, target, slotId, alias);
         if (next === binding) {
           return previous;
         }
@@ -866,13 +1038,14 @@ export function useRigController({
       if (!component) {
         return;
       }
+      const target = bindingTargetFromComponent(component);
       setBindings((previous) => {
         if (!previous[targetId]) {
           return previous;
         }
         return {
           ...previous,
-          [targetId]: createDefaultBinding(component),
+          [targetId]: createDefaultBinding(target),
         };
       });
     },
@@ -1035,6 +1208,65 @@ export function useRigController({
     [],
   );
 
+  const pruneInputBindings = useCallback(
+    (removedInputId: string, snapshot?: Map<string, StandardRigInput>) => {
+      const inputsSnapshot =
+        snapshot ?? new Map(standardInputsByIdRef.current.entries());
+      setInputBindings((previous) => {
+        let changed = false;
+        const next: InputBindingMap = {};
+        Object.entries(previous).forEach(([targetId, binding]) => {
+          if (targetId === removedInputId) {
+            changed = true;
+            return;
+          }
+          const targetInput = inputsSnapshot.get(targetId);
+          if (!targetInput) {
+            next[targetId] = binding;
+            return;
+          }
+          const target = bindingTargetFromInput(targetInput);
+          const ensured = ensureBindingStructure(binding, target);
+          let updated = ensured;
+          if (ensured.inputId === removedInputId) {
+            updated = updateBindingWithInput(updated, target, undefined);
+          }
+          ensured.slots.forEach((slot) => {
+            if (slot.inputId === removedInputId) {
+              updated = updateBindingWithInput(
+                updated,
+                target,
+                undefined,
+                slot.id,
+              );
+            }
+          });
+          const normalized = ensureBindingStructure(updated, target);
+          const hasParents =
+            (normalized.inputId && normalized.inputId !== SELF_BINDING_ID) ||
+            normalized.slots.some(
+              (slot) => slot.inputId && slot.inputId !== SELF_BINDING_ID,
+            );
+          if (!hasParents) {
+            changed = true;
+            return;
+          }
+          const previousDefinition = bindingToDefinition(ensured);
+          const nextDefinition = bindingToDefinition(normalized);
+          if (
+            JSON.stringify(previousDefinition) !==
+            JSON.stringify(nextDefinition)
+          ) {
+            changed = true;
+          }
+          next[targetId] = normalized;
+        });
+        return changed ? next : previous;
+      });
+    },
+    [],
+  );
+
   const handleDeleteCustomStandardInput = useCallback(
     (inputId: string) => {
       const isAuto = Array.from(autoInputsRef.current.values()).some(
@@ -1043,6 +1275,7 @@ export function useRigController({
       if (isAuto) {
         return;
       }
+      const snapshot = new Map(standardInputsByIdRef.current.entries());
       setCustomInputs((previous) =>
         previous.filter((input) => input.id !== inputId),
       );
@@ -1066,13 +1299,14 @@ export function useRigController({
             next[key] = binding;
             return;
           }
-          const ensured = ensureBindingStructure(binding, component);
+          const target = bindingTargetFromComponent(component);
+          const ensured = ensureBindingStructure(binding, target);
           let updated = ensured;
           ensured.slots.forEach((slot) => {
             if (slot.inputId === inputId) {
               updated = updateBindingWithInput(
                 updated,
-                component,
+                target,
                 undefined,
                 slot.id,
               );
@@ -1085,8 +1319,9 @@ export function useRigController({
         });
         return changed ? next : previous;
       });
+      pruneInputBindings(inputId, snapshot);
     },
-    [setBindings],
+    [pruneInputBindings, setBindings],
   );
 
   const handleToggleStandardInput = useCallback(
@@ -1126,13 +1361,14 @@ export function useRigController({
               next[key] = binding;
               return;
             }
-            const ensured = ensureBindingStructure(binding, component);
+            const target = bindingTargetFromComponent(component);
+            const ensured = ensureBindingStructure(binding, target);
             let updated = ensured;
             ensured.slots.forEach((slot) => {
               if (slot.inputId === inputId) {
                 updated = updateBindingWithInput(
                   updated,
-                  component,
+                  target,
                   undefined,
                   slot.id,
                 );
@@ -1145,14 +1381,299 @@ export function useRigController({
           });
           return changed ? next : previous;
         });
+        pruneInputBindings(inputId);
       }
     },
-    [setBindings],
+    [pruneInputBindings, setBindings],
   );
 
   const setFaceId = useCallback((next: string) => {
     setFaceIdState(sanitizeFaceId(next));
   }, []);
+
+  const canonicalBindingExpression = useCallback(
+    (binding: AnimatableBinding): string => {
+      const aliases: string[] = [];
+      binding.slots.forEach((slot) => {
+        if (!slot.inputId) {
+          return;
+        }
+        const alias = (slot.alias || slot.id || "").trim();
+        if (!alias) {
+          return;
+        }
+        if (!aliases.includes(alias)) {
+          aliases.push(alias);
+        }
+      });
+      return aliases.join(" + ");
+    },
+    [],
+  );
+
+  const updateInputBinding = useCallback(
+    (
+      targetId: string,
+      initializer: (target: BindingTarget) => AnimatableBinding,
+      transform: (
+        binding: AnimatableBinding,
+        target: BindingTarget,
+      ) => AnimatableBinding,
+    ) => {
+      setInputBindings((previous) => {
+        const input = standardInputsByIdRef.current.get(targetId);
+        if (!input) {
+          debugLog("updateInputBinding: missing input metadata", {
+            targetId,
+          });
+          return previous;
+        }
+        const target = bindingTargetFromInput(input);
+        const current = previous[targetId] ?? initializer(target);
+        const ensured = ensureBindingStructure(current, target);
+        const canonicalBefore = canonicalBindingExpression(ensured);
+        const expressionBefore = (ensured.expression ?? "").trim();
+        const expressionWasAuto =
+          expressionBefore === "" || expressionBefore === canonicalBefore;
+        const transformed = transform(ensured, target);
+        let normalized = ensureBindingStructure(transformed, target);
+        if (expressionWasAuto) {
+          const canonicalAfter = canonicalBindingExpression(normalized);
+          const expressionAfter = (normalized.expression ?? "").trim();
+          if (canonicalAfter.length > 0) {
+            if (expressionAfter !== canonicalAfter) {
+              normalized = {
+                ...normalized,
+                expression: canonicalAfter,
+              };
+            }
+          } else {
+            const fallbackAlias =
+              normalized.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS;
+            if (expressionAfter !== fallbackAlias) {
+              normalized = {
+                ...normalized,
+                expression: fallbackAlias,
+              };
+            }
+          }
+        }
+        const hasSelfSlot =
+          normalized.inputId === SELF_BINDING_ID ||
+          normalized.slots.some((slot) => slot.inputId === SELF_BINDING_ID);
+        const hasParents =
+          (normalized.inputId && normalized.inputId !== SELF_BINDING_ID) ||
+          normalized.slots.some(
+            (slot) => slot.inputId && slot.inputId !== SELF_BINDING_ID,
+          );
+        const hasMultipleSlots = normalized.slots.length > 1;
+        if (!hasParents && !hasSelfSlot && !hasMultipleSlots) {
+          if (!previous[targetId]) {
+            return previous;
+          }
+          const nextMap = { ...previous };
+          delete nextMap[targetId];
+          debugLog("updateInputBinding: removed binding (no parents)", {
+            targetId,
+          });
+          return nextMap;
+        }
+        const previousBinding = previous[targetId];
+        if (previousBinding) {
+          const previousSignature = JSON.stringify(
+            bindingToDefinition(previousBinding),
+          );
+          const nextSignature = JSON.stringify(bindingToDefinition(normalized));
+          if (previousSignature === nextSignature) {
+            return previous;
+          }
+        }
+        debugLog("updateInputBinding: stored binding", {
+          targetId,
+          binding: bindingToDefinition(normalized),
+        });
+        return {
+          ...previous,
+          [targetId]: normalized,
+        };
+      });
+    },
+    [],
+  );
+
+  const handleEnsureParentBinding = useCallback((targetId: string) => {
+    setInputBindings((previous) => {
+      if (previous[targetId]) {
+        return previous;
+      }
+      const input = standardInputsByIdRef.current.get(targetId);
+      if (!input) {
+        return previous;
+      }
+      const target = bindingTargetFromInput(input);
+      const binding = createDefaultParentBinding(target);
+      return {
+        ...previous,
+        [targetId]: binding,
+      };
+    });
+  }, []);
+
+  const handleParentBindingInputChange = useCallback(
+    (targetId: string, nextInputId: string | null, slotId?: string) => {
+      const input =
+        nextInputId !== null
+          ? (standardInputsByIdRef.current.get(nextInputId) ??
+            allStandardInputsRef.current.get(nextInputId))
+          : undefined;
+      debugLog("parent binding change: input lookup", {
+        targetId,
+        slotId,
+        nextInputId,
+        found: input?.id ?? null,
+      });
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) =>
+          updateBindingWithInput(
+            binding,
+            target,
+            input,
+            slotId ?? binding.slots[0]?.id ?? PRIMARY_SLOT_ID,
+          ),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingRemapChange = useCallback(
+    (
+      targetId: string,
+      field: keyof RemapSettings,
+      value: number,
+      slotId?: string,
+    ) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) =>
+          updateBindingSlotRemap(
+            binding,
+            target,
+            slotId ?? binding.slots[0]?.id ?? PRIMARY_SLOT_ID,
+            field,
+            value,
+          ),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentAddBindingSlot = useCallback(
+    (targetId: string) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) => addBindingSlot(binding, target),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentRemoveBindingSlot = useCallback(
+    (targetId: string, slotId: string) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) => removeBindingSlot(binding, target, slotId),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingExpressionChange = useCallback(
+    (targetId: string, expression: string) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) =>
+          updateBindingExpression(binding, target, expression),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingSlotAliasChange = useCallback(
+    (targetId: string, slotId: string, alias: string) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) =>
+          updateBindingSlotAlias(binding, target, slotId, alias),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentResetBinding = useCallback((targetId: string) => {
+    setInputBindings((previous) => {
+      if (!previous[targetId]) {
+        return previous;
+      }
+      const next = { ...previous };
+      delete next[targetId];
+      return next;
+    });
+  }, []);
+
+  const handleLinkChildInput = useCallback(
+    (parentId: string, childId: string) => {
+      if (parentId === childId) {
+        return;
+      }
+      const parent =
+        standardInputsByIdRef.current.get(parentId) ??
+        allStandardInputsRef.current.get(parentId);
+      const child =
+        standardInputsByIdRef.current.get(childId) ??
+        allStandardInputsRef.current.get(childId);
+      if (!parent || !child) {
+        return;
+      }
+      updateInputBinding(
+        childId,
+        createDefaultParentBinding,
+        (binding, target) => {
+          let next = binding;
+          const existingSlot = next.slots.find(
+            (slot) => slot.inputId === parent.id,
+          );
+          let targetSlotId = existingSlot?.id ?? null;
+          if (!targetSlotId) {
+            const reusableSlot = next.slots.find(
+              (slot, index) =>
+                index > 0 &&
+                (slot.inputId === null || slot.inputId === undefined),
+            );
+            if (reusableSlot) {
+              targetSlotId = reusableSlot.id;
+            } else {
+              next = addBindingSlot(next, target);
+              targetSlotId = next.slots[next.slots.length - 1]?.id ?? null;
+            }
+          }
+          return updateBindingWithInput(
+            next,
+            target,
+            parent,
+            targetSlotId ?? undefined,
+          );
+        },
+      );
+    },
+    [updateInputBinding],
+  );
 
   const handleFaceIdChange = setFaceId;
 
@@ -1234,6 +1755,11 @@ export function useRigController({
           : [],
       );
       setFeatureLabelOverrides(persisted.featureLabels ?? {});
+      pendingInputBindingDefinitionsRef.current =
+        persisted.inputBindingDefinitions ??
+        persisted.derivedStandardInputs ??
+        null;
+      setInputBindings({});
     } else {
       persistedAutoInputsRef.current = new Map();
       setCustomInputs([]);
@@ -1242,6 +1768,8 @@ export function useRigController({
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
       setFeatureLabelOverrides({});
+      pendingInputBindingDefinitionsRef.current = null;
+      setInputBindings({});
     }
     setTimeout(() => {
       skipPersistRef.current = false;
@@ -1278,6 +1806,19 @@ export function useRigController({
             : undefined,
       });
     });
+    const bindingDefinitions: Record<string, RigBindingDefinition> = {};
+    Object.entries(inputBindings).forEach(([id, binding]) => {
+      const hasParents =
+        (binding.inputId && binding.inputId !== SELF_BINDING_ID) ||
+        binding.slots.some(
+          (slot) => slot.inputId && slot.inputId !== SELF_BINDING_ID,
+        );
+      if (!hasParents) {
+        return;
+      }
+      bindingDefinitions[id] = bindingToDefinition(binding);
+    });
+
     saveRigState({
       faceId,
       bindings,
@@ -1289,12 +1830,22 @@ export function useRigController({
         Object.keys(featureLabelOverrides).length > 0
           ? featureLabelOverrides
           : undefined,
+      derivedStandardInputs:
+        Object.keys(bindingDefinitions).length > 0
+          ? bindingDefinitions
+          : undefined,
+      inputBindingDefinitions:
+        Object.keys(bindingDefinitions).length > 0
+          ? bindingDefinitions
+          : undefined,
+      schemaVersion: 2,
     });
   }, [
     animatableComponents,
     autoInputs,
     bindings,
     customInputs,
+    inputBindings,
     faceId,
     featureLabelOverrides,
     inputValues,
@@ -1544,6 +2095,7 @@ export function useRigController({
     standardInputsById,
     inputValues,
     bindings,
+    inputBindings,
     animatableComponents,
     componentsById,
     world,
@@ -1557,6 +2109,8 @@ export function useRigController({
     handleResetBinding,
     handleToggleStandardInput,
     handleCreateCustomStandardInput,
+    handleLinkChildInput,
+    handleEnsureParentBinding,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
@@ -1564,6 +2118,13 @@ export function useRigController({
     handleUpdateBindingExpression,
     handleUpdateBindingSlotAlias,
     handleUpdateFeatureLabel,
+    handleParentBindingInputChange,
+    handleParentBindingRemapChange,
+    handleParentAddBindingSlot,
+    handleParentRemoveBindingSlot,
+    handleParentBindingExpressionChange,
+    handleParentBindingSlotAliasChange,
+    handleParentResetBinding,
     handleSelectStandardInputRoots,
     handleFaceIdChange,
     handleFocusSelectionIndex,

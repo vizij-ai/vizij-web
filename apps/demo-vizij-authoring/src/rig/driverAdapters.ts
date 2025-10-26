@@ -12,8 +12,8 @@ import {
   ensureBindingStructure,
   type AnimatableBinding,
   type BindingMap,
-  type RemapSettings,
 } from "./state";
+import type { RemapSettings } from "@vizij/utils";
 
 interface BuildAuthoringDriverGraphOptions {
   faceId: string;

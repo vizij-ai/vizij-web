@@ -49,6 +49,7 @@ export default function App() {
     standardInputsById,
     inputValues,
     bindings,
+    inputBindings,
     animatableComponents,
     selectionStack,
     handleInputValueChange,
@@ -57,12 +58,21 @@ export default function App() {
     handleResetBinding,
     handleToggleStandardInput,
     handleCreateCustomStandardInput,
+    handleLinkChildInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
     handleUpdateBindingSlotAlias,
+    handleEnsureParentBinding,
+    handleParentBindingInputChange,
+    handleParentBindingRemapChange,
+    handleParentAddBindingSlot,
+    handleParentRemoveBindingSlot,
+    handleParentBindingExpressionChange,
+    handleParentBindingSlotAliasChange,
+    handleParentResetBinding,
     handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
     handleFocusSelectionIndex,
@@ -121,6 +131,7 @@ export default function App() {
       components: animatableComponents,
       bindings,
       inputsById: standardInputsById,
+      inputBindings,
     });
 
     const baseName = fileName.replace(/\.json$/i, "");
@@ -144,6 +155,7 @@ export default function App() {
     animatableComponents,
     bindings,
     collectAnimatableExportState,
+    inputBindings,
     faceId,
     graphFileName,
     standardInputsById,
@@ -277,6 +289,7 @@ export default function App() {
           onClearSelection={handleClearSelection}
           components={animatableComponents}
           bindings={bindings}
+          inputBindings={inputBindings}
           bindingIssues={bindingIssues}
           featureLabelOverrides={featureLabelOverrides}
           onBindingInputChange={handleBindingInputChange}
@@ -291,12 +304,21 @@ export default function App() {
           onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
           onToggleStandardInput={handleToggleStandardInput}
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
+          onLinkChildInput={handleLinkChildInput}
+          onEnsureParentBinding={handleEnsureParentBinding}
           onUpdateStandardInput={handleUpdateStandardInput}
           onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
           onAddBindingSlot={handleAddBindingSlot}
           onRemoveBindingSlot={handleRemoveBindingSlot}
           onBindingExpressionChange={handleUpdateBindingExpression}
           onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
+          onParentBindingInputChange={handleParentBindingInputChange}
+          onParentBindingRemapChange={handleParentBindingRemapChange}
+          onParentAddBindingSlot={handleParentAddBindingSlot}
+          onParentRemoveBindingSlot={handleParentRemoveBindingSlot}
+          onParentBindingExpressionChange={handleParentBindingExpressionChange}
+          onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+          onParentResetBinding={handleParentResetBinding}
           onFeatureLabelChange={(entry, value) =>
             handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)
           }
