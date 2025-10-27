@@ -1,4 +1,4 @@
-# Agent Notes · demo-vizij-authoring
+# Agent Notes · vizij-authoring
 
 ## Purpose
 
@@ -6,9 +6,9 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 
 ## Runbook
 
-- Dev server: `pnpm --filter demo-vizij-authoring dev`
-- Build/preview: `pnpm --filter demo-vizij-authoring build` / `pnpm --filter demo-vizij-authoring preview`
-- Typecheck: `pnpm --filter demo-vizij-authoring typecheck`
+- Dev server: `pnpm --filter vizij-authoring dev`
+- Build/preview: `pnpm --filter vizij-authoring build` / `pnpm --filter vizij-authoring preview`
+- Typecheck: `pnpm --filter vizij-authoring typecheck`
 
 ## Integration Tips
 

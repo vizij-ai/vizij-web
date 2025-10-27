@@ -1,6 +1,6 @@
-# demo-vizij-authoring
+# vizij-authoring
 
-The `demo-vizij-authoring` app focuses on visualising Vizij assets without a rig or orchestrator. It provides a
+The `vizij-authoring` app focuses on visualising Vizij assets without a rig or orchestrator. It provides a
 minimal control panel to load `.glb` files, inspect their hierarchy, and export them back to
 a GLB.
 
@@ -17,10 +17,10 @@ a GLB.
 ## Scripts
 
 ```bash
-pnpm --filter demo-vizij-authoring dev      # Start Vite in development mode
-pnpm --filter demo-vizij-authoring build    # Build the demo for production
-pnpm --filter demo-vizij-authoring preview  # Preview the production build
-pnpm --filter demo-vizij-authoring typecheck
+pnpm --filter vizij-authoring dev      # Start Vite in development mode
+pnpm --filter vizij-authoring build    # Build the tool for production
+pnpm --filter vizij-authoring preview  # Preview the production build
+pnpm --filter vizij-authoring typecheck
 ```
 
 The app expects Vizij-compatible GLB files (e.g. assets produced via the Vizij pipeline or the

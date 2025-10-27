@@ -16,9 +16,8 @@ Use this file when working under `apps/`.
 | ---------------------------- | ------------------------------------------------------------------------ |
 | `demo-animation-studio`      | Advanced animation playground with preset + rig editors.                 |
 | `demo-graph-studio`          | Node graph editor; depends heavily on `@vizij/node-graph-react`.         |
-| `demo-vizij-authoring`       | GLB inspector/exporter without rig/orchestrator dependencies.            |
+| `vizij-authoring`            | GLB inspector/exporter without rig/orchestrator dependencies.            |
 | `demo-vizij-player`          | Facial rig + orchestrator authoring surface for end-to-end workflows.    |
-| `demo-vizij-rigging`         | Emotion rig builder layered on top of authoring assets/graphs.           |
 | `minimal-demo-animation`     | Minimal animation runtime smoke test.                                    |
 | `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
 | `minimal-demo-graph`         | Lightweight node-graph playground (inputs/outputs/staging demos).        |
