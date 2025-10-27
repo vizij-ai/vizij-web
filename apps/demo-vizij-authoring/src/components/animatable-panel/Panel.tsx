@@ -45,11 +45,14 @@ export function AnimatableValuesPanel({
   standardInputs,
   standardInputRoots,
   selectedStandardInputRoots,
+  selectedStandardInputSubgroups,
   onSelectedStandardInputRootsChange,
+  onSelectedStandardInputSubgroupsChange,
   onRenameGroup,
   onCreateCustomStandardInput,
   onResetAllInputs,
   onLinkChildInput,
+  onUnlinkChildInput,
   onEnsureParentBinding,
   onUpdateStandardInput,
   onDeleteCustomStandardInput,
@@ -195,7 +198,7 @@ export function AnimatableValuesPanel({
         const childEntry = managedInputsById.get(childId);
         ensureBucket(parentId).push({
           targetId: childId,
-          label: childEntry ? childEntry.input.label : childId,
+          label: childEntry ? childEntry.input.path : childId,
           kind: "child",
         });
       });
@@ -267,11 +270,11 @@ export function AnimatableValuesPanel({
       const isAuto = descriptor.source === "auto";
       if (isAuto) {
         alertDialog(
-          `"${input.label}" is generated from the rig metadata. Remove or edit the underlying feature to change this input.`,
+          `"${input.path}" is generated from the rig metadata. Remove or edit the underlying feature to change this input.`,
         );
         return;
       }
-      if (!confirmDialog(`Delete standard input "${input.label}"?`)) {
+      if (!confirmDialog(`Delete standard input "${input.path}"?`)) {
         return;
       }
       onDeleteCustomStandardInput(input.id);
@@ -289,7 +292,7 @@ export function AnimatableValuesPanel({
       }
       if (
         !confirmDialog(
-          `Clear ${boundTargets.length} mapping${boundTargets.length === 1 ? "" : "s"} for "${input.label}"?`,
+          `Clear ${boundTargets.length} mapping${boundTargets.length === 1 ? "" : "s"} for "${input.path}"?`,
         )
       ) {
         return;
@@ -562,6 +565,8 @@ export function AnimatableValuesPanel({
         roots={availableRoots}
         selectedRoots={selectedStandardInputRoots}
         onSelectedRootsChange={onSelectedStandardInputRootsChange}
+        selectedSubgroups={selectedStandardInputSubgroups}
+        onSelectedSubgroupsChange={onSelectedStandardInputSubgroupsChange}
         onRenameGroup={onRenameGroup}
         inputValues={inputValues}
         effectiveInputRanges={effectiveInputRanges}
@@ -571,6 +576,7 @@ export function AnimatableValuesPanel({
         onCreateInput={handleCreateInputClick}
         onResetAllInputs={onResetAllInputs}
         onLinkChildInput={onLinkChildInput}
+        onUnlinkChildInput={onUnlinkChildInput}
         onEnsureParentBinding={onEnsureParentBinding}
         onUpdateInput={handleUpdateStandardInput}
         onClearInputMappings={handleClearInputMappings}

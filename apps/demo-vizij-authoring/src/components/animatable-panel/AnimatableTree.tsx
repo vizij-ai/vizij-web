@@ -133,8 +133,22 @@ function PropertyBindingRow({
     >
       {outputControls && (
         <div className="feature-tree__property-column">
-          <h4>Output defaults</h4>
+          <h4>Animatables Value</h4>
           <div className="feature-tree__matrix-grid">
+            <label>
+              Min
+              <input
+                type="number"
+                step={0.01}
+                value={outputControls.minValue ?? ""}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value);
+                  if (Number.isFinite(parsed)) {
+                    outputControls.onMinChange(parsed);
+                  }
+                }}
+              />
+            </label>
             <label>
               <span>Default</span>
               <input
@@ -145,20 +159,6 @@ function PropertyBindingRow({
                   const parsed = Number(event.target.value);
                   if (Number.isFinite(parsed)) {
                     outputControls.onDefaultChange(parsed);
-                  }
-                }}
-              />
-            </label>
-            <label>
-              <span>Min</span>
-              <input
-                type="number"
-                step={0.01}
-                value={outputControls.minValue ?? ""}
-                onChange={(event) => {
-                  const parsed = Number(event.target.value);
-                  if (Number.isFinite(parsed)) {
-                    outputControls.onMinChange(parsed);
                   }
                 }}
               />

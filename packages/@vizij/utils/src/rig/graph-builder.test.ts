@@ -5,8 +5,8 @@ import { buildGraphFromDrivers } from "./graph-builder";
 
 const STANDARD_INPUTS = [
   {
-    id: "mouth_pos_x",
-    path: "/mouth/pos/x",
+    id: "standard_mouth_pos_x",
+    path: "/standard/mouth/pos/x",
     label: "Mouth Pos X",
     group: "mouth",
     defaultValue: 0,
@@ -24,8 +24,8 @@ describe("buildGraphFromDrivers", () => {
           kind: "remap",
           source: {
             type: "standard-input",
-            id: "mouth_pos_x",
-            path: "/mouth/pos/x",
+            id: "standard_mouth_pos_x",
+            path: "/standard/mouth/pos/x",
             label: "Mouth Pos X",
           },
           outputs: [
@@ -71,15 +71,15 @@ describe("buildGraphFromDrivers", () => {
           kind: "remap",
           source: {
             type: "standard-input",
-            id: "mouth_pos_x",
-            path: "/mouth/pos/x",
+            id: "standard_mouth_pos_x",
+            path: "/standard/mouth/pos/x",
           },
           outputs: [
             {
               target: {
                 type: "rig-input",
-                id: "mouth_pos_x",
-                path: "rig/robot/mouth/pos/x",
+                id: "standard_mouth_pos_x",
+                path: "rig/robot/standard/mouth/pos/x",
               },
               transform: {
                 type: "centered-remap",
@@ -105,8 +105,8 @@ describe("buildGraphFromDrivers", () => {
             {
               target: {
                 type: "rig-input",
-                id: "mouth_pos_x",
-                path: "rig/robot/mouth/pos/x",
+                id: "standard_mouth_pos_x",
+                path: "rig/robot/standard/mouth/pos/x",
               },
               transform: {
                 type: "pose-delta",
@@ -126,7 +126,8 @@ describe("buildGraphFromDrivers", () => {
     expect(spec.nodes.some((node) => node.type === "default-blend")).toBe(true);
     const outputNode = spec.nodes.find(
       (node) =>
-        node.type === "output" && node.params?.path === "rig/robot/mouth/pos/x",
+        node.type === "output" &&
+        node.params?.path === "rig/robot/standard/mouth/pos/x",
     );
     expect(outputNode).toBeDefined();
   });

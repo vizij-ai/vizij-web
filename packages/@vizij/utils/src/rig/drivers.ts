@@ -29,7 +29,7 @@ export interface RigDriverTarget {
    */
   id: string;
   /**
-   * Optional fully qualified typed path (e.g., `rig/robot/mouth/pos/x`).
+   * Optional fully qualified typed path (e.g., `rig/robot/standard/mouth/pos/x`).
    */
   path?: string;
   /**

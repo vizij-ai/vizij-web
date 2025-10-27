@@ -39,5 +39,6 @@ export default defineConfig({
   },
   test: {
     pool: "threads",
+    environment: "jsdom",
   },
 });

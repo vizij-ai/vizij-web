@@ -11,8 +11,8 @@ describe("buildAuthoringDriverGraph", () => {
   it("converts bindings into remap drivers", () => {
     const standardInputs: StandardRigInput[] = [
       {
-        id: "mouth_pos_x",
-        path: "/mouth/pos/x",
+        id: "standard_mouth_pos_x",
+        path: "/standard/mouth/pos/x",
         label: "Mouth Pos X",
         group: "mouth",
         defaultValue: 0,
@@ -53,12 +53,12 @@ describe("buildAuthoringDriverGraph", () => {
       bindings: {
         [component.id]: {
           ...baseBinding,
-          inputId: "mouth_pos_x",
+          inputId: "standard_mouth_pos_x",
           remap: { ...remap },
           slots: [
             {
               ...baseBinding.slots[0],
-              inputId: "mouth_pos_x",
+              inputId: "standard_mouth_pos_x",
               remap: { ...remap },
             },
           ],
@@ -80,8 +80,8 @@ describe("buildAuthoringDriverGraph", () => {
     expect(driver.kind).toBe("remap");
     expect(driver.source).toMatchObject({
       type: "standard-input",
-      id: "mouth_pos_x",
-      path: "/mouth/pos/x",
+      id: "standard_mouth_pos_x",
+      path: "/standard/mouth/pos/x",
     });
     expect(driver.outputs).toHaveLength(1);
     expect(driver.outputs[0]?.target).toMatchObject({

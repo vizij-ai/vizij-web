@@ -19,8 +19,7 @@ import { APPROX_EQUAL_EPSILON } from "../../utils/constants";
 import type { FeatureEntry, VectorFeatureEntry, RenderableLike } from "./types";
 
 export function formatStandardInputLabel(input: StandardRigInput): string {
-  const groupName = input.group.replace(/_/g, " ");
-  return `${input.label} · ${groupName}`;
+  return input.path;
 }
 
 export function isApproximatelyEqual(

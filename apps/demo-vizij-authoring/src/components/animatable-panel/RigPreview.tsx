@@ -79,8 +79,7 @@ export function RigPreview({
               className="feature-panel__input-row feature-row__rig-preview-row"
             >
               <div className="feature-panel__input-meta">
-                <strong>{entry.input.label}</strong>
-                <span>{entry.input.path}</span>
+                <strong>{entry.input.path}</strong>
                 {entry.aliases.length > 0 && (
                   <ul className="feature-row__rig-preview-aliases">
                     {entry.aliases.map(({ target, alias }) => (

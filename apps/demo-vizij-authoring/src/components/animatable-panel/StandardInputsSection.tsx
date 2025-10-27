@@ -18,6 +18,7 @@ import {
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
 import { promptDialog } from "../../utils/dialogs";
+import { extractStandardInputSubgroups } from "../../utils/standardInputs";
 
 interface InputUsage {
   targetId: string;
@@ -35,6 +36,8 @@ interface StandardInputsSectionProps {
   roots: string[];
   selectedRoots: string[];
   onSelectedRootsChange: (next: string[]) => void;
+  selectedSubgroups: string[];
+  onSelectedSubgroupsChange: (next: string[]) => void;
   onRenameGroup: (sourceGroup: string, nextGroup: string) => void;
   inputValues: StandardInputValues;
   effectiveInputRanges: Map<string, { min: number; max: number }>;
@@ -45,6 +48,7 @@ interface StandardInputsSectionProps {
   onResetAllInputs: () => void;
   onEnsureParentBinding: (inputId: string) => void;
   onLinkChildInput: (parentId: string, childId: string) => void;
+  onUnlinkChildInput: (parentId: string, childId: string) => void;
   onUpdateInput: (
     inputId: string,
     updates: { path?: string; label?: string },
@@ -81,17 +85,6 @@ interface StandardInputsSectionProps {
 
 const GROUP_FALLBACK = "custom";
 
-function formatToken(token: string): string {
-  if (!token) {
-    return "Custom";
-  }
-  return token
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function getRootKey(entry: ManagedStandardInput): string {
   return entry.metadata?.root ?? entry.input.group ?? GROUP_FALLBACK;
 }
@@ -110,6 +103,8 @@ export function StandardInputsSection({
   roots,
   selectedRoots,
   onSelectedRootsChange,
+  selectedSubgroups,
+  onSelectedSubgroupsChange,
   onRenameGroup,
   inputValues,
   effectiveInputRanges,
@@ -120,6 +115,7 @@ export function StandardInputsSection({
   onResetAllInputs,
   onEnsureParentBinding,
   onLinkChildInput,
+  onUnlinkChildInput,
   onUpdateInput,
   onClearInputMappings,
   onDeleteInput,
@@ -158,6 +154,37 @@ export function StandardInputsSection({
     () => new Set<string>(selectedRoots),
     [selectedRoots],
   );
+  const selectedSubgroupSet = useMemo(
+    () => new Set<string>(selectedSubgroups),
+    [selectedSubgroups],
+  );
+
+  const inputSubgroups = useMemo(() => {
+    const map = new Map<string, string[]>();
+    inputs.forEach((entry) => {
+      const root = getRootKey(entry);
+      const subgroups = extractStandardInputSubgroups(entry.input.path, root);
+      map.set(entry.input.id, subgroups);
+    });
+    return map;
+  }, [inputs]);
+
+  const availableSubgroups = useMemo(() => {
+    const collector = new Set<string>();
+    inputs.forEach((entry) => {
+      const rootKey = getRootKey(entry);
+      if (selectedSet.size > 0 && !selectedSet.has(rootKey)) {
+        return;
+      }
+      const subgroups = inputSubgroups.get(entry.input.id) ?? [];
+      subgroups.forEach((token) => {
+        if (token) {
+          collector.add(token);
+        }
+      });
+    });
+    return Array.from(collector).sort((a, b) => a.localeCompare(b));
+  }, [inputSubgroups, inputs, selectedSet]);
 
   const [expandedInputs, setExpandedInputs] = useState<Set<string>>(
     () => new Set(),
@@ -165,6 +192,9 @@ export function StandardInputsSection({
   const [expandedParents, setExpandedParents] = useState<Set<string>>(
     () => new Set(),
   );
+  const [collapsedChildMappings, setCollapsedChildMappings] = useState<
+    Set<string>
+  >(() => new Set());
   const [childSelection, setChildSelection] = useState<{
     parentId: string | null;
     childId: string | null;
@@ -206,8 +236,7 @@ export function StandardInputsSection({
 
   const handleRenameRoot = useCallback(
     (root: string) => {
-      const current = formatToken(root);
-      const response = promptDialog(`Rename group "${current}"`, current);
+      const response = promptDialog(`Rename group "${root}"`, root);
       if (response === null) {
         return;
       }
@@ -249,6 +278,20 @@ export function StandardInputsSection({
     onSelectedRootsChange([]);
   }, [onSelectedRootsChange]);
 
+  const handleSubgroupSelectAll = useCallback(() => {
+    onSelectedSubgroupsChange([]);
+  }, [onSelectedSubgroupsChange]);
+
+  const handleSubgroupToggle = useCallback(
+    (subgroup: string) => {
+      const nextSelection = selectedSubgroupSet.has(subgroup)
+        ? selectedSubgroups.filter((value) => value !== subgroup)
+        : [...selectedSubgroups, subgroup];
+      onSelectedSubgroupsChange(nextSelection);
+    },
+    [onSelectedSubgroupsChange, selectedSubgroupSet, selectedSubgroups],
+  );
+
   const graphAlert = useMemo(() => {
     if (!graphStatusMessage) {
       return null;
@@ -261,22 +304,35 @@ export function StandardInputsSection({
   }, [graphStatusMessage]);
 
   const filteredInputs = useMemo(() => {
-    if (selectedSet.size === 0) {
-      return inputs;
+    const byRoot =
+      selectedSet.size === 0
+        ? inputs
+        : inputs.filter((entry) => selectedSet.has(getRootKey(entry)));
+    if (selectedSubgroupSet.size === 0) {
+      return byRoot;
     }
-    return inputs.filter((entry) => selectedSet.has(getRootKey(entry)));
-  }, [inputs, selectedSet]);
+    return byRoot.filter((entry) => {
+      const subgroups = inputSubgroups.get(entry.input.id) ?? [];
+      if (subgroups.length === 0) {
+        return false;
+      }
+      return subgroups.some((token) => selectedSubgroupSet.has(token));
+    });
+  }, [inputSubgroups, inputs, selectedSet, selectedSubgroupSet]);
 
   const emptyMessage = useMemo(() => {
     if (inputs.length === 0) {
       return "No standard inputs are available for this rig.";
     }
+    if (selectedSubgroups.length > 0 && filteredInputs.length === 0) {
+      return "No inputs match the selected subgroups yet.";
+    }
     if (selectedRoots.length > 0 && filteredInputs.length === 0) {
       const [firstRoot] = selectedRoots;
-      return `No inputs for ${formatToken(firstRoot)} yet. Add one from the feature tree or create a custom input.`;
+      return `No inputs for ${firstRoot} yet. Add one from the feature tree or create a custom input.`;
     }
     return null;
-  }, [filteredInputs.length, inputs.length, selectedRoots]);
+  }, [filteredInputs.length, inputs.length, selectedRoots, selectedSubgroups]);
 
   const renderInputCard = (entry: ManagedStandardInput) => {
     const { input, source } = entry;
@@ -367,7 +423,10 @@ export function StandardInputsSection({
     });
 
     const childOptions = childCandidates
-      .map((candidate) => ({ id: candidate.id, label: candidate.label }))
+      .map((candidate) => ({
+        id: candidate.id,
+        label: candidate.path,
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
     const isSelectingChild = childSelection.parentId === input.id;
@@ -405,10 +464,71 @@ export function StandardInputsSection({
         const childEntry = entriesById.get(childId);
         return {
           id: childId,
-          label: childEntry ? childEntry.input.label : childId,
+          label: childEntry ? childEntry.input.path : childId,
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
+
+    const parentConnections = parentBinding
+      ? (() => {
+          const ids = new Set<string>();
+          if (
+            parentBinding.inputId &&
+            parentBinding.inputId !== SELF_BINDING_ID
+          ) {
+            ids.add(parentBinding.inputId);
+          }
+          parentBinding.slots.forEach((slot) => {
+            if (slot.inputId && slot.inputId !== SELF_BINDING_ID) {
+              ids.add(slot.inputId);
+            }
+          });
+          return Array.from(ids)
+            .map((parentId) => {
+              const parentEntry = entriesById.get(parentId);
+              return {
+                id: parentId,
+                label: parentEntry ? parentEntry.input.path : parentId,
+              };
+            })
+            .sort((a, b) => a.label.localeCompare(b.label));
+        })()
+      : [];
+
+    const parentStatusLabel =
+      parentConnections.length > 0
+        ? `${parentConnections.length} linked`
+        : "None linked";
+
+    const childStatusLabel =
+      childEntries.length > 0 ? `${childEntries.length} linked` : "None linked";
+
+    const parentToggleLabel = isParentExpanded
+      ? "Hide parent mapping"
+      : parentConnections.length > 0
+        ? "Show mapping"
+        : "Add parent";
+
+    const areChildrenCollapsed = collapsedChildMappings.has(input.id);
+    const showChildList = !areChildrenCollapsed || isSelectingChild;
+
+    const childToggleLabel = showChildList ? "Hide children" : "Show children";
+
+    const toggleChildVisibility = () => {
+      setCollapsedChildMappings((previous) => {
+        const next = new Set(previous);
+        if (next.has(input.id)) {
+          next.delete(input.id);
+        } else {
+          next.add(input.id);
+        }
+        return next;
+      });
+    };
+
+    const handleRemoveChildLink = (childId: string) => {
+      onUnlinkChildInput(input.id, childId);
+    };
 
     const handleNumericChange = (event: ChangeEvent<HTMLInputElement>) => {
       const parsed = Number(event.target.value);
@@ -454,14 +574,23 @@ export function StandardInputsSection({
               className="feature-panel__input-disclosure"
               onClick={toggleInputExpanded}
               aria-expanded={isExpanded}
-              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${input.label}`}
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${input.path}`}
             />
-            <span className="feature-panel__input-name">{input.label}</span>
-          </div>
-          <div className="feature-panel__input-header-actions">
-            <label className="feature-panel__input-value">
-              <span className="feature-panel__visually-hidden">Value</span>
+            <span className="feature-panel__input-name">{input.path}</span>
+            <label className="feature-panel__input-slider">
               <input
+                type="range"
+                min={range.min}
+                max={range.max}
+                step={Math.max((range.max - range.min) / 200, 0.001)}
+                value={value}
+                disabled={sliderDisabled}
+                onChange={handleSliderChange}
+              />
+            </label>
+            <label className="feature-panel__input-value">
+              <input
+                className="feature-panel__input-number"
                 type="number"
                 value={value}
                 min={range.min}
@@ -470,10 +599,9 @@ export function StandardInputsSection({
                 onChange={handleNumericChange}
               />
             </label>
-            <span className="feature-panel__input-custom-chip">
-              {isAuto ? "Auto" : "Custom"}
-            </span>
-            {!isAuto && (
+          </div>
+          {!isAuto && (
+            <div className="feature-panel__input-header-actions">
               <button
                 type="button"
                 className="feature-panel__input-action feature-panel__input-action--danger"
@@ -481,27 +609,12 @@ export function StandardInputsSection({
               >
                 Remove
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {isExpanded && (
           <div className="feature-panel__input-body">
-            <div className="feature-panel__input-row feature-panel__input-row--slider">
-              <label className="feature-panel__input-slider-block">
-                <span className="feature-panel__input-slider-label">Value</span>
-                <input
-                  type="range"
-                  min={range.min}
-                  max={range.max}
-                  step={Math.max((range.max - range.min) / 200, 0.001)}
-                  value={value}
-                  disabled={sliderDisabled}
-                  onChange={handleSliderChange}
-                />
-              </label>
-            </div>
-
             <div className="feature-panel__input-row feature-panel__input-row--path">
               <label className="feature-panel__input-path-label">
                 Path
@@ -515,97 +628,195 @@ export function StandardInputsSection({
                 />
               </label>
             </div>
-
-            <div className="feature-panel__input-row feature-panel__input-row--mappings">
-              <div className="feature-panel__input-chip-group">
-                {usage.length > 0 ? (
-                  usage.map(({ targetId, label, kind }) => (
-                    <span
-                      key={`${kind}:${targetId}`}
-                      className={`feature-panel__input-chip feature-panel__input-chip--${kind}`}
-                    >
-                      {label}
-                      {kind === "animatable" && (
-                        <button
-                          type="button"
-                          className="feature-panel__input-chip-dismiss"
-                          onClick={() => onUnbindTarget(targetId)}
-                          title={`Remove mapping from ${label}`}
-                        >
-                          ×
-                        </button>
-                      )}
+            <div className="feature-panel__input-mappings">
+              <section className="feature-panel__mapping-group feature-panel__mapping-group--usage">
+                <div className="feature-panel__mapping-header">
+                  <div className="feature-panel__mapping-title">
+                    <span>Feature mappings</span>
+                    <span className="feature-panel__mapping-status">
+                      {animatableUsage.length > 0
+                        ? `${animatableUsage.length} linked`
+                        : "None linked"}
                     </span>
-                  ))
-                ) : (
-                  <span className="feature-panel__input-chip feature-panel__input-chip--empty">
-                    Unmapped
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                className="feature-panel__input-action feature-panel__input-action--danger"
-                onClick={() => onClearInputMappings(input)}
-                disabled={animatableUsage.length === 0}
-              >
-                Clear mappings
-              </button>
-            </div>
+                  </div>
+                  <div className="feature-panel__mapping-actions">
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--danger"
+                      onClick={() => onClearInputMappings(input)}
+                      disabled={animatableUsage.length === 0}
+                    >
+                      Clear feature mappings
+                    </button>
+                  </div>
+                </div>
+                <div className="feature-panel__mapping-content">
+                  {animatableUsage.length > 0 ? (
+                    <div className="feature-panel__mapping-chips">
+                      {animatableUsage.map(({ targetId, label }) => (
+                        <span
+                          key={`animatable:${targetId}`}
+                          className="feature-panel__input-chip feature-panel__input-chip--animatable"
+                        >
+                          {label}
+                          <button
+                            type="button"
+                            className="feature-panel__input-chip-dismiss"
+                            onClick={() => onUnbindTarget(targetId)}
+                            title={`Remove mapping from ${label}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="feature-panel__mapping-empty">
+                      No features linked.
+                    </p>
+                  )}
+                  <p className="feature-panel__mapping-empty">
+                    Add to other features from the features section below.
+                  </p>
+                </div>
+              </section>
 
-            <div className="feature-panel__input-row feature-panel__input-row--parents">
-              <div className="feature-panel__input-derived">
-                <div className="feature-panel__input-derived-actions">
-                  <button
-                    type="button"
-                    className="feature-panel__input-action feature-panel__input-action--primary"
-                    onClick={handleStartChildSelection}
-                    disabled={childOptions.length === 0}
-                  >
-                    Add child
-                  </button>
-                  <button
-                    type="button"
-                    className="feature-panel__input-action feature-panel__input-action--primary"
-                    onClick={toggleParentExpanded}
-                  >
-                    {isParentExpanded ? "Hide parent mapping" : "Add parent"}
-                  </button>
-                  {parentBinding && (
+              <section className="feature-panel__mapping-group feature-panel__mapping-group--parents">
+                <div className="feature-panel__mapping-header">
+                  <div className="feature-panel__mapping-title">
+                    <span>Parent inputs</span>
+                    <span className="feature-panel__mapping-status">
+                      {parentStatusLabel}
+                    </span>
+                  </div>
+                  <div className="feature-panel__mapping-actions">
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--primary"
+                      onClick={toggleParentExpanded}
+                    >
+                      {parentToggleLabel}
+                    </button>
                     <button
                       type="button"
                       className="feature-panel__input-action feature-panel__input-action--secondary"
                       onClick={() => onParentResetBinding(input.id)}
+                      disabled={parentConnections.length === 0}
                     >
-                      Reset mapping
+                      Reset parents
                     </button>
-                  )}
+                  </div>
                 </div>
-
-                {childEntries.length > 0 && (
-                  <div className="feature-panel__input-derived-children">
-                    <span>Children</span>
-                    <div className="feature-panel__input-chip-group">
-                      {childEntries.map((child) => (
+                {parentConnections.length > 0 ? (
+                  <div className="feature-panel__mapping-content">
+                    <div className="feature-panel__mapping-chips">
+                      {parentConnections.map((parent) => (
                         <span
-                          key={child.id}
-                          className="feature-panel__input-chip feature-panel__input-chip--child"
+                          key={`parent:${parent.id}`}
+                          className="feature-panel__input-chip feature-panel__input-chip--parent"
                         >
-                          {child.label}
+                          {parent.label}
                         </span>
                       ))}
                     </div>
                   </div>
+                ) : (
+                  <p className="feature-panel__mapping-empty">
+                    No parent inputs linked.
+                  </p>
                 )}
+                {isParentExpanded && bindingForEditor && (
+                  <div className="feature-panel__mapping-editor">
+                    <BindingEditor
+                      binding={bindingForEditor}
+                      targetId={input.id}
+                      label={`${input.path} mapping`}
+                      standardInputs={standardInputList}
+                      standardInputLookup={standardInputLookup}
+                      issues={parentIssues}
+                      onBindingInputChange={onParentBindingInputChange}
+                      onBindingRemapChange={onParentBindingRemapChange}
+                      onAddBindingSlot={onParentAddBindingSlot}
+                      onRemoveBindingSlot={onParentRemoveBindingSlot}
+                      onBindingExpressionChange={
+                        onParentBindingExpressionChange
+                      }
+                      onBindingSlotAliasChange={onParentBindingSlotAliasChange}
+                      onResetBinding={
+                        parentBinding
+                          ? () => onParentResetBinding(input.id)
+                          : undefined
+                      }
+                      expandable={false}
+                    />
+                  </div>
+                )}
+              </section>
 
+              <section className="feature-panel__mapping-group feature-panel__mapping-group--children">
+                <div className="feature-panel__mapping-header">
+                  <div className="feature-panel__mapping-title">
+                    <span>Child inputs</span>
+                    <span className="feature-panel__mapping-status">
+                      {childStatusLabel}
+                    </span>
+                  </div>
+                  <div className="feature-panel__mapping-actions">
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--primary"
+                      onClick={handleStartChildSelection}
+                      disabled={childOptions.length === 0}
+                    >
+                      Add child
+                    </button>
+                    {childEntries.length > 0 && (
+                      <button
+                        type="button"
+                        className="feature-panel__input-action feature-panel__input-action--secondary"
+                        onClick={toggleChildVisibility}
+                      >
+                        {childToggleLabel}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {showChildList && (
+                  <div className="feature-panel__mapping-content">
+                    {childEntries.length > 0 ? (
+                      <div className="feature-panel__mapping-chips">
+                        {childEntries.map((child) => (
+                          <span
+                            key={`child:${child.id}`}
+                            className="feature-panel__input-chip feature-panel__input-chip--child"
+                          >
+                            {child.label}
+                            <button
+                              type="button"
+                              className="feature-panel__input-chip-dismiss"
+                              onClick={() => handleRemoveChildLink(child.id)}
+                              title={`Remove ${child.label} mapping`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="feature-panel__mapping-empty">
+                        No child inputs linked.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {isSelectingChild && (
-                  <div className="feature-panel__input-child-selector">
+                  <div className="feature-panel__mapping-child-editor">
                     {childOptions.length > 0 ? (
                       <>
-                        <label className="feature-panel__input-child-label">
-                          Select child
+                        <label className="feature-panel__mapping-child-label">
+                          <span>Select child</span>
                           <select
-                            className="feature-panel__input-child-select"
+                            className="feature-panel__mapping-child-select"
                             value={selectedChildId ?? ""}
                             onChange={handleChildSelectionChange}
                           >
@@ -616,7 +827,7 @@ export function StandardInputsSection({
                             ))}
                           </select>
                         </label>
-                        <div className="feature-panel__input-child-actions">
+                        <div className="feature-panel__mapping-child-actions">
                           <button
                             type="button"
                             className="feature-panel__input-action feature-panel__input-action--primary"
@@ -635,7 +846,7 @@ export function StandardInputsSection({
                         </div>
                       </>
                     ) : (
-                      <div className="feature-panel__input-child-empty">
+                      <div className="feature-panel__mapping-empty">
                         No available inputs to assign.
                         <button
                           type="button"
@@ -648,30 +859,7 @@ export function StandardInputsSection({
                     )}
                   </div>
                 )}
-
-                {isParentExpanded && bindingForEditor && (
-                  <BindingEditor
-                    binding={bindingForEditor}
-                    targetId={input.id}
-                    label={`${input.label} mapping`}
-                    standardInputs={standardInputList}
-                    standardInputLookup={standardInputLookup}
-                    issues={parentIssues}
-                    onBindingInputChange={onParentBindingInputChange}
-                    onBindingRemapChange={onParentBindingRemapChange}
-                    onAddBindingSlot={onParentAddBindingSlot}
-                    onRemoveBindingSlot={onParentRemoveBindingSlot}
-                    onBindingExpressionChange={onParentBindingExpressionChange}
-                    onBindingSlotAliasChange={onParentBindingSlotAliasChange}
-                    onResetBinding={
-                      parentBinding
-                        ? () => onParentResetBinding(input.id)
-                        : undefined
-                    }
-                    expandable={false}
-                  />
-                )}
-              </div>
+              </section>
             </div>
           </div>
         )}
@@ -726,7 +914,7 @@ export function StandardInputsSection({
                       data-active={selectedSet.has(root)}
                       onClick={() => handleRootToggle(root)}
                     >
-                      {formatToken(root)}
+                      {root}
                     </button>
                     <button
                       type="button"
@@ -740,6 +928,34 @@ export function StandardInputsSection({
                 ))}
               </div>
             </div>
+            {availableSubgroups.length > 0 && (
+              <div className="feature-panel__input-filters">
+                <span className="feature-panel__input-filters-label">
+                  Subgroups
+                </span>
+                <div className="feature-panel__input-filter-chips">
+                  <button
+                    type="button"
+                    className="feature-panel__input-filter-chip"
+                    data-active={selectedSubgroupSet.size === 0}
+                    onClick={handleSubgroupSelectAll}
+                  >
+                    All
+                  </button>
+                  {availableSubgroups.map((subgroup) => (
+                    <button
+                      key={subgroup}
+                      type="button"
+                      className="feature-panel__input-filter-chip"
+                      data-active={selectedSubgroupSet.has(subgroup)}
+                      onClick={() => handleSubgroupToggle(subgroup)}
+                    >
+                      {subgroup}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               type="button"
               onClick={onResetAllInputs}

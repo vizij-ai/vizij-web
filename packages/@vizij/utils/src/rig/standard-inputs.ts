@@ -115,6 +115,14 @@ export interface StandardRigInputInit
   id?: string;
 }
 
+export function applyStandardInputPathPrefix(path: string): string {
+  const normalized = normalizeStandardRigInputPath(path);
+  if (normalized === "/standard" || normalized.startsWith("/standard/")) {
+    return normalized;
+  }
+  return normalizeStandardRigInputPath(`/standard${normalized}`);
+}
+
 export function normalizeStandardRigGroup(
   value: string,
   fallback = "custom",
@@ -169,8 +177,14 @@ export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
   if (!withoutLeading) {
     return "Custom Input";
   }
-  const words = withoutLeading
-    .split("/")
+  const segments = withoutLeading.split("/");
+  const filteredSegments = segments.filter((segment, index) => {
+    if (index === 0 && segment === "standard") {
+      return false;
+    }
+    return true;
+  });
+  const words = filteredSegments
     .flatMap((segment) =>
       segment.replace(/[_-]+/g, " ").split(" ").filter(Boolean),
     )
@@ -185,7 +199,11 @@ export function deriveGroupFromNormalizedPath(normalizedPath: string): string {
   if (!withoutLeading) {
     return "custom";
   }
-  const [first] = withoutLeading.split("/");
+  const segments = withoutLeading.split("/");
+  if (segments[0] === "standard" && segments.length > 1) {
+    return segments[1] || "custom";
+  }
+  const [first] = segments;
   return first || "custom";
 }
 
@@ -218,7 +236,7 @@ function defineStandardRigInput(
   defaults: StandardRigInputDefaults,
 ): StandardRigInput {
   return createStandardRigInput({
-    path,
+    path: applyStandardInputPathPrefix(path),
     label,
     group,
     defaultValue: defaults.value,
@@ -384,3 +402,18 @@ export const STANDARD_RIG_INPUTS_BY_ID = new Map(
 export function findStandardRigInput(id: string): StandardRigInput | undefined {
   return STANDARD_RIG_INPUTS_BY_ID.get(id);
 }
+
+const LEGACY_STANDARD_INPUT_ID_ENTRIES: Array<[string, string]> = [];
+STANDARD_RIG_INPUTS.forEach((input) => {
+  const legacyPath = input.path.startsWith("/standard/")
+    ? `/${input.path.slice("/standard/".length)}`
+    : input.path;
+  const legacyId = deriveStandardRigInputIdFromPath(legacyPath);
+  if (legacyId !== input.id) {
+    LEGACY_STANDARD_INPUT_ID_ENTRIES.push([legacyId, input.id]);
+  }
+});
+
+export const LEGACY_STANDARD_RIG_INPUT_IDS = new Map(
+  LEGACY_STANDARD_INPUT_ID_ENTRIES,
+);

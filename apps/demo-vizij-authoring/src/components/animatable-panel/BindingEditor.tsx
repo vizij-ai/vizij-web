@@ -91,7 +91,7 @@ export function BindingEditor({
         const inputMeta =
           slot.inputId !== null ? standardInputLookup.get(slot.inputId) : null;
         if (inputMeta) {
-          return `${slot.alias} → ${inputMeta.label}`;
+          return `${slot.alias} → ${inputMeta.path}`;
         }
         return slot.alias;
       })
@@ -158,6 +158,7 @@ export function BindingEditor({
             return (
               <div key={slot.id} className="feature-tree__binding-slot">
                 <div className="feature-tree__binding-slot-header">
+                  <label>Input Alias</label>
                   <input
                     className="feature-tree__binding-slot-alias-input"
                     value={slot.alias}
@@ -183,6 +184,7 @@ export function BindingEditor({
                   )}
                 </div>
                 <div className="feature-tree__binding-slot-controls">
+                  Binding
                   <select
                     className="feature-tree__property-select"
                     value={slotInputId}
@@ -199,7 +201,7 @@ export function BindingEditor({
                     <option value={SELF_BINDING_ID}>Slider (self)</option>
                     {standardInputs.map((input) => (
                       <option key={input.id} value={input.id}>
-                        {input.label}
+                        {input.path}
                       </option>
                     ))}
                   </select>
@@ -224,7 +226,7 @@ export function BindingEditor({
                         }
                       }}
                     >
-                      New input
+                      Create
                     </button>
                   )}
                 </div>

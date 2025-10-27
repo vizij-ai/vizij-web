@@ -10,10 +10,12 @@ import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
 import { AssetLoaderPanel } from "./components/app/AssetLoaderPanel";
 import { ExportPanel } from "./components/app/ExportPanel";
 import { GraphImportPanel } from "./components/app/GraphImportPanel";
+import { PoseRigImportExportPanel } from "./components/app/PoseRigImportExportPanel";
 import { Viewer } from "./components/app/Viewer";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { useRigController } from "./hooks/useRigController";
+import { usePoseRigAuthoring } from "./poseRig/usePoseRigAuthoring";
 import { waitForNextFrame } from "./utils/frame";
 import { downloadBlob } from "./utils/download";
 import { applyDefaultsToRobotData } from "./utils/robotData";
@@ -58,6 +60,7 @@ export default function App() {
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,
+    selectedStandardInputSubgroups,
     standardInputs,
     standardInputsById,
     inputValues,
@@ -66,6 +69,7 @@ export default function App() {
     animatableComponents,
     selectionStack,
     handleInputValueChange,
+    applyStandardInputBatch,
     handleResetAllInputValues,
     handleBindingInputChange,
     handleBindingRemapChange,
@@ -73,6 +77,7 @@ export default function App() {
     handleCreateCustomStandardInput,
     handleRenameGroup,
     handleLinkChildInput,
+    handleUnlinkChildInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
@@ -89,6 +94,7 @@ export default function App() {
     handleParentResetBinding,
     handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
+    handleSelectStandardInputSubgroups,
     handleFocusSelectionIndex,
     handleClearSelection,
     setStoreState,
@@ -110,6 +116,15 @@ export default function App() {
   const rootRenderable = rootId
     ? (world[rootId] as Group | undefined)
     : undefined;
+
+  const poseRig = usePoseRigAuthoring({
+    faceId,
+    rootId,
+    standardInputs,
+    inputValues,
+    onInputValueChange: handleInputValueChange,
+    applyInputBatch: applyStandardInputBatch,
+  });
 
   const handleSelectFile = useCallback(
     async (file: File) => {
@@ -282,6 +297,57 @@ export default function App() {
     values,
   ]);
 
+  const handleExportPoseGraphFile = useCallback(() => {
+    const spec = poseRig.poseGraphSpec;
+    if (!spec) {
+      alertDialog("Build the pose rig graph before exporting.");
+      return;
+    }
+    const trimmed = poseRig.poseGraphFileName.trim();
+    const fileName =
+      trimmed.length > 0 ? trimmed : `${faceSlug(faceId)}_pose_graph.json`;
+    const normalized = fileName.toLowerCase().endsWith(".json")
+      ? fileName
+      : `${fileName}.json`;
+    const blob = new Blob([JSON.stringify(spec, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(blob, normalized);
+  }, [faceId, poseRig.poseGraphFileName, poseRig.poseGraphSpec]);
+
+  const handleExportPoseConfigFile = useCallback(() => {
+    const config = poseRig.poseConfigDraft;
+    if (!config) {
+      alertDialog("Capture a neutral pose or add pose data before exporting.");
+      return;
+    }
+    const trimmed = poseRig.poseConfigFileName.trim();
+    const fileName =
+      trimmed.length > 0 ? trimmed : `${faceSlug(faceId)}_pose_config.json`;
+    const normalized = fileName.toLowerCase().endsWith(".json")
+      ? fileName
+      : `${fileName}.json`;
+    const blob = new Blob([JSON.stringify(config, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(blob, normalized);
+  }, [faceId, poseRig.poseConfigDraft, poseRig.poseConfigFileName]);
+
+  const handleImportPoseConfigFile = useCallback(
+    async (file: File) => {
+      try {
+        await poseRig.importPoseConfig(file);
+      } catch (error) {
+        alertDialog(
+          `Failed to import pose config: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+    [poseRig],
+  );
+
   const canImportGraph = Boolean(rootId) && !isLoading;
   const canExport = canImportGraph;
 
@@ -323,6 +389,20 @@ export default function App() {
           disabled={!canImportGraph}
         />
 
+        <PoseRigImportExportPanel
+          rigName={poseRig.rigName}
+          onRigNameChange={poseRig.setRigName}
+          poseGraphFileName={poseRig.poseGraphFileName}
+          onPoseGraphFileNameChange={poseRig.setPoseGraphFileName}
+          poseConfigFileName={poseRig.poseConfigFileName}
+          onPoseConfigFileNameChange={poseRig.setPoseConfigFileName}
+          onExportPoseGraph={handleExportPoseGraphFile}
+          onExportPoseConfig={handleExportPoseConfigFile}
+          onImportPoseConfig={handleImportPoseConfigFile}
+          poseConfigWarnings={poseRig.poseConfigWarnings}
+          disabled={!poseRig.ready}
+        />
+
         <ExportPanel
           graphFileName={graphFileName}
           onGraphFileNameChange={handleGraphFileNameChange}
@@ -343,6 +423,7 @@ export default function App() {
         statusMessage={statusMessage}
         namespace={DEFAULT_NAMESPACE}
         onClearSelection={handleClearSelection}
+        poseRig={poseRig}
       />
 
       <aside className="sidebar sidebar--right">
@@ -369,11 +450,16 @@ export default function App() {
           standardInputs={standardInputs}
           standardInputRoots={standardInputRoots}
           selectedStandardInputRoots={selectedStandardInputRoots}
+          selectedStandardInputSubgroups={selectedStandardInputSubgroups}
           onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
+          onSelectedStandardInputSubgroupsChange={
+            handleSelectStandardInputSubgroups
+          }
           onRenameGroup={handleRenameGroup}
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
           onResetAllInputs={handleResetAllInputValues}
           onLinkChildInput={handleLinkChildInput}
+          onUnlinkChildInput={handleUnlinkChildInput}
           onEnsureParentBinding={handleEnsureParentBinding}
           onUpdateStandardInput={handleUpdateStandardInput}
           onDeleteCustomStandardInput={handleDeleteCustomStandardInput}

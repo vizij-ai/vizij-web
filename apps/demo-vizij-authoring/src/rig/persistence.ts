@@ -27,6 +27,7 @@ export interface PersistedRigState {
   standardInputs?: PersistedAutoStandardInput[] | StandardRigInput[];
   customStandardInputs?: StandardRigInput[];
   selectedStandardInputRoots?: string[];
+  selectedStandardInputSubgroups?: string[];
   featureLabels?: Record<string, string>;
   /** @deprecated retained for backward compatibility with legacy saves */
   derivedStandardInputs?: Record<string, RigBindingDefinition>;

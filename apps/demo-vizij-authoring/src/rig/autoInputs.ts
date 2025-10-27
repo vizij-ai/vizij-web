@@ -1,7 +1,9 @@
 import {
   createStandardRigInput,
   deriveLabelFromNormalizedPath,
+  applyStandardInputPathPrefix,
   normalizeStandardRigGroup,
+  STANDARD_RIG_INPUTS,
 } from "@vizij/utils";
 import type {
   AnimatableComponent,
@@ -122,10 +124,9 @@ function createBlueprintFromComponent(
   const shapeSegment = toShapePathSegment(entry);
   const featureSegment = toFeaturePathSegment(entry);
   const propertySegment = toPropertyPathSegment(propertyKey);
-  const normalizedPath = ensureUniquePath(
-    `/${shapeSegment}/${featureSegment}/${propertySegment}`,
-    registry,
-  );
+  const basePath = `/${shapeSegment}/${featureSegment}/${propertySegment}`;
+  const prefixedPath = applyStandardInputPathPrefix(basePath);
+  const normalizedPath = ensureUniquePath(prefixedPath, registry);
   const label = deriveLabelFromNormalizedPath(normalizedPath);
   const input = createStandardRigInput({
     path: normalizedPath,
@@ -178,6 +179,45 @@ export function buildAutoRigInputBlueprints(
   const blueprints: AutoRigInputBlueprint[] = [];
   const componentPathMap = new Map<string, string>();
   const rootSet = new Set<string>();
+
+  STANDARD_RIG_INPUTS.forEach((standardInput) => {
+    const normalizedPath = applyStandardInputPathPrefix(standardInput.path);
+    if (registry.has(normalizedPath)) {
+      return;
+    }
+    registry.add(normalizedPath);
+    const clonedInput = createStandardRigInput({
+      id: standardInput.id,
+      path: normalizedPath,
+      label: standardInput.label,
+      group: standardInput.group,
+      defaultValue: standardInput.defaultValue,
+      range: {
+        min: standardInput.range.min,
+        max: standardInput.range.max,
+      },
+      parentBinding: standardInput.parentBinding ?? undefined,
+      derivedChildren: standardInput.derivedChildren ?? undefined,
+    });
+    const groupLabel = deriveLabelFromNormalizedPath(`/${standardInput.group}`);
+    blueprints.push({
+      path: normalizedPath,
+      input: clonedInput,
+      metadata: {
+        elementId: `standard:${standardInput.id}`,
+        elementName: "Standard",
+        elementType: "standard",
+        featureKey: `standard:${standardInput.group}`,
+        featureLabel: groupLabel,
+        animatableId: standardInput.id,
+        componentId: "",
+        componentKey: undefined,
+        propertyLabel: standardInput.label,
+        root: clonedInput.group ?? "custom",
+      },
+    });
+    rootSet.add(clonedInput.group ?? "custom");
+  });
 
   featureEntries.forEach((entry) => {
     if (!entry.animated || !entry.animatableId) {

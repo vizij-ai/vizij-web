@@ -7,8 +7,8 @@ function makeStandardInput(
   overrides: Partial<StandardRigInput> = {},
 ): StandardRigInput {
   return {
-    id: "mouth_pos_x",
-    path: "/mouth/pos/x",
+    id: "standard_mouth_pos_x",
+    path: "/standard/mouth/pos/x",
     label: "Mouth Pos X",
     group: "mouth",
     defaultValue: 0,
@@ -21,27 +21,28 @@ describe("buildPoseGraphSpec", () => {
   it("builds a default-blend graph with pose weights per channel", () => {
     const standardInputs: StandardRigInput[] = [
       makeStandardInput({
-        id: "mouth_pos_x",
-        path: "/mouth/pos/x",
+        id: "standard_mouth_pos_x",
+        path: "/standard/mouth/pos/x",
         defaultValue: 0.1,
       }),
       makeStandardInput({
-        id: "left_eye_pos_y",
-        path: "/left_eye/pos/y",
+        id: "standard_left_eye_pos_y",
+        path: "/standard/left_eye/pos/y",
         label: "Left Eye Pos Y",
+        group: "left_eye",
       }),
     ];
 
     const now = new Date().toISOString();
     const { spec, summary } = buildPoseGraphSpec({
       faceId: "rig_face",
-      neutralInputs: { mouth_pos_x: 0.05 },
+      neutralInputs: { standard_mouth_pos_x: 0.05 },
       emotions: [
         {
           id: "happy",
           name: "Happy Pose",
           description: "",
-          values: { mouth_pos_x: 0.8 },
+          values: { standard_mouth_pos_x: 0.8 },
           createdAt: now,
           updatedAt: now,
         },
@@ -73,17 +74,17 @@ describe("buildPoseGraphSpec", () => {
 
     const outputNode = spec.nodes.find(
       (node: GraphSpec["nodes"][number]): node is GraphSpec["nodes"][number] =>
-        node.id === "out_mouth_pos_x",
+        node.id === "out_standard_mouth_pos_x",
     );
-    expect(outputNode?.params?.path).toBe("rig/rig_face/mouth/pos/x");
+    expect(outputNode?.params?.path).toBe("rig/rig_face/standard/mouth/pos/x");
 
     const offsetNode = spec.nodes.find(
       (node: GraphSpec["nodes"][number]): node is GraphSpec["nodes"][number] =>
         node.id === "pose_offset_zero",
     );
     expect(offsetNode?.params?.value?.record?.values?.record).toEqual({
-      left_eye_pos_y: { float: 0 },
-      mouth_pos_x: { float: 0 },
+      standard_left_eye_pos_y: { float: 0 },
+      standard_mouth_pos_x: { float: 0 },
     });
 
     const weightsJoin = spec.nodes.find(
@@ -135,14 +136,15 @@ describe("buildPoseGraphSpec", () => {
       (
         edge: NonNullable<GraphSpec["edges"]>[number],
       ): edge is NonNullable<GraphSpec["edges"]>[number] =>
-        edge.to.node_id === "out_mouth_pos_x" && edge.to.input === "in",
+        edge.to.node_id === "out_standard_mouth_pos_x" &&
+        edge.to.input === "in",
     );
     expect(outputEdge?.selector).toEqual([
       { field: "values" },
-      { field: "mouth_pos_x" },
+      { field: "standard_mouth_pos_x" },
     ]);
 
-    expect(summary.outputs).toContain("/mouth/pos/x");
+    expect(summary.outputs).toContain("/standard/mouth/pos/x");
     expect(summary.inputs[0]?.contributions).toHaveLength(1);
     expect(summary.inputs[0]?.contributions[0]).toMatchObject({
       emotionId: "happy",
@@ -154,15 +156,15 @@ describe("buildPoseGraphSpec", () => {
   it("omits channels that never diverge from neutral", () => {
     const standardInputs: StandardRigInput[] = [
       makeStandardInput({
-        id: "mouth_pos_x",
-        path: "/mouth/pos/x",
+        id: "standard_mouth_pos_x",
+        path: "/standard/mouth/pos/x",
         defaultValue: 0,
       }),
     ];
     const now = new Date().toISOString();
     const { spec, summary } = buildPoseGraphSpec({
       faceId: "rig_face",
-      neutralInputs: { mouth_pos_x: 0 },
+      neutralInputs: { standard_mouth_pos_x: 0 },
       emotions: [
         {
           id: "still",
@@ -180,10 +182,11 @@ describe("buildPoseGraphSpec", () => {
       spec.nodes.some(
         (
           node: GraphSpec["nodes"][number],
-        ): node is GraphSpec["nodes"][number] => node.id === "out_mouth_pos_x",
+        ): node is GraphSpec["nodes"][number] =>
+          node.id === "out_standard_mouth_pos_x",
       ),
     ).toBe(false);
-    expect(summary.outputs).not.toContain("/mouth/pos/x");
+    expect(summary.outputs).not.toContain("/standard/mouth/pos/x");
     expect(summary.inputs).toHaveLength(0);
   });
 });
