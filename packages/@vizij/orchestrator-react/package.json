@@ -11,6 +11,11 @@
       "require": "./dist/index.cjs"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/orchestrator-react"
+  },
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "files": [
