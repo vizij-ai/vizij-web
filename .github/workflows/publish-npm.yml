@@ -9,8 +9,6 @@ on:
       - "npm-animation-react-v*.*.*"
       - "npm-node-graph-react-v*.*.*"
       - "npm-orchestrator-react-v*.*.*"
-      - "npm-config-v*.*.*"
-      - "npm-rig-v*.*.*"
 
 permissions:
   contents: read
@@ -156,59 +154,3 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: pnpm --filter "@vizij/orchestrator-react" exec npm publish --access public --provenance
-
-  publish_config:
-    if: startsWith(github.ref, 'refs/tags/npm-config-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/config..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/config" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/config" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/config" exec npm pack --dry-run
-      - name: Publish @vizij/config
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/config" exec npm publish --access public --provenance
-
-  publish_rig:
-    if: startsWith(github.ref, 'refs/tags/npm-rig-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/rig..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/rig" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/rig" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/rig" exec npm pack --dry-run
-      - name: Publish @vizij/rig
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/rig" exec npm publish --access public --provenance
