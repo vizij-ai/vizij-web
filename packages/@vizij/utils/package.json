@@ -13,6 +13,11 @@
       "require": "./dist/index.js"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/utils"
+  },
   "license": "MIT",
   "files": [
     "dist",
