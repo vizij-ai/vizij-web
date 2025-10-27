@@ -35,7 +35,7 @@
     "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
-    "size": "size-limit",
+    "size": "size-limit --preset big-lib",
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run size"
   },
   "dependencies": {
@@ -79,8 +79,7 @@
     {
       "name": "renderer",
       "path": "dist/index.js",
-      "limit": "70 KB",
-      "preset": "big-lib"
+      "limit": "70 KB"
     }
   ],
   "publishConfig": {
