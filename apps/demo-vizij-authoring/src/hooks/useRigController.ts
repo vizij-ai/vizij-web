@@ -22,6 +22,7 @@ import {
   createDefaultBindings,
   createDefaultBinding,
   createDefaultParentBinding,
+  createDefaultInputValues,
   reconcileBindings,
   updateBindingWithInput,
   ensureBindingStructure,
@@ -48,7 +49,9 @@ import {
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
   deriveLabelFromNormalizedPath,
+  deriveStandardRigInputIdFromPath,
   normalizeStandardRigInputPath,
+  normalizeStandardRigGroup,
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
@@ -165,6 +168,55 @@ interface AutoInputState {
   generatedLabel: string;
   generatedDefaultValue: number;
   generatedRange: { min: number; max: number };
+  sourcePath: string;
+}
+
+function remapBindingInputIds(
+  binding: AnimatableBinding,
+  target: BindingTarget,
+  idRemap: Map<string, string>,
+): AnimatableBinding {
+  if (idRemap.size === 0) {
+    return ensureBindingStructure(binding, target);
+  }
+  const ensured = ensureBindingStructure(binding, target);
+  let changed = false;
+
+  const remappedInputId =
+    ensured.inputId && idRemap.has(ensured.inputId)
+      ? (idRemap.get(ensured.inputId) ?? ensured.inputId)
+      : ensured.inputId;
+  if (remappedInputId !== ensured.inputId) {
+    changed = true;
+  }
+
+  const remappedSlots = ensured.slots.map((slot) => {
+    if (!slot.inputId) {
+      return slot;
+    }
+    const mapped = idRemap.get(slot.inputId);
+    if (!mapped || mapped === slot.inputId) {
+      return slot;
+    }
+    changed = true;
+    return {
+      ...slot,
+      inputId: mapped,
+    };
+  });
+
+  if (!changed) {
+    return ensured;
+  }
+
+  return ensureBindingStructure(
+    {
+      ...ensured,
+      inputId: remappedInputId ?? null,
+      slots: remappedSlots,
+    },
+    target,
+  );
 }
 
 export interface RigController {
@@ -190,6 +242,7 @@ export interface RigController {
   selectionStack: Selection[];
   inputRanges: Map<string, { min: number; max: number }>;
   handleInputValueChange: (inputId: string, value: number) => void;
+  handleResetAllInputValues: () => void;
   handleBindingInputChange: (
     targetId: string,
     inputId: string | null,
@@ -295,6 +348,7 @@ export function useRigController({
 
   const autoInputsRef = useRef(autoInputs);
   const [customInputs, setCustomInputs] = useState<StandardRigInput[]>([]);
+  const customInputsRef = useRef(customInputs);
   const [selectedStandardInputRoots, setSelectedStandardInputRoots] = useState<
     string[]
   >([]);
@@ -369,89 +423,118 @@ export function useRigController({
     setAutoInputs((previous) => {
       const next = new Map<string, AutoInputState>();
       const persisted = persistedAutoInputsRef.current;
+      const nextPersisted = new Map<string, PersistedAutoStandardInput>();
 
       autoBlueprints.forEach((blueprint) => {
-        const existing = previous.get(blueprint.path);
+        let existingEntry: AutoInputState | undefined;
+        previous.forEach((value) => {
+          if (value.sourcePath === blueprint.path) {
+            existingEntry = value;
+          }
+        });
+
         const persistedEntry = persisted.get(blueprint.path);
+        const generatedLabel = blueprint.input.label;
+        const generatedDefault = blueprint.input.defaultValue;
+        const generatedRange = {
+          min: blueprint.input.range.min,
+          max: blueprint.input.range.max,
+        };
 
-        if (existing) {
-          const labelMatchesGenerated =
-            existing.input.label === existing.generatedLabel;
-          const rangeMatchesGenerated =
-            existing.input.range.min === existing.generatedRange.min &&
-            existing.input.range.max === existing.generatedRange.max;
-          const defaultMatchesGenerated =
-            existing.input.defaultValue === existing.generatedDefaultValue;
+        const pathOverride =
+          persistedEntry?.path ??
+          existingEntry?.input.path ??
+          blueprint.input.path;
+        const groupOverride =
+          persistedEntry?.group ??
+          existingEntry?.input.group ??
+          blueprint.input.group;
 
-          const nextLabel = labelMatchesGenerated
-            ? (persistedEntry?.label ?? blueprint.input.label)
-            : existing.input.label;
-          const nextDefaultValue = defaultMatchesGenerated
-            ? (persistedEntry?.defaultValue ?? blueprint.input.defaultValue)
-            : existing.input.defaultValue;
-          const persistedRangeMin =
-            persistedEntry?.range?.min ?? blueprint.input.range.min;
-          const persistedRangeMax =
-            persistedEntry?.range?.max ?? blueprint.input.range.max;
-          const nextRangeMin = rangeMatchesGenerated
-            ? persistedRangeMin
-            : existing.input.range.min;
-          const nextRangeMax = rangeMatchesGenerated
-            ? persistedRangeMax
-            : existing.input.range.max;
+        const labelMatchesGenerated = existingEntry
+          ? existingEntry.input.label === existingEntry.generatedLabel
+          : true;
+        const rangeMatchesGenerated = existingEntry
+          ? existingEntry.input.range.min ===
+              existingEntry.generatedRange.min &&
+            existingEntry.input.range.max === existingEntry.generatedRange.max
+          : true;
+        const defaultMatchesGenerated = existingEntry
+          ? existingEntry.input.defaultValue ===
+            existingEntry.generatedDefaultValue
+          : true;
 
-          const updatedInput = createStandardRigInput({
-            id: existing.input.id,
-            path: blueprint.input.path,
-            label: nextLabel,
-            group: blueprint.input.group,
-            defaultValue: nextDefaultValue,
-            range: {
-              min: nextRangeMin,
-              max: nextRangeMax,
-            },
-          });
+        const nextLabel = labelMatchesGenerated
+          ? (persistedEntry?.label ?? generatedLabel)
+          : (existingEntry?.input.label ?? generatedLabel);
+        const persistedRangeMin =
+          persistedEntry?.range?.min ?? generatedRange.min;
+        const persistedRangeMax =
+          persistedEntry?.range?.max ?? generatedRange.max;
+        const nextRangeMin = rangeMatchesGenerated
+          ? persistedRangeMin
+          : (existingEntry?.input.range.min ?? persistedRangeMin);
+        const nextRangeMax = rangeMatchesGenerated
+          ? persistedRangeMax
+          : (existingEntry?.input.range.max ?? persistedRangeMax);
+        const nextDefaultValue = defaultMatchesGenerated
+          ? (persistedEntry?.defaultValue ?? generatedDefault)
+          : (existingEntry?.input.defaultValue ?? generatedDefault);
 
-          next.set(blueprint.path, {
-            input: updatedInput,
-            metadata: blueprint.metadata,
-            generatedLabel: blueprint.input.label,
-            generatedDefaultValue: blueprint.input.defaultValue,
-            generatedRange: {
-              min: blueprint.input.range.min,
-              max: blueprint.input.range.max,
-            },
-          });
-        } else {
-          const input = createStandardRigInput({
-            id: blueprint.input.id,
-            path: blueprint.input.path,
-            label: persistedEntry?.label ?? blueprint.input.label,
-            group: blueprint.input.group,
-            defaultValue:
-              persistedEntry?.defaultValue ?? blueprint.input.defaultValue,
-            range: {
-              min: persistedEntry?.range?.min ?? blueprint.input.range.min,
-              max: persistedEntry?.range?.max ?? blueprint.input.range.max,
-            },
-          });
+        const updatedInput = createStandardRigInput({
+          id:
+            existingEntry?.input.id ?? persistedEntry?.id ?? blueprint.input.id,
+          path: pathOverride,
+          label: nextLabel,
+          group: groupOverride,
+          defaultValue: nextDefaultValue,
+          range: {
+            min: nextRangeMin,
+            max: nextRangeMax,
+          },
+        });
 
-          next.set(blueprint.path, {
-            input,
-            metadata: blueprint.metadata,
-            generatedLabel: blueprint.input.label,
-            generatedDefaultValue: blueprint.input.defaultValue,
-            generatedRange: {
-              min: blueprint.input.range.min,
-              max: blueprint.input.range.max,
-            },
-          });
-        }
+        const updatedMetadata: AutoRigInputBlueprintMetadata = {
+          ...blueprint.metadata,
+          root: groupOverride,
+        };
 
-        persisted.delete(blueprint.path);
+        next.set(updatedInput.path, {
+          input: updatedInput,
+          metadata: updatedMetadata,
+          generatedLabel,
+          generatedDefaultValue: generatedDefault,
+          generatedRange,
+          sourcePath: blueprint.path,
+        });
+
+        nextPersisted.set(blueprint.path, {
+          id: updatedInput.id,
+          path: updatedInput.path,
+          sourcePath: blueprint.path,
+          group:
+            updatedInput.group !== blueprint.input.group
+              ? updatedInput.group
+              : undefined,
+          label:
+            updatedInput.label !== generatedLabel
+              ? updatedInput.label
+              : undefined,
+          defaultValue:
+            updatedInput.defaultValue !== generatedDefault
+              ? updatedInput.defaultValue
+              : undefined,
+          range:
+            updatedInput.range.min !== generatedRange.min ||
+            updatedInput.range.max !== generatedRange.max
+              ? {
+                  min: updatedInput.range.min,
+                  max: updatedInput.range.max,
+                }
+              : undefined,
+        });
       });
 
-      persistedAutoInputsRef.current = persisted;
+      persistedAutoInputsRef.current = nextPersisted;
       return next;
     });
   }, [autoBlueprints]);
@@ -488,6 +571,11 @@ export function useRigController({
   const managedStandardInputs = useMemo<ManagedStandardInput[]>(() => {
     const entries: ManagedStandardInput[] = [];
     const blueprintPaths = new Set<string>();
+    const autoInputsBySource = new Map<string, AutoInputState>();
+
+    autoInputs.forEach((entry) => {
+      autoInputsBySource.set(entry.sourcePath, entry);
+    });
 
     const enhanceInput = (input: StandardRigInput): StandardRigInput => {
       const binding = inputBindings[input.id];
@@ -506,7 +594,7 @@ export function useRigController({
 
     autoBlueprints.forEach((blueprint) => {
       blueprintPaths.add(blueprint.path);
-      const entry = autoInputs.get(blueprint.path);
+      const entry = autoInputsBySource.get(blueprint.path);
       if (!entry) {
         return;
       }
@@ -517,8 +605,8 @@ export function useRigController({
       });
     });
 
-    autoInputs.forEach((entry, path) => {
-      if (blueprintPaths.has(path)) {
+    autoInputs.forEach((entry) => {
+      if (blueprintPaths.has(entry.sourcePath)) {
         return;
       }
       entries.push({
@@ -692,15 +780,24 @@ export function useRigController({
   }, [autoInputs]);
 
   useEffect(() => {
+    customInputsRef.current = customInputs;
+  }, [customInputs]);
+
+  useEffect(() => {
     if (autoInputs.size === 0) {
       return;
     }
     setBindings((previous) => {
       let changed = false;
       const next: BindingMap = { ...previous };
+      const autoInputsBySource = new Map<string, AutoInputState>();
+
+      autoInputs.forEach((entry) => {
+        autoInputsBySource.set(entry.sourcePath, entry);
+      });
 
       autoBlueprints.forEach((blueprint) => {
-        const entry = autoInputs.get(blueprint.path);
+        const entry = autoInputsBySource.get(blueprint.path);
         if (!entry) {
           return;
         }
@@ -810,6 +907,23 @@ export function useRigController({
     },
     [],
   );
+
+  const handleResetAllInputValues = useCallback(() => {
+    setInputValues((previous) => {
+      const defaults = createDefaultInputValues(
+        managedStandardInputs.map((entry) => entry.input),
+      );
+      const previousKeys = Object.keys(previous);
+      const defaultKeys = Object.keys(defaults);
+      if (
+        previousKeys.length === defaultKeys.length &&
+        defaultKeys.every((key) => previous[key] === defaults[key])
+      ) {
+        return previous;
+      }
+      return defaults;
+    });
+  }, [managedStandardInputs]);
 
   const handleSelectStandardInputRoots = useCallback(
     (nextRoots: string[]) => {
@@ -1425,32 +1539,185 @@ export function useRigController({
   const handleRenameGroup = useCallback(
     (sourceGroup: string, nextGroup: string) => {
       const trimmed = nextGroup.trim();
-      if (!trimmed || trimmed === sourceGroup) {
+      if (!trimmed) {
+        return;
+      }
+      const baseSlug = normalizeStandardRigGroup(trimmed);
+
+      const autoTargets: Array<{ key: string; state: AutoInputState }> = [];
+      autoInputsRef.current.forEach((entry, key) => {
+        const root =
+          entry.metadata?.root ?? entry.input.group ?? GROUP_FALLBACK;
+        if (root === sourceGroup) {
+          autoTargets.push({ key, state: entry });
+        }
+      });
+
+      const customTargets = customInputsRef.current.filter(
+        (input) => (input.group ?? GROUP_FALLBACK) === sourceGroup,
+      );
+
+      if (autoTargets.length === 0 && customTargets.length === 0) {
+        return;
+      }
+
+      const inputsSnapshot = new Map(allStandardInputsRef.current);
+      const renameIds = new Set<string>();
+      autoTargets.forEach(({ state }) => renameIds.add(state.input.id));
+      customTargets.forEach((input) => renameIds.add(input.id));
+
+      const occupiedIds = new Set<string>();
+      const occupiedPaths = new Set<string>();
+      inputsSnapshot.forEach((input, id) => {
+        if (renameIds.has(id)) {
+          return;
+        }
+        occupiedIds.add(id);
+        occupiedPaths.add(normalizeStandardRigInputPath(input.path));
+      });
+
+      const plannedPaths = new Set<string>();
+      const plannedIds = new Set<string>();
+      const renameRecords = new Map<
+        string,
+        {
+          updatedInput: StandardRigInput;
+          kind: "auto" | "custom";
+          autoKey?: string;
+          autoState?: AutoInputState;
+        }
+      >();
+      const idRemap = new Map<string, string>();
+      let conflictPath: string | null = null;
+
+      const registerUpdatedInput = (
+        original: StandardRigInput,
+        updated: StandardRigInput,
+        kind: "auto" | "custom",
+        autoKey?: string,
+        autoState?: AutoInputState,
+      ) => {
+        renameRecords.set(original.id, {
+          updatedInput: updated,
+          kind,
+          autoKey,
+          autoState,
+        });
+        inputsSnapshot.delete(original.id);
+        inputsSnapshot.set(updated.id, updated);
+        if (updated.id !== original.id) {
+          idRemap.set(original.id, updated.id);
+        }
+        plannedPaths.add(updated.path);
+        plannedIds.add(updated.id);
+        occupiedPaths.add(updated.path);
+        occupiedIds.add(updated.id);
+      };
+
+      const createUpdatedInput = (
+        input: StandardRigInput,
+      ): StandardRigInput | null => {
+        const normalizedPath = normalizeStandardRigInputPath(input.path);
+        const segments = normalizedPath
+          .split("/")
+          .filter((segment) => segment.length > 0);
+        if (segments.length === 0) {
+          segments.push(baseSlug);
+        } else {
+          segments[0] = baseSlug;
+        }
+        const updatedPath = `/${segments.join("/")}`;
+        const normalizedUpdatedPath =
+          normalizeStandardRigInputPath(updatedPath);
+        const updatedId = deriveStandardRigInputIdFromPath(
+          normalizedUpdatedPath,
+        );
+        if (
+          normalizedUpdatedPath !== normalizedPath &&
+          (occupiedPaths.has(normalizedUpdatedPath) ||
+            plannedPaths.has(normalizedUpdatedPath))
+        ) {
+          conflictPath = normalizedUpdatedPath;
+          return null;
+        }
+        if (
+          updatedId !== input.id &&
+          (occupiedIds.has(updatedId) || plannedIds.has(updatedId))
+        ) {
+          conflictPath = normalizedUpdatedPath;
+          return null;
+        }
+        return createStandardRigInput({
+          id: updatedId,
+          path: normalizedUpdatedPath,
+          label: input.label,
+          group: segments[0],
+          defaultValue: input.defaultValue,
+          range: {
+            min: input.range.min,
+            max: input.range.max,
+          },
+          parentBinding: input.parentBinding ?? null,
+          derivedChildren: input.derivedChildren
+            ? [...input.derivedChildren]
+            : [],
+        });
+      };
+
+      for (const { state, key } of autoTargets) {
+        if (conflictPath) {
+          break;
+        }
+        const updated = createUpdatedInput(state.input);
+        if (!updated) {
+          break;
+        }
+        registerUpdatedInput(state.input, updated, "auto", key, state);
+      }
+
+      if (!conflictPath) {
+        for (const input of customTargets) {
+          if (conflictPath) {
+            break;
+          }
+          const updated = createUpdatedInput(input);
+          if (!updated) {
+            break;
+          }
+          registerUpdatedInput(input, updated, "custom");
+        }
+      }
+
+      if (conflictPath) {
+        alertDialog(
+          `Renaming would conflict with existing standard input path "${conflictPath}". Choose a different group name.`,
+        );
+        return;
+      }
+
+      if (renameRecords.size === 0) {
+        setSelectedStandardInputRoots((previous) => {
+          if (!previous.includes(sourceGroup)) {
+            return previous;
+          }
+          const filtered = previous.filter((root) => root !== sourceGroup);
+          if (!filtered.includes(baseSlug)) {
+            filtered.push(baseSlug);
+          }
+          return filtered;
+        });
         return;
       }
 
       setCustomInputs((previous) => {
         let changed = false;
         const next = previous.map((input) => {
-          if ((input.group ?? GROUP_FALLBACK) !== sourceGroup) {
+          const record = renameRecords.get(input.id);
+          if (!record || record.kind !== "custom") {
             return input;
           }
           changed = true;
-          return createStandardRigInput({
-            id: input.id,
-            path: input.path,
-            label: input.label,
-            group: trimmed,
-            defaultValue: input.defaultValue,
-            range: {
-              min: input.range.min,
-              max: input.range.max,
-            },
-            parentBinding: input.parentBinding ?? null,
-            derivedChildren: input.derivedChildren
-              ? [...input.derivedChildren]
-              : [],
-          });
+          return record.updatedInput;
         });
         return changed ? next : previous;
       });
@@ -1459,43 +1726,151 @@ export function useRigController({
         let changed = false;
         const next = new Map<string, AutoInputState>();
         previous.forEach((entry, key) => {
-          if ((entry.input.group ?? GROUP_FALLBACK) !== sourceGroup) {
+          const record = renameRecords.get(entry.input.id);
+          if (!record || record.kind !== "auto" || !record.autoState) {
             next.set(key, entry);
             return;
           }
           changed = true;
-          const updatedInput = createStandardRigInput({
-            id: entry.input.id,
-            path: entry.input.path,
-            label: entry.input.label,
-            group: trimmed,
-            defaultValue: entry.input.defaultValue,
-            range: {
-              min: entry.input.range.min,
-              max: entry.input.range.max,
+          const updatedEntry: AutoInputState = {
+            ...record.autoState,
+            input: record.updatedInput,
+            metadata: {
+              ...record.autoState.metadata,
+              root: record.updatedInput.group,
             },
-            parentBinding: entry.input.parentBinding ?? null,
-            derivedChildren: entry.input.derivedChildren
-              ? [...entry.input.derivedChildren]
-              : [],
-          });
-          next.set(key, {
-            ...entry,
-            input: updatedInput,
-          });
+          };
+          next.set(record.updatedInput.path, updatedEntry);
         });
         return changed ? next : previous;
       });
+
+      const persistedOverrides = persistedAutoInputsRef.current;
+      renameRecords.forEach((record) => {
+        if (record.kind !== "auto" || !record.autoState) {
+          return;
+        }
+        const sourcePath = record.autoState.sourcePath;
+        const existingOverride = persistedOverrides.get(sourcePath) ?? {
+          id: record.autoState.input.id,
+          path: record.autoState.input.path,
+          sourcePath,
+          group: record.autoState.input.group,
+        };
+        persistedOverrides.set(sourcePath, {
+          ...existingOverride,
+          id: record.updatedInput.id,
+          path: record.updatedInput.path,
+          sourcePath,
+          group: record.updatedInput.group,
+        });
+      });
+
+      const updatedInputs = new Map(allStandardInputsRef.current);
+      renameRecords.forEach((record, oldId) => {
+        updatedInputs.delete(oldId);
+        updatedInputs.set(record.updatedInput.id, record.updatedInput);
+      });
+
+      if (idRemap.size > 0) {
+        setInputValues((previous) => {
+          let changed = false;
+          const next: StandardInputValues = {};
+          Object.entries(previous).forEach(([inputId, value]) => {
+            const remappedId = idRemap.get(inputId) ?? inputId;
+            next[remappedId] = value;
+            if (remappedId !== inputId) {
+              changed = true;
+            }
+          });
+          renameRecords.forEach((record) => {
+            if (
+              !Object.prototype.hasOwnProperty.call(
+                next,
+                record.updatedInput.id,
+              )
+            ) {
+              next[record.updatedInput.id] = record.updatedInput.defaultValue;
+              changed = true;
+            }
+          });
+          return changed ? next : previous;
+        });
+
+        setBindings((previous) => {
+          let changed = false;
+          const next: BindingMap = {};
+          Object.entries(previous).forEach(([targetId, binding]) => {
+            if (!binding) {
+              return;
+            }
+            const component = componentsByIdRef.current.get(targetId);
+            if (!component) {
+              next[targetId] = binding;
+              return;
+            }
+            const target = bindingTargetFromComponent(component);
+            const remapped = remapBindingInputIds(binding, target, idRemap);
+            next[targetId] = remapped;
+            if (remapped !== binding) {
+              changed = true;
+            }
+          });
+          return changed ? next : previous;
+        });
+
+        setInputBindings((previous) => {
+          let changed = false;
+          const next: InputBindingMap = {};
+          Object.entries(previous).forEach(([targetId, binding]) => {
+            const remappedKey = idRemap.get(targetId) ?? targetId;
+            const targetInput = updatedInputs.get(remappedKey);
+            if (!targetInput) {
+              return;
+            }
+            const remapped = remapBindingInputIds(
+              binding,
+              bindingTargetFromInput(targetInput),
+              idRemap,
+            );
+            if (remappedKey !== targetId || remapped !== binding) {
+              changed = true;
+            }
+            next[remappedKey] = remapped;
+          });
+          return changed ? next : previous;
+        });
+
+        const pending = pendingInputBindingDefinitionsRef.current;
+        if (pending) {
+          const nextDefinitions: Record<string, RigBindingDefinition> = {};
+          Object.entries(pending).forEach(([id, definition]) => {
+            const remappedKey = idRemap.get(id) ?? id;
+            const targetInput = updatedInputs.get(remappedKey);
+            if (!targetInput) {
+              return;
+            }
+            const target = bindingTargetFromInput(targetInput);
+            const remapped = remapBindingInputIds(
+              bindingFromDefinition(target, definition),
+              target,
+              idRemap,
+            );
+            nextDefinitions[remappedKey] = bindingToDefinition(remapped);
+          });
+          pendingInputBindingDefinitionsRef.current = nextDefinitions;
+        }
+      }
 
       setSelectedStandardInputRoots((previous) => {
         if (!previous.includes(sourceGroup)) {
           return previous;
         }
         const filtered = previous.filter((root) => root !== sourceGroup);
-        if (filtered.includes(trimmed)) {
-          return filtered;
+        if (!filtered.includes(baseSlug)) {
+          filtered.push(baseSlug);
         }
-        return [...filtered, trimmed];
+        return filtered;
       });
     },
     [],
@@ -1664,6 +2039,7 @@ export function useRigController({
               min: entry.input.range.min,
               max: entry.input.range.max,
             },
+            sourcePath: entry.path,
           });
           inputsByPath.delete(entry.path);
         });
@@ -1725,7 +2101,7 @@ export function useRigController({
         setInputValues(nextInputValues);
         setBindings(rehydrated.bindings);
         setInputBindings(rehydrated.inputBindings);
-        setSelectedStandardInputRoots(blueprint.roots);
+        setSelectedStandardInputRoots([]);
         setTimeout(() => {
           skipPersistRef.current = false;
         }, 0);
@@ -1870,16 +2246,25 @@ export function useRigController({
             return;
           }
           const descriptor = entry as PersistedAutoStandardInput;
-          const normalizedPath = normalizeStandardRigInputPath(descriptor.path);
-          const canonicalId = createStandardRigInputFromPath(normalizedPath).id;
-          if (descriptor.id && descriptor.id !== canonicalId) {
+          const normalizedSourcePath = normalizeStandardRigInputPath(
+            descriptor.sourcePath ?? descriptor.path,
+          );
+          const normalizedPath = normalizeStandardRigInputPath(
+            descriptor.path ?? descriptor.sourcePath ?? "/custom/input",
+          );
+          const canonicalId = descriptor.id
+            ? descriptor.id
+            : createStandardRigInputFromPath(normalizedPath).id;
+          if (descriptor.id && canonicalId && descriptor.id !== canonicalId) {
             idMismatches.push(
               `${descriptor.id} → ${canonicalId} (${normalizedPath})`,
             );
           }
-          autoEntries.set(normalizedPath, {
+          autoEntries.set(normalizedSourcePath, {
             id: canonicalId,
             path: normalizedPath,
+            sourcePath: normalizedSourcePath,
+            group: descriptor.group,
             label: descriptor.label,
             defaultValue: descriptor.defaultValue,
             range: descriptor.range,
@@ -1947,11 +2332,19 @@ export function useRigController({
       return;
     }
     const persistedAuto: PersistedAutoStandardInput[] = [];
-    autoInputs.forEach((entry, path) => {
+    autoInputs.forEach((entry) => {
+      const sourceNormalized = normalizeStandardRigInputPath(entry.sourcePath);
+      const sourceGroup = deriveGroupFromNormalizedPath(sourceNormalized);
       persistedAuto.push({
         id: entry.input.id,
-        path,
-        label: entry.input.label,
+        path: entry.input.path,
+        sourcePath: entry.sourcePath,
+        group:
+          entry.input.group !== sourceGroup ? entry.input.group : undefined,
+        label:
+          entry.input.label !== entry.generatedLabel
+            ? entry.input.label
+            : undefined,
         defaultValue:
           entry.input.defaultValue !== entry.generatedDefaultValue
             ? entry.input.defaultValue
@@ -2264,6 +2657,7 @@ export function useRigController({
     selectionStack: elementSelection,
     inputRanges,
     handleInputValueChange,
+    handleResetAllInputValues,
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,

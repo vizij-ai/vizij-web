@@ -66,6 +66,7 @@ export default function App() {
     animatableComponents,
     selectionStack,
     handleInputValueChange,
+    handleResetAllInputValues,
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,
@@ -371,6 +372,7 @@ export default function App() {
           onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
           onRenameGroup={handleRenameGroup}
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
+          onResetAllInputs={handleResetAllInputValues}
           onLinkChildInput={handleLinkChildInput}
           onEnsureParentBinding={handleEnsureParentBinding}
           onUpdateStandardInput={handleUpdateStandardInput}

@@ -42,6 +42,7 @@ interface StandardInputsSectionProps {
   bindingIssues: Map<string, readonly string[]>;
   onInputValueChange: (inputId: string, value: number) => void;
   onCreateInput: () => void;
+  onResetAllInputs: () => void;
   onEnsureParentBinding: (inputId: string) => void;
   onLinkChildInput: (parentId: string, childId: string) => void;
   onUpdateInput: (
@@ -116,6 +117,7 @@ export function StandardInputsSection({
   bindingIssues,
   onInputValueChange,
   onCreateInput,
+  onResetAllInputs,
   onEnsureParentBinding,
   onLinkChildInput,
   onUpdateInput,
@@ -452,9 +454,8 @@ export function StandardInputsSection({
               className="feature-panel__input-disclosure"
               onClick={toggleInputExpanded}
               aria-expanded={isExpanded}
-            >
-              {isExpanded ? "−" : "+"}
-            </button>
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${input.label}`}
+            />
             <span className="feature-panel__input-name">{input.label}</span>
           </div>
           <div className="feature-panel__input-header-actions">
@@ -544,7 +545,7 @@ export function StandardInputsSection({
               </div>
               <button
                 type="button"
-                className="feature-panel__input-action feature-panel__input-action--secondary"
+                className="feature-panel__input-action feature-panel__input-action--danger"
                 onClick={() => onClearInputMappings(input)}
                 disabled={animatableUsage.length === 0}
               >
@@ -557,7 +558,7 @@ export function StandardInputsSection({
                 <div className="feature-panel__input-derived-actions">
                   <button
                     type="button"
-                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    className="feature-panel__input-action feature-panel__input-action--primary"
                     onClick={handleStartChildSelection}
                     disabled={childOptions.length === 0}
                   >
@@ -565,7 +566,7 @@ export function StandardInputsSection({
                   </button>
                   <button
                     type="button"
-                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    className="feature-panel__input-action feature-panel__input-action--primary"
                     onClick={toggleParentExpanded}
                   >
                     {isParentExpanded ? "Hide parent mapping" : "Add parent"}
@@ -618,7 +619,7 @@ export function StandardInputsSection({
                         <div className="feature-panel__input-child-actions">
                           <button
                             type="button"
-                            className="feature-panel__input-action feature-panel__input-action--secondary"
+                            className="feature-panel__input-action feature-panel__input-action--primary"
                             onClick={confirmChildSelection}
                             disabled={!selectedChildId}
                           >
@@ -686,9 +687,8 @@ export function StandardInputsSection({
           className="feature-panel__section-toggle"
           onClick={onToggleCollapsed}
           aria-expanded={!isCollapsed}
-        >
-          {isCollapsed ? "+" : "−"}
-        </button>
+          aria-label={`${isCollapsed ? "Expand" : "Collapse"} standard inputs`}
+        />
         <h2 className="feature-panel__section-title">Standard Inputs</h2>
       </header>
 
@@ -740,6 +740,13 @@ export function StandardInputsSection({
                 ))}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={onResetAllInputs}
+              className="feature-panel__input-action feature-panel__input-action--secondary"
+            >
+              Reset to defaults
+            </button>
             <button
               type="button"
               onClick={onCreateInput}

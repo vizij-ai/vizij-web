@@ -105,7 +105,7 @@ export function normalizeStandardRigInputPath(path: string): string {
   return normalized;
 }
 
-function deriveStandardRigInputId(path: string): string {
+export function deriveStandardRigInputIdFromPath(path: string): string {
   return path.replace(/\//g, "_").replace(/^_+/, "");
 }
 
@@ -115,11 +115,22 @@ export interface StandardRigInputInit
   id?: string;
 }
 
+export function normalizeStandardRigGroup(
+  value: string,
+  fallback = "custom",
+): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+}
+
 export function createStandardRigInput(
   init: StandardRigInputInit,
 ): StandardRigInput {
   const path = normalizeStandardRigInputPath(init.path);
-  const id = init.id ?? deriveStandardRigInputId(path);
+  const id = init.id ?? deriveStandardRigInputIdFromPath(path);
   const rangeMin = Math.min(init.range.min, init.range.max);
   const rangeMax = Math.max(init.range.min, init.range.max);
   const defaultValue = Math.min(

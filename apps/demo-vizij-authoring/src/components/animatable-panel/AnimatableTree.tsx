@@ -711,8 +711,13 @@ function FeatureNode({
         : "—";
   }, [feature]);
 
-  const hasCustomLabel =
-    feature.entry.featureLabel.trim() !== feature.entry.defaultLabel.trim();
+  const featureLabelTrimmed = feature.entry.featureLabel.trim();
+  const defaultLabelTrimmed = feature.entry.defaultLabel.trim();
+  const hasCustomLabel = featureLabelTrimmed !== defaultLabelTrimmed;
+  const effectiveFeatureLabel =
+    featureLabelTrimmed.length > 0
+      ? feature.entry.featureLabel
+      : feature.entry.defaultLabel;
 
   return (
     <div className="feature-tree__feature">
@@ -722,9 +727,8 @@ function FeatureNode({
             type="button"
             onClick={toggleFeature}
             aria-expanded={expanded}
-          >
-            {expanded ? "−" : "+"}
-          </button>
+            aria-label={`${expanded ? "Collapse" : "Expand"} feature ${effectiveFeatureLabel}`}
+          />
           <div className="feature-tree__feature-title">
             <div className="feature-tree__feature-name-row">
               <input
@@ -907,9 +911,8 @@ export function AnimatableTree({
                 type="button"
                 onClick={() => treeState.toggleNode("shape", shape.id)}
                 aria-expanded={expanded}
-              >
-                {expanded ? "−" : "+"}
-              </button>
+                aria-label={`${expanded ? "Collapse" : "Expand"} shape ${shape.name}`}
+              />
               <div className="feature-tree__shape-summary">
                 <h3>{shape.name}</h3>
                 <span>{shape.type}</span>

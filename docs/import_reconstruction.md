@@ -39,10 +39,10 @@ The restored state should match what the author saw pre-export, aside from delib
 - **Impact** – The exporter materialises expressions into compute nodes and constant folds intermediates, erasing slot aliases and explicit expression text. Reconstructing readable expressions from the graph becomes lossy.
 - **Mitigation** – During import, rebuild expressions by traversing the arithmetic nodes, normalising to canonical infix forms, and regenerating slot identifiers on the fly (`s1`, `s2`, …). We will drop the distinct “alias label” concept—authors will edit slot labels directly and those will persist independently of the expression reconstruction.
 
-### 3. Derived standard input hierarchies are implicit
+### 3. Derived standard input hierarchies were implicit
 
-- **Impact** – Parent/child relationships between inputs (self slots, derived slots) collapse into generic nodes, making it non-trivial to recover which inputs fed others.
-- **Mitigation** – Extend the importer to detect `input_raw_*` nodes, which the exporter emits whenever a derived input references `SELF`. Those nodes flow into remap chains leading back to the owning input’s graph path. We only fall back to constants if the exporter could not materialise a self-reference, which we will treat as an error during import. By tracing from each derived output through its remap parents and checking for `input_raw_*` sources, we can reliably rebuild the parent binding tree without additional metadata.
+- **Status** – Resolved. The exporter now serialises parent-binding metadata directly into the graph, and the importer consumes those summaries verbatim.
+- **Mitigation** – Instead of walking `input_raw_*` nodes, the importer reads the embedded `vizij.bindings` payload and reconstructs parent bindings/slot wiring from that canonical source. Any derived inputs missing from the metadata surface as fatal import errors so graph exports remain the single source of truth.
 
 ### 4. Remap parameter recovery
 
@@ -56,8 +56,8 @@ The restored state should match what the author saw pre-export, aside from delib
 
 ### 6. Custom standard inputs disappear when unused
 
-- **Impact** – Inputs created by the author but not wired into any binding vanish because they never reach the graph spec.
-- **Mitigation** – Always materialise custom inputs in the graph (e.g., emit placeholder `output` nodes keyed by their typed paths) so they can be rediscovered on import. If an input has no bindings, the importer can recreate it directly from the path using the default range/value conventions. Disabled state will be removed: authors will delete unused inputs instead of toggling a flag, eliminating the need to persist that bit.
+- **Status** – Resolved. Custom inputs are embedded inside the `vizij.inputs` metadata whether or not they currently drive a binding.
+- **Mitigation** – Exporters now serialise every standard input (auto or custom) into the metadata block. During import we hydrate the inputs list from that payload, recreating unwired inputs with their recorded defaults/ranges without relying on placeholder nodes.
 
 ### 7. Standard input metadata normalisation
 
@@ -95,14 +95,13 @@ With these decisions captured, we can now derive concrete implementation milesto
 - **GLB ingestion**  
   - Load the Vizij hierarchy, animatable defaults, and baked feature labels from RobotData.  
   - Run the id audit and prompt the author if legacy ids sanitise differently.
-- **Graph parsing**  
-  - Enumerate graph inputs/outputs to rebuild the standard input registry (path, label/group from path, remap defaults from nodes).  
-  - Trace derived input relationships by following `input_raw_*` nodes and remap chains to reconstruct parent bindings.  
-  - Rebuild binding expressions by traversing arithmetic nodes, emitting canonical infix expressions, and regenerating slot identifiers (`s1`, `s2`, …).  
-  - Recreate custom-but-unwired inputs directly from their placeholder outputs when encountered.
-- **Authoring store hydration**  
+- **Graph metadata hydration**  
+  - Read `vizij.inputs` to rebuild the standard input registry (path, label/group, defaults, ranges).  
+  - Consume `vizij.bindings` to rehydrate animatable bindings, derived-parent bindings, slot aliases, and remap settings without traversing raw node graphs.  
+  - Validate that every referenced input/component exists; surface fatal errors when metadata is incomplete.
+- **Authoring store initialisation**  
   - Seed `bindings`, `inputBindings`, `standardInputs`, `inputValues`, feature catalogues, and selection state using the reconstructed data.  
-  - Regenerate auto-input metadata (groups, catalogue entries) via the existing hooks now that canonical ids/labels are in place.
+  - Regenerate auto-input metadata (groups, catalogue entries) via existing hooks once canonical ids/labels are in place.
 
 ### Phase 4 – Round-trip Validation
 - Rebuild a graph spec from the hydrated store.  
@@ -139,3 +138,16 @@ With these decisions captured, we can now derive concrete implementation milesto
   1. Author automated tests validating graph metadata round-trips and importer fidelity.
   2. Refresh demo documentation to reflect the new import flow and removal of the disabled toggle.
   3. Evaluate migration tooling for legacy exports that lack embedded metadata.
+
+## Review Findings (2024-04-22)
+- **Resolved – Doc drift** docs/import_reconstruction.md:44-102 – Updated to describe the metadata-driven importer so the narrative now matches `apps/demo-vizij-authoring/src/rig/importer.ts:61-138`.
+- **Resolved – Doc drift** docs/import_reconstruction.md:60-65 – Clarified that exporters embed every standard input in `vizij.inputs`, replacing the earlier placeholder-node guidance.
+- **Resolved – Bug** apps/demo-vizij-authoring/src/hooks/useRigController.ts:1458-1485 & apps/demo-vizij-authoring/src/components/animatable-panel/StandardInputsSection.tsx:94-96 – Group renames now realign `metadata.root`, handle slug sanitisation, and rewrite bindings so auto inputs migrate cleanly.
+- **Resolved – Bug** apps/demo-vizij-authoring/src/hooks/useRigController.ts:1721-1729 – Imports no longer force a root filter; rehydrated sessions start with all groups visible.
+
+## Group Rename Path Plan
+1. Introduce a shared helper (e.g. `normalizeGroupSlug`) that produces the slug used in standard-input paths and export it from `@vizij/utils`.
+2. Extend `handleRenameGroup` to collect every input whose `group === sourceGroup`, regenerate their paths with the new slug, update `metadata.root`, and synchronise `autoInputs`, `customInputs`, `managedStandardInputs`, and selection state; keep `id`s stable or migrate bindings when a path change requires it.
+3. Rewrite dependent structures (`bindings`, `inputBindings`, `derivedChildren`, persisted overrides) using the old→new mapping so remaps and parent bindings stay valid after the rename.
+4. Ensure exporters/importers (`graphBuilder`, `rehydrateRigDataFromGraph`, persistence) derive groups from the updated paths and migrate legacy saves/metadata that still reference the previous slug.
+5. Back the change with regression coverage (unit + end-to-end import/export smoke) and update authoring documentation to describe the new rename behaviour.

@@ -48,6 +48,7 @@ export function AnimatableValuesPanel({
   onSelectedStandardInputRootsChange,
   onRenameGroup,
   onCreateCustomStandardInput,
+  onResetAllInputs,
   onLinkChildInput,
   onEnsureParentBinding,
   onUpdateStandardInput,
@@ -568,6 +569,7 @@ export function AnimatableValuesPanel({
         bindingIssues={bindingIssues}
         onInputValueChange={onInputValueChange}
         onCreateInput={handleCreateInputClick}
+        onResetAllInputs={onResetAllInputs}
         onLinkChildInput={onLinkChildInput}
         onEnsureParentBinding={onEnsureParentBinding}
         onUpdateInput={handleUpdateStandardInput}

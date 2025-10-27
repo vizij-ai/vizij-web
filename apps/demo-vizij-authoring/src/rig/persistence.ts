@@ -1,11 +1,13 @@
 import type { BindingMap, StandardInputValues } from "./state";
 import type { RigBindingDefinition, StandardRigInput } from "@vizij/utils";
 
-const STORAGE_KEY = "vizij:rig-authoring:v1";
+const STORAGE_KEY = "vizij:rig-authoring:v2";
 
 export interface PersistedAutoStandardInput {
   id: string;
   path: string;
+  sourcePath?: string;
+  group?: string;
   label?: string;
   defaultValue?: number;
   range?: {

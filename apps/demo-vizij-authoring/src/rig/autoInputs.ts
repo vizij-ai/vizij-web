@@ -1,6 +1,7 @@
 import {
   createStandardRigInput,
   deriveLabelFromNormalizedPath,
+  normalizeStandardRigGroup,
 } from "@vizij/utils";
 import type {
   AnimatableComponent,
@@ -13,10 +14,7 @@ import type { FeatureEntry } from "../components/animatable-panel/types";
 type VectorComponentKey = NonNullable<AnimatableComponent["component"]>;
 
 function toPathToken(value: string, fallback: string): string {
-  const normalized = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  const normalized = normalizeStandardRigGroup(value, "");
   return normalized || fallback;
 }
 

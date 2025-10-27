@@ -112,9 +112,8 @@ export function BindingEditor({
           className="feature-tree__disclosure-btn"
           onClick={toggleExpanded}
           aria-expanded={isExpanded}
-        >
-          {isExpanded ? "−" : "+"}
-        </button>
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
+        />
       )}
       <span className="feature-tree__property-label">{label}</span>
       {headerActions}
@@ -217,7 +216,7 @@ export function BindingEditor({
                   {onRequestCreateStandardInput && (
                     <button
                       type="button"
-                      className="feature-panel__input-action feature-panel__input-action--secondary"
+                      className="feature-panel__input-action feature-panel__input-action--primary"
                       onClick={() => {
                         const created = onRequestCreateStandardInput();
                         if (created) {
@@ -292,7 +291,7 @@ export function BindingEditor({
           })}
           <button
             type="button"
-            className="feature-panel__input-action feature-panel__input-action--secondary feature-tree__slot-add"
+            className="feature-panel__input-action feature-panel__input-action--primary feature-tree__slot-add"
             onClick={handleAddSlot}
           >
             Add control
