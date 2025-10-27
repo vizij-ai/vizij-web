@@ -7,7 +7,6 @@ export interface PersistedAutoStandardInput {
   id: string;
   path: string;
   label?: string;
-  disabled?: boolean;
   defaultValue?: number;
   range?: {
     min?: number;

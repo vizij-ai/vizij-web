@@ -665,7 +665,7 @@ export function buildRigGraphSpec({
           targetId: component.id,
           animatableId: component.animatableId,
           component: component.component,
-          safeId: sanitizeNodeId(component.id),
+          safeId: component.safeId,
           context: {
             nodes,
             edges,
@@ -703,6 +703,10 @@ export function buildRigGraphSpec({
     }
 
     entry.values.set(key, valueNodeId);
+  });
+
+  inputsById.forEach((_input, inputId) => {
+    ensureInputNode(inputId);
   });
 
   animatableEntries.forEach((entry, animatableId) => {
@@ -822,6 +826,8 @@ export function buildRigGraphSpec({
     .filter((node) => !constantsToRemove.has(node.id))
     .map((node) => nodeById.get(node.id) ?? node);
 
+  const remapDefaultIssues = validateRemapDefaults(filteredNodes);
+
   const dynamicOutputs = Array.from(outputs);
   const computedInputList = Array.from(computedInputs);
   const filteredSummaryBindings = summaryBindings.filter(
@@ -835,6 +841,34 @@ export function buildRigGraphSpec({
     edges: updatedEdges.length ? updatedEdges : undefined,
   };
 
+  const baseSpec = spec as Record<string, unknown>;
+  const specWithMetadata = {
+    ...baseSpec,
+    metadata: {
+      ...(baseSpec.metadata as Record<string, unknown> | undefined),
+      vizij: {
+        faceId,
+        inputs: Array.from(inputsById.values()).map((input) => ({
+          id: input.id,
+          path: input.path,
+          label: input.label,
+          group: input.group,
+          defaultValue: input.defaultValue,
+          range: {
+            min: input.range.min,
+            max: input.range.max,
+          },
+        })),
+        bindings: filteredSummaryBindings.map((binding) => ({
+          ...binding,
+          remap: { ...binding.remap },
+          expression: binding.expression,
+          issues: binding.issues ? [...binding.issues] : undefined,
+        })),
+      },
+    },
+  } as GraphSpec;
+
   const issuesByTarget: Record<string, string[]> = {};
   bindingIssues.forEach((issues, targetId) => {
     if (issues.size === 0) {
@@ -846,9 +880,10 @@ export function buildRigGraphSpec({
   Object.values(issuesByTarget).forEach((issues) => {
     issues.forEach((issue) => fatalIssues.add(issue));
   });
+  remapDefaultIssues.forEach((issue) => fatalIssues.add(issue));
 
   return {
-    spec,
+    spec: specWithMetadata,
     summary: {
       faceId,
       inputs: Array.from(inputNodes.values()).map(({ input }) =>
@@ -862,4 +897,29 @@ export function buildRigGraphSpec({
       fatal: Array.from(fatalIssues),
     },
   };
+}
+function validateRemapDefaults(nodes: NodeSpec[]): string[] {
+  const issues: string[] = [];
+  nodes.forEach((node) => {
+    if (node.type !== "centered_remap") {
+      return;
+    }
+    const defaults = node.input_defaults ?? {};
+    (
+      [
+        "in_low",
+        "in_anchor",
+        "in_high",
+        "out_low",
+        "out_anchor",
+        "out_high",
+      ] as const
+    ).forEach((key) => {
+      const value = (defaults as Record<string, unknown>)[key];
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        issues.push(`Remap node ${node.id} missing ${key} default.`);
+      }
+    });
+  });
+  return issues;
 }

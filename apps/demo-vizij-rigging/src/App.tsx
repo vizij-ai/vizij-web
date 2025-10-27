@@ -1022,10 +1022,7 @@ export default function App(): JSX.Element {
     const faceSlug = sanitizeSlug(exportFaceId, "face");
     const rigSlug = sanitizeSlug(rigName, "rig");
     downloadJSON(`${faceSlug}_${rigSlug}_rig.json`, graphSpec);
-    if (graphSummary) {
-      downloadJSON(`${faceSlug}_${rigSlug}_rig.summary.json`, graphSummary);
-    }
-  }, [graphSpec, graphSummary, lowLevelFaceId, rigName]);
+  }, [graphSpec, lowLevelFaceId, rigName]);
 
   const handleImportRigConfig = useCallback(async (file: File) => {
     try {

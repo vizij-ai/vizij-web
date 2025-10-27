@@ -107,7 +107,7 @@ export interface AnimatableValuesPanelProps {
   standardInputRoots: string[];
   selectedStandardInputRoots: string[];
   onSelectedStandardInputRootsChange(next: string[]): void;
-  onToggleStandardInput(path: string, enabled: boolean): void;
+  onRenameGroup(sourceGroup: string, nextGroup: string): void;
   onCreateCustomStandardInput(path: string): StandardRigInput | null;
   onLinkChildInput(parentId: string, childId: string): void;
   onEnsureParentBinding(inputId: string): void;

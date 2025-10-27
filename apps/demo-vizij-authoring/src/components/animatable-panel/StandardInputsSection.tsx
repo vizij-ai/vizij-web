@@ -1,6 +1,12 @@
-import { useCallback, useMemo, useState } from "react";
-import type { StandardRigInput } from "@vizij/utils";
-import { SELF_BINDING_ID } from "@vizij/utils";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
+import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
 import type { ManagedStandardInput } from "../../hooks/useRigController";
 import {
   type StandardInputValues,
@@ -11,6 +17,7 @@ import {
 } from "../../rig/state";
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
+import { promptDialog } from "../../utils/dialogs";
 
 interface InputUsage {
   targetId: string;
@@ -28,6 +35,7 @@ interface StandardInputsSectionProps {
   roots: string[];
   selectedRoots: string[];
   onSelectedRootsChange: (next: string[]) => void;
+  onRenameGroup: (sourceGroup: string, nextGroup: string) => void;
   inputValues: StandardInputValues;
   effectiveInputRanges: Map<string, { min: number; max: number }>;
   inputUsage: Map<string, InputUsage[]>;
@@ -42,7 +50,6 @@ interface StandardInputsSectionProps {
   ) => void;
   onClearInputMappings: (input: StandardRigInput) => void;
   onDeleteInput: (input: StandardRigInput) => void;
-  onToggleInput: (path: string, enabled: boolean) => void;
   onUnbindTarget: (targetId: string) => void;
   onParentBindingInputChange: (
     targetId: string,
@@ -71,7 +78,7 @@ interface StandardInputsSectionProps {
   graphError: string | null;
 }
 
-const ROOT_FALLBACK = "custom";
+const GROUP_FALLBACK = "custom";
 
 function formatToken(token: string): string {
   if (!token) {
@@ -85,11 +92,11 @@ function formatToken(token: string): string {
 }
 
 function getRootKey(entry: ManagedStandardInput): string {
-  return entry.metadata?.root ?? entry.input.group ?? ROOT_FALLBACK;
+  return entry.metadata?.root ?? entry.input.group ?? GROUP_FALLBACK;
 }
 
-function getShapeLabel(entry: ManagedStandardInput): string {
-  return entry.metadata?.elementName ?? formatToken(getRootKey(entry));
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 export function StandardInputsSection({
@@ -102,6 +109,7 @@ export function StandardInputsSection({
   roots,
   selectedRoots,
   onSelectedRootsChange,
+  onRenameGroup,
   inputValues,
   effectiveInputRanges,
   inputUsage,
@@ -113,7 +121,6 @@ export function StandardInputsSection({
   onUpdateInput,
   onClearInputMappings,
   onDeleteInput,
-  onToggleInput,
   onUnbindTarget,
   onParentBindingInputChange,
   onParentBindingRemapChange,
@@ -150,14 +157,29 @@ export function StandardInputsSection({
     [selectedRoots],
   );
 
+  const [expandedInputs, setExpandedInputs] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [expandedParents, setExpandedParents] = useState<Set<string>>(
     () => new Set(),
   );
-
   const [childSelection, setChildSelection] = useState<{
     parentId: string | null;
     childId: string | null;
   }>({ parentId: null, childId: null });
+
+  const standardInputList = useMemo(
+    () => inputs.map((entry) => entry.input),
+    [inputs],
+  );
+  const standardInputLookup = useMemo(
+    () => new Map(standardInputList.map((item) => [item.id, item])),
+    [standardInputList],
+  );
+  const entriesById = useMemo(
+    () => new Map(inputs.map((entry) => [entry.input.id, entry])),
+    [inputs],
+  );
 
   const cancelChildSelection = useCallback(() => {
     setChildSelection({ parentId: null, childId: null });
@@ -173,20 +195,68 @@ export function StandardInputsSection({
     });
   }, [onLinkChildInput]);
 
-  const standardInputList = useMemo(
-    () => inputs.map((entry) => entry.input),
-    [inputs],
+  const handleFaceIdInput = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onFaceIdChange(event.target.value);
+    },
+    [onFaceIdChange],
   );
 
-  const standardInputLookup = useMemo(
-    () => new Map(standardInputList.map((input) => [input.id, input])),
-    [standardInputList],
+  const handleRenameRoot = useCallback(
+    (root: string) => {
+      const current = formatToken(root);
+      const response = promptDialog(`Rename group "${current}"`, current);
+      if (response === null) {
+        return;
+      }
+      const trimmed = response.trim();
+      if (!trimmed || trimmed === root) {
+        return;
+      }
+      onRenameGroup(root, trimmed);
+    },
+    [onRenameGroup],
   );
 
-  const entriesById = useMemo(
-    () => new Map(inputs.map((entry) => [entry.input.id, entry])),
-    [inputs],
+  const handleRootToggle = useCallback(
+    (root: string) => {
+      setExpandedInputs((previous) => {
+        const next = new Set(previous);
+        inputs
+          .filter((entry) => getRootKey(entry) === root)
+          .forEach((entry) => next.delete(entry.input.id));
+        return next;
+      });
+      setExpandedParents((previous) => {
+        const next = new Set(previous);
+        inputs
+          .filter((entry) => getRootKey(entry) === root)
+          .forEach((entry) => next.delete(entry.input.id));
+        return next;
+      });
+
+      const nextSelection = selectedRoots.includes(root)
+        ? selectedRoots.filter((value) => value !== root)
+        : [...selectedRoots, root];
+      onSelectedRootsChange(nextSelection);
+    },
+    [inputs, onSelectedRootsChange, selectedRoots],
   );
+
+  const handleSelectAll = useCallback(() => {
+    onSelectedRootsChange([]);
+  }, [onSelectedRootsChange]);
+
+  const graphAlert = useMemo(() => {
+    if (!graphStatusMessage) {
+      return null;
+    }
+    return (
+      <div className="feature-panel__graph-status feature-panel__graph-status--warning">
+        {graphStatusMessage}
+      </div>
+    );
+  }, [graphStatusMessage]);
 
   const filteredInputs = useMemo(() => {
     if (selectedSet.size === 0) {
@@ -199,539 +269,495 @@ export function StandardInputsSection({
     if (inputs.length === 0) {
       return "No standard inputs are available for this rig.";
     }
-    if (filteredInputs.length === 0 && selectedRoots.length > 0) {
+    if (selectedRoots.length > 0 && filteredInputs.length === 0) {
       const [firstRoot] = selectedRoots;
-      return `No inputs for ${formatToken(firstRoot)} yet. Enable the toggle in the feature tree to add one.`;
+      return `No inputs for ${formatToken(firstRoot)} yet. Add one from the feature tree or create a custom input.`;
     }
     return null;
   }, [filteredInputs.length, inputs.length, selectedRoots]);
 
-  const handleRootToggle = useCallback(
-    (root: string) => {
-      if (selectedSet.has(root)) {
-        onSelectedRootsChange(selectedRoots.filter((value) => value !== root));
-      } else {
-        onSelectedRootsChange([...selectedRoots, root]);
-      }
-    },
-    [onSelectedRootsChange, selectedRoots, selectedSet],
-  );
+  const renderInputCard = (entry: ManagedStandardInput) => {
+    const { input, source } = entry;
+    const range = effectiveInputRanges.get(input.id) ?? input.range;
+    const value = inputValues[input.id] ?? input.defaultValue;
+    const usage = inputUsage.get(input.id) ?? [];
+    const animatableUsage = usage.filter((item) => item.kind === "animatable");
+    const isAuto = source === "auto";
+    const isExpanded = expandedInputs.has(input.id);
+    const isParentExpanded = expandedParents.has(input.id);
+    const parentBinding = inputBindings[input.id] ?? null;
+    const parentIssues = bindingIssues.get(input.id) ?? [];
+    const parentTarget = bindingTargetFromInput(input);
+    const bindingForEditor = parentBinding
+      ? parentBinding
+      : isParentExpanded
+        ? createDefaultParentBinding(parentTarget)
+        : null;
 
-  const handleSelectAll = useCallback(() => {
-    onSelectedRootsChange([]);
-  }, [onSelectedRootsChange]);
+    const parentHasSelfSlot = parentBinding?.slots.some(
+      (slot) => slot.inputId === SELF_BINDING_ID,
+    );
+    const expressionUsesSelf = parentBinding?.expression
+      ? /\bself\b/i.test(parentBinding.expression)
+      : false;
+    const sliderLocked =
+      parentBinding !== null && (!parentHasSelfSlot || !expressionUsesSelf);
+    const sliderDisabled = sliderLocked;
 
-  const handleTextCommit = useCallback(
-    (inputId: string, field: "label" | "path", original: string) =>
-      (event: React.FocusEvent<HTMLInputElement>) => {
-        const raw = event.target.value;
-        const trimmed = raw.trim();
-        if (!trimmed || trimmed === original) {
-          event.target.value = original;
-          return;
+    const toggleInputExpanded = () => {
+      setExpandedInputs((previous) => {
+        const next = new Set(previous);
+        if (next.has(input.id)) {
+          next.delete(input.id);
+          if (childSelection.parentId === input.id) {
+            cancelChildSelection();
+          }
+        } else {
+          next.add(input.id);
         }
-        onUpdateInput(inputId, { [field]: trimmed });
-      },
-    [onUpdateInput],
-  );
+        return next;
+      });
+    };
 
-  const handleKeyCommit = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Enter" || event.key === "Escape") {
-        (event.target as HTMLInputElement).blur();
+    const ensureParentBindingAndSlot = (
+      nextBinding: AnimatableBinding | null,
+    ) => {
+      onEnsureParentBinding(input.id);
+      const hasAdditionalSlot =
+        nextBinding &&
+        nextBinding.slots.some(
+          (slot, index) =>
+            index > 0 || (slot.inputId && slot.inputId !== SELF_BINDING_ID),
+        );
+      if (!hasAdditionalSlot) {
+        onParentAddBindingSlot(input.id);
       }
-    },
-    [],
-  );
+    };
 
-  return (
-    <section className="feature-panel__rig">
-      <div className="feature-panel__rig-header">
-        <button
-          type="button"
-          className="feature-panel__collapse-btn"
-          onClick={onToggleCollapsed}
-          aria-expanded={!isCollapsed}
-          aria-controls="feature-panel-rig-body"
-        >
-          {isCollapsed ? "+" : "−"}
-        </button>
-        <div className="feature-panel__rig-summary">
-          <h2 className="feature-panel__rig-title">Rig Mapping</h2>
-          <p className="feature-panel__rig-description">
-            Bind standard rig inputs to animatables and preview their remapped
-            values.
-          </p>
-        </div>
-      </div>
-      {!isCollapsed && (
-        <div id="feature-panel-rig-body" className="feature-panel__rig-body">
-          {graphStatusMessage && (
-            <p
-              className={`feature-panel__rig-status feature-panel__rig-status--${graphStatus}`}
-              role={graphStatus === "error" ? "alert" : undefined}
+    const toggleParentExpanded = () => {
+      const willExpand = !isParentExpanded;
+      if (willExpand) {
+        ensureParentBindingAndSlot(parentBinding);
+      }
+      setExpandedParents((previous) => {
+        const next = new Set(previous);
+        if (next.has(input.id)) {
+          next.delete(input.id);
+        } else {
+          next.add(input.id);
+        }
+        return next;
+      });
+    };
+
+    const childCandidates = standardInputList.filter((candidate) => {
+      if (candidate.id === input.id) {
+        return false;
+      }
+      const candidateBinding = inputBindings[candidate.id];
+      if (!candidateBinding) {
+        return true;
+      }
+      if (candidateBinding.inputId === input.id) {
+        return false;
+      }
+      return !candidateBinding.slots.some((slot) => slot.inputId === input.id);
+    });
+
+    const childOptions = childCandidates
+      .map((candidate) => ({ id: candidate.id, label: candidate.label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const isSelectingChild = childSelection.parentId === input.id;
+    const selectedChildId = isSelectingChild
+      ? (childSelection.childId ?? null)
+      : null;
+
+    const handleStartChildSelection = () => {
+      if (childOptions.length === 0) {
+        return;
+      }
+      const defaultChildId = childOptions[0]?.id ?? null;
+      setChildSelection({ parentId: input.id, childId: defaultChildId });
+    };
+
+    const handleChildSelectionChange = (
+      event: ChangeEvent<HTMLSelectElement>,
+    ) => {
+      const nextValue = event.target.value;
+      setChildSelection((previous) => {
+        if (previous.parentId !== input.id) {
+          return previous;
+        }
+        return {
+          parentId: input.id,
+          childId: nextValue.length > 0 ? nextValue : null,
+        };
+      });
+    };
+
+    const derivedChildren = input.derivedChildren ?? [];
+
+    const childEntries = derivedChildren
+      .map((childId) => {
+        const childEntry = entriesById.get(childId);
+        return {
+          id: childId,
+          label: childEntry ? childEntry.input.label : childId,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const handleNumericChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const parsed = Number(event.target.value);
+      if (!Number.isFinite(parsed)) {
+        return;
+      }
+      onInputValueChange(input.id, clamp(parsed, range.min, range.max));
+    };
+
+    const handleSliderChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const parsed = Number(event.target.value);
+      if (!Number.isFinite(parsed)) {
+        return;
+      }
+      onInputValueChange(input.id, parsed);
+    };
+
+    const handlePathCommit = (nextPath: string) => {
+      const trimmed = nextPath.trim();
+      if (!trimmed || trimmed === input.path) {
+        return;
+      }
+      onUpdateInput(input.id, { path: trimmed });
+    };
+
+    const handlePathKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handlePathCommit((event.target as HTMLInputElement).value);
+      }
+    };
+
+    const handlePathBlur = (event: FocusEvent<HTMLInputElement>) => {
+      handlePathCommit(event.target.value);
+    };
+
+    return (
+      <div key={input.id} className="feature-panel__input-card">
+        <div className="feature-panel__input-header">
+          <div className="feature-panel__input-header-main">
+            <button
+              type="button"
+              className="feature-panel__input-disclosure"
+              onClick={toggleInputExpanded}
+              aria-expanded={isExpanded}
             >
-              {graphStatusMessage}
-            </p>
-          )}
-          <label className="feature-panel__label" htmlFor="feature-panel-face">
-            Face / rig identifier
-          </label>
-          <input
-            id="feature-panel-face"
-            type="text"
-            value={faceId}
-            spellCheck={false}
-            onChange={(event) => onFaceIdChange(event.target.value)}
-          />
-          {(availableRoots.length > 0 ||
-            inputs.some((entry) => entry.source === "custom")) && (
-            <div className="feature-panel__input-toolbar">
-              {availableRoots.length > 0 && (
-                <div className="feature-panel__input-filters">
-                  <span className="feature-panel__input-filters-label">
-                    Groups
-                  </span>
-                  <div className="feature-panel__input-filter-chips">
-                    <button
-                      type="button"
-                      className="feature-panel__input-filter-chip"
-                      data-active={selectedRoots.length === 0}
-                      onClick={handleSelectAll}
-                    >
-                      All
-                    </button>
-                    {availableRoots.map((root) => (
-                      <button
-                        key={root}
-                        type="button"
-                        className="feature-panel__input-filter-chip"
-                        data-active={selectedSet.has(root)}
-                        onClick={() => handleRootToggle(root)}
-                      >
-                        {formatToken(root)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {isExpanded ? "−" : "+"}
+            </button>
+            <span className="feature-panel__input-name">{input.label}</span>
+          </div>
+          <div className="feature-panel__input-header-actions">
+            <label className="feature-panel__input-value">
+              <span className="feature-panel__visually-hidden">Value</span>
+              <input
+                type="number"
+                value={value}
+                min={range.min}
+                max={range.max}
+                step={Math.max((range.max - range.min) / 200, 0.001)}
+                onChange={handleNumericChange}
+              />
+            </label>
+            <span className="feature-panel__input-custom-chip">
+              {isAuto ? "Auto" : "Custom"}
+            </span>
+            {!isAuto && (
               <button
                 type="button"
-                onClick={onCreateInput}
-                className="feature-panel__input-add"
+                className="feature-panel__input-action feature-panel__input-action--danger"
+                onClick={() => onDeleteInput(input)}
               >
-                Add custom input
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="feature-panel__input-body">
+            <div className="feature-panel__input-row feature-panel__input-row--slider">
+              <label className="feature-panel__input-slider-block">
+                <span className="feature-panel__input-slider-label">Value</span>
+                <input
+                  type="range"
+                  min={range.min}
+                  max={range.max}
+                  step={Math.max((range.max - range.min) / 200, 0.001)}
+                  value={value}
+                  disabled={sliderDisabled}
+                  onChange={handleSliderChange}
+                />
+              </label>
+            </div>
+
+            <div className="feature-panel__input-row feature-panel__input-row--path">
+              <label className="feature-panel__input-path-label">
+                Path
+                <input
+                  className="feature-panel__input-text"
+                  type="text"
+                  defaultValue={input.path}
+                  onBlur={handlePathBlur}
+                  onKeyDown={handlePathKeyDown}
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+
+            <div className="feature-panel__input-row feature-panel__input-row--mappings">
+              <div className="feature-panel__input-chip-group">
+                {usage.length > 0 ? (
+                  usage.map(({ targetId, label, kind }) => (
+                    <span
+                      key={`${kind}:${targetId}`}
+                      className={`feature-panel__input-chip feature-panel__input-chip--${kind}`}
+                    >
+                      {label}
+                      {kind === "animatable" && (
+                        <button
+                          type="button"
+                          className="feature-panel__input-chip-dismiss"
+                          onClick={() => onUnbindTarget(targetId)}
+                          title={`Remove mapping from ${label}`}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <span className="feature-panel__input-chip feature-panel__input-chip--empty">
+                    Unmapped
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={() => onClearInputMappings(input)}
+                disabled={animatableUsage.length === 0}
+              >
+                Clear mappings
               </button>
             </div>
-          )}
-          <div className="feature-panel__inputs">
-            {emptyMessage ? (
-              <p className="feature-panel__inputs-empty">{emptyMessage}</p>
-            ) : (
-              filteredInputs.map((entry) => {
-                const { input, disabled, source } = entry;
-                const range = effectiveInputRanges.get(input.id) ?? input.range;
-                const value = inputValues[input.id] ?? input.defaultValue;
-                const step = Math.max((range.max - range.min) / 200, 0.001);
-                const usage = inputUsage.get(input.id) ?? [];
-                const animatableUsage = usage.filter(
-                  (entry) => entry.kind === "animatable",
-                );
-                const isAuto = source === "auto";
-                const isParentExpanded = expandedParents.has(input.id);
-                const parentBinding = inputBindings[input.id] ?? null;
-                const parentIssues = bindingIssues.get(input.id) ?? [];
-                const derivedChildren = input.derivedChildren ?? [];
-                const parentTarget = bindingTargetFromInput(input);
-                const bindingForEditor = parentBinding
-                  ? parentBinding
-                  : isParentExpanded
-                    ? createDefaultParentBinding(parentTarget)
-                    : null;
-                const parentControllers = parentBinding
-                  ? parentBinding.slots
-                      .filter(
-                        (slot) =>
-                          slot.inputId && slot.inputId !== SELF_BINDING_ID,
-                      )
-                      .map((slot) => {
-                        const meta = slot.inputId
-                          ? standardInputLookup.get(slot.inputId)
-                          : null;
-                        return meta ? meta.label : slot.alias;
-                      })
-                  : [];
-                const parentHasSelfSlot = parentBinding?.slots.some(
-                  (slot) => slot.inputId === SELF_BINDING_ID,
-                );
-                const expressionUsesSelf = parentBinding?.expression
-                  ? /\bself\b/i.test(parentBinding.expression)
-                  : false;
-                const sliderLocked =
-                  parentBinding !== null &&
-                  (!parentHasSelfSlot || !expressionUsesSelf);
-                const sliderDisabled = disabled || sliderLocked;
-                const ensureParentBindingAndSlot = (
-                  nextBinding: AnimatableBinding | null,
-                ) => {
-                  onEnsureParentBinding(input.id);
-                  const hasAdditionalSlot =
-                    nextBinding &&
-                    nextBinding.slots.some(
-                      (slot, index) =>
-                        index > 0 ||
-                        (slot.inputId && slot.inputId !== SELF_BINDING_ID),
-                    );
-                  if (!hasAdditionalSlot) {
-                    onParentAddBindingSlot(input.id);
-                  }
-                };
 
-                const toggleParentExpanded = () => {
-                  const willExpand = !isParentExpanded;
-                  if (willExpand) {
-                    ensureParentBindingAndSlot(parentBinding);
-                  }
-                  setExpandedParents((previous) => {
-                    const next = new Set(previous);
-                    if (next.has(input.id)) {
-                      next.delete(input.id);
-                    } else {
-                      next.add(input.id);
-                    }
-                    return next;
-                  });
-                };
-                const handleParentReset = () => onParentResetBinding(input.id);
-                const childCandidates = standardInputList.filter(
-                  (candidate) => {
-                    if (candidate.id === input.id) {
-                      return false;
-                    }
-                    const candidateBinding = inputBindings[candidate.id];
-                    if (!candidateBinding) {
-                      return true;
-                    }
-                    if (candidateBinding.inputId === input.id) {
-                      return false;
-                    }
-                    return !candidateBinding.slots.some(
-                      (slot) => slot.inputId === input.id,
-                    );
-                  },
-                );
-                const childOptions = childCandidates
-                  .map((candidate) => ({
-                    id: candidate.id,
-                    label: candidate.label,
-                  }))
-                  .sort((a, b) => a.label.localeCompare(b.label));
-                const isSelectingChild = childSelection.parentId === input.id;
-                const selectedChildId = isSelectingChild
-                  ? (childSelection.childId ?? null)
-                  : null;
-                const handleStartChildSelection = () => {
-                  if (childOptions.length === 0) {
-                    return;
-                  }
-                  const defaultChildId = childOptions[0]?.id ?? null;
-                  setChildSelection({
-                    parentId: input.id,
-                    childId: defaultChildId,
-                  });
-                };
-                const handleChildSelectionChange = (value: string) => {
-                  setChildSelection((previous) => {
-                    if (previous.parentId !== input.id) {
-                      return previous;
-                    }
-                    return {
-                      parentId: input.id,
-                      childId: value.length > 0 ? value : null,
-                    };
-                  });
-                };
-                const childEntries = derivedChildren
-                  .map((childId) => {
-                    const childEntry = entriesById.get(childId);
-                    return {
-                      id: childId,
-                      label: childEntry ? childEntry.input.label : childId,
-                    };
-                  })
-                  .sort((a, b) => a.label.localeCompare(b.label));
-                const rootLabel = getShapeLabel(entry);
-                const pathBlurHandler = handleTextCommit(
-                  input.id,
-                  "path",
-                  input.path,
-                );
-
-                return (
-                  <div
-                    key={input.id}
-                    className={`feature-panel__input-card${disabled ? " feature-panel__input-card--disabled" : ""}`}
+            <div className="feature-panel__input-row feature-panel__input-row--parents">
+              <div className="feature-panel__input-derived">
+                <div className="feature-panel__input-derived-actions">
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={handleStartChildSelection}
+                    disabled={childOptions.length === 0}
                   >
-                    <div className="feature-panel__input-top-row">
-                      <div className="feature-panel__input-toggle">
-                        {isAuto ? (
-                          <label className="feature-panel__input-switch">
-                            <input
-                              type="checkbox"
-                              checked={!disabled}
-                              onChange={(event) =>
-                                onToggleInput(input.path, event.target.checked)
-                              }
-                            />
-                            <span
-                              aria-hidden="true"
-                              className="feature-panel__input-switch-indicator"
-                            />
-                          </label>
-                        ) : (
-                          <span className="feature-panel__input-custom-chip">
-                            Custom
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        className="feature-panel__input-text feature-panel__input-text--path"
-                        type="text"
-                        defaultValue={input.path}
-                        onBlur={pathBlurHandler}
-                        onKeyDown={handleKeyCommit}
-                        spellCheck={false}
-                      />
-                      <div className="feature-panel__input-top-right">
-                        <span className="feature-panel__input-root-chip">
-                          {rootLabel}
+                    Add child
+                  </button>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={toggleParentExpanded}
+                  >
+                    {isParentExpanded ? "Hide parent mapping" : "Add parent"}
+                  </button>
+                  {parentBinding && (
+                    <button
+                      type="button"
+                      className="feature-panel__input-action feature-panel__input-action--secondary"
+                      onClick={() => onParentResetBinding(input.id)}
+                    >
+                      Reset mapping
+                    </button>
+                  )}
+                </div>
+
+                {childEntries.length > 0 && (
+                  <div className="feature-panel__input-derived-children">
+                    <span>Children</span>
+                    <div className="feature-panel__input-chip-group">
+                      {childEntries.map((child) => (
+                        <span
+                          key={child.id}
+                          className="feature-panel__input-chip feature-panel__input-chip--child"
+                        >
+                          {child.label}
                         </span>
-                        {parentBinding && (
-                          <span className="feature-panel__input-custom-chip">
-                            Parented
-                          </span>
-                        )}
-                        {source === "custom" && (
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isSelectingChild && (
+                  <div className="feature-panel__input-child-selector">
+                    {childOptions.length > 0 ? (
+                      <>
+                        <label className="feature-panel__input-child-label">
+                          Select child
+                          <select
+                            className="feature-panel__input-child-select"
+                            value={selectedChildId ?? ""}
+                            onChange={handleChildSelectionChange}
+                          >
+                            {childOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="feature-panel__input-child-actions">
                           <button
                             type="button"
-                            className="feature-panel__input-action feature-panel__input-action--danger"
-                            onClick={() => onDeleteInput(input)}
+                            className="feature-panel__input-action feature-panel__input-action--secondary"
+                            onClick={confirmChildSelection}
+                            disabled={!selectedChildId}
                           >
-                            Remove
+                            Link child
                           </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="feature-panel__input-bottom-row">
-                      <div className="feature-panel__input-map">
-                        {usage.length > 0 ? (
-                          <div className="feature-panel__input-map-chips">
-                            {usage.map(({ targetId, label, kind }) => {
-                              if (kind === "animatable") {
-                                return (
-                                  <button
-                                    type="button"
-                                    key={targetId}
-                                    className="feature-panel__input-tracker-chip"
-                                    onClick={() => onUnbindTarget(targetId)}
-                                    title={`Remove mapping from ${label}`}
-                                  >
-                                    {label}
-                                    <span aria-hidden="true">×</span>
-                                  </button>
-                                );
-                              }
-                              return (
-                                <button
-                                  type="button"
-                                  key={`child:${targetId}`}
-                                  className="feature-panel__input-tracker-chip"
-                                  title={`Child input ${label}`}
-                                  disabled
-                                  aria-disabled="true"
-                                >
-                                  Child: {label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="feature-panel__input-tracker--unmapped">
-                            {disabled ? "Disabled" : "Unmapped"}
-                          </span>
-                        )}
+                          <button
+                            type="button"
+                            className="feature-panel__input-action feature-panel__input-action--secondary"
+                            onClick={cancelChildSelection}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="feature-panel__input-child-empty">
+                        No available inputs to assign.
                         <button
                           type="button"
                           className="feature-panel__input-action feature-panel__input-action--secondary"
-                          onClick={() => onClearInputMappings(input)}
-                          disabled={animatableUsage.length === 0}
+                          onClick={cancelChildSelection}
                         >
-                          Clear
+                          Close
                         </button>
                       </div>
-                      <div className="feature-panel__input-slider">
-                        <input
-                          type="range"
-                          min={range.min}
-                          max={range.max}
-                          step={step}
-                          value={value}
-                          disabled={sliderDisabled}
-                          title={
-                            sliderLocked
-                              ? "Slider contributions are disabled because parent inputs fully control this value."
-                              : undefined
-                          }
-                          onChange={(event) => {
-                            const parsed = Number(event.target.value);
-                            if (Number.isFinite(parsed)) {
-                              onInputValueChange(input.id, parsed);
-                            }
-                          }}
-                        />
-                        {(() => {
-                          const summaryParts: string[] = [];
-                          if (parentControllers.length > 0) {
-                            summaryParts.push(
-                              `Controlled by ${parentControllers.join(", ")}`,
-                            );
-                          }
-                          if (sliderLocked) {
-                            summaryParts.push("Slider disabled");
-                          }
-                          return summaryParts.length > 0 ? (
-                            <div className="feature-panel__input-slider-summary">
-                              {summaryParts.join(" • ")}
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                      <div className="feature-panel__input-derived">
-                        <div className="feature-panel__input-derived-actions">
-                          <button
-                            type="button"
-                            className="feature-panel__input-action feature-panel__input-action--secondary"
-                            onClick={handleStartChildSelection}
-                            disabled={childOptions.length === 0}
-                          >
-                            Add child
-                          </button>
-                          <button
-                            type="button"
-                            className="feature-panel__input-action feature-panel__input-action--secondary"
-                            onClick={toggleParentExpanded}
-                          >
-                            {isParentExpanded
-                              ? "Hide parent mapping"
-                              : "Add parent"}
-                          </button>
-                          {parentBinding && (
-                            <button
-                              type="button"
-                              className="feature-panel__input-action feature-panel__input-action--danger"
-                              onClick={handleParentReset}
-                            >
-                              Reset mapping
-                            </button>
-                          )}
-                        </div>
-                        {childEntries.length > 0 && (
-                          <div className="feature-panel__input-derived-children">
-                            <span>Children</span>
-                            <ul>
-                              {childEntries.map((child) => (
-                                <li key={child.id}>{child.label}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {isSelectingChild && (
-                          <div className="feature-panel__input-child-selector">
-                            {childOptions.length > 0 ? (
-                              <>
-                                <label className="feature-panel__input-child-label">
-                                  Select child
-                                  <select
-                                    className="feature-panel__input-child-select"
-                                    value={selectedChildId ?? ""}
-                                    onChange={(event) =>
-                                      handleChildSelectionChange(
-                                        event.target.value,
-                                      )
-                                    }
-                                  >
-                                    {childOptions.map((option) => (
-                                      <option key={option.id} value={option.id}>
-                                        {option.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <div className="feature-panel__input-child-actions">
-                                  <button
-                                    type="button"
-                                    className="feature-panel__input-action feature-panel__input-action--secondary"
-                                    onClick={confirmChildSelection}
-                                    disabled={!selectedChildId}
-                                  >
-                                    Link child
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="feature-panel__input-action feature-panel__input-action--secondary"
-                                    onClick={cancelChildSelection}
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="feature-panel__input-child-empty">
-                                No available inputs to assign.
-                                <button
-                                  type="button"
-                                  className="feature-panel__input-action feature-panel__input-action--secondary"
-                                  onClick={cancelChildSelection}
-                                >
-                                  Close
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {isParentExpanded && bindingForEditor && (
-                          <BindingEditor
-                            binding={bindingForEditor}
-                            targetId={input.id}
-                            label={`${input.label} mapping`}
-                            standardInputs={standardInputList}
-                            standardInputLookup={standardInputLookup}
-                            issues={parentIssues}
-                            onBindingInputChange={onParentBindingInputChange}
-                            onBindingRemapChange={onParentBindingRemapChange}
-                            onAddBindingSlot={onParentAddBindingSlot}
-                            onRemoveBindingSlot={onParentRemoveBindingSlot}
-                            onBindingExpressionChange={
-                              onParentBindingExpressionChange
-                            }
-                            onBindingSlotAliasChange={
-                              onParentBindingSlotAliasChange
-                            }
-                            onResetBinding={
-                              parentBinding
-                                ? () => onParentResetBinding(input.id)
-                                : undefined
-                            }
-                            expandable={false}
-                          />
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
-                );
-              })
-            )}
+                )}
+
+                {isParentExpanded && bindingForEditor && (
+                  <BindingEditor
+                    binding={bindingForEditor}
+                    targetId={input.id}
+                    label={`${input.label} mapping`}
+                    standardInputs={standardInputList}
+                    standardInputLookup={standardInputLookup}
+                    issues={parentIssues}
+                    onBindingInputChange={onParentBindingInputChange}
+                    onBindingRemapChange={onParentBindingRemapChange}
+                    onAddBindingSlot={onParentAddBindingSlot}
+                    onRemoveBindingSlot={onParentRemoveBindingSlot}
+                    onBindingExpressionChange={onParentBindingExpressionChange}
+                    onBindingSlotAliasChange={onParentBindingSlotAliasChange}
+                    onResetBinding={
+                      parentBinding
+                        ? () => onParentResetBinding(input.id)
+                        : undefined
+                    }
+                    expandable={false}
+                  />
+                )}
+              </div>
+            </div>
           </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <section className="feature-panel__section">
+      <header className="feature-panel__section-header">
+        <button
+          type="button"
+          className="feature-panel__section-toggle"
+          onClick={onToggleCollapsed}
+          aria-expanded={!isCollapsed}
+        >
+          {isCollapsed ? "+" : "−"}
+        </button>
+        <h2 className="feature-panel__section-title">Standard Inputs</h2>
+      </header>
+
+      {!isCollapsed && (
+        <div className="feature-panel__section-body">
+          <div className="feature-panel__input-toolbar">
+            <label className="feature-panel__face-id">
+              Face
+              <input
+                type="text"
+                value={faceId}
+                onChange={handleFaceIdInput}
+                spellCheck={false}
+              />
+            </label>
+            <div className="feature-panel__input-filters">
+              <span className="feature-panel__input-filters-label">Groups</span>
+              <div className="feature-panel__input-filter-chips">
+                <button
+                  type="button"
+                  className="feature-panel__input-filter-chip"
+                  data-active={selectedRoots.length === 0}
+                  onClick={handleSelectAll}
+                >
+                  All
+                </button>
+                {availableRoots.map((root) => (
+                  <div
+                    key={root}
+                    className="feature-panel__input-filter-chip-wrapper"
+                  >
+                    <button
+                      type="button"
+                      className="feature-panel__input-filter-chip"
+                      data-active={selectedSet.has(root)}
+                      onClick={() => handleRootToggle(root)}
+                    >
+                      {formatToken(root)}
+                    </button>
+                    <button
+                      type="button"
+                      className="feature-panel__input-filter-rename"
+                      onClick={() => handleRenameRoot(root)}
+                      title="Rename group"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onCreateInput}
+              className="feature-panel__input-add"
+            >
+              Add custom input
+            </button>
+          </div>
+
+          {graphAlert}
+
+          {emptyMessage ? (
+            <p className="feature-panel__inputs-empty">{emptyMessage}</p>
+          ) : (
+            <div className="feature-panel__inputs">
+              {filteredInputs.map(renderInputCard)}
+            </div>
+          )}
         </div>
       )}
     </section>

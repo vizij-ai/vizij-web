@@ -12,6 +12,7 @@ import type { AnimatableComponent } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {
   id: "jaw_open",
+  safeId: "jaw_open",
   animatableId: "jaw_open",
   animatableType: "number",
   label: "Jaw Open",

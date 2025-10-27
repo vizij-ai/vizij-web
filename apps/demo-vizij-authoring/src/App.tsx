@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   loadGLTF,
   loadGLTFFromBlob,
@@ -9,6 +9,7 @@ import {
 import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
 import { AssetLoaderPanel } from "./components/app/AssetLoaderPanel";
 import { ExportPanel } from "./components/app/ExportPanel";
+import { GraphImportPanel } from "./components/app/GraphImportPanel";
 import { Viewer } from "./components/app/Viewer";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
@@ -18,10 +19,22 @@ import { downloadBlob } from "./utils/download";
 import { applyDefaultsToRobotData } from "./utils/robotData";
 import { buildRigGraphSpec } from "./rig/graphBuilder";
 import { alertDialog } from "./utils/dialogs";
+import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+
+function faceSlug(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "vizij";
+  }
+  return trimmed.replace(/\s+/g, "_");
+}
 
 export default function App() {
-  const [graphFileName, setGraphFileName] = useState("vizij-export.graph.json");
-  const [exportFileName, setExportFileName] = useState("vizij-export.glb");
+  const [graphFileName, setGraphFileName] = useState("");
+  const [exportFileName, setExportFileName] = useState("");
+  const graphFileTouchedRef = useRef(false);
+  const exportFileTouchedRef = useRef(false);
+  const prevFaceIdRef = useRef<string | null>(null);
 
   const {
     rootId,
@@ -56,8 +69,8 @@ export default function App() {
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,
-    handleToggleStandardInput,
     handleCreateCustomStandardInput,
+    handleRenameGroup,
     handleLinkChildInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
@@ -79,6 +92,7 @@ export default function App() {
     handleClearSelection,
     setStoreState,
     collectAnimatableExportState,
+    handleImportGraphSpec,
     world,
     animatables,
     values,
@@ -115,10 +129,58 @@ export default function App() {
     );
   }, [assetUrl, loadFromUrl]);
 
+  useEffect(() => {
+    const slug = faceSlug(faceId);
+    const defaultGraphName = `${slug}_rig.json`;
+    const defaultGlbName = `${slug}_vizij.glb`;
+
+    if (prevFaceIdRef.current !== faceId) {
+      prevFaceIdRef.current = faceId;
+      graphFileTouchedRef.current = false;
+      exportFileTouchedRef.current = false;
+    }
+
+    if (!graphFileTouchedRef.current && graphFileName !== defaultGraphName) {
+      setGraphFileName(defaultGraphName);
+    }
+    if (!exportFileTouchedRef.current && exportFileName !== defaultGlbName) {
+      setExportFileName(defaultGlbName);
+    }
+  }, [faceId, graphFileName, exportFileName]);
+
+  const handleGraphFileNameChange = useCallback((value: string) => {
+    graphFileTouchedRef.current = true;
+    setGraphFileName(value);
+  }, []);
+
+  const handleExportFileNameChange = useCallback((value: string) => {
+    exportFileTouchedRef.current = true;
+    setExportFileName(value);
+  }, []);
+
+  const handleImportGraphFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as unknown;
+        const normalised = await normalizeGraphSpec(parsed);
+        await handleImportGraphSpec(normalised);
+      } catch (error) {
+        alertDialog(
+          `Failed to import rig graph: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+    [handleImportGraphSpec],
+  );
+
   const handleExportGraph = useCallback(() => {
     const trimmedName = graphFileName.trim();
+    const slug = faceSlug(faceId);
     const desiredName =
-      trimmedName.length > 0 ? trimmedName : "vizij-export.graph.json";
+      trimmedName.length > 0 ? trimmedName : `${slug}_rig.json`;
     const fileName = desiredName.toLowerCase().endsWith(".json")
       ? desiredName
       : `${desiredName}.json`;
@@ -135,22 +197,13 @@ export default function App() {
     });
 
     const baseName = fileName.replace(/\.json$/i, "");
-    const base = baseName.length > 0 ? baseName : "vizij-export.graph";
+    const base = baseName.length > 0 ? baseName : `${slug}_rig`;
     const specFileName = `${base}.json`;
-    const summaryFileName = `${base}.summary.json`;
 
     const graphBlob = new Blob([JSON.stringify(graphResult.spec, null, 2)], {
       type: "application/json",
     });
     downloadBlob(graphBlob, specFileName);
-
-    const summaryBlob = new Blob(
-      [JSON.stringify(graphResult.summary, null, 2)],
-      {
-        type: "application/json",
-      },
-    );
-    downloadBlob(summaryBlob, summaryFileName);
   }, [
     animatableComponents,
     bindings,
@@ -163,8 +216,9 @@ export default function App() {
 
   const handleExportGlb = useCallback(async () => {
     const trimmedName = exportFileName.trim();
+    const slug = faceSlug(faceId);
     const desiredName =
-      trimmedName.length > 0 ? trimmedName : "vizij-export.glb";
+      trimmedName.length > 0 ? trimmedName : `${slug}_vizij.glb`;
     const downloadName = desiredName.toLowerCase().endsWith(".glb")
       ? desiredName
       : `${desiredName}.glb`;
@@ -201,7 +255,11 @@ export default function App() {
       return;
     }
 
-    applyDefaultsToRobotData(bodies, effectiveAnimatables);
+    applyDefaultsToRobotData(
+      bodies,
+      effectiveAnimatables,
+      featureLabelOverrides,
+    );
 
     exportScene(bodies[0], downloadName);
 
@@ -217,12 +275,14 @@ export default function App() {
     collectAnimatableExportState,
     exportFileName,
     getExportableBodies,
+    featureLabelOverrides,
     rootId,
     setStoreState,
     values,
   ]);
 
-  const canExport = Boolean(rootId) && !isLoading;
+  const canImportGraph = Boolean(rootId) && !isLoading;
+  const canExport = canImportGraph;
 
   const statusMessage = useMemo(() => {
     if (isLoading) {
@@ -255,11 +315,18 @@ export default function App() {
           onClearError={clearError}
         />
 
+        <GraphImportPanel
+          onSelectGraphFile={(file) => {
+            void handleImportGraphFile(file);
+          }}
+          disabled={!canImportGraph}
+        />
+
         <ExportPanel
           graphFileName={graphFileName}
-          onGraphFileNameChange={setGraphFileName}
+          onGraphFileNameChange={handleGraphFileNameChange}
           exportFileName={exportFileName}
-          onExportFileNameChange={setExportFileName}
+          onExportFileNameChange={handleExportFileNameChange}
           canExport={canExport}
           onExportGraph={handleExportGraph}
           onExportGlb={() => {
@@ -302,7 +369,7 @@ export default function App() {
           standardInputRoots={standardInputRoots}
           selectedStandardInputRoots={selectedStandardInputRoots}
           onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
-          onToggleStandardInput={handleToggleStandardInput}
+          onRenameGroup={handleRenameGroup}
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
           onLinkChildInput={handleLinkChildInput}
           onEnsureParentBinding={handleEnsureParentBinding}

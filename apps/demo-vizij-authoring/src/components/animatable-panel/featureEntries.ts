@@ -139,9 +139,17 @@ export function buildFeatureEntries(
 
         const entryId = `${renderable.id}:${featureKey}`;
         const defaultLabel = deriveFeatureLabel(featureKey, descriptor);
+        const storedLabel =
+          "label" in feature && typeof feature.label === "string"
+            ? feature.label.trim()
+            : "";
         const override = labelOverrides[entryId]?.trim();
         const featureLabel =
-          override && override.length > 0 ? override : defaultLabel;
+          override && override.length > 0
+            ? override
+            : storedLabel && storedLabel.length > 0
+              ? storedLabel
+              : defaultLabel;
 
         if (supported.type === "number") {
           entries.push({
@@ -191,9 +199,17 @@ export function buildFeatureEntries(
 
       const entryId = `${renderable.id}:${featureKey}`;
       const defaultLabel = deriveFeatureLabel(featureKey, undefined);
+      const storedLabel =
+        "label" in feature && typeof feature.label === "string"
+          ? feature.label.trim()
+          : "";
       const override = labelOverrides[entryId]?.trim();
       const featureLabel =
-        override && override.length > 0 ? override : defaultLabel;
+        override && override.length > 0
+          ? override
+          : storedLabel && storedLabel.length > 0
+            ? storedLabel
+            : defaultLabel;
 
       if (supported.type === "number") {
         entries.push({

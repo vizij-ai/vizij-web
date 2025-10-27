@@ -21,6 +21,7 @@ import { SELF_BINDING_ID } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {
   id: "component_1",
+  safeId: "component_1",
   animatableId: "rig/robot/mouth/pos/y",
   animatableType: "number",
   label: "Mouth Pos Y",
@@ -120,6 +121,13 @@ describe("buildRigGraphSpec", () => {
       "input_a",
       "input_b",
     ]);
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: { bindings?: unknown[]; inputs?: unknown[] };
+    };
+    expect(vizijMetadata?.vizij?.bindings).toBeDefined();
+    expect(vizijMetadata?.vizij?.inputs).toBeDefined();
+    expect(vizijMetadata?.vizij?.bindings).toHaveLength(summaryEntries.length);
   });
 
   it("creates subtract nodes with lhs/rhs inputs", () => {

@@ -25,6 +25,7 @@ describe("buildAuthoringDriverGraph", () => {
 
     const component: AnimatableComponent = {
       id: "anim:mouth_pos_x",
+      safeId: "anim_mouth_pos_x",
       animatableId: "rig/robot/mouth/pos/x",
       animatableType: "number",
       label: "Mouth Pos X",
@@ -99,6 +100,7 @@ describe("buildAuthoringDriverGraph", () => {
 
     const component: AnimatableComponent = {
       id: "anim:jaw_open",
+      safeId: "anim_jaw_open",
       animatableId: "rig/robot/jaw/open",
       animatableType: "number",
       label: "Jaw Open",

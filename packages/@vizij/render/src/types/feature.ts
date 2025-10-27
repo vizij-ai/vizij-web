@@ -9,6 +9,7 @@ import type { AnimatableValue, RawValue } from "@vizij/utils";
 export interface AnimatedFeature {
   animated: true;
   value: string;
+  label?: string;
 }
 
 /**
@@ -20,6 +21,7 @@ export interface AnimatedFeature {
 export interface StaticFeature {
   animated: false;
   value: RawValue;
+  label?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export interface StaticFeature {
 export interface StoredAnimatedFeature {
   animated: true;
   value: AnimatableValue;
+  label?: string;
 }
 
 /**

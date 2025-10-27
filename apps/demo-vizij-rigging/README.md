@@ -11,7 +11,7 @@ pnpm --filter demo-vizij-rigging preview  # Preview the production build
 pnpm --filter demo-vizij-rigging typecheck
 ```
 
-The demo expects Vizij-compatible GLB files (as produced by `demo-vizij-authoring`) and the corresponding low-level graph spec (`*.graph.json`). Importing the optional summary (`*.summary.json`) enables binding diagnostics, but all playback now runs through the graph runtime.
+The demo expects Vizij-compatible GLB files (as produced by `demo-vizij-authoring`) and the corresponding low-level graph spec (`*.graph.json`). All playback now runs through the graph runtime, so no additional summary file is required.
 
 ## Pose Graph Export
 

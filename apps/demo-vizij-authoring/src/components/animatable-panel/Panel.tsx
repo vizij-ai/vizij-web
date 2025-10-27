@@ -46,7 +46,7 @@ export function AnimatableValuesPanel({
   standardInputRoots,
   selectedStandardInputRoots,
   onSelectedStandardInputRootsChange,
-  onToggleStandardInput,
+  onRenameGroup,
   onCreateCustomStandardInput,
   onLinkChildInput,
   onEnsureParentBinding,
@@ -264,19 +264,18 @@ export function AnimatableValuesPanel({
         return;
       }
       const isAuto = descriptor.source === "auto";
-      const message = isAuto
-        ? `Disable auto-generated input "${input.label}"?`
-        : `Delete standard input "${input.label}"?`;
-      if (!confirmDialog(message)) {
+      if (isAuto) {
+        alertDialog(
+          `"${input.label}" is generated from the rig metadata. Remove or edit the underlying feature to change this input.`,
+        );
         return;
       }
-      if (isAuto) {
-        onToggleStandardInput(descriptor.input.path, false);
+      if (!confirmDialog(`Delete standard input "${input.label}"?`)) {
         return;
       }
       onDeleteCustomStandardInput(input.id);
     },
-    [managedInputsById, onDeleteCustomStandardInput, onToggleStandardInput],
+    [managedInputsById, onDeleteCustomStandardInput],
   );
 
   const handleClearInputMappings = useCallback(
@@ -562,6 +561,7 @@ export function AnimatableValuesPanel({
         roots={availableRoots}
         selectedRoots={selectedStandardInputRoots}
         onSelectedRootsChange={onSelectedStandardInputRootsChange}
+        onRenameGroup={onRenameGroup}
         inputValues={inputValues}
         effectiveInputRanges={effectiveInputRanges}
         inputUsage={inputUsage}
@@ -573,7 +573,6 @@ export function AnimatableValuesPanel({
         onUpdateInput={handleUpdateStandardInput}
         onClearInputMappings={handleClearInputMappings}
         onDeleteInput={handleDeleteInput}
-        onToggleInput={onToggleStandardInput}
         onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
         onParentBindingInputChange={onParentBindingInputChange}
         onParentBindingRemapChange={onParentBindingRemapChange}

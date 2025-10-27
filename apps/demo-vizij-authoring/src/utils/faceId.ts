@@ -24,21 +24,26 @@ export function normaliseAssetLabel(label: string): string {
   return withoutExtension || last;
 }
 
+function stripVizijSuffix(value: string): string {
+  const stripped = value.replace(/[_-]?vizij$/i, "");
+  return stripped.length > 0 ? stripped : value;
+}
+
 export function deriveAutoFaceId(
   sourceName: string | null,
   rootRenderable: Group | undefined,
 ): string | null {
   if (sourceName) {
-    const normalised = normaliseAssetLabel(sourceName);
+    const normalised = stripVizijSuffix(normaliseAssetLabel(sourceName));
     if (normalised) {
       return sanitizeFaceId(normalised);
     }
   }
   if (rootRenderable?.name) {
-    return sanitizeFaceId(rootRenderable.name);
+    return sanitizeFaceId(stripVizijSuffix(rootRenderable.name));
   }
   if (rootRenderable?.id) {
-    return sanitizeFaceId(rootRenderable.id);
+    return sanitizeFaceId(stripVizijSuffix(rootRenderable.id));
   }
   return null;
 }

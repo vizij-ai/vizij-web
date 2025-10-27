@@ -17,7 +17,7 @@
 - **Introduce an auto-input generator**: In `apps/demo-vizij-authoring/src/hooks/useRigController.ts`, add a memoised builder that maps the catalogue entries into standard rig inputs using the `/ShapeName/feature/property` path convention. Reuse `createStandardRigInput` and derive human-friendly labels from the generated path.
 - **Persist toggle state**: Replace the current `standardInputs` array state with a structure that distinguishes auto-generated inputs from user-defined overrides, e.g. `{ input: StandardRigInput, source: "auto" | "custom", disabled?: boolean }`. Keep supporting legacy saved rigs by migrating persisted JSON in `loadRigState` and defaulting `disabled` to `false`.
 - **Sync on scene changes**: When the available animatables change (scene load, toggling animation), reconcile the auto-generated set with existing state: add new inputs, mark missing ones as disabled, and preserve any manual edits to labels/ranges.
-- **Expose a toggle API**: Replace `handleCreateStandardInput` / `handleDeleteStandardInput` usage with a new `handleToggleStandardInput(path: string, enabled: boolean)` that flips the `disabled` flag and clears bindings when turning an input off.
+- **Remove the disabled toggle**: Standard inputs should either exist or be deleted; remove any UI or handler references that flip a `disabled` flag.
 - **Update persistence**: Ensure `saveRigState` writes the new shape `{ standardInputs: { id, path, label, disabled }[] }` format and still stores custom inputs verbatim so older exports remain editable.
 
 ### 2. Rig Mapping UI Refresh

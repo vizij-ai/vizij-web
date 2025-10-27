@@ -20,10 +20,17 @@ export function mapFeatures(
     if (feature.animated) {
       const animatedValue = feature.value;
       // console.log("Mapping animated value", f, animatedValue);
-      mappedFeatures[f] = { animated: true, value: animatedValue.id };
+      mappedFeatures[f] = {
+        animated: true,
+        value: animatedValue.id,
+        ...(feature.label ? { label: feature.label } : {}),
+      };
       animatableValues[animatedValue.id] = animatedValue;
     } else {
-      mappedFeatures[f] = feature;
+      const { animated, value, label } = feature;
+      mappedFeatures[f] = label
+        ? { animated, value, label }
+        : { animated, value };
     }
   });
 

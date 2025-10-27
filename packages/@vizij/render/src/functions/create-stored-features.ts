@@ -15,10 +15,12 @@ export function createStoredFeatures<T>(
       const storedFeat: StoredAnimatedFeature = {
         animated: true,
         value: animatableValues[feat.value],
+        ...(feat.label ? { label: feat.label } : {}),
       };
       return storedFeat;
     } else {
-      return feat as StaticFeature;
+      const staticFeature = feat as StaticFeature;
+      return staticFeature.label ? { ...staticFeature } : staticFeature;
     }
   });
 }

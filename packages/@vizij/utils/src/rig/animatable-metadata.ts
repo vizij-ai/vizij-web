@@ -25,6 +25,10 @@ export interface AnimatableComponent {
    * Unique id derived from the animatable id + component suffix.
    */
   id: string;
+  /**
+   * Sanitised identifier suitable for graph node ids.
+   */
+  safeId: string;
   animatableId: string;
   animatableType: AnimatableValue["type"];
   /**
@@ -40,6 +44,20 @@ export interface AnimatableComponent {
 }
 
 export type ComponentOverrideMap = Partial<Record<VectorComponent, number>>;
+
+function sanitizeIdentifier(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_]/g, "_");
+}
+
+function ensureUniqueSafeId(base: string, registry: Set<string>): string {
+  let candidate = base;
+  let suffix = 2;
+  while (registry.has(candidate)) {
+    candidate = `${base}_${suffix++}`;
+  }
+  registry.add(candidate);
+  return candidate;
+}
 
 function coerceNumber(value: unknown, fallback: number): number {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -258,6 +276,7 @@ function getVectorConstraintComponent(
 
 function extractNumberComponent(
   animatable: AnimatableNumber,
+  registry: Set<string>,
 ): AnimatableComponent {
   const defaultValue = coerceNumber(animatable.default, 0);
   const range = resolveRangeFromConstraints(
@@ -266,8 +285,11 @@ function extractNumberComponent(
     defaultValue,
     () => computeNumberFallbackRange(animatable, defaultValue),
   );
+  const id = animatable.id;
+  const safeBase = sanitizeIdentifier(id);
   return {
-    id: animatable.id,
+    id,
+    safeId: ensureUniqueSafeId(safeBase, registry),
     animatableId: animatable.id,
     animatableType: animatable.type,
     label: formatComponentLabel(animatable),
@@ -282,6 +304,7 @@ function extractVectorComponents(
     | AnimatableVector3
     | AnimatableEuler
     | AnimatableColor,
+  registry: Set<string>,
 ): AnimatableComponent[] {
   let components: VectorComponent[];
   if (animatable.type === "vector2") {
@@ -304,8 +327,11 @@ function extractVectorComponents(
       defaultValue,
       () => computeVectorFallbackRange(animatable, component, defaultValue),
     );
+    const id = `${animatable.id}:${component}`;
+    const safeBase = sanitizeIdentifier(id);
     return {
-      id: `${animatable.id}:${component}`,
+      id,
+      safeId: ensureUniqueSafeId(safeBase, registry),
       animatableId: animatable.id,
       animatableType: animatable.type,
       component,
@@ -320,20 +346,21 @@ export function extractAnimatableComponents(
   animatables: Record<string, AnimatableValue>,
 ): AnimatableComponent[] {
   const result: AnimatableComponent[] = [];
+  const safeRegistry = new Set<string>();
   Object.values(animatables).forEach((animatable) => {
     switch (animatable.type) {
       case "number": {
-        result.push(extractNumberComponent(animatable));
+        result.push(extractNumberComponent(animatable, safeRegistry));
         break;
       }
       case "vector2":
       case "vector3":
       case "euler": {
-        result.push(...extractVectorComponents(animatable));
+        result.push(...extractVectorComponents(animatable, safeRegistry));
         break;
       }
       case "rgb": {
-        result.push(...extractVectorComponents(animatable));
+        result.push(...extractVectorComponents(animatable, safeRegistry));
         break;
       }
       default:
