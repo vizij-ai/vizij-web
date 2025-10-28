@@ -1,0 +1,4392 @@
+{
+  "nodes": [
+    {
+      "id": "pose_record_pose_vafnh0r1",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "border_rotation_x": {
+                  "float": 0
+                },
+                "border_rotation_y": {
+                  "float": 0
+                },
+                "border_rotation_z": {
+                  "float": 0
+                },
+                "border_scale_x": {
+                  "float": 0
+                },
+                "border_scale_y": {
+                  "float": 0
+                },
+                "border_scale_z": {
+                  "float": 0
+                },
+                "border_translation_x": {
+                  "float": 0
+                },
+                "border_translation_y": {
+                  "float": 0
+                },
+                "border_translation_z": {
+                  "float": 0
+                },
+                "l_eye_color_b": {
+                  "float": 0
+                },
+                "l_eye_color_g": {
+                  "float": 0
+                },
+                "l_eye_color_r": {
+                  "float": 0
+                },
+                "l_eye_opacity_value": {
+                  "float": 0
+                },
+                "l_eye_rotation_x": {
+                  "float": 0
+                },
+                "l_eye_rotation_y": {
+                  "float": 0
+                },
+                "l_eye_rotation_z": {
+                  "float": 0
+                },
+                "l_eye_scale_x": {
+                  "float": 0
+                },
+                "l_eye_scale_y": {
+                  "float": 0
+                },
+                "l_eye_scale_z": {
+                  "float": 0
+                },
+                "l_eye_translation_x": {
+                  "float": 0
+                },
+                "l_eye_translation_y": {
+                  "float": 0
+                },
+                "l_eye_translation_z": {
+                  "float": 0
+                },
+                "l_highlight_color_b": {
+                  "float": 0
+                },
+                "l_highlight_color_g": {
+                  "float": 0
+                },
+                "l_highlight_color_r": {
+                  "float": 0
+                },
+                "l_highlight_opacity_value": {
+                  "float": 0
+                },
+                "l_highlight_rotation_x": {
+                  "float": 0
+                },
+                "l_highlight_rotation_y": {
+                  "float": 0
+                },
+                "l_highlight_rotation_z": {
+                  "float": 0
+                },
+                "l_highlight_scale_x": {
+                  "float": 0
+                },
+                "l_highlight_scale_y": {
+                  "float": 0
+                },
+                "l_highlight_scale_z": {
+                  "float": 0
+                },
+                "l_highlight_translation_x": {
+                  "float": 0
+                },
+                "l_highlight_translation_y": {
+                  "float": 0
+                },
+                "l_highlight_translation_z": {
+                  "float": 0
+                },
+                "lblid_c_centercurve_value": {
+                  "float": 0
+                },
+                "lblid_c_color_b": {
+                  "float": 0
+                },
+                "lblid_c_color_g": {
+                  "float": 0
+                },
+                "lblid_c_color_r": {
+                  "float": 0
+                },
+                "lblid_c_opacity_value": {
+                  "float": 0
+                },
+                "lblid_c_rotation_x": {
+                  "float": 0
+                },
+                "lblid_c_rotation_y": {
+                  "float": 0
+                },
+                "lblid_c_rotation_z": {
+                  "float": 0
+                },
+                "lblid_c_scale_x": {
+                  "float": 0
+                },
+                "lblid_c_scale_y": {
+                  "float": 0
+                },
+                "lblid_c_scale_z": {
+                  "float": 0
+                },
+                "lblid_c_translation_x": {
+                  "float": 0
+                },
+                "lblid_c_translation_y": {
+                  "float": 0
+                },
+                "lblid_c_translation_z": {
+                  "float": 0
+                },
+                "ltlid_c_centercurve_value": {
+                  "float": 0
+                },
+                "ltlid_c_color_b": {
+                  "float": 0
+                },
+                "ltlid_c_color_g": {
+                  "float": 0
+                },
+                "ltlid_c_color_r": {
+                  "float": 0
+                },
+                "ltlid_c_opacity_value": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_x": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_y": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_z": {
+                  "float": 0
+                },
+                "ltlid_c_scale_x": {
+                  "float": 0
+                },
+                "ltlid_c_scale_y": {
+                  "float": 0
+                },
+                "ltlid_c_scale_z": {
+                  "float": 0
+                },
+                "ltlid_c_translation_x": {
+                  "float": 0
+                },
+                "ltlid_c_translation_y": {
+                  "float": 0
+                },
+                "ltlid_c_translation_z": {
+                  "float": 0
+                },
+                "mouth_c_color_b": {
+                  "float": 0
+                },
+                "mouth_c_color_g": {
+                  "float": 0
+                },
+                "mouth_c_color_r": {
+                  "float": 0
+                },
+                "mouth_c_jawud_value": {
+                  "float": 1
+                },
+                "mouth_c_lbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_ltsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_opacity_value": {
+                  "float": 0
+                },
+                "mouth_c_rbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_rotation_x": {
+                  "float": 0
+                },
+                "mouth_c_rotation_y": {
+                  "float": 0
+                },
+                "mouth_c_rotation_z": {
+                  "float": 0
+                },
+                "mouth_c_rtsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_scale_x": {
+                  "float": 0
+                },
+                "mouth_c_scale_y": {
+                  "float": 0
+                },
+                "mouth_c_scale_z": {
+                  "float": 0
+                },
+                "mouth_c_sideud_value": {
+                  "float": 0
+                },
+                "mouth_c_sidewide_value": {
+                  "float": 0
+                },
+                "mouth_c_translation_x": {
+                  "float": 1
+                },
+                "mouth_c_translation_y": {
+                  "float": 1
+                },
+                "mouth_c_translation_z": {
+                  "float": 0
+                },
+                "plane001_1_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_1_color_b": {
+                  "float": 0
+                },
+                "plane001_1_color_g": {
+                  "float": 0
+                },
+                "plane001_1_color_r": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_opacity_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_rotation_x": {
+                  "float": 0
+                },
+                "plane001_1_rotation_y": {
+                  "float": 0
+                },
+                "plane001_1_rotation_z": {
+                  "float": 0
+                },
+                "plane001_1_scale_x": {
+                  "float": 0
+                },
+                "plane001_1_scale_y": {
+                  "float": 0
+                },
+                "plane001_1_scale_z": {
+                  "float": 0
+                },
+                "plane001_1_translation_x": {
+                  "float": 0
+                },
+                "plane001_1_translation_y": {
+                  "float": 0
+                },
+                "plane001_1_translation_z": {
+                  "float": 0
+                },
+                "plane001_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_color_b": {
+                  "float": 0
+                },
+                "plane001_color_g": {
+                  "float": 0
+                },
+                "plane001_color_r": {
+                  "float": 0
+                },
+                "plane001_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_opacity_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_rotation_x": {
+                  "float": 0
+                },
+                "plane001_rotation_y": {
+                  "float": 0
+                },
+                "plane001_rotation_z": {
+                  "float": 0
+                },
+                "plane001_scale_x": {
+                  "float": 0
+                },
+                "plane001_scale_y": {
+                  "float": 0
+                },
+                "plane001_scale_z": {
+                  "float": 0
+                },
+                "plane001_translation_x": {
+                  "float": 0
+                },
+                "plane001_translation_y": {
+                  "float": 0
+                },
+                "plane001_translation_z": {
+                  "float": 0
+                },
+                "plane003_color_b": {
+                  "float": 0
+                },
+                "plane003_color_g": {
+                  "float": 0
+                },
+                "plane003_color_r": {
+                  "float": 0
+                },
+                "plane003_opacity_value": {
+                  "float": 0
+                },
+                "plane003_rotation_x": {
+                  "float": 0
+                },
+                "plane003_rotation_y": {
+                  "float": 0
+                },
+                "plane003_rotation_z": {
+                  "float": 0
+                },
+                "plane003_scale_x": {
+                  "float": 0
+                },
+                "plane003_scale_y": {
+                  "float": 0
+                },
+                "plane003_scale_z": {
+                  "float": 0
+                },
+                "plane003_translation_x": {
+                  "float": 0
+                },
+                "plane003_translation_y": {
+                  "float": 0
+                },
+                "plane003_translation_z": {
+                  "float": 0
+                },
+                "plane004_color_b": {
+                  "float": 0
+                },
+                "plane004_color_g": {
+                  "float": 0
+                },
+                "plane004_color_r": {
+                  "float": 0
+                },
+                "plane004_opacity_value": {
+                  "float": 0
+                },
+                "plane004_rotation_x": {
+                  "float": 0
+                },
+                "plane004_rotation_y": {
+                  "float": 0
+                },
+                "plane004_rotation_z": {
+                  "float": 0
+                },
+                "plane004_scale_x": {
+                  "float": 0
+                },
+                "plane004_scale_y": {
+                  "float": 0
+                },
+                "plane004_scale_z": {
+                  "float": 0
+                },
+                "plane004_translation_x": {
+                  "float": 0
+                },
+                "plane004_translation_y": {
+                  "float": 0
+                },
+                "plane004_translation_z": {
+                  "float": 0
+                },
+                "plane009_color_b": {
+                  "float": 0
+                },
+                "plane009_color_g": {
+                  "float": 0
+                },
+                "plane009_color_r": {
+                  "float": 0
+                },
+                "plane009_opacity_value": {
+                  "float": 0
+                },
+                "plane009_rotation_x": {
+                  "float": 0
+                },
+                "plane009_rotation_y": {
+                  "float": 0
+                },
+                "plane009_rotation_z": {
+                  "float": 0
+                },
+                "plane009_scale_x": {
+                  "float": 0
+                },
+                "plane009_scale_y": {
+                  "float": 0
+                },
+                "plane009_scale_z": {
+                  "float": 0
+                },
+                "plane009_translation_x": {
+                  "float": 0
+                },
+                "plane009_translation_y": {
+                  "float": 0
+                },
+                "plane009_translation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_color_b": {
+                  "float": 0
+                },
+                "r_eye_geo_color_g": {
+                  "float": 0
+                },
+                "r_eye_geo_color_r": {
+                  "float": 0
+                },
+                "r_eye_geo_opacity_value": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_x": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_y": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_z": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_b": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_g": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_r": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_opacity_value": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_z": {
+                  "float": 0
+                },
+                "rblid_c_color_b": {
+                  "float": 0
+                },
+                "rblid_c_color_g": {
+                  "float": 0
+                },
+                "rblid_c_color_r": {
+                  "float": 0
+                },
+                "rblid_c_curve_value": {
+                  "float": 0
+                },
+                "rblid_c_opacity_value": {
+                  "float": 0
+                },
+                "rblid_c_rotation_x": {
+                  "float": 0
+                },
+                "rblid_c_rotation_y": {
+                  "float": 0
+                },
+                "rblid_c_rotation_z": {
+                  "float": 0
+                },
+                "rblid_c_scale_x": {
+                  "float": 0
+                },
+                "rblid_c_scale_y": {
+                  "float": 0
+                },
+                "rblid_c_scale_z": {
+                  "float": 0
+                },
+                "rblid_c_translation_x": {
+                  "float": 0
+                },
+                "rblid_c_translation_y": {
+                  "float": 0
+                },
+                "rblid_c_translation_z": {
+                  "float": 0
+                },
+                "rtlid_c_color_b": {
+                  "float": 0
+                },
+                "rtlid_c_color_g": {
+                  "float": 0
+                },
+                "rtlid_c_color_r": {
+                  "float": 0
+                },
+                "rtlid_c_curve_value": {
+                  "float": 0
+                },
+                "rtlid_c_opacity_value": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_x": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_y": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_z": {
+                  "float": 0
+                },
+                "rtlid_c_scale_x": {
+                  "float": 0
+                },
+                "rtlid_c_scale_y": {
+                  "float": 0
+                },
+                "rtlid_c_scale_z": {
+                  "float": 0
+                },
+                "rtlid_c_translation_x": {
+                  "float": 0
+                },
+                "rtlid_c_translation_y": {
+                  "float": 0
+                },
+                "rtlid_c_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "torus002_color_b": {
+                  "float": 0
+                },
+                "torus002_color_g": {
+                  "float": 0
+                },
+                "torus002_color_r": {
+                  "float": 0
+                },
+                "torus002_opacity_value": {
+                  "float": 0
+                },
+                "torus002_rotation_x": {
+                  "float": 0
+                },
+                "torus002_rotation_y": {
+                  "float": 0
+                },
+                "torus002_rotation_z": {
+                  "float": 0
+                },
+                "torus002_scale_x": {
+                  "float": 0
+                },
+                "torus002_scale_y": {
+                  "float": 0
+                },
+                "torus002_scale_z": {
+                  "float": 0
+                },
+                "torus002_translation_x": {
+                  "float": 0
+                },
+                "torus002_translation_y": {
+                  "float": 0
+                },
+                "torus002_translation_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_pose_vafnh0r1",
+      "type": "input",
+      "params": {
+        "path": "rig/quori2/poses/a.weight",
+        "value": {
+          "float": 0
+        }
+      }
+    },
+    {
+      "id": "pose_record_pose_xh7g3o16",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "border_rotation_x": {
+                  "float": 0
+                },
+                "border_rotation_y": {
+                  "float": 0
+                },
+                "border_rotation_z": {
+                  "float": 0
+                },
+                "border_scale_x": {
+                  "float": 0
+                },
+                "border_scale_y": {
+                  "float": 0
+                },
+                "border_scale_z": {
+                  "float": 0
+                },
+                "border_translation_x": {
+                  "float": 0
+                },
+                "border_translation_y": {
+                  "float": 0
+                },
+                "border_translation_z": {
+                  "float": 0
+                },
+                "l_eye_color_b": {
+                  "float": 0
+                },
+                "l_eye_color_g": {
+                  "float": 0
+                },
+                "l_eye_color_r": {
+                  "float": 0
+                },
+                "l_eye_opacity_value": {
+                  "float": 0
+                },
+                "l_eye_rotation_x": {
+                  "float": 0
+                },
+                "l_eye_rotation_y": {
+                  "float": 0
+                },
+                "l_eye_rotation_z": {
+                  "float": 0
+                },
+                "l_eye_scale_x": {
+                  "float": 0
+                },
+                "l_eye_scale_y": {
+                  "float": 0
+                },
+                "l_eye_scale_z": {
+                  "float": 0
+                },
+                "l_eye_translation_x": {
+                  "float": 0
+                },
+                "l_eye_translation_y": {
+                  "float": 1
+                },
+                "l_eye_translation_z": {
+                  "float": 0
+                },
+                "l_highlight_color_b": {
+                  "float": 0
+                },
+                "l_highlight_color_g": {
+                  "float": 0
+                },
+                "l_highlight_color_r": {
+                  "float": 0
+                },
+                "l_highlight_opacity_value": {
+                  "float": 0
+                },
+                "l_highlight_rotation_x": {
+                  "float": 0
+                },
+                "l_highlight_rotation_y": {
+                  "float": 0
+                },
+                "l_highlight_rotation_z": {
+                  "float": 0
+                },
+                "l_highlight_scale_x": {
+                  "float": 0
+                },
+                "l_highlight_scale_y": {
+                  "float": 0
+                },
+                "l_highlight_scale_z": {
+                  "float": 0
+                },
+                "l_highlight_translation_x": {
+                  "float": 0
+                },
+                "l_highlight_translation_y": {
+                  "float": 0
+                },
+                "l_highlight_translation_z": {
+                  "float": 0
+                },
+                "lblid_c_centercurve_value": {
+                  "float": 0
+                },
+                "lblid_c_color_b": {
+                  "float": 0
+                },
+                "lblid_c_color_g": {
+                  "float": 0
+                },
+                "lblid_c_color_r": {
+                  "float": 0
+                },
+                "lblid_c_opacity_value": {
+                  "float": 0
+                },
+                "lblid_c_rotation_x": {
+                  "float": 0
+                },
+                "lblid_c_rotation_y": {
+                  "float": 0
+                },
+                "lblid_c_rotation_z": {
+                  "float": 0
+                },
+                "lblid_c_scale_x": {
+                  "float": 0
+                },
+                "lblid_c_scale_y": {
+                  "float": 0
+                },
+                "lblid_c_scale_z": {
+                  "float": 0
+                },
+                "lblid_c_translation_x": {
+                  "float": 0
+                },
+                "lblid_c_translation_y": {
+                  "float": 0.81
+                },
+                "lblid_c_translation_z": {
+                  "float": 0
+                },
+                "ltlid_c_centercurve_value": {
+                  "float": 0
+                },
+                "ltlid_c_color_b": {
+                  "float": 0
+                },
+                "ltlid_c_color_g": {
+                  "float": 0
+                },
+                "ltlid_c_color_r": {
+                  "float": 0
+                },
+                "ltlid_c_opacity_value": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_x": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_y": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_z": {
+                  "float": 0
+                },
+                "ltlid_c_scale_x": {
+                  "float": 0
+                },
+                "ltlid_c_scale_y": {
+                  "float": 0
+                },
+                "ltlid_c_scale_z": {
+                  "float": 0
+                },
+                "ltlid_c_translation_x": {
+                  "float": 0
+                },
+                "ltlid_c_translation_y": {
+                  "float": 0
+                },
+                "ltlid_c_translation_z": {
+                  "float": 0
+                },
+                "mouth_c_color_b": {
+                  "float": 0
+                },
+                "mouth_c_color_g": {
+                  "float": 0
+                },
+                "mouth_c_color_r": {
+                  "float": 0
+                },
+                "mouth_c_jawud_value": {
+                  "float": 0
+                },
+                "mouth_c_lbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_ltsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_opacity_value": {
+                  "float": 0
+                },
+                "mouth_c_rbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_rotation_x": {
+                  "float": 0
+                },
+                "mouth_c_rotation_y": {
+                  "float": 0
+                },
+                "mouth_c_rotation_z": {
+                  "float": 0
+                },
+                "mouth_c_rtsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_scale_x": {
+                  "float": 0
+                },
+                "mouth_c_scale_y": {
+                  "float": 0
+                },
+                "mouth_c_scale_z": {
+                  "float": 0
+                },
+                "mouth_c_sideud_value": {
+                  "float": 0
+                },
+                "mouth_c_sidewide_value": {
+                  "float": 0
+                },
+                "mouth_c_translation_x": {
+                  "float": 0
+                },
+                "mouth_c_translation_y": {
+                  "float": 0
+                },
+                "mouth_c_translation_z": {
+                  "float": 0
+                },
+                "plane001_1_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_1_color_b": {
+                  "float": 0
+                },
+                "plane001_1_color_g": {
+                  "float": 0
+                },
+                "plane001_1_color_r": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_opacity_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_rotation_x": {
+                  "float": 0
+                },
+                "plane001_1_rotation_y": {
+                  "float": 0
+                },
+                "plane001_1_rotation_z": {
+                  "float": 0
+                },
+                "plane001_1_scale_x": {
+                  "float": 0
+                },
+                "plane001_1_scale_y": {
+                  "float": 0
+                },
+                "plane001_1_scale_z": {
+                  "float": 0
+                },
+                "plane001_1_translation_x": {
+                  "float": 0
+                },
+                "plane001_1_translation_y": {
+                  "float": 0
+                },
+                "plane001_1_translation_z": {
+                  "float": 0
+                },
+                "plane001_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_color_b": {
+                  "float": 0
+                },
+                "plane001_color_g": {
+                  "float": 0
+                },
+                "plane001_color_r": {
+                  "float": 0
+                },
+                "plane001_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_opacity_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_rotation_x": {
+                  "float": 0
+                },
+                "plane001_rotation_y": {
+                  "float": 0
+                },
+                "plane001_rotation_z": {
+                  "float": 0
+                },
+                "plane001_scale_x": {
+                  "float": 0
+                },
+                "plane001_scale_y": {
+                  "float": 0
+                },
+                "plane001_scale_z": {
+                  "float": 0
+                },
+                "plane001_translation_x": {
+                  "float": 0
+                },
+                "plane001_translation_y": {
+                  "float": 0
+                },
+                "plane001_translation_z": {
+                  "float": 0
+                },
+                "plane003_color_b": {
+                  "float": 0
+                },
+                "plane003_color_g": {
+                  "float": 0
+                },
+                "plane003_color_r": {
+                  "float": 0
+                },
+                "plane003_opacity_value": {
+                  "float": 0
+                },
+                "plane003_rotation_x": {
+                  "float": 0
+                },
+                "plane003_rotation_y": {
+                  "float": 0
+                },
+                "plane003_rotation_z": {
+                  "float": 0
+                },
+                "plane003_scale_x": {
+                  "float": 0
+                },
+                "plane003_scale_y": {
+                  "float": 0
+                },
+                "plane003_scale_z": {
+                  "float": 0
+                },
+                "plane003_translation_x": {
+                  "float": 0
+                },
+                "plane003_translation_y": {
+                  "float": 0
+                },
+                "plane003_translation_z": {
+                  "float": 0
+                },
+                "plane004_color_b": {
+                  "float": 0
+                },
+                "plane004_color_g": {
+                  "float": 0
+                },
+                "plane004_color_r": {
+                  "float": 0
+                },
+                "plane004_opacity_value": {
+                  "float": 0
+                },
+                "plane004_rotation_x": {
+                  "float": 0
+                },
+                "plane004_rotation_y": {
+                  "float": 0
+                },
+                "plane004_rotation_z": {
+                  "float": 0
+                },
+                "plane004_scale_x": {
+                  "float": 0
+                },
+                "plane004_scale_y": {
+                  "float": 0
+                },
+                "plane004_scale_z": {
+                  "float": 0
+                },
+                "plane004_translation_x": {
+                  "float": 0
+                },
+                "plane004_translation_y": {
+                  "float": 0
+                },
+                "plane004_translation_z": {
+                  "float": 0
+                },
+                "plane009_color_b": {
+                  "float": 0
+                },
+                "plane009_color_g": {
+                  "float": 0
+                },
+                "plane009_color_r": {
+                  "float": 0
+                },
+                "plane009_opacity_value": {
+                  "float": 0
+                },
+                "plane009_rotation_x": {
+                  "float": 0
+                },
+                "plane009_rotation_y": {
+                  "float": 0
+                },
+                "plane009_rotation_z": {
+                  "float": 0
+                },
+                "plane009_scale_x": {
+                  "float": 0
+                },
+                "plane009_scale_y": {
+                  "float": 0
+                },
+                "plane009_scale_z": {
+                  "float": 0
+                },
+                "plane009_translation_x": {
+                  "float": 0
+                },
+                "plane009_translation_y": {
+                  "float": 0
+                },
+                "plane009_translation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_color_b": {
+                  "float": 0
+                },
+                "r_eye_geo_color_g": {
+                  "float": 0
+                },
+                "r_eye_geo_color_r": {
+                  "float": 0
+                },
+                "r_eye_geo_opacity_value": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_x": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_y": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_z": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_b": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_g": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_r": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_opacity_value": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_y": {
+                  "float": -1
+                },
+                "r_highlight_scale_c_translation_z": {
+                  "float": 0
+                },
+                "rblid_c_color_b": {
+                  "float": 0
+                },
+                "rblid_c_color_g": {
+                  "float": 0
+                },
+                "rblid_c_color_r": {
+                  "float": 0
+                },
+                "rblid_c_curve_value": {
+                  "float": 0
+                },
+                "rblid_c_opacity_value": {
+                  "float": 0
+                },
+                "rblid_c_rotation_x": {
+                  "float": 0
+                },
+                "rblid_c_rotation_y": {
+                  "float": 0
+                },
+                "rblid_c_rotation_z": {
+                  "float": 0
+                },
+                "rblid_c_scale_x": {
+                  "float": 0
+                },
+                "rblid_c_scale_y": {
+                  "float": 0
+                },
+                "rblid_c_scale_z": {
+                  "float": 0
+                },
+                "rblid_c_translation_x": {
+                  "float": 0
+                },
+                "rblid_c_translation_y": {
+                  "float": 0
+                },
+                "rblid_c_translation_z": {
+                  "float": 0
+                },
+                "rtlid_c_color_b": {
+                  "float": 0
+                },
+                "rtlid_c_color_g": {
+                  "float": 0
+                },
+                "rtlid_c_color_r": {
+                  "float": 0
+                },
+                "rtlid_c_curve_value": {
+                  "float": 0
+                },
+                "rtlid_c_opacity_value": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_x": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_y": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_z": {
+                  "float": 0
+                },
+                "rtlid_c_scale_x": {
+                  "float": 0
+                },
+                "rtlid_c_scale_y": {
+                  "float": 0
+                },
+                "rtlid_c_scale_z": {
+                  "float": 0
+                },
+                "rtlid_c_translation_x": {
+                  "float": 0
+                },
+                "rtlid_c_translation_y": {
+                  "float": 0
+                },
+                "rtlid_c_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "torus002_color_b": {
+                  "float": 0
+                },
+                "torus002_color_g": {
+                  "float": 0
+                },
+                "torus002_color_r": {
+                  "float": 0
+                },
+                "torus002_opacity_value": {
+                  "float": 0
+                },
+                "torus002_rotation_x": {
+                  "float": 0
+                },
+                "torus002_rotation_y": {
+                  "float": 0
+                },
+                "torus002_rotation_z": {
+                  "float": 0
+                },
+                "torus002_scale_x": {
+                  "float": 0
+                },
+                "torus002_scale_y": {
+                  "float": 0
+                },
+                "torus002_scale_z": {
+                  "float": 0
+                },
+                "torus002_translation_x": {
+                  "float": 0
+                },
+                "torus002_translation_y": {
+                  "float": 0
+                },
+                "torus002_translation_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_pose_xh7g3o16",
+      "type": "input",
+      "params": {
+        "path": "rig/quori2/poses/b.weight",
+        "value": {
+          "float": 0
+        }
+      }
+    },
+    {
+      "id": "pose_record_pose_7chyemqr",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "border_rotation_x": {
+                  "float": 0
+                },
+                "border_rotation_y": {
+                  "float": 0
+                },
+                "border_rotation_z": {
+                  "float": 0
+                },
+                "border_scale_x": {
+                  "float": 0
+                },
+                "border_scale_y": {
+                  "float": 0
+                },
+                "border_scale_z": {
+                  "float": 0
+                },
+                "border_translation_x": {
+                  "float": 0
+                },
+                "border_translation_y": {
+                  "float": 0
+                },
+                "border_translation_z": {
+                  "float": 0
+                },
+                "l_eye_color_b": {
+                  "float": 0
+                },
+                "l_eye_color_g": {
+                  "float": 0
+                },
+                "l_eye_color_r": {
+                  "float": 0
+                },
+                "l_eye_opacity_value": {
+                  "float": 0
+                },
+                "l_eye_rotation_x": {
+                  "float": 0
+                },
+                "l_eye_rotation_y": {
+                  "float": 0
+                },
+                "l_eye_rotation_z": {
+                  "float": 0
+                },
+                "l_eye_scale_x": {
+                  "float": 0
+                },
+                "l_eye_scale_y": {
+                  "float": 0
+                },
+                "l_eye_scale_z": {
+                  "float": 0
+                },
+                "l_eye_translation_x": {
+                  "float": 0
+                },
+                "l_eye_translation_y": {
+                  "float": 0
+                },
+                "l_eye_translation_z": {
+                  "float": 0
+                },
+                "l_highlight_color_b": {
+                  "float": 0
+                },
+                "l_highlight_color_g": {
+                  "float": 0
+                },
+                "l_highlight_color_r": {
+                  "float": 0
+                },
+                "l_highlight_opacity_value": {
+                  "float": 0
+                },
+                "l_highlight_rotation_x": {
+                  "float": 0
+                },
+                "l_highlight_rotation_y": {
+                  "float": 0
+                },
+                "l_highlight_rotation_z": {
+                  "float": 0
+                },
+                "l_highlight_scale_x": {
+                  "float": 0
+                },
+                "l_highlight_scale_y": {
+                  "float": 0
+                },
+                "l_highlight_scale_z": {
+                  "float": 0
+                },
+                "l_highlight_translation_x": {
+                  "float": 0
+                },
+                "l_highlight_translation_y": {
+                  "float": 0
+                },
+                "l_highlight_translation_z": {
+                  "float": 0
+                },
+                "lblid_c_centercurve_value": {
+                  "float": 0
+                },
+                "lblid_c_color_b": {
+                  "float": 0
+                },
+                "lblid_c_color_g": {
+                  "float": 0
+                },
+                "lblid_c_color_r": {
+                  "float": 0
+                },
+                "lblid_c_opacity_value": {
+                  "float": 0
+                },
+                "lblid_c_rotation_x": {
+                  "float": 0
+                },
+                "lblid_c_rotation_y": {
+                  "float": 0
+                },
+                "lblid_c_rotation_z": {
+                  "float": 0
+                },
+                "lblid_c_scale_x": {
+                  "float": 0
+                },
+                "lblid_c_scale_y": {
+                  "float": 0
+                },
+                "lblid_c_scale_z": {
+                  "float": 0
+                },
+                "lblid_c_translation_x": {
+                  "float": 0
+                },
+                "lblid_c_translation_y": {
+                  "float": 1
+                },
+                "lblid_c_translation_z": {
+                  "float": 0
+                },
+                "ltlid_c_centercurve_value": {
+                  "float": 0
+                },
+                "ltlid_c_color_b": {
+                  "float": 0
+                },
+                "ltlid_c_color_g": {
+                  "float": 0
+                },
+                "ltlid_c_color_r": {
+                  "float": 0
+                },
+                "ltlid_c_opacity_value": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_x": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_y": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_z": {
+                  "float": 0
+                },
+                "ltlid_c_scale_x": {
+                  "float": 0
+                },
+                "ltlid_c_scale_y": {
+                  "float": 0
+                },
+                "ltlid_c_scale_z": {
+                  "float": 0
+                },
+                "ltlid_c_translation_x": {
+                  "float": 0
+                },
+                "ltlid_c_translation_y": {
+                  "float": 0
+                },
+                "ltlid_c_translation_z": {
+                  "float": 0
+                },
+                "mouth_c_color_b": {
+                  "float": 0
+                },
+                "mouth_c_color_g": {
+                  "float": 0
+                },
+                "mouth_c_color_r": {
+                  "float": 0
+                },
+                "mouth_c_jawud_value": {
+                  "float": 0
+                },
+                "mouth_c_lbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_ltsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_opacity_value": {
+                  "float": 0
+                },
+                "mouth_c_rbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_rotation_x": {
+                  "float": 0
+                },
+                "mouth_c_rotation_y": {
+                  "float": 0
+                },
+                "mouth_c_rotation_z": {
+                  "float": 0
+                },
+                "mouth_c_rtsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_scale_x": {
+                  "float": 0
+                },
+                "mouth_c_scale_y": {
+                  "float": 0
+                },
+                "mouth_c_scale_z": {
+                  "float": 0
+                },
+                "mouth_c_sideud_value": {
+                  "float": 0
+                },
+                "mouth_c_sidewide_value": {
+                  "float": 0
+                },
+                "mouth_c_translation_x": {
+                  "float": 0
+                },
+                "mouth_c_translation_y": {
+                  "float": 0
+                },
+                "mouth_c_translation_z": {
+                  "float": 0
+                },
+                "plane001_1_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_1_color_b": {
+                  "float": 0
+                },
+                "plane001_1_color_g": {
+                  "float": 0
+                },
+                "plane001_1_color_r": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_opacity_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_rotation_x": {
+                  "float": 0
+                },
+                "plane001_1_rotation_y": {
+                  "float": 0
+                },
+                "plane001_1_rotation_z": {
+                  "float": 0
+                },
+                "plane001_1_scale_x": {
+                  "float": 0
+                },
+                "plane001_1_scale_y": {
+                  "float": 0
+                },
+                "plane001_1_scale_z": {
+                  "float": 0
+                },
+                "plane001_1_translation_x": {
+                  "float": 0
+                },
+                "plane001_1_translation_y": {
+                  "float": 0
+                },
+                "plane001_1_translation_z": {
+                  "float": 0
+                },
+                "plane001_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_color_b": {
+                  "float": 0
+                },
+                "plane001_color_g": {
+                  "float": 0
+                },
+                "plane001_color_r": {
+                  "float": 0
+                },
+                "plane001_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_opacity_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_rotation_x": {
+                  "float": 0
+                },
+                "plane001_rotation_y": {
+                  "float": 0
+                },
+                "plane001_rotation_z": {
+                  "float": 0
+                },
+                "plane001_scale_x": {
+                  "float": 0
+                },
+                "plane001_scale_y": {
+                  "float": 0
+                },
+                "plane001_scale_z": {
+                  "float": 0
+                },
+                "plane001_translation_x": {
+                  "float": 0
+                },
+                "plane001_translation_y": {
+                  "float": 0
+                },
+                "plane001_translation_z": {
+                  "float": 0
+                },
+                "plane003_color_b": {
+                  "float": 0
+                },
+                "plane003_color_g": {
+                  "float": 0
+                },
+                "plane003_color_r": {
+                  "float": 0
+                },
+                "plane003_opacity_value": {
+                  "float": 0
+                },
+                "plane003_rotation_x": {
+                  "float": 0
+                },
+                "plane003_rotation_y": {
+                  "float": 0
+                },
+                "plane003_rotation_z": {
+                  "float": 0
+                },
+                "plane003_scale_x": {
+                  "float": 0
+                },
+                "plane003_scale_y": {
+                  "float": 0
+                },
+                "plane003_scale_z": {
+                  "float": 0
+                },
+                "plane003_translation_x": {
+                  "float": 0
+                },
+                "plane003_translation_y": {
+                  "float": 0
+                },
+                "plane003_translation_z": {
+                  "float": 0
+                },
+                "plane004_color_b": {
+                  "float": 0
+                },
+                "plane004_color_g": {
+                  "float": 0
+                },
+                "plane004_color_r": {
+                  "float": 0
+                },
+                "plane004_opacity_value": {
+                  "float": 0
+                },
+                "plane004_rotation_x": {
+                  "float": 0
+                },
+                "plane004_rotation_y": {
+                  "float": 0
+                },
+                "plane004_rotation_z": {
+                  "float": 0
+                },
+                "plane004_scale_x": {
+                  "float": 0
+                },
+                "plane004_scale_y": {
+                  "float": 0
+                },
+                "plane004_scale_z": {
+                  "float": 0
+                },
+                "plane004_translation_x": {
+                  "float": 0
+                },
+                "plane004_translation_y": {
+                  "float": 0
+                },
+                "plane004_translation_z": {
+                  "float": 0
+                },
+                "plane009_color_b": {
+                  "float": 0
+                },
+                "plane009_color_g": {
+                  "float": 0
+                },
+                "plane009_color_r": {
+                  "float": 0
+                },
+                "plane009_opacity_value": {
+                  "float": 0
+                },
+                "plane009_rotation_x": {
+                  "float": 0
+                },
+                "plane009_rotation_y": {
+                  "float": 0
+                },
+                "plane009_rotation_z": {
+                  "float": 0
+                },
+                "plane009_scale_x": {
+                  "float": 0
+                },
+                "plane009_scale_y": {
+                  "float": 0
+                },
+                "plane009_scale_z": {
+                  "float": 0
+                },
+                "plane009_translation_x": {
+                  "float": 0
+                },
+                "plane009_translation_y": {
+                  "float": 0
+                },
+                "plane009_translation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_color_b": {
+                  "float": 0
+                },
+                "r_eye_geo_color_g": {
+                  "float": 0
+                },
+                "r_eye_geo_color_r": {
+                  "float": 0
+                },
+                "r_eye_geo_opacity_value": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_x": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_y": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_z": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_b": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_g": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_r": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_opacity_value": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_z": {
+                  "float": 0
+                },
+                "rblid_c_color_b": {
+                  "float": 0
+                },
+                "rblid_c_color_g": {
+                  "float": 0
+                },
+                "rblid_c_color_r": {
+                  "float": 0
+                },
+                "rblid_c_curve_value": {
+                  "float": 0
+                },
+                "rblid_c_opacity_value": {
+                  "float": 0
+                },
+                "rblid_c_rotation_x": {
+                  "float": 0
+                },
+                "rblid_c_rotation_y": {
+                  "float": 0
+                },
+                "rblid_c_rotation_z": {
+                  "float": 0
+                },
+                "rblid_c_scale_x": {
+                  "float": 0
+                },
+                "rblid_c_scale_y": {
+                  "float": 0
+                },
+                "rblid_c_scale_z": {
+                  "float": 0
+                },
+                "rblid_c_translation_x": {
+                  "float": 0
+                },
+                "rblid_c_translation_y": {
+                  "float": 0.57
+                },
+                "rblid_c_translation_z": {
+                  "float": 0
+                },
+                "rtlid_c_color_b": {
+                  "float": 0
+                },
+                "rtlid_c_color_g": {
+                  "float": 0
+                },
+                "rtlid_c_color_r": {
+                  "float": 0
+                },
+                "rtlid_c_curve_value": {
+                  "float": 0
+                },
+                "rtlid_c_opacity_value": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_x": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_y": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_z": {
+                  "float": 0
+                },
+                "rtlid_c_scale_x": {
+                  "float": 0
+                },
+                "rtlid_c_scale_y": {
+                  "float": 0
+                },
+                "rtlid_c_scale_z": {
+                  "float": 0
+                },
+                "rtlid_c_translation_x": {
+                  "float": 0
+                },
+                "rtlid_c_translation_y": {
+                  "float": -0.43
+                },
+                "rtlid_c_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "torus002_color_b": {
+                  "float": 0
+                },
+                "torus002_color_g": {
+                  "float": 0
+                },
+                "torus002_color_r": {
+                  "float": 0
+                },
+                "torus002_opacity_value": {
+                  "float": 0
+                },
+                "torus002_rotation_x": {
+                  "float": 0
+                },
+                "torus002_rotation_y": {
+                  "float": 0
+                },
+                "torus002_rotation_z": {
+                  "float": 0
+                },
+                "torus002_scale_x": {
+                  "float": 0
+                },
+                "torus002_scale_y": {
+                  "float": 0
+                },
+                "torus002_scale_z": {
+                  "float": 0
+                },
+                "torus002_translation_x": {
+                  "float": 0
+                },
+                "torus002_translation_y": {
+                  "float": 0
+                },
+                "torus002_translation_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_pose_7chyemqr",
+      "type": "input",
+      "params": {
+        "path": "rig/quori2/poses/c.weight",
+        "value": {
+          "float": 0
+        }
+      }
+    },
+    {
+      "id": "pose_weights_join",
+      "type": "join"
+    },
+    {
+      "id": "pose_neutral_record",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "border_rotation_x": {
+                  "float": 0
+                },
+                "border_rotation_y": {
+                  "float": 0
+                },
+                "border_rotation_z": {
+                  "float": 0
+                },
+                "border_scale_x": {
+                  "float": 0
+                },
+                "border_scale_y": {
+                  "float": 0
+                },
+                "border_scale_z": {
+                  "float": 0
+                },
+                "border_translation_x": {
+                  "float": 0
+                },
+                "border_translation_y": {
+                  "float": 0
+                },
+                "border_translation_z": {
+                  "float": 0
+                },
+                "l_eye_color_b": {
+                  "float": 0
+                },
+                "l_eye_color_g": {
+                  "float": 0
+                },
+                "l_eye_color_r": {
+                  "float": 0
+                },
+                "l_eye_opacity_value": {
+                  "float": 0
+                },
+                "l_eye_rotation_x": {
+                  "float": 0
+                },
+                "l_eye_rotation_y": {
+                  "float": 0
+                },
+                "l_eye_rotation_z": {
+                  "float": 0
+                },
+                "l_eye_scale_x": {
+                  "float": 0
+                },
+                "l_eye_scale_y": {
+                  "float": 0
+                },
+                "l_eye_scale_z": {
+                  "float": 0
+                },
+                "l_eye_translation_x": {
+                  "float": 0
+                },
+                "l_eye_translation_y": {
+                  "float": 0
+                },
+                "l_eye_translation_z": {
+                  "float": 0
+                },
+                "l_highlight_color_b": {
+                  "float": 0
+                },
+                "l_highlight_color_g": {
+                  "float": 0
+                },
+                "l_highlight_color_r": {
+                  "float": 0
+                },
+                "l_highlight_opacity_value": {
+                  "float": 0
+                },
+                "l_highlight_rotation_x": {
+                  "float": 0
+                },
+                "l_highlight_rotation_y": {
+                  "float": 0
+                },
+                "l_highlight_rotation_z": {
+                  "float": 0
+                },
+                "l_highlight_scale_x": {
+                  "float": 0
+                },
+                "l_highlight_scale_y": {
+                  "float": 0
+                },
+                "l_highlight_scale_z": {
+                  "float": 0
+                },
+                "l_highlight_translation_x": {
+                  "float": 0
+                },
+                "l_highlight_translation_y": {
+                  "float": 0
+                },
+                "l_highlight_translation_z": {
+                  "float": 0
+                },
+                "lblid_c_centercurve_value": {
+                  "float": 0
+                },
+                "lblid_c_color_b": {
+                  "float": 0
+                },
+                "lblid_c_color_g": {
+                  "float": 0
+                },
+                "lblid_c_color_r": {
+                  "float": 0
+                },
+                "lblid_c_opacity_value": {
+                  "float": 0
+                },
+                "lblid_c_rotation_x": {
+                  "float": 0
+                },
+                "lblid_c_rotation_y": {
+                  "float": 0
+                },
+                "lblid_c_rotation_z": {
+                  "float": 0
+                },
+                "lblid_c_scale_x": {
+                  "float": 0
+                },
+                "lblid_c_scale_y": {
+                  "float": 0
+                },
+                "lblid_c_scale_z": {
+                  "float": 0
+                },
+                "lblid_c_translation_x": {
+                  "float": 0
+                },
+                "lblid_c_translation_y": {
+                  "float": 0
+                },
+                "lblid_c_translation_z": {
+                  "float": 0
+                },
+                "ltlid_c_centercurve_value": {
+                  "float": 0
+                },
+                "ltlid_c_color_b": {
+                  "float": 0
+                },
+                "ltlid_c_color_g": {
+                  "float": 0
+                },
+                "ltlid_c_color_r": {
+                  "float": 0
+                },
+                "ltlid_c_opacity_value": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_x": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_y": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_z": {
+                  "float": 0
+                },
+                "ltlid_c_scale_x": {
+                  "float": 0
+                },
+                "ltlid_c_scale_y": {
+                  "float": 0
+                },
+                "ltlid_c_scale_z": {
+                  "float": 0
+                },
+                "ltlid_c_translation_x": {
+                  "float": 0
+                },
+                "ltlid_c_translation_y": {
+                  "float": 0
+                },
+                "ltlid_c_translation_z": {
+                  "float": 0
+                },
+                "mouth_c_color_b": {
+                  "float": 0
+                },
+                "mouth_c_color_g": {
+                  "float": 0
+                },
+                "mouth_c_color_r": {
+                  "float": 0
+                },
+                "mouth_c_jawud_value": {
+                  "float": 0
+                },
+                "mouth_c_lbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_ltsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_opacity_value": {
+                  "float": 0
+                },
+                "mouth_c_rbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_rotation_x": {
+                  "float": 0
+                },
+                "mouth_c_rotation_y": {
+                  "float": 0
+                },
+                "mouth_c_rotation_z": {
+                  "float": 0
+                },
+                "mouth_c_rtsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_scale_x": {
+                  "float": 0
+                },
+                "mouth_c_scale_y": {
+                  "float": 0
+                },
+                "mouth_c_scale_z": {
+                  "float": 0
+                },
+                "mouth_c_sideud_value": {
+                  "float": 0
+                },
+                "mouth_c_sidewide_value": {
+                  "float": 0
+                },
+                "mouth_c_translation_x": {
+                  "float": 0
+                },
+                "mouth_c_translation_y": {
+                  "float": 0
+                },
+                "mouth_c_translation_z": {
+                  "float": 0
+                },
+                "plane001_1_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_1_color_b": {
+                  "float": 0
+                },
+                "plane001_1_color_g": {
+                  "float": 0
+                },
+                "plane001_1_color_r": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_opacity_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_rotation_x": {
+                  "float": 0
+                },
+                "plane001_1_rotation_y": {
+                  "float": 0
+                },
+                "plane001_1_rotation_z": {
+                  "float": 0
+                },
+                "plane001_1_scale_x": {
+                  "float": 0
+                },
+                "plane001_1_scale_y": {
+                  "float": 0
+                },
+                "plane001_1_scale_z": {
+                  "float": 0
+                },
+                "plane001_1_translation_x": {
+                  "float": 0
+                },
+                "plane001_1_translation_y": {
+                  "float": 0
+                },
+                "plane001_1_translation_z": {
+                  "float": 0
+                },
+                "plane001_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_color_b": {
+                  "float": 0
+                },
+                "plane001_color_g": {
+                  "float": 0
+                },
+                "plane001_color_r": {
+                  "float": 0
+                },
+                "plane001_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_opacity_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_rotation_x": {
+                  "float": 0
+                },
+                "plane001_rotation_y": {
+                  "float": 0
+                },
+                "plane001_rotation_z": {
+                  "float": 0
+                },
+                "plane001_scale_x": {
+                  "float": 0
+                },
+                "plane001_scale_y": {
+                  "float": 0
+                },
+                "plane001_scale_z": {
+                  "float": 0
+                },
+                "plane001_translation_x": {
+                  "float": 0
+                },
+                "plane001_translation_y": {
+                  "float": 0
+                },
+                "plane001_translation_z": {
+                  "float": 0
+                },
+                "plane003_color_b": {
+                  "float": 0
+                },
+                "plane003_color_g": {
+                  "float": 0
+                },
+                "plane003_color_r": {
+                  "float": 0
+                },
+                "plane003_opacity_value": {
+                  "float": 0
+                },
+                "plane003_rotation_x": {
+                  "float": 0
+                },
+                "plane003_rotation_y": {
+                  "float": 0
+                },
+                "plane003_rotation_z": {
+                  "float": 0
+                },
+                "plane003_scale_x": {
+                  "float": 0
+                },
+                "plane003_scale_y": {
+                  "float": 0
+                },
+                "plane003_scale_z": {
+                  "float": 0
+                },
+                "plane003_translation_x": {
+                  "float": 0
+                },
+                "plane003_translation_y": {
+                  "float": 0
+                },
+                "plane003_translation_z": {
+                  "float": 0
+                },
+                "plane004_color_b": {
+                  "float": 0
+                },
+                "plane004_color_g": {
+                  "float": 0
+                },
+                "plane004_color_r": {
+                  "float": 0
+                },
+                "plane004_opacity_value": {
+                  "float": 0
+                },
+                "plane004_rotation_x": {
+                  "float": 0
+                },
+                "plane004_rotation_y": {
+                  "float": 0
+                },
+                "plane004_rotation_z": {
+                  "float": 0
+                },
+                "plane004_scale_x": {
+                  "float": 0
+                },
+                "plane004_scale_y": {
+                  "float": 0
+                },
+                "plane004_scale_z": {
+                  "float": 0
+                },
+                "plane004_translation_x": {
+                  "float": 0
+                },
+                "plane004_translation_y": {
+                  "float": 0
+                },
+                "plane004_translation_z": {
+                  "float": 0
+                },
+                "plane009_color_b": {
+                  "float": 0
+                },
+                "plane009_color_g": {
+                  "float": 0
+                },
+                "plane009_color_r": {
+                  "float": 0
+                },
+                "plane009_opacity_value": {
+                  "float": 0
+                },
+                "plane009_rotation_x": {
+                  "float": 0
+                },
+                "plane009_rotation_y": {
+                  "float": 0
+                },
+                "plane009_rotation_z": {
+                  "float": 0
+                },
+                "plane009_scale_x": {
+                  "float": 0
+                },
+                "plane009_scale_y": {
+                  "float": 0
+                },
+                "plane009_scale_z": {
+                  "float": 0
+                },
+                "plane009_translation_x": {
+                  "float": 0
+                },
+                "plane009_translation_y": {
+                  "float": 0
+                },
+                "plane009_translation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_color_b": {
+                  "float": 0
+                },
+                "r_eye_geo_color_g": {
+                  "float": 0
+                },
+                "r_eye_geo_color_r": {
+                  "float": 0
+                },
+                "r_eye_geo_opacity_value": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_x": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_y": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_z": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_b": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_g": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_r": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_opacity_value": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_z": {
+                  "float": 0
+                },
+                "rblid_c_color_b": {
+                  "float": 0
+                },
+                "rblid_c_color_g": {
+                  "float": 0
+                },
+                "rblid_c_color_r": {
+                  "float": 0
+                },
+                "rblid_c_curve_value": {
+                  "float": 0
+                },
+                "rblid_c_opacity_value": {
+                  "float": 0
+                },
+                "rblid_c_rotation_x": {
+                  "float": 0
+                },
+                "rblid_c_rotation_y": {
+                  "float": 0
+                },
+                "rblid_c_rotation_z": {
+                  "float": 0
+                },
+                "rblid_c_scale_x": {
+                  "float": 0
+                },
+                "rblid_c_scale_y": {
+                  "float": 0
+                },
+                "rblid_c_scale_z": {
+                  "float": 0
+                },
+                "rblid_c_translation_x": {
+                  "float": 0
+                },
+                "rblid_c_translation_y": {
+                  "float": 0
+                },
+                "rblid_c_translation_z": {
+                  "float": 0
+                },
+                "rtlid_c_color_b": {
+                  "float": 0
+                },
+                "rtlid_c_color_g": {
+                  "float": 0
+                },
+                "rtlid_c_color_r": {
+                  "float": 0
+                },
+                "rtlid_c_curve_value": {
+                  "float": 0
+                },
+                "rtlid_c_opacity_value": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_x": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_y": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_z": {
+                  "float": 0
+                },
+                "rtlid_c_scale_x": {
+                  "float": 0
+                },
+                "rtlid_c_scale_y": {
+                  "float": 0
+                },
+                "rtlid_c_scale_z": {
+                  "float": 0
+                },
+                "rtlid_c_translation_x": {
+                  "float": 0
+                },
+                "rtlid_c_translation_y": {
+                  "float": 0
+                },
+                "rtlid_c_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "torus002_color_b": {
+                  "float": 0
+                },
+                "torus002_color_g": {
+                  "float": 0
+                },
+                "torus002_color_r": {
+                  "float": 0
+                },
+                "torus002_opacity_value": {
+                  "float": 0
+                },
+                "torus002_rotation_x": {
+                  "float": 0
+                },
+                "torus002_rotation_y": {
+                  "float": 0
+                },
+                "torus002_rotation_z": {
+                  "float": 0
+                },
+                "torus002_scale_x": {
+                  "float": 0
+                },
+                "torus002_scale_y": {
+                  "float": 0
+                },
+                "torus002_scale_z": {
+                  "float": 0
+                },
+                "torus002_translation_x": {
+                  "float": 0
+                },
+                "torus002_translation_y": {
+                  "float": 0
+                },
+                "torus002_translation_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_offset_zero",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "border_rotation_x": {
+                  "float": 0
+                },
+                "border_rotation_y": {
+                  "float": 0
+                },
+                "border_rotation_z": {
+                  "float": 0
+                },
+                "border_scale_x": {
+                  "float": 0
+                },
+                "border_scale_y": {
+                  "float": 0
+                },
+                "border_scale_z": {
+                  "float": 0
+                },
+                "border_translation_x": {
+                  "float": 0
+                },
+                "border_translation_y": {
+                  "float": 0
+                },
+                "border_translation_z": {
+                  "float": 0
+                },
+                "l_eye_color_b": {
+                  "float": 0
+                },
+                "l_eye_color_g": {
+                  "float": 0
+                },
+                "l_eye_color_r": {
+                  "float": 0
+                },
+                "l_eye_opacity_value": {
+                  "float": 0
+                },
+                "l_eye_rotation_x": {
+                  "float": 0
+                },
+                "l_eye_rotation_y": {
+                  "float": 0
+                },
+                "l_eye_rotation_z": {
+                  "float": 0
+                },
+                "l_eye_scale_x": {
+                  "float": 0
+                },
+                "l_eye_scale_y": {
+                  "float": 0
+                },
+                "l_eye_scale_z": {
+                  "float": 0
+                },
+                "l_eye_translation_x": {
+                  "float": 0
+                },
+                "l_eye_translation_y": {
+                  "float": 0
+                },
+                "l_eye_translation_z": {
+                  "float": 0
+                },
+                "l_highlight_color_b": {
+                  "float": 0
+                },
+                "l_highlight_color_g": {
+                  "float": 0
+                },
+                "l_highlight_color_r": {
+                  "float": 0
+                },
+                "l_highlight_opacity_value": {
+                  "float": 0
+                },
+                "l_highlight_rotation_x": {
+                  "float": 0
+                },
+                "l_highlight_rotation_y": {
+                  "float": 0
+                },
+                "l_highlight_rotation_z": {
+                  "float": 0
+                },
+                "l_highlight_scale_x": {
+                  "float": 0
+                },
+                "l_highlight_scale_y": {
+                  "float": 0
+                },
+                "l_highlight_scale_z": {
+                  "float": 0
+                },
+                "l_highlight_translation_x": {
+                  "float": 0
+                },
+                "l_highlight_translation_y": {
+                  "float": 0
+                },
+                "l_highlight_translation_z": {
+                  "float": 0
+                },
+                "lblid_c_centercurve_value": {
+                  "float": 0
+                },
+                "lblid_c_color_b": {
+                  "float": 0
+                },
+                "lblid_c_color_g": {
+                  "float": 0
+                },
+                "lblid_c_color_r": {
+                  "float": 0
+                },
+                "lblid_c_opacity_value": {
+                  "float": 0
+                },
+                "lblid_c_rotation_x": {
+                  "float": 0
+                },
+                "lblid_c_rotation_y": {
+                  "float": 0
+                },
+                "lblid_c_rotation_z": {
+                  "float": 0
+                },
+                "lblid_c_scale_x": {
+                  "float": 0
+                },
+                "lblid_c_scale_y": {
+                  "float": 0
+                },
+                "lblid_c_scale_z": {
+                  "float": 0
+                },
+                "lblid_c_translation_x": {
+                  "float": 0
+                },
+                "lblid_c_translation_y": {
+                  "float": 0
+                },
+                "lblid_c_translation_z": {
+                  "float": 0
+                },
+                "ltlid_c_centercurve_value": {
+                  "float": 0
+                },
+                "ltlid_c_color_b": {
+                  "float": 0
+                },
+                "ltlid_c_color_g": {
+                  "float": 0
+                },
+                "ltlid_c_color_r": {
+                  "float": 0
+                },
+                "ltlid_c_opacity_value": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_x": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_y": {
+                  "float": 0
+                },
+                "ltlid_c_rotation_z": {
+                  "float": 0
+                },
+                "ltlid_c_scale_x": {
+                  "float": 0
+                },
+                "ltlid_c_scale_y": {
+                  "float": 0
+                },
+                "ltlid_c_scale_z": {
+                  "float": 0
+                },
+                "ltlid_c_translation_x": {
+                  "float": 0
+                },
+                "ltlid_c_translation_y": {
+                  "float": 0
+                },
+                "ltlid_c_translation_z": {
+                  "float": 0
+                },
+                "mouth_c_color_b": {
+                  "float": 0
+                },
+                "mouth_c_color_g": {
+                  "float": 0
+                },
+                "mouth_c_color_r": {
+                  "float": 0
+                },
+                "mouth_c_jawud_value": {
+                  "float": 0
+                },
+                "mouth_c_lbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_ltsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_opacity_value": {
+                  "float": 0
+                },
+                "mouth_c_rbsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_rotation_x": {
+                  "float": 0
+                },
+                "mouth_c_rotation_y": {
+                  "float": 0
+                },
+                "mouth_c_rotation_z": {
+                  "float": 0
+                },
+                "mouth_c_rtsneer_value": {
+                  "float": 0
+                },
+                "mouth_c_scale_x": {
+                  "float": 0
+                },
+                "mouth_c_scale_y": {
+                  "float": 0
+                },
+                "mouth_c_scale_z": {
+                  "float": 0
+                },
+                "mouth_c_sideud_value": {
+                  "float": 0
+                },
+                "mouth_c_sidewide_value": {
+                  "float": 0
+                },
+                "mouth_c_translation_x": {
+                  "float": 0
+                },
+                "mouth_c_translation_y": {
+                  "float": 0
+                },
+                "mouth_c_translation_z": {
+                  "float": 0
+                },
+                "plane001_1_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_1_color_b": {
+                  "float": 0
+                },
+                "plane001_1_color_g": {
+                  "float": 0
+                },
+                "plane001_1_color_r": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_opacity_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_1_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_1_rotation_x": {
+                  "float": 0
+                },
+                "plane001_1_rotation_y": {
+                  "float": 0
+                },
+                "plane001_1_rotation_z": {
+                  "float": 0
+                },
+                "plane001_1_scale_x": {
+                  "float": 0
+                },
+                "plane001_1_scale_y": {
+                  "float": 0
+                },
+                "plane001_1_scale_z": {
+                  "float": 0
+                },
+                "plane001_1_translation_x": {
+                  "float": 0
+                },
+                "plane001_1_translation_y": {
+                  "float": 0
+                },
+                "plane001_1_translation_z": {
+                  "float": 0
+                },
+                "plane001_chin_c_value": {
+                  "float": 0
+                },
+                "plane001_color_b": {
+                  "float": 0
+                },
+                "plane001_color_g": {
+                  "float": 0
+                },
+                "plane001_color_r": {
+                  "float": 0
+                },
+                "plane001_lbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_lbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_opacity_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inlr_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_inud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_midud_value": {
+                  "float": 0
+                },
+                "plane001_rbrow_outud_value": {
+                  "float": 0
+                },
+                "plane001_rotation_x": {
+                  "float": 0
+                },
+                "plane001_rotation_y": {
+                  "float": 0
+                },
+                "plane001_rotation_z": {
+                  "float": 0
+                },
+                "plane001_scale_x": {
+                  "float": 0
+                },
+                "plane001_scale_y": {
+                  "float": 0
+                },
+                "plane001_scale_z": {
+                  "float": 0
+                },
+                "plane001_translation_x": {
+                  "float": 0
+                },
+                "plane001_translation_y": {
+                  "float": 0
+                },
+                "plane001_translation_z": {
+                  "float": 0
+                },
+                "plane003_color_b": {
+                  "float": 0
+                },
+                "plane003_color_g": {
+                  "float": 0
+                },
+                "plane003_color_r": {
+                  "float": 0
+                },
+                "plane003_opacity_value": {
+                  "float": 0
+                },
+                "plane003_rotation_x": {
+                  "float": 0
+                },
+                "plane003_rotation_y": {
+                  "float": 0
+                },
+                "plane003_rotation_z": {
+                  "float": 0
+                },
+                "plane003_scale_x": {
+                  "float": 0
+                },
+                "plane003_scale_y": {
+                  "float": 0
+                },
+                "plane003_scale_z": {
+                  "float": 0
+                },
+                "plane003_translation_x": {
+                  "float": 0
+                },
+                "plane003_translation_y": {
+                  "float": 0
+                },
+                "plane003_translation_z": {
+                  "float": 0
+                },
+                "plane004_color_b": {
+                  "float": 0
+                },
+                "plane004_color_g": {
+                  "float": 0
+                },
+                "plane004_color_r": {
+                  "float": 0
+                },
+                "plane004_opacity_value": {
+                  "float": 0
+                },
+                "plane004_rotation_x": {
+                  "float": 0
+                },
+                "plane004_rotation_y": {
+                  "float": 0
+                },
+                "plane004_rotation_z": {
+                  "float": 0
+                },
+                "plane004_scale_x": {
+                  "float": 0
+                },
+                "plane004_scale_y": {
+                  "float": 0
+                },
+                "plane004_scale_z": {
+                  "float": 0
+                },
+                "plane004_translation_x": {
+                  "float": 0
+                },
+                "plane004_translation_y": {
+                  "float": 0
+                },
+                "plane004_translation_z": {
+                  "float": 0
+                },
+                "plane009_color_b": {
+                  "float": 0
+                },
+                "plane009_color_g": {
+                  "float": 0
+                },
+                "plane009_color_r": {
+                  "float": 0
+                },
+                "plane009_opacity_value": {
+                  "float": 0
+                },
+                "plane009_rotation_x": {
+                  "float": 0
+                },
+                "plane009_rotation_y": {
+                  "float": 0
+                },
+                "plane009_rotation_z": {
+                  "float": 0
+                },
+                "plane009_scale_x": {
+                  "float": 0
+                },
+                "plane009_scale_y": {
+                  "float": 0
+                },
+                "plane009_scale_z": {
+                  "float": 0
+                },
+                "plane009_translation_x": {
+                  "float": 0
+                },
+                "plane009_translation_y": {
+                  "float": 0
+                },
+                "plane009_translation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_color_b": {
+                  "float": 0
+                },
+                "r_eye_geo_color_g": {
+                  "float": 0
+                },
+                "r_eye_geo_color_r": {
+                  "float": 0
+                },
+                "r_eye_geo_opacity_value": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_rotation_z": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_x": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_y": {
+                  "float": 0
+                },
+                "r_eye_geo_scale_z": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_x": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_y": {
+                  "float": 0
+                },
+                "r_eye_geo_translation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_b": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_g": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_color_r": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_opacity_value": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_rotation_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_scale_z": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_x": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_y": {
+                  "float": 0
+                },
+                "r_highlight_scale_c_translation_z": {
+                  "float": 0
+                },
+                "rblid_c_color_b": {
+                  "float": 0
+                },
+                "rblid_c_color_g": {
+                  "float": 0
+                },
+                "rblid_c_color_r": {
+                  "float": 0
+                },
+                "rblid_c_curve_value": {
+                  "float": 0
+                },
+                "rblid_c_opacity_value": {
+                  "float": 0
+                },
+                "rblid_c_rotation_x": {
+                  "float": 0
+                },
+                "rblid_c_rotation_y": {
+                  "float": 0
+                },
+                "rblid_c_rotation_z": {
+                  "float": 0
+                },
+                "rblid_c_scale_x": {
+                  "float": 0
+                },
+                "rblid_c_scale_y": {
+                  "float": 0
+                },
+                "rblid_c_scale_z": {
+                  "float": 0
+                },
+                "rblid_c_translation_x": {
+                  "float": 0
+                },
+                "rblid_c_translation_y": {
+                  "float": 0
+                },
+                "rblid_c_translation_z": {
+                  "float": 0
+                },
+                "rtlid_c_color_b": {
+                  "float": 0
+                },
+                "rtlid_c_color_g": {
+                  "float": 0
+                },
+                "rtlid_c_color_r": {
+                  "float": 0
+                },
+                "rtlid_c_curve_value": {
+                  "float": 0
+                },
+                "rtlid_c_opacity_value": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_x": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_y": {
+                  "float": 0
+                },
+                "rtlid_c_rotation_z": {
+                  "float": 0
+                },
+                "rtlid_c_scale_x": {
+                  "float": 0
+                },
+                "rtlid_c_scale_y": {
+                  "float": 0
+                },
+                "rtlid_c_scale_z": {
+                  "float": 0
+                },
+                "rtlid_c_translation_x": {
+                  "float": 0
+                },
+                "rtlid_c_translation_y": {
+                  "float": 0
+                },
+                "rtlid_c_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "torus002_color_b": {
+                  "float": 0
+                },
+                "torus002_color_g": {
+                  "float": 0
+                },
+                "torus002_color_r": {
+                  "float": 0
+                },
+                "torus002_opacity_value": {
+                  "float": 0
+                },
+                "torus002_rotation_x": {
+                  "float": 0
+                },
+                "torus002_rotation_y": {
+                  "float": 0
+                },
+                "torus002_rotation_z": {
+                  "float": 0
+                },
+                "torus002_scale_x": {
+                  "float": 0
+                },
+                "torus002_scale_y": {
+                  "float": 0
+                },
+                "torus002_scale_z": {
+                  "float": 0
+                },
+                "torus002_translation_x": {
+                  "float": 0
+                },
+                "torus002_translation_y": {
+                  "float": 0
+                },
+                "torus002_translation_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_blend",
+      "type": "default-blend"
+    },
+    {
+      "id": "out_l_eye_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/l_eye/translation/y"
+      }
+    },
+    {
+      "id": "out_r_highlight_scale_c_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/r_highlight_scale_c/translation/y"
+      }
+    },
+    {
+      "id": "out_lblid_c_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/lblid_c/translation/y"
+      }
+    },
+    {
+      "id": "out_mouth_c_jawud_value",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/mouth_c/jawud/value"
+      }
+    },
+    {
+      "id": "out_mouth_c_translation_x",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/mouth_c/translation/x"
+      }
+    },
+    {
+      "id": "out_mouth_c_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/mouth_c/translation/y"
+      }
+    },
+    {
+      "id": "out_rblid_c_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/rblid_c/translation/y"
+      }
+    },
+    {
+      "id": "out_rtlid_c_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/quori2/rtlid_c/translation/y"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": {
+        "node_id": "pose_pose_vafnh0r1"
+      },
+      "to": {
+        "node_id": "pose_weights_join",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_pose_xh7g3o16"
+      },
+      "to": {
+        "node_id": "pose_weights_join",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_pose_7chyemqr"
+      },
+      "to": {
+        "node_id": "pose_weights_join",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_neutral_record"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "baseline"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_offset_zero"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "offset"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_weights_join"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "weights"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_record_pose_vafnh0r1"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_record_pose_xh7g3o16"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_record_pose_7chyemqr"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_l_eye_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "l_eye_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_r_highlight_scale_c_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "r_highlight_scale_c_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_lblid_c_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "lblid_c_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_c_jawud_value",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_c_jawud_value"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_c_translation_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_c_translation_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_c_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_c_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_rblid_c_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "rblid_c_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_rtlid_c_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "rtlid_c_translation_y"
+        }
+      ]
+    }
+  ]
+}
