@@ -6,7 +6,6 @@ import type { UsePoseRigAuthoringResult } from "../../poseRig/usePoseRigAuthorin
 interface ViewerProps {
   rootId: string | null;
   rootRenderable: Group | undefined;
-  sourceName: string | null;
   statusMessage: string;
   namespace: string;
   onClearSelection: () => void;
@@ -16,7 +15,6 @@ interface ViewerProps {
 export function Viewer({
   rootId,
   rootRenderable,
-  sourceName,
   statusMessage,
   namespace,
   onClearSelection,
@@ -26,7 +24,7 @@ export function Viewer({
     <main className="viewer">
       <header className="viewer__header">
         <div>
-          <h2>{sourceName ?? "No Vizij loaded"}</h2>
+          <h2>{"Vizij Viewport"}</h2>
           <p>{statusMessage}</p>
         </div>
         {rootRenderable && (

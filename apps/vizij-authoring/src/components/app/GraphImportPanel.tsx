@@ -1,4 +1,4 @@
-import { ChangeEvent, useRef } from "react";
+import { ChangeEvent } from "react";
 
 interface GraphImportPanelProps {
   onSelectGraphFile: (file: File) => void;
@@ -9,8 +9,6 @@ export function GraphImportPanel({
   onSelectGraphFile,
   disabled = false,
 }: GraphImportPanelProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
   const handleSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -20,30 +18,26 @@ export function GraphImportPanel({
   };
 
   return (
-    <section className="sidebar__section">
-      <div className="sidebar__panel">
-        <div className="sidebar__panel-header">
-          <h2 className="sidebar__panel-title">Import Rig Graph</h2>
+    <article className="asset-card">
+      <div className="asset-card__body asset-card__body--compact">
+        <div className="asset-card__group">
+          <label className="sidebar__label" htmlFor="rig-graph-file">
+            Load a rig graph <span className="asset-card__tag">Optional</span>
+          </label>
+          <input
+            id="rig-graph-file"
+            type="file"
+            accept=".json,.graph.json"
+            disabled={disabled}
+            onChange={handleSelect}
+          />
         </div>
-        <p className="sidebar__panel-description">
-          Load a rig graph JSON exported from Vizij authoring to reconstruct
-          bindings for the loaded GLB.
+
+        <p className="asset-card__hint asset-card__hint--muted">
+          Expect a <code>.graph.json</code> file exported alongside the Vizij
+          GLB.
         </p>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-        >
-          Select graph JSON
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".json,.graph.json"
-          style={{ display: "none" }}
-          onChange={handleSelect}
-        />
       </div>
-    </section>
+    </article>
   );
 }

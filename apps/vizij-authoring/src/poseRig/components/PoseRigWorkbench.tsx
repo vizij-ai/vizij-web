@@ -90,10 +90,7 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
       <header className="pose-rig-workbench__header">
         <div>
           <h2>Pose Rig Workbench</h2>
-          <p>
-            Capture neutral values, build pose variations, and preview graph
-            contributions without leaving the authoring surface.
-          </p>
+          <p>Capture values, build poses, and preview graph contributions.</p>
         </div>
         <div className="pose-rig-workbench__actions">
           <button

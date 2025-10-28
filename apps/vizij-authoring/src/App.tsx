@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  loadGLTF,
   loadGLTFFromBlob,
   exportScene,
   useVizijStore,
@@ -10,7 +9,10 @@ import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
 import { AssetLoaderPanel } from "./components/app/AssetLoaderPanel";
 import { ExportPanel } from "./components/app/ExportPanel";
 import { GraphImportPanel } from "./components/app/GraphImportPanel";
-import { PoseRigImportExportPanel } from "./components/app/PoseRigImportExportPanel";
+import {
+  PoseRigExportPanel,
+  PoseRigImportPanel,
+} from "./components/app/PoseRigPanels";
 import { Viewer } from "./components/app/Viewer";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
@@ -38,17 +40,8 @@ export default function App() {
   const exportFileTouchedRef = useRef(false);
   const prevFaceIdRef = useRef<string | null>(null);
 
-  const {
-    rootId,
-    sourceName,
-    assetUrl,
-    setAssetUrl,
-    isLoading,
-    error,
-    clearError,
-    loadFromFile,
-    loadFromUrl,
-  } = useVizijAssetLoader();
+  const { rootId, sourceName, isLoading, error, clearError, loadFromFile } =
+    useVizijAssetLoader();
 
   const {
     faceId,
@@ -135,16 +128,6 @@ export default function App() {
     },
     [loadFromFile],
   );
-
-  const handleLoadFromUrl = useCallback(async () => {
-    const trimmed = assetUrl.trim();
-    if (!trimmed) {
-      return;
-    }
-    await loadFromUrl(trimmed, () =>
-      loadGLTF(trimmed, [DEFAULT_NAMESPACE], true),
-    );
-  }, [assetUrl, loadFromUrl]);
 
   useEffect(() => {
     const slug = faceSlug(faceId);
@@ -368,61 +351,84 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <header className="sidebar__header">
-          <h1>Vizij Rig Authoring</h1>
-          <h3>**Pre-Pre-Pre-Alpha Demo**</h3>
-          <p>Load a GLB, rig a structure, pose it, and export it.</p>
-          <p>UI and workflow improvements coming soon.</p>
+        <header className="sidebar__topbar">
+          <h1 className="sidebar__title">
+            Vizij Authoring Tool Pre-Alpha Preview
+          </h1>
+          <p className="sidebar__description">
+            Load a Vizij scene, align the rig graph, tune poses, and export.
+          </p>
         </header>
 
-        <AssetLoaderPanel
-          assetUrl={assetUrl}
-          isLoading={isLoading}
-          error={error}
-          onAssetUrlChange={setAssetUrl}
-          onLoadFromUrl={handleLoadFromUrl}
-          onSelectFile={handleSelectFile}
-          onClearError={clearError}
-        />
+        <section className="sidebar__section">
+          <header className="sidebar__section-header">
+            <h2 className="sidebar__section-title">Importing</h2>
+            <p className="sidebar__section-description">
+              Bring in geometry, rig graphs, and legacy pose data to continue
+              authoring.
+            </p>
+          </header>
+          <div className="sidebar__stack">
+            <AssetLoaderPanel
+              isLoading={isLoading}
+              error={error}
+              onSelectFile={handleSelectFile}
+              onClearError={clearError}
+            />
 
-        <GraphImportPanel
-          onSelectGraphFile={(file) => {
-            void handleImportGraphFile(file);
-          }}
-          disabled={!canImportGraph}
-        />
+            <GraphImportPanel
+              onSelectGraphFile={(file) => {
+                void handleImportGraphFile(file);
+              }}
+              disabled={!canImportGraph}
+            />
 
-        <PoseRigImportExportPanel
-          rigName={poseRig.rigName}
-          onRigNameChange={poseRig.setRigName}
-          poseGraphFileName={poseRig.poseGraphFileName}
-          onPoseGraphFileNameChange={poseRig.setPoseGraphFileName}
-          poseConfigFileName={poseRig.poseConfigFileName}
-          onPoseConfigFileNameChange={poseRig.setPoseConfigFileName}
-          onExportPoseGraph={handleExportPoseGraphFile}
-          onExportPoseConfig={handleExportPoseConfigFile}
-          onImportPoseConfig={handleImportPoseConfigFile}
-          poseConfigWarnings={poseRig.poseConfigWarnings}
-          disabled={!poseRig.ready}
-        />
+            <PoseRigImportPanel
+              onImportPoseConfig={handleImportPoseConfigFile}
+              poseConfigWarnings={poseRig.poseConfigWarnings}
+              disabled={!poseRig.ready}
+            />
+          </div>
+        </section>
 
-        <ExportPanel
-          graphFileName={graphFileName}
-          onGraphFileNameChange={handleGraphFileNameChange}
-          exportFileName={exportFileName}
-          onExportFileNameChange={handleExportFileNameChange}
-          canExport={canExport}
-          onExportGraph={handleExportGraph}
-          onExportGlb={() => {
-            void handleExportGlb();
-          }}
-        />
+        <section className="sidebar__section">
+          <header className="sidebar__section-header">
+            <h2 className="sidebar__section-title">Exporting</h2>
+            <p className="sidebar__section-description">
+              Package Vizij outputs for tooling or runtime hand-off.
+            </p>
+          </header>
+          <div className="sidebar__stack">
+            <ExportPanel
+              graphFileName={graphFileName}
+              onGraphFileNameChange={handleGraphFileNameChange}
+              exportFileName={exportFileName}
+              onExportFileNameChange={handleExportFileNameChange}
+              canExport={canExport}
+              onExportGraph={handleExportGraph}
+              onExportGlb={() => {
+                void handleExportGlb();
+              }}
+            />
+
+            <PoseRigExportPanel
+              rigName={poseRig.rigName}
+              onRigNameChange={poseRig.setRigName}
+              poseGraphFileName={poseRig.poseGraphFileName}
+              onPoseGraphFileNameChange={poseRig.setPoseGraphFileName}
+              poseConfigFileName={poseRig.poseConfigFileName}
+              onPoseConfigFileNameChange={poseRig.setPoseConfigFileName}
+              onExportPoseGraph={handleExportPoseGraphFile}
+              onExportPoseConfig={handleExportPoseConfigFile}
+              disabled={!poseRig.ready}
+            />
+          </div>
+        </section>
       </aside>
 
       <Viewer
         rootId={rootId}
         rootRenderable={rootRenderable}
-        sourceName={sourceName}
         statusMessage={statusMessage}
         namespace={DEFAULT_NAMESPACE}
         onClearSelection={handleClearSelection}
@@ -430,6 +436,8 @@ export default function App() {
       />
 
       <aside className="sidebar sidebar--right">
+        <h1 className="sidebar__title">Controls Workbench</h1>
+
         <AnimatableValuesPanel
           namespace={DEFAULT_NAMESPACE}
           faceId={faceId}

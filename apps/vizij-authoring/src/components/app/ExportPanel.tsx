@@ -18,54 +18,64 @@ export function ExportPanel({
   onExportGlb,
 }: ExportPanelProps) {
   return (
-    <section className="sidebar__section">
-      <div className="sidebar__panel">
-        <div className="sidebar__panel-header">
-          <h2 className="sidebar__panel-title">Export Vizij GLB</h2>
-        </div>
-        <p className="sidebar__panel-description">
-          Save a Vizij GLB that bakes in the animatable overrides you currently
-          have applied to the selected robot.
+    <article className="asset-card">
+      <header className="asset-card__header">
+        <h2 className="asset-card__title">Vizij Outputs</h2>
+        <p className="asset-card__description">
+          Download the Vizij GLB and matching rig graph.
         </p>
+      </header>
+
+      <div className="asset-card__body asset-card__body--compact">
         <label className="sidebar__label" htmlFor="vizij-graph-name">
-          Graph file name
+          Rig graph file
         </label>
-        <div className="sidebar__form-row">
+        <div className="asset-card__form-row">
           <input
             id="vizij-graph-name"
             type="text"
             value={graphFileName}
-            placeholder="vizij-export.graph.json"
+            placeholder="vizij_rig.graph.json"
             onChange={(event) => onGraphFileNameChange(event.target.value)}
             disabled={!canExport}
             spellCheck={false}
           />
-          <button type="button" onClick={onExportGraph} disabled={!canExport}>
-            Export graph
+          <button
+            type="button"
+            className="button"
+            onClick={onExportGraph}
+            disabled={!canExport}
+          >
+            Export
           </button>
         </div>
+
         <label className="sidebar__label" htmlFor="vizij-export-name">
-          GLB file name
+          Vizij GLB file
         </label>
-        <div className="sidebar__form-row">
+        <div className="asset-card__form-row">
           <input
             id="vizij-export-name"
             type="text"
             value={exportFileName}
-            placeholder="vizij-export.glb"
+            placeholder="vizij_scene.glb"
             onChange={(event) => onExportFileNameChange(event.target.value)}
             disabled={!canExport}
             spellCheck={false}
           />
-          <button type="button" onClick={onExportGlb} disabled={!canExport}>
-            Export GLB
+          <button
+            type="button"
+            className="button primary"
+            onClick={onExportGlb}
+            disabled={!canExport}
+          >
+            Export
           </button>
         </div>
-        <p className="sidebar__hint">
-          Export the graph JSON separately from the Vizij GLB to share both
-          bindings and geometry.
+        <p className="asset-card__hint">
+          Share both files to capture geometry, bindings, and pose rig data.
         </p>
       </div>
-    </section>
+    </article>
   );
 }

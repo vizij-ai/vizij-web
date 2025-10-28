@@ -4,6 +4,36 @@ import type { AnimatableBinding } from "../../rig/state";
 import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
 import type { BindingField } from "./types";
 
+type RemapPreset = {
+  outLow: number;
+  outAnchor: number;
+  outHigh: number;
+};
+
+type RemapOutputDefaults = {
+  rangeMin: number;
+  rangeMax: number;
+  defaultValue: number;
+};
+
+const SCALE_PRESET: RemapPreset = {
+  outLow: 0,
+  outAnchor: 1,
+  outHigh: 2,
+};
+
+const ROTATION_PRESET: RemapPreset = {
+  outLow: -3.14,
+  outAnchor: 0,
+  outHigh: 3.14,
+};
+
+function clamp(value: number, min: number, max: number): number {
+  const normalizedMin = Math.min(min, max);
+  const normalizedMax = Math.max(min, max);
+  return Math.max(normalizedMin, Math.min(normalizedMax, value));
+}
+
 interface BindingEditorProps {
   binding: AnimatableBinding;
   targetId: string;
@@ -40,6 +70,7 @@ interface BindingEditorProps {
   defaultExpanded?: boolean;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  outputDefaults?: RemapOutputDefaults;
 }
 
 export function BindingEditor({
@@ -63,6 +94,7 @@ export function BindingEditor({
   defaultExpanded = false,
   expanded,
   onExpandedChange,
+  outputDefaults,
 }: BindingEditorProps) {
   const isControlled = typeof expanded === "boolean";
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
@@ -78,6 +110,31 @@ export function BindingEditor({
     }
     onExpandedChange?.(next);
   }, [expandable, isExpanded, isControlled, onExpandedChange]);
+
+  const animatablePreset = useMemo<RemapPreset | null>(() => {
+    if (!outputDefaults) {
+      return null;
+    }
+    const anchor = clamp(
+      outputDefaults.defaultValue,
+      outputDefaults.rangeMin,
+      outputDefaults.rangeMax,
+    );
+    return {
+      outLow: outputDefaults.rangeMin,
+      outAnchor: anchor,
+      outHigh: outputDefaults.rangeMax,
+    };
+  }, [outputDefaults]);
+
+  const applyOutputPreset = useCallback(
+    (slotId: string, preset: RemapPreset) => {
+      onBindingRemapChange(targetId, "outLow", preset.outLow, slotId);
+      onBindingRemapChange(targetId, "outAnchor", preset.outAnchor, slotId);
+      onBindingRemapChange(targetId, "outHigh", preset.outHigh, slotId);
+    },
+    [onBindingRemapChange, targetId],
+  );
 
   const slots = binding.slots ?? [];
   const expressionValue = binding.expression ?? slots[0]?.alias ?? "";
@@ -287,6 +344,50 @@ export function BindingEditor({
                       )}
                     </div>
                   </div>
+                </div>
+                <div className="feature-tree__remap-presets">
+                  <span className="feature-tree__remap-presets-label">
+                    Set Remap:
+                  </span>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={() =>
+                      applyOutputPreset(slot.id, {
+                        outLow: slot.remap.inLow,
+                        outAnchor: slot.remap.inAnchor,
+                        outHigh: slot.remap.inHigh,
+                      })
+                    }
+                  >
+                    Input
+                  </button>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={() => {
+                      if (animatablePreset) {
+                        applyOutputPreset(slot.id, animatablePreset);
+                      }
+                    }}
+                    disabled={!animatablePreset}
+                  >
+                    Animatable
+                  </button>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={() => applyOutputPreset(slot.id, SCALE_PRESET)}
+                  >
+                    Scale
+                  </button>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={() => applyOutputPreset(slot.id, ROTATION_PRESET)}
+                  >
+                    Rotation
+                  </button>
                 </div>
               </div>
             );

@@ -72,6 +72,11 @@ interface PropertyBindingRowProps {
     slotId: string,
     alias: string,
   ) => void;
+  outputDefaults?: {
+    rangeMin: number;
+    rangeMax: number;
+    defaultValue: number;
+  };
   outputControls?: OutputControlConfig;
 }
 
@@ -89,6 +94,7 @@ function PropertyBindingRow({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  outputDefaults,
   outputControls,
 }: PropertyBindingRowProps) {
   const expanded = treeState.isExpanded("property", property.id);
@@ -130,6 +136,7 @@ function PropertyBindingRow({
       onResetBinding={onResetBinding}
       expanded={expanded}
       onExpandedChange={handleExpandedChange}
+      outputDefaults={outputDefaults}
     >
       {outputControls && (
         <div className="feature-tree__property-column">
@@ -381,6 +388,14 @@ function PropertyControls({
 
     let outputControls: OutputControlConfig | undefined;
 
+    const outputDefaults = bindingTarget?.component
+      ? {
+          rangeMin: bindingTarget.component.range.min,
+          rangeMax: bindingTarget.component.range.max,
+          defaultValue: bindingTarget.component.defaultValue,
+        }
+      : undefined;
+
     if (animatable.type === "number") {
       const numericDescriptor = descriptor as AnimatableNumber | undefined;
       if (numericDescriptor) {
@@ -558,6 +573,7 @@ function PropertyControls({
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
+        outputDefaults={outputDefaults}
         outputControls={outputControls}
       />
     );

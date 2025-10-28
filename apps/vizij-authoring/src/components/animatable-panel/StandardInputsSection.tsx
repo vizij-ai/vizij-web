@@ -760,6 +760,11 @@ export function StandardInputsSection({
                           : undefined
                       }
                       expandable={false}
+                      outputDefaults={{
+                        rangeMin: parentTarget.range.min,
+                        rangeMax: parentTarget.range.max,
+                        defaultValue: parentTarget.defaultValue,
+                      }}
                     />
                   </div>
                 )}
@@ -891,7 +896,7 @@ export function StandardInputsSection({
         />
         <h2 className="feature-panel__section-title">Controlling Inputs</h2>
       </header>
-      <p>
+      <p className="sidebar__description">
         This section contains the inputs used to control the graph. Inputs can
         be mapped to drive animatable values or be used with other inputs
       </p>

@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useId, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, StandardInputId } from "../types";
 
@@ -69,6 +69,8 @@ export function PoseEditor({
   onAddInput,
 }: PoseEditorProps) {
   const [pendingInput, setPendingInput] = useState<string>("");
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const controlsId = useId();
 
   const inputsById = useMemo(() => {
     return new Map(inputs.map((input) => [input.id, input]));
@@ -121,9 +123,21 @@ export function PoseEditor({
     return (
       <section className="pose-rig-panel pose-rig-panel--editor">
         <header className="pose-rig-panel__header">
-          <h3 className="pose-rig-panel__title">Pose Details</h3>
+          <div>
+            <h3 className="pose-rig-panel__title">Pose Details</h3>
+          </div>
+          <button
+            type="button"
+            className="pose-rig-panel__toggle feature-panel__section-toggle"
+            aria-expanded={false}
+            aria-controls={controlsId}
+            disabled
+            title="Toggle pose controls"
+          >
+            Toggle pose controls
+          </button>
         </header>
-        <div className="pose-rig-editor">
+        <div className="pose-rig-editor" id={controlsId}>
           <p className="pose-rig-empty">
             Select a saved pose to edit captured values.
           </p>
@@ -141,8 +155,27 @@ export function PoseEditor({
             Capture from the live rig or tweak channels manually.
           </p>
         </div>
+        <button
+          type="button"
+          className="pose-rig-panel__toggle feature-panel__section-toggle"
+          aria-expanded={!controlsCollapsed}
+          aria-controls={controlsId}
+          onClick={() => setControlsCollapsed((value) => !value)}
+          title={
+            controlsCollapsed
+              ? "Expand pose controls"
+              : "Collapse pose controls"
+          }
+        >
+          Toggle pose controls
+        </button>
       </header>
-      <div className="pose-rig-editor pose-rig-editor--form">
+      <div
+        className="pose-rig-editor pose-rig-editor--form"
+        id={controlsId}
+        hidden={controlsCollapsed}
+        aria-hidden={controlsCollapsed}
+      >
         <label className="field-label" htmlFor="pose-rig-name">
           Name
         </label>

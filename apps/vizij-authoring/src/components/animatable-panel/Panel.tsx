@@ -608,7 +608,7 @@ export function AnimatableValuesPanel({
           />
           <h2 className="feature-panel__section-title">Animatable Mapping</h2>
         </header>
-        <p>
+        <p className="sidebar__description">
           This section contains all animatable elements in the glb. You can
           specify the animatable value parameters and specify inputs to control
           them here. Click on elements or use the search bar to rapidly find the
