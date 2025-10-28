@@ -17,7 +17,7 @@ import {
 } from "../../rig/state";
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
-import { promptDialog } from "../../utils/dialogs";
+import { promptDialog, confirmDialog } from "../../utils/dialogs";
 import { extractStandardInputSubgroups } from "../../utils/standardInputs";
 
 interface InputUsage {
@@ -46,6 +46,7 @@ interface StandardInputsSectionProps {
   onInputValueChange: (inputId: string, value: number) => void;
   onCreateInput: () => void;
   onResetAllInputs: () => void;
+  onClearCachedState: () => void;
   onEnsureParentBinding: (inputId: string) => void;
   onLinkChildInput: (parentId: string, childId: string) => void;
   onUnlinkChildInput: (parentId: string, childId: string) => void;
@@ -113,6 +114,7 @@ export function StandardInputsSection({
   onInputValueChange,
   onCreateInput,
   onResetAllInputs,
+  onClearCachedState,
   onEnsureParentBinding,
   onLinkChildInput,
   onUnlinkChildInput,
@@ -291,6 +293,16 @@ export function StandardInputsSection({
     },
     [onSelectedSubgroupsChange, selectedSubgroupSet, selectedSubgroups],
   );
+
+  const handleClearCachedState = useCallback(() => {
+    if (
+      confirmDialog(
+        "Clear cached rig data for this asset? This removes saved inputs, bindings, and overrides.",
+      )
+    ) {
+      onClearCachedState();
+    }
+  }, [onClearCachedState]);
 
   const graphAlert = useMemo(() => {
     if (!graphStatusMessage) {
@@ -877,9 +889,12 @@ export function StandardInputsSection({
           aria-expanded={!isCollapsed}
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} standard inputs`}
         />
-        <h2 className="feature-panel__section-title">Standard Inputs</h2>
+        <h2 className="feature-panel__section-title">Controlling Inputs</h2>
       </header>
-
+      <p>
+        This section contains the inputs used to control the graph. Inputs can
+        be mapped to drive animatable values or be used with other inputs
+      </p>
       {!isCollapsed && (
         <div className="feature-panel__section-body">
           <div className="feature-panel__input-toolbar">
@@ -962,6 +977,13 @@ export function StandardInputsSection({
               className="feature-panel__input-action feature-panel__input-action--secondary"
             >
               Reset to defaults
+            </button>
+            <button
+              type="button"
+              onClick={handleClearCachedState}
+              className="feature-panel__input-action feature-panel__input-action--danger"
+            >
+              Clear cached rig
             </button>
             <button
               type="button"

@@ -541,6 +541,9 @@ export function buildRigGraphSpec({
     if (!input) {
       return null;
     }
+    const defaultValue = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
 
     const inputBindingRaw = inputBindings[inputId];
     if (inputBindingRaw) {
@@ -565,6 +568,7 @@ export function buildRigGraphSpec({
             type: "input",
             params: {
               path: buildRigInputPath(faceId, input.path),
+              value: { float: defaultValue },
             },
           });
           selfNodeId = sliderNodeId;
@@ -613,6 +617,7 @@ export function buildRigGraphSpec({
       type: "input",
       params: {
         path: buildRigInputPath(faceId, input.path),
+        value: { float: defaultValue },
       },
     });
     const record = { nodeId, input };

@@ -51,6 +51,7 @@ export function AnimatableValuesPanel({
   onRenameGroup,
   onCreateCustomStandardInput,
   onResetAllInputs,
+  onClearCachedState,
   onLinkChildInput,
   onUnlinkChildInput,
   onEnsureParentBinding,
@@ -74,6 +75,7 @@ export function AnimatableValuesPanel({
   const setStoreState = useVizijStoreSetter();
 
   const [rigCollapsed, setRigCollapsed] = useState(false);
+  const [mappingCollapsed, setMappingCollapsed] = useState(false);
 
   const componentsById = useMemo(
     () =>
@@ -575,6 +577,7 @@ export function AnimatableValuesPanel({
         onInputValueChange={onInputValueChange}
         onCreateInput={handleCreateInputClick}
         onResetAllInputs={onResetAllInputs}
+        onClearCachedState={onClearCachedState}
         onLinkChildInput={onLinkChildInput}
         onUnlinkChildInput={onUnlinkChildInput}
         onEnsureParentBinding={onEnsureParentBinding}
@@ -592,72 +595,104 @@ export function AnimatableValuesPanel({
         graphStatus={graphStatus}
         graphError={graphError}
       />
-      <div className="feature-panel__filters">
-        <input
-          type="search"
-          placeholder="Search features"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          spellCheck={false}
-        />
-        {searchTerm && (
+      <section className="feature-panel__section">
+        <header className="feature-panel__section-header">
           <button
             type="button"
-            className="feature-panel__clear-btn"
-            onClick={() => setSearchTerm("")}
-          >
-            Clear
-          </button>
+            className="feature-panel__section-toggle"
+            onClick={() => setMappingCollapsed((prev) => !prev)}
+            aria-expanded={!mappingCollapsed}
+            aria-label={`${
+              mappingCollapsed ? "Expand" : "Collapse"
+            } animatable mapping`}
+          />
+          <h2 className="feature-panel__section-title">Animatable Mapping</h2>
+        </header>
+        <p>
+          This section contains all animatable elements in the glb. You can
+          specify the animatable value parameters and specify inputs to control
+          them here. Click on elements or use the search bar to rapidly find the
+          element you are looking for.
+        </p>
+        {!mappingCollapsed && (
+          <div className="feature-panel__section-body">
+            <section className="feature-panel__subsection feature-panel__subsection--search">
+              <div className="feature-panel__subsection-header">
+                <h3 className="feature-panel__subsection-title">Search</h3>
+              </div>
+              <div className="feature-panel__filters">
+                <input
+                  type="search"
+                  placeholder="Search features"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  spellCheck={false}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="feature-panel__clear-btn"
+                    onClick={() => setSearchTerm("")}
+                  >
+                    Clear
+                  </button>
+                )}
+                {selectionStack.length > 0 && (
+                  <button
+                    type="button"
+                    className="feature-panel__filter-chip feature-panel__filter-chip--dismiss"
+                    onClick={onClearSelection}
+                    aria-label="Clear layered element selection"
+                  >
+                    {selectionStack.length} layered element
+                    {selectionStack.length === 1 ? "" : "s"}
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
+              </div>
+              <SelectionStack
+                selectionStack={selectionStack}
+                world={world}
+                onFocusSelectionIndex={onFocusSelectionIndex}
+              />
+            </section>
+
+            <section className="feature-panel__subsection feature-panel__subsection--features">
+              <div className="sidebar__panel-header feature-panel__features-header">
+                <h3 className="sidebar__panel-title">Features</h3>
+                <span className="sidebar__badge">{filteredFeatureCount}</span>
+              </div>
+              <AnimatableTree
+                shapes={visibleShapes}
+                treeState={treeState}
+                componentsById={componentsById}
+                bindings={bindings}
+                bindingIssues={bindingIssues}
+                standardInputs={standardInputs}
+                standardInputLookup={standardInputLookup}
+                inputValues={inputValues}
+                inputRanges={effectiveInputRanges}
+                onInputValueChange={onInputValueChange}
+                onBindingInputChange={onBindingInputChange}
+                onBindingRemapChange={onBindingRemapChange}
+                onResetBinding={onResetBinding}
+                onRequestCreateStandardInput={requestCreateStandardInput}
+                onAddBindingSlot={onAddBindingSlot}
+                onRemoveBindingSlot={onRemoveBindingSlot}
+                onBindingExpressionChange={onBindingExpressionChange}
+                onBindingSlotAliasChange={onBindingSlotAliasChange}
+                onFeatureLabelChange={handleFeatureLabelChange}
+                onToggleAnimated={handleAnimatedToggle}
+                onNameChange={handleNameChange}
+                onLabelChange={handleLabelChange}
+                onDefaultChange={handleDefaultUpdate}
+                onConstraintChange={handleConstraintUpdate}
+                onStaticUpdate={updateStaticFeature}
+              />
+            </section>
+          </div>
         )}
-        {selectionStack.length > 0 && (
-          <button
-            type="button"
-            className="feature-panel__filter-chip feature-panel__filter-chip--dismiss"
-            onClick={onClearSelection}
-            aria-label="Clear layered element selection"
-          >
-            {selectionStack.length} layered element
-            {selectionStack.length === 1 ? "" : "s"}
-            <span aria-hidden="true">×</span>
-          </button>
-        )}
-      </div>
-      <SelectionStack
-        selectionStack={selectionStack}
-        world={world}
-        onFocusSelectionIndex={onFocusSelectionIndex}
-      />
-      <div className="sidebar__panel-header">
-        <h2 className="sidebar__panel-title">Features</h2>
-        <span className="sidebar__badge">{filteredFeatureCount}</span>
-      </div>
-      <AnimatableTree
-        shapes={visibleShapes}
-        treeState={treeState}
-        componentsById={componentsById}
-        bindings={bindings}
-        bindingIssues={bindingIssues}
-        standardInputs={standardInputs}
-        standardInputLookup={standardInputLookup}
-        inputValues={inputValues}
-        inputRanges={effectiveInputRanges}
-        onInputValueChange={onInputValueChange}
-        onBindingInputChange={onBindingInputChange}
-        onBindingRemapChange={onBindingRemapChange}
-        onResetBinding={onResetBinding}
-        onRequestCreateStandardInput={requestCreateStandardInput}
-        onAddBindingSlot={onAddBindingSlot}
-        onRemoveBindingSlot={onRemoveBindingSlot}
-        onBindingExpressionChange={onBindingExpressionChange}
-        onBindingSlotAliasChange={onBindingSlotAliasChange}
-        onFeatureLabelChange={handleFeatureLabelChange}
-        onToggleAnimated={handleAnimatedToggle}
-        onNameChange={handleNameChange}
-        onLabelChange={handleLabelChange}
-        onDefaultChange={handleDefaultUpdate}
-        onConstraintChange={handleConstraintUpdate}
-        onStaticUpdate={updateStaticFeature}
-      />
+      </section>
     </div>
   );
 }

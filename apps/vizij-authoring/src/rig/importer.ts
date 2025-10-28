@@ -15,6 +15,10 @@ import {
 import {
   createStandardRigInput,
   cloneRemapSettings,
+  deriveGroupFromNormalizedPath,
+  normalizeStandardRigInputPath,
+  STANDARD_RIG_INPUTS,
+  stripStandardInputPathPrefix,
   type AnimatableComponent,
   type AnimatableValue,
   type StandardRigInput,
@@ -44,6 +48,50 @@ export interface RehydratedRigData {
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
+}
+
+const PRESET_STANDARD_INPUT_IDS = new Set(
+  STANDARD_RIG_INPUTS.map((input) => input.id),
+);
+
+function resolveImportedInputGroup(
+  descriptor: VizijGraphMetadataInput,
+  normalizedPath: string,
+): string {
+  if (PRESET_STANDARD_INPUT_IDS.has(descriptor.id)) {
+    if (descriptor.group && descriptor.group.length > 0) {
+      return descriptor.group;
+    }
+    const derivedStandardGroup = deriveGroupFromNormalizedPath(normalizedPath);
+    return derivedStandardGroup && derivedStandardGroup.length > 0
+      ? derivedStandardGroup
+      : "standard";
+  }
+  const derivedGroup = deriveGroupFromNormalizedPath(normalizedPath);
+  if (descriptor.group && descriptor.group.length > 0) {
+    if (
+      descriptor.group === "standard" &&
+      derivedGroup &&
+      derivedGroup !== "standard"
+    ) {
+      return derivedGroup;
+    }
+    return descriptor.group;
+  }
+  if (derivedGroup && derivedGroup.length > 0) {
+    return derivedGroup;
+  }
+  return "custom";
+}
+
+function normalizeImportedInputPath(
+  descriptor: VizijGraphMetadataInput,
+): string {
+  const normalized = normalizeStandardRigInputPath(descriptor.path);
+  if (PRESET_STANDARD_INPUT_IDS.has(descriptor.id)) {
+    return normalized;
+  }
+  return stripStandardInputPathPrefix(normalized);
 }
 
 function coerceExpression(value: string | null | undefined, fallback: string) {
@@ -203,19 +251,21 @@ export function rehydrateRigDataFromGraph(
     );
   }
 
-  const standardInputs = vizij.inputs.map((input) =>
-    createStandardRigInput({
+  const standardInputs = vizij.inputs.map((input) => {
+    const normalizedPath = normalizeImportedInputPath(input);
+    const group = resolveImportedInputGroup(input, normalizedPath);
+    return createStandardRigInput({
       id: input.id,
-      path: input.path,
+      path: normalizedPath,
       label: input.label,
-      group: input.group,
+      group,
       defaultValue: input.defaultValue,
       range: {
         min: input.range.min,
         max: input.range.max,
       },
-    }),
-  );
+    });
+  });
 
   const standardInputsById = new Map(
     standardInputs.map((input) => [input.id, input]),

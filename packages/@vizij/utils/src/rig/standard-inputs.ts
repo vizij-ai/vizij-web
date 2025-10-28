@@ -207,6 +207,17 @@ export function deriveGroupFromNormalizedPath(normalizedPath: string): string {
   return first || "custom";
 }
 
+export function stripStandardInputPathPrefix(path: string): string {
+  const normalized = normalizeStandardRigInputPath(path);
+  if (normalized === "/standard") {
+    return "/custom/input";
+  }
+  if (normalized.startsWith("/standard/")) {
+    return normalizeStandardRigInputPath(normalized.slice("/standard".length));
+  }
+  return normalized;
+}
+
 export function createStandardRigInputFromPath(path: string): StandardRigInput {
   const normalized = normalizeStandardRigInputPath(path);
   const label = deriveLabelFromNormalizedPath(normalized);

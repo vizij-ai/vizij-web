@@ -112,6 +112,7 @@ export interface AnimatableValuesPanelProps {
   onRenameGroup(sourceGroup: string, nextGroup: string): void;
   onCreateCustomStandardInput(path: string): StandardRigInput | null;
   onResetAllInputs(): void;
+  onClearCachedState(): void;
   onLinkChildInput(parentId: string, childId: string): void;
   onUnlinkChildInput(parentId: string, childId: string): void;
   onEnsureParentBinding(inputId: string): void;

@@ -71,6 +71,7 @@ export default function App() {
     handleInputValueChange,
     applyStandardInputBatch,
     handleResetAllInputValues,
+    handleClearCachedState,
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,
@@ -368,8 +369,10 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <header className="sidebar__header">
-          <h1>Vizij Renderer</h1>
-          <p>Load a Vizij GLB, explore its structure, and export it again.</p>
+          <h1>Vizij Rig Authoring</h1>
+          <h3>**Pre-Pre-Pre-Alpha Demo**</h3>
+          <p>Load a GLB, rig a structure, pose it, and export it.</p>
+          <p>UI and workflow improvements coming soon.</p>
         </header>
 
         <AssetLoaderPanel
@@ -458,6 +461,7 @@ export default function App() {
           onRenameGroup={handleRenameGroup}
           onCreateCustomStandardInput={handleCreateCustomStandardInput}
           onResetAllInputs={handleResetAllInputValues}
+          onClearCachedState={handleClearCachedState}
           onLinkChildInput={handleLinkChildInput}
           onUnlinkChildInput={handleUnlinkChildInput}
           onEnsureParentBinding={handleEnsureParentBinding}

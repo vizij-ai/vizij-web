@@ -52,7 +52,8 @@ import {
   deriveStandardRigInputIdFromPath,
   normalizeStandardRigInputPath,
   normalizeStandardRigGroup,
-  applyStandardInputPathPrefix,
+  STANDARD_RIG_INPUTS,
+  stripStandardInputPathPrefix,
   LEGACY_STANDARD_RIG_INPUT_IDS,
   type RigBindingDefinition,
   type StandardRigInput,
@@ -60,6 +61,7 @@ import {
 import {
   loadRigState,
   saveRigState,
+  deleteRigState,
   type PersistedAutoStandardInput,
 } from "../rig/persistence";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
@@ -81,6 +83,10 @@ import {
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import { rehydrateRigDataFromGraph } from "../rig/importer";
 import { extractStandardInputSubgroups } from "../utils/standardInputs";
+
+const STANDARD_BLUEPRINT_PATHS = new Set(
+  STANDARD_RIG_INPUTS.map((input) => normalizeStandardRigInputPath(input.path)),
+);
 
 function convertValueJSONToRaw(
   animatable: AnimatableValue | undefined,
@@ -350,6 +356,7 @@ export interface RigController {
   inputRanges: Map<string, { min: number; max: number }>;
   handleInputValueChange: (inputId: string, value: number) => void;
   handleResetAllInputValues: () => void;
+  handleClearCachedState: () => void;
   handleBindingInputChange: (
     targetId: string,
     inputId: string | null,
@@ -534,7 +541,7 @@ export function useRigController({
     inputBindingsRef.current = inputBindings;
   }, [inputBindings]);
 
-  useEffect(() => {
+  const rebuildAutoInputs = useCallback(() => {
     setAutoInputs((previous) => {
       const next = new Map<string, AutoInputState>();
       const persisted = persistedAutoInputsRef.current;
@@ -653,6 +660,10 @@ export function useRigController({
       return next;
     });
   }, [autoBlueprints]);
+
+  useEffect(() => {
+    rebuildAutoInputs();
+  }, [autoBlueprints, rebuildAutoInputs]);
 
   const derivedChildrenMap = useMemo(() => {
     const working = new Map<string, Set<string>>();
@@ -1129,6 +1140,28 @@ export function useRigController({
       return defaults;
     });
   }, [managedStandardInputs]);
+
+  const handleClearCachedState = useCallback(() => {
+    if (!faceId) {
+      return;
+    }
+    deleteRigState(faceId);
+    persistedAutoInputsRef.current = new Map();
+    pendingInputBindingDefinitionsRef.current = null;
+    skipPersistRef.current = true;
+    setCustomInputs([]);
+    setAutoInputs(new Map());
+    setInputBindings({});
+    setBindings(createDefaultBindings(animatableComponents));
+    setInputValues({});
+    setSelectedStandardInputRoots([]);
+    setSelectedStandardInputSubgroups([]);
+    setFeatureLabelOverrides({});
+    setTimeout(() => {
+      skipPersistRef.current = false;
+      rebuildAutoInputs();
+    }, 0);
+  }, [animatableComponents, faceId, rebuildAutoInputs]);
 
   const handleSelectStandardInputRoots = useCallback(
     (nextRoots: string[]) => {
@@ -2502,31 +2535,55 @@ export function useRigController({
             return;
           }
           const descriptor = entry as PersistedAutoStandardInput;
-          const normalizedSourcePath = applyStandardInputPathPrefix(
-            normalizeStandardRigInputPath(
-              descriptor.sourcePath ?? descriptor.path,
-            ),
+          const rawSourcePath = descriptor.sourcePath ?? descriptor.path;
+          const normalizedSourcePath = normalizeStandardRigInputPath(
+            rawSourcePath ?? "/custom/input",
           );
-          const normalizedPath = applyStandardInputPathPrefix(
-            normalizeStandardRigInputPath(
-              descriptor.path ?? descriptor.sourcePath ?? "/custom/input",
-            ),
-          );
-          const canonicalId = createStandardRigInputFromPath(normalizedPath).id;
+          const isPresetBlueprint =
+            STANDARD_BLUEPRINT_PATHS.has(normalizedSourcePath);
+          const canonicalSourcePath = isPresetBlueprint
+            ? normalizedSourcePath
+            : stripStandardInputPathPrefix(normalizedSourcePath);
+          const rawPath =
+            descriptor.path ?? descriptor.sourcePath ?? "/custom/input";
+          const normalizedPath = normalizeStandardRigInputPath(rawPath);
+          const canonicalPath = isPresetBlueprint
+            ? normalizedPath
+            : stripStandardInputPathPrefix(normalizedPath);
+          const canonicalId = createStandardRigInputFromPath(canonicalPath).id;
           const remappedDescriptorId = descriptor.id
             ? remapStandardInputIdValue(descriptor.id)
             : null;
           const resolvedId = remappedDescriptorId ?? canonicalId;
           if (descriptor.id && resolvedId && descriptor.id !== resolvedId) {
             idMismatches.push(
-              `${descriptor.id} → ${resolvedId} (${normalizedPath})`,
+              `${descriptor.id} → ${resolvedId} (${canonicalPath})`,
             );
           }
-          autoEntries.set(normalizedSourcePath, {
+          const derivedGroup = deriveGroupFromNormalizedPath(canonicalPath);
+          let resolvedGroup: string;
+          if (isPresetBlueprint) {
+            resolvedGroup =
+              descriptor.group && descriptor.group.length > 0
+                ? descriptor.group
+                : "standard";
+          } else if (descriptor.group && descriptor.group !== "standard") {
+            resolvedGroup = descriptor.group;
+          } else if (derivedGroup && derivedGroup !== "standard") {
+            resolvedGroup = derivedGroup;
+          } else {
+            const fallback =
+              descriptor.group && descriptor.group.length > 0
+                ? descriptor.group
+                : derivedGroup;
+            resolvedGroup =
+              !fallback || fallback === "standard" ? "custom" : fallback;
+          }
+          autoEntries.set(canonicalSourcePath, {
             id: resolvedId,
-            path: normalizedPath,
-            sourcePath: normalizedSourcePath,
-            group: descriptor.group,
+            path: canonicalPath,
+            sourcePath: canonicalSourcePath,
+            group: resolvedGroup,
             label: descriptor.label,
             defaultValue: descriptor.defaultValue,
             range: descriptor.range,
@@ -2946,6 +3003,7 @@ export function useRigController({
     handleInputValueChange,
     applyStandardInputBatch,
     handleResetAllInputValues,
+    handleClearCachedState,
     handleBindingInputChange,
     handleBindingRemapChange,
     handleResetBinding,

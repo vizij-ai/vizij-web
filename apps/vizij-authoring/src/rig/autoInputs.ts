@@ -1,7 +1,7 @@
 import {
   createStandardRigInput,
   deriveLabelFromNormalizedPath,
-  applyStandardInputPathPrefix,
+  normalizeStandardRigInputPath,
   normalizeStandardRigGroup,
   STANDARD_RIG_INPUTS,
 } from "@vizij/utils";
@@ -125,8 +125,10 @@ function createBlueprintFromComponent(
   const featureSegment = toFeaturePathSegment(entry);
   const propertySegment = toPropertyPathSegment(propertyKey);
   const basePath = `/${shapeSegment}/${featureSegment}/${propertySegment}`;
-  const prefixedPath = applyStandardInputPathPrefix(basePath);
-  const normalizedPath = ensureUniquePath(prefixedPath, registry);
+  const normalizedPath = ensureUniquePath(
+    normalizeStandardRigInputPath(basePath),
+    registry,
+  );
   const label = deriveLabelFromNormalizedPath(normalizedPath);
   const input = createStandardRigInput({
     path: normalizedPath,
@@ -181,16 +183,17 @@ export function buildAutoRigInputBlueprints(
   const rootSet = new Set<string>();
 
   STANDARD_RIG_INPUTS.forEach((standardInput) => {
-    const normalizedPath = applyStandardInputPathPrefix(standardInput.path);
+    const normalizedPath = normalizeStandardRigInputPath(standardInput.path);
     if (registry.has(normalizedPath)) {
       return;
     }
     registry.add(normalizedPath);
+    const canonicalGroup = standardInput.group;
     const clonedInput = createStandardRigInput({
       id: standardInput.id,
       path: normalizedPath,
       label: standardInput.label,
-      group: standardInput.group,
+      group: "standard",
       defaultValue: standardInput.defaultValue,
       range: {
         min: standardInput.range.min,
@@ -199,7 +202,7 @@ export function buildAutoRigInputBlueprints(
       parentBinding: standardInput.parentBinding ?? undefined,
       derivedChildren: standardInput.derivedChildren ?? undefined,
     });
-    const groupLabel = deriveLabelFromNormalizedPath(`/${standardInput.group}`);
+    const groupLabel = deriveLabelFromNormalizedPath(`/${canonicalGroup}`);
     blueprints.push({
       path: normalizedPath,
       input: clonedInput,
@@ -213,10 +216,10 @@ export function buildAutoRigInputBlueprints(
         componentId: "",
         componentKey: undefined,
         propertyLabel: standardInput.label,
-        root: clonedInput.group ?? "custom",
+        root: "standard",
       },
     });
-    rootSet.add(clonedInput.group ?? "custom");
+    rootSet.add("standard");
   });
 
   featureEntries.forEach((entry) => {

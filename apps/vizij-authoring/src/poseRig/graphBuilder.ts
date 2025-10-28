@@ -47,7 +47,12 @@ function getNeutralValue(
   input: StandardRigInput,
   neutralInputs: Record<StandardInputId, number>,
 ): number {
-  return neutralInputs[input.id] ?? 0;
+  const stored = neutralInputs[input.id];
+  if (stored !== undefined) {
+    return stored;
+  }
+  const fallback = Number.isFinite(input.defaultValue) ? input.defaultValue : 0;
+  return fallback;
 }
 
 function clampValueForInput(input: StandardRigInput, value: number): number {

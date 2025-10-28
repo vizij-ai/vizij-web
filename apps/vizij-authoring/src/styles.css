@@ -712,7 +712,7 @@ button.danger:hover:not(:disabled),
 }
 
 .feature-panel__filters {
-  margin-top: 1.5rem;
+  margin-top: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1696,6 +1696,62 @@ button.danger:hover:not(:disabled),
 .feature-panel__section-toggle:hover {
   border-color: #4f5d78;
   background: rgba(60, 72, 99, 0.25);
+}
+
+.feature-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feature-panel__section + .feature-panel__section {
+  margin-top: 1.25rem;
+}
+
+.feature-panel__section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.feature-panel__section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.feature-panel__section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.feature-panel__subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feature-panel__subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feature-panel__subsection-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.feature-panel__subsection--search .feature-panel__filters {
+  margin-top: 0.25rem;
+}
+
+.feature-panel__features-header {
+  margin-top: 0.25rem;
 }
 
 .feature-panel__input-toggle {

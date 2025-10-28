@@ -37,7 +37,7 @@ export function AssetLoaderPanel({
     <section className="sidebar__section">
       <div className="sidebar__panel">
         <div className="sidebar__panel-header">
-          <h2 className="sidebar__panel-title">Load a Vizij</h2>
+          <h2 className="sidebar__panel-title">Load You Face</h2>
         </div>
         <label className="sidebar__label" htmlFor="vizij-file">
           Choose a local .glb file
@@ -49,24 +49,26 @@ export function AssetLoaderPanel({
           onChange={handleFileChange}
           disabled={isLoading}
         />
-        <form className="sidebar__form" onSubmit={handleSubmit}>
-          <label className="sidebar__label" htmlFor="vizij-url">
-            Or load from URL
-          </label>
-          <div className="sidebar__form-row">
-            <input
-              id="vizij-url"
-              type="url"
-              placeholder="https://example.com/robot.glb"
-              value={assetUrl}
-              onChange={(event) => onAssetUrlChange(event.target.value)}
-              disabled={isLoading}
-            />
-            <button type="submit" disabled={isLoading}>
-              Load
-            </button>
-          </div>
-        </form>
+        {error && (
+          <form className="sidebar__form" onSubmit={handleSubmit}>
+            <label className="sidebar__label" htmlFor="vizij-url">
+              Or load from URL
+            </label>
+            <div className="sidebar__form-row">
+              <input
+                id="vizij-url"
+                type="url"
+                placeholder="https://example.com/robot.glb"
+                value={assetUrl}
+                onChange={(event) => onAssetUrlChange(event.target.value)}
+                disabled={isLoading}
+              />
+              <button type="submit" disabled={isLoading}>
+                Load
+              </button>
+            </div>
+          </form>
+        )}
         {error && (
           <div>
             <p className="sidebar__hint">{error}</p>
