@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
+import { useEffect, useRef, type RefObject } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 
 const STANDARD_PATHS = {
   leftX: "standard/left_eye/pos/x",
@@ -12,11 +12,9 @@ function clamp(value: number, min = -1, max = 1) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function useMouseGaze(
-  faceId: string,
-  enabled: boolean,
-): React.RefObject<HTMLDivElement> {
-  const { setInput } = useOrchestrator();
+export function useMouseGaze(enabled: boolean): RefObject<HTMLDivElement> {
+  const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
+  const faceId = (runtimeFaceId ?? "face").toLowerCase();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

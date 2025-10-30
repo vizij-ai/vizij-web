@@ -131,8 +131,8 @@ export default function App() {
 
   useEffect(() => {
     const slug = faceSlug(faceId);
-    const defaultGraphName = `${slug}_rig.json`;
-    const defaultGlbName = `${slug}_vizij.glb`;
+    const defaultGraphName = `rig.graph.json`;
+    const defaultGlbName = `face.glb`;
 
     if (prevFaceIdRef.current !== faceId) {
       prevFaceIdRef.current = faceId;

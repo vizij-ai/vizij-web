@@ -1,46 +1,37 @@
-# Tutorial: Build a Fullscreen Vizij Face App (Standalone)
+# Tutorial: Vizij Runtime React Quickstart
 
-## Overview
+This guide shows how to stand up a fullscreen Vizij face using the **new `@vizij/runtime-react` package**. The runtime bundles the renderer, orchestrator, asset loading, graph merging, and value bridging so you only have to define an asset bundle and render a component.
 
-This guide walks through recreating the `fullscreen-face` experience from the `vizij-web` monorepo inside a fresh React project of your own. You will wire Vizij’s renderer, orchestrator, pose hotkeys, and mouse gaze without depending on the monorepo tooling.
+---
 
-The steps below reflect the latest fixes in the demo app:
+## 1. Prerequisites
 
-- The pose and rig graphs are registered as a single merged controller so pose blends feed the low-level rig immediately.
-- Neutral inputs are staged **once** at startup (or when the orchestrator reconnects) instead of being reapplied every frame.
+- Node.js ≥ 18
+- React + TypeScript project (Vite, CRA, Next, etc.)
+- Vizij export bundle:
+  - `face.glb` – renderer asset
+  - `rig.graph.json` – low-level rig graph
+  - `pose-rig.graph.json` – pose controller
+  - `pose-rig.config.json` – pose metadata (neutral defaults + preset definitions)
 
-## Prerequisites
+> The tutorial demo stores these files under `src/assets/`. Adjust paths to match your project layout.
 
-- Node.js 18+ and npm (or pnpm/yarn)
-- A basic React + TypeScript project (Vite, CRA, or similar)
-- Vizij asset bundle exported from Vizij Studio or the authoring demos:
-  - `face.glb` (renderer asset)
-  - `rig.graph.json` (low-level rig)
-  - `pose-rig.graph.json` (pose graph)
-  - `pose-rig.config.json` (pose metadata and neutral defaults)
+---
 
-> `@vizij/render` expects `three` as a peer dependency, so install it alongside the Vizij packages.
-
-### Install Vizij packages
+## 2. Install dependencies
 
 ```bash
-npm install react react-dom three
-npm install @vizij/render @vizij/orchestrator-react @vizij/value-json @vizij/utils
+pnpm add react react-dom three
+pnpm add @vizij/runtime-react @vizij/render @vizij/utils
 ```
 
-All subsequent examples live under `src/`.
+`@vizij/runtime-react` reuses `@vizij/render`, `@vizij/orchestrator-react`, and `@vizij/value-json` internally, so you don’t have to install them separately unless other parts of your app need them.
 
-## 1. Project bootstrap
+---
 
-Start from any React setup. For example, with Vite:
+## 3. Define the asset bundle
 
-```bash
-npm create vite@latest vizij-face -- --template react-ts
-cd vizij-face
-npm install
-```
-
-Create `src/assets/` and drop your Vizij files there. Add a helper index so imports stay tidy:
+Create an index alongside your exported files so the bundle stays declarative and type-safe.
 
 ```ts
 // src/assets/index.ts
@@ -49,733 +40,274 @@ import rigGraph from "./rig.graph.json";
 import poseRigGraph from "./pose-rig.graph.json";
 import poseRigConfig from "./pose-rig.config.json";
 
-export type PoseDefinition = {
-  id: string;
-  name?: string;
-  description?: string;
-  values: Record<string, number | undefined>;
-};
+import type { VizijAssetBundle } from "@vizij/runtime-react";
 
-export type PoseRigConfig = {
-  version: number;
-  faceId?: string;
-  neutralInputs: Record<string, number>;
-  poses: PoseDefinition[];
-};
+export const FACE_ID = (poseRigConfig.faceId ?? "face").toLowerCase();
 
-export const faceAssetUrl = faceGlb;
-export const rigGraphSpec = rigGraph;
-export const poseRigGraphSpec = poseRigGraph;
-export const poseRigConfiguration = poseRigConfig as PoseRigConfig;
-```
-
-> Vite handles JSON/GLB imports by default. If you use another bundler, configure loaders accordingly.
-
-## 2. Bridge orchestrator writes into the renderer
-
-`@vizij/orchestrator-react` exposes `useOrchFrame` so you can inspect each merged frame. The helper below converts values to shapes the Vizij renderer accepts and writes them through the store.
-
-```tsx
-// src/orchestrator/RenderBridge.tsx
-import { useEffect, useMemo } from "react";
-import { useVizijStore } from "@vizij/render";
-import { useOrchFrame, type ValueJSON } from "@vizij/orchestrator-react";
-import {
-  isNormalizedValue,
-  valueAsBool,
-  valueAsColorRgba,
-  valueAsNumber,
-  valueAsTransform,
-  valueAsVector,
-} from "@vizij/value-json";
-import type { RawValue } from "@vizij/utils";
-
-function asRaw(value: ValueJSON | undefined): RawValue | undefined {
-  if (value == null) return undefined;
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
-    return value as unknown as RawValue;
-  }
-  if (Array.isArray(value)) {
-    return value.map((entry) => asRaw(entry as ValueJSON)) as unknown as RawValue;
-  }
-  if (typeof value === "object" && !("type" in value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, asRaw(entry as ValueJSON)]),
-    ) as unknown as RawValue;
-  }
-  if (!isNormalizedValue(value)) return undefined;
-
-  switch (value.type) {
-    case "float":
-      return valueAsNumber(value) as RawValue;
-    case "bool":
-      return valueAsBool(value) as RawValue;
-    case "vector":
-    case "vec2":
-    case "vec3":
-    case "vec4":
-    case "quat": {
-      const vec = valueAsVector(value);
-      return vec ? [...vec] as unknown as RawValue : undefined;
-    }
-    case "colorrgba": {
-      const color = valueAsColorRgba(value);
-      return color ? { r: color[0], g: color[1], b: color[2], a: color[3] } as RawValue : undefined;
-    }
-    case "transform": {
-      const transform = valueAsTransform(value);
-      if (!transform) return undefined;
-      return {
-        translation: [...transform.translation],
-        rotation: [...transform.rotation],
-        scale: [...transform.scale],
-      } as unknown as RawValue;
-    }
-    case "record": {
-      return Object.fromEntries(
-        Object.entries(value.data ?? {}).map(([key, entry]) => [key, asRaw(entry)]),
-      ) as unknown as RawValue;
-    }
-    case "enum": {
-      const [tag, payload] = value.data;
-      return { tag, value: asRaw(payload) } as unknown as RawValue;
-    }
-    default:
-      return undefined;
-  }
-}
-
-export function RenderBridge({
-  namespace,
-  outputPaths,
-  enabled,
-}: {
-  namespace: string;
-  outputPaths: string[];
-  enabled: boolean;
-}) {
-  const frame = useOrchFrame();
-  const setValue = useVizijStore((state) => state.setValue);
-  const allow = useMemo(() => new Set(outputPaths), [outputPaths]);
-
-  useEffect(() => {
-    if (!enabled || !frame || allow.size === 0) return;
-
-    for (const write of frame.merged_writes ?? []) {
-      const path = write.path.startsWith("debug/") ? write.path.slice("debug/".length) : write.path;
-      if (!allow.has(path)) continue;
-      const raw = asRaw(write.value);
-      if (raw === undefined) continue;
-      setValue(path, namespace, raw);
-    }
-  }, [allow, enabled, frame, namespace, setValue]);
-
-  return null;
-}
-```
-
-## 3. Bootstrap and merge rig graphs
-
-The latest fullscreen demo creates a **merged graph** that includes the low-level rig and the pose bridge. This ensures pose outputs reach the rig every frame.
-
-```tsx
-// src/orchestrator/useRigBootstrap.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  useOrchestrator,
-  type GraphRegistrationConfig,
-} from "@vizij/orchestrator-react";
-
-import {
-  rigGraphSpec,
-  poseRigGraphSpec,
-  poseRigConfiguration,
-  type PoseRigConfig,
-} from "../assets";
-
-type GraphLike = {
-  nodes?: Array<{
-    id?: string;
-    type?: string;
-    params?: { path?: string };
-  }>;
-};
-
-function collectOutputPaths(spec: GraphLike): string[] {
-  const paths = new Set<string>();
-  (spec.nodes ?? []).forEach((node) => {
-    if (String(node?.type ?? "").toLowerCase() !== "output") return;
-    const path = node?.params?.path;
-    if (typeof path === "string" && path.trim()) {
-      paths.add(path.trim());
-    }
-  });
-  return Array.from(paths);
-}
-
-function collectInputPaths(spec: GraphLike): string[] {
-  const paths = new Set<string>();
-  (spec.nodes ?? []).forEach((node) => {
-    if (String(node?.type ?? "").toLowerCase() !== "input") return;
-    const path = node?.params?.path;
-    if (typeof path === "string" && path.trim()) {
-      paths.add(path.trim());
-    }
-  });
-  return Array.from(paths);
-}
-
-function collectInputPathMap(spec: GraphLike): Record<string, string> {
-  const map: Record<string, string> = {};
-  (spec.nodes ?? []).forEach((node) => {
-    if (String(node?.type ?? "").toLowerCase() !== "input") return;
-    const path = node?.params?.path;
-    if (typeof path !== "string" || !path.trim()) return;
-    const id = String(node?.id ?? "");
-    if (id.startsWith("input_")) {
-      map[id.slice("input_".length)] = path.trim();
-    } else {
-      map[id] = path.trim();
-    }
-  });
-  return map;
-}
-
-export function useRigBootstrap(faceId: string) {
-  const {
-    ready,
-    createOrchestrator,
-    registerMergedGraph,
-    removeGraph,
-    setInput,
-    normalizeGraphSpec,
-  } = useOrchestrator();
-  const [error, setError] = useState<string | null>(null);
-  const mergedRef = useRef<string | null>(null);
-  const stagedNeutralRef = useRef(false);
-
-  useEffect(() => {
-    if (ready) return;
-    let cancelled = false;
-    createOrchestrator({ schedule: "SinglePass" }).catch((err) => {
-      if (!cancelled) {
-        const message =
-          err instanceof Error ? err.message : "Failed to create orchestrator.";
-        setError(message);
-        console.error("[vizij-face] orchestrator: create failed", err);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [createOrchestrator, ready]);
-
-  const rigOutputs = useMemo(() => collectOutputPaths(rigGraphSpec as GraphLike), []);
-  const poseOutputs = useMemo(
-    () => collectOutputPaths(poseRigGraphSpec as GraphLike),
-    [],
-  );
-  const poseInputs = useMemo(
-    () => collectInputPaths(poseRigGraphSpec as GraphLike),
-    [],
-  );
-  const rigInputMap = useMemo(
-    () => collectInputPathMap(rigGraphSpec as GraphLike),
-    [],
-  );
-
-  const stageNeutralInputs = useCallback(
-    (force = false) => {
-      if (stagedNeutralRef.current && !force) {
-        return;
-      }
-      const staged = new Set<string>();
-
-      Object.entries(poseRigConfiguration.neutralInputs ?? {}).forEach(
-        ([id, rawValue]) => {
-          const path = rigInputMap[id];
-          if (!path) {
-            console.warn("[vizij-face] neutral input missing path", id);
-            return;
-          }
-          const numeric =
-            typeof rawValue === "number" && Number.isFinite(rawValue)
-              ? rawValue
-              : 0;
-          setInput(path, { float: numeric });
-          staged.add(path);
-        },
-      );
-
-      Object.values(rigInputMap).forEach((path) => {
-        if (!staged.has(path)) {
-          setInput(path, { float: 0 });
-        }
-      });
-
-      stagedNeutralRef.current = true;
+export const fullscreenFaceBundle: VizijAssetBundle = {
+  namespace: "fullscreen-face",
+  faceId: FACE_ID,
+  glb: {
+    kind: "url",
+    src: faceGlb,
+    aggressiveImport: true,
+  },
+  rig: {
+    id: `rig:${FACE_ID}`,
+    spec: rigGraph,
+  },
+  pose: {
+    graph: {
+      id: `pose:${FACE_ID}`,
+      spec: poseRigGraph,
     },
-    [rigInputMap, setInput],
-  );
-
-  useEffect(() => {
-    if (!ready || mergedRef.current) {
-      return;
-    }
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const rigSpec =
-          typeof normalizeGraphSpec === "function"
-            ? await normalizeGraphSpec(rigGraphSpec as Record<string, unknown>)
-            : rigGraphSpec;
-        const poseSpec =
-          typeof normalizeGraphSpec === "function"
-            ? await normalizeGraphSpec(
-                poseRigGraphSpec as Record<string, unknown>,
-              )
-            : poseRigGraphSpec;
-
-        const mergedId = await registerMergedGraph({
-          id: `merged:${faceId}`,
-          graphs: [
-            {
-              id: `rig:${faceId}`,
-              spec: rigSpec as GraphRegistrationConfig["spec"],
-              subs: { outputs: rigOutputs },
-            },
-            {
-              id: `pose:${faceId}`,
-              spec: poseSpec as GraphRegistrationConfig["spec"],
-              subs: {
-                inputs: poseInputs,
-                outputs: poseOutputs,
-              },
-            },
-          ],
-          strategy: {
-            outputs: "add",
-            intermediate: "add",
-          },
-        });
-
-        if (cancelled) {
-          removeGraph(mergedId);
-          return;
-        }
-
-        mergedRef.current = mergedId;
-        stagedNeutralRef.current = false;
-        stageNeutralInputs();
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
-        const message =
-          err instanceof Error ? err.message : "Failed to register rig graphs.";
-        setError(message);
-        console.error("[vizij-face] orchestrator: registration failed", err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (mergedRef.current) {
-        removeGraph(mergedRef.current);
-        mergedRef.current = null;
-      }
-      stagedNeutralRef.current = false;
-    };
-  }, [
-    faceId,
-    normalizeGraphSpec,
-    poseInputs,
-    poseOutputs,
-    ready,
-    registerMergedGraph,
-    removeGraph,
-    rigOutputs,
-    stageNeutralInputs,
-  ]);
-
-  useEffect(() => {
-    if (!ready || !mergedRef.current) return;
-    stageNeutralInputs();
-  }, [ready, stageNeutralInputs]);
-
-  return {
-    ready,
-    error,
-    outputPaths: rigOutputs,
-    poseInputs,
-    poseOutputs,
-    poseConfig: poseRigConfiguration as PoseRigConfig,
-    stageNeutralInputs,
-  };
-}
+    config: poseRigConfig,
+    // Optional: keep GLB colours intact by skipping colour channels
+    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+  },
+};
 ```
 
-## 4. Input helpers
+### Why the filter?
+Neutral configs often set every colour channel to `0`. Returning `false` for paths containing `/color/` prevents neutral staging from overwriting the GLB’s baked colours.
 
-### Keyboard pose triggers
+---
+
+## 4. Wrap your app with the runtime provider
+
+Replace the old renderer/orchestrator wiring with a single provider + runtime-aware face component.
 
 ```tsx
-// src/hooks/usePoseHotkeys.ts
-import { useEffect } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
-import type { PoseRigConfig, PoseDefinition } from "../assets";
+// src/FaceApp.tsx
+import { useEffect, useMemo } from "react";
+import {
+  VizijRuntimeProvider,
+  VizijRuntimeFace,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 
-const HOTKEYS = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"] as const;
+import { fullscreenFaceBundle, FACE_ID, poseRigConfiguration } from "./assets";
+import { useMouseGaze } from "./hooks/useMouseGaze";
+import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 
-function toSegment(pose: PoseDefinition): string {
-  const source = (pose.name ?? pose.id ?? "").trim();
-  const cleaned = source
-    ? source.toLowerCase()
-    : pose.id.replace(/[^a-z0-9]+/gi, "_");
-  return cleaned.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+export function FaceApp() {
+  return (
+    <VizijRuntimeProvider assetBundle={fullscreenFaceBundle} autostart>
+      <FaceRuntime />
+    </VizijRuntimeProvider>
+  );
 }
 
-export function usePoseHotkeys(
-  faceId: string,
-  config: PoseRigConfig,
-  enabled: boolean,
-) {
-  const { setInput } = useOrchestrator();
+function FaceRuntime() {
+  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
+  const gazeRef = useMouseGaze(ready);
+  usePoseHotkeys(poseRigConfiguration, ready);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (ready) stagePoseNeutral();
+  }, [ready, stagePoseNeutral]);
 
-    const bindings = HOTKEYS.reduce<Map<string, PoseDefinition>>(
-      (acc, code, index) => {
-        const pose = config.poses[index];
-        if (pose) acc.set(code, pose);
-        return acc;
-      },
-      new Map(),
-    );
-    if (bindings.size === 0) return;
+  const hotkeyHints = useMemo(
+    () =>
+      poseRigConfiguration.poses
+        .slice(0, POSE_HOTKEY_ORDER.length)
+        .map((pose, idx) => ({
+          key: POSE_HOTKEY_ORDER[idx],
+          label: pose.name ?? `Pose ${idx + 1}`,
+        })),
+    [],
+  );
 
-    const active = new Set<string>();
+  if (loading) return <Status message="Loading face…" />;
+  if (error) return <Status tone="error" message={error.message} />;
+  if (!ready) return <Status message="Initialising orchestrator…" />;
 
-    const applyWeight = (pose: PoseDefinition, weight: number) => {
-      const path = `rig/${faceId}/poses/${toSegment(pose)}.weight`;
-      setInput(path, { float: weight });
-    };
+  return (
+    <div className="fullscreen">
+      <div ref={gazeRef} className="canvas-wrapper">
+        <VizijRuntimeFace className="face-canvas" showSafeArea />
+      </div>
+      <Hints hotkeyHints={hotkeyHints} />
+    </div>
+  );
+}
 
-    const handleDown = (event: KeyboardEvent) => {
-      const pose = bindings.get(event.code);
-      if (!pose || active.has(event.code)) return;
-      active.add(event.code);
-      applyWeight(pose, 1);
-    };
-
-    const handleUp = (event: KeyboardEvent) => {
-      const pose = bindings.get(event.code);
-      if (!pose) return;
-      active.delete(event.code);
-      applyWeight(pose, 0);
-    };
-
-    window.addEventListener("keydown", handleDown);
-    window.addEventListener("keyup", handleUp);
-    return () => {
-      window.removeEventListener("keydown", handleDown);
-      window.removeEventListener("keyup", handleUp);
-      bindings.forEach((pose) => applyWeight(pose, 0));
-    };
-  }, [config.poses, enabled, faceId, setInput]);
+function Status({ message, tone }: { message: string; tone?: "error" }) {
+  const className = tone === "error" ? "status error" : "status";
+  return (
+    <div className="fullscreen">
+      <div className={className}>{message}</div>
+    </div>
+  );
 }
 ```
 
-### Mouse gaze tracking
+> `VizijRuntimeFace` automatically discovers the GLB root id and namespace from the provider, so you no longer need the custom `<FaceCanvas />` wrapper.
+
+---
+
+## 5. Optional interaction helpers
+
+- **Mouse gaze:** Update rig inputs in response to pointer movement.
+- **Hotkeys:** Stage pose weights with a single button press.
+- **Runtime hooks:** `useVizijRuntime()` exposes `setInput`, `animateValue`, `playAnimation`, and other orchestrator helpers.
+
+### Mouse gaze example
 
 ```tsx
 // src/hooks/useMouseGaze.ts
 import { useEffect, useRef } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 
-const STANDARD = {
+const STANDARD_PATHS = {
   leftX: "standard/left_eye/pos/x",
   leftY: "standard/left_eye/pos/y",
   rightX: "standard/right_eye/pos/x",
   rightY: "standard/right_eye/pos/y",
 } as const;
 
-function clamp(value: number, min = -1, max = 1) {
-  return Math.min(Math.max(value, min), max);
-}
-
-export function useMouseGaze(faceId: string, enabled: boolean) {
-  const { setInput } = useOrchestrator();
+export function useMouseGaze(enabled: boolean) {
+  const { setInput, faceId } = useVizijRuntime();
   const ref = useRef<HTMLDivElement>(null);
+  const resolvedFaceId = (faceId ?? "face").toLowerCase();
 
   useEffect(() => {
-    if (!enabled) return;
-    const target = ref.current;
-    if (!target) return;
+    if (!enabled || !ref.current) return;
+    const node = ref.current;
 
+    const clamp = (value: number) => Math.min(Math.max(value, -1), 1);
     const setEye = (path: string, value: number) => {
-      setInput(`rig/${faceId}/${path}`, { float: clamp(value) });
+      setInput(`rig/${resolvedFaceId}/${path}`, { float: clamp(value) });
     };
 
     const handlePointer = (event: PointerEvent) => {
-      const rect = target.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const x = (event.clientX - rect.left) / rect.width;
-      const y = (event.clientY - rect.top) / rect.height;
-      const normalizedX = clamp(x * 2 - 1);
-      const normalizedY = clamp((1 - y) * 2 - 1);
-
-      setEye(STANDARD.leftX, normalizedX);
-      setEye(STANDARD.rightX, normalizedX);
-      setEye(STANDARD.leftY, normalizedY);
-      setEye(STANDARD.rightY, normalizedY);
+      const rect = node.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const xRatio = (event.clientX - rect.left) / rect.width;
+      const yRatio = (event.clientY - rect.top) / rect.height;
+      const normalizedX = clamp(xRatio * 2 - 1);
+      const normalizedY = clamp((1 - yRatio) * 2 - 1);
+      setEye(STANDARD_PATHS.leftX, normalizedX);
+      setEye(STANDARD_PATHS.rightX, normalizedX);
+      setEye(STANDARD_PATHS.leftY, normalizedY);
+      setEye(STANDARD_PATHS.rightY, normalizedY);
     };
 
     const reset = () => {
-      Object.values(STANDARD).forEach((path) => setEye(path, 0));
+      setEye(STANDARD_PATHS.leftX, 0);
+      setEye(STANDARD_PATHS.leftY, 0);
+      setEye(STANDARD_PATHS.rightX, 0);
+      setEye(STANDARD_PATHS.rightY, 0);
     };
 
-    target.addEventListener("pointermove", handlePointer);
-    target.addEventListener("pointerdown", handlePointer);
-    target.addEventListener("pointerleave", reset);
-    target.addEventListener("pointerup", reset);
+    node.addEventListener("pointermove", handlePointer);
+    node.addEventListener("pointerdown", handlePointer);
+    node.addEventListener("pointerleave", reset);
+    node.addEventListener("pointerup", reset);
 
     return () => {
-      target.removeEventListener("pointermove", handlePointer);
-      target.removeEventListener("pointerdown", handlePointer);
-      target.removeEventListener("pointerleave", reset);
-      target.removeEventListener("pointerup", reset);
+      node.removeEventListener("pointermove", handlePointer);
+      node.removeEventListener("pointerdown", handlePointer);
+      node.removeEventListener("pointerleave", reset);
+      node.removeEventListener("pointerup", reset);
     };
-  }, [enabled, faceId, setInput]);
+  }, [enabled, setInput, resolvedFaceId]);
 
   return ref;
 }
 ```
 
-## 5. Load and display the face
+### Pose hotkeys example
 
 ```tsx
-// src/components/FaceCanvas.tsx
-import { useEffect, useState } from "react";
-import { Vizij, loadGLTF, useVizijStore, type World } from "@vizij/render";
-import type { Group as VizijGroup } from "@vizij/render";
-import { faceAssetUrl } from "../assets";
+// src/hooks/usePoseHotkeys.ts
+import { useEffect } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import type { PoseRigConfig, PoseDefinition } from "../assets";
 
-export const FACE_NAMESPACE = "fullscreen-face";
+export const POSE_HOTKEY_ORDER = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"] as const;
 
-function findRoot(world: World): string | null {
-  return (
-    Object.values(world).find(
-      (entry): entry is VizijGroup =>
-        entry?.type === "group" && Boolean(entry.rootBounds),
-    )?.id ?? null
-  );
-}
+const toPathSegment = (pose: PoseDefinition) =>
+  (pose.name ?? pose.id ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
-export function FaceCanvas() {
-  const addWorldElements = useVizijStore((state) => state.addWorldElements);
-  const [rootId, setRootId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function usePoseHotkeys(config: PoseRigConfig, enabled: boolean) {
+  const { setInput, faceId } = useVizijRuntime();
+  const resolvedFaceId = (faceId ?? "face").toLowerCase();
 
   useEffect(() => {
-    let cancelled = false;
+    if (!enabled) return;
 
-    (async () => {
-      try {
-        const [world, animatables] = await loadGLTF(
-          faceAssetUrl,
-          [FACE_NAMESPACE],
-          true,
-        );
-        if (cancelled) return;
+    const bindings = POSE_HOTKEY_ORDER.reduce((acc, code, index) => {
+      const pose = config.poses[index];
+      if (pose) acc.set(code, pose);
+      return acc;
+    }, new Map<string, PoseDefinition>());
+    if (bindings.size === 0) return;
 
-        const root = findRoot(world);
-        if (!root) {
-          throw new Error("Unable to locate the Vizij root node in the GLB.");
-        }
+    const activeKeys = new Set<string>();
 
-        addWorldElements(world, animatables, true);
-        setRootId(root);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load GLB.");
-        console.error("[vizij-face] FaceCanvas: load failed", err);
-      }
-    })();
+    const applyWeight = (pose: PoseDefinition, weight: number) => {
+      const path = `rig/${resolvedFaceId}/poses/${toPathSegment(pose)}.weight`;
+      setInput(path, { float: weight });
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const pose = bindings.get(event.code);
+      if (!pose || activeKeys.has(event.code)) return;
+      activeKeys.add(event.code);
+      applyWeight(pose, 1);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const pose = bindings.get(event.code);
+      if (!pose) return;
+      activeKeys.delete(event.code);
+      applyWeight(pose, 0);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
 
     return () => {
-      cancelled = true;
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      bindings.forEach((pose) => applyWeight(pose, 0));
     };
-  }, [addWorldElements]);
-
-  if (error) {
-    return <div className="status error">Failed to load face: {error}</div>;
-  }
-  if (!rootId) {
-    return <div className="status">Loading face…</div>;
-  }
-
-  return (
-    <Vizij
-      rootId={rootId}
-      namespace={FACE_NAMESPACE}
-      className="face-canvas"
-    />
-  );
+  }, [config.poses, enabled, resolvedFaceId, setInput]);
 }
 ```
 
-## 6. Compose the app runtime
+---
 
-```tsx
-// src/FaceApp.tsx
-import { useMemo, useCallback, useEffect, useRef, useState } from "react";
-import { VizijContext, useDefaultVizijStore } from "@vizij/render";
-import { OrchestratorProvider, useOrchestrator } from "@vizij/orchestrator-react";
+## 6. Runtime helpers worth knowing
 
-import { FaceCanvas, FACE_NAMESPACE } from "./components/FaceCanvas";
-import { RenderBridge } from "./orchestrator/RenderBridge";
-import { useRigBootstrap } from "./orchestrator/useRigBootstrap";
-import { useMouseGaze } from "./hooks/useMouseGaze";
-import { usePoseHotkeys } from "./hooks/usePoseHotkeys";
-import { poseRigConfiguration } from "./assets";
+`useVizijRuntime()` returns everything you need to drive the face:
 
-const FACE_ID = (poseRigConfiguration.faceId ?? "face").toLowerCase();
+| Helper | Purpose |
+| --- | --- |
+| `ready / loading / error` | Lifecycle flags for UI states |
+| `namespace`, `faceId`, `rootId` | Useful when wiring custom logic |
+| `setInput(path, value)` | Stage values directly into the orchestrator |
+| `animateValue(path, target, options?)` | Tween input values over time |
+| `playAnimation(id, options?)` / `stopAnimation(id)` | Trigger registered animation clips |
+| `stagePoseNeutral(force?)` | Stage (filtered) neutral inputs on demand |
+| `useVizijOutputs(paths)` | Subscribe to renderer values (e.g., debug overlays) |
+| `useRigInput(path)` | Read/write a single channel as `[value, setValue]` |
 
-function RuntimeControls({
-  ready,
-  stageDefaults,
-}: {
-  ready: boolean;
-  stageDefaults: (force?: boolean) => void;
-}) {
-  const { step } = useOrchestrator();
-  const timerRef = useRef<number | null>(null);
-  const runningRef = useRef(false);
-  const [running, setRunning] = useState(false);
-  const intervalMs = 1000 / 2; // Matches the fullscreen demo cadence
+Because the provider already registers rig + pose graphs and mirrors orchestrator writes into the renderer, you typically only need a few of these helpers to build rich interactions.
 
-  const stop = useCallback(() => {
-    runningRef.current = false;
-    setRunning(false);
-    if (timerRef.current != null) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+---
 
-  const start = useCallback(() => {
-    if (!ready || runningRef.current) return;
-    runningRef.current = true;
-    setRunning(true);
-    stageDefaults(true);
-    let last = performance.now();
-    timerRef.current = window.setInterval(() => {
-      if (!runningRef.current) return;
-      const now = performance.now();
-      const dt = (now - last) / 1000;
-      last = now;
-      try {
-        step(dt);
-      } catch (err) {
-        console.error("[vizij-face] orchestrator: step failed", err);
-      }
-    }, intervalMs);
-  }, [intervalMs, ready, stageDefaults, step]);
+## 7. Summary
 
-  useEffect(() => {
-    if (!ready && runningRef.current) {
-      stop();
-    }
-    return stop;
-  }, [ready, stop]);
+With `@vizij/runtime-react` you can bootstrap a Vizij face in three moves:
 
-  return (
-    <div className="runtime-controls">
-      <button onClick={start} disabled={!ready || running}>
-        Start
-      </button>
-      <button onClick={stop} disabled={!ready || !running}>
-        Pause
-      </button>
-    </div>
-  );
-}
+1. **Define a `VizijAssetBundle`.**
+2. **Wrap your app with `<VizijRuntimeProvider assetBundle={...}>`.**
+3. **Render `<VizijRuntimeFace />` and hook into `useVizijRuntime()` as needed.**
 
-function FaceRuntime() {
-  const { ready, error, outputPaths, poseConfig, stageNeutralInputs } =
-    useRigBootstrap(FACE_ID);
-  const gazeRef = useMouseGaze(FACE_ID, ready);
-  usePoseHotkeys(FACE_ID, poseConfig, ready);
-
-  const hotkeys = useMemo(
-    () =>
-      poseConfig.poses.slice(0, 5).map((pose, index) => ({
-        key: index + 1,
-        label: pose.name ?? `Pose ${index + 1}`,
-      })),
-    [poseConfig.poses],
-  );
-
-  return (
-    <div className="fullscreen">
-      {error ? <div className="status error">{error}</div> : null}
-      <div ref={gazeRef} className="canvas-wrapper">
-        <FaceCanvas />
-      </div>
-      <RenderBridge
-        namespace={FACE_NAMESPACE}
-        outputPaths={outputPaths}
-        enabled={ready}
-      />
-      <RuntimeControls ready={ready} stageDefaults={stageNeutralInputs} />
-      <div className="hint">
-        <div>Move the mouse to steer gaze.</div>
-        <div>Press number keys to trigger poses:</div>
-        <ul>
-          {hotkeys.map((entry) => (
-            <li key={entry.key}>
-              <kbd>{entry.key}</kbd> → {entry.label}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-export function FaceApp() {
-  return (
-    <VizijContext.Provider value={useDefaultVizijStore}>
-      <OrchestratorProvider autostart={false}>
-        <FaceRuntime />
-      </OrchestratorProvider>
-    </VizijContext.Provider>
-  );
-}
-```
-
-Wire the entry point (`src/main.tsx` in Vite projects) to render `<FaceApp />`, and add any CSS you need for layout.
-
-## 7. Run the app
-
-- `npm run dev`
-- Open the dev server (default `http://localhost:5173/`).
-- Click **Start** to begin stepping, move the mouse to test gaze, and trigger poses with the `1–5` keys.
-
-If nothing animates:
-
-1. Watch the console for missing neutral paths. Update `pose-rig.config.json` or `collectInputPathMap` if asset IDs change.
-2. Confirm the merged graph registration succeeded (errors are logged as soon as registration fails).
-3. Verify the orchestrator is stepping—add a log inside the interval or switch to a `requestAnimationFrame` loop for smoother updates.
-
-## Key differences from earlier demos
-
-- **Merged controller:** The pose and rig graphs are registered together. In older guides they were separate, which prevented pose outputs from reaching the rig.
-- **Neutral staging:** Inputs are staged when the orchestrator starts and when you explicitly request it, not every frame. This was the root cause of the “no motion” bug fixed in `fullscreen-face`.
-- **Standalone packages:** Everything runs on published npm packages (`@vizij/render`, `@vizij/orchestrator-react`, `@vizij/value-json`, `@vizij/utils`)—no monorepo build steps required.
-- **Manual stepping:** The UI exposes an explicit start/pause loop (5 Hz by default). Swap to `requestAnimationFrame` if you need higher fidelity.
-
-With these pieces in place, you have a portable Vizij face viewer you can embed into any React experience. Feel free to expand it with your own UI, persistence, or animation tooling.
+Everything else—GLB parsing, rig/pose merging, frame conversion, and orchestrator lifecycle—is handled automatically. Use runtime hooks to add gaze steering, hotkeys, or animation triggers without re-implementing the renderer/orchestrator bridge.

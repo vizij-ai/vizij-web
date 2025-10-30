@@ -2818,6 +2818,28 @@ button.danger:hover:not(:disabled),
   letter-spacing: 0.03em;
 }
 
+.feature-tree__remap-anchor {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.feature-tree__remap-anchor-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.feature-tree__remap-anchor-hint {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
 .feature-tree__property-footer {
   display: flex;
   justify-content: flex-end;

@@ -1,4 +1,4 @@
-import { ChangeEvent, useId, useRef, useState } from "react";
+import { ChangeEvent, useId, useState } from "react";
 
 interface PoseRigImportPanelProps {
   onImportPoseConfig: (file: File) => Promise<void>;
@@ -25,7 +25,6 @@ export function PoseRigImportPanel({
 }: PoseRigImportPanelProps) {
   const [isImportingConfig, setIsImportingConfig] = useState(false);
   const configInputId = useId();
-  const configInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleConfigImport = async (event: ChangeEvent<HTMLInputElement>) => {
     if (disabled || isImportingConfig) {

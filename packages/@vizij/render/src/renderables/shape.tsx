@@ -188,11 +188,17 @@ function InnerRenderedShape({
             color.g,
             color.b,
           );
-          if (
-            ((material.current as MeshStandardMaterial) || undefined)?.color
-          ) {
-            (material.current as MeshStandardMaterial).needsUpdate = true;
-          }
+          (material.current as MeshStandardMaterial).needsUpdate = true;
+        } else if (
+          ((material.current as MeshStandardMaterial) || undefined)?.color &&
+          instanceOfRawVector3(color)
+        ) {
+          (material.current as MeshStandardMaterial).color.setRGB(
+            color.x,
+            color.y,
+            color.z,
+          );
+          (material.current as MeshStandardMaterial).needsUpdate = true;
         } else if (material.current && instanceOfRawHSL(color)) {
           (material.current as MeshStandardMaterial).color.setHSL(
             color.h,

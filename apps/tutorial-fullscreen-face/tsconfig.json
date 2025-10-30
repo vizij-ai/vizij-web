@@ -8,6 +8,10 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@vizij/runtime-react": ["../../packages/@vizij/runtime-react/src/index.ts"]
+    }
   }
 }

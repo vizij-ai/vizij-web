@@ -149,6 +149,9 @@ function InnerRenderedEllipse({
         if (instanceOfRawRGB(color)) {
           materialRef.current.color.setRGB(color.r, color.g, color.b);
           materialRef.current.needsUpdate = true;
+        } else if (instanceOfRawVector3(color)) {
+          materialRef.current.color.setRGB(color.x, color.y, color.z);
+          materialRef.current.needsUpdate = true;
         } else if (instanceOfRawHSL(color)) {
           materialRef.current.color.setHSL(color.h, color.s, color.l);
           materialRef.current.needsUpdate = true;
@@ -207,6 +210,13 @@ function InnerRenderedEllipse({
             strokeColor.r,
             strokeColor.g,
             strokeColor.b,
+          );
+          lineRef.current.material.needsUpdate = true;
+        } else if (instanceOfRawVector3(strokeColor)) {
+          lineRef.current.material.color.setRGB(
+            strokeColor.x,
+            strokeColor.y,
+            strokeColor.z,
           );
           lineRef.current.material.needsUpdate = true;
         } else if (instanceOfRawHSL(strokeColor)) {

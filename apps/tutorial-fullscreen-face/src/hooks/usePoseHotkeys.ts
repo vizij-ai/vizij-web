@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 
 import type { PoseRigConfig, PoseDefinition } from "../assets";
 
@@ -23,11 +23,11 @@ function toPathSegment(pose: PoseDefinition): string {
 }
 
 export function usePoseHotkeys(
-  faceId: string,
   poseConfig: PoseRigConfig,
   enabled: boolean,
 ) {
-  const { setInput } = useOrchestrator();
+  const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
+  const faceId = (runtimeFaceId ?? "face").toLowerCase();
 
   useEffect(() => {
     if (!enabled) {
@@ -54,7 +54,6 @@ export function usePoseHotkeys(
     const applyWeight = (pose: PoseDefinition, weight: number) => {
       const segment = toPathSegment(pose);
       const path = `rig/${faceId}/poses/${segment}.weight`;
-      console.log(path, { float: weight })
       setInput(path, { float: weight });
     };
 

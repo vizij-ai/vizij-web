@@ -1,5 +1,9 @@
-import { useMemo, useState, useCallback } from "react";
-import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import {
+  SELF_BINDING_ID,
+  type StandardRigInput,
+  type RemapSettings,
+} from "@vizij/utils";
 import type { AnimatableBinding } from "../../rig/state";
 import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
 import type { BindingField } from "./types";
@@ -32,6 +36,52 @@ function clamp(value: number, min: number, max: number): number {
   const normalizedMin = Math.min(min, max);
   const normalizedMax = Math.max(min, max);
   return Math.max(normalizedMin, Math.min(normalizedMax, value));
+}
+
+const EPSILON = 1e-4;
+
+function isApproximatelyEqual(a: number, b: number): boolean {
+  return Math.abs(a - b) <= EPSILON;
+}
+
+function computeMidpoint(a: number, b: number): number {
+  return (a + b) / 2;
+}
+
+function anchorsMatchMidpoint(remap: RemapSettings): boolean {
+  const inMid = computeMidpoint(remap.inLow, remap.inHigh);
+  const outMid = computeMidpoint(remap.outLow, remap.outHigh);
+  return (
+    isApproximatelyEqual(remap.inAnchor, inMid) &&
+    isApproximatelyEqual(remap.outAnchor, outMid)
+  );
+}
+
+function computeInitialManualAnchorSlots(
+  slots: AnimatableBinding["slots"] | undefined,
+): Set<string> {
+  const initial = new Set<string>();
+  if (!slots) {
+    return initial;
+  }
+  slots.forEach((slot) => {
+    if (!anchorsMatchMidpoint(slot.remap)) {
+      initial.add(slot.id);
+    }
+  });
+  return initial;
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const value of a) {
+    if (!b.has(value)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 interface BindingEditorProps {
@@ -100,6 +150,39 @@ export function BindingEditor({
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isExpanded = isControlled ? (expanded as boolean) : internalExpanded;
 
+  const slots = binding.slots ?? [];
+
+  const [manualAnchorSlots, setManualAnchorSlots] = useState<Set<string>>(() =>
+    computeInitialManualAnchorSlots(slots),
+  );
+
+  useEffect(() => {
+    setManualAnchorSlots((previous) => {
+      const next = new Set(previous);
+      const slotIds = new Set(slots.map((slot) => slot.id));
+      let changed = false;
+
+      Array.from(next).forEach((slotId) => {
+        if (!slotIds.has(slotId)) {
+          next.delete(slotId);
+          changed = true;
+        }
+      });
+
+      slots.forEach((slot) => {
+        if (!next.has(slot.id) && !anchorsMatchMidpoint(slot.remap)) {
+          next.add(slot.id);
+          changed = true;
+        }
+      });
+
+      if (!changed || setsEqual(next, previous)) {
+        return previous;
+      }
+      return next;
+    });
+  }, [slots]);
+
   const toggleExpanded = useCallback(() => {
     if (!expandable) {
       return;
@@ -126,17 +209,6 @@ export function BindingEditor({
       outHigh: outputDefaults.rangeMax,
     };
   }, [outputDefaults]);
-
-  const applyOutputPreset = useCallback(
-    (slotId: string, preset: RemapPreset) => {
-      onBindingRemapChange(targetId, "outLow", preset.outLow, slotId);
-      onBindingRemapChange(targetId, "outAnchor", preset.outAnchor, slotId);
-      onBindingRemapChange(targetId, "outHigh", preset.outHigh, slotId);
-    },
-    [onBindingRemapChange, targetId],
-  );
-
-  const slots = binding.slots ?? [];
   const expressionValue = binding.expression ?? slots[0]?.alias ?? "";
 
   const aliasHints = useMemo(() => {
@@ -159,6 +231,37 @@ export function BindingEditor({
   const issueList = useMemo(
     () => (issues ? [...new Set(issues)] : []),
     [issues],
+  );
+
+  const handleAnchorToggle = useCallback(
+    (slot: AnimatableBinding["slots"][number], makeManual: boolean) => {
+      setManualAnchorSlots((previous) => {
+        const next = new Set(previous);
+        if (makeManual) {
+          next.add(slot.id);
+        } else {
+          next.delete(slot.id);
+        }
+        return next;
+      });
+      if (!makeManual) {
+        const nextInAnchor = computeMidpoint(
+          slot.remap.inLow,
+          slot.remap.inHigh,
+        );
+        const nextOutAnchor = computeMidpoint(
+          slot.remap.outLow,
+          slot.remap.outHigh,
+        );
+        if (!isApproximatelyEqual(slot.remap.inAnchor, nextInAnchor)) {
+          onBindingRemapChange(targetId, "inAnchor", nextInAnchor, slot.id);
+        }
+        if (!isApproximatelyEqual(slot.remap.outAnchor, nextOutAnchor)) {
+          onBindingRemapChange(targetId, "outAnchor", nextOutAnchor, slot.id);
+        }
+      }
+    },
+    [onBindingRemapChange, targetId],
   );
 
   const header = (
@@ -212,6 +315,78 @@ export function BindingEditor({
         <div className="feature-tree__binding-slots">
           {slots.map((slot, index) => {
             const slotInputId = slot.inputId ?? "";
+            const showAnchor = manualAnchorSlots.has(slot.id);
+
+            const inputFields = showAnchor
+              ? REMAP_INPUT_FIELDS
+              : REMAP_INPUT_FIELDS.filter(({ field }) => field !== "inAnchor");
+            const outputFields = showAnchor
+              ? REMAP_OUTPUT_FIELDS
+              : REMAP_OUTPUT_FIELDS.filter(
+                  ({ field }) => field !== "outAnchor",
+                );
+
+            const handleFieldChange = (field: BindingField, value: number) => {
+              onBindingRemapChange(targetId, field, value, slot.id);
+
+              if (manualAnchorSlots.has(slot.id)) {
+                return;
+              }
+
+              if (field === "inLow" || field === "inHigh") {
+                const nextLow = field === "inLow" ? value : slot.remap.inLow;
+                const nextHigh = field === "inHigh" ? value : slot.remap.inHigh;
+                const nextAnchor = computeMidpoint(nextLow, nextHigh);
+                if (!isApproximatelyEqual(slot.remap.inAnchor, nextAnchor)) {
+                  onBindingRemapChange(
+                    targetId,
+                    "inAnchor",
+                    nextAnchor,
+                    slot.id,
+                  );
+                }
+              }
+
+              if (field === "outLow" || field === "outHigh") {
+                const nextLow = field === "outLow" ? value : slot.remap.outLow;
+                const nextHigh =
+                  field === "outHigh" ? value : slot.remap.outHigh;
+                const nextAnchor = computeMidpoint(nextLow, nextHigh);
+                if (!isApproximatelyEqual(slot.remap.outAnchor, nextAnchor)) {
+                  onBindingRemapChange(
+                    targetId,
+                    "outAnchor",
+                    nextAnchor,
+                    slot.id,
+                  );
+                }
+              }
+            };
+
+            const handlePreset = (preset: RemapPreset) => {
+              const manual = manualAnchorSlots.has(slot.id);
+              const nextOutLow = preset.outLow;
+              const nextOutHigh = preset.outHigh;
+              const nextOutAnchor = manual
+                ? preset.outAnchor
+                : computeMidpoint(nextOutLow, nextOutHigh);
+
+              onBindingRemapChange(targetId, "outLow", nextOutLow, slot.id);
+              onBindingRemapChange(targetId, "outHigh", nextOutHigh, slot.id);
+
+              if (
+                manual ||
+                !isApproximatelyEqual(slot.remap.outAnchor, nextOutAnchor)
+              ) {
+                onBindingRemapChange(
+                  targetId,
+                  "outAnchor",
+                  nextOutAnchor,
+                  slot.id,
+                );
+              }
+            };
+
             return (
               <div key={slot.id} className="feature-tree__binding-slot">
                 <div className="feature-tree__binding-slot-header">
@@ -291,59 +466,62 @@ export function BindingEditor({
                   <div className="feature-tree__property-column">
                     <h4>Input remap</h4>
                     <div className="feature-tree__matrix-grid">
-                      {REMAP_INPUT_FIELDS.map(
-                        ({ field, label: columnLabel }) => (
-                          <label key={field}>
-                            <span>{columnLabel}</span>
-                            <input
-                              type="number"
-                              step={0.01}
-                              value={slot.remap[field]}
-                              onChange={(event) => {
-                                const parsed = Number(event.target.value);
-                                if (Number.isFinite(parsed)) {
-                                  onBindingRemapChange(
-                                    targetId,
-                                    field,
-                                    parsed,
-                                    slot.id,
-                                  );
-                                }
-                              }}
-                            />
-                          </label>
-                        ),
-                      )}
+                      {inputFields.map(({ field, label: columnLabel }) => (
+                        <label key={field}>
+                          <span>{columnLabel}</span>
+                          <input
+                            type="number"
+                            step={0.01}
+                            value={slot.remap[field]}
+                            onChange={(event) => {
+                              const parsed = Number(event.target.value);
+                              if (Number.isFinite(parsed)) {
+                                handleFieldChange(field, parsed);
+                              }
+                            }}
+                          />
+                        </label>
+                      ))}
                     </div>
                   </div>
                   <div className="feature-tree__property-column">
                     <h4>Output remap</h4>
                     <div className="feature-tree__matrix-grid">
-                      {REMAP_OUTPUT_FIELDS.map(
-                        ({ field, label: columnLabel }) => (
-                          <label key={field}>
-                            <span>{columnLabel}</span>
-                            <input
-                              type="number"
-                              step={0.01}
-                              value={slot.remap[field]}
-                              onChange={(event) => {
-                                const parsed = Number(event.target.value);
-                                if (Number.isFinite(parsed)) {
-                                  onBindingRemapChange(
-                                    targetId,
-                                    field,
-                                    parsed,
-                                    slot.id,
-                                  );
-                                }
-                              }}
-                            />
-                          </label>
-                        ),
-                      )}
+                      {outputFields.map(({ field, label: columnLabel }) => (
+                        <label key={field}>
+                          <span>{columnLabel}</span>
+                          <input
+                            type="number"
+                            step={0.01}
+                            value={slot.remap[field]}
+                            onChange={(event) => {
+                              const parsed = Number(event.target.value);
+                              if (Number.isFinite(parsed)) {
+                                handleFieldChange(field, parsed);
+                              }
+                            }}
+                          />
+                        </label>
+                      ))}
                     </div>
                   </div>
+                </div>
+                <div className="feature-tree__remap-anchor">
+                  <span className="feature-tree__remap-anchor-label">
+                    Anchor:
+                  </span>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={() => handleAnchorToggle(slot, !showAnchor)}
+                  >
+                    {showAnchor ? "Remove anchor" : "Set anchor"}
+                  </button>
+                  {!showAnchor && (
+                    <span className="feature-tree__remap-anchor-hint">
+                      follows midpoint
+                    </span>
+                  )}
                 </div>
                 <div className="feature-tree__remap-presets">
                   <span className="feature-tree__remap-presets-label">
@@ -353,7 +531,7 @@ export function BindingEditor({
                     type="button"
                     className="feature-panel__input-action feature-panel__input-action--secondary"
                     onClick={() =>
-                      applyOutputPreset(slot.id, {
+                      handlePreset({
                         outLow: slot.remap.inLow,
                         outAnchor: slot.remap.inAnchor,
                         outHigh: slot.remap.inHigh,
@@ -367,7 +545,7 @@ export function BindingEditor({
                     className="feature-panel__input-action feature-panel__input-action--secondary"
                     onClick={() => {
                       if (animatablePreset) {
-                        applyOutputPreset(slot.id, animatablePreset);
+                        handlePreset(animatablePreset);
                       }
                     }}
                     disabled={!animatablePreset}
@@ -377,14 +555,14 @@ export function BindingEditor({
                   <button
                     type="button"
                     className="feature-panel__input-action feature-panel__input-action--secondary"
-                    onClick={() => applyOutputPreset(slot.id, SCALE_PRESET)}
+                    onClick={() => handlePreset(SCALE_PRESET)}
                   >
                     Scale
                   </button>
                   <button
                     type="button"
                     className="feature-panel__input-action feature-panel__input-action--secondary"
-                    onClick={() => applyOutputPreset(slot.id, ROTATION_PRESET)}
+                    onClick={() => handlePreset(ROTATION_PRESET)}
                   >
                     Rotation
                   </button>

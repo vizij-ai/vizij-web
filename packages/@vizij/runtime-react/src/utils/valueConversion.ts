@@ -1,50 +1,61 @@
-import { useEffect, useMemo } from "react";
-import { useVizijStore } from "@vizij/render";
-import { useOrchFrame, type ValueJSON } from "@vizij/orchestrator-react";
 import {
+  isNormalizedValue,
   valueAsBool,
   valueAsColorRgba,
   valueAsNumber,
+  valueAsText,
   valueAsTransform,
   valueAsVector,
-  isNormalizedValue,
 } from "@vizij/value-json";
+import type { ValueJSON } from "@vizij/orchestrator-react";
 import type { RawValue } from "@vizij/utils";
 
 function numericArrayToRaw(arr: number[]): RawValue {
-  const normalized = arr.map((entry) => Number(entry ?? 0));
-  switch (normalized.length) {
+  const normalised = arr.map((entry) => Number(entry ?? 0));
+  switch (normalised.length) {
     case 2:
-      return { x: normalized[0], y: normalized[1] } as unknown as RawValue;
+      return {
+        x: normalised[0],
+        y: normalised[1],
+        r: normalised[0],
+        g: normalised[1],
+      } as unknown as RawValue;
     case 3:
       return {
-        x: normalized[0],
-        y: normalized[1],
-        z: normalized[2],
+        x: normalised[0],
+        y: normalised[1],
+        z: normalised[2],
+        r: normalised[0],
+        g: normalised[1],
+        b: normalised[2],
       } as unknown as RawValue;
     case 4:
       return {
-        x: normalized[0],
-        y: normalized[1],
-        z: normalized[2],
-        w: normalized[3],
+        x: normalised[0],
+        y: normalised[1],
+        z: normalised[2],
+        w: normalised[3],
+        r: normalised[0],
+        g: normalised[1],
+        b: normalised[2],
+        a: normalised[3],
       } as unknown as RawValue;
     default:
-      return normalized as unknown as RawValue;
+      return normalised as unknown as RawValue;
   }
 }
 
-function valueJSONToRaw(value: ValueJSON | undefined): RawValue | undefined {
+export function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
   if (value == null) {
     return undefined;
   }
 
   if (
     typeof value === "number" ||
-    typeof value === "boolean" ||
-    typeof value === "string"
+    typeof value === "string" ||
+    typeof value === "boolean"
   ) {
-    return value as unknown as RawValue;
+    return value as RawValue;
   }
 
   if (Array.isArray(value)) {
@@ -73,8 +84,8 @@ function valueJSONToRaw(value: ValueJSON | undefined): RawValue | undefined {
       return typeof boolVal === "boolean" ? (boolVal as RawValue) : undefined;
     }
     case "text": {
-      const text = value.data ?? "";
-      return String(text) as unknown as RawValue;
+      const text = valueAsText(value);
+      return typeof text === "string" ? (text as RawValue) : undefined;
     }
     case "vec2":
     case "vec3":
@@ -120,45 +131,4 @@ function valueJSONToRaw(value: ValueJSON | undefined): RawValue | undefined {
     default:
       return undefined;
   }
-}
-
-export function RenderBridge({
-  namespace,
-  outputPaths,
-  enabled,
-}: {
-  namespace: string;
-  outputPaths: string[];
-  enabled: boolean;
-}) {
-  const frame = useOrchFrame();
-  const setValue = useVizijStore((state) => state.setValue);
-  const pathSet = useMemo(() => new Set(outputPaths), [outputPaths]);
-
-  useEffect(() => {
-    if (!enabled || !frame || pathSet.size === 0) {
-      return;
-    }
-
-    const writes = frame.merged_writes ?? [];
-    if (!writes.length) {
-      return;
-    }
-
-    writes.forEach((write) => {
-      const normalized = write.path.startsWith("debug/")
-        ? write.path.slice("debug/".length)
-        : write.path;
-      if (!pathSet.has(normalized)) {
-        return;
-      }
-      const raw = valueJSONToRaw(write.value);
-      if (raw === undefined) {
-        return;
-      }
-      setValue(normalized, namespace, raw);
-    });
-  }, [enabled, frame, namespace, pathSet, setValue]);
-
-  return null;
 }

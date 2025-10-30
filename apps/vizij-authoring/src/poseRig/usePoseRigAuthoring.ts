@@ -298,10 +298,10 @@ export function usePoseRigAuthoring(
     const faceSlug = slugify(faceId, "face");
     const rigSlug = slugify(rigName, DEFAULT_RIG_NAME);
     if (!poseGraphNameTouchedRef.current) {
-      setPoseGraphFileName(`${faceSlug}_${rigSlug}_pose_graph.json`);
+      setPoseGraphFileName(`pose-rig.graph.json`);
     }
     if (!poseConfigNameTouchedRef.current) {
-      setPoseConfigFileName(`${faceSlug}_${rigSlug}_pose_config.json`);
+      setPoseConfigFileName(`pose-rig.config.json`);
     }
   }, [faceId, rigName]);
 
