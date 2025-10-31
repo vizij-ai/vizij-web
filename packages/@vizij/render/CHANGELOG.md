@@ -1,5 +1,11 @@
 # @vizij/render
 
+## 0.0.3
+
+### Patch Changes
+
+- Update for single glb import/export
+
 ## 0.0.2
 
 ### Patch Changes

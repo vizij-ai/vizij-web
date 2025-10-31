@@ -1,5 +1,13 @@
 # @vizij/runtime-react
 
+## 0.0.3
+
+### Patch Changes
+
+- Update for single glb import/export
+- Updated dependencies
+  - @vizij/render@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
