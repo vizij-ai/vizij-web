@@ -1,128 +1,131 @@
 {
   "nodes": [
     {
-      "id": "pose_record_pose_bcud22so",
+      "id": "pose_record_pose_09bmti48",
       "type": "constant",
       "params": {
         "value": {
           "record": {
             "values": {
               "record": {
-                "ball_anim_color_b": {
+                "left_eye_color_b": {
                   "float": 0
                 },
-                "ball_anim_color_g": {
+                "left_eye_color_g": {
                   "float": 0
                 },
-                "ball_anim_color_r": {
+                "left_eye_color_r": {
                   "float": 0
                 },
-                "ball_anim_opacity_value": {
+                "left_eye_opacity_value": {
                   "float": 0
                 },
-                "ball_anim_rotation_x": {
-                  "float": 0.18
-                },
-                "ball_anim_rotation_y": {
+                "left_eye_rotation_x": {
                   "float": 0
                 },
-                "ball_anim_rotation_z": {
+                "left_eye_rotation_y": {
                   "float": 0
                 },
-                "ball_anim_scale_x": {
+                "left_eye_rotation_z": {
                   "float": 0
                 },
-                "ball_anim_scale_y": {
+                "left_eye_scale_x": {
                   "float": 0
                 },
-                "ball_anim_scale_z": {
+                "left_eye_scale_y": {
                   "float": 0
                 },
-                "ball_anim_translation_x": {
+                "left_eye_scale_z": {
                   "float": 0
                 },
-                "ball_anim_translation_y": {
+                "left_eye_translation_x": {
+                  "float": -0.16
+                },
+                "left_eye_translation_y": {
+                  "float": -0.9
+                },
+                "left_eye_translation_z": {
                   "float": 0
                 },
-                "ball_anim_translation_z": {
+                "mouth_color_b": {
                   "float": 0
                 },
-                "highlight_color_b": {
+                "mouth_color_g": {
                   "float": 0
                 },
-                "highlight_color_g": {
+                "mouth_color_r": {
                   "float": 0
                 },
-                "highlight_color_r": {
+                "mouth_key_1_value": {
                   "float": 0
                 },
-                "highlight_opacity_value": {
+                "mouth_opacity_value": {
                   "float": 0
                 },
-                "highlight_rotation_x": {
+                "mouth_rotation_x": {
+                  "float": 0.91
+                },
+                "mouth_rotation_y": {
                   "float": 0
                 },
-                "highlight_rotation_y": {
+                "mouth_rotation_z": {
                   "float": 0
                 },
-                "highlight_rotation_z": {
+                "mouth_scale_x": {
                   "float": 0
                 },
-                "highlight_scale_x": {
+                "mouth_scale_y": {
                   "float": 0
                 },
-                "highlight_scale_y": {
+                "mouth_scale_z": {
                   "float": 0
                 },
-                "highlight_scale_z": {
+                "mouth_translation_x": {
                   "float": 0
                 },
-                "highlight_translation_x": {
+                "mouth_translation_y": {
                   "float": 0
                 },
-                "highlight_translation_y": {
+                "mouth_translation_z": {
                   "float": 0
                 },
-                "highlight_translation_z": {
+                "right_eye_color_b": {
                   "float": 0
                 },
-                "plane_color_b": {
+                "right_eye_color_g": {
                   "float": 0
                 },
-                "plane_color_g": {
+                "right_eye_color_r": {
                   "float": 0
                 },
-                "plane_color_r": {
+                "right_eye_opacity_value": {
                   "float": 0
                 },
-                "plane_opacity_value": {
+                "right_eye_rotation_x": {
                   "float": 0
                 },
-                "plane_rotation_x": {
+                "right_eye_rotation_y": {
                   "float": 0
                 },
-                "plane_rotation_y": {
+                "right_eye_rotation_z": {
                   "float": 0
                 },
-                "plane_rotation_z": {
+                "right_eye_scale_x": {
                   "float": 0
                 },
-                "plane_scale_x": {
+                "right_eye_scale_y": {
                   "float": 0
                 },
-                "plane_scale_y": {
+                "right_eye_scale_z": {
                   "float": 0
                 },
-                "plane_scale_z": {
-                  "float": 0
+                "right_eye_translation_x": {
+                  "float": 0.67
                 },
-                "plane_translation_x": {
-                  "float": 0
+                "right_eye_translation_y": {
+                  "float": -0.87
                 },
-                "plane_translation_y": {
-                  "float": 0
-                },
-                "plane_translation_z": {
+                "right_eye_translation_z": {
                   "float": 0
                 },
                 "scene_rotation_x": {
@@ -150,84 +153,6 @@
                   "float": 0
                 },
                 "scene_translation_z": {
-                  "float": 0
-                },
-                "shadow_2_color_b": {
-                  "float": 0
-                },
-                "shadow_2_color_g": {
-                  "float": 0
-                },
-                "shadow_2_color_r": {
-                  "float": 0
-                },
-                "shadow_2_opacity_value": {
-                  "float": 0
-                },
-                "shadow_2_rotation_x": {
-                  "float": 0
-                },
-                "shadow_2_rotation_y": {
-                  "float": 0
-                },
-                "shadow_2_rotation_z": {
-                  "float": 0
-                },
-                "shadow_2_scale_x": {
-                  "float": 0
-                },
-                "shadow_2_scale_y": {
-                  "float": 0
-                },
-                "shadow_2_scale_z": {
-                  "float": 0
-                },
-                "shadow_2_translation_x": {
-                  "float": 0
-                },
-                "shadow_2_translation_y": {
-                  "float": 0
-                },
-                "shadow_2_translation_z": {
-                  "float": 0
-                },
-                "shadow1_color_b": {
-                  "float": 0
-                },
-                "shadow1_color_g": {
-                  "float": 0
-                },
-                "shadow1_color_r": {
-                  "float": 0
-                },
-                "shadow1_opacity_value": {
-                  "float": 0
-                },
-                "shadow1_rotation_x": {
-                  "float": 0
-                },
-                "shadow1_rotation_y": {
-                  "float": 0
-                },
-                "shadow1_rotation_z": {
-                  "float": 0
-                },
-                "shadow1_scale_x": {
-                  "float": 0
-                },
-                "shadow1_scale_y": {
-                  "float": 0
-                },
-                "shadow1_scale_z": {
-                  "float": 0
-                },
-                "shadow1_translation_x": {
-                  "float": 0
-                },
-                "shadow1_translation_y": {
-                  "float": 0
-                },
-                "shadow1_translation_z": {
                   "float": 0
                 },
                 "standard_left_eye_brow_pos_y": {
@@ -312,138 +237,141 @@
       }
     },
     {
-      "id": "pose_pose_bcud22so",
+      "id": "pose_pose_09bmti48",
       "type": "input",
       "params": {
-        "path": "rig/jibo/poses/pose_1.weight",
+        "path": "rig/tiago/poses/sad.weight",
         "value": {
           "float": 0
         }
       }
     },
     {
-      "id": "pose_record_pose_8edf5az3",
+      "id": "pose_record_pose_d9me8vtr",
       "type": "constant",
       "params": {
         "value": {
           "record": {
             "values": {
               "record": {
-                "ball_anim_color_b": {
+                "left_eye_color_b": {
                   "float": 0
                 },
-                "ball_anim_color_g": {
+                "left_eye_color_g": {
                   "float": 0
                 },
-                "ball_anim_color_r": {
+                "left_eye_color_r": {
                   "float": 0
                 },
-                "ball_anim_opacity_value": {
+                "left_eye_opacity_value": {
                   "float": 0
                 },
-                "ball_anim_rotation_x": {
+                "left_eye_rotation_x": {
                   "float": 0
                 },
-                "ball_anim_rotation_y": {
+                "left_eye_rotation_y": {
                   "float": 0
                 },
-                "ball_anim_rotation_z": {
+                "left_eye_rotation_z": {
+                  "float": -0.18
+                },
+                "left_eye_scale_x": {
+                  "float": 0
+                },
+                "left_eye_scale_y": {
+                  "float": 0
+                },
+                "left_eye_scale_z": {
+                  "float": 0
+                },
+                "left_eye_translation_x": {
+                  "float": 0
+                },
+                "left_eye_translation_y": {
+                  "float": 0
+                },
+                "left_eye_translation_z": {
+                  "float": 0
+                },
+                "mouth_color_b": {
+                  "float": 0
+                },
+                "mouth_color_g": {
+                  "float": 0
+                },
+                "mouth_color_r": {
+                  "float": 0
+                },
+                "mouth_key_1_value": {
                   "float": 1
                 },
-                "ball_anim_scale_x": {
+                "mouth_opacity_value": {
                   "float": 0
                 },
-                "ball_anim_scale_y": {
+                "mouth_rotation_x": {
                   "float": 0
                 },
-                "ball_anim_scale_z": {
+                "mouth_rotation_y": {
                   "float": 0
                 },
-                "ball_anim_translation_x": {
+                "mouth_rotation_z": {
                   "float": 0
                 },
-                "ball_anim_translation_y": {
+                "mouth_scale_x": {
                   "float": 0
                 },
-                "ball_anim_translation_z": {
+                "mouth_scale_y": {
                   "float": 0
                 },
-                "highlight_color_b": {
+                "mouth_scale_z": {
                   "float": 0
                 },
-                "highlight_color_g": {
+                "mouth_translation_x": {
                   "float": 0
                 },
-                "highlight_color_r": {
+                "mouth_translation_y": {
                   "float": 0
                 },
-                "highlight_opacity_value": {
+                "mouth_translation_z": {
                   "float": 0
                 },
-                "highlight_rotation_x": {
+                "right_eye_color_b": {
                   "float": 0
                 },
-                "highlight_rotation_y": {
+                "right_eye_color_g": {
                   "float": 0
                 },
-                "highlight_rotation_z": {
+                "right_eye_color_r": {
                   "float": 0
                 },
-                "highlight_scale_x": {
+                "right_eye_opacity_value": {
                   "float": 0
                 },
-                "highlight_scale_y": {
+                "right_eye_rotation_x": {
                   "float": 0
                 },
-                "highlight_scale_z": {
+                "right_eye_rotation_y": {
                   "float": 0
                 },
-                "highlight_translation_x": {
+                "right_eye_rotation_z": {
+                  "float": 0.19
+                },
+                "right_eye_scale_x": {
                   "float": 0
                 },
-                "highlight_translation_y": {
+                "right_eye_scale_y": {
                   "float": 0
                 },
-                "highlight_translation_z": {
+                "right_eye_scale_z": {
                   "float": 0
                 },
-                "plane_color_b": {
+                "right_eye_translation_x": {
                   "float": 0
                 },
-                "plane_color_g": {
+                "right_eye_translation_y": {
                   "float": 0
                 },
-                "plane_color_r": {
-                  "float": 0
-                },
-                "plane_opacity_value": {
-                  "float": 0
-                },
-                "plane_rotation_x": {
-                  "float": 0
-                },
-                "plane_rotation_y": {
-                  "float": 0
-                },
-                "plane_rotation_z": {
-                  "float": 0
-                },
-                "plane_scale_x": {
-                  "float": 0
-                },
-                "plane_scale_y": {
-                  "float": 0
-                },
-                "plane_scale_z": {
-                  "float": 0
-                },
-                "plane_translation_x": {
-                  "float": 0
-                },
-                "plane_translation_y": {
-                  "float": 0
-                },
-                "plane_translation_z": {
+                "right_eye_translation_z": {
                   "float": 0
                 },
                 "scene_rotation_x": {
@@ -471,84 +399,6 @@
                   "float": 0
                 },
                 "scene_translation_z": {
-                  "float": 0
-                },
-                "shadow_2_color_b": {
-                  "float": 0
-                },
-                "shadow_2_color_g": {
-                  "float": 0
-                },
-                "shadow_2_color_r": {
-                  "float": 0
-                },
-                "shadow_2_opacity_value": {
-                  "float": 0
-                },
-                "shadow_2_rotation_x": {
-                  "float": 0
-                },
-                "shadow_2_rotation_y": {
-                  "float": 0
-                },
-                "shadow_2_rotation_z": {
-                  "float": 0
-                },
-                "shadow_2_scale_x": {
-                  "float": 0
-                },
-                "shadow_2_scale_y": {
-                  "float": 0
-                },
-                "shadow_2_scale_z": {
-                  "float": 0
-                },
-                "shadow_2_translation_x": {
-                  "float": 0
-                },
-                "shadow_2_translation_y": {
-                  "float": 0
-                },
-                "shadow_2_translation_z": {
-                  "float": 0
-                },
-                "shadow1_color_b": {
-                  "float": 0
-                },
-                "shadow1_color_g": {
-                  "float": 0
-                },
-                "shadow1_color_r": {
-                  "float": 0
-                },
-                "shadow1_opacity_value": {
-                  "float": 0
-                },
-                "shadow1_rotation_x": {
-                  "float": 0
-                },
-                "shadow1_rotation_y": {
-                  "float": 0
-                },
-                "shadow1_rotation_z": {
-                  "float": 0
-                },
-                "shadow1_scale_x": {
-                  "float": 0
-                },
-                "shadow1_scale_y": {
-                  "float": 0
-                },
-                "shadow1_scale_z": {
-                  "float": 0
-                },
-                "shadow1_translation_x": {
-                  "float": 0
-                },
-                "shadow1_translation_y": {
-                  "float": 0
-                },
-                "shadow1_translation_z": {
                   "float": 0
                 },
                 "standard_left_eye_brow_pos_y": {
@@ -633,10 +483,502 @@
       }
     },
     {
-      "id": "pose_pose_8edf5az3",
+      "id": "pose_pose_d9me8vtr",
       "type": "input",
       "params": {
-        "path": "rig/jibo/poses/pose_2.weight",
+        "path": "rig/tiago/poses/evil.weight",
+        "value": {
+          "float": 0
+        }
+      }
+    },
+    {
+      "id": "pose_record_pose_9li8230i",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "left_eye_color_b": {
+                  "float": 0
+                },
+                "left_eye_color_g": {
+                  "float": 0
+                },
+                "left_eye_color_r": {
+                  "float": 0
+                },
+                "left_eye_opacity_value": {
+                  "float": 0
+                },
+                "left_eye_rotation_x": {
+                  "float": 0
+                },
+                "left_eye_rotation_y": {
+                  "float": 0
+                },
+                "left_eye_rotation_z": {
+                  "float": 0
+                },
+                "left_eye_scale_x": {
+                  "float": 0
+                },
+                "left_eye_scale_y": {
+                  "float": 0
+                },
+                "left_eye_scale_z": {
+                  "float": 0
+                },
+                "left_eye_translation_x": {
+                  "float": -0.55
+                },
+                "left_eye_translation_y": {
+                  "float": 0
+                },
+                "left_eye_translation_z": {
+                  "float": 0
+                },
+                "mouth_color_b": {
+                  "float": 0
+                },
+                "mouth_color_g": {
+                  "float": 0
+                },
+                "mouth_color_r": {
+                  "float": 0
+                },
+                "mouth_key_1_value": {
+                  "float": 0
+                },
+                "mouth_opacity_value": {
+                  "float": 0
+                },
+                "mouth_rotation_x": {
+                  "float": 0
+                },
+                "mouth_rotation_y": {
+                  "float": 0
+                },
+                "mouth_rotation_z": {
+                  "float": 0
+                },
+                "mouth_scale_x": {
+                  "float": -0.44
+                },
+                "mouth_scale_y": {
+                  "float": -0.7
+                },
+                "mouth_scale_z": {
+                  "float": 0
+                },
+                "mouth_translation_x": {
+                  "float": 0
+                },
+                "mouth_translation_y": {
+                  "float": 0
+                },
+                "mouth_translation_z": {
+                  "float": 0
+                },
+                "right_eye_color_b": {
+                  "float": 0
+                },
+                "right_eye_color_g": {
+                  "float": 0
+                },
+                "right_eye_color_r": {
+                  "float": 0
+                },
+                "right_eye_opacity_value": {
+                  "float": 0
+                },
+                "right_eye_rotation_x": {
+                  "float": 0
+                },
+                "right_eye_rotation_y": {
+                  "float": 0
+                },
+                "right_eye_rotation_z": {
+                  "float": 0
+                },
+                "right_eye_scale_x": {
+                  "float": 0
+                },
+                "right_eye_scale_y": {
+                  "float": 0
+                },
+                "right_eye_scale_z": {
+                  "float": 0
+                },
+                "right_eye_translation_x": {
+                  "float": -0.24
+                },
+                "right_eye_translation_y": {
+                  "float": 0
+                },
+                "right_eye_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_pose_9li8230i",
+      "type": "input",
+      "params": {
+        "path": "rig/tiago/poses/interested.weight",
+        "value": {
+          "float": 0
+        }
+      }
+    },
+    {
+      "id": "pose_record_pose_8bcz0cbv",
+      "type": "constant",
+      "params": {
+        "value": {
+          "record": {
+            "values": {
+              "record": {
+                "left_eye_color_b": {
+                  "float": 0
+                },
+                "left_eye_color_g": {
+                  "float": 0
+                },
+                "left_eye_color_r": {
+                  "float": 0.39
+                },
+                "left_eye_opacity_value": {
+                  "float": 0
+                },
+                "left_eye_rotation_x": {
+                  "float": 0
+                },
+                "left_eye_rotation_y": {
+                  "float": 0
+                },
+                "left_eye_rotation_z": {
+                  "float": 0
+                },
+                "left_eye_scale_x": {
+                  "float": 0
+                },
+                "left_eye_scale_y": {
+                  "float": -0.66
+                },
+                "left_eye_scale_z": {
+                  "float": 0
+                },
+                "left_eye_translation_x": {
+                  "float": 0
+                },
+                "left_eye_translation_y": {
+                  "float": 0
+                },
+                "left_eye_translation_z": {
+                  "float": 0
+                },
+                "mouth_color_b": {
+                  "float": 0
+                },
+                "mouth_color_g": {
+                  "float": 0
+                },
+                "mouth_color_r": {
+                  "float": 0
+                },
+                "mouth_key_1_value": {
+                  "float": 0
+                },
+                "mouth_opacity_value": {
+                  "float": 0
+                },
+                "mouth_rotation_x": {
+                  "float": 0
+                },
+                "mouth_rotation_y": {
+                  "float": 0
+                },
+                "mouth_rotation_z": {
+                  "float": 0.06
+                },
+                "mouth_scale_x": {
+                  "float": -0.18
+                },
+                "mouth_scale_y": {
+                  "float": 0.13
+                },
+                "mouth_scale_z": {
+                  "float": 0
+                },
+                "mouth_translation_x": {
+                  "float": 0
+                },
+                "mouth_translation_y": {
+                  "float": 0
+                },
+                "mouth_translation_z": {
+                  "float": 0
+                },
+                "right_eye_color_b": {
+                  "float": 0
+                },
+                "right_eye_color_g": {
+                  "float": 0
+                },
+                "right_eye_color_r": {
+                  "float": 0
+                },
+                "right_eye_opacity_value": {
+                  "float": 0
+                },
+                "right_eye_rotation_x": {
+                  "float": 0
+                },
+                "right_eye_rotation_y": {
+                  "float": 0
+                },
+                "right_eye_rotation_z": {
+                  "float": 0
+                },
+                "right_eye_scale_x": {
+                  "float": 1
+                },
+                "right_eye_scale_y": {
+                  "float": 0
+                },
+                "right_eye_scale_z": {
+                  "float": 0
+                },
+                "right_eye_translation_x": {
+                  "float": 0
+                },
+                "right_eye_translation_y": {
+                  "float": 0
+                },
+                "right_eye_translation_z": {
+                  "float": 0
+                },
+                "scene_rotation_x": {
+                  "float": 0
+                },
+                "scene_rotation_y": {
+                  "float": 0
+                },
+                "scene_rotation_z": {
+                  "float": 0
+                },
+                "scene_scale_x": {
+                  "float": 0
+                },
+                "scene_scale_y": {
+                  "float": 0
+                },
+                "scene_scale_z": {
+                  "float": 0
+                },
+                "scene_translation_x": {
+                  "float": 0
+                },
+                "scene_translation_y": {
+                  "float": 0
+                },
+                "scene_translation_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_left_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_left_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_left_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_left_eye_top_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_mouth_morph": {
+                  "float": 0
+                },
+                "standard_mouth_pos_x": {
+                  "float": 0
+                },
+                "standard_mouth_pos_y": {
+                  "float": 0
+                },
+                "standard_mouth_scale_x": {
+                  "float": 0
+                },
+                "standard_mouth_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_bottom_eyelid_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_rot_z": {
+                  "float": 0
+                },
+                "standard_right_eye_brow_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_x": {
+                  "float": 0
+                },
+                "standard_right_eye_highlight_scale_y": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_x": {
+                  "float": 0
+                },
+                "standard_right_eye_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_pos_y": {
+                  "float": 0
+                },
+                "standard_right_eye_top_eyelid_rot_z": {
+                  "float": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pose_pose_8bcz0cbv",
+      "type": "input",
+      "params": {
+        "path": "rig/tiago/poses/amused.weight",
         "value": {
           "float": 0
         }
@@ -654,121 +996,124 @@
           "record": {
             "values": {
               "record": {
-                "ball_anim_color_b": {
+                "left_eye_color_b": {
                   "float": 0
                 },
-                "ball_anim_color_g": {
+                "left_eye_color_g": {
                   "float": 0
                 },
-                "ball_anim_color_r": {
+                "left_eye_color_r": {
                   "float": 0
                 },
-                "ball_anim_opacity_value": {
+                "left_eye_opacity_value": {
                   "float": 0
                 },
-                "ball_anim_rotation_x": {
+                "left_eye_rotation_x": {
                   "float": 0
                 },
-                "ball_anim_rotation_y": {
+                "left_eye_rotation_y": {
                   "float": 0
                 },
-                "ball_anim_rotation_z": {
+                "left_eye_rotation_z": {
                   "float": 0
                 },
-                "ball_anim_scale_x": {
+                "left_eye_scale_x": {
                   "float": 0
                 },
-                "ball_anim_scale_y": {
+                "left_eye_scale_y": {
                   "float": 0
                 },
-                "ball_anim_scale_z": {
+                "left_eye_scale_z": {
                   "float": 0
                 },
-                "ball_anim_translation_x": {
+                "left_eye_translation_x": {
                   "float": 0
                 },
-                "ball_anim_translation_y": {
+                "left_eye_translation_y": {
                   "float": 0
                 },
-                "ball_anim_translation_z": {
+                "left_eye_translation_z": {
                   "float": 0
                 },
-                "highlight_color_b": {
+                "mouth_color_b": {
                   "float": 0
                 },
-                "highlight_color_g": {
+                "mouth_color_g": {
                   "float": 0
                 },
-                "highlight_color_r": {
+                "mouth_color_r": {
                   "float": 0
                 },
-                "highlight_opacity_value": {
+                "mouth_key_1_value": {
                   "float": 0
                 },
-                "highlight_rotation_x": {
+                "mouth_opacity_value": {
                   "float": 0
                 },
-                "highlight_rotation_y": {
+                "mouth_rotation_x": {
                   "float": 0
                 },
-                "highlight_rotation_z": {
+                "mouth_rotation_y": {
                   "float": 0
                 },
-                "highlight_scale_x": {
+                "mouth_rotation_z": {
                   "float": 0
                 },
-                "highlight_scale_y": {
+                "mouth_scale_x": {
                   "float": 0
                 },
-                "highlight_scale_z": {
+                "mouth_scale_y": {
                   "float": 0
                 },
-                "highlight_translation_x": {
+                "mouth_scale_z": {
                   "float": 0
                 },
-                "highlight_translation_y": {
+                "mouth_translation_x": {
                   "float": 0
                 },
-                "highlight_translation_z": {
+                "mouth_translation_y": {
                   "float": 0
                 },
-                "plane_color_b": {
+                "mouth_translation_z": {
                   "float": 0
                 },
-                "plane_color_g": {
+                "right_eye_color_b": {
                   "float": 0
                 },
-                "plane_color_r": {
+                "right_eye_color_g": {
                   "float": 0
                 },
-                "plane_opacity_value": {
+                "right_eye_color_r": {
                   "float": 0
                 },
-                "plane_rotation_x": {
+                "right_eye_opacity_value": {
                   "float": 0
                 },
-                "plane_rotation_y": {
+                "right_eye_rotation_x": {
                   "float": 0
                 },
-                "plane_rotation_z": {
+                "right_eye_rotation_y": {
                   "float": 0
                 },
-                "plane_scale_x": {
+                "right_eye_rotation_z": {
                   "float": 0
                 },
-                "plane_scale_y": {
+                "right_eye_scale_x": {
                   "float": 0
                 },
-                "plane_scale_z": {
+                "right_eye_scale_y": {
                   "float": 0
                 },
-                "plane_translation_x": {
+                "right_eye_scale_z": {
                   "float": 0
                 },
-                "plane_translation_y": {
+                "right_eye_translation_x": {
                   "float": 0
                 },
-                "plane_translation_z": {
+                "right_eye_translation_y": {
+                  "float": 0
+                },
+                "right_eye_translation_z": {
                   "float": 0
                 },
                 "scene_rotation_x": {
@@ -796,84 +1141,6 @@
                   "float": 0
                 },
                 "scene_translation_z": {
-                  "float": 0
-                },
-                "shadow_2_color_b": {
-                  "float": 0
-                },
-                "shadow_2_color_g": {
-                  "float": 0
-                },
-                "shadow_2_color_r": {
-                  "float": 0
-                },
-                "shadow_2_opacity_value": {
-                  "float": 0
-                },
-                "shadow_2_rotation_x": {
-                  "float": 0
-                },
-                "shadow_2_rotation_y": {
-                  "float": 0
-                },
-                "shadow_2_rotation_z": {
-                  "float": 0
-                },
-                "shadow_2_scale_x": {
-                  "float": 0
-                },
-                "shadow_2_scale_y": {
-                  "float": 0
-                },
-                "shadow_2_scale_z": {
-                  "float": 0
-                },
-                "shadow_2_translation_x": {
-                  "float": 0
-                },
-                "shadow_2_translation_y": {
-                  "float": 0
-                },
-                "shadow_2_translation_z": {
-                  "float": 0
-                },
-                "shadow1_color_b": {
-                  "float": 0
-                },
-                "shadow1_color_g": {
-                  "float": 0
-                },
-                "shadow1_color_r": {
-                  "float": 0
-                },
-                "shadow1_opacity_value": {
-                  "float": 0
-                },
-                "shadow1_rotation_x": {
-                  "float": 0
-                },
-                "shadow1_rotation_y": {
-                  "float": 0
-                },
-                "shadow1_rotation_z": {
-                  "float": 0
-                },
-                "shadow1_scale_x": {
-                  "float": 0
-                },
-                "shadow1_scale_y": {
-                  "float": 0
-                },
-                "shadow1_scale_z": {
-                  "float": 0
-                },
-                "shadow1_translation_x": {
-                  "float": 0
-                },
-                "shadow1_translation_y": {
-                  "float": 0
-                },
-                "shadow1_translation_z": {
                   "float": 0
                 },
                 "standard_left_eye_brow_pos_y": {
@@ -965,121 +1232,124 @@
           "record": {
             "values": {
               "record": {
-                "ball_anim_color_b": {
+                "left_eye_color_b": {
                   "float": 0
                 },
-                "ball_anim_color_g": {
+                "left_eye_color_g": {
                   "float": 0
                 },
-                "ball_anim_color_r": {
+                "left_eye_color_r": {
                   "float": 0
                 },
-                "ball_anim_opacity_value": {
+                "left_eye_opacity_value": {
                   "float": 0
                 },
-                "ball_anim_rotation_x": {
+                "left_eye_rotation_x": {
                   "float": 0
                 },
-                "ball_anim_rotation_y": {
+                "left_eye_rotation_y": {
                   "float": 0
                 },
-                "ball_anim_rotation_z": {
+                "left_eye_rotation_z": {
                   "float": 0
                 },
-                "ball_anim_scale_x": {
+                "left_eye_scale_x": {
                   "float": 0
                 },
-                "ball_anim_scale_y": {
+                "left_eye_scale_y": {
                   "float": 0
                 },
-                "ball_anim_scale_z": {
+                "left_eye_scale_z": {
                   "float": 0
                 },
-                "ball_anim_translation_x": {
+                "left_eye_translation_x": {
                   "float": 0
                 },
-                "ball_anim_translation_y": {
+                "left_eye_translation_y": {
                   "float": 0
                 },
-                "ball_anim_translation_z": {
+                "left_eye_translation_z": {
                   "float": 0
                 },
-                "highlight_color_b": {
+                "mouth_color_b": {
                   "float": 0
                 },
-                "highlight_color_g": {
+                "mouth_color_g": {
                   "float": 0
                 },
-                "highlight_color_r": {
+                "mouth_color_r": {
                   "float": 0
                 },
-                "highlight_opacity_value": {
+                "mouth_key_1_value": {
                   "float": 0
                 },
-                "highlight_rotation_x": {
+                "mouth_opacity_value": {
                   "float": 0
                 },
-                "highlight_rotation_y": {
+                "mouth_rotation_x": {
                   "float": 0
                 },
-                "highlight_rotation_z": {
+                "mouth_rotation_y": {
                   "float": 0
                 },
-                "highlight_scale_x": {
+                "mouth_rotation_z": {
                   "float": 0
                 },
-                "highlight_scale_y": {
+                "mouth_scale_x": {
                   "float": 0
                 },
-                "highlight_scale_z": {
+                "mouth_scale_y": {
                   "float": 0
                 },
-                "highlight_translation_x": {
+                "mouth_scale_z": {
                   "float": 0
                 },
-                "highlight_translation_y": {
+                "mouth_translation_x": {
                   "float": 0
                 },
-                "highlight_translation_z": {
+                "mouth_translation_y": {
                   "float": 0
                 },
-                "plane_color_b": {
+                "mouth_translation_z": {
                   "float": 0
                 },
-                "plane_color_g": {
+                "right_eye_color_b": {
                   "float": 0
                 },
-                "plane_color_r": {
+                "right_eye_color_g": {
                   "float": 0
                 },
-                "plane_opacity_value": {
+                "right_eye_color_r": {
                   "float": 0
                 },
-                "plane_rotation_x": {
+                "right_eye_opacity_value": {
                   "float": 0
                 },
-                "plane_rotation_y": {
+                "right_eye_rotation_x": {
                   "float": 0
                 },
-                "plane_rotation_z": {
+                "right_eye_rotation_y": {
                   "float": 0
                 },
-                "plane_scale_x": {
+                "right_eye_rotation_z": {
                   "float": 0
                 },
-                "plane_scale_y": {
+                "right_eye_scale_x": {
                   "float": 0
                 },
-                "plane_scale_z": {
+                "right_eye_scale_y": {
                   "float": 0
                 },
-                "plane_translation_x": {
+                "right_eye_scale_z": {
                   "float": 0
                 },
-                "plane_translation_y": {
+                "right_eye_translation_x": {
                   "float": 0
                 },
-                "plane_translation_z": {
+                "right_eye_translation_y": {
+                  "float": 0
+                },
+                "right_eye_translation_z": {
                   "float": 0
                 },
                 "scene_rotation_x": {
@@ -1107,84 +1377,6 @@
                   "float": 0
                 },
                 "scene_translation_z": {
-                  "float": 0
-                },
-                "shadow_2_color_b": {
-                  "float": 0
-                },
-                "shadow_2_color_g": {
-                  "float": 0
-                },
-                "shadow_2_color_r": {
-                  "float": 0
-                },
-                "shadow_2_opacity_value": {
-                  "float": 0
-                },
-                "shadow_2_rotation_x": {
-                  "float": 0
-                },
-                "shadow_2_rotation_y": {
-                  "float": 0
-                },
-                "shadow_2_rotation_z": {
-                  "float": 0
-                },
-                "shadow_2_scale_x": {
-                  "float": 0
-                },
-                "shadow_2_scale_y": {
-                  "float": 0
-                },
-                "shadow_2_scale_z": {
-                  "float": 0
-                },
-                "shadow_2_translation_x": {
-                  "float": 0
-                },
-                "shadow_2_translation_y": {
-                  "float": 0
-                },
-                "shadow_2_translation_z": {
-                  "float": 0
-                },
-                "shadow1_color_b": {
-                  "float": 0
-                },
-                "shadow1_color_g": {
-                  "float": 0
-                },
-                "shadow1_color_r": {
-                  "float": 0
-                },
-                "shadow1_opacity_value": {
-                  "float": 0
-                },
-                "shadow1_rotation_x": {
-                  "float": 0
-                },
-                "shadow1_rotation_y": {
-                  "float": 0
-                },
-                "shadow1_rotation_z": {
-                  "float": 0
-                },
-                "shadow1_scale_x": {
-                  "float": 0
-                },
-                "shadow1_scale_y": {
-                  "float": 0
-                },
-                "shadow1_scale_z": {
-                  "float": 0
-                },
-                "shadow1_translation_x": {
-                  "float": 0
-                },
-                "shadow1_translation_y": {
-                  "float": 0
-                },
-                "shadow1_translation_z": {
                   "float": 0
                 },
                 "standard_left_eye_brow_pos_y": {
@@ -1273,24 +1465,108 @@
       "type": "default-blend"
     },
     {
-      "id": "out_ball_anim_rotation_x",
+      "id": "out_left_eye_color_r",
       "type": "output",
       "params": {
-        "path": "rig/jibo/ball_anim/rotation/x"
+        "path": "rig/tiago/left_eye/color/r"
       }
     },
     {
-      "id": "out_ball_anim_rotation_z",
+      "id": "out_left_eye_rotation_z",
       "type": "output",
       "params": {
-        "path": "rig/jibo/ball_anim/rotation/z"
+        "path": "rig/tiago/left_eye/rotation/z"
+      }
+    },
+    {
+      "id": "out_left_eye_scale_y",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/left_eye/scale/y"
+      }
+    },
+    {
+      "id": "out_left_eye_translation_x",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/left_eye/translation/x"
+      }
+    },
+    {
+      "id": "out_left_eye_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/left_eye/translation/y"
+      }
+    },
+    {
+      "id": "out_mouth_rotation_x",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/mouth/rotation/x"
+      }
+    },
+    {
+      "id": "out_mouth_rotation_z",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/mouth/rotation/z"
+      }
+    },
+    {
+      "id": "out_mouth_scale_x",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/mouth/scale/x"
+      }
+    },
+    {
+      "id": "out_mouth_scale_y",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/mouth/scale/y"
+      }
+    },
+    {
+      "id": "out_mouth_key_1_value",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/mouth/key_1/value"
+      }
+    },
+    {
+      "id": "out_right_eye_rotation_z",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/right_eye/rotation/z"
+      }
+    },
+    {
+      "id": "out_right_eye_scale_x",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/right_eye/scale/x"
+      }
+    },
+    {
+      "id": "out_right_eye_translation_x",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/right_eye/translation/x"
+      }
+    },
+    {
+      "id": "out_right_eye_translation_y",
+      "type": "output",
+      "params": {
+        "path": "rig/tiago/right_eye/translation/y"
       }
     }
   ],
   "edges": [
     {
       "from": {
-        "node_id": "pose_pose_bcud22so"
+        "node_id": "pose_pose_09bmti48"
       },
       "to": {
         "node_id": "pose_weights_join",
@@ -1299,11 +1575,29 @@
     },
     {
       "from": {
-        "node_id": "pose_pose_8edf5az3"
+        "node_id": "pose_pose_d9me8vtr"
       },
       "to": {
         "node_id": "pose_weights_join",
         "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_pose_9li8230i"
+      },
+      "to": {
+        "node_id": "pose_weights_join",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_pose_8bcz0cbv"
+      },
+      "to": {
+        "node_id": "pose_weights_join",
+        "input": "operand_4"
       }
     },
     {
@@ -1335,7 +1629,7 @@
     },
     {
       "from": {
-        "node_id": "pose_record_pose_bcud22so"
+        "node_id": "pose_record_pose_09bmti48"
       },
       "to": {
         "node_id": "pose_blend",
@@ -1344,7 +1638,7 @@
     },
     {
       "from": {
-        "node_id": "pose_record_pose_8edf5az3"
+        "node_id": "pose_record_pose_d9me8vtr"
       },
       "to": {
         "node_id": "pose_blend",
@@ -1353,10 +1647,28 @@
     },
     {
       "from": {
+        "node_id": "pose_record_pose_9li8230i"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "pose_record_pose_8bcz0cbv"
+      },
+      "to": {
+        "node_id": "pose_blend",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
         "node_id": "pose_blend"
       },
       "to": {
-        "node_id": "out_ball_anim_rotation_x",
+        "node_id": "out_left_eye_color_r",
         "input": "in"
       },
       "selector": [
@@ -1364,7 +1676,7 @@
           "field": "values"
         },
         {
-          "field": "ball_anim_rotation_x"
+          "field": "left_eye_color_r"
         }
       ]
     },
@@ -1373,7 +1685,7 @@
         "node_id": "pose_blend"
       },
       "to": {
-        "node_id": "out_ball_anim_rotation_z",
+        "node_id": "out_left_eye_rotation_z",
         "input": "in"
       },
       "selector": [
@@ -1381,7 +1693,211 @@
           "field": "values"
         },
         {
-          "field": "ball_anim_rotation_z"
+          "field": "left_eye_rotation_z"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_left_eye_scale_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "left_eye_scale_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_left_eye_translation_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "left_eye_translation_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_left_eye_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "left_eye_translation_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_rotation_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_rotation_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_rotation_z",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_rotation_z"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_scale_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_scale_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_scale_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_scale_y"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_mouth_key_1_value",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "mouth_key_1_value"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_right_eye_rotation_z",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "right_eye_rotation_z"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_right_eye_scale_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "right_eye_scale_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_right_eye_translation_x",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "right_eye_translation_x"
+        }
+      ]
+    },
+    {
+      "from": {
+        "node_id": "pose_blend"
+      },
+      "to": {
+        "node_id": "out_right_eye_translation_y",
+        "input": "in"
+      },
+      "selector": [
+        {
+          "field": "values"
+        },
+        {
+          "field": "right_eye_translation_y"
         }
       ]
     }
