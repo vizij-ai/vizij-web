@@ -1,5 +1,15 @@
 # @vizij/runtime-react
 
+## 0.0.2
+
+### Patch Changes
+
+- Update import and export process to save and consistently handle names
+- Updated dependencies
+  - @vizij/orchestrator-react@0.0.2
+  - @vizij/render@0.0.2
+  - @vizij/utils@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes
