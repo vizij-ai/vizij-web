@@ -354,18 +354,9 @@ importers:
       '@react-three/fiber':
         specifier: ^8.17.10
         version: 8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0)
-      '@vizij/orchestrator-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/orchestrator-react
-      '@vizij/render':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/render
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
-      '@vizij/utils':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/utils
       react:
         specifier: ^18.2.0
         version: 18.3.1
