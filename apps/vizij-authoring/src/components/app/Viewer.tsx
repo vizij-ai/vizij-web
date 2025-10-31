@@ -1,15 +1,11 @@
 import { Vizij } from "@vizij/render";
 import type { Group } from "@vizij/render";
-import { PoseRigWorkbench } from "../../poseRig/components";
-import type { UsePoseRigAuthoringResult } from "../../poseRig/usePoseRigAuthoring";
-
 interface ViewerProps {
   rootId: string | null;
   rootRenderable: Group | undefined;
   statusMessage: string;
   namespace: string;
   onClearSelection: () => void;
-  poseRig: UsePoseRigAuthoringResult;
 }
 
 export function Viewer({
@@ -18,7 +14,6 @@ export function Viewer({
   statusMessage,
   namespace,
   onClearSelection,
-  poseRig,
 }: ViewerProps) {
   return (
     <main className="viewer">
@@ -51,9 +46,6 @@ export function Viewer({
             <p>Load a Vizij asset to render it here.</p>
           </div>
         )}
-      </div>
-      <div className="viewer__workbench">
-        <PoseRigWorkbench state={poseRig} />
       </div>
     </main>
   );

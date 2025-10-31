@@ -15,6 +15,30 @@ import type { FeatureEntry } from "../components/animatable-panel/types";
 
 type VectorComponentKey = NonNullable<AnimatableComponent["component"]>;
 
+function encodeSourceToken(value: string): string {
+  return encodeURIComponent(value ?? "");
+}
+
+function buildComponentSourceId(options: {
+  elementId: string;
+  featureKey: string;
+  animatableId: string;
+  componentId: string;
+}): string {
+  const { elementId, featureKey, animatableId, componentId } = options;
+  return [
+    "component",
+    encodeSourceToken(elementId),
+    encodeSourceToken(featureKey),
+    encodeSourceToken(animatableId),
+    encodeSourceToken(componentId),
+  ].join(":");
+}
+
+function buildStandardSourceId(standardInputId: string): string {
+  return ["standard", encodeSourceToken(standardInputId)].join(":");
+}
+
 function toPathToken(value: string, fallback: string): string {
   const normalized = normalizeStandardRigGroup(value, "");
   return normalized || fallback;
@@ -77,6 +101,7 @@ export interface AutoRigInputBlueprint {
   path: string;
   input: StandardRigInput;
   metadata: AutoRigInputBlueprintMetadata;
+  sourceId: string;
 }
 
 interface ComponentsByAnimatable {
@@ -139,6 +164,12 @@ function createBlueprintFromComponent(
       min: -1,
       max: 1,
     },
+    sourceId: buildComponentSourceId({
+      elementId: entry.elementId,
+      featureKey: entry.featureKey,
+      animatableId: component.animatableId,
+      componentId: component.id,
+    }),
   });
   const metadata: AutoRigInputBlueprintMetadata = {
     elementId: entry.elementId,
@@ -156,6 +187,7 @@ function createBlueprintFromComponent(
     path: normalizedPath,
     input,
     metadata,
+    sourceId: input.sourceId ?? "",
   };
 }
 
@@ -199,6 +231,7 @@ export function buildAutoRigInputBlueprints(
         min: standardInput.range.min,
         max: standardInput.range.max,
       },
+      sourceId: buildStandardSourceId(standardInput.id),
       parentBinding: standardInput.parentBinding ?? undefined,
       derivedChildren: standardInput.derivedChildren ?? undefined,
     });
@@ -218,6 +251,7 @@ export function buildAutoRigInputBlueprints(
         propertyLabel: standardInput.label,
         root: "standard",
       },
+      sourceId: clonedInput.sourceId ?? buildStandardSourceId(standardInput.id),
     });
     rootSet.add("standard");
   });

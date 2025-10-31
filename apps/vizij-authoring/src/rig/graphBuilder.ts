@@ -856,6 +856,7 @@ export function buildRigGraphSpec({
         inputs: Array.from(inputsById.values()).map((input) => ({
           id: input.id,
           path: input.path,
+          sourceId: input.sourceId,
           label: input.label,
           group: input.group,
           defaultValue: input.defaultValue,

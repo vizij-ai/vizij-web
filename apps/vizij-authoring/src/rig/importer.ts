@@ -28,6 +28,7 @@ import type { GraphBindingSummary } from "./graphBuilder";
 interface VizijGraphMetadataInput {
   id: string;
   path: string;
+  sourceId?: string;
   label: string;
   group: string;
   defaultValue: number;
@@ -257,6 +258,7 @@ export function rehydrateRigDataFromGraph(
     return createStandardRigInput({
       id: input.id,
       path: normalizedPath,
+      sourceId: input.sourceId,
       label: input.label,
       group,
       defaultValue: input.defaultValue,

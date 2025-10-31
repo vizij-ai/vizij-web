@@ -26,6 +26,7 @@ export function AnimatableValuesPanel({
   namespace: _namespace,
   faceId,
   onFaceIdChange,
+  visibleSections,
   graphStatus,
   graphError,
   selectionStack,
@@ -48,8 +49,8 @@ export function AnimatableValuesPanel({
   selectedStandardInputSubgroups,
   onSelectedStandardInputRootsChange,
   onSelectedStandardInputSubgroupsChange,
-  onRenameGroup,
   onCreateCustomStandardInput,
+  onRenameShape,
   onResetAllInputs,
   onClearCachedState,
   onLinkChildInput,
@@ -69,7 +70,13 @@ export function AnimatableValuesPanel({
   onParentBindingSlotAliasChange,
   onParentResetBinding,
   onFeatureLabelChange,
+  onCapturePoseFromDrivers,
+  capturePoseDisabled,
 }: AnimatableValuesPanelProps) {
+  const showDrivers =
+    visibleSections === undefined ? true : Boolean(visibleSections.drivers);
+  const showProperties =
+    visibleSections === undefined ? true : Boolean(visibleSections.properties);
   const world = useVizijStore((state) => state.world);
   const animatables = useVizijStore((state) => state.animatables);
   const setStoreState = useVizijStoreSetter();
@@ -284,28 +291,6 @@ export function AnimatableValuesPanel({
     [managedInputsById, onDeleteCustomStandardInput],
   );
 
-  const handleClearInputMappings = useCallback(
-    (input: StandardRigInput) => {
-      const boundTargets = Object.entries(bindings)
-        .filter(([, binding]) => binding?.inputId === input.id)
-        .map(([targetId]) => targetId);
-      if (boundTargets.length === 0) {
-        return;
-      }
-      if (
-        !confirmDialog(
-          `Clear ${boundTargets.length} mapping${boundTargets.length === 1 ? "" : "s"} for "${input.path}"?`,
-        )
-      ) {
-        return;
-      }
-      boundTargets.forEach((targetId) => {
-        onBindingInputChange(targetId, null);
-      });
-    },
-    [bindings, onBindingInputChange],
-  );
-
   const updateAnimatableDescriptor = useCallback(
     (
       animatableId: string,
@@ -475,36 +460,6 @@ export function AnimatableValuesPanel({
     [convertToAnimated, convertToStatic],
   );
 
-  const handleNameChange = useCallback(
-    (entry: FeatureEntry, nextName: string) => {
-      if (!entry.animatableId || !entry.descriptor) {
-        return;
-      }
-      updateAnimatableDescriptor(entry.animatableId, (current) => ({
-        ...current,
-        name: nextName,
-      }));
-    },
-    [updateAnimatableDescriptor],
-  );
-
-  const handleLabelChange = useCallback(
-    (entry: FeatureEntry, nextLabel: string) => {
-      if (!entry.animatableId || !entry.descriptor) {
-        return;
-      }
-      updateAnimatableDescriptor(entry.animatableId, (current) => ({
-        ...current,
-        pub: {
-          ...current.pub,
-          output: nextLabel,
-          public: true,
-        },
-      }));
-    },
-    [updateAnimatableDescriptor],
-  );
-
   const handleFeatureLabelChange = useCallback(
     (entry: FeatureEntry, nextLabel: string) => {
       onFeatureLabelChange(entry, nextLabel);
@@ -557,142 +512,159 @@ export function AnimatableValuesPanel({
 
   return (
     <div className="sidebar__panel feature-panel">
-      <StandardInputsSection
-        faceId={faceId}
-        onFaceIdChange={onFaceIdChange}
-        isCollapsed={rigCollapsed}
-        onToggleCollapsed={() => setRigCollapsed((prev) => !prev)}
-        inputs={managedStandardInputs}
-        inputBindings={inputBindings}
-        roots={availableRoots}
-        selectedRoots={selectedStandardInputRoots}
-        onSelectedRootsChange={onSelectedStandardInputRootsChange}
-        selectedSubgroups={selectedStandardInputSubgroups}
-        onSelectedSubgroupsChange={onSelectedStandardInputSubgroupsChange}
-        onRenameGroup={onRenameGroup}
-        inputValues={inputValues}
-        effectiveInputRanges={effectiveInputRanges}
-        inputUsage={inputUsage}
-        bindingIssues={bindingIssues}
-        onInputValueChange={onInputValueChange}
-        onCreateInput={handleCreateInputClick}
-        onResetAllInputs={onResetAllInputs}
-        onClearCachedState={onClearCachedState}
-        onLinkChildInput={onLinkChildInput}
-        onUnlinkChildInput={onUnlinkChildInput}
-        onEnsureParentBinding={onEnsureParentBinding}
-        onUpdateInput={handleUpdateStandardInput}
-        onClearInputMappings={handleClearInputMappings}
-        onDeleteInput={handleDeleteInput}
-        onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
-        onParentBindingInputChange={onParentBindingInputChange}
-        onParentBindingRemapChange={onParentBindingRemapChange}
-        onParentAddBindingSlot={onParentAddBindingSlot}
-        onParentRemoveBindingSlot={onParentRemoveBindingSlot}
-        onParentBindingExpressionChange={onParentBindingExpressionChange}
-        onParentBindingSlotAliasChange={onParentBindingSlotAliasChange}
-        onParentResetBinding={onParentResetBinding}
-        graphStatus={graphStatus}
-        graphError={graphError}
-      />
-      <section className="feature-panel__section">
-        <header className="feature-panel__section-header">
-          <button
-            type="button"
-            className="feature-panel__section-toggle"
-            onClick={() => setMappingCollapsed((prev) => !prev)}
-            aria-expanded={!mappingCollapsed}
-            aria-label={`${
-              mappingCollapsed ? "Expand" : "Collapse"
-            } animatable mapping`}
-          />
-          <h2 className="feature-panel__section-title">Animatable Mapping</h2>
-        </header>
-        <p className="sidebar__description">
-          This section contains all animatable elements in the glb. You can
-          specify the animatable value parameters and specify inputs to control
-          them here. Click on elements or use the search bar to rapidly find the
-          element you are looking for.
-        </p>
-        {!mappingCollapsed && (
-          <div className="feature-panel__section-body">
-            <section className="feature-panel__subsection feature-panel__subsection--search">
-              <div className="feature-panel__subsection-header">
-                <h3 className="feature-panel__subsection-title">Search</h3>
-              </div>
-              <div className="feature-panel__filters">
-                <input
-                  type="search"
-                  placeholder="Search features"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  spellCheck={false}
+      {showDrivers && (
+        <StandardInputsSection
+          faceId={faceId}
+          onFaceIdChange={onFaceIdChange}
+          isCollapsed={rigCollapsed}
+          onToggleCollapsed={() => setRigCollapsed((prev) => !prev)}
+          inputs={managedStandardInputs}
+          inputBindings={inputBindings}
+          roots={availableRoots}
+          selectedRoots={selectedStandardInputRoots}
+          onSelectedRootsChange={onSelectedStandardInputRootsChange}
+          selectedSubgroups={selectedStandardInputSubgroups}
+          onSelectedSubgroupsChange={onSelectedStandardInputSubgroupsChange}
+          inputValues={inputValues}
+          effectiveInputRanges={effectiveInputRanges}
+          inputUsage={inputUsage}
+          bindingIssues={bindingIssues}
+          bindings={bindings}
+          onInputValueChange={onInputValueChange}
+          onCreateInput={handleCreateInputClick}
+          onResetAllInputs={onResetAllInputs}
+          onClearCachedState={onClearCachedState}
+          onLinkChildInput={onLinkChildInput}
+          onUnlinkChildInput={onUnlinkChildInput}
+          onEnsureParentBinding={onEnsureParentBinding}
+          onUpdateInput={handleUpdateStandardInput}
+          onDeleteInput={handleDeleteInput}
+          onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
+          onCapturePose={onCapturePoseFromDrivers}
+          capturePoseDisabled={capturePoseDisabled}
+          onParentBindingInputChange={onParentBindingInputChange}
+          onParentBindingRemapChange={onParentBindingRemapChange}
+          onParentAddBindingSlot={onParentAddBindingSlot}
+          onParentRemoveBindingSlot={onParentRemoveBindingSlot}
+          onParentBindingExpressionChange={onParentBindingExpressionChange}
+          onParentBindingSlotAliasChange={onParentBindingSlotAliasChange}
+          onParentResetBinding={onParentResetBinding}
+          onBindingRemapChange={onBindingRemapChange}
+          graphStatus={graphStatus}
+          graphError={graphError}
+        />
+      )}
+      {showProperties && (
+        <section className="feature-panel__section">
+          <header className="feature-panel__section-header">
+            <button
+              type="button"
+              className="feature-panel__section-toggle"
+              onClick={() => setMappingCollapsed((prev) => !prev)}
+              aria-expanded={!mappingCollapsed}
+              aria-label={`${
+                mappingCollapsed ? "Expand" : "Collapse"
+              } animatable mapping`}
+            />
+            <h2 className="feature-panel__section-title">
+              Controllable Object Properties Mapping
+            </h2>
+          </header>
+          <p className="sidebar__description">
+            This section allows you to view and edit every property of your
+            imported glb. You can make every object property "animatable"
+            (controllable by rigs or animations) or not by checking the
+            "animatable box"
+          </p>
+          <p className="sidebar__description">
+            For properties that are animatable you can specify the value
+            parameters (default, min and max)
+          </p>
+          <p className="sidebar__description">
+            Click on elements or use the search bar to rapidly find the element
+            you are looking for.
+          </p>
+          {!mappingCollapsed && (
+            <div className="feature-panel__section-body">
+              <section className="feature-panel__subsection feature-panel__subsection--search">
+                <div className="feature-panel__subsection-header">
+                  <h3 className="feature-panel__subsection-title">Search</h3>
+                </div>
+                <div className="feature-panel__filters">
+                  <input
+                    type="search"
+                    placeholder="Search features"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    spellCheck={false}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      className="feature-panel__clear-btn"
+                      onClick={() => setSearchTerm("")}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {selectionStack.length > 0 && (
+                    <button
+                      type="button"
+                      className="feature-panel__filter-chip feature-panel__filter-chip--dismiss"
+                      onClick={onClearSelection}
+                      aria-label="Clear layered element selection"
+                    >
+                      {selectionStack.length} layered element
+                      {selectionStack.length === 1 ? "" : "s"}
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  )}
+                </div>
+                <SelectionStack
+                  selectionStack={selectionStack}
+                  world={world}
+                  onFocusSelectionIndex={onFocusSelectionIndex}
                 />
-                {searchTerm && (
-                  <button
-                    type="button"
-                    className="feature-panel__clear-btn"
-                    onClick={() => setSearchTerm("")}
-                  >
-                    Clear
-                  </button>
-                )}
-                {selectionStack.length > 0 && (
-                  <button
-                    type="button"
-                    className="feature-panel__filter-chip feature-panel__filter-chip--dismiss"
-                    onClick={onClearSelection}
-                    aria-label="Clear layered element selection"
-                  >
-                    {selectionStack.length} layered element
-                    {selectionStack.length === 1 ? "" : "s"}
-                    <span aria-hidden="true">×</span>
-                  </button>
-                )}
-              </div>
-              <SelectionStack
-                selectionStack={selectionStack}
-                world={world}
-                onFocusSelectionIndex={onFocusSelectionIndex}
-              />
-            </section>
+              </section>
 
-            <section className="feature-panel__subsection feature-panel__subsection--features">
-              <div className="sidebar__panel-header feature-panel__features-header">
-                <h3 className="sidebar__panel-title">Features</h3>
-                <span className="sidebar__badge">{filteredFeatureCount}</span>
-              </div>
-              <AnimatableTree
-                shapes={visibleShapes}
-                treeState={treeState}
-                componentsById={componentsById}
-                bindings={bindings}
-                bindingIssues={bindingIssues}
-                standardInputs={standardInputs}
-                standardInputLookup={standardInputLookup}
-                inputValues={inputValues}
-                inputRanges={effectiveInputRanges}
-                onInputValueChange={onInputValueChange}
-                onBindingInputChange={onBindingInputChange}
-                onBindingRemapChange={onBindingRemapChange}
-                onResetBinding={onResetBinding}
-                onRequestCreateStandardInput={requestCreateStandardInput}
-                onAddBindingSlot={onAddBindingSlot}
-                onRemoveBindingSlot={onRemoveBindingSlot}
-                onBindingExpressionChange={onBindingExpressionChange}
-                onBindingSlotAliasChange={onBindingSlotAliasChange}
-                onFeatureLabelChange={handleFeatureLabelChange}
-                onToggleAnimated={handleAnimatedToggle}
-                onNameChange={handleNameChange}
-                onLabelChange={handleLabelChange}
-                onDefaultChange={handleDefaultUpdate}
-                onConstraintChange={handleConstraintUpdate}
-                onStaticUpdate={updateStaticFeature}
-              />
-            </section>
-          </div>
-        )}
-      </section>
+              <section className="feature-panel__subsection feature-panel__subsection--features">
+                <div className="sidebar__panel-header feature-panel__features-header">
+                  <h3 className="sidebar__panel-title">
+                    Scene Object Properties Explorer
+                  </h3>
+                  <span className="sidebar__badge">{filteredFeatureCount}</span>
+                </div>
+                <AnimatableTree
+                  shapes={visibleShapes}
+                  treeState={treeState}
+                  componentsById={componentsById}
+                  bindings={bindings}
+                  bindingIssues={bindingIssues}
+                  standardInputs={standardInputs}
+                  standardInputLookup={standardInputLookup}
+                  inputValues={inputValues}
+                  inputRanges={effectiveInputRanges}
+                  onInputValueChange={onInputValueChange}
+                  onBindingInputChange={onBindingInputChange}
+                  onBindingRemapChange={onBindingRemapChange}
+                  onResetBinding={onResetBinding}
+                  onRequestCreateStandardInput={requestCreateStandardInput}
+                  onAddBindingSlot={onAddBindingSlot}
+                  onRemoveBindingSlot={onRemoveBindingSlot}
+                  onBindingExpressionChange={onBindingExpressionChange}
+                  onBindingSlotAliasChange={onBindingSlotAliasChange}
+                  onShapeRename={onRenameShape}
+                  onFeatureLabelChange={handleFeatureLabelChange}
+                  onToggleAnimated={handleAnimatedToggle}
+                  onDefaultChange={handleDefaultUpdate}
+                  onConstraintChange={handleConstraintUpdate}
+                  onStaticUpdate={updateStaticFeature}
+                />
+              </section>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

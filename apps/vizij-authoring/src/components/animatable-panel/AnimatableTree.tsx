@@ -1,4 +1,9 @@
-import { useCallback, useMemo } from "react";
+import {
+  useCallback,
+  useMemo,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 import { formatRawValue } from "../../utils/format";
 import {
   ensureVectorValue,
@@ -61,9 +66,6 @@ interface PropertyBindingRowProps {
     slotId?: string,
   ) => void;
   onResetBinding: (targetId: string) => void;
-  onRequestCreateStandardInput: (
-    suggestedPath?: string,
-  ) => StandardRigInput | null;
   onAddBindingSlot: (targetId: string) => void;
   onRemoveBindingSlot: (targetId: string, slotId: string) => void;
   onBindingExpressionChange: (targetId: string, expression: string) => void;
@@ -72,6 +74,9 @@ interface PropertyBindingRowProps {
     slotId: string,
     alias: string,
   ) => void;
+  onRequestCreateStandardInput?: (
+    suggestedPath?: string,
+  ) => StandardRigInput | null;
   outputDefaults?: {
     rangeMin: number;
     rangeMax: number;
@@ -119,28 +124,29 @@ function PropertyBindingRow({
   };
 
   return (
-    <BindingEditor
-      binding={binding}
-      targetId={bindingTarget.targetId}
-      label={property.label}
-      standardInputs={standardInputs}
-      standardInputLookup={standardInputLookup}
-      issues={issueList}
-      onBindingInputChange={onBindingInputChange}
-      onBindingRemapChange={onBindingRemapChange}
-      onAddBindingSlot={onAddBindingSlot}
-      onRemoveBindingSlot={onRemoveBindingSlot}
-      onBindingExpressionChange={onBindingExpressionChange}
-      onBindingSlotAliasChange={onBindingSlotAliasChange}
-      onRequestCreateStandardInput={onRequestCreateStandardInput}
-      onResetBinding={onResetBinding}
-      expanded={expanded}
-      onExpandedChange={handleExpandedChange}
-      outputDefaults={outputDefaults}
-    >
+    <>
+      <BindingEditor
+        binding={binding}
+        targetId={bindingTarget.targetId}
+        label={property.label}
+        standardInputs={standardInputs}
+        standardInputLookup={standardInputLookup}
+        issues={issueList}
+        onBindingInputChange={onBindingInputChange}
+        onBindingRemapChange={onBindingRemapChange}
+        onAddBindingSlot={onAddBindingSlot}
+        onRemoveBindingSlot={onRemoveBindingSlot}
+        onBindingExpressionChange={onBindingExpressionChange}
+        onBindingSlotAliasChange={onBindingSlotAliasChange}
+        onRequestCreateStandardInput={onRequestCreateStandardInput}
+        onResetBinding={onResetBinding}
+        expanded={expanded}
+        onExpandedChange={handleExpandedChange}
+        outputDefaults={outputDefaults}
+      ></BindingEditor>
       {outputControls && (
         <div className="feature-tree__property-column">
-          <h4>Animatables Value</h4>
+          <h4> {property.label} Default (Non Rigged) Animatable Parameters</h4>
           <div className="feature-tree__matrix-grid">
             <label>
               Min
@@ -187,43 +193,43 @@ function PropertyBindingRow({
           </div>
         </div>
       )}
-    </BindingEditor>
+    </>
   );
 }
 
-function MetadataEditor({
-  descriptor,
-  onNameChange,
-  onLabelChange,
-}: {
-  descriptor: AnimatableValue | undefined;
-  onNameChange: (value: string) => void;
-  onLabelChange: (value: string) => void;
-}) {
-  if (!descriptor) {
-    return null;
-  }
-  return (
-    <div className="feature-tree__metadata">
-      <label>
-        <span>Name</span>
-        <input
-          value={descriptor.name ?? ""}
-          onChange={(event) => onNameChange(event.target.value)}
-          spellCheck={false}
-        />
-      </label>
-      <label>
-        <span>Display Label</span>
-        <input
-          value={descriptor.pub?.output ?? ""}
-          onChange={(event) => onLabelChange(event.target.value)}
-          spellCheck={false}
-        />
-      </label>
-    </div>
-  );
-}
+// function MetadataEditor({
+//   descriptor,
+//   onNameChange,
+//   onLabelChange,
+// }: {
+//   descriptor: AnimatableValue | undefined;
+//   onNameChange: (value: string) => void;
+//   onLabelChange: (value: string) => void;
+// }) {
+//   if (!descriptor) {
+//     return null;
+//   }
+//   return (
+//     <div className="feature-tree__metadata">
+//       <label>
+//         <span>Name</span>
+//         <input
+//           value={descriptor.name ?? ""}
+//           onChange={(event) => onNameChange(event.target.value)}
+//           spellCheck={false}
+//         />
+//       </label>
+//       <label>
+//         <span>Display Label</span>
+//         <input
+//           value={descriptor.pub?.output ?? ""}
+//           onChange={(event) => onLabelChange(event.target.value)}
+//           spellCheck={false}
+//         />
+//       </label>
+//     </div>
+//   );
+// }
 
 function StaticValueEditor({
   feature,
@@ -583,7 +589,9 @@ function PropertyControls({
     <div className="feature-tree__components">
       {animatable.fields.map((field) => (
         <div className="feature-tree__field" key={field.id}>
-          <div className="feature-tree__field-title">{field.label}</div>
+          <div className="feature-tree__field-title">
+            Property {field.label}
+          </div>
           <div className="feature-tree__field-body">
             {field.properties.map(renderPropertyRow)}
           </div>
@@ -601,7 +609,6 @@ function PropertyControls({
 }
 
 interface FeatureNodeProps {
-  shapeId: string;
   feature: FeatureTreeNode;
   treeState: AnimatableTreeState;
   componentsById: Map<string, AnimatableComponent>;
@@ -637,8 +644,6 @@ interface FeatureNodeProps {
   ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
-  onNameChange: (entry: FeatureEntry, value: string) => void;
-  onLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -670,8 +675,6 @@ function FeatureNode({
   onBindingSlotAliasChange,
   onToggleAnimated,
   onFeatureLabelChange,
-  onNameChange,
-  onLabelChange,
   onDefaultChange,
   onConstraintChange,
   onStaticUpdate,
@@ -797,11 +800,6 @@ function FeatureNode({
           </div>
           {feature.isAnimated && feature.animatable ? (
             <>
-              <MetadataEditor
-                descriptor={feature.entry.descriptor}
-                onNameChange={(value) => onNameChange(feature.entry, value)}
-                onLabelChange={(value) => onLabelChange(feature.entry, value)}
-              />
               <PropertyControls
                 feature={feature}
                 treeState={treeState}
@@ -845,6 +843,7 @@ interface AnimatableTreeProps {
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
   inputRanges: Map<string, { min: number; max: number }>;
+  onShapeRename: (shapeId: string, value: string) => void;
   onInputValueChange: (inputId: string, value: number) => void;
   onBindingInputChange: (
     targetId: string,
@@ -871,8 +870,6 @@ interface AnimatableTreeProps {
   ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
-  onNameChange: (entry: FeatureEntry, value: string) => void;
-  onLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -893,6 +890,7 @@ export function AnimatableTree({
   standardInputLookup,
   inputValues,
   inputRanges,
+  onShapeRename,
   onInputValueChange,
   onBindingInputChange,
   onBindingRemapChange,
@@ -904,8 +902,6 @@ export function AnimatableTree({
   onBindingSlotAliasChange,
   onToggleAnimated,
   onFeatureLabelChange,
-  onNameChange,
-  onLabelChange,
   onDefaultChange,
   onConstraintChange,
   onStaticUpdate,
@@ -920,6 +916,36 @@ export function AnimatableTree({
     <div className="feature-tree">
       {shapes.map((shape) => {
         const expanded = treeState.isExpanded("shape", shape.id);
+        const handleShapeNameCommit = (element: HTMLInputElement) => {
+          const trimmed = element.value.trim();
+          if (!trimmed) {
+            element.value = shape.name;
+            return;
+          }
+          if (trimmed === shape.name) {
+            return;
+          }
+          onShapeRename(shape.id, trimmed);
+        };
+
+        const handleShapeNameKeyDown = (
+          event: KeyboardEvent<HTMLInputElement>,
+        ) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            handleShapeNameCommit(event.target as HTMLInputElement);
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            const target = event.target as HTMLInputElement;
+            target.value = shape.name;
+            target.blur();
+          }
+        };
+
+        const handleShapeNameBlur = (event: FocusEvent<HTMLInputElement>) => {
+          handleShapeNameCommit(event.target as HTMLInputElement);
+        };
+
         return (
           <section className="feature-tree__shape" key={shape.id}>
             <header className="feature-tree__shape-header">
@@ -930,7 +956,16 @@ export function AnimatableTree({
                 aria-label={`${expanded ? "Collapse" : "Expand"} shape ${shape.name}`}
               />
               <div className="feature-tree__shape-summary">
-                <h3>{shape.name}</h3>
+                <input
+                  key={`${shape.id}:${shape.name}`}
+                  className="feature-tree__shape-name-input"
+                  type="text"
+                  defaultValue={shape.name}
+                  onBlur={handleShapeNameBlur}
+                  onKeyDown={handleShapeNameKeyDown}
+                  spellCheck={false}
+                  aria-label={`Rename ${shape.name}`}
+                />
                 <span>{shape.type}</span>
               </div>
             </header>
@@ -939,7 +974,6 @@ export function AnimatableTree({
                 {shape.features.map((feature) => (
                   <FeatureNode
                     key={feature.id}
-                    shapeId={shape.id}
                     feature={feature}
                     treeState={treeState}
                     componentsById={componentsById}
@@ -960,8 +994,6 @@ export function AnimatableTree({
                     onBindingSlotAliasChange={onBindingSlotAliasChange}
                     onFeatureLabelChange={onFeatureLabelChange}
                     onToggleAnimated={onToggleAnimated}
-                    onNameChange={onNameChange}
-                    onLabelChange={onLabelChange}
                     onDefaultChange={onDefaultChange}
                     onConstraintChange={onConstraintChange}
                     onStaticUpdate={onStaticUpdate}

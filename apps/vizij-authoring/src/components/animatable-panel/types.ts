@@ -78,6 +78,12 @@ export interface AnimatableValuesPanelProps {
   namespace: string;
   faceId: string;
   onFaceIdChange(faceId: string): void;
+  visibleSections?: {
+    drivers?: boolean;
+    properties?: boolean;
+  };
+  onCapturePoseFromDrivers?: (name: string) => void;
+  capturePoseDisabled?: boolean;
   graphStatus: "idle" | "loading" | "ready" | "error";
   graphError: string | null;
   selectionStack: Selection[];
@@ -109,8 +115,8 @@ export interface AnimatableValuesPanelProps {
   selectedStandardInputSubgroups: string[];
   onSelectedStandardInputRootsChange(next: string[]): void;
   onSelectedStandardInputSubgroupsChange(next: string[]): void;
-  onRenameGroup(sourceGroup: string, nextGroup: string): void;
   onCreateCustomStandardInput(path: string): StandardRigInput | null;
+  onRenameShape(shapeId: string, value: string): void;
   onResetAllInputs(): void;
   onClearCachedState(): void;
   onLinkChildInput(parentId: string, childId: string): void;
@@ -118,7 +124,7 @@ export interface AnimatableValuesPanelProps {
   onEnsureParentBinding(inputId: string): void;
   onUpdateStandardInput(
     inputId: string,
-    updates: { path?: string; label?: string },
+    updates: { path?: string; label?: string; sourceId?: string | null },
   ): void;
   onDeleteCustomStandardInput(inputId: string): void;
   onAddBindingSlot(targetId: string): void;

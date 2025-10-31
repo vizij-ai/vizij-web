@@ -2,7 +2,7 @@ import { ChangeEvent, useId, useState } from "react";
 
 interface PoseRigImportPanelProps {
   onImportPoseConfig: (file: File) => Promise<void>;
-  poseConfigWarnings: string[];
+  poseConfigWarnings: readonly string[];
   disabled?: boolean;
 }
 
@@ -114,7 +114,8 @@ export function PoseRigExportPanel({
       <header className="asset-card__header">
         <h2 className="asset-card__title">Pose Rig Outputs</h2>
         <p className="asset-card__description">
-          Name the bundle and export the generated pose rig files.
+          Name the bundle and export the generated pose rig files. Config is
+          still experimental, may become primary or be dropped.
         </p>
       </header>
       <div className="asset-card__body asset-card__body--compact">
@@ -153,7 +154,7 @@ export function PoseRigExportPanel({
         </div>
 
         <label className="field-label" htmlFor="pose-rig-config-file">
-          Pose config file <span className="asset-card__tag">Deprecated</span>
+          Pose config file <span className="asset-card__tag">Optional</span>
         </label>
         <div className="asset-card__form-row">
           <input

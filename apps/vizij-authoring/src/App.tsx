@@ -6,14 +6,9 @@ import {
   type Group,
 } from "@vizij/render";
 import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
-import { AssetLoaderPanel } from "./components/app/AssetLoaderPanel";
-import { ExportPanel } from "./components/app/ExportPanel";
-import { GraphImportPanel } from "./components/app/GraphImportPanel";
-import {
-  PoseRigExportPanel,
-  PoseRigImportPanel,
-} from "./components/app/PoseRigPanels";
+import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
 import { Viewer } from "./components/app/Viewer";
+import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { useRigController } from "./hooks/useRigController";
@@ -33,9 +28,40 @@ function faceSlug(value: string | null | undefined): string {
   return trimmed.replace(/\s+/g, "_");
 }
 
+type WorkbenchView = "import-export" | "drivers" | "properties" | "pose-rig";
+
+const WORKBENCH_OPTIONS: ReadonlyArray<{
+  id: WorkbenchView;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "import-export",
+    label: "Import & Export",
+    description: "Load Vizij assets and package outputs.",
+  },
+  {
+    id: "drivers",
+    label: "Drivers",
+    description: "Author and manage rig drivers and bindings.",
+  },
+  {
+    id: "properties",
+    label: "Properties",
+    description: "Map scene properties to rig inputs.",
+  },
+  {
+    id: "pose-rig",
+    label: "Pose Rig",
+    description: "Capture neutral poses and build pose libraries.",
+  },
+];
+
 export default function App() {
   const [graphFileName, setGraphFileName] = useState("");
   const [exportFileName, setExportFileName] = useState("");
+  const [activeWorkbench, setActiveWorkbench] =
+    useState<WorkbenchView>("import-export");
   const graphFileTouchedRef = useRef(false);
   const exportFileTouchedRef = useRef(false);
   const prevFaceIdRef = useRef<string | null>(null);
@@ -69,9 +95,9 @@ export default function App() {
     handleBindingRemapChange,
     handleResetBinding,
     handleCreateCustomStandardInput,
-    handleRenameGroup,
     handleLinkChildInput,
     handleUnlinkChildInput,
+    handleRenameShape,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
@@ -130,7 +156,6 @@ export default function App() {
   );
 
   useEffect(() => {
-    const slug = faceSlug(faceId);
     const defaultGraphName = `rig.graph.json`;
     const defaultGlbName = `face.glb`;
 
@@ -348,9 +373,83 @@ export default function App() {
     return "Load a Vizij GLB to begin.";
   }, [error, isLoading, rootId, sourceName]);
 
+  const handleCapturePoseFromDrivers = useCallback(
+    (name: string) => {
+      poseRig.createPoseFromSnapshot(name.trim());
+    },
+    [poseRig],
+  );
+
+  const renderAnimatablePanel = (
+    sections?: { drivers?: boolean; properties?: boolean },
+    extraProps?: {
+      onCapturePoseFromDrivers?: (name: string) => void;
+      capturePoseDisabled?: boolean;
+    },
+  ) => (
+    <AnimatableValuesPanel
+      namespace={DEFAULT_NAMESPACE}
+      faceId={faceId}
+      onFaceIdChange={handleFaceIdChange}
+      visibleSections={sections}
+      graphStatus={graphStatus}
+      graphError={graphError}
+      selectionStack={selectionStack}
+      onFocusSelectionIndex={handleFocusSelectionIndex}
+      onClearSelection={handleClearSelection}
+      components={animatableComponents}
+      bindings={bindings}
+      inputBindings={inputBindings}
+      bindingIssues={bindingIssues}
+      featureLabelOverrides={featureLabelOverrides}
+      onBindingInputChange={handleBindingInputChange}
+      onBindingRemapChange={handleBindingRemapChange}
+      onResetBinding={handleResetBinding}
+      inputValues={inputValues}
+      onInputValueChange={handleInputValueChange}
+      managedStandardInputs={managedStandardInputs}
+      standardInputs={standardInputs}
+      standardInputRoots={standardInputRoots}
+      selectedStandardInputRoots={selectedStandardInputRoots}
+      selectedStandardInputSubgroups={selectedStandardInputSubgroups}
+      onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
+      onSelectedStandardInputSubgroupsChange={
+        handleSelectStandardInputSubgroups
+      }
+      onCreateCustomStandardInput={handleCreateCustomStandardInput}
+      onRenameShape={handleRenameShape}
+      onResetAllInputs={handleResetAllInputValues}
+      onClearCachedState={handleClearCachedState}
+      onLinkChildInput={handleLinkChildInput}
+      onUnlinkChildInput={handleUnlinkChildInput}
+      onEnsureParentBinding={handleEnsureParentBinding}
+      onUpdateStandardInput={handleUpdateStandardInput}
+      onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
+      onAddBindingSlot={handleAddBindingSlot}
+      onRemoveBindingSlot={handleRemoveBindingSlot}
+      onBindingExpressionChange={handleUpdateBindingExpression}
+      onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
+      onParentBindingInputChange={handleParentBindingInputChange}
+      onParentBindingRemapChange={handleParentBindingRemapChange}
+      onParentAddBindingSlot={handleParentAddBindingSlot}
+      onParentRemoveBindingSlot={handleParentRemoveBindingSlot}
+      onParentBindingExpressionChange={handleParentBindingExpressionChange}
+      onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+      onParentResetBinding={handleParentResetBinding}
+      onFeatureLabelChange={(entry, value) =>
+        handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)
+      }
+      {...extraProps}
+    />
+  );
+
+  const activeOption = WORKBENCH_OPTIONS.find(
+    (option) => option.id === activeWorkbench,
+  );
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className="sidebar sidebar--nav">
         <header className="sidebar__topbar">
           <h1 className="sidebar__title">
             Vizij Authoring Tool Pre-Alpha Preview
@@ -360,70 +459,23 @@ export default function App() {
           </p>
         </header>
 
-        <section className="sidebar__section">
-          <header className="sidebar__section-header">
-            <h2 className="sidebar__section-title">Importing</h2>
-            <p className="sidebar__section-description">
-              Bring in geometry, rig graphs, and legacy pose data to continue
-              authoring.
-            </p>
-          </header>
-          <div className="sidebar__stack">
-            <AssetLoaderPanel
-              isLoading={isLoading}
-              error={error}
-              onSelectFile={handleSelectFile}
-              onClearError={clearError}
-            />
-
-            <GraphImportPanel
-              onSelectGraphFile={(file) => {
-                void handleImportGraphFile(file);
-              }}
-              disabled={!canImportGraph}
-            />
-
-            <PoseRigImportPanel
-              onImportPoseConfig={handleImportPoseConfigFile}
-              poseConfigWarnings={poseRig.poseConfigWarnings}
-              disabled={!poseRig.ready}
-            />
-          </div>
-        </section>
-
-        <section className="sidebar__section">
-          <header className="sidebar__section-header">
-            <h2 className="sidebar__section-title">Exporting</h2>
-            <p className="sidebar__section-description">
-              Package Vizij outputs for tooling or runtime hand-off.
-            </p>
-          </header>
-          <div className="sidebar__stack">
-            <ExportPanel
-              graphFileName={graphFileName}
-              onGraphFileNameChange={handleGraphFileNameChange}
-              exportFileName={exportFileName}
-              onExportFileNameChange={handleExportFileNameChange}
-              canExport={canExport}
-              onExportGraph={handleExportGraph}
-              onExportGlb={() => {
-                void handleExportGlb();
-              }}
-            />
-
-            <PoseRigExportPanel
-              rigName={poseRig.rigName}
-              onRigNameChange={poseRig.setRigName}
-              poseGraphFileName={poseRig.poseGraphFileName}
-              onPoseGraphFileNameChange={poseRig.setPoseGraphFileName}
-              poseConfigFileName={poseRig.poseConfigFileName}
-              onPoseConfigFileNameChange={poseRig.setPoseConfigFileName}
-              onExportPoseGraph={handleExportPoseGraphFile}
-              onExportPoseConfig={handleExportPoseConfigFile}
-              disabled={!poseRig.ready}
-            />
-          </div>
-        </section>
+        <nav className="workbench-nav">
+          {WORKBENCH_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`workbench-nav__button${
+                option.id === activeWorkbench ? " is-active" : ""
+              }`}
+              onClick={() => setActiveWorkbench(option.id)}
+            >
+              <span className="workbench-nav__label">{option.label}</span>
+              <span className="workbench-nav__description">
+                {option.description}
+              </span>
+            </button>
+          ))}
+        </nav>
       </aside>
 
       <Viewer
@@ -432,64 +484,68 @@ export default function App() {
         statusMessage={statusMessage}
         namespace={DEFAULT_NAMESPACE}
         onClearSelection={handleClearSelection}
-        poseRig={poseRig}
       />
 
       <aside className="sidebar sidebar--right">
-        <h1 className="sidebar__title">Controls Workbench</h1>
+        <div className="workbench-panel__content">
+          {activeOption && (
+            <header className="workbench-panel__header">
+              <h1 className="sidebar__title">{activeOption.label}</h1>
+              <p className="workbench-panel__description">
+                {activeOption.description}
+              </p>
+            </header>
+          )}
 
-        <AnimatableValuesPanel
-          namespace={DEFAULT_NAMESPACE}
-          faceId={faceId}
-          onFaceIdChange={handleFaceIdChange}
-          graphStatus={graphStatus}
-          graphError={graphError}
-          selectionStack={selectionStack}
-          onFocusSelectionIndex={handleFocusSelectionIndex}
-          onClearSelection={handleClearSelection}
-          components={animatableComponents}
-          bindings={bindings}
-          inputBindings={inputBindings}
-          bindingIssues={bindingIssues}
-          featureLabelOverrides={featureLabelOverrides}
-          onBindingInputChange={handleBindingInputChange}
-          onBindingRemapChange={handleBindingRemapChange}
-          onResetBinding={handleResetBinding}
-          inputValues={inputValues}
-          onInputValueChange={handleInputValueChange}
-          managedStandardInputs={managedStandardInputs}
-          standardInputs={standardInputs}
-          standardInputRoots={standardInputRoots}
-          selectedStandardInputRoots={selectedStandardInputRoots}
-          selectedStandardInputSubgroups={selectedStandardInputSubgroups}
-          onSelectedStandardInputRootsChange={handleSelectStandardInputRoots}
-          onSelectedStandardInputSubgroupsChange={
-            handleSelectStandardInputSubgroups
-          }
-          onRenameGroup={handleRenameGroup}
-          onCreateCustomStandardInput={handleCreateCustomStandardInput}
-          onResetAllInputs={handleResetAllInputValues}
-          onClearCachedState={handleClearCachedState}
-          onLinkChildInput={handleLinkChildInput}
-          onUnlinkChildInput={handleUnlinkChildInput}
-          onEnsureParentBinding={handleEnsureParentBinding}
-          onUpdateStandardInput={handleUpdateStandardInput}
-          onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
-          onAddBindingSlot={handleAddBindingSlot}
-          onRemoveBindingSlot={handleRemoveBindingSlot}
-          onBindingExpressionChange={handleUpdateBindingExpression}
-          onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
-          onParentBindingInputChange={handleParentBindingInputChange}
-          onParentBindingRemapChange={handleParentBindingRemapChange}
-          onParentAddBindingSlot={handleParentAddBindingSlot}
-          onParentRemoveBindingSlot={handleParentRemoveBindingSlot}
-          onParentBindingExpressionChange={handleParentBindingExpressionChange}
-          onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
-          onParentResetBinding={handleParentResetBinding}
-          onFeatureLabelChange={(entry, value) =>
-            handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)
-          }
-        />
+          <div className="workbench-panel__body">
+            {activeWorkbench === "import-export" && (
+              <ImportExportWorkbench
+                isLoading={isLoading}
+                error={error}
+                onSelectFile={handleSelectFile}
+                onClearError={clearError}
+                onImportGraph={handleImportGraphFile}
+                canImportGraph={canImportGraph}
+                onImportPoseConfig={handleImportPoseConfigFile}
+                poseConfigWarnings={poseRig.poseConfigWarnings}
+                poseRigReady={poseRig.ready}
+                graphFileName={graphFileName}
+                onGraphFileNameChange={handleGraphFileNameChange}
+                exportFileName={exportFileName}
+                onExportFileNameChange={handleExportFileNameChange}
+                canExport={canExport}
+                onExportGraph={handleExportGraph}
+                onExportGlb={handleExportGlb}
+                rigName={poseRig.rigName}
+                onRigNameChange={poseRig.setRigName}
+                poseGraphFileName={poseRig.poseGraphFileName}
+                onPoseGraphFileNameChange={poseRig.setPoseGraphFileName}
+                poseConfigFileName={poseRig.poseConfigFileName}
+                onPoseConfigFileNameChange={poseRig.setPoseConfigFileName}
+                onExportPoseGraph={handleExportPoseGraphFile}
+                onExportPoseConfig={handleExportPoseConfigFile}
+              />
+            )}
+
+            {activeWorkbench === "drivers" &&
+              renderAnimatablePanel(
+                { drivers: true },
+                {
+                  onCapturePoseFromDrivers: handleCapturePoseFromDrivers,
+                  capturePoseDisabled: !poseRig.ready,
+                },
+              )}
+
+            {activeWorkbench === "properties" &&
+              renderAnimatablePanel({ properties: true })}
+
+            {activeWorkbench === "pose-rig" && (
+              <div className="sidebar__panel sidebar__panel--pose">
+                <PoseRigWorkbench state={poseRig} />
+              </div>
+            )}
+          </div>
+        </div>
       </aside>
     </div>
   );

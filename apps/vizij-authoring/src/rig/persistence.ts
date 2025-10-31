@@ -6,6 +6,7 @@ const STORAGE_KEY = "vizij:rig-authoring:v2";
 export interface PersistedAutoStandardInput {
   id: string;
   path: string;
+  sourceId?: string;
   sourcePath?: string;
   group?: string;
   label?: string;

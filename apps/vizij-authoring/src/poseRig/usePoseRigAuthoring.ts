@@ -169,6 +169,7 @@ export interface UsePoseRigAuthoringResult {
   deletePose: (poseId: string) => void;
   updatePoseName: (poseId: string, name: string) => void;
   updatePoseDescription: (poseId: string, description: string) => void;
+  createPoseFromSnapshot: (name?: string) => void;
   capturePose: (poseId: string) => void;
   clearPose: (poseId: string) => void;
   updatePoseValue: (poseId: string, inputId: string, value: number) => void;
@@ -297,11 +298,12 @@ export function usePoseRigAuthoring(
     }
     const faceSlug = slugify(faceId, "face");
     const rigSlug = slugify(rigName, DEFAULT_RIG_NAME);
+    const baseName = `${faceSlug}-${rigSlug}`;
     if (!poseGraphNameTouchedRef.current) {
-      setPoseGraphFileName(`pose-rig.graph.json`);
+      setPoseGraphFileName(`${baseName}.pose.graph.json`);
     }
     if (!poseConfigNameTouchedRef.current) {
-      setPoseConfigFileName(`pose-rig.config.json`);
+      setPoseConfigFileName(`${baseName}.pose.config.json`);
     }
   }, [faceId, rigName]);
 
@@ -368,6 +370,30 @@ export function usePoseRigAuthoring(
       return next;
     });
   }, []);
+
+  const createPoseFromSnapshot = useCallback(
+    (name?: string) => {
+      if (!ready) {
+        return;
+      }
+      const snapshot = capturePoseSnapshot({
+        inputs: standardInputs,
+        currentValues: inputValues,
+      });
+      const normalized = normalizePoseSnapshot(neutralBaseline, snapshot);
+      setPoses((prev) => {
+        const trimmed = name?.trim();
+        const poseName =
+          trimmed && trimmed.length > 0 ? trimmed : `Pose ${prev.length + 1}`;
+        const base = createPoseDefinition(poseName);
+        const nextPose = updatePoseDefinition(base, { values: normalized });
+        const next = [...prev, nextPose];
+        setSelectedPoseId(nextPose.id);
+        return next;
+      });
+    },
+    [inputValues, neutralBaseline, ready, standardInputs],
+  );
 
   const duplicatePose = useCallback(
     (poseId: string) => {
@@ -730,6 +756,7 @@ export function usePoseRigAuthoring(
     selectNeutral,
     selectPose,
     createPose,
+    createPoseFromSnapshot,
     duplicatePose,
     deletePose,
     updatePoseName,
