@@ -8,11 +8,7 @@ This guide shows how to stand up a fullscreen Vizij face using the **new `@vizij
 
 - Node.js ≥ 18
 - React + TypeScript project (Vite, CRA, Next, etc.)
-- Vizij export bundle:
-  - `face.glb` – renderer asset
-  - `rig.graph.json` – low-level rig graph
-  - `pose-rig.graph.json` – pose controller
-  - `pose-rig.config.json` – pose metadata (neutral defaults + preset definitions)
+- Vizij export bundle: a GLB exported from vizij-authoring with the **“Embed Vizij bundle”** option enabled (the `VIZIJ_bundle` extension carries rig graphs, pose configs, and animations). Legacy exports with separate JSON files still work if you prefer to supply them manually.
 
 > The tutorial demo stores these files under `src/assets/`. Adjust paths to match your project layout.
 
@@ -36,32 +32,17 @@ Create an index alongside your exported files so the bundle stays declarative an
 ```ts
 // src/assets/index.ts
 import faceGlb from "./face.glb";
-import rigGraph from "./rig.graph.json";
-import poseRigGraph from "./pose-rig.graph.json";
-import poseRigConfig from "./pose-rig.config.json";
 
 import type { VizijAssetBundle } from "@vizij/runtime-react";
 
-export const FACE_ID = (poseRigConfig.faceId ?? "face").toLowerCase();
-
 export const fullscreenFaceBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
-  faceId: FACE_ID,
   glb: {
     kind: "url",
     src: faceGlb,
     aggressiveImport: true,
   },
-  rig: {
-    id: `rig:${FACE_ID}`,
-    spec: rigGraph,
-  },
   pose: {
-    graph: {
-      id: `pose:${FACE_ID}`,
-      spec: poseRigGraph,
-    },
-    config: poseRigConfig,
     // Optional: keep GLB colours intact by skipping colour channels
     stageNeutralFilter: (_id, path) => !path.includes("/color/"),
   },
@@ -69,7 +50,7 @@ export const fullscreenFaceBundle: VizijAssetBundle = {
 ```
 
 ### Why the filter?
-Neutral configs often set every colour channel to `0`. Returning `false` for paths containing `/color/` prevents neutral staging from overwriting the GLB’s baked colours.
+Neutral configs often set every colour channel to `0`. Returning `false` for paths containing `/color/` prevents neutral staging from overwriting the GLB’s baked colours. The runtime fills in the rig + pose data from the embedded bundle automatically.
 
 ---
 
@@ -86,7 +67,7 @@ import {
   useVizijRuntime,
 } from "@vizij/runtime-react";
 
-import { fullscreenFaceBundle, FACE_ID, poseRigConfiguration } from "./assets";
+import { fullscreenFaceBundle } from "./assets";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 
@@ -99,9 +80,11 @@ export function FaceApp() {
 }
 
 function FaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
+  const { ready, loading, error, stagePoseNeutral, assetBundle } =
+    useVizijRuntime();
+  const poseConfig = assetBundle.pose?.config ?? null;
   const gazeRef = useMouseGaze(ready);
-  usePoseHotkeys(poseRigConfiguration, ready);
+  usePoseHotkeys(poseConfig, ready);
 
   useEffect(() => {
     if (ready) stagePoseNeutral();
@@ -109,13 +92,13 @@ function FaceRuntime() {
 
   const hotkeyHints = useMemo(
     () =>
-      poseRigConfiguration.poses
+      (poseConfig?.poses ?? [])
         .slice(0, POSE_HOTKEY_ORDER.length)
         .map((pose, idx) => ({
           key: POSE_HOTKEY_ORDER[idx],
           label: pose.name ?? `Pose ${idx + 1}`,
         })),
-    [],
+    [poseConfig],
   );
 
   if (loading) return <Status message="Loading face…" />;
@@ -222,8 +205,11 @@ export function useMouseGaze(enabled: boolean) {
 ```tsx
 // src/hooks/usePoseHotkeys.ts
 import { useEffect } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-import type { PoseRigConfig, PoseDefinition } from "../assets";
+import {
+  useVizijRuntime,
+  type PoseRigConfig,
+  type PoseDefinition,
+} from "@vizij/runtime-react";
 
 export const POSE_HOTKEY_ORDER = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"] as const;
 
@@ -234,12 +220,15 @@ const toPathSegment = (pose: PoseDefinition) =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-export function usePoseHotkeys(config: PoseRigConfig, enabled: boolean) {
+export function usePoseHotkeys(
+  config: PoseRigConfig | null,
+  enabled: boolean,
+) {
   const { setInput, faceId } = useVizijRuntime();
   const resolvedFaceId = (faceId ?? "face").toLowerCase();
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !config) return;
 
     const bindings = POSE_HOTKEY_ORDER.reduce((acc, code, index) => {
       const pose = config.poses[index];
@@ -277,7 +266,7 @@ export function usePoseHotkeys(config: PoseRigConfig, enabled: boolean) {
       window.removeEventListener("keyup", handleKeyUp);
       bindings.forEach((pose) => applyWeight(pose, 0));
     };
-  }, [config.poses, enabled, resolvedFaceId, setInput]);
+  }, [config, enabled, resolvedFaceId, setInput]);
 }
 ```
 

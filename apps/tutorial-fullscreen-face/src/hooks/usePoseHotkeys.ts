@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-
-import type { PoseRigConfig, PoseDefinition } from "../assets";
+import {
+  useVizijRuntime,
+  type PoseRigConfig,
+  type PoseDefinition,
+} from "@vizij/runtime-react";
 
 export const POSE_HOTKEY_ORDER = [
   "Digit1",
@@ -23,20 +25,22 @@ function toPathSegment(pose: PoseDefinition): string {
 }
 
 export function usePoseHotkeys(
-  poseConfig: PoseRigConfig,
+  poseConfig: PoseRigConfig | null,
   enabled: boolean,
 ) {
   const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !poseConfig) {
       return;
     }
 
+    const poses = poseConfig.poses ?? [];
+
     const bindings = POSE_HOTKEY_ORDER.reduce<Map<string, PoseDefinition>>(
       (acc, code, index) => {
-        const pose = poseConfig.poses[index];
+        const pose = poses[index];
         if (pose) {
           acc.set(code, pose);
         }
@@ -86,5 +90,5 @@ export function usePoseHotkeys(
       window.removeEventListener("keyup", handleKeyUp);
       bindings.forEach((pose) => applyWeight(pose, 0));
     };
-  }, [enabled, faceId, poseConfig.poses, setInput]);
+  }, [enabled, faceId, poseConfig, setInput]);
 }

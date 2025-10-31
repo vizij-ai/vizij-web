@@ -56,12 +56,13 @@ The provider creates a renderer store, boots the orchestrator, registers the sup
 
 `VizijRuntimeProvider` expects a `VizijAssetBundle`:
 
-- `glb`: required. Either `{ kind: "url", src }`, `{ kind: "blob", blob }`, or `{ kind: "world", world, animatables }`. URL/blob variants can opt into `aggressiveImport` for tooling builds and provide `rootBounds` overrides when the GLB lacks metadata.
-- `rig`: required. Graph specification describing inputs/outputs for the orchestrator (`id` must be unique within the namespace).
-- `pose`: optional. Supply authoring pose graph/config so the runtime can neutralise the rig before you drive it.
-- `animations`: optional array. Each item defines channels that map to runtime input paths. Use `playAnimation` to trigger them.
+- `glb`: required. Either `{ kind: "url", src }`, `{ kind: "blob", blob }`, or `{ kind: "world", world, animatables, bundle? }`. URL/blob variants can opt into `aggressiveImport` for tooling builds and provide `rootBounds` overrides when the GLB lacks metadata.
+- `rig`: optional. When omitted, the runtime looks for a `VIZIJ_bundle` extension inside the GLB and registers the first rig graph it finds.
+- `pose`: optional. Provide your own pose graph/config or just a `stageNeutralFilter`; bundled pose data is pulled from the GLB when present.
+- `animations`: optional array. Explicit entries merge with animations discovered in the GLB bundle (deduped by id). Use `playAnimation` to trigger them.
 - `initialInputs`: optional map of ValueJSON that seeds inputs before autostart.
 - `metadata`: free-form dictionary you can read back through `useVizijRuntime().assetBundle.metadata`.
+- `bundle`: optional. Supply pre-parsed bundle metadata when you manage world loading yourself. When loading from GLB/Blob the runtime fills this with the extracted `VizijBundleExtension`.
 
 Namespace defaults to `assetBundle.namespace ?? "default"`. Face id falls back to the bundle pose config when omitted.
 
@@ -117,9 +118,9 @@ For ad-hoc gestures, use `animateValue` with duration/easing. If you need custom
 
 ## Asset Bundling Workflow
 
-1. Export an authoring scene to GLB with Vizij metadata intact (bounds, animatable ids).
-2. Export orchestrator graphs (rig, pose, optional animation graphs) to JSON.
-3. Package everything under a namespace in a `VizijAssetBundle`.
+1. Export an authoring scene to GLB with Vizij metadata intact (bounds, animatable ids). Enable “Embed Vizij bundle” in vizij-authoring to persist rig graphs, pose rig data, and animations inside the GLB.
+2. Drop the GLB into a `VizijAssetBundle` and let the runtime extract rig/pose/animation data automatically.
+3. Optionally override or extend bundle contents by setting `rig`, `pose`, or `animations` manually (useful for tooling builds or custom staging).
 4. Host GLB URLs or include them via bundler asset imports (`new URL("./face.glb", import.meta.url).href`).
 
 The runtime tolerates incremental bundles; swap `assetBundle` props to hot-reload assets in dev builds.

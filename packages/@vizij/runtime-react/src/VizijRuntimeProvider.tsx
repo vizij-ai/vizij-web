@@ -7,7 +7,16 @@ import {
   type PropsWithChildren,
   type ReactNode,
 } from "react";
-import { VizijContext, createVizijStore, type VizijStore } from "@vizij/render";
+import {
+  VizijContext,
+  createVizijStore,
+  type VizijStore,
+  type VizijBundleExtension,
+  type VizijBundleGraphEntry,
+  type VizijBundleAnimationEntry,
+  loadGLTFWithBundle,
+  loadGLTFFromBlobWithBundle,
+} from "@vizij/render";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -27,6 +36,9 @@ import type {
   PlayAnimationOptions,
   RuntimeError,
   VizijAssetBundle,
+  VizijAnimationAsset,
+  VizijGraphAsset,
+  PoseRigConfig,
   AnimationClipLike,
   AnimationTrackLike,
   VizijRuntimeContextValue,
@@ -39,7 +51,6 @@ import {
   collectOutputPaths,
 } from "./utils/graph";
 import { valueJSONToRaw } from "./utils/valueConversion";
-import { loadGLTF, loadGLTFFromBlob } from "@vizij/render";
 
 type ProviderProps = PropsWithChildren<VizijRuntimeProviderProps>;
 
@@ -109,6 +120,170 @@ function normalisePath(path: string): string {
   return path.startsWith("debug/") ? path.slice("debug/".length) : path;
 }
 
+function normaliseBundleKind(kind: unknown): string {
+  return typeof kind === "string" ? kind.toLowerCase() : "";
+}
+
+function pickBundleGraph(
+  bundle: VizijBundleExtension | null,
+  preferredKinds: string[],
+): VizijBundleGraphEntry | null {
+  if (!bundle?.graphs || bundle.graphs.length === 0) {
+    return null;
+  }
+  const preferred = preferredKinds.map((kind) => kind.toLowerCase());
+  for (const entry of bundle.graphs) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const kind = normaliseBundleKind(entry.kind);
+    if (preferred.includes(kind)) {
+      return entry;
+    }
+  }
+  if (bundle.graphs.length === 1) {
+    return bundle.graphs[0] ?? null;
+  }
+  return null;
+}
+
+function convertBundleGraph(
+  entry: VizijBundleGraphEntry | null,
+): VizijGraphAsset | null {
+  if (!entry || !entry.id || !entry.spec) {
+    return null;
+  }
+  return {
+    id: entry.id,
+    spec: entry.spec as GraphRegistrationConfig["spec"],
+  };
+}
+
+function convertBundleAnimations(
+  entries: VizijBundleAnimationEntry[] | undefined | null,
+): VizijAnimationAsset[] {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+  return entries
+    .filter((entry): entry is VizijBundleAnimationEntry =>
+      Boolean(entry && typeof entry.id === "string" && entry.clip),
+    )
+    .map((entry) => ({
+      id: entry.id,
+      clip: entry.clip as AnimationClipLike,
+    }));
+}
+
+function mergeAnimationLists(
+  explicit: VizijAnimationAsset[] | undefined,
+  fromBundle: VizijAnimationAsset[],
+): VizijAnimationAsset[] | undefined {
+  if (!explicit?.length && fromBundle.length === 0) {
+    return undefined;
+  }
+  if (!explicit?.length) {
+    return fromBundle.length > 0 ? fromBundle : undefined;
+  }
+  if (fromBundle.length === 0) {
+    return explicit;
+  }
+  const seen = new Set(explicit.map((anim) => anim.id));
+  let changed = false;
+  const merged = [...explicit];
+  for (const anim of fromBundle) {
+    if (!anim.id || seen.has(anim.id)) {
+      continue;
+    }
+    merged.push(anim);
+    seen.add(anim.id);
+    changed = true;
+  }
+  return changed ? merged : explicit;
+}
+
+function mergeAssetBundle(
+  base: VizijAssetBundle,
+  extracted: VizijBundleExtension | null,
+): VizijAssetBundle {
+  const resolvedBundle = base.bundle ?? extracted ?? null;
+
+  const rigFromBundle = convertBundleGraph(
+    pickBundleGraph(resolvedBundle, ["rig"]),
+  );
+  const resolvedRig = base.rig ?? rigFromBundle ?? undefined;
+
+  const basePose = base.pose;
+  const poseStageFilter = basePose?.stageNeutralFilter;
+  const poseGraphFromBundle = basePose?.graph
+    ? null
+    : convertBundleGraph(
+        pickBundleGraph(resolvedBundle, ["pose-driver", "pose"]),
+      );
+  const resolvedPoseGraph = basePose?.graph ?? poseGraphFromBundle ?? undefined;
+  const resolvedPoseConfig =
+    basePose?.config ??
+    (resolvedBundle?.poses?.config as PoseRigConfig | undefined) ??
+    undefined;
+
+  let resolvedPose = basePose;
+  if (basePose) {
+    const nextPose: typeof basePose = { ...basePose };
+    let changed = false;
+    if (resolvedPoseGraph && basePose.graph !== resolvedPoseGraph) {
+      nextPose.graph = resolvedPoseGraph;
+      changed = true;
+    }
+    if (resolvedPoseConfig && basePose.config !== resolvedPoseConfig) {
+      nextPose.config = resolvedPoseConfig;
+      changed = true;
+    }
+    if (!resolvedPoseGraph && !basePose.graph) {
+      // keep as is
+    }
+    if (!resolvedPoseConfig && !basePose.config) {
+      // keep as is
+    }
+    resolvedPose = changed ? nextPose : basePose;
+  } else if (
+    resolvedPoseGraph ||
+    resolvedPoseConfig ||
+    typeof poseStageFilter === "function"
+  ) {
+    resolvedPose = {
+      ...(resolvedPoseGraph ? { graph: resolvedPoseGraph } : {}),
+      ...(resolvedPoseConfig ? { config: resolvedPoseConfig } : {}),
+      ...(typeof poseStageFilter === "function"
+        ? { stageNeutralFilter: poseStageFilter }
+        : {}),
+    };
+  }
+
+  const animationsFromBundle = convertBundleAnimations(
+    resolvedBundle?.animations,
+  );
+  const resolvedAnimations = mergeAnimationLists(
+    base.animations,
+    animationsFromBundle,
+  );
+
+  const merged: VizijAssetBundle = {
+    ...base,
+  };
+
+  if (resolvedRig) {
+    merged.rig = resolvedRig;
+  } else {
+    merged.rig = undefined;
+  }
+
+  merged.pose = resolvedPose;
+  merged.animations = resolvedAnimations;
+  merged.bundle = resolvedBundle;
+
+  return merged;
+}
+
 export function VizijRuntimeProvider({
   assetBundle,
   children,
@@ -163,7 +338,7 @@ type VizijRuntimeProviderInnerProps = {
 };
 
 function VizijRuntimeProviderInner({
-  assetBundle,
+  assetBundle: initialAssetBundle,
   namespace: namespaceProp,
   faceId: faceIdProp,
   mergeStrategy,
@@ -173,6 +348,37 @@ function VizijRuntimeProviderInner({
   children,
   autoCreate,
 }: VizijRuntimeProviderInnerProps) {
+  const [extractedBundle, setExtractedBundle] =
+    useState<VizijBundleExtension | null>(() => {
+      if (initialAssetBundle.bundle) {
+        return initialAssetBundle.bundle;
+      }
+      if (
+        initialAssetBundle.glb.kind === "world" &&
+        initialAssetBundle.glb.bundle
+      ) {
+        return initialAssetBundle.glb.bundle;
+      }
+      return null;
+    });
+
+  useEffect(() => {
+    if (initialAssetBundle.bundle) {
+      setExtractedBundle(initialAssetBundle.bundle);
+      return;
+    }
+    if (initialAssetBundle.glb.kind === "world") {
+      setExtractedBundle(initialAssetBundle.glb.bundle ?? null);
+    } else {
+      setExtractedBundle(null);
+    }
+  }, [initialAssetBundle]);
+
+  const assetBundle = useMemo(
+    () => mergeAssetBundle(initialAssetBundle, extractedBundle),
+    [initialAssetBundle, extractedBundle],
+  );
+
   const {
     ready,
     createOrchestrator,
@@ -308,29 +514,39 @@ function VizijRuntimeProviderInner({
       try {
         let world: Record<string, any>;
         let animatables: Record<string, AnimatableValue>;
+        let bundle: VizijBundleExtension | null = assetBundle.bundle ?? null;
 
         if (assetBundle.glb.kind === "url") {
-          [world, animatables] = await loadGLTF(
+          const loaded = await loadGLTFWithBundle(
             assetBundle.glb.src,
             [namespace],
             assetBundle.glb.aggressiveImport ?? false,
             assetBundle.glb.rootBounds,
           );
+          world = loaded.world as Record<string, any>;
+          animatables = loaded.animatables;
+          bundle = loaded.bundle ?? bundle;
         } else if (assetBundle.glb.kind === "blob") {
-          [world, animatables] = await loadGLTFFromBlob(
+          const loaded = await loadGLTFFromBlobWithBundle(
             assetBundle.glb.blob,
             [namespace],
             assetBundle.glb.aggressiveImport ?? false,
             assetBundle.glb.rootBounds,
           );
+          world = loaded.world as Record<string, any>;
+          animatables = loaded.animatables;
+          bundle = loaded.bundle ?? bundle;
         } else {
           world = assetBundle.glb.world as Record<string, any>;
           animatables = assetBundle.glb.animatables;
+          bundle = assetBundle.glb.bundle ?? bundle;
         }
 
         if (cancelled) {
           return;
         }
+
+        setExtractedBundle(bundle ?? null);
 
         const rootId = findRootId(world);
         store.getState().addWorldElements(world as any, animatables, true);
@@ -372,6 +588,7 @@ function VizijRuntimeProviderInner({
     pushError,
     reportStatus,
     resetErrors,
+    setExtractedBundle,
   ]);
 
   useEffect(() => {
@@ -390,16 +607,28 @@ function VizijRuntimeProviderInner({
   const registerControllers = useCallback(async () => {
     const normalize = (spec: GraphRegistrationConfig["spec"]) => spec;
 
-    const rigSpec = normalize(assetBundle.rig.spec);
+    clearControllers();
+
+    const rigAsset = assetBundle.rig;
+    if (!rigAsset) {
+      pushError({
+        message: "Asset bundle is missing a rig graph.",
+        phase: "registration",
+        timestamp: performance.now(),
+      });
+      return;
+    }
+
+    const rigSpec = normalize(rigAsset.spec);
     const rigOutputs = collectOutputPaths(rigSpec);
     const rigInputs = collectInputPaths(rigSpec);
     rigInputMapRef.current = collectInputPathMap(rigSpec);
     outputPathsRef.current = new Set(rigOutputs);
 
     const rigConfig: GraphRegistrationConfig = {
-      id: assetBundle.rig.id,
+      id: rigAsset.id,
       spec: rigSpec,
-      subs: assetBundle.rig.subscriptions ?? {
+      subs: rigAsset.subscriptions ?? {
         inputs: rigInputs,
         outputs: rigOutputs,
       },
@@ -420,8 +649,6 @@ function VizijRuntimeProviderInner({
         },
       });
     }
-
-    clearControllers();
 
     const graphIds: string[] = [];
 

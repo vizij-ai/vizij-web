@@ -9,7 +9,7 @@ import type {
   ShapeJSON,
 } from "@vizij/orchestrator-react";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { World, VizijProps } from "@vizij/render";
+import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 
 export type PoseDefinition = {
   id: string;
@@ -51,6 +51,7 @@ export type VizijGlbAsset =
       kind: "world";
       world: World;
       animatables: Record<string, AnimatableValue>;
+      bundle?: VizijBundleExtension | null;
     };
 
 export type VizijGraphAsset = {
@@ -88,7 +89,7 @@ export type VizijAssetBundle = {
   namespace?: string;
   faceId?: string;
   glb: VizijGlbAsset;
-  rig: VizijGraphAsset;
+  rig?: VizijGraphAsset;
   pose?: {
     graph?: VizijGraphAsset;
     config?: PoseRigConfig;
@@ -97,6 +98,7 @@ export type VizijAssetBundle = {
   animations?: VizijAnimationAsset[];
   initialInputs?: Record<string, ValueJSON>;
   metadata?: Record<string, unknown>;
+  bundle?: VizijBundleExtension | null;
 };
 
 export type RuntimeError = {
