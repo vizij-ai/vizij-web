@@ -111,6 +111,12 @@ function InnerRenderedGroup({
     }
   }, [group.id, namespace, ref, setReference, refIsNull]);
 
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.name = group.name;
+    }
+  }, [group.name]);
+
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       // Allow descendants to provide more specific hover details.

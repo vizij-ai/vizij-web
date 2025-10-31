@@ -63,6 +63,11 @@ export interface StandardRigInput {
    */
   path: string;
   /**
+   * Stable identifier tying this input back to the authoring source (renderable/feature/component).
+   * Optional for legacy inputs.
+   */
+  sourceId?: string;
+  /**
    * Human readable label shown in the mapping UI.
    */
   label: string;
@@ -149,6 +154,7 @@ export function createStandardRigInput(
   return {
     id,
     path,
+    sourceId: init.sourceId,
     label,
     group: init.group,
     defaultValue,

@@ -69,11 +69,22 @@ function InnerRenderedShape({
     return av;
   }, [shape.features, animatables]);
 
+  const materialName = useMemo(
+    () => deriveMaterialName(shape, animatableValues),
+    [shape, animatableValues],
+  );
+
   // const setSelectedWorldElement = useSceneStore(
   //   useShallow((state) => state.setSelectedWorldElement),
   // );
 
-  const geometry = useMemo(() => shape.geometry.clone(), [shape.geometry]);
+  const geometry = useMemo(() => {
+    const cloned = shape.geometry.clone();
+    if (shape.name) {
+      cloned.name = shape.name;
+    }
+    return cloned;
+  }, [shape.geometry, shape.name]);
 
   const selectionData = useMemo(
     () => ({ id, namespace, type: "shape" as const }),
@@ -224,6 +235,23 @@ function InnerRenderedShape({
     if (ref.current && refIsNull) setReference(shape.id, namespace, ref);
   }, [shape.id, namespace, ref, setReference, refIsNull]);
 
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.name = shape.name;
+    }
+  }, [shape.name]);
+
+  useEffect(() => {
+    if (!material.current) {
+      return;
+    }
+    if (materialName) {
+      material.current.name = materialName;
+    } else if (shape.name) {
+      material.current.name = shape.name;
+    }
+  }, [materialName, shape.name]);
+
   const handlePointerOver = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       event.stopPropagation();
@@ -305,3 +333,59 @@ function InnerRenderedShape({
 }
 
 export const RenderedShape = memo(InnerRenderedShape);
+
+const MATERIAL_FEATURE_KEYS: Array<Extract<keyof Shape["features"], string>> = [
+  "color",
+  "opacity",
+  "roughness",
+  "metalness",
+  "shininess",
+];
+
+const MATERIAL_NAME_SUFFIXES = [
+  " color",
+  " colours",
+  " colour",
+  " opacity",
+  " roughness",
+  " metalness",
+  " shininess",
+];
+
+function deriveMaterialName(
+  shape: Shape,
+  values: Record<string, AnimatableValue>,
+): string | undefined {
+  for (const key of MATERIAL_FEATURE_KEYS) {
+    const feature = shape.features[key as keyof Shape["features"]];
+    if (feature && feature.animated) {
+      const animatable = values[feature.value];
+      const candidate = extractMaterialName(animatable?.name);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractMaterialName(name?: string): string | undefined {
+  if (!name) {
+    return undefined;
+  }
+
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const lowered = trimmed.toLowerCase();
+
+  for (const suffix of MATERIAL_NAME_SUFFIXES) {
+    if (lowered.endsWith(suffix)) {
+      return trimmed.slice(0, trimmed.length - suffix.length).trim();
+    }
+  }
+
+  return trimmed;
+}

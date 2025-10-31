@@ -6,6 +6,15 @@ THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export function exportScene(data: Group, fileName = "scene.glb"): void {
   const exporter = new GLTFExporter();
+  exporter.register(() => ({
+    writeMesh(mesh, meshDef) {
+      const meshName =
+        mesh.name?.trim() || mesh.geometry?.name?.trim() || undefined;
+      if (meshName) {
+        meshDef.name = meshName;
+      }
+    },
+  }));
   exporter.parse(
     data,
     (gltf) => {

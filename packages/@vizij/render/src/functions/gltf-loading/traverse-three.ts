@@ -1,6 +1,6 @@
 import { createRef } from "react";
 import * as THREE from "three";
-import { Group, Mesh } from "three";
+import { Group, Mesh, Material, Object3D } from "three";
 import { AnimatableValue, RawVector2 } from "@vizij/utils";
 import {
   World,
@@ -12,6 +12,7 @@ import {
   AnimatedFeature,
   Ellipse,
   Rectangle,
+  StoredAnimatedFeature,
 } from "../../types";
 import { mapFeatures } from "./map-features";
 import { importScene } from "./import-scene";
@@ -44,6 +45,7 @@ export function traverseThree(
       if (child.userData?.gltfExtensions?.RobotData) {
         const data = child.userData.gltfExtensions
           .RobotData as StoredRenderable;
+        applyStoredRenderableNames(child, data);
         let loadedData: RenderableBase;
         let mappedFeatures: Record<string, AnimatedFeature | StaticFeature>;
         let animatableValues: Record<string, AnimatableValue>;
@@ -130,6 +132,128 @@ export function traverseThree(
 
   // console.log("worldData", worldData);
   return [worldData, animatableData];
+}
+
+const MATERIAL_NAME_FEATURE_KEYS = [
+  "color",
+  "opacity",
+  "roughness",
+  "metalness",
+  "shininess",
+];
+
+const MATERIAL_NAME_SUFFIXES = [
+  " color",
+  " colours",
+  " colour",
+  " opacity",
+  " roughness",
+  " metalness",
+  " shininess",
+];
+
+function applyStoredRenderableNames(
+  object: Object3D,
+  data: StoredRenderable,
+): void {
+  if (typeof data.name === "string" && data.name.length > 0) {
+    object.name = data.name;
+  }
+
+  if ((object as Group).isGroup) {
+    const group = object as Group;
+    if (typeof data.name === "string" && data.name.length > 0) {
+      group.name = data.name;
+    }
+  }
+
+  if ((object as Mesh).isMesh) {
+    const mesh = object as Mesh;
+    if (typeof data.name === "string" && data.name.length > 0) {
+      mesh.name = data.name;
+      if (mesh.geometry) {
+        mesh.geometry.name = data.name;
+      }
+    }
+
+    const inferredName = inferMaterialNameFromStoredRenderable(data);
+    if (inferredName) {
+      assignMaterialName(mesh.material, inferredName);
+    }
+  }
+}
+
+function assignMaterialName(
+  material: Material | Material[] | undefined,
+  name: string,
+): void {
+  if (!material) {
+    return;
+  }
+
+  if (Array.isArray(material)) {
+    material.forEach((mat) => {
+      mat.name = name;
+    });
+  } else {
+    material.name = name;
+  }
+}
+
+function inferMaterialNameFromStoredRenderable(
+  data: StoredRenderable,
+): string | undefined {
+  if (data.type !== "shape") {
+    return undefined;
+  }
+
+  const features = data.features as Record<string, unknown>;
+
+  for (const key of MATERIAL_NAME_FEATURE_KEYS) {
+    const candidate = extractMaterialNameFromFeature(features[key]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function extractMaterialNameFromFeature(feature: unknown): string | undefined {
+  if (!isStoredAnimatedFeature(feature)) {
+    return undefined;
+  }
+
+  const animatableName = feature.value.name;
+  if (!animatableName) {
+    return undefined;
+  }
+
+  return stripMaterialSuffixes(animatableName);
+}
+
+function stripMaterialSuffixes(name: string): string {
+  const trimmed = name.trim();
+  const lowered = trimmed.toLowerCase();
+
+  for (const suffix of MATERIAL_NAME_SUFFIXES) {
+    if (lowered.endsWith(suffix)) {
+      return trimmed.slice(0, trimmed.length - suffix.length).trim();
+    }
+  }
+
+  return trimmed;
+}
+
+function isStoredAnimatedFeature(
+  feature: unknown,
+): feature is StoredAnimatedFeature {
+  return (
+    Boolean(feature) &&
+    typeof feature === "object" &&
+    (feature as StoredAnimatedFeature).animated === true &&
+    "value" in (feature as StoredAnimatedFeature)
+  );
 }
 
 function isGroupFeatures(
