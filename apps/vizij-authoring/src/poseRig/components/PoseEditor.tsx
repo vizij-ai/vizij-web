@@ -124,7 +124,7 @@ export function PoseEditor({
       <section className="pose-rig-panel pose-rig-panel--editor">
         <header className="pose-rig-panel__header">
           <div>
-            <h3 className="pose-rig-panel__title">Pose Details</h3>
+            <h3 className="pose-rig-panel__title">Pose Editor</h3>
           </div>
           <button
             type="button"
@@ -150,9 +150,10 @@ export function PoseEditor({
     <section className="pose-rig-panel pose-rig-panel--editor">
       <header className="pose-rig-panel__header">
         <div>
-          <h3 className="pose-rig-panel__title">Pose Details</h3>
+          <h3 className="pose-rig-panel__title">Pose Editor</h3>
           <p className="pose-rig-panel__subtitle">
-            Capture from the live rig or tweak channels manually.
+            Capture from the live rig or tweak channels manually (tweaked values
+            are saved automatically).
           </p>
         </div>
         <button

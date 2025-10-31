@@ -1,10 +1,9 @@
 import { useCallback, useState } from "react";
-import type { AnimatableValue } from "@vizij/utils";
-import type { World } from "@vizij/render";
+import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { findRootId } from "../utils/world";
 
-type VizijLoader = () => Promise<[World, Record<string, AnimatableValue>]>;
+type VizijLoader = () => Promise<LoadedVizijAsset>;
 
 export function useVizijAssetLoader() {
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
@@ -15,6 +14,7 @@ export function useVizijAssetLoader() {
   const [assetUrl, setAssetUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bundle, setBundle] = useState<VizijBundleExtension | null>(null);
 
   const loadVizij = useCallback(
     async (loader: VizijLoader, label: string) => {
@@ -22,7 +22,11 @@ export function useVizijAssetLoader() {
       setError(null);
       setRootId(null);
       try {
-        const [worldData, anims] = await loader();
+        const {
+          world: worldData,
+          animatables,
+          bundle: loadedBundle,
+        } = await loader();
         const nextRootId = findRootId(worldData);
         if (!nextRootId) {
           throw new Error("Unable to find a Vizij root in the provided asset.");
@@ -32,13 +36,15 @@ export function useVizijAssetLoader() {
           values: new Map(),
           elementSelection: [],
         });
-        addWorldElements(worldData, anims, true);
+        addWorldElements(worldData, animatables, true);
         setRootId(nextRootId);
         setSourceName(label);
+        setBundle(loadedBundle ?? null);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
+        setBundle(null);
       } finally {
         setIsLoading(false);
       }
@@ -67,6 +73,7 @@ export function useVizijAssetLoader() {
     setSourceName(null);
     setAssetUrl("");
     setError(null);
+    setBundle(null);
   }, []);
 
   return {
@@ -81,5 +88,6 @@ export function useVizijAssetLoader() {
     loadVizij,
     loadFromFile,
     loadFromUrl,
+    bundle,
   };
 }

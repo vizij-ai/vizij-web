@@ -91,8 +91,10 @@ describe("Input staging and teardown", () => {
       expect(screen.getByTestId("ready").textContent).toBe("true");
     });
 
-    // There should be one graph instance constructed
-    expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    // Wait for the provider to construct the graph instance
+    await waitFor(() => {
+      expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    });
     const g = graphInstances[0];
 
     // Stage an input with immediateEval true via runtime API (wrap in act to avoid update warnings)
@@ -132,7 +134,9 @@ describe("Input staging and teardown", () => {
       expect(screen.getByTestId("ready").textContent).toBe("true");
     });
 
-    expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    });
     const g = graphInstances[0];
 
     // Unmount provider and ensure graph.free was called

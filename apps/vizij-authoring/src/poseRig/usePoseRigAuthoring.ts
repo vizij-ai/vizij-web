@@ -188,6 +188,7 @@ export interface UsePoseRigAuthoringResult {
   poseConfigWarnings: string[];
   poseConfigDraft: PoseRigConfigFile | null;
   importPoseConfig: (file: File) => Promise<void>;
+  importPoseConfigFromData: (config: PoseRigConfigFile) => void;
   resetPoseState: () => void;
   poseLibrary: PoseLibrarySummary;
 }
@@ -245,11 +246,26 @@ export function usePoseRigAuthoring(
   }, [standardInputs]);
 
   useEffect(() => {
-    setSavedNeutral((prev) => ensureNeutralDefaults(prev, standardInputs));
+    setSavedNeutral((prev) => {
+      const next = ensureNeutralDefaults(prev, standardInputs);
+      if (next !== prev) {
+        console.warn("[poseRig] ensureNeutralDefaults applied", {
+          inputCount: Object.keys(next).length,
+          nonZero: Object.values(next).filter((v) => Math.abs(v) > 1e-6).length,
+        });
+      }
+      return next;
+    });
   }, [standardInputs]);
 
   useEffect(() => {
     const validIds = new Set(standardInputs.map((input) => input.id));
+    if (validIds.size === 0) {
+      console.warn(
+        "[poseRig] standard inputs cleared temporarily, preserving neutral cache",
+      );
+      return;
+    }
     setSavedNeutral((prev) => {
       const next: Record<StandardInputId, number> = {};
       let changed = false;
@@ -275,6 +291,9 @@ export function usePoseRigAuthoring(
 
   const resetPoseState = useCallback(() => {
     setSavedNeutral(createNeutralInputs(standardInputs));
+    console.warn("[poseRig] resetPoseState invoked", {
+      inputCount: standardInputs.length,
+    });
     setPoses([]);
     setSelectedPoseId(NEUTRAL_POSE_ID);
     setRigName(DEFAULT_RIG_NAME);
@@ -560,6 +579,7 @@ export function usePoseRigAuthoring(
           value ?? input.defaultValue ?? neutralBaseline[input.id] ?? 0,
         ) ?? 0;
     });
+    neutralDefaultsRef.current = { ...neutralDefaultsRef.current, ...next };
     setSavedNeutral(next);
   }, [inputValues, neutralBaseline, ready, standardInputs]);
 
@@ -669,10 +689,8 @@ export function usePoseRigAuthoring(
     standardInputsById,
   ]);
 
-  const importPoseConfig = useCallback(
-    async (file: File) => {
-      const text = await file.text();
-      const parsed = parsePoseRigConfig(JSON.parse(text));
+  const applyParsedPoseConfig = useCallback(
+    (parsed: PoseRigConfigFile) => {
       const warnings: string[] = [];
 
       if (parsed.faceId && faceId && parsed.faceId !== faceId) {
@@ -719,6 +737,10 @@ export function usePoseRigAuthoring(
         });
       });
 
+      neutralDefaultsRef.current = {
+        ...neutralDefaultsRef.current,
+        ...sanitizedNeutral,
+      };
       setSavedNeutral(sanitizedNeutral);
       setPoses(sanitizedPoses);
       setSelectedPoseId(sanitizedPoses[0]?.id ?? NEUTRAL_POSE_ID);
@@ -737,8 +759,40 @@ export function usePoseRigAuthoring(
           0;
       });
       applyBatch(batch);
+
+      if (warnings.length > 0) {
+        console.warn("[vizij-authoring] Pose rig import warnings:", warnings);
+      }
     },
-    [applyBatch, faceId, standardInputs, standardInputsById],
+    [
+      applyBatch,
+      faceId,
+      setPoseConfigWarnings,
+      setPoses,
+      setRigName,
+      setSavedNeutral,
+      setSelectedPoseId,
+      setLastImportedConfig,
+      standardInputs,
+      standardInputsById,
+    ],
+  );
+
+  const importPoseConfig = useCallback(
+    async (file: File) => {
+      const text = await file.text();
+      const parsed = parsePoseRigConfig(JSON.parse(text));
+      applyParsedPoseConfig(parsed);
+    },
+    [applyParsedPoseConfig],
+  );
+
+  const importPoseConfigFromData = useCallback(
+    (config: PoseRigConfigFile) => {
+      const parsed = parsePoseRigConfig(config);
+      applyParsedPoseConfig(parsed);
+    },
+    [applyParsedPoseConfig],
   );
 
   const readyState: UsePoseRigAuthoringResult = {
@@ -785,6 +839,7 @@ export function usePoseRigAuthoring(
     poseConfigWarnings,
     poseConfigDraft,
     importPoseConfig,
+    importPoseConfigFromData,
     resetPoseState,
     poseLibrary,
   };

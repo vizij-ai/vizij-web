@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  loadGLTFFromBlob,
+  loadGLTFFromBlobWithBundle,
   exportScene,
   useVizijStore,
   type Group,
+  type VizijBundleExtension,
+  type VizijBundleGraphEntry,
+  type VizijPoseRigConfig,
 } from "@vizij/render";
 import { AnimatableValuesPanel } from "./components/AnimatableValuesPanel";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
@@ -19,6 +22,8 @@ import { applyDefaultsToRobotData } from "./utils/robotData";
 import { buildRigGraphSpec } from "./rig/graphBuilder";
 import { alertDialog } from "./utils/dialogs";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import { computeObjectHash } from "./utils/hash";
+import type { VizijBundleSummary } from "./components/app/VizijBundleSummaryPanel";
 
 function faceSlug(value: string | null | undefined): string {
   const trimmed = value?.trim();
@@ -65,9 +70,21 @@ export default function App() {
   const graphFileTouchedRef = useRef(false);
   const exportFileTouchedRef = useRef(false);
   const prevFaceIdRef = useRef<string | null>(null);
+  const appliedBundleFingerprintRef = useRef<string | null>(null);
+  const rigImportedRef = useRef(false);
+  const [includeVizijBundle, setIncludeVizijBundle] = useState(true);
+  const [includeImportedAnimations, setIncludeImportedAnimations] =
+    useState(false);
 
-  const { rootId, sourceName, isLoading, error, clearError, loadFromFile } =
-    useVizijAssetLoader();
+  const {
+    rootId,
+    sourceName,
+    isLoading,
+    error,
+    clearError,
+    loadFromFile,
+    bundle: loadedBundle,
+  } = useVizijAssetLoader();
 
   const {
     faceId,
@@ -146,10 +163,159 @@ export default function App() {
     applyInputBatch: applyStandardInputBatch,
   });
 
+  useEffect(() => {
+    setIncludeVizijBundle(true);
+    const animationCount = loadedBundle?.animations?.length ?? 0;
+    setIncludeImportedAnimations(animationCount > 0);
+  }, [loadedBundle]);
+
+  const bundleSummary = useMemo<VizijBundleSummary>(() => {
+    if (!loadedBundle) {
+      return {
+        present: false,
+        version: undefined,
+        exportedAt: null,
+        graphCount: 0,
+        poseCount: 0,
+        animationCount: 0,
+        metadataKeys: [],
+      };
+    }
+    const poseCount = (loadedBundle.poses?.config?.poses ?? []).length;
+    return {
+      present: true,
+      version: loadedBundle.version,
+      exportedAt: loadedBundle.exportedAt ?? null,
+      graphCount: loadedBundle.graphs?.length ?? 0,
+      poseCount,
+      animationCount: loadedBundle.animations?.length ?? 0,
+      metadataKeys: Object.keys(loadedBundle.metadata ?? {}),
+    };
+  }, [loadedBundle]);
+
+  const standardInputCount = poseRig.standardInputs.length;
+
+  const handleIncludeBundleToggle = useCallback(
+    (value: boolean) => {
+      setIncludeVizijBundle(value);
+      if (!value) {
+        setIncludeImportedAnimations(false);
+      } else if (bundleSummary.animationCount > 0) {
+        setIncludeImportedAnimations(true);
+      }
+    },
+    [bundleSummary.animationCount],
+  );
+
+  const handleIncludeAnimationsToggle = useCallback((value: boolean) => {
+    setIncludeImportedAnimations(value);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyBundleState = async () => {
+      if (!rootId) {
+        return;
+      }
+      if (!loadedBundle) {
+        appliedBundleFingerprintRef.current = null;
+        rigImportedRef.current = false;
+        return;
+      }
+
+      const fingerprintPayload = {
+        version: loadedBundle.version,
+        graphs: loadedBundle.graphs ?? [],
+        poses: loadedBundle.poses?.config ?? null,
+      };
+
+      let fingerprint: string | null = null;
+      try {
+        fingerprint = await computeObjectHash(fingerprintPayload);
+      } catch (error) {
+        console.warn(
+          "[vizij-authoring] Failed to hash bundle for import.",
+          error,
+        );
+        fingerprint = JSON.stringify({
+          version: loadedBundle.version,
+          exportedAt: loadedBundle.exportedAt ?? null,
+        });
+      }
+
+      if (cancelled) {
+        return;
+      }
+      if (fingerprint && appliedBundleFingerprintRef.current === fingerprint) {
+        return;
+      }
+
+      if (fingerprint && appliedBundleFingerprintRef.current !== fingerprint) {
+        rigImportedRef.current = false;
+      }
+
+      const rigEntry =
+        loadedBundle.graphs?.find(
+          (entry) => entry.kind?.toLowerCase?.() === "rig",
+        ) ?? loadedBundle.graphs?.[0];
+
+      if (!rigImportedRef.current && rigEntry?.spec) {
+        try {
+          await handleImportGraphSpec(rigEntry.spec as any);
+          rigImportedRef.current = true;
+        } catch (err) {
+          console.warn(
+            "[vizij-authoring] Failed to import rig graph from bundle.",
+            err,
+          );
+        }
+        if (cancelled) {
+          return;
+        }
+      }
+
+      if (standardInputCount === 0) {
+        return;
+      }
+
+      if (loadedBundle.poses?.config) {
+        try {
+          poseRig.importPoseConfigFromData(loadedBundle.poses.config as any);
+        } catch (err) {
+          console.warn(
+            "[vizij-authoring] Failed to import pose rig config from bundle.",
+            err,
+          );
+        }
+        if (cancelled) {
+          return;
+        }
+      }
+
+      if (fingerprint) {
+        appliedBundleFingerprintRef.current = fingerprint;
+      }
+    };
+
+    void applyBundleState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    loadedBundle,
+    rootId,
+    standardInputCount,
+    poseRig.importPoseConfigFromData,
+    handleImportGraphSpec,
+    computeObjectHash,
+  ]);
+
   const handleSelectFile = useCallback(
     async (file: File) => {
       await loadFromFile(file, () =>
-        loadGLTFFromBlob(file, [DEFAULT_NAMESPACE], true),
+        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
       );
     },
     [loadFromFile],
@@ -286,7 +452,127 @@ export default function App() {
       featureLabelOverrides,
     );
 
-    exportScene(bodies[0], downloadName);
+    const cloneForBundle = <T,>(value: T): T =>
+      JSON.parse(JSON.stringify(value)) as T;
+
+    let bundle: VizijBundleExtension | null = null;
+
+    if (includeVizijBundle) {
+      const exportTimestamp = new Date().toISOString();
+
+      const rigGraphResult = buildRigGraphSpec({
+        faceId,
+        animatables: effectiveAnimatables,
+        components: animatableComponents,
+        bindings,
+        inputsById: standardInputsById,
+        inputBindings,
+      });
+      const rigSpec = cloneForBundle(rigGraphResult.spec) as Record<
+        string,
+        unknown
+      >;
+
+      const poseGraphSpec = poseRig.poseGraphSpec
+        ? (cloneForBundle(poseRig.poseGraphSpec) as Record<string, unknown>)
+        : null;
+
+      const poseConfig: VizijPoseRigConfig | null = poseRig.poseConfigDraft
+        ? (cloneForBundle(
+            poseRig.poseConfigDraft,
+          ) as unknown as VizijPoseRigConfig)
+        : null;
+
+      const [rigHash, poseGraphHash, poseConfigHash] = await Promise.all([
+        computeObjectHash(rigSpec).catch(() => undefined),
+        poseGraphSpec
+          ? computeObjectHash(poseGraphSpec).catch(() => undefined)
+          : Promise.resolve(undefined),
+        poseConfig
+          ? computeObjectHash(poseConfig).catch(() => undefined)
+          : Promise.resolve(undefined),
+      ]);
+
+      const graphs: VizijBundleGraphEntry[] = [
+        {
+          id: rigGraphResult.summary.faceId ?? faceSlug(faceId),
+          kind: "rig",
+          label: `${faceSlug(faceId)} rig`,
+          spec: rigSpec,
+          metadata: {
+            hash: rigHash,
+            exportedAt: exportTimestamp,
+            faceId: faceId ?? undefined,
+            issues:
+              rigGraphResult.issues.fatal.length > 0
+                ? rigGraphResult.issues
+                : undefined,
+          },
+        },
+      ];
+
+      if (poseGraphSpec) {
+        graphs.push({
+          id: poseRig.poseGraphFileName || `${faceSlug(faceId)}_pose_graph`,
+          kind: "pose-driver",
+          label: poseRig.poseGraphFileName || "pose graph",
+          spec: poseGraphSpec,
+          metadata: {
+            hash: poseGraphHash,
+            exportedAt: exportTimestamp,
+          },
+        });
+      }
+
+      const inheritedAnimations =
+        includeImportedAnimations && Array.isArray(loadedBundle?.animations)
+          ? cloneForBundle(loadedBundle.animations)
+          : [];
+
+      const bundleMetadata: Record<string, unknown> = {
+        faceId: faceId ?? null,
+        source: sourceName ?? null,
+        exporter: "vizij-authoring",
+      };
+
+      if (loadedBundle) {
+        bundleMetadata.previousBundleVersion = loadedBundle.version;
+        if (loadedBundle.exportedAt) {
+          bundleMetadata.previousExportedAt = loadedBundle.exportedAt;
+        }
+      }
+
+      if (!includeImportedAnimations) {
+        bundleMetadata.inheritedAnimations = false;
+      }
+
+      bundle = {
+        version: 1,
+        exportedAt: exportTimestamp,
+        graphs,
+        poses: poseConfig
+          ? {
+              config: poseConfig,
+              metadata: {
+                hash: poseConfigHash,
+                exportedAt: exportTimestamp,
+              },
+            }
+          : null,
+        animations: inheritedAnimations,
+        metadata: bundleMetadata,
+      };
+    }
+
+    exportScene(
+      bodies[0],
+      bundle
+        ? {
+            fileName: downloadName,
+            bundle,
+          }
+        : { fileName: downloadName },
+    );
 
     if (appliedOverrides) {
       setStoreState((prev) => ({
@@ -296,13 +582,25 @@ export default function App() {
       }));
     }
   }, [
+    animatableComponents,
     animatables,
+    bindings,
     collectAnimatableExportState,
     exportFileName,
+    faceId,
     getExportableBodies,
     featureLabelOverrides,
+    inputBindings,
+    poseRig.poseConfigDraft,
+    poseRig.poseGraphFileName,
+    poseRig.poseGraphSpec,
     rootId,
     setStoreState,
+    loadedBundle,
+    includeVizijBundle,
+    includeImportedAnimations,
+    sourceName,
+    standardInputsById,
     values,
   ]);
 
@@ -516,6 +814,11 @@ export default function App() {
                 canExport={canExport}
                 onExportGraph={handleExportGraph}
                 onExportGlb={handleExportGlb}
+                bundleSummary={bundleSummary}
+                includeBundle={includeVizijBundle}
+                onIncludeBundleChange={handleIncludeBundleToggle}
+                includeAnimations={includeImportedAnimations}
+                onIncludeAnimationsChange={handleIncludeAnimationsToggle}
                 rigName={poseRig.rigName}
                 onRigNameChange={poseRig.setRigName}
                 poseGraphFileName={poseRig.poseGraphFileName}

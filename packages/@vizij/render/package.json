@@ -31,7 +31,7 @@
     "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
-    "test": "vitest --run --passWithNoTests",
+    "test": "node --test tests/*.node-test.mjs",
     "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
@@ -72,8 +72,7 @@
     "zustand": "^5.0.2",
     "tsup": "^8.0.1",
     "typescript": "^5.5.0",
-    "prettier": "^3.4.2",
-    "vitest": "^3.2.4"
+    "prettier": "^3.4.2"
   },
   "size-limit": [
     {

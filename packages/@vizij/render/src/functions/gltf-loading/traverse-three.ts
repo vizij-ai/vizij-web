@@ -41,7 +41,9 @@ export function traverseThree(
   const useRobotData = !aggressiveImport || hasRobotData;
 
   if (useRobotData) {
-    group.traverse((child) => {
+    const stack: Object3D[] = [group];
+    while (stack.length > 0) {
+      const child = stack.pop()!;
       if (child.userData?.gltfExtensions?.RobotData) {
         const data = child.userData.gltfExtensions
           .RobotData as StoredRenderable;
@@ -113,7 +115,10 @@ export function traverseThree(
             throw new Error(`Unhandled type`);
         }
       }
-    });
+      if (child.children) {
+        stack.push(...child.children);
+      }
+    }
   } else {
     const derivedRootBounds = rootBounds ?? deriveRootBounds(group);
 

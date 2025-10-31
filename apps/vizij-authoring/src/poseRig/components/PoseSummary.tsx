@@ -58,7 +58,7 @@ export function PoseSummary({
             )}
           </div>
         </div>
-        <div className="pose-rig-summary__details">
+        {/* <div className="pose-rig-summary__details">
           {inputs.length === 0 ? (
             <p className="pose-rig-empty">
               No pose contributions yet. Capture a pose to view breakdowns.
@@ -114,7 +114,7 @@ export function PoseSummary({
               </tbody>
             </table>
           )}
-        </div>
+        </div> */}
       </div>
     </section>
   );

@@ -101,6 +101,18 @@ The store tracks world graph entries, controllers, debug overlays, and renderabl
 
 All exports are re-exported through `src/index.tsx`, so a simple `import { loadGLTF } from "@vizij/render"` works.
 
+### Dual-format Vizij bundles
+
+Vizij scenes persist authoring metadata inside GLBs so third-party tools see baked animation, while Vizij runtimes retain orchestrator graphs and clips.
+
+- Every renderable still carries a `RobotData` extension in `userData` describing features and animatable bindings.
+- The exporter now writes a root-level `extensions.VIZIJ_bundle` block following the schema in [`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts). It contains rig graphs, pose configs, stored Vizij clips, and provenance hashes.
+- Use `exportScene(group, { bundle, animations })` to embed both the Vizij bundle and optional baked `THREE.AnimationClip` instances. The helper attaches the bundle only for the export call and restores the original object.
+- When loading assets, prefer `loadGLTFWithBundle` / `loadGLTFFromBlobWithBundle` to retrieve `{ world, animatables, bundle }`. The legacy tuple helpers remain available if you do not need bundle metadata.
+- `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` (under `src/functions/vizij-bundle.ts`) let advanced tooling inspect or mutate bundles without triggering a fresh export.
+
+With this structure, authoring tools can round-trip orchestrator assets while shipping native glTF animations for viewers that do not understand Vizij.
+
 ---
 
 ## Development & Testing

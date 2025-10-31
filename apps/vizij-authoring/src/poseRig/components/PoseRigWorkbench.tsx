@@ -106,6 +106,12 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
         </div>
       </header>
       <div className="pose-rig-workbench__body">
+        <PoseSummary
+          summary={state.poseGraphSummary}
+          library={state.poseLibrary}
+          onApplyNeutral={state.applyNeutral}
+          onApplyPose={state.applyPose}
+        />
         <PoseList
           poses={state.poses}
           selectedPoseId={state.selectedPoseId}
@@ -136,12 +142,6 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
             onAddInput={handlePoseAddInput}
           />
         )}
-        <PoseSummary
-          summary={state.poseGraphSummary}
-          library={state.poseLibrary}
-          onApplyNeutral={state.applyNeutral}
-          onApplyPose={state.applyPose}
-        />
       </div>
     </section>
   );

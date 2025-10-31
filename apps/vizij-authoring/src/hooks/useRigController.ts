@@ -55,7 +55,6 @@ import {
   normalizeStandardRigGroup,
   STANDARD_RIG_INPUTS,
   stripStandardInputPathPrefix,
-  LEGACY_STANDARD_RIG_INPUT_IDS,
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
@@ -66,7 +65,6 @@ import {
   type PersistedAutoStandardInput,
 } from "../rig/persistence";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
-import { cloneRawValue, rawValuesEqual } from "@vizij/utils";
 import { alertDialog, confirmDialog } from "../utils/dialogs";
 import {
   buildAutoRigInputBlueprints,
@@ -269,107 +267,6 @@ function remapBindingInputIds(
   );
 }
 
-function remapStandardInputIdValue(
-  id: string | null | undefined,
-): string | null | undefined {
-  if (id === undefined) {
-    return undefined;
-  }
-  if (id === null) {
-    return null;
-  }
-  return LEGACY_STANDARD_RIG_INPUT_IDS.get(id) ?? id;
-}
-
-function remapBindingDefinitionToCurrentIds(
-  definition: RigBindingDefinition,
-): RigBindingDefinition {
-  const nextInputId = remapStandardInputIdValue(definition.inputId);
-  let changed = nextInputId !== definition.inputId;
-  const nextSlots = definition.slots.map((slot) => {
-    const mapped = remapStandardInputIdValue(slot.inputId);
-    if (mapped !== slot.inputId) {
-      changed = true;
-      return {
-        ...slot,
-        inputId: mapped ?? null,
-      };
-    }
-    return slot;
-  });
-  if (!changed) {
-    return definition;
-  }
-  return {
-    ...definition,
-    inputId: nextInputId ?? null,
-    slots: nextSlots,
-  };
-}
-
-function remapAnimatableBindingToCurrentIds(
-  binding: AnimatableBinding,
-): AnimatableBinding {
-  const nextInputId = remapStandardInputIdValue(binding.inputId);
-  let changed = nextInputId !== binding.inputId;
-  const nextSlots = binding.slots.map((slot) => {
-    const mapped = remapStandardInputIdValue(slot.inputId);
-    if (mapped !== slot.inputId) {
-      changed = true;
-      return {
-        ...slot,
-        inputId: mapped ?? null,
-      };
-    }
-    return slot;
-  });
-  if (!changed) {
-    return binding;
-  }
-  return {
-    ...binding,
-    inputId: nextInputId ?? null,
-    slots: nextSlots,
-  };
-}
-
-function remapBindingDefinitionRecord(
-  definitions: Record<string, RigBindingDefinition> | undefined | null,
-): Record<string, RigBindingDefinition> | null {
-  if (!definitions) {
-    return null;
-  }
-  let changed = false;
-  const next: Record<string, RigBindingDefinition> = {};
-  Object.entries(definitions).forEach(([inputId, definition]) => {
-    const mappedId = remapStandardInputIdValue(inputId) ?? inputId;
-    const remappedDefinition = remapBindingDefinitionToCurrentIds(definition);
-    if (mappedId !== inputId || remappedDefinition !== definition) {
-      changed = true;
-    }
-    next[mappedId] = remappedDefinition;
-  });
-  return changed ? next : definitions;
-}
-
-function remapStandardInputValuesMap(
-  values: StandardInputValues | undefined | null,
-): StandardInputValues | undefined {
-  if (!values) {
-    return undefined;
-  }
-  let changed = false;
-  const next: StandardInputValues = {};
-  Object.entries(values).forEach(([key, value]) => {
-    const mappedKey = remapStandardInputIdValue(key) ?? key;
-    if (mappedKey !== key) {
-      changed = true;
-    }
-    next[mappedKey] = value;
-  });
-  return changed ? next : values;
-}
-
 export interface RigController {
   faceId: string;
   setFaceId: (next: string) => void;
@@ -513,6 +410,7 @@ export function useRigController({
   >([]);
   const [selectedStandardInputSubgroups, setSelectedStandardInputSubgroups] =
     useState<string[]>([]);
+  const viewerSelectionActiveRef = useRef(false);
   const [inputValues, setInputValues] = useState<StandardInputValues>({});
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
@@ -1304,6 +1202,31 @@ export function useRigController({
     return Array.from(rootSet).sort((a, b) => a.localeCompare(b));
   }, [blueprintRoots, managedStandardInputs]);
 
+  const elementRootLookup = useMemo(() => {
+    const grouped = new Map<string, Set<string>>();
+    managedStandardInputs.forEach((entry) => {
+      const elementId = entry.metadata?.elementId;
+      if (!elementId) {
+        return;
+      }
+      const root = entry.metadata?.root ?? entry.input.group ?? GROUP_FALLBACK;
+      if (!root) {
+        return;
+      }
+      const bucket = grouped.get(elementId);
+      if (bucket) {
+        bucket.add(root);
+      } else {
+        grouped.set(elementId, new Set([root]));
+      }
+    });
+    const lookup = new Map<string, readonly string[]>();
+    grouped.forEach((roots, elementId) => {
+      lookup.set(elementId, Array.from(roots));
+    });
+    return lookup;
+  }, [managedStandardInputs]);
+
   const allStandardInputSubgroups = useMemo(() => {
     const set = new Set<string>();
     managedStandardInputs.forEach((entry) => {
@@ -1339,6 +1262,74 @@ export function useRigController({
       setSelectedStandardInputRoots(filtered);
     }
   }, [selectedStandardInputRoots, standardInputRoots]);
+
+  useEffect(() => {
+    if (!Array.isArray(elementSelection)) {
+      return;
+    }
+    const relevantSelection = elementSelection.filter(
+      (entry) => entry.namespace === namespace,
+    );
+    if (relevantSelection.length === 0) {
+      if (viewerSelectionActiveRef.current) {
+        viewerSelectionActiveRef.current = false;
+        setSelectedStandardInputRoots((previous) => {
+          if (previous.length === 0) {
+            return previous;
+          }
+          return [];
+        });
+      }
+      return;
+    }
+
+    const candidateRoots = new Set<string>();
+
+    relevantSelection.forEach((selection) => {
+      const mappedRoots = elementRootLookup.get(selection.id);
+      if (mappedRoots) {
+        mappedRoots.forEach((root) => {
+          if (root) {
+            candidateRoots.add(root);
+          }
+        });
+      }
+      const renderable = world[selection.id];
+      if (renderable && typeof renderable === "object") {
+        const baseName =
+          typeof renderable.name === "string" &&
+          renderable.name.trim().length > 0
+            ? renderable.name
+            : renderable.id;
+        const normalized = normalizeStandardRigGroup(baseName, "");
+        if (normalized) {
+          candidateRoots.add(normalized);
+        }
+      }
+    });
+
+    const orderedRoots = standardInputRoots.filter((root) =>
+      candidateRoots.has(root),
+    );
+
+    viewerSelectionActiveRef.current = true;
+
+    setSelectedStandardInputRoots((previous) => {
+      if (
+        previous.length === orderedRoots.length &&
+        previous.every((value, index) => value === orderedRoots[index])
+      ) {
+        return previous;
+      }
+      return orderedRoots;
+    });
+  }, [
+    elementRootLookup,
+    elementSelection,
+    namespace,
+    standardInputRoots,
+    world,
+  ]);
 
   useEffect(() => {
     if (selectedStandardInputSubgroups.length === 0) {
@@ -2367,6 +2358,7 @@ export function useRigController({
         binding: AnimatableBinding,
         target: BindingTarget,
       ) => AnimatableBinding,
+      options?: { preserveExpression?: boolean },
     ) => {
       setInputBindings((previous) => {
         const input = standardInputsByIdRef.current.get(targetId);
@@ -2381,13 +2373,25 @@ export function useRigController({
         const ensured = ensureBindingStructure(current, target);
         const canonicalBefore = canonicalBindingExpression(ensured);
         const expressionBefore = (ensured.expression ?? "").trim();
+        const preserveExpression = options?.preserveExpression === true;
         const expressionWasAuto =
           expressionBefore === "" || expressionBefore === canonicalBefore;
         const transformed = transform(ensured, target);
         let normalized = ensureBindingStructure(transformed, target);
-        if (expressionWasAuto) {
+        const expressionAfter = (normalized.expression ?? "").trim();
+        const fallbackAlias = normalized.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS;
+        if (preserveExpression) {
+          if (
+            expressionAfter.length === 0 &&
+            expressionAfter !== fallbackAlias
+          ) {
+            normalized = {
+              ...normalized,
+              expression: fallbackAlias,
+            };
+          }
+        } else if (expressionWasAuto) {
           const canonicalAfter = canonicalBindingExpression(normalized);
-          const expressionAfter = (normalized.expression ?? "").trim();
           if (canonicalAfter.length > 0) {
             if (expressionAfter !== canonicalAfter) {
               normalized = {
@@ -2395,15 +2399,11 @@ export function useRigController({
                 expression: canonicalAfter,
               };
             }
-          } else {
-            const fallbackAlias =
-              normalized.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS;
-            if (expressionAfter !== fallbackAlias) {
-              normalized = {
-                ...normalized,
-                expression: fallbackAlias,
-              };
-            }
+          } else if (expressionAfter !== fallbackAlias) {
+            normalized = {
+              ...normalized,
+              expression: fallbackAlias,
+            };
           }
         }
         const hasSelfSlot =
@@ -2547,6 +2547,7 @@ export function useRigController({
         createDefaultParentBinding,
         (binding, target) =>
           updateBindingExpression(binding, target, expression),
+        { preserveExpression: true },
       );
     },
     [updateInputBinding],
@@ -2758,6 +2759,13 @@ export function useRigController({
         const nextCustomInputs = Array.from(inputsByPath.values()).sort(
           (a, b) => a.label.localeCompare(b.label),
         );
+
+        if (missingBlueprintPaths.length > 0) {
+          console.warn(
+            "[vizij-authoring] Missing inputs while importing graph.",
+            missingBlueprintPaths,
+          );
+        }
 
         const nextInputValues: StandardInputValues = {};
         rehydrated.standardInputs.forEach((input) => {
@@ -3008,10 +3016,7 @@ export function useRigController({
             ? normalizedPath
             : stripStandardInputPathPrefix(normalizedPath);
           const canonicalId = createStandardRigInputFromPath(canonicalPath).id;
-          const remappedDescriptorId = descriptor.id
-            ? remapStandardInputIdValue(descriptor.id)
-            : null;
-          const resolvedId = remappedDescriptorId ?? canonicalId;
+          const resolvedId = descriptor.id ?? canonicalId;
           if (descriptor.id && resolvedId && descriptor.id !== resolvedId) {
             idMismatches.push(
               `${descriptor.id} → ${resolvedId} (${canonicalPath})`,
@@ -3072,20 +3077,16 @@ export function useRigController({
       });
       setCustomInputs([...persistedCustom, ...legacyCustomInputs]);
       setAutoInputs(new Map());
-      const remappedInputValues =
-        remapStandardInputValuesMap(persisted.inputValues) ??
-        persisted.inputValues ??
-        {};
-      setInputValues(remappedInputValues);
+      setInputValues(persisted.inputValues ?? {});
 
-      const remappedBindings: BindingMap = {};
+      const persistedBindings: BindingMap = {};
       Object.entries(persisted.bindings).forEach(([key, binding]) => {
         if (!binding) {
           return;
         }
-        remappedBindings[key] = remapAnimatableBindingToCurrentIds(binding);
+        persistedBindings[key] = binding;
       });
-      setBindings(reconcileBindings(remappedBindings, animatableComponents));
+      setBindings(reconcileBindings(persistedBindings, animatableComponents));
       setSelectedStandardInputRoots(
         Array.isArray(persisted.selectedStandardInputRoots)
           ? persisted.selectedStandardInputRoots
@@ -3097,11 +3098,10 @@ export function useRigController({
           : [],
       );
       setFeatureLabelOverrides(persisted.featureLabels ?? {});
-      pendingInputBindingDefinitionsRef.current = remapBindingDefinitionRecord(
+      pendingInputBindingDefinitionsRef.current =
         persisted.inputBindingDefinitions ??
-          persisted.derivedStandardInputs ??
-          null,
-      );
+        persisted.derivedStandardInputs ??
+        null;
       setInputBindings({});
       if (idMismatches.length > 0) {
         alertDialog(
@@ -3400,17 +3400,8 @@ export function useRigController({
         continue;
       }
       appliedOverrides = true;
-      const override = nextValues.get(lookupKey);
       nextValues.delete(lookupKey);
-      if (override !== undefined) {
-        const overrideClone = cloneRawValue(override);
-        if (!rawValuesEqual(animatable.default as RawValue, overrideClone)) {
-          nextAnimatables[animId] = {
-            ...animatable,
-            default: overrideClone as unknown as typeof animatable.default,
-          } as AnimatableValue;
-        }
-      }
+      nextAnimatables[animId] = animatable;
     }
 
     return {
