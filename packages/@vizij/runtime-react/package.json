@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@vizij/orchestrator-react": "^0.0.2",
-    "@vizij/render": "^0.0.4",
+    "@vizij/render": "workspace:^",
     "@vizij/utils": "^0.0.2",
     "@vizij/value-json": "^0.1.0"
   },
