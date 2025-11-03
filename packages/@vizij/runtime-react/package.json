@@ -1,7 +1,7 @@
 {
   "name": "@vizij/runtime-react",
   "description": "Runtime provider that bridges Vizij renderer assets with orchestrator controllers for React apps.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

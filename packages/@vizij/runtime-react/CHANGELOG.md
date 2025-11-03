@@ -1,5 +1,11 @@
 # @vizij/runtime-react
 
+## 0.0.5
+
+### Patch Changes
+
+- a448d89: Fix asset bundle handling
+
 ## 0.0.4
 
 ### Patch Changes
