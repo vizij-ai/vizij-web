@@ -39,7 +39,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run size"
   },
   "dependencies": {
-    "@vizij/utils": "^0.0.2",
+    "@vizij/utils": "workspace:^",
     "clsx": "^2.1.1",
     "deep-equal": "^2.2.3",
     "immer": "^10.0.3",

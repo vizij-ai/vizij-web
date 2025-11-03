@@ -498,6 +498,10 @@ function VizijRuntimeProviderInner({
     }));
   }, [namespace, faceId, reportStatus]);
 
+  const glbAsset = initialAssetBundle.glb;
+  const baseBundle: VizijBundleExtension | null =
+    initialAssetBundle.bundle ?? null;
+
   useEffect(() => {
     let cancelled = false;
     resetErrors();
@@ -514,32 +518,32 @@ function VizijRuntimeProviderInner({
       try {
         let world: Record<string, any>;
         let animatables: Record<string, AnimatableValue>;
-        let bundle: VizijBundleExtension | null = assetBundle.bundle ?? null;
+        let bundle: VizijBundleExtension | null = baseBundle;
 
-        if (assetBundle.glb.kind === "url") {
+        if (glbAsset.kind === "url") {
           const loaded = await loadGLTFWithBundle(
-            assetBundle.glb.src,
+            glbAsset.src,
             [namespace],
-            assetBundle.glb.aggressiveImport ?? false,
-            assetBundle.glb.rootBounds,
+            glbAsset.aggressiveImport ?? false,
+            glbAsset.rootBounds,
           );
           world = loaded.world as Record<string, any>;
           animatables = loaded.animatables;
           bundle = loaded.bundle ?? bundle;
-        } else if (assetBundle.glb.kind === "blob") {
+        } else if (glbAsset.kind === "blob") {
           const loaded = await loadGLTFFromBlobWithBundle(
-            assetBundle.glb.blob,
+            glbAsset.blob,
             [namespace],
-            assetBundle.glb.aggressiveImport ?? false,
-            assetBundle.glb.rootBounds,
+            glbAsset.aggressiveImport ?? false,
+            glbAsset.rootBounds,
           );
           world = loaded.world as Record<string, any>;
           animatables = loaded.animatables;
           bundle = loaded.bundle ?? bundle;
         } else {
-          world = assetBundle.glb.world as Record<string, any>;
-          animatables = assetBundle.glb.animatables;
-          bundle = assetBundle.glb.bundle ?? bundle;
+          world = glbAsset.world as Record<string, any>;
+          animatables = glbAsset.animatables;
+          bundle = glbAsset.bundle ?? bundle;
         }
 
         if (cancelled) {
@@ -581,7 +585,8 @@ function VizijRuntimeProviderInner({
       cancelled = true;
     };
   }, [
-    assetBundle,
+    glbAsset,
+    baseBundle,
     namespace,
     faceId,
     store,

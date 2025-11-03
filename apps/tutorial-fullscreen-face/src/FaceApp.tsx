@@ -5,11 +5,12 @@ import {
   useVizijRuntime,
   type VizijAssetBundle,
 } from "@vizij/runtime-react";
-import { faceAssetUrl } from "./assets";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 
 import "./styles.css";
+
+const faceAssetUrl = "/assets/face.glb";
 
 const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
