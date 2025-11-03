@@ -17,6 +17,7 @@ export function PoseSummary({
   onApplyPose,
 }: PoseSummaryProps) {
   const inputs = summary?.inputs ?? [];
+  void inputs; // May be used again later.
 
   return (
     <section className="pose-rig-panel pose-rig-panel--summary">

@@ -1,7 +1,7 @@
 {
   "name": "@vizij/runtime-react",
   "description": "Runtime provider that bridges Vizij renderer assets with orchestrator controllers for React apps.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -38,9 +38,9 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
-    "@vizij/orchestrator-react": "workspace:*",
-    "@vizij/render": "workspace:*",
-    "@vizij/utils": "workspace:*",
+    "@vizij/orchestrator-react": "^0.0.2",
+    "@vizij/render": "^0.0.4",
+    "@vizij/utils": "^0.0.2",
     "@vizij/value-json": "^0.1.0"
   },
   "peerDependencies": {

@@ -545,12 +545,9 @@ importers:
 
   packages/@vizij/render:
     dependencies:
-      '@semio/ui':
-        specifier: '*'
-        version: 0.0.0(@babel/core@7.28.4)(@babel/template@7.27.2)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.26))(@types/react@18.3.26)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
       '@vizij/utils':
-        specifier: workspace:*
-        version: link:../utils
+        specifier: ^0.0.2
+        version: 0.0.2
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -622,14 +619,14 @@ importers:
   packages/@vizij/runtime-react:
     dependencies:
       '@vizij/orchestrator-react':
-        specifier: workspace:*
-        version: link:../orchestrator-react
+        specifier: ^0.0.2
+        version: 0.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@vizij/render':
-        specifier: workspace:*
-        version: link:../render
+        specifier: ^0.0.3
+        version: 0.0.3(@babel/core@7.28.4)(@babel/template@7.27.2)(@emotion/is-prop-valid@1.4.0)(@react-three/drei@9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0))(@types/react@18.3.26)(@types/three@0.170.0)(immer@10.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0)(use-sync-external-store@1.6.0(react@18.3.1)))(@react-three/fiber@8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0))(@types/react-dom@18.3.7(@types/react@18.3.26))(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.1.14)(three@0.170.0)(use-sync-external-store@1.6.0(react@18.3.1))(zustand@5.0.8(@types/react@18.3.26)(immer@10.1.3)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1)))
       '@vizij/utils':
-        specifier: workspace:*
-        version: link:../utils
+        specifier: ^0.0.2
+        version: 0.0.2
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -2420,8 +2417,28 @@ packages:
   '@vizij/node-graph-wasm@0.4.1':
     resolution: {integrity: sha512-UO+r/ryzqVu37QloJgRyJnMv/HBOKYD/u1WleUtMLJ/bPMs7MXBy/TKyFuQ0aq7rb6y6NECyULw7xV5ZEQjKYA==}
 
+  '@vizij/orchestrator-react@0.0.2':
+    resolution: {integrity: sha512-USetUnSobS66fMb6lAnBu5ujD0Sb7cPWbb17hZyyvUKZdbFwdlriSm7iopC0EmSZ0wF1THckEw36GneYq07ngQ==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
   '@vizij/orchestrator-wasm@0.2.3':
     resolution: {integrity: sha512-PJwfOPj6NKdYnHi/BqJdgRC03DW0zQ99sEeyTReP8p3tVOeqTZcKu8gyuuxzrD5HicxQZjur99Esu+Z1TI5slA==}
+
+  '@vizij/render@0.0.3':
+    resolution: {integrity: sha512-nL7s0At8Xy+itIRHWJbVJnOacuxRrQhBeCFxIkupHWGZyOoztiss08NhKk/A5QMXHiGk7Cf37YFT8GdhWioBgA==}
+    peerDependencies:
+      '@react-three/drei': ^9.115.0
+      '@react-three/fiber': ^8.17.10
+      react: '>=18'
+      react-dom: '>=18'
+      tailwindcss: ^4.1.3
+      three: ^0.170.0
+      zustand: ^5.0.2
+
+  '@vizij/utils@0.0.2':
+    resolution: {integrity: sha512-o1bU0wW01J8y0/3MQmR3bf70qdAK2/9FTvhTlRV7L2lacAVbADVyA7oBPiB4cgsbtF2DtzpJeGUNG+v+MEd8gA==}
 
   '@vizij/value-json@0.1.0':
     resolution: {integrity: sha512-NzSX14YLnA1ZPaxib0qhgHn5+cVxPZpiTINhqfQwD07FBtkLHPNh/FdQTUmyNAdhZB/RVvdobbEnFCEVLRQJqw==}
@@ -2699,8 +2716,8 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  core-js-pure@3.45.1:
-    resolution: {integrity: sha512-OHnWFKgTUshEU8MK+lOs1H8kC8GkTi9Z1tvNkxrCcw9wl3MJIO7q2ld77wjWn4/xuGrVu2X+nME1iIIPBSdyEQ==}
+  core-js-pure@3.46.0:
+    resolution: {integrity: sha512-NMCW30bHNofuhwLhYPt66OLOKTMbOhgTTatKVbaQC3KRHpTCiRIBYvtshr+NBYSnBxwAFhjW/RfJ0XbIjS16rw==}
 
   cosmiconfig@7.1.0:
     resolution: {integrity: sha512-AdmX6xUzdNASswsFtmwSt7Vj8po9IuqXm0UXz7QKPuEUmPB4XyjGfaAr2PSuELMwkRMVH1EpIkX5bTZGRB3eCA==}
@@ -3106,8 +3123,8 @@ packages:
     resolution: {integrity: sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==}
     engines: {node: '>=0.4.x'}
 
-  framer-motion@12.23.22:
-    resolution: {integrity: sha512-ZgGvdxXCw55ZYvhoZChTlG6pUuehecgvEAJz0BHoC5pQKW1EC5xf1Mul1ej5+ai+pVY0pylyFfdl45qnM1/GsA==}
+  framer-motion@12.23.24:
+    resolution: {integrity: sha512-HMi5HRoRCTou+3fb3h9oTLyJGBxHfW+HnNE25tAXOvVx/IvwMHK0cx7IR4a2ZU6sh3IX1Z+4ts32PcYBOqka8w==}
     peerDependencies:
       '@emotion/is-prop-valid': '*'
       react: ^18.0.0 || ^19.0.0
@@ -3468,8 +3485,8 @@ packages:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
 
-  jotai@2.15.0:
-    resolution: {integrity: sha512-nbp/6jN2Ftxgw0VwoVnOg0m5qYM1rVcfvij+MZx99Z5IK13eGve9FJoCwGv+17JvVthTjhSmNtT5e1coJnr6aw==}
+  jotai@2.15.1:
+    resolution: {integrity: sha512-yHT1HAZ3ba2Q8wgaUQ+xfBzEtcS8ie687I8XVCBinfg4bNniyqLIN+utPXWKQE93LMF5fPbQSVRZqgpcN5yd6Q==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@babel/core': '>=7.0.0'
@@ -3724,14 +3741,14 @@ packages:
   mlly@1.8.0:
     resolution: {integrity: sha512-l8D9ODSRWLe2KHJSifWGwBqpTZXIXTeo8mlKjY+E2HAakaTeNpqAyBZ8GSqLzHgw4XmHmC8whvpjJNMbFZN7/g==}
 
-  motion-dom@12.23.21:
-    resolution: {integrity: sha512-5xDXx/AbhrfgsQmSE7YESMn4Dpo6x5/DTZ4Iyy4xqDvVHWvFVoV+V2Ri2S/ksx+D40wrZ7gPYiMWshkdoqNgNQ==}
+  motion-dom@12.23.23:
+    resolution: {integrity: sha512-n5yolOs0TQQBRUFImrRfs/+6X4p3Q4n1dUEqt/H58Vx7OW6RF+foWEgmTVDhIWJIMXOuNNL0apKH2S16en9eiA==}
 
   motion-utils@12.23.6:
     resolution: {integrity: sha512-eAWoPgr4eFEOFfg2WjIsMoqJTW6Z8MTUCgn/GZ3VRpClWBdnbjryiA3ZSNLyxCTmCQx4RmYX6jX1iWHbenUPNQ==}
 
-  motion@12.23.22:
-    resolution: {integrity: sha512-iSq6X9vLHbeYwmHvhK//+U74ROaPnZmBuy60XZzqNl0QtZkWfoZyMDHYnpKuWFv0sNMqHgED8aCXk94LCoQPGg==}
+  motion@12.23.24:
+    resolution: {integrity: sha512-Rc5E7oe2YZ72N//S3QXGzbnXgqNrTESv8KKxABR20q2FLch9gHLo0JLyYo2hZ238bZ9Gx6cWhj9VO0IgwbMjCw==}
     peerDependencies:
       '@emotion/is-prop-valid': '*'
       react: ^18.0.0 || ^19.0.0
@@ -4020,8 +4037,8 @@ packages:
     peerDependencies:
       react: '>=16.13.1'
 
-  react-hook-form@7.64.0:
-    resolution: {integrity: sha512-fnN+vvTiMLnRqKNTVhDysdrUay0kUUAymQnFIznmgDvapjveUWOOPqMNzPg+A+0yf9DuE2h6xzBjN1s+Qx8wcg==}
+  react-hook-form@7.66.0:
+    resolution: {integrity: sha512-xXBqsWGKrY46ZqaHDo+ZUYiMUgi8suYu5kdrS20EG8KiL7VRQitEbNjm+UcrDYrNi1YLyfpmAeGjCZYXLT9YBw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -4365,8 +4382,8 @@ packages:
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
 
-  tabbable@6.2.0:
-    resolution: {integrity: sha512-Cat63mxsVJlzYvN51JmVXIgNoUokrIaT2zLclCXjRd8boZ0004U4KCs/sToJ75C6sdlByWxpYnb5Boif1VSFew==}
+  tabbable@6.3.0:
+    resolution: {integrity: sha512-EIHvdY5bPLuWForiR/AN2Bxngzpuwn1is4asboytXtpTgsArc+WmSJKVLlhdh71u7jFcryDqB2A8lQvj78MkyQ==}
 
   tailwindcss@4.1.14:
     resolution: {integrity: sha512-b7pCxjGO98LnxVkKjaZSDeNuljC4ueKUddjENJOADtubtdo8llTaJy7HwBMeLNSSo2N5QIAgklslK1+Ir8r6CA==}
@@ -4908,7 +4925,7 @@ snapshots:
 
   '@babel/runtime-corejs3@7.28.4':
     dependencies:
-      core-js-pure: 3.45.1
+      core-js-pure: 3.46.0
 
   '@babel/runtime@7.28.4': {}
 
@@ -5327,7 +5344,7 @@ snapshots:
       '@floating-ui/utils': 0.2.10
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      tabbable: 6.2.0
+      tabbable: 6.3.0
 
   '@floating-ui/react@0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -5335,7 +5352,7 @@ snapshots:
       '@floating-ui/utils': 0.2.10
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      tabbable: 6.2.0
+      tabbable: 6.3.0
 
   '@floating-ui/utils@0.2.10': {}
 
@@ -6315,15 +6332,15 @@ snapshots:
       '@use-gesture/react': 10.3.1(react@18.3.1)
       '@visx/responsive': 3.12.0(react@18.3.1)
       clsx: 2.1.1
-      jotai: 2.15.0(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@18.3.26)(react@18.3.1)
+      jotai: 2.15.1(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@18.3.26)(react@18.3.1)
       lodash: 4.17.21
       match-sorter: 6.3.4
-      motion: 12.23.22(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      motion: 12.23.24(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       number-precision: 1.6.0
       react-colorful: 5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-dom: 18.3.1(react@18.3.1)
       react-dropzone: 14.3.8(react@18.3.1)
-      react-hook-form: 7.64.0(react@18.3.1)
+      react-hook-form: 7.66.0(react@18.3.1)
       react-imask: 7.6.1(react@18.3.1)
       react-merge-refs: 2.1.1
       react-syntax-highlighter: 15.6.6(react@18.3.1)
@@ -6840,10 +6857,45 @@ snapshots:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
+  '@vizij/orchestrator-react@0.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@vizij/orchestrator-wasm': 0.2.3
+      '@vizij/value-json': 0.1.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
   '@vizij/orchestrator-wasm@0.2.3':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
+
+  '@vizij/render@0.0.3(@babel/core@7.28.4)(@babel/template@7.27.2)(@emotion/is-prop-valid@1.4.0)(@react-three/drei@9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0))(@types/react@18.3.26)(@types/three@0.170.0)(immer@10.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0)(use-sync-external-store@1.6.0(react@18.3.1)))(@react-three/fiber@8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0))(@types/react-dom@18.3.7(@types/react@18.3.26))(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.1.14)(three@0.170.0)(use-sync-external-store@1.6.0(react@18.3.1))(zustand@5.0.8(@types/react@18.3.26)(immer@10.1.3)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1)))':
+    dependencies:
+      '@react-three/drei': 9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0))(@types/react@18.3.26)(@types/three@0.170.0)(immer@10.1.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0)(use-sync-external-store@1.6.0(react@18.3.1))
+      '@react-three/fiber': 8.18.0(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.170.0)
+      '@semio/ui': 0.0.0(@babel/core@7.28.4)(@babel/template@7.27.2)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@18.3.7(@types/react@18.3.26))(@types/react@18.3.26)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+      '@vizij/utils': link:packages/@vizij/utils
+      clsx: 2.1.1
+      deep-equal: 2.2.3
+      immer: 10.1.3
+      lodash: 4.17.21
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-error-boundary: 4.1.2(react@18.3.1)
+      tailwindcss: 4.1.14
+      three: 0.170.0
+      three-stdlib: 2.36.0(three@0.170.0)
+      zustand: 5.0.8(@types/react@18.3.26)(immer@10.1.3)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@babel/template'
+      - '@emotion/is-prop-valid'
+      - '@types/react'
+      - '@types/react-dom'
+      - supports-color
+      - use-sync-external-store
+
+  '@vizij/utils@0.0.2': {}
 
   '@vizij/value-json@0.1.0': {}
 
@@ -7113,7 +7165,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  core-js-pure@3.45.1: {}
+  core-js-pure@3.46.0: {}
 
   cosmiconfig@7.1.0:
     dependencies:
@@ -7645,9 +7697,9 @@ snapshots:
 
   format@0.2.2: {}
 
-  framer-motion@12.23.22(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  framer-motion@12.23.24(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      motion-dom: 12.23.21
+      motion-dom: 12.23.23
       motion-utils: 12.23.6
       tslib: 2.8.1
     optionalDependencies:
@@ -8012,7 +8064,7 @@ snapshots:
 
   jiti@2.6.1: {}
 
-  jotai@2.15.0(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@18.3.26)(react@18.3.1):
+  jotai@2.15.1(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@18.3.26)(react@18.3.1):
     optionalDependencies:
       '@babel/core': 7.28.4
       '@babel/template': 7.27.2
@@ -8236,15 +8288,15 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.1
 
-  motion-dom@12.23.21:
+  motion-dom@12.23.23:
     dependencies:
       motion-utils: 12.23.6
 
   motion-utils@12.23.6: {}
 
-  motion@12.23.22(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  motion@12.23.24(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      framer-motion: 12.23.22(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      framer-motion: 12.23.24(@emotion/is-prop-valid@1.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tslib: 2.8.1
     optionalDependencies:
       '@emotion/is-prop-valid': 1.4.0
@@ -8507,7 +8559,7 @@ snapshots:
       '@babel/runtime': 7.28.4
       react: 18.3.1
 
-  react-hook-form@7.64.0(react@18.3.1):
+  react-hook-form@7.66.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 
@@ -8911,7 +8963,7 @@ snapshots:
 
   symbol-tree@3.2.4: {}
 
-  tabbable@6.2.0: {}
+  tabbable@6.3.0: {}
 
   tailwindcss@4.1.14: {}
 

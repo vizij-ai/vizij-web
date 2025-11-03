@@ -1,5 +1,11 @@
 # @vizij/animation-react
 
+## 0.0.3
+
+### Patch Changes
+
+- Align published dependencies for npm consumption and expose Vitest config helpers for the animation package to fix JSDOM test runs.
+
 ## 0.0.2
 
 ### Patch Changes

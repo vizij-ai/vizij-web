@@ -1,4 +1,3 @@
-export * from "./controllers";
 export * from "./vizij";
 export * from "./store";
 export * from "./store-types";
