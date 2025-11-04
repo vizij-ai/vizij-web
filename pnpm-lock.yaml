@@ -475,8 +475,8 @@ importers:
   packages/@vizij/node-graph-authoring:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.2
-        version: 0.4.2
+        specifier: ^0.4.3
+        version: 0.4.4
       '@vizij/utils':
         specifier: ^0.0.2
         version: 0.0.2
