@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Git pre-commit hook for vizij-web: format and lint all workspaces
+# Git pre-commit hook for vizij-web: format and lint staged files
 set -euo pipefail
 
 # Allow skipping on demand
@@ -8,7 +8,7 @@ if [[ "${SKIP_GIT_HOOKS:-0}" == "1" ]]; then
   exit 0
 fi
 
-echo "[vizij-web pre-commit] Format (pnpm run prep)"
-pnpm run prep
+echo "[vizij-web pre-commit] lint-staged (format + lint on staged files)"
+pnpm exec lint-staged
 
 echo "[vizij-web pre-commit] OK"
