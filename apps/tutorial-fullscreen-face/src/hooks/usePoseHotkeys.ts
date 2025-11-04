@@ -28,7 +28,7 @@ export function usePoseHotkeys(
   poseConfig: PoseRigConfig | null,
   enabled: boolean,
 ) {
-  const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
+  const { setInput, faceId: runtimeFaceId, animateValue } = useVizijRuntime();
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function usePoseHotkeys(
     const applyWeight = (pose: PoseDefinition, weight: number) => {
       const segment = toPathSegment(pose);
       const path = `rig/${faceId}/poses/${segment}.weight`;
-      setInput(path, { float: weight });
+      animateValue(path, { float: weight }, {duration: 2});
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {

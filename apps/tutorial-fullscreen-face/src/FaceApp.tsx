@@ -10,7 +10,7 @@ import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 
 import "./styles.css";
 
-const faceAssetUrl = "/assets/face.glb";
+const faceAssetUrl = "/assets/Dooley_Hugo.glb"
 
 const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
@@ -23,6 +23,18 @@ const assetBundle: VizijAssetBundle = {
     stageNeutralFilter: (_id, path) => !path.includes("/color/"),
   },
 };
+
+function VizijRuntimeHud() {
+  const { loading, error, ready } = useVizijRuntime();
+  return (
+    <div>
+      Status:
+      {loading && <div>Loading Face {ready}</div>}
+      {error && <div>Error: {error.message}</div>}
+      {!ready && <div>Initializing</div>}
+    </div>
+  );
+}
 
 function FaceRuntime() {
   const { ready, loading, error, stagePoseNeutral, assetBundle } =
@@ -100,6 +112,7 @@ function FaceRuntime() {
 export function FaceApp() {
   return (
     <VizijRuntimeProvider assetBundle={assetBundle} autostart>
+      <VizijRuntimeHud />
       <FaceRuntime />
     </VizijRuntimeProvider>
   );
