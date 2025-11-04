@@ -11,7 +11,9 @@ import {
   type InputBindingMap,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
-} from "./state";
+  type BindingTarget,
+  type BindingValueType,
+} from "@vizij/node-graph-authoring";
 import {
   createStandardRigInput,
   cloneRemapSettings,
@@ -23,7 +25,7 @@ import {
   type AnimatableValue,
   type StandardRigInput,
 } from "@vizij/utils";
-import type { GraphBindingSummary } from "./graphBuilder";
+import type { GraphBindingSummary } from "@vizij/node-graph-authoring";
 
 interface VizijGraphMetadataInput {
   id: string;
@@ -102,11 +104,7 @@ function coerceExpression(value: string | null | undefined, fallback: string) {
 
 function buildBindingFromSummaries(
   targetId: string,
-  target: {
-    id: string;
-    defaultValue: number;
-    range: { min: number; max: number };
-  },
+  target: BindingTarget,
   summaries: GraphBindingSummary[],
 ): AnimatableBinding {
   if (summaries.length === 0) {
@@ -124,6 +122,8 @@ function buildBindingFromSummaries(
       summary.slotId && summary.slotId.trim().length > 0
         ? summary.slotId.trim()
         : aliasBase;
+    const slotValueType: BindingValueType =
+      summary.valueType === "vector" ? "vector" : "scalar";
     const remap = summary.remap
       ? cloneRemapSettings(summary.remap)
       : cloneRemapSettings(createDefaultRemap(target));
@@ -132,14 +132,19 @@ function buildBindingFromSummaries(
       alias: aliasBase,
       inputId: summary.inputId,
       remap,
+      valueType: slotValueType,
     };
   });
+
+  const targetValueType: BindingValueType =
+    target.valueType === "vector" ? "vector" : "scalar";
 
   const primarySlot = slots[0] ?? {
     id: PRIMARY_SLOT_ID,
     alias: PRIMARY_SLOT_ALIAS,
     inputId: null,
     remap: cloneRemapSettings(createDefaultRemap(target)),
+    valueType: targetValueType,
   };
 
   const binding: AnimatableBinding = {

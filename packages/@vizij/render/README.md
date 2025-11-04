@@ -23,7 +23,7 @@ This package exposes the `Vizij` canvas component along with hooks, stores, and 
 
 - `Vizij` renders a fully managed `@react-three/fiber` canvas with sensible defaults for orthographic cameras and safe-area overlays.
 - A Zustand-powered store (`useVizijStore`) tracks renderables, controllers, and transient state. Hooks let you read or mutate slices without re-rendering entire scenes.
-- Utilities (`loadGLTF`, `loadGLTFBlob`, export helpers) streamline loading rigged GLTF assets and exporting scene snapshots.
+- Utilities (`loadGLTF`, `loadGLTFBlob`, export helpers) streamline loading rigged GLTF assets and exporting scene snapshots. The tuple helpers now return `[world, animatables, animations]`, where `animations` contains parsed clip metadata for any channels embedded in the GLB.
 - Controllers wrap common behaviours (e.g., pointer interaction, safe-area visualisation) so you can compose features quickly.
 
 ---
@@ -108,7 +108,8 @@ Vizij scenes persist authoring metadata inside GLBs so third-party tools see bak
 - Every renderable still carries a `RobotData` extension in `userData` describing features and animatable bindings.
 - The exporter now writes a root-level `extensions.VIZIJ_bundle` block following the schema in [`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts). It contains rig graphs, pose configs, stored Vizij clips, and provenance hashes.
 - Use `exportScene(group, { bundle, animations })` to embed both the Vizij bundle and optional baked `THREE.AnimationClip` instances. The helper attaches the bundle only for the export call and restores the original object.
-- When loading assets, prefer `loadGLTFWithBundle` / `loadGLTFFromBlobWithBundle` to retrieve `{ world, animatables, bundle }`. The legacy tuple helpers remain available if you do not need bundle metadata.
+- When loading assets, prefer `loadGLTFWithBundle` / `loadGLTFFromBlobWithBundle` to retrieve `{ world, animatables, bundle, animations }`. The legacy tuple helpers return `[world, animatables, animations]` if you only need the renderer state.
+- The new `animations` field exposes `VizijAnimationClipData[]`, which maps each glTF animation channel back to Vizij animatable ids (`RobotData.features.*.value.id`). Each track provides component-aware `times`/`values` arrays so runtimes can register clips without re-parsing the GLB.
 - `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` (under `src/functions/vizij-bundle.ts`) let advanced tooling inspect or mutate bundles without triggering a fresh export.
 
 With this structure, authoring tools can round-trip orchestrator assets while shipping native glTF animations for viewers that do not understand Vizij.

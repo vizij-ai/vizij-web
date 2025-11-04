@@ -1,11 +1,12 @@
 import * as THREE from "three";
-import { Group } from "three";
+import { AnimationClip, Group } from "three";
 import { GLTFLoader, DRACOLoader, GLTF } from "three-stdlib";
 import { AnimatableValue, RawVector2 } from "@vizij/utils";
 import { World } from "../types/world";
-import type { VizijBundleExtension } from "../types";
+import type { VizijBundleExtension, VizijAnimationClipData } from "../types";
 import { traverseThree } from "./gltf-loading/traverse-three";
 import { extractVizijBundle } from "./vizij-bundle";
+import { extractVizijAnimations } from "./gltf-loading/extract-animations";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -24,7 +25,7 @@ export async function loadGLTF(
     center: RawVector2;
     size: RawVector2;
   },
-): Promise<[World, Record<string, AnimatableValue>]> {
+): Promise<[World, Record<string, AnimatableValue>, VizijAnimationClipData[]]> {
   const modelLoader = new GLTFLoader();
   modelLoader.setDRACOLoader(new DRACOLoader());
 
@@ -38,9 +39,10 @@ export async function loadGLTF(
     aggressiveImport,
     rootBounds,
     (modelData as any)?.parser?.json,
+    modelData.animations,
   );
 
-  return [asset.world, asset.animatables];
+  return [asset.world, asset.animatables, asset.animations];
 }
 
 export async function loadGLTFFromBlob(
@@ -51,7 +53,7 @@ export async function loadGLTFFromBlob(
     center: RawVector2;
     size: RawVector2;
   },
-): Promise<[World, Record<string, AnimatableValue>]> {
+): Promise<[World, Record<string, AnimatableValue>, VizijAnimationClipData[]]> {
   const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
 
   if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
@@ -63,7 +65,7 @@ export async function loadGLTFFromBlob(
         aggressiveImport,
         rootBounds,
       );
-      return [asset.world, asset.animatables];
+      return [asset.world, asset.animatables, asset.animations];
     } finally {
       URL.revokeObjectURL(objectUrl);
     }
@@ -89,8 +91,9 @@ export async function loadGLTFFromBlob(
             aggressiveImport,
             rootBounds,
             (gltf as any)?.parser?.json,
+            gltf.animations,
           );
-          resolve([asset.world, asset.animatables]);
+          resolve([asset.world, asset.animatables, asset.animations]);
         } catch (error) {
           if (error instanceof Error) {
             reject(error);
@@ -110,6 +113,7 @@ export type LoadedVizijAsset = {
   world: World;
   animatables: Record<string, AnimatableValue>;
   bundle: VizijBundleExtension | null;
+  animations: VizijAnimationClipData[];
 };
 
 function parseScene(
@@ -123,6 +127,7 @@ function parseScene(
       }
     | undefined,
   parserJson?: unknown,
+  clips?: AnimationClip[] | undefined,
 ): LoadedVizijAsset {
   const [world, animatables] = traverseThree(
     scene,
@@ -131,6 +136,7 @@ function parseScene(
     rootBounds,
   );
   const bundle = extractVizijBundle(scene, parserJson);
+  const animations = extractVizijAnimations(parserJson, clips);
   // if (bundle) {
   //   console.info("[vizij-render] Bundle extracted during GLTF load.", {
   //     graphs: bundle.graphs?.length ?? 0,
@@ -141,7 +147,7 @@ function parseScene(
   // } else {
   //   console.info("[vizij-render] No bundle extracted during GLTF load.");
   // }
-  return { world, animatables, bundle };
+  return { world, animatables, bundle, animations };
 }
 
 export async function loadGLTFWithBundle(
@@ -166,6 +172,7 @@ export async function loadGLTFWithBundle(
     aggressiveImport,
     rootBounds,
     (modelData as any)?.parser?.json,
+    modelData.animations,
   );
 }
 
@@ -214,6 +221,7 @@ export async function loadGLTFFromBlobWithBundle(
             aggressiveImport,
             rootBounds,
             (gltf as any)?.parser?.json,
+            gltf.animations,
           );
           resolve(asset);
         } catch (error) {

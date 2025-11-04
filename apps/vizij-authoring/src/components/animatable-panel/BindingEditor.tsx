@@ -4,7 +4,11 @@ import {
   type StandardRigInput,
   type RemapSettings,
 } from "@vizij/utils";
-import type { AnimatableBinding } from "../../rig/state";
+import type {
+  AnimatableBinding,
+  BindingOperatorType,
+} from "@vizij/node-graph-authoring";
+import { bindingOperatorDefinitions } from "@vizij/node-graph-authoring";
 import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
 import {
   FilterableSelect,
@@ -114,6 +118,17 @@ interface BindingEditorProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   onRequestCreateStandardInput?: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
@@ -140,6 +155,8 @@ export function BindingEditor({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingOperatorToggle,
+  onBindingOperatorParamChange,
   onRequestCreateStandardInput: _onRequestCreateStandardInput,
   onResetBinding,
   headerActions,
@@ -155,9 +172,31 @@ export function BindingEditor({
   const isExpanded = isControlled ? (expanded as boolean) : internalExpanded;
 
   const slots = binding.slots ?? [];
+  const operatorByType = useMemo(() => {
+    const map = new Map<
+      BindingOperatorType,
+      NonNullable<AnimatableBinding["operators"]>[number]
+    >();
+    (binding.operators ?? []).forEach((operator) => {
+      map.set(operator.type as BindingOperatorType, operator);
+    });
+    return map;
+  }, [binding.operators]);
 
   const [manualAnchorSlots, setManualAnchorSlots] = useState<Set<string>>(() =>
     computeInitialManualAnchorSlots(slots),
+  );
+  const handleOperatorToggle = useCallback(
+    (operator: BindingOperatorType, enabled: boolean) => {
+      onBindingOperatorToggle(targetId, operator, enabled);
+    },
+    [onBindingOperatorToggle, targetId],
+  );
+  const handleOperatorParamChange = useCallback(
+    (operator: BindingOperatorType, paramId: string, value: number) => {
+      onBindingOperatorParamChange(targetId, operator, paramId, value);
+    },
+    [onBindingOperatorParamChange, targetId],
   );
   useEffect(() => {
     setManualAnchorSlots((previous) => {
@@ -230,6 +269,9 @@ export function BindingEditor({
       .filter(Boolean)
       .join(", ");
   }, [slots, standardInputLookup]);
+
+  const functionHints =
+    "Functions: sin(value), cos(value), tan(value), log(value, base), power(base, exponent) / pow(base, exponent), clamp(value, min, max)";
 
   const issueList = useMemo(
     () => (issues ? [...new Set(issues)] : []),
@@ -657,6 +699,7 @@ export function BindingEditor({
               Aliases: {aliasHints}
             </p>
           )}
+          <p className="feature-tree__expression-hints">{functionHints}</p>
           {issueList.length > 0 && (
             <ul className="feature-tree__expression-errors">
               {issueList.map((issue) => (
@@ -664,6 +707,65 @@ export function BindingEditor({
               ))}
             </ul>
           )}
+        </div>
+        <div className="feature-tree__operators">
+          <h4 className="feature-tree__section-title">Operators</h4>
+          {bindingOperatorDefinitions.map((definition) => {
+            const operator = operatorByType.get(definition.type);
+            const enabled = operator?.enabled ?? false;
+            return (
+              <div key={definition.type} className="feature-tree__operator">
+                <label className="feature-tree__operator-toggle">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(event) =>
+                      handleOperatorToggle(
+                        definition.type,
+                        event.target.checked,
+                      )
+                    }
+                  />
+                  <span>{definition.label}</span>
+                </label>
+                {definition.description && (
+                  <p className="feature-tree__operator-description">
+                    {definition.description}
+                  </p>
+                )}
+                {enabled && definition.params.length > 0 && (
+                  <div className="feature-tree__operator-params">
+                    {definition.params.map((param) => {
+                      const currentValue =
+                        operator?.params?.[param.id] ?? param.defaultValue;
+                      return (
+                        <label
+                          key={param.id}
+                          className="feature-tree__operator-param"
+                        >
+                          <span>{param.label}</span>
+                          <input
+                            type="number"
+                            value={currentValue}
+                            min={param.min}
+                            max={param.max ?? undefined}
+                            step={0.01}
+                            onChange={(event) =>
+                              handleOperatorParamChange(
+                                definition.type,
+                                param.id,
+                                Number(event.target.value),
+                              )
+                            }
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
         {children}
       </div>

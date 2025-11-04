@@ -9,3 +9,4 @@ export * from "./selection";
 export * from "./stored";
 export * from "./world";
 export * from "./vizij-bundle";
+export * from "./animations";

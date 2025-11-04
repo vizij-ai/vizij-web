@@ -149,41 +149,36 @@ Vite configuration essentials (already applied in apps):
 
 ## Publishing Packages
 
-The workflow at [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) publishes each npm package when a matching tag is pushed. Tags follow the pattern `npm-<package>-vX.Y.Z` and trigger a build, test, dry-run pack, and publish with provenance enabled.
+Publishing is coordinated through Changesets, a lightweight local script, and the tag-triggered workflow at [`.github/workflows/release-tag.yml`](.github/workflows/release-tag.yml). Pushing a `release-*` tag runs package-only verification and `changeset publish`, so only the packages that were bumped actually ship.
 
-### Release preparation
+### Prerequisites
 
-1. Generate a changeset to bump versions and capture notes:
-   ```bash
-   pnpm changeset
-   pnpm version:packages
-   ```
-   Keep dependency ranges in sync with the latest `vizij-rs` WASM publishes.
-2. Install dependencies and verify the build locally:
-   ```bash
-   pnpm install
-   pnpm --filter "@vizij/<package>"... run build
-   pnpm --filter "@vizij/<package>" run test
-   pnpm --filter "@vizij/<package>" run typecheck
-   pnpm --filter "@vizij/<package>" exec npm pack --dry-run
-   ```
-3. Commit changes, then create and push the tag:
-   ```bash
-   git tag npm-<package>-vX.Y.Z
-   git push origin npm-<package>-vX.Y.Z
-   ```
+- Internal package dependencies must use the workspace protocol (see `packages/**/package.json` and `.npmrc`).
+- `NPM_TOKEN` in repo secrets with publish rights for the `@vizij/*` scope.
+- Each publishable package has `"private": false` and a `publishConfig.access` entry.
 
-### Tag reference
+### How a release flows
 
-| Package                     | Tag prefix                 | Notes                                                                                      |
-| --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
-| `@vizij/utils`              | `npm-utils-v`              | Publish first; consumed by most other packages.                                            |
-| `@vizij/render`             | `npm-render-v`             | Depends on `@vizij/utils`.                                                                 |
-| `@vizij/animation-react`    | `npm-animation-react-v`    | Requires `@vizij/animation-wasm` from `vizij-rs` to be up to date.                         |
-| `@vizij/node-graph-react`   | `npm-node-graph-react-v`   | Requires `@vizij/node-graph-wasm` from `vizij-rs`.                                         |
-| `@vizij/orchestrator-react` | `npm-orchestrator-react-v` | Requires `@vizij/orchestrator-wasm` from `vizij-rs`.                                       |
+1. **Capture changes**
+   - Run `pnpm changeset` for every feature PR that requires a release.
+   - Merge the feature branch into `main`. The changeset files stay unversioned until the release cut.
+2. **Version & tag**
+   - From a clean local checkout of `main`, execute:
+     ```bash
+     ./scripts/release-tag.sh
+     ```
+   - The script installs with a frozen lockfile, applies `changeset version`, re-installs, stages the generated changelog + package bumps, commits `chore: release`, and pushes an annotated tag named `release-YYYYMMDD-HHMMSS`.
+3. **CI publish**
+   - The `Release on Tag` workflow installs dependencies, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm run publish:packages` (`changeset publish` under the hood).
+   - Only packages with pending changesets are published, and their internal dependency ranges are synchronized automatically.
 
-The action logs the npm publish output. If a publish needs to be re-run, delete the tag locally and remotely (`git tag -d ...`, `git push origin :<tag>`), fix the issue, and push a new tag.
+### Tips & recovery
+
+- Need a semantic tag instead of the timestamp? Edit `scripts/release-tag.sh` to calculate `TAG` via `changeset status --output` before tagging.
+- If CI fails before the publish step, fix the issue on `main` and re-run `scripts/release-tag.sh` to generate a fresh tag. The previous tag can be deleted with `git push origin :<tag>` if needed.
+- If a publish succeeds but you spot a problem, deprecate the broken version on npm and release a follow-up changeset as normal—no manual republishing required.
+
+The workflow logs the npm publish output for each changed package. After a successful run, your `main` branch already contains the release commit, so downstream work starts from the latest version state.
 
 ---
 

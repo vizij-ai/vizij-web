@@ -33,6 +33,8 @@ import {
   updateBindingExpression,
   updateBindingSlotAlias,
   updateBindingSlotRemap,
+  setBindingOperatorEnabled,
+  updateBindingOperatorParam,
   PRIMARY_SLOT_ID,
   PRIMARY_SLOT_ALIAS,
   bindingTargetFromComponent,
@@ -44,7 +46,8 @@ import {
   type InputBindingMap,
   type BindingTarget,
   type StandardInputValues,
-} from "../rig/state";
+  type BindingOperatorType,
+} from "@vizij/node-graph-authoring";
 import type { RemapSettings } from "@vizij/utils";
 import {
   createStandardRigInput,
@@ -70,7 +73,10 @@ import {
   buildAutoRigInputBlueprints,
   type AutoRigInputBlueprintMetadata,
 } from "../rig/autoInputs";
-import { buildRigGraphSpec, type BuildGraphResult } from "../rig/graphBuilder";
+import {
+  buildRigGraphSpec,
+  type BuildGraphResult,
+} from "@vizij/node-graph-authoring";
 import {
   useGraphInstance,
   valueAsColorRgba,
@@ -304,6 +310,17 @@ export interface RigController {
     value: number,
     slotId?: string,
   ) => void;
+  handleBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  handleBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   handleResetBinding: (targetId: string) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
   handleLinkChildInput: (parentId: string, childId: string) => void;
@@ -349,6 +366,17 @@ export interface RigController {
     targetId: string,
     slotId: string,
     alias: string,
+  ) => void;
+  handleParentBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  handleParentBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
   ) => void;
   handleParentResetBinding: (targetId: string) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
@@ -1879,6 +1907,66 @@ export function useRigController({
     [componentsById],
   );
 
+  const handleBindingOperatorToggle = useCallback(
+    (targetId: string, operator: BindingOperatorType, enabled: boolean) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      const target = bindingTargetFromComponent(component);
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const next = setBindingOperatorEnabled(binding, operator, enabled);
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: ensureBindingStructure(next, target),
+        };
+      });
+    },
+    [componentsById],
+  );
+
+  const handleBindingOperatorParamChange = useCallback(
+    (
+      targetId: string,
+      operator: BindingOperatorType,
+      paramId: string,
+      value: number,
+    ) => {
+      const component = componentsById.get(targetId);
+      if (!component) {
+        return;
+      }
+      const target = bindingTargetFromComponent(component);
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const next = updateBindingOperatorParam(
+          binding,
+          operator,
+          paramId,
+          value,
+        );
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: ensureBindingStructure(next, target),
+        };
+      });
+    },
+    [componentsById],
+  );
+
   const handleUpdateFeatureLabel = useCallback(
     (featureId: string, defaultLabel: string, value: string) => {
       const trimmed = value.trim();
@@ -2548,6 +2636,29 @@ export function useRigController({
         (binding, target) =>
           updateBindingExpression(binding, target, expression),
         { preserveExpression: true },
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingOperatorToggle = useCallback(
+    (targetId: string, operator: BindingOperatorType, enabled: boolean) => {
+      updateInputBinding(targetId, createDefaultParentBinding, (binding) =>
+        setBindingOperatorEnabled(binding, operator, enabled),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingOperatorParamChange = useCallback(
+    (
+      targetId: string,
+      operator: BindingOperatorType,
+      paramId: string,
+      value: number,
+    ) => {
+      updateInputBinding(targetId, createDefaultParentBinding, (binding) =>
+        updateBindingOperatorParam(binding, operator, paramId, value),
       );
     },
     [updateInputBinding],
@@ -3463,6 +3574,8 @@ export function useRigController({
     handleClearCachedState,
     handleBindingInputChange,
     handleBindingRemapChange,
+    handleBindingOperatorToggle,
+    handleBindingOperatorParamChange,
     handleResetBinding,
     handleCreateCustomStandardInput,
     handleLinkChildInput,
@@ -3482,6 +3595,8 @@ export function useRigController({
     handleParentRemoveBindingSlot,
     handleParentBindingExpressionChange,
     handleParentBindingSlotAliasChange,
+    handleParentBindingOperatorToggle,
+    handleParentBindingOperatorParamChange,
     handleParentResetBinding,
     handleSelectStandardInputRoots,
     handleSelectStandardInputSubgroups,

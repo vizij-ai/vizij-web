@@ -3,16 +3,28 @@ import {
   SELF_BINDING_ID,
   type StandardRigInput,
   type AnimatableComponent,
+  type BindingValueType,
   type RigBindingDefinition,
   type RigBindingSlot,
   type RemapSettings,
 } from "@vizij/utils";
+
+export type { BindingValueType };
+import {
+  bindingOperatorTypes,
+  createDefaultOperatorSettings,
+  ensureOperatorParams,
+  getBindingOperatorDefinition,
+  type BindingOperatorState,
+  type BindingOperatorType,
+} from "./operators";
 
 export type AnimatableBindingSlot = RigBindingSlot;
 
 export interface AnimatableBinding extends RigBindingDefinition {
   targetId: string;
   slots: AnimatableBindingSlot[];
+  operators?: BindingOperator[];
 }
 
 export interface BindingTarget {
@@ -22,6 +34,37 @@ export interface BindingTarget {
     min: number;
     max: number;
   };
+  valueType?: BindingValueType;
+}
+
+const VECTOR_ANIMATABLE_TYPES: ReadonlySet<
+  AnimatableComponent["animatableType"]
+> = new Set(["vector2", "vector3", "euler", "rgb"]);
+
+function deriveComponentValueType(
+  component: AnimatableComponent,
+): BindingValueType {
+  if (component.component) {
+    return "scalar";
+  }
+  return VECTOR_ANIMATABLE_TYPES.has(component.animatableType)
+    ? "vector"
+    : "scalar";
+}
+
+function isBindingValueType(value: unknown): value is BindingValueType {
+  return value === "scalar" || value === "vector";
+}
+
+function getTargetValueType(target: BindingTarget): BindingValueType {
+  return isBindingValueType(target.valueType) ? target.valueType : "scalar";
+}
+
+function sanitizeSlotValueType(
+  value: unknown,
+  targetType: BindingValueType,
+): BindingValueType {
+  return isBindingValueType(value) ? value : targetType;
 }
 
 export function bindingTargetFromComponent(
@@ -34,6 +77,7 @@ export function bindingTargetFromComponent(
       min: component.range.min,
       max: component.range.max,
     },
+    valueType: deriveComponentValueType(component),
   };
 }
 
@@ -45,6 +89,7 @@ export function bindingTargetFromInput(input: StandardRigInput): BindingTarget {
       min: input.range.min,
       max: input.range.max,
     },
+    valueType: "scalar",
   };
 }
 
@@ -62,6 +107,102 @@ const ALIAS_SANITIZE_PATTERN = /[^A-Za-z0-9_]+/g;
 
 export const PRIMARY_SLOT_ID = "s1";
 export const PRIMARY_SLOT_ALIAS = "s1";
+
+export type BindingOperator = BindingOperatorState;
+
+function createDefaultOperators(): BindingOperator[] {
+  return bindingOperatorTypes.map((type) =>
+    createDefaultOperatorSettings(type),
+  );
+}
+
+function normalizeOperator(operator: BindingOperator): BindingOperator {
+  const normalized = ensureOperatorParams(operator);
+  const definition = getBindingOperatorDefinition(normalized.type);
+  const params: Record<string, number> = {};
+  definition.params.forEach((param) => {
+    const value = normalized.params[param.id];
+    params[param.id] = typeof value === "number" ? value : param.defaultValue;
+  });
+  return {
+    type: normalized.type,
+    enabled: !!normalized.enabled,
+    params,
+  };
+}
+
+function ensureOperators(binding: AnimatableBinding): BindingOperator[] {
+  const existing = new Map<BindingOperatorType, BindingOperator>();
+  (binding.operators ?? []).forEach((operator) => {
+    try {
+      existing.set(operator.type, normalizeOperator(operator));
+    } catch {
+      // Ignore unknown operator types; defaults will be used instead.
+    }
+  });
+
+  return bindingOperatorTypes.map((type) => {
+    const current = existing.get(type);
+    if (current) {
+      return current;
+    }
+    return createDefaultOperatorSettings(type);
+  });
+}
+
+function paramsEqual(
+  a: Record<string, number>,
+  b: Record<string, number>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+  for (const key of aKeys) {
+    if (a[key] !== b[key]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function operatorsEqual(
+  a: BindingOperator[] | undefined,
+  b: BindingOperator[],
+): boolean {
+  if (!a || a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index];
+    const right = b[index];
+    if (left.type !== right.type || left.enabled !== right.enabled) {
+      return false;
+    }
+    if (!paramsEqual(left.params, right.params)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function normalizeBindingWithOperators(binding: AnimatableBinding): {
+  binding: AnimatableBinding;
+  operators: BindingOperator[];
+} {
+  const operators = ensureOperators(binding);
+  if (operatorsEqual(binding.operators, operators)) {
+    return { binding, operators };
+  }
+  return {
+    binding: {
+      ...binding,
+      operators,
+    },
+    operators,
+  };
+}
 
 function defaultSlotId(index: number): string {
   return `s${index + 1}`;
@@ -342,6 +483,7 @@ export function createDefaultBinding(
   component: BindingTarget,
 ): AnimatableBinding {
   const remap = createDefaultRemap(component);
+  const valueType = getTargetValueType(component);
   return {
     targetId: component.id,
     inputId: null,
@@ -352,9 +494,11 @@ export function createDefaultBinding(
         alias: PRIMARY_SLOT_ALIAS,
         inputId: null,
         remap: cloneRemap(remap),
+        valueType,
       },
     ],
     expression: PRIMARY_SLOT_ALIAS,
+    operators: createDefaultOperators(),
   };
 }
 
@@ -386,6 +530,7 @@ function ensurePrimarySlot(
   target: BindingTarget,
 ): AnimatableBinding {
   const normalizedBindingRemap = sanitizeRemap(binding.remap, target);
+  const targetValueType = getTargetValueType(target);
   const aliasReplacements = new Map<string, string>();
   const sourceSlots =
     Array.isArray(binding.slots) && binding.slots.length > 0
@@ -396,6 +541,7 @@ function ensurePrimarySlot(
             alias: PRIMARY_SLOT_ALIAS,
             inputId: binding.inputId ?? null,
             remap: cloneRemap(normalizedBindingRemap),
+            valueType: targetValueType,
           },
         ];
 
@@ -420,11 +566,16 @@ function ensurePrimarySlot(
           : index === 0
             ? (binding.inputId ?? null)
             : null;
+      const slotValueType = sanitizeSlotValueType(
+        slot.valueType,
+        targetValueType,
+      );
       return {
         id: normalizedId,
         alias: normalizedAlias,
         inputId,
         remap: cloneRemap(normalizedSlotRemap),
+        valueType: slotValueType,
       };
     },
   );
@@ -445,6 +596,7 @@ function ensurePrimarySlot(
     alias: primaryAlias,
     inputId: primaryInputId,
     remap: cloneRemap(primaryRemap),
+    valueType: sanitizeSlotValueType(primary.valueType, targetValueType),
   };
   normalizedSlots.slice(1).forEach((slot, index) => {
     const slotRemap = sanitizeRemap(slot.remap, target);
@@ -453,6 +605,7 @@ function ensurePrimarySlot(
       id: slot.id || defaultSlotId(index + 1),
       alias: slot.alias || defaultSlotId(index + 1),
       remap: cloneRemap(slotRemap),
+      valueType: sanitizeSlotValueType(slot.valueType, targetValueType),
     };
   });
 
@@ -462,12 +615,21 @@ function ensurePrimarySlot(
     rawExpression.length > 0 ? rawExpression : normalizedSlots[0].alias;
   expression = rewriteLegacyExpression(expression, aliasReplacements);
 
-  return {
+  const normalizedBinding: AnimatableBinding = {
     ...binding,
     inputId: normalizedSlots[0].inputId ?? null,
     remap: cloneRemap(primaryRemap),
     slots: normalizedSlots,
     expression,
+  };
+
+  const operators = ensureOperators(normalizedBinding);
+  if (operatorsEqual(normalizedBinding.operators, operators)) {
+    return normalizedBinding;
+  }
+  return {
+    ...normalizedBinding,
+    operators,
   };
 }
 
@@ -610,6 +772,99 @@ export function updateBindingSlotAlias(
     target,
   );
   return updated;
+}
+
+export function setBindingOperatorEnabled(
+  binding: AnimatableBinding,
+  type: BindingOperatorType,
+  enabled: boolean,
+): AnimatableBinding {
+  const { binding: normalizedBinding, operators } =
+    normalizeBindingWithOperators(binding);
+
+  let changed = false;
+  const nextOperators = operators.map((operator) => {
+    if (operator.type !== type) {
+      return operator;
+    }
+    if (operator.enabled === enabled) {
+      return operator;
+    }
+    changed = true;
+    return {
+      ...operator,
+      enabled,
+    };
+  });
+
+  if (!changed) {
+    return normalizedBinding;
+  }
+
+  if (operatorsEqual(normalizedBinding.operators, nextOperators)) {
+    return normalizedBinding;
+  }
+
+  return {
+    ...normalizedBinding,
+    operators: nextOperators,
+  };
+}
+
+export function updateBindingOperatorParam(
+  binding: AnimatableBinding,
+  type: BindingOperatorType,
+  paramId: string,
+  value: number,
+): AnimatableBinding {
+  const { binding: normalizedBinding, operators } =
+    normalizeBindingWithOperators(binding);
+  const definition = getBindingOperatorDefinition(type);
+  const paramDefinition = definition.params.find(
+    (param) => param.id === paramId,
+  );
+  if (!paramDefinition) {
+    return normalizedBinding;
+  }
+
+  let nextValue = value;
+  if (typeof paramDefinition.min === "number") {
+    nextValue = Math.max(paramDefinition.min, nextValue);
+  }
+  if (typeof paramDefinition.max === "number") {
+    nextValue = Math.min(paramDefinition.max, nextValue);
+  }
+
+  let changed = false;
+  const nextOperators = operators.map((operator) => {
+    if (operator.type !== type) {
+      return operator;
+    }
+    if (operator.params[paramId] === nextValue) {
+      return operator;
+    }
+    changed = true;
+    return {
+      ...operator,
+      params: {
+        ...operator.params,
+        [paramId]: nextValue,
+      },
+    };
+  });
+
+  if (!changed) {
+    return normalizedBinding;
+  }
+
+  if (operatorsEqual(normalizedBinding.operators, nextOperators)) {
+    return normalizedBinding;
+  }
+
+  return {
+    ...normalizedBinding,
+    operators: nextOperators,
+  };
 }
 
 export function updateBindingExpression(
@@ -782,7 +1037,7 @@ export function reconcileBindings(
   components.forEach((component) => {
     const existing = previous[component.id];
     if (existing) {
-      const ensured = ensurePrimarySlot(existing, component);
+      const ensured = ensureBindingStructure(existing, component);
       const aliasReplacements = new Map<string, string>();
       const slots = ensured.slots.map((slot, index) => {
         const normalizedId = normalizeSlotId(slot.id, index);
@@ -827,7 +1082,15 @@ export function reconcileBindings(
 export function bindingToDefinition(
   binding: AnimatableBinding,
 ): RigBindingDefinition {
-  return {
+  const operators = binding.operators
+    ? binding.operators.map((operator: BindingOperator) => ({
+        type: operator.type,
+        enabled: !!operator.enabled,
+        params: { ...operator.params },
+      }))
+    : undefined;
+
+  const definition = {
     inputId: binding.inputId ?? null,
     remap: cloneRemap(binding.remap),
     slots: binding.slots.map((slot) => ({
@@ -835,7 +1098,10 @@ export function bindingToDefinition(
       remap: cloneRemap(slot.remap),
     })),
     expression: binding.expression,
-  };
+    operators,
+  } as RigBindingDefinition;
+
+  return definition;
 }
 
 export function bindingFromDefinition(
@@ -845,6 +1111,12 @@ export function bindingFromDefinition(
   if (!definition) {
     return createDefaultBinding(target);
   }
+  const definitionOperators = (
+    definition as {
+      operators?: BindingOperator[];
+    }
+  ).operators;
+
   const binding: AnimatableBinding = {
     targetId: target.id,
     inputId: definition.inputId ?? null,
@@ -854,6 +1126,13 @@ export function bindingFromDefinition(
       remap: cloneRemap(slot.remap),
     })),
     expression: definition.expression,
+    operators: definitionOperators
+      ? definitionOperators.map((operator) => ({
+          type: operator.type,
+          enabled: !!operator.enabled,
+          params: { ...operator.params },
+        }))
+      : undefined,
   };
   return ensureBindingStructure(binding, target);
 }

@@ -7,7 +7,7 @@ import {
   updateBindingSlotAlias,
   addBindingSlot,
   type BindingMap,
-} from "./state";
+} from "@vizij/node-graph-authoring";
 import type { AnimatableComponent } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {

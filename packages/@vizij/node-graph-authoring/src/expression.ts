@@ -9,15 +9,34 @@ export type ControlExpressionNode =
     }
   | {
       type: "Unary";
-      operator: "+" | "-";
+      operator: UnaryOperator;
       operand: ControlExpressionNode;
     }
   | {
       type: "Binary";
-      operator: "+" | "-" | "*" | "/";
+      operator: BinaryOperator;
       left: ControlExpressionNode;
       right: ControlExpressionNode;
+    }
+  | {
+      type: "Function";
+      name: string;
+      args: ControlExpressionNode[];
     };
+
+type UnaryOperator = "+" | "-" | "!";
+
+type BinaryOperator =
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | ">"
+  | "<"
+  | "=="
+  | "!="
+  | "&&"
+  | "||";
 
 export interface ExpressionParseError {
   index: number;
@@ -64,7 +83,110 @@ class ControlExpressionParser {
   }
 
   private parseExpression(): ControlExpressionNode | null {
-    let left = this.parseTerm();
+    return this.parseLogicalOr();
+  }
+
+  private parseLogicalOr(): ControlExpressionNode | null {
+    let left = this.parseLogicalAnd();
+    if (!left) {
+      return null;
+    }
+    while (true) {
+      this.skipWhitespace();
+      const operator = this.matchAny(["||"]);
+      if (!operator) {
+        break;
+      }
+      const right = this.parseLogicalAnd();
+      if (!right) {
+        this.errors.push({
+          index: this.index,
+          message: "Expected expression after operator.",
+        });
+        return null;
+      }
+      left = {
+        type: "Binary",
+        operator: operator as BinaryOperator,
+        left,
+        right,
+      };
+    }
+    return left;
+  }
+
+  private parseLogicalAnd(): ControlExpressionNode | null {
+    let left = this.parseComparison();
+    if (!left) {
+      return null;
+    }
+    while (true) {
+      this.skipWhitespace();
+      const operator = this.matchAny(["&&"]);
+      if (!operator) {
+        break;
+      }
+      const right = this.parseComparison();
+      if (!right) {
+        this.errors.push({
+          index: this.index,
+          message: "Expected expression after operator.",
+        });
+        return null;
+      }
+      left = {
+        type: "Binary",
+        operator: operator as BinaryOperator,
+        left,
+        right,
+      };
+    }
+    return left;
+  }
+
+  private parseComparison(): ControlExpressionNode | null {
+    let left = this.parseAdditive();
+    if (!left) {
+      return null;
+    }
+    while (true) {
+      this.skipWhitespace();
+      if (
+        this.input.startsWith(">=", this.index) ||
+        this.input.startsWith("<=", this.index)
+      ) {
+        const op = this.input.slice(this.index, this.index + 2);
+        this.index += 2;
+        this.errors.push({
+          index: this.index - 2,
+          message: `Operator "${op}" is not supported.`,
+        });
+        return null;
+      }
+      const operator = this.matchAny(["==", "!=", ">", "<"]);
+      if (!operator) {
+        break;
+      }
+      const right = this.parseAdditive();
+      if (!right) {
+        this.errors.push({
+          index: this.index,
+          message: "Expected expression after operator.",
+        });
+        return null;
+      }
+      left = {
+        type: "Binary",
+        operator: operator as BinaryOperator,
+        left,
+        right,
+      };
+    }
+    return left;
+  }
+
+  private parseAdditive(): ControlExpressionNode | null {
+    let left = this.parseMultiplicative();
     if (!left) {
       return null;
     }
@@ -75,7 +197,7 @@ class ControlExpressionParser {
         break;
       }
       this.index += 1;
-      const right = this.parseTerm();
+      const right = this.parseMultiplicative();
       if (!right) {
         this.errors.push({
           index: this.index,
@@ -85,7 +207,7 @@ class ControlExpressionParser {
       }
       left = {
         type: "Binary",
-        operator,
+        operator: operator as BinaryOperator,
         left,
         right,
       };
@@ -93,8 +215,8 @@ class ControlExpressionParser {
     return left;
   }
 
-  private parseTerm(): ControlExpressionNode | null {
-    let left = this.parseFactor();
+  private parseMultiplicative(): ControlExpressionNode | null {
+    let left = this.parseUnary();
     if (!left) {
       return null;
     }
@@ -105,7 +227,7 @@ class ControlExpressionParser {
         break;
       }
       this.index += 1;
-      const right = this.parseFactor();
+      const right = this.parseUnary();
       if (!right) {
         this.errors.push({
           index: this.index,
@@ -115,7 +237,7 @@ class ControlExpressionParser {
       }
       left = {
         type: "Binary",
-        operator,
+        operator: operator as BinaryOperator,
         left,
         right,
       };
@@ -123,7 +245,7 @@ class ControlExpressionParser {
     return left;
   }
 
-  private parseFactor(): ControlExpressionNode | null {
+  private parseUnary(): ControlExpressionNode | null {
     this.skipWhitespace();
     const char = this.peek();
     if (!char) {
@@ -133,9 +255,9 @@ class ControlExpressionParser {
       });
       return null;
     }
-    if (char === "+" || char === "-") {
+    if (char === "+" || char === "-" || char === "!") {
       this.index += 1;
-      const operand = this.parseFactor();
+      const operand = this.parseUnary();
       if (!operand) {
         this.errors.push({
           index: this.index,
@@ -145,9 +267,22 @@ class ControlExpressionParser {
       }
       return {
         type: "Unary",
-        operator: char,
+        operator: char as UnaryOperator,
         operand,
       };
+    }
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): ControlExpressionNode | null {
+    this.skipWhitespace();
+    const char = this.peek();
+    if (!char) {
+      this.errors.push({
+        index: this.index,
+        message: "Unexpected end of expression.",
+      });
+      return null;
     }
     if (char === "(") {
       this.index += 1;
@@ -164,7 +299,7 @@ class ControlExpressionParser {
       return null;
     }
     if (IDENT_START.test(char)) {
-      return this.parseIdentifier();
+      return this.parseIdentifierOrFunction();
     }
     if (DIGIT.test(char) || char === ".") {
       return this.parseNumber();
@@ -176,7 +311,7 @@ class ControlExpressionParser {
     return null;
   }
 
-  private parseIdentifier(): ControlExpressionNode | null {
+  private parseIdentifierOrFunction(): ControlExpressionNode | null {
     const start = this.index;
     while (!this.isAtEnd() && IDENT_PART.test(this.peek()!)) {
       this.index += 1;
@@ -188,6 +323,66 @@ class ControlExpressionParser {
         message: "Invalid identifier.",
       });
       return null;
+    }
+    this.skipWhitespace();
+    if (this.peek() === "(") {
+      this.index += 1;
+      const args: ControlExpressionNode[] = [];
+      this.skipWhitespace();
+      if (this.peek() === ")") {
+        this.index += 1;
+        return {
+          type: "Function",
+          name,
+          args,
+        };
+      }
+      while (true) {
+        const argument = this.parseExpression();
+        if (!argument) {
+          this.errors.push({
+            index: this.index,
+            message: `Expected expression for argument ${args.length + 1} of "${name}".`,
+          });
+          return null;
+        }
+        args.push(argument);
+        this.skipWhitespace();
+        const next = this.peek();
+        if (next === ",") {
+          this.index += 1;
+          this.skipWhitespace();
+          if (this.peek() === ")") {
+            this.errors.push({
+              index: this.index,
+              message: `Expected expression after "," in call to "${name}".`,
+            });
+            return null;
+          }
+          continue;
+        }
+        if (next === ")") {
+          this.index += 1;
+          break;
+        }
+        if (next === null) {
+          this.errors.push({
+            index: this.index,
+            message: `Unterminated call to "${name}".`,
+          });
+        } else {
+          this.errors.push({
+            index: this.index,
+            message: `Expected "," or ")" in call to "${name}".`,
+          });
+        }
+        return null;
+      }
+      return {
+        type: "Function",
+        name,
+        args,
+      };
     }
     return {
       type: "Reference",
@@ -224,6 +419,16 @@ class ControlExpressionParser {
       type: "Literal",
       value,
     };
+  }
+
+  private matchAny(operators: readonly string[]): string | null {
+    for (const operator of operators) {
+      if (this.input.startsWith(operator, this.index)) {
+        this.index += operator.length;
+        return operator;
+      }
+    }
+    return null;
   }
 
   private skipWhitespace(): void {
@@ -269,6 +474,9 @@ export function collectExpressionReferences(
       collectExpressionReferences(node.left, target);
       collectExpressionReferences(node.right, target);
       break;
+    case "Function":
+      node.args.forEach((arg) => collectExpressionReferences(arg, target));
+      break;
     default:
       break;
   }
@@ -287,6 +495,9 @@ export function mapExpression(
     case "Binary":
       mapExpression(node.left, visit);
       mapExpression(node.right, visit);
+      break;
+    case "Function":
+      node.args.forEach((arg) => mapExpression(arg, visit));
       break;
     default:
       break;

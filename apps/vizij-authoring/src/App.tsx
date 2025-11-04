@@ -19,7 +19,7 @@ import { usePoseRigAuthoring } from "./poseRig/usePoseRigAuthoring";
 import { waitForNextFrame } from "./utils/frame";
 import { downloadBlob } from "./utils/download";
 import { applyDefaultsToRobotData } from "./utils/robotData";
-import { buildRigGraphSpec } from "./rig/graphBuilder";
+import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { alertDialog } from "./utils/dialogs";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { computeObjectHash } from "./utils/hash";
@@ -121,6 +121,8 @@ export default function App() {
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
     handleUpdateBindingSlotAlias,
+    handleBindingOperatorToggle,
+    handleBindingOperatorParamChange,
     handleEnsureParentBinding,
     handleParentBindingInputChange,
     handleParentBindingRemapChange,
@@ -128,6 +130,8 @@ export default function App() {
     handleParentRemoveBindingSlot,
     handleParentBindingExpressionChange,
     handleParentBindingSlotAliasChange,
+    handleParentBindingOperatorToggle,
+    handleParentBindingOperatorParamChange,
     handleParentResetBinding,
     handleUpdateFeatureLabel,
     handleSelectStandardInputRoots,
@@ -727,12 +731,18 @@ export default function App() {
       onRemoveBindingSlot={handleRemoveBindingSlot}
       onBindingExpressionChange={handleUpdateBindingExpression}
       onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
+      onBindingOperatorToggle={handleBindingOperatorToggle}
+      onBindingOperatorParamChange={handleBindingOperatorParamChange}
       onParentBindingInputChange={handleParentBindingInputChange}
       onParentBindingRemapChange={handleParentBindingRemapChange}
       onParentAddBindingSlot={handleParentAddBindingSlot}
       onParentRemoveBindingSlot={handleParentRemoveBindingSlot}
       onParentBindingExpressionChange={handleParentBindingExpressionChange}
       onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+      onParentBindingOperatorToggle={handleParentBindingOperatorToggle}
+      onParentBindingOperatorParamChange={
+        handleParentBindingOperatorParamChange
+      }
       onParentResetBinding={handleParentResetBinding}
       onFeatureLabelChange={(entry, value) =>
         handleUpdateFeatureLabel(entry.id, entry.defaultLabel, value)

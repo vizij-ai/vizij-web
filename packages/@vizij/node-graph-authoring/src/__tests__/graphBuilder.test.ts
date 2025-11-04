@@ -7,7 +7,7 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 
-import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
+import { buildRigGraphSpec } from "../graphBuilder";
 import {
   createDefaultBinding,
   createDefaultRemap,
@@ -16,7 +16,7 @@ import {
   addBindingSlot,
   updateBindingWithInput,
   updateBindingExpression,
-} from "@vizij/node-graph-authoring";
+} from "../state";
 import { SELF_BINDING_ID } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {
@@ -524,7 +524,7 @@ describe("buildRigGraphSpec", () => {
     expect(springOperator).toBeDefined();
     if (springOperator) {
       springOperator.enabled = true;
-      springOperator.params.stiffness = 150;
+      springOperator.params.stiffness = 200;
     }
 
     const { spec } = buildRigGraphSpec({
@@ -540,13 +540,11 @@ describe("buildRigGraphSpec", () => {
       inputBindings: {},
     });
 
-    const springNode = spec.nodes.find(
-      (node: NodeSpec) => node.type === "spring",
-    );
+    const springNode = spec.nodes.find((node) => node.type === "spring");
     expect(springNode).toBeDefined();
     expect(
       (springNode?.params as Record<string, number> | undefined)?.stiffness,
-    ).toBe(150);
+    ).toBe(200);
   });
 
   it("blends parent bindings with manual slider", () => {

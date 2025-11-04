@@ -5,6 +5,16 @@
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@vizij/node-graph-authoring": [
+        "../../packages/@vizij/node-graph-authoring/src/index.ts"
+      ],
+      "@vizij/utils": ["../../packages/@vizij/utils/src/index.ts"],
+      "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"],
+      "@vizij/node-graph-wasm/metadata": [
+        "../../packages/@vizij/node-graph-authoring/src/metadata-shim.d.ts"
+      ]
+    }
   }
 }

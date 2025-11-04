@@ -1,5 +1,5 @@
 import type { StandardRigInput } from "@vizij/utils";
-import type { StandardInputValues } from "../../rig/state";
+import type { StandardInputValues } from "@vizij/node-graph-authoring";
 import type { BindingTarget } from "./types";
 
 interface RigPreviewProps {

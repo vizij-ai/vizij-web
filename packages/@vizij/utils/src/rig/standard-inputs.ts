@@ -20,11 +20,14 @@ export function cloneRemapSettings(remap: RemapSettings): RemapSettings {
   };
 }
 
+export type BindingValueType = "scalar" | "vector";
+
 export interface RigBindingSlot {
   id: string;
   alias: string;
   inputId: string | null;
   remap: RemapSettings;
+  valueType?: BindingValueType;
 }
 
 export function cloneRigBindingSlot(slot: RigBindingSlot): RigBindingSlot {
@@ -33,7 +36,16 @@ export function cloneRigBindingSlot(slot: RigBindingSlot): RigBindingSlot {
     alias: slot.alias,
     inputId: slot.inputId,
     remap: cloneRemapSettings(slot.remap),
+    valueType: slot.valueType,
   };
+}
+
+export type RigBindingOperatorType = "spring" | "damp" | "slew";
+
+export interface RigBindingOperatorDefinition {
+  type: RigBindingOperatorType;
+  enabled: boolean;
+  params: Record<string, number>;
 }
 
 export interface RigBindingDefinition {
@@ -41,6 +53,7 @@ export interface RigBindingDefinition {
   remap: RemapSettings;
   slots: RigBindingSlot[];
   expression: string;
+  operators?: RigBindingOperatorDefinition[];
 }
 
 export function cloneRigBindingDefinition(
@@ -51,6 +64,13 @@ export function cloneRigBindingDefinition(
     remap: cloneRemapSettings(definition.remap),
     slots: definition.slots.map(cloneRigBindingSlot),
     expression: definition.expression,
+    operators: definition.operators
+      ? definition.operators.map((operator) => ({
+          type: operator.type,
+          enabled: operator.enabled,
+          params: { ...operator.params },
+        }))
+      : undefined,
   };
 }
 

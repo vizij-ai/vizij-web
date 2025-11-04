@@ -11,8 +11,10 @@ import {
   bindingTargetFromComponent,
   bindingTargetFromInput,
   type AnimatableBinding,
+  type BindingValueType,
   type BindingTarget,
   type InputBindingMap,
+  type BindingOperator,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
 } from "./state";
@@ -22,6 +24,14 @@ import {
   parseControlExpression,
   type ControlExpressionNode,
 } from "./expression";
+import {
+  SCALAR_FUNCTIONS,
+  type ScalarFunctionDefinition,
+} from "./expressionFunctions";
+import {
+  getBindingOperatorDefinition,
+  type BindingOperatorDefinition,
+} from "./operators";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
 type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
@@ -69,6 +79,8 @@ function evaluateBinding({
     constants: new Map(),
     counter: 0,
   };
+  const targetValueType: BindingValueType =
+    target.valueType === "vector" ? "vector" : "scalar";
   const aliasNodes = new Map<string, string>();
   const slotSummaries: GraphBindingSummary[] = [];
   const expressionIssues: string[] = [];
@@ -82,6 +94,8 @@ function evaluateBinding({
     const fallbackAlias = `s${index + 1}`;
     const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
     const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
+    const slotValueType: BindingValueType =
+      slot.valueType === "vector" ? "vector" : "scalar";
     let slotOutputId: string;
     if (slot.inputId === SELF_BINDING_ID) {
       if (selfNodeId) {
@@ -130,6 +144,7 @@ function evaluateBinding({
       inputId: slot.inputId ?? null,
       remap: { ...slot.remap },
       expression: trimmedExpression,
+      valueType: slotValueType,
     });
   });
 
@@ -145,6 +160,7 @@ function evaluateBinding({
       inputId: null,
       remap: createDefaultRemap(target),
       expression: trimmedExpression,
+      valueType: targetValueType,
     });
   }
 
@@ -234,6 +250,7 @@ export interface GraphBindingSummary {
   inputId: string | null;
   remap: RemapSettings;
   expression: string;
+  valueType: BindingValueType;
   issues?: string[];
 }
 
@@ -415,6 +432,109 @@ function createVariadicOperationNode(
   return nodeId;
 }
 
+function createNamedOperationNode(
+  context: ExpressionBuildContext,
+  operator: string,
+  inputNames: string[],
+  operandIds: string[],
+): string {
+  const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
+  context.nodes.push({
+    id: nodeId,
+    type: operator,
+  });
+  inputNames.forEach((inputName, index) => {
+    const operandId = operandIds[index]!;
+    context.edges.push({
+      from: { node_id: operandId },
+      to: { node_id: nodeId, input: inputName },
+    });
+  });
+  return nodeId;
+}
+
+function emitScalarFunctionNode(
+  definition: ScalarFunctionDefinition,
+  operands: string[],
+  context: ExpressionBuildContext,
+): string {
+  if (definition.variadic) {
+    const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
+    context.nodes.push({
+      id: nodeId,
+      type: definition.nodeType,
+    });
+    operands.forEach((operandId, index) => {
+      context.edges.push({
+        from: { node_id: operandId },
+        to: {
+          node_id: nodeId,
+          input: `${definition.variadic!.id}_${index + 1}`,
+        },
+      });
+    });
+    return nodeId;
+  }
+
+  const providedNames: string[] = [];
+  const providedOperands: string[] = [];
+  definition.inputs.forEach((input, index) => {
+    const operandId = operands[index];
+    if (!operandId) {
+      return;
+    }
+    providedNames.push(input.id);
+    providedOperands.push(operandId);
+  });
+
+  return createNamedOperationNode(
+    context,
+    definition.nodeType,
+    providedNames,
+    providedOperands,
+  );
+}
+
+function applyBindingOperators(
+  operators: BindingOperator[],
+  baseNodeId: string,
+  safeId: string,
+  nodes: NodeSpec[],
+  edges: NonNullable<GraphSpec["edges"]>,
+): string {
+  let currentNodeId = baseNodeId;
+  operators.forEach((operator, index) => {
+    if (!operator.enabled) {
+      return;
+    }
+    let definition: BindingOperatorDefinition;
+    try {
+      definition = getBindingOperatorDefinition(operator.type);
+    } catch {
+      return;
+    }
+    const nodeId = `${operator.type}_${safeId}_${index + 1}`;
+    const params: Record<string, number> = {};
+    definition.params.forEach((param) => {
+      const configured = operator.params?.[param.id];
+      params[param.id] =
+        typeof configured === "number" ? configured : param.defaultValue;
+    });
+    nodes.push({
+      id: nodeId,
+      type: definition.nodeType,
+      params: params as NodeSpec["params"],
+    });
+    const inputId = definition.inputs[0] ?? "in";
+    edges.push({
+      from: { node_id: currentNodeId },
+      to: { node_id: nodeId, input: inputId },
+    });
+    currentNodeId = nodeId;
+  });
+  return currentNodeId;
+}
+
 function collectOperands(
   node: ControlExpressionNode,
   operator: "+" | "*",
@@ -427,6 +547,15 @@ function collectOperands(
   }
   target.push(node);
 }
+
+const BINARY_FUNCTION_OPERATOR_MAP: Record<string, string> = {
+  ">": "greaterthan",
+  "<": "lessthan",
+  "==": "equal",
+  "!=": "notequal",
+  "&&": "and",
+  "||": "or",
+};
 
 function materializeExpression(
   node: ControlExpressionNode,
@@ -453,54 +582,109 @@ function materializeExpression(
         aliasNodes,
         issues,
       );
-      if (node.operator === "+") {
-        return operandId;
+      switch (node.operator) {
+        case "+":
+          return operandId;
+        case "-": {
+          const negativeOne = getConstantNodeId(context, -1);
+          return createVariadicOperationNode(context, "multiply", [
+            negativeOne,
+            operandId,
+          ]);
+        }
+        case "!": {
+          const definition = SCALAR_FUNCTIONS.get("not");
+          if (!definition) {
+            issues.push('Function "not" is not available in metadata.');
+            return getConstantNodeId(context, 0);
+          }
+          return emitScalarFunctionNode(definition, [operandId], context);
+        }
+        default:
+          issues.push("Unsupported unary operator.");
+          return operandId;
       }
-      const negativeOne = getConstantNodeId(context, -1);
-      return createVariadicOperationNode(context, "multiply", [
-        negativeOne,
-        operandId,
-      ]);
     }
     case "Binary": {
       const operator = node.operator;
-      switch (operator) {
-        case "+": {
-          const children: ControlExpressionNode[] = [];
-          collectOperands(node, "+", children);
-          const operandIds = children.map((child) =>
-            materializeExpression(child, context, aliasNodes, issues),
-          );
-          return createVariadicOperationNode(context, "add", operandIds);
-        }
-        case "-":
-          return createBinaryOperationNode(
-            context,
-            "subtract",
-            materializeExpression(node.left, context, aliasNodes, issues),
-            materializeExpression(node.right, context, aliasNodes, issues),
-          );
-        case "*": {
-          const children: ControlExpressionNode[] = [];
-          collectOperands(node, "*", children);
-          const operandIds = children.map((child) =>
-            materializeExpression(child, context, aliasNodes, issues),
-          );
-          return createVariadicOperationNode(context, "multiply", operandIds);
-        }
-        case "/":
-          return createBinaryOperationNode(
-            context,
-            "divide",
-            materializeExpression(node.left, context, aliasNodes, issues),
-            materializeExpression(node.right, context, aliasNodes, issues),
-          );
-        default: {
-          const unsupported = operator as string;
-          issues.push(`Unsupported operator "${unsupported}".`);
+      if (operator === "+") {
+        const children: ControlExpressionNode[] = [];
+        collectOperands(node, "+", children);
+        const operandIds = children.map((child) =>
+          materializeExpression(child, context, aliasNodes, issues),
+        );
+        return createVariadicOperationNode(context, "add", operandIds);
+      }
+      if (operator === "*") {
+        const children: ControlExpressionNode[] = [];
+        collectOperands(node, "*", children);
+        const operandIds = children.map((child) =>
+          materializeExpression(child, context, aliasNodes, issues),
+        );
+        return createVariadicOperationNode(context, "multiply", operandIds);
+      }
+
+      const leftId = materializeExpression(
+        node.left,
+        context,
+        aliasNodes,
+        issues,
+      );
+      const rightId = materializeExpression(
+        node.right,
+        context,
+        aliasNodes,
+        issues,
+      );
+
+      if (operator === "-") {
+        return createBinaryOperationNode(context, "subtract", leftId, rightId);
+      }
+      if (operator === "/") {
+        return createBinaryOperationNode(context, "divide", leftId, rightId);
+      }
+
+      const mappedFunction = BINARY_FUNCTION_OPERATOR_MAP[operator];
+      if (mappedFunction) {
+        const definition = SCALAR_FUNCTIONS.get(mappedFunction);
+        if (!definition) {
+          issues.push(`Function "${mappedFunction}" is not available.`);
           return getConstantNodeId(context, 0);
         }
+        return emitScalarFunctionNode(definition, [leftId, rightId], context);
       }
+
+      issues.push(`Unsupported operator "${operator}".`);
+      return getConstantNodeId(context, 0);
+    }
+    case "Function": {
+      const name = node.name;
+      const normalized = name.toLowerCase();
+      const definition = SCALAR_FUNCTIONS.get(normalized);
+      if (!definition) {
+        issues.push(`Unknown function "${name}".`);
+        return getConstantNodeId(context, 0);
+      }
+
+      const operands = node.args.map((arg) =>
+        materializeExpression(arg, context, aliasNodes, issues),
+      );
+
+      if (operands.length < definition.minArgs) {
+        issues.push(
+          `Function "${name}" expects at least ${definition.minArgs} arguments, received ${operands.length}.`,
+        );
+        return getConstantNodeId(context, 0);
+      }
+
+      if (definition.maxArgs !== null && operands.length > definition.maxArgs) {
+        issues.push(
+          `Function "${name}" expects at most ${definition.maxArgs} arguments, received ${operands.length}.`,
+        );
+        return getConstantNodeId(context, 0);
+      }
+
+      return emitScalarFunctionNode(definition, operands, context);
     }
     default: {
       issues.push("Unsupported expression node.");
@@ -694,6 +878,7 @@ export function buildRigGraphSpec({
         inputId: null,
         remap: createDefaultRemap(target),
         expression: PRIMARY_SLOT_ALIAS,
+        valueType: target.valueType === "vector" ? "vector" : "scalar",
         issues: ["Binding not found."],
       });
       const fallbackIssues =
@@ -707,7 +892,18 @@ export function buildRigGraphSpec({
       return;
     }
 
-    entry.values.set(key, valueNodeId);
+    const operatorList = binding
+      ? ((binding as AnimatableBinding & { operators?: BindingOperator[] })
+          .operators ?? [])
+      : [];
+    const finalNodeId = applyBindingOperators(
+      operatorList,
+      valueNodeId,
+      component.safeId,
+      nodes,
+      edges,
+    );
+    entry.values.set(key, finalNodeId);
   });
 
   inputsById.forEach((_input, inputId) => {
@@ -869,6 +1065,7 @@ export function buildRigGraphSpec({
           ...binding,
           remap: { ...binding.remap },
           expression: binding.expression,
+          valueType: binding.valueType,
           issues: binding.issues ? [...binding.issues] : undefined,
         })),
       },

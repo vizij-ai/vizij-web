@@ -32,7 +32,12 @@ import type {
   AnimatableColor,
   RawValue,
 } from "@vizij/utils";
-import { type BindingMap, type StandardInputValues } from "../../rig/state";
+import {
+  type BindingMap,
+  type StandardInputValues,
+  type BindingOperatorType,
+  type BindingValueType,
+} from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import { BindingEditor } from "./BindingEditor";
 
@@ -74,6 +79,17 @@ interface PropertyBindingRowProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   onRequestCreateStandardInput?: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
@@ -99,6 +115,8 @@ function PropertyBindingRow({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingOperatorToggle,
+  onBindingOperatorParamChange,
   outputDefaults,
   outputControls,
 }: PropertyBindingRowProps) {
@@ -138,6 +156,8 @@ function PropertyBindingRow({
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
+        onBindingOperatorToggle={onBindingOperatorToggle}
+        onBindingOperatorParamChange={onBindingOperatorParamChange}
         onRequestCreateStandardInput={onRequestCreateStandardInput}
         onResetBinding={onResetBinding}
         expanded={expanded}
@@ -342,6 +362,17 @@ interface PropertyControlsProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -368,6 +399,8 @@ function PropertyControls({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingOperatorToggle,
+  onBindingOperatorParamChange,
   onDefaultChange,
   onConstraintChange,
 }: PropertyControlsProps) {
@@ -579,6 +612,8 @@ function PropertyControls({
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
+        onBindingOperatorToggle={onBindingOperatorToggle}
+        onBindingOperatorParamChange={onBindingOperatorParamChange}
         outputDefaults={outputDefaults}
         outputControls={outputControls}
       />
@@ -642,6 +677,17 @@ interface FeatureNodeProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -652,6 +698,21 @@ interface FeatureNodeProps {
     ) => NonNullable<AnimatableValue["constraints"]>,
   ) => void;
   onStaticUpdate: (entry: FeatureEntry, value: RawValue) => void;
+}
+
+const VECTOR_COMPONENT_TYPES: ReadonlySet<
+  AnimatableComponent["animatableType"]
+> = new Set(["vector2", "vector3", "euler", "rgb"]);
+
+function resolveBindingValueType(
+  component: AnimatableComponent,
+): BindingValueType {
+  if (component.component) {
+    return "scalar";
+  }
+  return VECTOR_COMPONENT_TYPES.has(component.animatableType)
+    ? "vector"
+    : "scalar";
 }
 
 function FeatureNode({
@@ -673,6 +734,8 @@ function FeatureNode({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingOperatorToggle,
+  onBindingOperatorParamChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onDefaultChange,
@@ -698,6 +761,7 @@ function FeatureNode({
           binding: bindings[feature.entry.animatableId],
           component: componentMeta,
           issues: bindingIssues.get(feature.entry.animatableId),
+          valueType: resolveBindingValueType(componentMeta),
         });
       }
     } else {
@@ -711,6 +775,7 @@ function FeatureNode({
             binding: bindings[targetId],
             component: componentMeta,
             issues: bindingIssues.get(targetId),
+            valueType: resolveBindingValueType(componentMeta),
           });
         }
       });
@@ -817,6 +882,8 @@ function FeatureNode({
                 onRemoveBindingSlot={onRemoveBindingSlot}
                 onBindingExpressionChange={onBindingExpressionChange}
                 onBindingSlotAliasChange={onBindingSlotAliasChange}
+                onBindingOperatorToggle={onBindingOperatorToggle}
+                onBindingOperatorParamChange={onBindingOperatorParamChange}
                 onDefaultChange={onDefaultChange}
                 onConstraintChange={onConstraintChange}
               />
@@ -868,6 +935,17 @@ interface AnimatableTreeProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -900,6 +978,8 @@ export function AnimatableTree({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingOperatorToggle,
+  onBindingOperatorParamChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onDefaultChange,
@@ -992,6 +1072,8 @@ export function AnimatableTree({
                     onRemoveBindingSlot={onRemoveBindingSlot}
                     onBindingExpressionChange={onBindingExpressionChange}
                     onBindingSlotAliasChange={onBindingSlotAliasChange}
+                    onBindingOperatorToggle={onBindingOperatorToggle}
+                    onBindingOperatorParamChange={onBindingOperatorParamChange}
                     onFeatureLabelChange={onFeatureLabelChange}
                     onToggleAnimated={onToggleAnimated}
                     onDefaultChange={onDefaultChange}

@@ -40,6 +40,7 @@ import type {
   VizijGraphAsset,
   PoseRigConfig,
   AnimationClipLike,
+  AnimationKeyframeLike,
   AnimationTrackLike,
   VizijRuntimeContextValue,
   VizijRuntimeProviderProps,
@@ -175,6 +176,194 @@ function convertBundleAnimations(
     }));
 }
 
+type ExtractedAnimationTrack = {
+  componentId?: string;
+  component?: string;
+  componentIndex?: number | string;
+  valueSize?: number | string;
+  times?: unknown;
+  values?: unknown;
+};
+
+type ExtractedAnimationClip = {
+  id?: string;
+  name?: string;
+  duration?: number | string;
+  metadata?: unknown;
+  tracks?: ExtractedAnimationTrack[];
+};
+
+function resolveChannelId(track: ExtractedAnimationTrack): string | null {
+  if (typeof track.componentId !== "string" || track.componentId.length === 0) {
+    return null;
+  }
+  if (typeof track.component === "string" && track.component.length > 0) {
+    return `${track.componentId}:${track.component}`;
+  }
+  const rawIndex =
+    track.componentIndex != null ? Number(track.componentIndex) : undefined;
+  const valueSize =
+    track.valueSize != null ? Number(track.valueSize) : undefined;
+  if (
+    Number.isInteger(rawIndex) &&
+    Number.isFinite(rawIndex) &&
+    rawIndex! >= 0 &&
+    Number.isFinite(valueSize) &&
+    valueSize! > 1
+  ) {
+    return `${track.componentId}:${rawIndex}`;
+  }
+  return track.componentId;
+}
+
+function convertExtractedAnimations(
+  clips: ExtractedAnimationClip[] | undefined,
+): VizijAnimationAsset[] {
+  if (!Array.isArray(clips) || clips.length === 0) {
+    return [];
+  }
+
+  const assets: VizijAnimationAsset[] = [];
+
+  clips.forEach((clip) => {
+    const clipTracks = Array.isArray(clip.tracks) ? clip.tracks : [];
+    if (clipTracks.length === 0) {
+      return;
+    }
+
+    const convertedTracks: AnimationTrackLike[] = [];
+
+    clipTracks.forEach((track) => {
+      const channelId = resolveChannelId(track);
+      if (!channelId) {
+        return;
+      }
+
+      const rawTimes = Array.isArray(track.times) ? track.times : [];
+      const rawValues = Array.isArray(track.values) ? track.values : [];
+      if (rawTimes.length === 0 || rawValues.length === 0) {
+        return;
+      }
+
+      const times: number[] = [];
+      for (const entry of rawTimes) {
+        const time = Number(entry);
+        if (!Number.isFinite(time)) {
+          return;
+        }
+        times.push(time);
+      }
+
+      const values: number[] = [];
+      for (const entry of rawValues) {
+        const value = Number(entry);
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        values.push(value);
+      }
+
+      const parsedValueSize =
+        track.valueSize != null ? Number(track.valueSize) : NaN;
+      const valueSize =
+        Number.isFinite(parsedValueSize) && parsedValueSize > 0
+          ? parsedValueSize
+          : 1;
+      if (values.length !== times.length * valueSize) {
+        return;
+      }
+
+      const rawIndex =
+        track.componentIndex != null ? Number(track.componentIndex) : 0;
+      const componentIndex =
+        Number.isInteger(rawIndex) && rawIndex >= 0
+          ? Math.min(rawIndex, valueSize - 1)
+          : 0;
+
+      const keyframes: AnimationKeyframeLike[] = [];
+      times.forEach((time, index) => {
+        const base = index * valueSize + componentIndex;
+        const value = values[base];
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        keyframes.push({ time, value });
+      });
+
+      if (keyframes.length === 0) {
+        return;
+      }
+
+      convertedTracks.push({
+        channel: channelId,
+        keyframes,
+      });
+    });
+
+    if (convertedTracks.length === 0) {
+      return;
+    }
+
+    const durationFromTracks = convertedTracks.reduce((maxTime, track) => {
+      const keyframes = Array.isArray(track.keyframes) ? track.keyframes : [];
+      if (keyframes.length === 0) {
+        return maxTime;
+      }
+      const lastKeyframe = keyframes[keyframes.length - 1];
+      const time = Number(lastKeyframe?.time ?? 0);
+      if (!Number.isFinite(time)) {
+        return maxTime;
+      }
+      return time > maxTime ? time : maxTime;
+    }, 0);
+
+    const duration =
+      typeof clip.duration === "number" && Number.isFinite(clip.duration)
+        ? clip.duration
+        : durationFromTracks;
+
+    const clipId =
+      typeof clip.id === "string" && clip.id.length > 0
+        ? clip.id
+        : typeof clip.name === "string" && clip.name.length > 0
+          ? clip.name
+          : `gltf-animation-${assets.length}`;
+
+    const metadata =
+      clip.metadata &&
+      typeof clip.metadata === "object" &&
+      !Array.isArray(clip.metadata)
+        ? (clip.metadata as Record<string, unknown>)
+        : undefined;
+
+    assets.push({
+      id: clipId,
+      clip: {
+        id: clipId,
+        name: typeof clip.name === "string" ? clip.name : clipId,
+        duration,
+        tracks: convertedTracks,
+        metadata,
+      },
+    });
+  });
+
+  return assets;
+}
+
+function pickExtractedAnimations(
+  asset: unknown,
+): ExtractedAnimationClip[] | undefined {
+  if (!asset || typeof asset !== "object") {
+    return undefined;
+  }
+  const animations = (asset as { animations?: unknown }).animations;
+  if (!Array.isArray(animations)) {
+    return undefined;
+  }
+  return animations as ExtractedAnimationClip[];
+}
+
 function mergeAnimationLists(
   explicit: VizijAnimationAsset[] | undefined,
   fromBundle: VizijAnimationAsset[],
@@ -205,6 +394,7 @@ function mergeAnimationLists(
 function mergeAssetBundle(
   base: VizijAssetBundle,
   extracted: VizijBundleExtension | null,
+  extractedAnimations: VizijAnimationAsset[] | undefined,
 ): VizijAssetBundle {
   const resolvedBundle = base.bundle ?? extracted ?? null;
 
@@ -262,10 +452,20 @@ function mergeAssetBundle(
   const animationsFromBundle = convertBundleAnimations(
     resolvedBundle?.animations,
   );
-  const resolvedAnimations = mergeAnimationLists(
+  let resolvedAnimations = mergeAnimationLists(
     base.animations,
     animationsFromBundle,
   );
+  const animationsFromAsset =
+    extractedAnimations && extractedAnimations.length > 0
+      ? extractedAnimations
+      : [];
+  if (animationsFromAsset.length > 0) {
+    resolvedAnimations = mergeAnimationLists(
+      resolvedAnimations,
+      animationsFromAsset,
+    );
+  }
 
   const merged: VizijAssetBundle = {
     ...base,
@@ -361,6 +561,9 @@ function VizijRuntimeProviderInner({
       }
       return null;
     });
+  const [extractedAnimations, setExtractedAnimations] = useState<
+    VizijAnimationAsset[]
+  >([]);
 
   useEffect(() => {
     if (initialAssetBundle.bundle) {
@@ -375,8 +578,13 @@ function VizijRuntimeProviderInner({
   }, [initialAssetBundle]);
 
   const assetBundle = useMemo(
-    () => mergeAssetBundle(initialAssetBundle, extractedBundle),
-    [initialAssetBundle, extractedBundle],
+    () =>
+      mergeAssetBundle(
+        initialAssetBundle,
+        extractedBundle,
+        extractedAnimations,
+      ),
+    [initialAssetBundle, extractedBundle, extractedAnimations],
   );
 
   const {
@@ -513,12 +721,14 @@ function VizijRuntimeProviderInner({
       outputPaths: [],
       controllers: { graphs: [], anims: [] },
     }));
+    setExtractedAnimations([]);
 
     const loadAssets = async () => {
       try {
         let world: Record<string, any>;
         let animatables: Record<string, AnimatableValue>;
         let bundle: VizijBundleExtension | null = baseBundle;
+        let gltfAnimations: ExtractedAnimationClip[] | undefined;
 
         if (glbAsset.kind === "url") {
           const loaded = await loadGLTFWithBundle(
@@ -530,6 +740,7 @@ function VizijRuntimeProviderInner({
           world = loaded.world as Record<string, any>;
           animatables = loaded.animatables;
           bundle = loaded.bundle ?? bundle;
+          gltfAnimations = pickExtractedAnimations(loaded);
         } else if (glbAsset.kind === "blob") {
           const loaded = await loadGLTFFromBlobWithBundle(
             glbAsset.blob,
@@ -540,10 +751,12 @@ function VizijRuntimeProviderInner({
           world = loaded.world as Record<string, any>;
           animatables = loaded.animatables;
           bundle = loaded.bundle ?? bundle;
+          gltfAnimations = pickExtractedAnimations(loaded);
         } else {
           world = glbAsset.world as Record<string, any>;
           animatables = glbAsset.animatables;
           bundle = glbAsset.bundle ?? bundle;
+          gltfAnimations = undefined;
         }
 
         if (cancelled) {
@@ -551,6 +764,7 @@ function VizijRuntimeProviderInner({
         }
 
         setExtractedBundle(bundle ?? null);
+        setExtractedAnimations(convertExtractedAnimations(gltfAnimations));
 
         const rootId = findRootId(world);
         store.getState().addWorldElements(world as any, animatables, true);
@@ -594,6 +808,7 @@ function VizijRuntimeProviderInner({
     reportStatus,
     resetErrors,
     setExtractedBundle,
+    setExtractedAnimations,
   ]);
 
   useEffect(() => {

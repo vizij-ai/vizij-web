@@ -1,4 +1,7 @@
-import type { BindingMap, StandardInputValues } from "./state";
+import type {
+  BindingMap,
+  StandardInputValues,
+} from "@vizij/node-graph-authoring";
 import type { RigBindingDefinition, StandardRigInput } from "@vizij/utils";
 
 const STORAGE_KEY = "vizij:rig-authoring:v2";

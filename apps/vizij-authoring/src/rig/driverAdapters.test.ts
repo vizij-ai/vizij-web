@@ -5,7 +5,7 @@ import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
 import { buildGraphFromDrivers } from "@vizij/utils";
 
 import { buildAuthoringDriverGraph } from "./driverAdapters";
-import { createDefaultBinding } from "./state";
+import { createDefaultBinding } from "@vizij/node-graph-authoring";
 
 describe("buildAuthoringDriverGraph", () => {
   it("converts bindings into remap drivers", () => {

@@ -12,7 +12,7 @@ import {
   ensureBindingStructure,
   type AnimatableBinding,
   type BindingMap,
-} from "./state";
+} from "@vizij/node-graph-authoring";
 import type { RemapSettings } from "@vizij/utils";
 
 interface BuildAuthoringDriverGraphOptions {

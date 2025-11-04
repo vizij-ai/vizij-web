@@ -16,7 +16,9 @@ import type {
   AnimatableBinding,
   StandardInputValues,
   InputBindingMap,
-} from "../../rig/state";
+  BindingOperatorType,
+  BindingValueType,
+} from "@vizij/node-graph-authoring";
 import type { StandardRigInput, RemapSettings } from "@vizij/utils";
 import type { VectorDescriptorType } from "@vizij/utils";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
@@ -135,6 +137,17 @@ export interface AnimatableValuesPanelProps {
     slotId: string,
     alias: string,
   ): void;
+  onBindingOperatorToggle(
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ): void;
+  onBindingOperatorParamChange(
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ): void;
   onParentBindingInputChange(
     targetId: string,
     inputId: string | null,
@@ -154,6 +167,17 @@ export interface AnimatableValuesPanelProps {
     slotId: string,
     alias: string,
   ): void;
+  onParentBindingOperatorToggle(
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ): void;
+  onParentBindingOperatorParamChange(
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
+  ): void;
   onParentResetBinding(targetId: string): void;
   onFeatureLabelChange(entry: FeatureEntry, value: string): void;
 }
@@ -164,6 +188,7 @@ export type BindingTarget = {
   binding: AnimatableBinding | undefined;
   component: AnimatableComponent;
   issues?: readonly string[];
+  valueType: BindingValueType;
 };
 
 export type RigInputDescriptor = {

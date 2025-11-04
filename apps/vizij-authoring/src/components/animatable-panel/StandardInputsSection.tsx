@@ -18,9 +18,10 @@ import {
   type InputBindingMap,
   type AnimatableBinding,
   type BindingMap,
+  type BindingOperatorType,
   bindingTargetFromInput,
   createDefaultParentBinding,
-} from "../../rig/state";
+} from "@vizij/node-graph-authoring";
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
 import { FilterableSelect } from "../common/FilterableSelect";
@@ -86,6 +87,17 @@ interface StandardInputsSectionProps {
     targetId: string,
     slotId: string,
     alias: string,
+  ) => void;
+  onParentBindingOperatorToggle: (
+    targetId: string,
+    operator: BindingOperatorType,
+    enabled: boolean,
+  ) => void;
+  onParentBindingOperatorParamChange: (
+    targetId: string,
+    operator: BindingOperatorType,
+    paramId: string,
+    value: number,
   ) => void;
   onParentResetBinding: (targetId: string) => void;
   onBindingRemapChange: (
@@ -170,6 +182,8 @@ export function StandardInputsSection({
   onParentRemoveBindingSlot,
   onParentBindingExpressionChange,
   onParentBindingSlotAliasChange,
+  onParentBindingOperatorToggle,
+  onParentBindingOperatorParamChange,
   onParentResetBinding,
   onBindingRemapChange,
   graphStatus,
@@ -1000,6 +1014,10 @@ export function StandardInputsSection({
                         onParentBindingExpressionChange
                       }
                       onBindingSlotAliasChange={onParentBindingSlotAliasChange}
+                      onBindingOperatorToggle={onParentBindingOperatorToggle}
+                      onBindingOperatorParamChange={
+                        onParentBindingOperatorParamChange
+                      }
                       onResetBinding={
                         parentBinding
                           ? () => onParentResetBinding(input.id)

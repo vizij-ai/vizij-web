@@ -94,8 +94,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.1
-        version: 0.4.1
+        specifier: ^0.4.2
+        version: 0.4.2
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -275,8 +275,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.1
-        version: 0.4.1
+        specifier: ^0.4.2
+        version: 0.4.2
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -391,12 +391,15 @@ importers:
       '@eslint/plugin-kit':
         specifier: 0.4.0
         version: 0.4.0
+      '@vizij/node-graph-authoring':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/node-graph-authoring
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.1
-        version: 0.4.1
+        specifier: ^0.4.2
+        version: 0.4.2
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
@@ -469,11 +472,33 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.7.0)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.1)(terser@5.44.0)
 
+  packages/@vizij/node-graph-authoring:
+    dependencies:
+      '@vizij/node-graph-wasm':
+        specifier: ^0.4.2
+        version: 0.4.2
+      '@vizij/utils':
+        specifier: ^0.0.2
+        version: 0.0.2
+    devDependencies:
+      prettier:
+        specifier: ^3.4.2
+        version: 3.6.2
+      tsup:
+        specifier: ^8.0.1
+        version: 8.5.0(@swc/core@1.13.5(@swc/helpers@0.5.17))(jiti@2.6.1)(postcss@8.5.6)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@24.7.0)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.1)(terser@5.44.0)
+
   packages/@vizij/node-graph-react:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.1
-        version: 0.4.1
+        specifier: ^0.4.2
+        version: 0.4.2
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -1716,6 +1741,9 @@ packages:
 
   '@vizij/node-graph-wasm@0.4.1':
     resolution: {integrity: sha512-UO+r/ryzqVu37QloJgRyJnMv/HBOKYD/u1WleUtMLJ/bPMs7MXBy/TKyFuQ0aq7rb6y6NECyULw7xV5ZEQjKYA==}
+
+  '@vizij/node-graph-wasm@0.4.2':
+    resolution: {integrity: sha512-XBupS9LGuTpZvqvGbCj5v5tgT1lAdYqeYItLFYIb85/2Voz6fMA8AM17d2JtRsBsnrsmnf3QGvd80cKhj3QGuQ==}
 
   '@vizij/orchestrator-react@0.0.2':
     resolution: {integrity: sha512-USetUnSobS66fMb6lAnBu5ujD0Sb7cPWbb17hZyyvUKZdbFwdlriSm7iopC0EmSZ0wF1THckEw36GneYq07ngQ==}
@@ -5020,6 +5048,11 @@ snapshots:
       '@vizij/wasm-loader': 0.1.0
 
   '@vizij/node-graph-wasm@0.4.1':
+    dependencies:
+      '@vizij/value-json': 0.1.0
+      '@vizij/wasm-loader': 0.1.0
+
+  '@vizij/node-graph-wasm@0.4.2':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
