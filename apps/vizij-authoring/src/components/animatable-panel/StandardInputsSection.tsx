@@ -23,6 +23,7 @@ import {
 } from "../../rig/state";
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
+import { FilterableSelect } from "../common/FilterableSelect";
 import { confirmDialog } from "../../utils/dialogs";
 import { extractStandardInputSubgroups } from "../../utils/standardInputs";
 
@@ -536,6 +537,12 @@ export function StandardInputsSection({
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
+    const childSelectOptions = childOptions.map((option) => ({
+      value: option.id,
+      label: option.label,
+      keywords: [option.label, option.id],
+    }));
+
     const isSelectingChild = childSelection.parentId === input.id;
     const selectedChildId = isSelectingChild
       ? (childSelection.childId ?? null)
@@ -549,17 +556,14 @@ export function StandardInputsSection({
       setChildSelection({ parentId: input.id, childId: defaultChildId });
     };
 
-    const handleChildSelectionChange = (
-      event: ChangeEvent<HTMLSelectElement>,
-    ) => {
-      const nextValue = event.target.value;
+    const handleChildSelectionChange = (nextValue: string | null) => {
       setChildSelection((previous) => {
         if (previous.parentId !== input.id) {
           return previous;
         }
         return {
           parentId: input.id,
-          childId: nextValue.length > 0 ? nextValue : null,
+          childId: nextValue,
         };
       });
     };
@@ -1137,17 +1141,23 @@ export function StandardInputsSection({
                       <>
                         <label className="feature-panel__mapping-child-label">
                           <span>Select child</span>
-                          <select
-                            className="feature-panel__mapping-child-select"
-                            value={selectedChildId ?? ""}
+                          <FilterableSelect
+                            value={selectedChildId}
                             onChange={handleChildSelectionChange}
-                          >
-                            {childOptions.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                            options={childSelectOptions}
+                            placeholder="Select child input…"
+                            searchPlaceholder="Search child inputs"
+                            noResultsLabel="No matches"
+                            className="feature-panel__mapping-child-select feature-tree__binding-slot-combobox"
+                            triggerClassName="feature-tree__property-select"
+                            menuClassName="feature-tree__binding-slot-menu"
+                            listClassName="feature-tree__binding-slot-option-list"
+                            filterInputClassName="feature-panel__input-text feature-tree__binding-slot-filter"
+                            optionClassName="feature-tree__binding-slot-option"
+                            optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
+                            emptyClassName="feature-tree__binding-slot-option feature-tree__binding-slot-option--empty"
+                            dataOptionAttribute="data-option"
+                          />
                         </label>
                         <div className="feature-panel__mapping-child-actions">
                           <button

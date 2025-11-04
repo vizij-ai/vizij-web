@@ -6,7 +6,6 @@ interface PoseSummaryProps {
   library: PoseLibrarySummary;
   disabled?: boolean;
   onApplyNeutral: () => void;
-  onApplyPose: (poseId: string) => void;
 }
 
 export function PoseSummary({
@@ -14,7 +13,6 @@ export function PoseSummary({
   library,
   disabled,
   onApplyNeutral,
-  onApplyPose,
 }: PoseSummaryProps) {
   const inputs = summary?.inputs ?? [];
   void inputs; // May be used again later.
@@ -39,25 +37,11 @@ export function PoseSummary({
           >
             Apply Neutral
           </button>
-          <div className="pose-rig-summary__pose-actions">
-            {library.poses.length === 0 ? (
-              <p className="pose-rig-empty">
-                Capture a pose to enable preview.
-              </p>
-            ) : (
-              library.poses.map((pose) => (
-                <button
-                  key={pose.id}
-                  type="button"
-                  className="button"
-                  onClick={() => onApplyPose(pose.id)}
-                  disabled={disabled}
-                >
-                  Apply {pose.name}
-                </button>
-              ))
-            )}
-          </div>
+          <p className="pose-rig-summary__hint">
+            {library.poses.length === 0
+              ? "Capture a pose to enable preview."
+              : "Select poses in the library to apply them live."}
+          </p>
         </div>
         {/* <div className="pose-rig-summary__details">
           {inputs.length === 0 ? (

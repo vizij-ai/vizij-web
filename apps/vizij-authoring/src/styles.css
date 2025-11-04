@@ -1913,11 +1913,7 @@ button.danger:hover:not(:disabled),
 }
 
 .feature-panel__mapping-child-select {
-  padding: 0.4rem 0.55rem;
-  border-radius: 0.45rem;
-  border: 1px solid #1e293b;
-  background: #0f172a;
-  color: inherit;
+  width: 100%;
 }
 
 .feature-panel__mapping-child-actions {
@@ -2754,13 +2750,35 @@ button.danger:hover:not(:disabled),
 
 .feature-tree__binding-slot-controls {
   display: flex;
-  align-items: center;
-  gap: 0.15rem;
+  align-items: stretch;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  position: relative;
+}
+
+.filter-select__option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-select__option--empty {
+  padding: 0.4rem 0.45rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-align: center;
+  border-radius: 0.35rem;
+  background: rgba(148, 163, 184, 0.08);
 }
 
 .feature-tree__binding-slot-combobox {
   position: relative;
-  min-width: 160px;
+  min-width: 12rem;
+  flex: 1 1 auto;
+  width: 100%;
 }
 
 .feature-tree__binding-slot-combobox > .feature-tree__property-select {
@@ -2841,6 +2859,12 @@ button.danger:hover:not(:disabled),
 .feature-tree__binding-slot-option[aria-selected="true"] {
   border-color: rgba(37, 99, 235, 0.8);
   background: rgba(37, 99, 235, 0.18);
+}
+
+.filter-select__option--highlighted:not([aria-selected="true"]),
+.feature-tree__binding-slot-option--highlighted:not([aria-selected="true"]) {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .feature-tree__binding-slot-option--empty {
@@ -3263,6 +3287,23 @@ button.danger:hover:not(:disabled),
   gap: 0.5rem;
 }
 
+.pose-rig-panel__actions--new-pose {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pose-rig-list__new-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.pose-rig-list__name-input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: inherit;
+}
+
 .pose-rig-list {
   display: flex;
   flex-direction: column;
@@ -3271,7 +3312,7 @@ button.danger:hover:not(:disabled),
 
 .pose-rig-list__row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: stretch;
   gap: 0.5rem;
 }
@@ -3282,8 +3323,9 @@ button.danger:hover:not(:disabled),
 }
 
 .pose-rig-list__item {
-  flex: 1;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3317,9 +3359,15 @@ button.danger:hover:not(:disabled),
 
 .pose-rig-list__controls {
   display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: flex-start;
+  align-items: stretch;
+  min-width: 7rem;
+}
+
+.pose-rig-list__controls .button {
+  width: 100%;
 }
 
 .pose-rig-empty {
@@ -3347,14 +3395,31 @@ button.danger:hover:not(:disabled),
   flex-wrap: wrap;
 }
 
+.pose-rig-button--overwrite-active {
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #0f172a;
+  border-color: transparent;
+}
+
+.pose-rig-live-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #facc15;
+}
+
 .pose-rig-add-input {
   display: flex;
   gap: 0.5rem;
   align-items: center;
 }
 
-.pose-rig-add-input .select {
+.pose-rig-input-select {
   flex: 1;
+  min-width: 0;
+}
+
+.pose-rig-input-select .feature-tree__property-select {
+  width: 100%;
 }
 
 .pose-rig-input-group {
@@ -3385,6 +3450,11 @@ button.danger:hover:not(:disabled),
   border: 1px solid #1e293b;
   border-radius: 0.65rem;
   background: rgba(15, 23, 42, 0.8);
+}
+
+.pose-rig-input-row--dirty {
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.2);
 }
 
 .pose-rig-input-meta {
@@ -3424,6 +3494,12 @@ button.danger:hover:not(:disabled),
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.pose-rig-summary__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
 }
 
 .pose-rig-summary__pose-actions {

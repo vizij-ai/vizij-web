@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { PoseDefinition } from "../types";
 
 interface PoseListProps {
@@ -6,8 +8,9 @@ interface PoseListProps {
   isNeutralSelected: boolean;
   disabled?: boolean;
   onSelectNeutral: () => void;
-  onSelectPose: (poseId: string) => void;
-  onCreatePose: () => void;
+  onApplyPose: (poseId: string) => void;
+  onCreatePose: (name?: string) => void;
+  onPoseNameChange: (poseId: string, name: string) => void;
   onDuplicatePose: (poseId: string) => void;
   onDeletePose: (poseId: string) => void;
 }
@@ -18,11 +21,14 @@ export function PoseList({
   isNeutralSelected,
   disabled,
   onSelectNeutral,
-  onSelectPose,
+  onApplyPose,
   onCreatePose,
+  onPoseNameChange,
   onDuplicatePose,
   onDeletePose,
 }: PoseListProps) {
+  const [newPoseName, setNewPoseName] = useState("");
+
   const sorted = poses.slice().sort((a, b) => {
     const aTime = Date.parse(a.updatedAt ?? a.createdAt ?? "");
     const bTime = Date.parse(b.updatedAt ?? b.createdAt ?? "");
@@ -31,6 +37,32 @@ export function PoseList({
     }
     return bTime - aTime;
   });
+
+  const handleCreatePose = useCallback(() => {
+    if (disabled) {
+      return;
+    }
+    onCreatePose(newPoseName);
+    setNewPoseName("");
+  }, [disabled, newPoseName, onCreatePose]);
+
+  const handleRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>, poseId: string | null) => {
+      if (disabled || !poseId) {
+        return;
+      }
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onApplyPose(poseId);
+      }
+    },
+    [disabled, onApplyPose],
+  );
+
+  const listHint =
+    sorted.length === 0
+      ? "Capture or add a pose to begin building the library."
+      : null;
 
   return (
     <section className="pose-rig-panel pose-rig-panel--list">
@@ -41,11 +73,25 @@ export function PoseList({
             Capture, duplicate, and curate saved poses.
           </p>
         </div>
-        <div className="pose-rig-panel__actions">
+        <div className="pose-rig-panel__actions pose-rig-panel__actions--new-pose">
+          <input
+            type="text"
+            className="input pose-rig-list__new-name"
+            placeholder="New pose name"
+            value={newPoseName}
+            disabled={disabled}
+            onChange={(event) => setNewPoseName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleCreatePose();
+              }
+            }}
+          />
           <button
             type="button"
             className="button primary"
-            onClick={onCreatePose}
+            onClick={handleCreatePose}
             disabled={disabled}
           >
             Add Pose
@@ -80,17 +126,41 @@ export function PoseList({
                   : "pose-rig-list__row"
               }
             >
-              <button
-                type="button"
-                className="pose-rig-list__item"
-                onClick={() => onSelectPose(pose.id)}
-                disabled={disabled}
+              <div
+                role="button"
+                tabIndex={disabled ? -1 : 0}
+                className={
+                  isSelected
+                    ? "pose-rig-list__item pose-rig-list__item--active"
+                    : "pose-rig-list__item"
+                }
+                onClick={() => {
+                  if (disabled) {
+                    return;
+                  }
+                  onApplyPose(pose.id);
+                }}
+                onKeyDown={(event) => handleRowKeyDown(event, pose.id)}
               >
                 <div className="pose-rig-list__label">
-                  <span className="pose-rig-list__name">{pose.name}</span>
+                  {isSelected ? (
+                    <input
+                      type="text"
+                      className="input pose-rig-list__name-input"
+                      value={pose.name}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        onPoseNameChange(pose.id, event.target.value)
+                      }
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    />
+                  ) : (
+                    <span className="pose-rig-list__name">{pose.name}</span>
+                  )}
                   <span className="pose-rig-list__meta">{updatedLabel}</span>
                 </div>
-              </button>
+              </div>
               <div className="pose-rig-list__controls">
                 <button
                   type="button"
@@ -112,11 +182,7 @@ export function PoseList({
             </div>
           );
         })}
-        {sorted.length === 0 && (
-          <p className="pose-rig-empty">
-            Capture or add a pose to begin building the library.
-          </p>
-        )}
+        {listHint && <p className="pose-rig-empty">{listHint}</p>}
       </div>
     </section>
   );

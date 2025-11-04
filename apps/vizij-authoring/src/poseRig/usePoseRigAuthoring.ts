@@ -23,7 +23,9 @@ import type {
 
 const NEUTRAL_POSE_ID = "__pose_rig_neutral__";
 const DEFAULT_RIG_NAME = "pose_rig";
-const EPSILON = 1e-6;
+const EPSILON = 1e-8;
+const ADD_INPUT_OFFSET = 1e-8;
+const SLIDER_MIN_OFFSET = 1e-8;
 
 function createPoseDefinition(name: string): PoseDefinition {
   const now = new Date().toISOString();
@@ -164,7 +166,7 @@ export interface UsePoseRigAuthoringResult {
   setRigName: (value: string) => void;
   selectNeutral: () => void;
   selectPose: (poseId: string) => void;
-  createPose: () => void;
+  createPose: (name?: string) => void;
   duplicatePose: (poseId: string) => void;
   deletePose: (poseId: string) => void;
   updatePoseName: (poseId: string, name: string) => void;
@@ -381,9 +383,12 @@ export function usePoseRigAuthoring(
     setSelectedPoseId(poseId);
   }, []);
 
-  const createPose = useCallback(() => {
+  const createPose = useCallback((name?: string) => {
     setPoses((prev) => {
-      const nextPose = createPoseDefinition(`Pose ${prev.length + 1}`);
+      const trimmed = name?.trim();
+      const label =
+        trimmed && trimmed.length > 0 ? trimmed : `Pose ${prev.length + 1}`;
+      const nextPose = createPoseDefinition(label);
       const next = [...prev, nextPose];
       setSelectedPoseId(nextPose.id);
       return next;
@@ -513,21 +518,33 @@ export function usePoseRigAuthoring(
       if (!input) {
         return;
       }
-      const clamped = clampToInputRange(input, value);
       const neutralValue = neutralBaseline[inputId] ?? input.defaultValue ?? 0;
+      const clamped = clampToInputRange(input, value);
+      const ensureOffset = (): number => {
+        if (Math.abs(clamped - neutralValue) >= EPSILON) {
+          return clamped;
+        }
+        const max = Number.isFinite(input.range.max)
+          ? input.range.max
+          : Number.POSITIVE_INFINITY;
+        const min = Number.isFinite(input.range.min)
+          ? input.range.min
+          : Number.NEGATIVE_INFINITY;
+        if (neutralValue + SLIDER_MIN_OFFSET <= max) {
+          return clampToInputRange(input, neutralValue + SLIDER_MIN_OFFSET);
+        }
+        if (neutralValue - SLIDER_MIN_OFFSET >= min) {
+          return clampToInputRange(input, neutralValue - SLIDER_MIN_OFFSET);
+        }
+        return clamped;
+      };
+      const adjusted = ensureOffset();
       updatePoseById(poseId, (pose) => {
         const nextValues = { ...pose.values };
-        if (Math.abs(clamped - neutralValue) < EPSILON) {
-          if (nextValues[inputId] === undefined) {
-            return pose;
-          }
-          delete nextValues[inputId];
-        } else {
-          if (nextValues[inputId] === clamped) {
-            return pose;
-          }
-          nextValues[inputId] = clamped;
+        if (nextValues[inputId] === adjusted) {
+          return pose;
         }
+        nextValues[inputId] = adjusted;
         return updatePoseDefinition(pose, { values: nextValues });
       });
     },
@@ -543,7 +560,22 @@ export function usePoseRigAuthoring(
       const neutralValue = neutralBaseline[inputId] ?? input.defaultValue ?? 0;
       const currentValue =
         inputValues[inputId] ?? neutralBaseline[inputId] ?? neutralValue;
-      updatePoseValue(poseId, inputId, currentValue);
+      const max = Number.isFinite(input.range.max)
+        ? input.range.max
+        : Number.POSITIVE_INFINITY;
+      const min = Number.isFinite(input.range.min)
+        ? input.range.min
+        : Number.NEGATIVE_INFINITY;
+
+      let target = currentValue;
+      if (Math.abs(target - neutralValue) < EPSILON) {
+        if (neutralValue + ADD_INPUT_OFFSET <= max) {
+          target = neutralValue + ADD_INPUT_OFFSET;
+        } else if (neutralValue - ADD_INPUT_OFFSET >= min) {
+          target = neutralValue - ADD_INPUT_OFFSET;
+        }
+      }
+      updatePoseValue(poseId, inputId, target);
     },
     [inputValues, neutralBaseline, standardInputsById, updatePoseValue],
   );

@@ -2,8 +2,9 @@ import type { StandardRigInput } from "@vizij/utils";
 import { NeutralEditor } from "./NeutralEditor";
 import { PoseEditor } from "./PoseEditor";
 import { PoseList } from "./PoseList";
-import { PoseSummary } from "./PoseSummary";
 import type { UsePoseRigAuthoringResult } from "../usePoseRigAuthoring";
+
+const LIVE_EPSILON = 1e-6;
 
 interface PoseRigWorkbenchProps {
   state: UsePoseRigAuthoringResult;
@@ -43,13 +44,6 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
     state.updatePoseName(selectedPose.id, name);
   };
 
-  const handlePoseDescriptionChange = (description: string) => {
-    if (!selectedPose) {
-      return;
-    }
-    state.updatePoseDescription(selectedPose.id, description);
-  };
-
   const handlePoseCapture = () => {
     if (!selectedPose) {
       return;
@@ -62,13 +56,6 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
       return;
     }
     state.clearPose(selectedPose.id);
-  };
-
-  const handlePoseValueChange = (inputId: string, value: number) => {
-    if (!selectedPose) {
-      return;
-    }
-    state.updatePoseValue(selectedPose.id, inputId, value);
   };
 
   const handlePoseRemoveInput = (inputId: string) => {
@@ -85,12 +72,20 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
     state.addPoseInput(selectedPose.id, inputId);
   };
 
+  const hasLiveAdjustments =
+    !!selectedPose &&
+    Object.keys(selectedPose.values).some((inputId) => {
+      const saved = selectedPose.values[inputId] ?? neutralValues[inputId] ?? 0;
+      const live = currentValues[inputId] ?? neutralValues[inputId] ?? saved;
+      return Math.abs(saved - live) > LIVE_EPSILON;
+    });
+
   return (
     <section className="pose-rig-workbench">
       <header className="pose-rig-workbench__header">
         <div>
           <h2>Pose Rig Workbench</h2>
-          <p>Capture values, build poses, and preview graph contributions.</p>
+          <p>Overwrite values, build poses, and tweak graph contributions.</p>
         </div>
         <div className="pose-rig-workbench__actions">
           <button
@@ -98,7 +93,7 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
             className="button subtle"
             onClick={state.captureNeutral}
           >
-            Capture Neutral
+            Overwrite Neutral
           </button>
           <button type="button" className="button" onClick={state.applyNeutral}>
             Apply Neutral
@@ -106,19 +101,14 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
         </div>
       </header>
       <div className="pose-rig-workbench__body">
-        <PoseSummary
-          summary={state.poseGraphSummary}
-          library={state.poseLibrary}
-          onApplyNeutral={state.applyNeutral}
-          onApplyPose={state.applyPose}
-        />
         <PoseList
           poses={state.poses}
           selectedPoseId={state.selectedPoseId}
           isNeutralSelected={state.isNeutralSelected}
           onSelectNeutral={state.selectNeutral}
-          onSelectPose={state.selectPose}
+          onApplyPose={state.applyPose}
           onCreatePose={state.createPose}
+          onPoseNameChange={state.updatePoseName}
           onDuplicatePose={state.duplicatePose}
           onDeletePose={state.deletePose}
         />
@@ -133,13 +123,14 @@ export function PoseRigWorkbench({ state }: PoseRigWorkbenchProps) {
             pose={selectedPose}
             inputs={sortedInputs}
             neutralValues={neutralValues}
+            currentValues={currentValues}
             onRename={handlePoseRename}
-            onDescriptionChange={handlePoseDescriptionChange}
             onCapture={handlePoseCapture}
             onClear={handlePoseClear}
-            onValueChange={handlePoseValueChange}
+            onLiveValueChange={state.updateCurrentValue}
             onRemoveInput={handlePoseRemoveInput}
             onAddInput={handlePoseAddInput}
+            hasLiveAdjustments={hasLiveAdjustments}
           />
         )}
       </div>

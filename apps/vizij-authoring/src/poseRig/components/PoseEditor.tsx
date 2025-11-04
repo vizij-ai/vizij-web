@@ -1,20 +1,24 @@
 import { ChangeEvent, useId, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, StandardInputId } from "../types";
+import { FilterableSelect } from "../../components/common/FilterableSelect";
 
 interface PoseEditorProps {
   pose: PoseDefinition | null;
   neutralValues: Record<StandardInputId, number>;
+  currentValues: Record<StandardInputId, number>;
   inputs: StandardRigInput[];
   disabled?: boolean;
   onRename: (name: string) => void;
-  onDescriptionChange: (description: string) => void;
   onCapture: () => void;
   onClear: () => void;
-  onValueChange: (inputId: string, value: number) => void;
+  onLiveValueChange: (inputId: string, value: number) => void;
   onRemoveInput: (inputId: string) => void;
   onAddInput: (inputId: string) => void;
+  hasLiveAdjustments?: boolean;
 }
+
+const LIVE_EPSILON = 1e-6;
 
 function formatGroupName(group: string | null | undefined): string {
   const segments = (group ?? "")
@@ -58,17 +62,18 @@ function computeStep(input: StandardRigInput): number {
 export function PoseEditor({
   pose,
   neutralValues,
+  currentValues,
   inputs,
   disabled,
   onRename,
-  onDescriptionChange,
   onCapture,
   onClear,
-  onValueChange,
+  onLiveValueChange,
   onRemoveInput,
   onAddInput,
+  hasLiveAdjustments,
 }: PoseEditorProps) {
-  const [pendingInput, setPendingInput] = useState<string>("");
+  const [pendingInput, setPendingInput] = useState<string | null>(null);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
   const controlsId = useId();
 
@@ -82,6 +87,19 @@ export function PoseEditor({
     }
     return inputs.filter((input) => !(input.id in pose.values));
   }, [inputs, pose]);
+
+  const availableInputOptions = useMemo(() => {
+    return availableInputs.map((input) => ({
+      value: input.id,
+      label: input.label ?? input.path ?? input.id,
+      keywords: [
+        input.label ?? "",
+        input.id,
+        input.group ?? "",
+        input.path ?? "",
+      ].filter((entry) => entry.length > 0),
+    }));
+  }, [availableInputs]);
 
   const groupedEntries = useMemo(() => {
     if (!pose) {
@@ -107,7 +125,7 @@ export function PoseEditor({
   ) => {
     const next = Number.parseFloat(event.target.value);
     if (Number.isFinite(next)) {
-      onValueChange(inputId, next);
+      onLiveValueChange(inputId, next);
     }
   };
 
@@ -116,7 +134,7 @@ export function PoseEditor({
       return;
     }
     onAddInput(pendingInput);
-    setPendingInput("");
+    setPendingInput(null);
   };
 
   if (!pose) {
@@ -139,7 +157,7 @@ export function PoseEditor({
         </header>
         <div className="pose-rig-editor" id={controlsId}>
           <p className="pose-rig-empty">
-            Select a saved pose to edit captured values.
+            Select a saved pose to edit stored values.
           </p>
         </div>
       </section>
@@ -152,8 +170,8 @@ export function PoseEditor({
         <div>
           <h3 className="pose-rig-panel__title">Pose Editor</h3>
           <p className="pose-rig-panel__subtitle">
-            Capture from the live rig or tweak channels manually (tweaked values
-            are saved automatically).
+            Overwrite from the live rig or tweak channels manually (tweaked
+            values are saved automatically).
           </p>
         </div>
         <button
@@ -189,26 +207,18 @@ export function PoseEditor({
           onChange={(event) => onRename(event.target.value)}
         />
 
-        <label className="field-label" htmlFor="pose-rig-description">
-          Notes
-        </label>
-        <textarea
-          id="pose-rig-description"
-          className="textarea"
-          rows={3}
-          value={pose.description ?? ""}
-          disabled={disabled}
-          onChange={(event) => onDescriptionChange(event.target.value)}
-        />
-
         <div className="pose-rig-button-row">
           <button
             type="button"
-            className="button primary"
+            className={
+              hasLiveAdjustments
+                ? "button primary pose-rig-button--overwrite-active"
+                : "button primary"
+            }
             onClick={onCapture}
             disabled={disabled}
           >
-            Capture Current Pose
+            Overwrite Saved Pose
           </button>
           <button
             type="button"
@@ -221,19 +231,24 @@ export function PoseEditor({
         </div>
 
         <div className="pose-rig-add-input">
-          <select
-            className="select"
+          <FilterableSelect
             value={pendingInput}
+            onChange={(nextValue) => setPendingInput(nextValue)}
+            options={availableInputOptions}
+            placeholder="Select rig input…"
+            searchPlaceholder="Search inputs"
+            noResultsLabel="No matches"
             disabled={disabled}
-            onChange={(event) => setPendingInput(event.target.value)}
-          >
-            <option value="">Add rig input…</option>
-            {availableInputs.map((input) => (
-              <option key={input.id} value={input.id}>
-                {input.label}
-              </option>
-            ))}
-          </select>
+            className="pose-rig-input-select feature-tree__binding-slot-combobox"
+            triggerClassName="feature-tree__property-select"
+            menuClassName="feature-tree__binding-slot-menu"
+            listClassName="feature-tree__binding-slot-option-list"
+            filterInputClassName="feature-panel__input-text feature-tree__binding-slot-filter"
+            optionClassName="feature-tree__binding-slot-option"
+            optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
+            emptyClassName="feature-tree__binding-slot-option feature-tree__binding-slot-option--empty"
+            dataOptionAttribute="data-option"
+          />
           <button
             type="button"
             className="button"
@@ -244,9 +259,16 @@ export function PoseEditor({
           </button>
         </div>
 
+        {hasLiveAdjustments && (
+          <p className="pose-rig-live-hint">
+            Live slider tweaks are applied immediately but not saved. Overwrite
+            the pose to persist them.
+          </p>
+        )}
+
         {groupedEntries.size === 0 ? (
           <p className="pose-rig-empty">
-            No overrides captured yet. Capture from the current pose or add
+            No overrides saved yet. Overwrite from the current pose or add
             inputs manually.
           </p>
         ) : (
@@ -261,8 +283,18 @@ export function PoseEditor({
                   const step = computeStep(input);
                   const neutral =
                     neutralValues[input.id] ?? input.defaultValue ?? 0;
+                  const saved = value ?? neutral;
+                  const liveValue = currentValues[input.id] ?? saved ?? neutral;
+                  const isDirty = Math.abs(liveValue - saved) > LIVE_EPSILON;
                   return (
-                    <li key={input.id} className="pose-rig-input-row">
+                    <li
+                      key={input.id}
+                      className={
+                        isDirty
+                          ? "pose-rig-input-row pose-rig-input-row--dirty"
+                          : "pose-rig-input-row"
+                      }
+                    >
                       <div className="pose-rig-input-meta">
                         <span className="pose-rig-input-label">
                           {input.label}
@@ -277,7 +309,7 @@ export function PoseEditor({
                           min={range.min}
                           max={range.max}
                           step={step}
-                          value={value}
+                          value={liveValue}
                           disabled={disabled}
                           onChange={(event) =>
                             handleValueChange(event, input.id)
@@ -287,7 +319,7 @@ export function PoseEditor({
                           type="number"
                           className="input numeric"
                           step={step}
-                          value={value}
+                          value={liveValue}
                           disabled={disabled}
                           onChange={(event) =>
                             handleValueChange(event, input.id)
