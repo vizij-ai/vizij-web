@@ -1,5 +1,11 @@
 # @vizij/runtime-react
 
+## 0.0.7
+
+### Patch Changes
+
+- 3a19af3: Update dependencies
+
 ## 0.0.6
 
 ### Patch Changes
