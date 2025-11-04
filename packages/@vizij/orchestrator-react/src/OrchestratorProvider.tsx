@@ -94,12 +94,12 @@ export function OrchestratorProvider({
   autostart = false,
 }: OrchestratorProviderProps): JSX.Element {
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const initPromiseRef = useRef<Promise<void> | null>(null);
   const orchestratorRef = useRef<OrchestratorRuntime | null>(null);

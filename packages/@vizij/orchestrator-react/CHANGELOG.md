@@ -1,5 +1,11 @@
 # @vizij/orchestrator-react
 
+## 0.0.4
+
+### Patch Changes
+
+- Fixed StrictMode mount tracking so React 18 dev builds (Next.js) no longer leave the provider stuck in “initializing”; README now calls out bundler requirements.
+
 ## 0.0.2
 
 ### Patch Changes

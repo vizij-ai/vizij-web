@@ -118,6 +118,32 @@ export function App() {
 
 ---
 
+## React 18 & Next.js Notes
+
+- `OrchestratorProvider` now resets its internal mount flag on every effect pass, so React 18 Strict Mode (including Next.js dev builds) no longer leaves the provider stuck in “not ready”. If you previously worked around this by disabling Strict Mode, you can remove that patch.
+- When you consume `@vizij/orchestrator-wasm` (and other Vizij wasm packages) in Webpack/Next.js, enable async WebAssembly and treat `.wasm` files as emitted assets:
+
+```js
+// next.config.js
+module.exports = {
+  webpack: (config) => {
+    config.experiments = {
+      ...(config.experiments ?? {}),
+      asyncWebAssembly: true,
+    };
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+    });
+    return config;
+  },
+};
+```
+
+If you override `init()` with a custom wasm location, prefer string URLs (`init("https://cdn.example.com/vizij_orchestrator_wasm_bg.wasm")`) so Webpack doesn’t wrap them in `RelativeURL`.
+
+---
+
 ## Core Concepts
 
 ### Provider Props

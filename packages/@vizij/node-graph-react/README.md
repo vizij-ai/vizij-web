@@ -45,6 +45,27 @@ yarn add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
 
 When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../README.md#local-wasm-development) for details.
 
+> **Bundler note:** The underlying `@vizij/node-graph-wasm` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
+>
+> ```js
+> // next.config.js
+> module.exports = {
+>   webpack: (config) => {
+>     config.experiments = {
+>       ...(config.experiments ?? {}),
+>       asyncWebAssembly: true,
+>     };
+>     config.module.rules.push({
+>       test: /\.wasm$/,
+>       type: "asset/resource",
+>     });
+>     return config;
+>   },
+> };
+> ```
+>
+> Passing a string URL to `@vizij/node-graph-wasm`’s `init()` keeps Webpack’s URL wrapper from interfering.
+
 ---
 
 ## Peer Dependencies

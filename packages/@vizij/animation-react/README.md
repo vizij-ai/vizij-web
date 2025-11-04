@@ -46,6 +46,27 @@ yarn add @vizij/animation-react @vizij/animation-wasm react react-dom
 
 During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation-wasm` from pre-bundling (see the [`vizij-web` README](../../README.md#local-wasm-development) for a Vite example).
 
+> **Bundler note:** `@vizij/animation-react` depends on `@vizij/animation-wasm`, which emits a `.wasm` artefact. Enable async WebAssembly and treat `.wasm` files as emitted assets in your bundler. For Next.js:
+>
+> ```js
+> // next.config.js
+> module.exports = {
+>   webpack: (config) => {
+>     config.experiments = {
+>       ...(config.experiments ?? {}),
+>       asyncWebAssembly: true,
+>     };
+>     config.module.rules.push({
+>       test: /\.wasm$/,
+>       type: "asset/resource",
+>     });
+>     return config;
+>   },
+> };
+> ```
+>
+> When overriding the wasm location, call `init("https://.../vizij_animation_wasm_bg.wasm")` with a string URL so Webpack does not wrap it in `RelativeURL`.
+
 ---
 
 ## Peer Dependencies

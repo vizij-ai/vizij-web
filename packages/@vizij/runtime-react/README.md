@@ -12,6 +12,27 @@ pnpm add @vizij/runtime-react @vizij/render @vizij/orchestrator-react react reac
 
 Those three Vizij packages must stay in lock-step; always upgrade them together.
 
+> **Bundler configuration:** The runtime depends on `@vizij/orchestrator-wasm`, `@vizij/node-graph-wasm`, and `@vizij/animation-wasm`, all of which emit `.wasm` assets. Enable async WebAssembly and treat `.wasm` files as emitted resources in your bundler. For Next.js:
+>
+> ```js
+> // next.config.js
+> module.exports = {
+>   webpack: (config) => {
+>     config.experiments = {
+>       ...(config.experiments ?? {}),
+>       asyncWebAssembly: true,
+>     };
+>     config.module.rules.push({
+>       test: /\.wasm$/,
+>       type: "asset/resource",
+>     });
+>     return config;
+>   },
+> };
+> ```
+
+When overriding the default wasm location, pass string URLs to the underlying `init()` helpers so Webpack doesn’t wrap them in `RelativeURL`.
+
 ## Getting Started
 
 ```tsx

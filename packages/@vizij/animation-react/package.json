@@ -1,6 +1,6 @@
 {
   "name": "@vizij/animation-react",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -37,7 +37,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/animation-wasm": "^0.3.1",
+    "@vizij/animation-wasm": "^0.3.3",
     "@vizij/value-json": "^0.1.0"
   },
   "peerDependencies": {
