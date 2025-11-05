@@ -1,5 +1,11 @@
 # @vizij/node-graph-react
 
+## 0.0.5
+
+### Patch Changes
+
+- Adopt the browser-safe wasm bundles published from vizij-rs and fix the orchestrator StrictMode readiness guard so React 18 apps initialise without pending state.
+
 ## 0.0.4
 
 ### Patch Changes

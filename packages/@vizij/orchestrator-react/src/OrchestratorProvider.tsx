@@ -93,8 +93,9 @@ export function OrchestratorProvider({
   createOptions,
   autostart = false,
 }: OrchestratorProviderProps): JSX.Element {
-  const mountedRef = useRef(true);
+  const mountedRef = useRef(false);
   useEffect(() => {
+    // React StrictMode double-mounts components in dev; ensure we reset to true on every mount.
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;

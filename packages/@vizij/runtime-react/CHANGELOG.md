@@ -1,5 +1,13 @@
 # @vizij/runtime-react
 
+## 0.0.8
+
+### Patch Changes
+
+- Adopt the browser-safe wasm bundles published from vizij-rs and fix the orchestrator StrictMode readiness guard so React 18 apps initialise without pending state.
+- Updated dependencies
+  - @vizij/orchestrator-react@0.0.5
+
 ## 0.0.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@vizij/node-graph-react",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -37,7 +37,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/node-graph-wasm": "^0.4.4",
+    "@vizij/node-graph-wasm": "^0.4.5",
     "@vizij/value-json": "^0.1.0"
   },
   "peerDependencies": {
