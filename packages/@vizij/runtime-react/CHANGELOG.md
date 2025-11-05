@@ -1,5 +1,11 @@
 # @vizij/runtime-react
 
+## 0.0.10
+
+### Patch Changes
+
+- Bump orchestrator dependency
+
 ## 0.0.9
 
 ### Patch Changes
