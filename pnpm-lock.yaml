@@ -574,7 +574,7 @@ importers:
   packages/@vizij/render:
     dependencies:
       '@vizij/utils':
-        specifier: workspace:^
+        specifier: ^0.0.2
         version: 0.0.2
       clsx:
         specifier: ^2.1.1
