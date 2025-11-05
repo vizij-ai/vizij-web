@@ -7,7 +7,12 @@ import {
   useEffect,
 } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import { Object3D, OrthographicCamera as OrthographicCameraType } from "three";
+import {
+  Object3D,
+  OrthographicCamera as OrthographicCameraType,
+  SRGBColorSpace,
+  NoToneMapping,
+} from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -62,6 +67,11 @@ export function Vizij({
         style={style}
         className={className}
         onPointerMissed={onPointerMissed}
+        gl={{
+          outputColorSpace: SRGBColorSpace,
+          toneMapping: NoToneMapping,
+          antialias: true,
+        }}
       >
         <MemoizedInnerVizij
           rootId={rootId}
@@ -77,6 +87,11 @@ export function Vizij({
           style={style}
           className={className}
           onPointerMissed={onPointerMissed}
+          gl={{
+            outputColorSpace: SRGBColorSpace,
+            toneMapping: NoToneMapping,
+            antialias: true,
+          }}
         >
           <MemoizedInnerVizij
             rootId={rootId}
