@@ -1,5 +1,11 @@
 # @vizij/runtime-react
 
+## 0.0.11
+
+### Patch Changes
+
+- Hard code render and utils
+
 ## 0.0.10
 
 ### Patch Changes
