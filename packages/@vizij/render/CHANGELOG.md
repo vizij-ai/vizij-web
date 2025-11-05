@@ -1,5 +1,11 @@
 # @vizij/render
 
+## 0.0.5
+
+### Patch Changes
+
+- a9b5118: Patch color display in canvas
+
 ## 0.0.4
 
 ### Patch Changes
