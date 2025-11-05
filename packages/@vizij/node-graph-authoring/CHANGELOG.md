@@ -1,5 +1,11 @@
 # @vizij/node-graph-authoring
 
+## 0.0.4
+
+### Patch Changes
+
+- 3c8e659: Align React wrappers with the latest wasm releases and adjust tests to load the browser-safe wasm bytes directly so CI runs without fetch failures.
+
 ## 0.0.3
 
 ### Patch Changes

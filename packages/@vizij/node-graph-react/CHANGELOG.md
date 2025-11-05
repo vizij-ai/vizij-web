@@ -1,5 +1,11 @@
 # @vizij/node-graph-react
 
+## 0.0.6
+
+### Patch Changes
+
+- 3c8e659: Align React wrappers with the latest wasm releases and adjust tests to load the browser-safe wasm bytes directly so CI runs without fetch failures.
+
 ## 0.0.5
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @vizij/runtime-react
 
+## 0.0.9
+
+### Patch Changes
+
+- 3c8e659: Align React wrappers with the latest wasm releases and adjust tests to load the browser-safe wasm bytes directly so CI runs without fetch failures.
+- Updated dependencies [3c8e659]
+  - @vizij/orchestrator-react@0.0.6
+
 ## 0.0.8
 
 ### Patch Changes
