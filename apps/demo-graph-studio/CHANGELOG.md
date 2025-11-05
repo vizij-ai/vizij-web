@@ -1,5 +1,12 @@
 # vizij-node-graph-editor
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [3c8e659]
+  - @vizij/node-graph-react@0.0.6
+
 ## 0.0.3
 
 ### Patch Changes

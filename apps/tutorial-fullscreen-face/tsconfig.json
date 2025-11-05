@@ -11,7 +11,9 @@
     "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
-      "@vizij/runtime-react": ["../../packages/@vizij/runtime-react/src/index.ts"]
+      "@vizij/runtime-react": [
+        "../../packages/@vizij/runtime-react/src/index.ts"
+      ]
     }
   }
 }

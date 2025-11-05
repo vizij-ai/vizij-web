@@ -10,7 +10,7 @@ import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 
 import "./styles.css";
 
-const faceAssetUrl = "/assets/Dooley_Hugo.glb"
+const faceAssetUrl = "/assets/Dooley_Hugo.glb";
 
 const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",

@@ -7,6 +7,7 @@ the recent naming improvements.
 ## Core Entities
 
 ### Renderable Objects (Shapes / Groups)
+
 - Defined by `@vizij/render` in the scene graph (`world` store in
   `useRigController`).
 - Carry a mutable `name`, `id`, `type`, and a set of feature slots
@@ -14,6 +15,7 @@ the recent naming improvements.
 - Users primarily interact with them through the “Animatable Mapping” tree.
 
 ### Animatable Values
+
 - Each animated feature on a renderable is an `AnimatableValue`
   (`packages/@vizij/utils`).
 - Extraction is done by `extractAnimatableComponents`, which flattens complex
@@ -25,6 +27,7 @@ the recent naming improvements.
   - `pub.output`: optional display label (also author-editable).
 
 ### Authoring Controls (Standard Inputs)
+
 - Represented by `StandardRigInput` descriptors.
 - Come from two sources:
   1. Preset “standard” inputs (`STANDARD_RIG_INPUTS`) shipped with the tooling.
@@ -75,6 +78,7 @@ the recent naming improvements.
 ## Naming Behaviour
 
 ### Renderable Renames
+
 - Triggered from the Animatable Mapping tree (inline input on the shape row).
 - `handleRenameShape` updates the renderable in the store and normalises the
   slug using `normalizeStandardRigGroup`.
@@ -91,6 +95,7 @@ the recent naming improvements.
     the new slug to keep the UI state consistent.
 
 ### Animatable Metadata Renames
+
 - Edits to the “Name” or “Display Label” fields in the metadata panel mutate
   `AnimatableValue.name`/`pub.output` via `updateAnimatableDescriptor`.
 - These values influence display labels and the generated default names for
@@ -98,6 +103,7 @@ the recent naming improvements.
   stable.
 
 ### Control Path Changes
+
 - Manual path edits in the Standard Inputs section call
   `handleUpdateStandardInput`.
   - Custom inputs: path is normalised, uniqueness-checked, and new group slug

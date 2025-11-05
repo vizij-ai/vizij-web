@@ -50,6 +50,7 @@ export const fullscreenFaceBundle: VizijAssetBundle = {
 ```
 
 ### Why the filter?
+
 Neutral configs often set every colour channel to `0`. Returning `false` for paths containing `/color/` prevents neutral staging from overwriting the GLB’s baked colours. The runtime fills in the rig + pose data from the embedded bundle automatically.
 
 ---
@@ -211,7 +212,13 @@ import {
   type PoseDefinition,
 } from "@vizij/runtime-react";
 
-export const POSE_HOTKEY_ORDER = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"] as const;
+export const POSE_HOTKEY_ORDER = [
+  "Digit1",
+  "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+] as const;
 
 const toPathSegment = (pose: PoseDefinition) =>
   (pose.name ?? pose.id ?? "")
@@ -220,10 +227,7 @@ const toPathSegment = (pose: PoseDefinition) =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-export function usePoseHotkeys(
-  config: PoseRigConfig | null,
-  enabled: boolean,
-) {
+export function usePoseHotkeys(config: PoseRigConfig | null, enabled: boolean) {
   const { setInput, faceId } = useVizijRuntime();
   const resolvedFaceId = (faceId ?? "face").toLowerCase();
 
@@ -276,16 +280,16 @@ export function usePoseHotkeys(
 
 `useVizijRuntime()` returns everything you need to drive the face:
 
-| Helper | Purpose |
-| --- | --- |
-| `ready / loading / error` | Lifecycle flags for UI states |
-| `namespace`, `faceId`, `rootId` | Useful when wiring custom logic |
-| `setInput(path, value)` | Stage values directly into the orchestrator |
-| `animateValue(path, target, options?)` | Tween input values over time |
-| `playAnimation(id, options?)` / `stopAnimation(id)` | Trigger registered animation clips |
-| `stagePoseNeutral(force?)` | Stage (filtered) neutral inputs on demand |
-| `useVizijOutputs(paths)` | Subscribe to renderer values (e.g., debug overlays) |
-| `useRigInput(path)` | Read/write a single channel as `[value, setValue]` |
+| Helper                                              | Purpose                                             |
+| --------------------------------------------------- | --------------------------------------------------- |
+| `ready / loading / error`                           | Lifecycle flags for UI states                       |
+| `namespace`, `faceId`, `rootId`                     | Useful when wiring custom logic                     |
+| `setInput(path, value)`                             | Stage values directly into the orchestrator         |
+| `animateValue(path, target, options?)`              | Tween input values over time                        |
+| `playAnimation(id, options?)` / `stopAnimation(id)` | Trigger registered animation clips                  |
+| `stagePoseNeutral(force?)`                          | Stage (filtered) neutral inputs on demand           |
+| `useVizijOutputs(paths)`                            | Subscribe to renderer values (e.g., debug overlays) |
+| `useRigInput(path)`                                 | Read/write a single channel as `[value, setValue]`  |
 
 Because the provider already registers rig + pose graphs and mirrors orchestrator writes into the renderer, you typically only need a few of these helpers to build rich interactions.
 

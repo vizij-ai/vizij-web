@@ -18,7 +18,11 @@ body,
   align-items: center;
   justify-content: center;
   color: #e2e8f0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 .canvas-wrapper {
@@ -135,7 +139,9 @@ body,
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(2, 6, 23, 0.4);
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .runtime-controls button:hover:not(:disabled) {

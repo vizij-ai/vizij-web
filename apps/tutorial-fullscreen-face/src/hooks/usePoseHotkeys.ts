@@ -58,7 +58,7 @@ export function usePoseHotkeys(
     const applyWeight = (pose: PoseDefinition, weight: number) => {
       const segment = toPathSegment(pose);
       const path = `rig/${faceId}/poses/${segment}.weight`;
-      animateValue(path, { float: weight }, {duration: 2});
+      animateValue(path, { float: weight }, { duration: 2 });
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
