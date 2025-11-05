@@ -8,7 +8,9 @@ import {
   useGraphRuntime,
   samples,
   valueAsNumber,
+  init as initNodeGraphWasm,
 } from "../index";
+import { getNodeGraphWasmInitInput } from "./helpers";
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -28,6 +30,7 @@ function createDeferred<T>(): Deferred<T> {
 
 describe("@vizij/node-graph-react samples", () => {
   it("evaluates the simple gain/offset graph sample", async () => {
+    await initNodeGraphWasm(getNodeGraphWasmInitInput());
     const spec = await samples.load("simple-gain-offset");
     const deferred = createDeferred<number[]>();
 
@@ -79,7 +82,11 @@ describe("@vizij/node-graph-react samples", () => {
     };
 
     render(
-      <GraphProvider spec={spec} autoStart={false}>
+      <GraphProvider
+        spec={spec}
+        autoStart={false}
+        wasmInitInput={getNodeGraphWasmInitInput()}
+      >
         <Harness />
       </GraphProvider>,
     );

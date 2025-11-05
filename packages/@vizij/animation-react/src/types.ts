@@ -13,6 +13,7 @@ import type {
   BakedAnimationData,
   BakedAnimationBundle,
   Value as WasmValue,
+  InitInput,
 } from "@vizij/animation-wasm";
 
 export type Value = WasmValue;
@@ -47,6 +48,8 @@ export type AnimationProviderProps = {
   engineConfig?: Config;
   /** Optional callback to receive raw Outputs each update (includes events and derivatives). */
   onOutputs?: (out: OutputsWithDerivatives) => void;
+  /** Optional init input passed to @vizij/animation-wasm.init for tests and SSR. */
+  wasmInitInput?: InitInput;
 };
 
 export type AnimationContextValue = {

@@ -441,8 +441,8 @@ importers:
   packages/@vizij/animation-react:
     dependencies:
       '@vizij/animation-wasm':
-        specifier: ^0.3.4
-        version: 0.3.4
+        specifier: ^0.3.5
+        version: 0.3.5
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -478,8 +478,8 @@ importers:
   packages/@vizij/node-graph-authoring:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@vizij/utils':
         specifier: ^0.0.2
         version: 0.0.2
@@ -500,8 +500,8 @@ importers:
   packages/@vizij/node-graph-react:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -537,8 +537,8 @@ importers:
   packages/@vizij/orchestrator-react:
     dependencies:
       '@vizij/orchestrator-wasm':
-        specifier: ^0.2.6
-        version: 0.2.6
+        specifier: ^0.2.7
+        version: 0.2.7
       '@vizij/value-json':
         specifier: ^0.1.0
         version: 0.1.0
@@ -1742,8 +1742,8 @@ packages:
   '@vizij/animation-wasm@0.3.1':
     resolution: {integrity: sha512-27rFBkRbo6aZrD3QdrN27c2Dvvo8WQX0IiQ++YjFqaxPI+Tbyvm87KmT3IKyWxZ6I1YqiMoZBG6e2YoxdagxWQ==}
 
-  '@vizij/animation-wasm@0.3.4':
-    resolution: {integrity: sha512-XJGSV+bWQPrvdglruIdJnpPxoAtGY1jP8U64A5OyOpgzKwQBihzTaxq04PbJorUa697bWOcXvOPy4VK/qRlygA==}
+  '@vizij/animation-wasm@0.3.5':
+    resolution: {integrity: sha512-fWV6w7bKUToEmTGAuiQ5dW9uMG6gMLHf/pWbH7FVUGDt6GADQi9wc5gRao2KHwYL6YnN6o/VSdZqYsdcFiEynA==}
 
   '@vizij/node-graph-wasm@0.4.1':
     resolution: {integrity: sha512-UO+r/ryzqVu37QloJgRyJnMv/HBOKYD/u1WleUtMLJ/bPMs7MXBy/TKyFuQ0aq7rb6y6NECyULw7xV5ZEQjKYA==}
@@ -1751,8 +1751,8 @@ packages:
   '@vizij/node-graph-wasm@0.4.2':
     resolution: {integrity: sha512-XBupS9LGuTpZvqvGbCj5v5tgT1lAdYqeYItLFYIb85/2Voz6fMA8AM17d2JtRsBsnrsmnf3QGvd80cKhj3QGuQ==}
 
-  '@vizij/node-graph-wasm@0.4.5':
-    resolution: {integrity: sha512-hCqgyySW/PKq2s195eYVqKscsFeVrjOyFuqKnPBRdc7jUcKaibj4w6o9IOxc/26AH8EhJLVQTuIuBrOEEHIpcA==}
+  '@vizij/node-graph-wasm@0.4.6':
+    resolution: {integrity: sha512-lP7i8ABCV1fkW84EUOmy7vVv/+ioP+HA5HvVfSHVNRSFt4ftv/Ep1RHXOxCwiQhbdNxFSMVDWEBknnCmNa6PhQ==}
 
   '@vizij/orchestrator-react@0.0.2':
     resolution: {integrity: sha512-USetUnSobS66fMb6lAnBu5ujD0Sb7cPWbb17hZyyvUKZdbFwdlriSm7iopC0EmSZ0wF1THckEw36GneYq07ngQ==}
@@ -1760,8 +1760,8 @@ packages:
       react: '>=18'
       react-dom: '>=18'
 
-  '@vizij/orchestrator-wasm@0.2.6':
-    resolution: {integrity: sha512-8a0c1IturwfdXXVt19frBAwhRZsJf5TEnIKT/SpXxHHsMSE6X+gQm2ezjQtQiObt2SjuClTtcYzCdu461Fo/kA==}
+  '@vizij/orchestrator-wasm@0.2.7':
+    resolution: {integrity: sha512-KF+MnKIkQTgbENiebsCtljVV9o5QFwTMmXJpqpH7fMn7Ib1eYAmId15GEmMNmigvwxu334/fuIpWj6C/wTMUuQ==}
 
   '@vizij/render@0.0.4':
     resolution: {integrity: sha512-YkcCq/s2VAtj2wzNuHqM/pnKaG8q8ud+QwIgaodlnA96bI5P64Yf/FUVshykCtjkVeIQPl56q3HR29lIp+xW7Q==}
@@ -5201,7 +5201,7 @@ snapshots:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
-  '@vizij/animation-wasm@0.3.4':
+  '@vizij/animation-wasm@0.3.5':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.2
@@ -5216,19 +5216,19 @@ snapshots:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.0
 
-  '@vizij/node-graph-wasm@0.4.5':
+  '@vizij/node-graph-wasm@0.4.6':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.2
 
   '@vizij/orchestrator-react@0.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@vizij/orchestrator-wasm': 0.2.6
+      '@vizij/orchestrator-wasm': 0.2.7
       '@vizij/value-json': 0.1.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@vizij/orchestrator-wasm@0.2.6':
+  '@vizij/orchestrator-wasm@0.2.7':
     dependencies:
       '@vizij/value-json': 0.1.0
       '@vizij/wasm-loader': 0.1.2

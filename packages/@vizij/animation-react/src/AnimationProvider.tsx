@@ -47,6 +47,7 @@ export function AnimationProvider({
   updateHz,
   engineConfig,
   onOutputs,
+  wasmInitInput,
 }: AnimationProviderProps) {
   const engineRef = useRef<Engine | null>(null);
   const storeRef = useRef(createAnimationStore());
@@ -194,7 +195,7 @@ export function AnimationProvider({
 
     (async () => {
       try {
-        await init();
+        await init(wasmInitInput);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("Failed to init @vizij/animation-wasm", err);

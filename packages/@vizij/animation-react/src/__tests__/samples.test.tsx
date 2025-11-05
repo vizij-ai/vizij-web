@@ -9,6 +9,8 @@ import {
   valueAsNumber,
   samples,
 } from "../index";
+import { init as initAnimationWasm } from "@vizij/animation-wasm";
+import { getAnimationWasmInitInput } from "./helpers";
 
 const originalWarn = console.warn;
 const originalError = console.error;
@@ -103,6 +105,7 @@ Recorder.displayName = "Recorder";
 
 describe("@vizij/animation-react samples", () => {
   it("plays the simple scalar ramp sample animation", async () => {
+    await initAnimationWasm(getAnimationWasmInitInput());
     const animation = await samples.load("simple-scalar-ramp");
     const recorderRef = React.createRef<RecorderHandle>();
 
@@ -111,6 +114,7 @@ describe("@vizij/animation-react samples", () => {
         animations={animation}
         autostart={false}
         prebind={(path) => path}
+        wasmInitInput={getAnimationWasmInitInput()}
       >
         <Recorder ref={recorderRef} />
       </AnimationProvider>,

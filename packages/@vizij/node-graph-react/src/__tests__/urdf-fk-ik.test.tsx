@@ -181,19 +181,13 @@ describe("URDF FK/IK integration", () => {
     });
 
     const candidatePaths = [
-      resolvePath(
-        process.cwd(),
-        "node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-      ),
-      resolvePath(
-        process.cwd(),
-        "../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-      ),
-      resolvePath(
-        process.cwd(),
-        "../../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-      ),
-    ];
+      "node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      "../node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      "../../node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "../../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+    ].map((entry) => resolvePath(process.cwd(), entry));
 
     let wasmBytes: Buffer | null = null;
     for (const candidate of candidatePaths) {
