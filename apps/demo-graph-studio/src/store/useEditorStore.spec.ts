@@ -1,29 +1,14 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { loadNodeGraphSpec } from "@vizij/node-graph-wasm";
 import { useEditorStore } from "./useEditorStore";
 
-let WEIGHTED_BLEND_FIXTURE: unknown = null;
-try {
-  WEIGHTED_BLEND_FIXTURE = JSON.parse(
-    readFileSync(
-      join(
-        __dirname,
-        "../../../../..",
-        "vizij-rs",
-        "fixtures",
-        "node_graphs",
-        "weighted-blend-graph.json",
-      ),
-      "utf8",
-    ),
-  );
-} catch {
-  // TODO: point these tests at repo-local fixtures so CI can re-enable them.
-}
+let WEIGHTED_BLEND_FIXTURE: unknown;
 
-// TODO: re-enable after fixture path works in CI.
-describe.skip("useEditorStore variadic canonicalisation", () => {
+beforeAll(async () => {
+  WEIGHTED_BLEND_FIXTURE = await loadNodeGraphSpec("weighted-average");
+});
+
+describe("useEditorStore variadic canonicalisation", () => {
   beforeEach(() => {
     const api = useEditorStore.getState();
     api.reset();
