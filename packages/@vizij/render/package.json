@@ -1,7 +1,7 @@
 {
   "name": "@vizij/render",
   "description": "Higher-level visualization and interaction components for robot and ai faces.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -39,7 +39,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run size"
   },
   "dependencies": {
-    "@vizij/utils": "workspace:^",
+    "@vizij/utils": "^0.0.2",
     "clsx": "^2.1.1",
     "deep-equal": "^2.2.3",
     "immer": "^10.0.3",

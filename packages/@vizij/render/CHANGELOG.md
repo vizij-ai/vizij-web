@@ -1,5 +1,11 @@
 # @vizij/render
 
+## 0.0.6
+
+### Patch Changes
+
+- Fix workspace dep bug
+
 ## 0.0.5
 
 ### Patch Changes
