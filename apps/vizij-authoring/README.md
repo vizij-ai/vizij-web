@@ -14,6 +14,13 @@ a GLB.
 - **Curate labels** – Rename features inline, reset to the original asset label with a click, and see overrides at-a-glance.
 - **Refine slots** – Add additional slot inputs, rename their aliases, and manage per-slot remaps without leaving the feature inspector.
 - **Vector-ready bindings** – Slots now retain whether they represent scalar or vector values, paving the way for richer vector editing workflows and more accurate export summaries.
+- **Auto-generated drivers** – Every animatable feature automatically receives a standard input. Drivers can be disabled (bindings drop away but metadata is preserved), filtered by root/subgroup, and re-enabled without rebuilding the rig. Exports now embed `source`/`root` metadata so imports restore the exact driver hierarchy.
+
+### Driver authoring tips
+
+- Toggle drivers via the `Enable/Disable` pill in the Drivers panel; disabled entries are greyed out and can be surfaced with the `Show disabled` toolbar control.
+- Parent/child mappings are frozen while a driver is disabled; re-enable to edit the mapping or restore cached parent bindings.
+- Graph exports (`GLB + graph`) include the enriched metadata, so round-tripping through `File → Import graph` keeps auto/custom drivers aligned with their source renderables.
 
 ## Scripts
 

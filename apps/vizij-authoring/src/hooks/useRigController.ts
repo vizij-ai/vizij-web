@@ -211,6 +211,7 @@ export interface ManagedStandardInput {
   input: StandardRigInput;
   source: ManagedStandardInputSource;
   metadata?: AutoRigInputBlueprintMetadata;
+  disabled: boolean;
 }
 
 type StandardInputId = StandardRigInput["id"];
@@ -330,6 +331,8 @@ export interface RigController {
     inputId: string,
     updates: { path?: string; label?: string },
   ) => void;
+  handleDisableStandardInput: (inputId: string) => void;
+  handleEnableStandardInput: (inputId: string) => void;
   handleDeleteCustomStandardInput: (inputId: string) => void;
   handleAddBindingSlot: (targetId: string) => void;
   handleRemoveBindingSlot: (targetId: string, slotId: string) => void;
@@ -438,6 +441,9 @@ export function useRigController({
   >([]);
   const [selectedStandardInputSubgroups, setSelectedStandardInputSubgroups] =
     useState<string[]>([]);
+  const [disabledStandardInputIds, setDisabledStandardInputIds] = useState<
+    string[]
+  >([]);
   const viewerSelectionActiveRef = useRef(false);
   const [inputValues, setInputValues] = useState<StandardInputValues>({});
   const [bindings, setBindings] = useState<BindingMap>(() =>
@@ -462,8 +468,12 @@ export function useRigController({
     string,
     RigBindingDefinition
   > | null>(null);
+  const disabledInputBindingCacheRef = useRef<
+    Map<string, RigBindingDefinition>
+  >(new Map());
   const inputBindingsRef = useRef<InputBindingMap>(inputBindings);
   const allStandardInputsRef = useRef<Map<string, StandardRigInput>>(new Map());
+  const disabledStandardInputIdsRef = useRef<Set<string>>(new Set());
 
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
@@ -505,6 +515,10 @@ export function useRigController({
   useEffect(() => {
     inputBindingsRef.current = inputBindings;
   }, [inputBindings]);
+
+  useEffect(() => {
+    disabledStandardInputIdsRef.current = new Set(disabledStandardInputIds);
+  }, [disabledStandardInputIds]);
 
   const rebuildAutoInputs = useCallback(() => {
     setAutoInputs((previous) => {
@@ -879,6 +893,19 @@ export function useRigController({
       });
       allStandardInputsRef.current = updatedInputs;
 
+      if (idRemap.size > 0) {
+        setDisabledStandardInputIds((previous) =>
+          previous.map((inputId) => idRemap.get(inputId) ?? inputId),
+        );
+        idRemap.forEach((newId, oldId) => {
+          const cached = disabledInputBindingCacheRef.current.get(oldId);
+          if (cached) {
+            disabledInputBindingCacheRef.current.delete(oldId);
+            disabledInputBindingCacheRef.current.set(newId, cached);
+          }
+        });
+      }
+
       setInputValues((previous) => {
         if (idRemap.size === 0) {
           return previous;
@@ -1098,6 +1125,7 @@ export function useRigController({
       setAutoInputs,
       setBindings,
       setCustomInputs,
+      setDisabledStandardInputIds,
       setInputBindings,
       setInputValues,
       setSelectedStandardInputRoots,
@@ -1134,6 +1162,11 @@ export function useRigController({
     });
     return result;
   }, [inputBindings]);
+
+  const disabledInputSet = useMemo(
+    () => new Set(disabledStandardInputIds),
+    [disabledStandardInputIds],
+  );
 
   const managedStandardInputs = useMemo<ManagedStandardInput[]>(() => {
     const entries: ManagedStandardInput[] = [];
@@ -1182,6 +1215,7 @@ export function useRigController({
         input: enhanceInput(entry.input),
         source: "auto",
         metadata: entry.metadata,
+        disabled: disabledInputSet.has(entry.input.id),
       });
     });
 
@@ -1197,6 +1231,7 @@ export function useRigController({
         input: enhanceInput(entry.input),
         source: "auto",
         metadata: entry.metadata,
+        disabled: disabledInputSet.has(entry.input.id),
       });
     });
 
@@ -1204,6 +1239,7 @@ export function useRigController({
       entries.push({
         input: enhanceInput(input),
         source: "custom",
+        disabled: disabledInputSet.has(input.id),
       });
     });
 
@@ -1214,6 +1250,7 @@ export function useRigController({
     customInputs,
     inputBindings,
     derivedChildrenMap,
+    disabledInputSet,
   ]);
 
   const standardInputRoots = useMemo(() => {
@@ -1381,6 +1418,24 @@ export function useRigController({
     [standardInputs],
   );
 
+  const standardInputMetadataById = useMemo(() => {
+    const entries = new Map<
+      string,
+      { source?: "auto" | "custom" | "preset"; root?: string }
+    >();
+    managedStandardInputs.forEach((entry) => {
+      const isPreset = entry.metadata?.elementType === "standard";
+      const source: "auto" | "custom" | "preset" | undefined = isPreset
+        ? "preset"
+        : entry.source;
+      entries.set(entry.input.id, {
+        source,
+        root: entry.metadata?.root ?? entry.input.group,
+      });
+    });
+    return entries;
+  }, [managedStandardInputs]);
+
   const standardInputsByPath = useMemo(
     () =>
       new Map<string, StandardRigInput>(
@@ -1433,6 +1488,7 @@ export function useRigController({
       bindings,
       inputsById: standardInputsById,
       inputBindings,
+      inputMetadata: standardInputMetadataById,
     });
   }, [
     animatableComponents,
@@ -1441,6 +1497,7 @@ export function useRigController({
     inputBindings,
     faceId,
     standardInputsById,
+    standardInputMetadataById,
   ]);
 
   const graphSpecSignature = useMemo(() => {
@@ -2357,26 +2414,8 @@ export function useRigController({
     [],
   );
 
-  const handleDeleteCustomStandardInput = useCallback(
+  const removeInputFromAnimatableBindings = useCallback(
     (inputId: string) => {
-      const isAuto = Array.from(autoInputsRef.current.values()).some(
-        (entry) => entry.input.id === inputId,
-      );
-      if (isAuto) {
-        return;
-      }
-      const snapshot = new Map(standardInputsByIdRef.current.entries());
-      setCustomInputs((previous) =>
-        previous.filter((input) => input.id !== inputId),
-      );
-      setInputValues((previous) => {
-        if (!Object.prototype.hasOwnProperty.call(previous, inputId)) {
-          return previous;
-        }
-        const next = { ...previous };
-        delete next[inputId];
-        return next;
-      });
       setBindings((previous) => {
         let changed = false;
         const next: BindingMap = {};
@@ -2409,10 +2448,82 @@ export function useRigController({
         });
         return changed ? next : previous;
       });
+    },
+    [setBindings],
+  );
+
+  const handleDeleteCustomStandardInput = useCallback(
+    (inputId: string) => {
+      const isAuto = Array.from(autoInputsRef.current.values()).some(
+        (entry) => entry.input.id === inputId,
+      );
+      if (isAuto) {
+        return;
+      }
+      const snapshot = new Map(standardInputsByIdRef.current.entries());
+      setCustomInputs((previous) =>
+        previous.filter((input) => input.id !== inputId),
+      );
+      setInputValues((previous) => {
+        if (!Object.prototype.hasOwnProperty.call(previous, inputId)) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[inputId];
+        return next;
+      });
+      removeInputFromAnimatableBindings(inputId);
       pruneInputBindings(inputId, snapshot);
     },
-    [pruneInputBindings, setBindings],
+    [pruneInputBindings, removeInputFromAnimatableBindings],
   );
+
+  const handleDisableStandardInput = useCallback(
+    (inputId: string) => {
+      setDisabledStandardInputIds((previous) => {
+        if (previous.includes(inputId)) {
+          return previous;
+        }
+        return [...previous, inputId];
+      });
+      const snapshot = new Map(standardInputsByIdRef.current.entries());
+      const existingParentBinding = inputBindingsRef.current[inputId];
+      if (existingParentBinding) {
+        disabledInputBindingCacheRef.current.set(
+          inputId,
+          bindingToDefinition(existingParentBinding),
+        );
+      }
+      pruneInputBindings(inputId, snapshot);
+      removeInputFromAnimatableBindings(inputId);
+    },
+    [pruneInputBindings, removeInputFromAnimatableBindings],
+  );
+
+  const handleEnableStandardInput = useCallback((inputId: string) => {
+    setDisabledStandardInputIds((previous) =>
+      previous.filter((value) => value !== inputId),
+    );
+    const cachedDefinition = disabledInputBindingCacheRef.current.get(inputId);
+    if (!cachedDefinition) {
+      return;
+    }
+    const input = standardInputsByIdRef.current.get(inputId);
+    if (!input) {
+      disabledInputBindingCacheRef.current.delete(inputId);
+      return;
+    }
+    const target = bindingTargetFromInput(input);
+    const restored = ensureBindingStructure(
+      bindingFromDefinition(target, cachedDefinition),
+      target,
+    );
+    setInputBindings((previous) => ({
+      ...previous,
+      [inputId]: restored,
+    }));
+    disabledInputBindingCacheRef.current.delete(inputId);
+  }, []);
 
   const setFaceId = useCallback((next: string) => {
     setFaceIdState(sanitizeFaceId(next));
@@ -2817,6 +2928,23 @@ export function useRigController({
           components: animatableComponents,
         });
 
+        const normalizedInputMetadata = new Map<
+          string,
+          { source?: "auto" | "custom" | "preset"; root?: string }
+        >();
+        rehydrated.inputMetadata.forEach((metadata, inputId) => {
+          const source =
+            metadata.source === "auto" ||
+            metadata.source === "custom" ||
+            metadata.source === "preset"
+              ? metadata.source
+              : undefined;
+          normalizedInputMetadata.set(inputId, {
+            source,
+            root: metadata.root,
+          });
+        });
+
         const blueprint = buildAutoRigInputBlueprints(
           world,
           animatables,
@@ -2892,6 +3020,7 @@ export function useRigController({
             rehydrated.standardInputs.map((input) => [input.id, input]),
           ),
           inputBindings: rehydrated.inputBindings,
+          inputMetadata: normalizedInputMetadata,
         }).spec;
 
         const [importedNormalized, rebuiltNormalized] = await Promise.all([
@@ -3189,6 +3318,11 @@ export function useRigController({
       setCustomInputs([...persistedCustom, ...legacyCustomInputs]);
       setAutoInputs(new Map());
       setInputValues(persisted.inputValues ?? {});
+      setDisabledStandardInputIds(
+        Array.isArray(persisted.disabledStandardInputIds)
+          ? persisted.disabledStandardInputIds
+          : [],
+      );
 
       const persistedBindings: BindingMap = {};
       Object.entries(persisted.bindings).forEach(([key, binding]) => {
@@ -3224,6 +3358,7 @@ export function useRigController({
       setCustomInputs([]);
       setAutoInputs(new Map());
       setInputValues({});
+      setDisabledStandardInputIds([]);
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
       setSelectedStandardInputSubgroups([]);
@@ -3298,6 +3433,10 @@ export function useRigController({
         selectedStandardInputSubgroups.length > 0
           ? selectedStandardInputSubgroups
           : undefined,
+      disabledStandardInputIds:
+        disabledStandardInputIds.length > 0
+          ? disabledStandardInputIds
+          : undefined,
       featureLabels:
         Object.keys(featureLabelOverrides).length > 0
           ? featureLabelOverrides
@@ -3323,6 +3462,7 @@ export function useRigController({
     inputValues,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
+    disabledStandardInputIds,
   ]);
 
   useEffect(() => {
@@ -3583,6 +3723,8 @@ export function useRigController({
     handleRenameShape,
     handleEnsureParentBinding,
     handleUpdateStandardInput,
+    handleDisableStandardInput,
+    handleEnableStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
     handleRemoveBindingSlot,

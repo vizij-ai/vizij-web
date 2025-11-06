@@ -57,6 +57,8 @@ export function AnimatableValuesPanel({
   onUnlinkChildInput,
   onEnsureParentBinding,
   onUpdateStandardInput,
+  onDisableStandardInput,
+  onEnableStandardInput,
   onDeleteCustomStandardInput,
   onAddBindingSlot,
   onRemoveBindingSlot,
@@ -542,6 +544,8 @@ export function AnimatableValuesPanel({
           onUnlinkChildInput={onUnlinkChildInput}
           onEnsureParentBinding={onEnsureParentBinding}
           onUpdateInput={handleUpdateStandardInput}
+          onDisableInput={onDisableStandardInput}
+          onEnableInput={onEnableStandardInput}
           onDeleteInput={handleDeleteInput}
           onUnbindTarget={(targetId) => onBindingInputChange(targetId, null)}
           onCapturePose={onCapturePoseFromDrivers}

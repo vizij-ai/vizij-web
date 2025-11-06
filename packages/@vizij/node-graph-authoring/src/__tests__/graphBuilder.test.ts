@@ -188,6 +188,47 @@ describe("buildRigGraphSpec", () => {
     expect(nodeTypes.has("and")).toBe(true);
   });
 
+  it("embeds input metadata in the exported vizij header", () => {
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: createDefaultBinding(COMPONENT),
+      },
+      inputsById: new Map<string, StandardRigInput>([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+      inputMetadata: new Map([
+        [INPUT_A.id, { source: "auto", root: "eyes" }],
+        [INPUT_B.id, { source: "custom", root: "brows" }],
+      ]),
+    });
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: { inputs?: Array<Record<string, unknown>> };
+    };
+    expect(vizijMetadata?.vizij?.inputs).toBeDefined();
+    expect(vizijMetadata?.vizij?.inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: INPUT_A.id,
+          source: "auto",
+          root: "eyes",
+        }),
+        expect.objectContaining({
+          id: INPUT_B.id,
+          source: "custom",
+          root: "brows",
+        }),
+      ]),
+    );
+  });
+
   it("creates subtract nodes with lhs/rhs inputs", () => {
     const binding = createDefaultBinding(COMPONENT);
     binding.slots = [

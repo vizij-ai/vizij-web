@@ -116,6 +116,8 @@ export default function App() {
     handleUnlinkChildInput,
     handleRenameShape,
     handleUpdateStandardInput,
+    handleDisableStandardInput,
+    handleEnableStandardInput,
     handleDeleteCustomStandardInput,
     handleAddBindingSlot,
     handleRemoveBindingSlot,
@@ -726,6 +728,8 @@ export default function App() {
       onUnlinkChildInput={handleUnlinkChildInput}
       onEnsureParentBinding={handleEnsureParentBinding}
       onUpdateStandardInput={handleUpdateStandardInput}
+      onDisableStandardInput={handleDisableStandardInput}
+      onEnableStandardInput={handleEnableStandardInput}
       onDeleteCustomStandardInput={handleDeleteCustomStandardInput}
       onAddBindingSlot={handleAddBindingSlot}
       onRemoveBindingSlot={handleRemoveBindingSlot}

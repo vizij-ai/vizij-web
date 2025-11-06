@@ -31,8 +31,10 @@ interface VizijGraphMetadataInput {
   id: string;
   path: string;
   sourceId?: string;
+  source?: string;
   label: string;
   group: string;
+  root?: string;
   defaultValue: number;
   range: { min: number; max: number };
 }
@@ -51,6 +53,7 @@ export interface RehydratedRigData {
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
+  inputMetadata: Map<string, { source?: string; root?: string }>;
 }
 
 const PRESET_STANDARD_INPUT_IDS = new Set(
@@ -61,6 +64,9 @@ function resolveImportedInputGroup(
   descriptor: VizijGraphMetadataInput,
   normalizedPath: string,
 ): string {
+  if (descriptor.root && descriptor.root.length > 0) {
+    return descriptor.root;
+  }
   if (PRESET_STANDARD_INPUT_IDS.has(descriptor.id)) {
     if (descriptor.group && descriptor.group.length > 0) {
       return descriptor.group;
@@ -257,10 +263,12 @@ export function rehydrateRigDataFromGraph(
     );
   }
 
+  const inputMetadata = new Map<string, { source?: string; root?: string }>();
+
   const standardInputs = vizij.inputs.map((input) => {
     const normalizedPath = normalizeImportedInputPath(input);
     const group = resolveImportedInputGroup(input, normalizedPath);
-    return createStandardRigInput({
+    const created = createStandardRigInput({
       id: input.id,
       path: normalizedPath,
       sourceId: input.sourceId,
@@ -272,6 +280,11 @@ export function rehydrateRigDataFromGraph(
         max: input.range.max,
       },
     });
+    inputMetadata.set(input.id, {
+      source: input.source,
+      root: input.root ?? group,
+    });
+    return created;
   });
 
   const standardInputsById = new Map(
@@ -290,5 +303,6 @@ export function rehydrateRigDataFromGraph(
     standardInputs,
     bindings,
     inputBindings,
+    inputMetadata,
   };
 }

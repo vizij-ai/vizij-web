@@ -776,6 +776,12 @@ button.danger:hover:not(:disabled),
   border-color: rgba(94, 109, 133, 0.9);
 }
 
+.feature-panel__input-action[data-active="true"] {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(96, 165, 250, 0.7);
+  color: #dbeafe;
+}
+
 .feature-panel__input-action--danger {
   border-color: rgba(248, 113, 113, 0.7);
   color: #fecaca;
@@ -1784,13 +1790,73 @@ button.danger:hover:not(:disabled),
   gap: 0.45rem;
 }
 
-.feature-panel__input-name {
+.feature-panel__input-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feature-panel__input-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.feature-panel__input-hierarchy {
   flex: 1 1 auto;
   min-width: 0;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.feature-panel__input-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #f59e0b;
+}
+
+.feature-panel__input-toggle {
+  border: 1px solid #1e293b;
+  background: rgba(15, 23, 42, 0.6);
+  color: #cbd5f5;
+  border-radius: 9999px;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.feature-panel__input-toggle:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.35);
+  color: #e0f2fe;
+}
+
+.feature-panel__input-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.feature-panel__input-slider[data-disabled="true"] input {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .feature-panel__input-header-actions {

@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   SELF_BINDING_ID,
+  normalizeStandardRigInputPath,
   type StandardRigInput,
   type RemapSettings,
 } from "@vizij/utils";
@@ -62,6 +63,8 @@ interface StandardInputsSectionProps {
     inputId: string,
     updates: { path?: string; label?: string; sourceId?: string | null },
   ) => void;
+  onDisableInput: (inputId: string) => void;
+  onEnableInput: (inputId: string) => void;
   onDeleteInput: (input: StandardRigInput) => void;
   onUnbindTarget: (targetId: string) => void;
   onCapturePose?: (name: string) => void;
@@ -120,6 +123,17 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function humanizeToken(value: string | undefined | null): string {
+  if (!value) {
+    return "";
+  }
+  return value
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 const CHILD_KEY_DELIMITER = "\u0000";
 
 function createChildMappingKey(
@@ -172,6 +186,8 @@ export function StandardInputsSection({
   onLinkChildInput,
   onUnlinkChildInput,
   onUpdateInput,
+  onDisableInput,
+  onEnableInput,
   onDeleteInput,
   onUnbindTarget,
   onCapturePose,
@@ -245,6 +261,31 @@ export function StandardInputsSection({
     return Array.from(collector).sort((a, b) => a.localeCompare(b));
   }, [inputSubgroups, inputs, selectedSet]);
 
+  const totalDisabledInputs = useMemo(
+    () =>
+      inputs.reduce((count, entry) => (entry.disabled ? count + 1 : count), 0),
+    [inputs],
+  );
+
+  const hasDisabledInScope = useMemo(() => {
+    return inputs.some((entry) => {
+      if (!entry.disabled) {
+        return false;
+      }
+      if (selectedSet.size > 0 && !selectedSet.has(getRootKey(entry))) {
+        return false;
+      }
+      if (selectedSubgroupSet.size > 0) {
+        const subgroups = inputSubgroups.get(entry.input.id) ?? [];
+        if (subgroups.length === 0) {
+          return false;
+        }
+        return subgroups.some((token) => selectedSubgroupSet.has(token));
+      }
+      return true;
+    });
+  }, [inputs, inputSubgroups, selectedSet, selectedSubgroupSet]);
+
   const [expandedInputs, setExpandedInputs] = useState<Set<string>>(
     () => new Set(),
   );
@@ -259,6 +300,7 @@ export function StandardInputsSection({
     Set<string>
   >(() => new Set());
   const [capturePoseName, setCapturePoseName] = useState("");
+  const [showDisabled, setShowDisabled] = useState(false);
 
   const standardInputList = useMemo(
     () => inputs.map((entry) => entry.input),
@@ -419,21 +461,27 @@ export function StandardInputsSection({
       selectedSet.size === 0
         ? inputs
         : inputs.filter((entry) => selectedSet.has(getRootKey(entry)));
+    const byVisibility = showDisabled
+      ? byRoot
+      : byRoot.filter((entry) => !entry.disabled);
     if (selectedSubgroupSet.size === 0) {
-      return byRoot;
+      return byVisibility;
     }
-    return byRoot.filter((entry) => {
+    return byVisibility.filter((entry) => {
       const subgroups = inputSubgroups.get(entry.input.id) ?? [];
       if (subgroups.length === 0) {
         return false;
       }
       return subgroups.some((token) => selectedSubgroupSet.has(token));
     });
-  }, [inputSubgroups, inputs, selectedSet, selectedSubgroupSet]);
+  }, [inputSubgroups, inputs, selectedSet, selectedSubgroupSet, showDisabled]);
 
   const emptyMessage = useMemo(() => {
     if (inputs.length === 0) {
       return "No standard inputs are available for this rig.";
+    }
+    if (!showDisabled && hasDisabledInScope && filteredInputs.length === 0) {
+      return "All inputs in this view are currently disabled. Toggle “Show disabled” to review them.";
     }
     if (selectedSubgroups.length > 0 && filteredInputs.length === 0) {
       return "No inputs match the selected subgroups yet.";
@@ -443,10 +491,18 @@ export function StandardInputsSection({
       return `No inputs for ${firstRoot} yet. Add one from the feature tree or create a custom input.`;
     }
     return null;
-  }, [filteredInputs.length, inputs.length, selectedRoots, selectedSubgroups]);
+  }, [
+    filteredInputs.length,
+    hasDisabledInScope,
+    inputs.length,
+    selectedRoots,
+    selectedSubgroups,
+    showDisabled,
+  ]);
 
   const renderInputCard = (entry: ManagedStandardInput) => {
     const { input, source } = entry;
+    const disabled = entry.disabled;
     const range = effectiveInputRanges.get(input.id) ?? input.range;
     const value = inputValues[input.id] ?? input.defaultValue;
     const usage = inputUsage.get(input.id) ?? [];
@@ -471,7 +527,142 @@ export function StandardInputsSection({
       : false;
     const sliderLocked =
       parentBinding !== null && (!parentHasSelfSlot || !expressionUsesSelf);
-    const sliderDisabled = sliderLocked;
+    const sliderDisabled = sliderLocked || disabled;
+    const numericDisabled = sliderDisabled;
+    const cardClassName = disabled
+      ? "feature-panel__input-card feature-panel__input-card--disabled"
+      : "feature-panel__input-card";
+    const toggleLabel = disabled ? "Enable" : "Disable";
+    const toggleTitle = disabled ? "Enable input" : "Disable input";
+    const handleToggleEnabled = () => {
+      if (disabled) {
+        onEnableInput(input.id);
+      } else {
+        onDisableInput(input.id);
+      }
+    };
+
+    const normalizedPath = normalizeStandardRigInputPath(input.path);
+    const pathTokens = normalizedPath.split("/").filter(Boolean);
+    if (pathTokens[0] === "standard") {
+      pathTokens.shift();
+    }
+    const rootToken =
+      entry.metadata?.root && entry.metadata.root.length > 0
+        ? entry.metadata.root
+        : (pathTokens[0] ?? input.group ?? "custom");
+    const shapeLabel =
+      entry.metadata?.elementName && entry.metadata.elementName.trim().length
+        ? entry.metadata.elementName
+        : humanizeToken(rootToken) || "Custom";
+    const featureLabel =
+      entry.metadata?.featureLabel && entry.metadata.featureLabel.length > 0
+        ? entry.metadata.featureLabel
+        : humanizeToken(pathTokens[1] ?? input.label ?? "");
+    const fallbackPropertySegments =
+      pathTokens.length > 2 ? pathTokens.slice(2) : pathTokens.slice(-1);
+    const fallbackPropertyLabel = humanizeToken(
+      fallbackPropertySegments.join(" / "),
+    );
+    const propertyLabel =
+      entry.metadata?.propertyLabel && entry.metadata.propertyLabel.length > 0
+        ? entry.metadata.propertyLabel
+        : fallbackPropertyLabel || featureLabel;
+    const showProperty =
+      propertyLabel &&
+      propertyLabel.length > 0 &&
+      propertyLabel.toLowerCase() !== featureLabel.toLowerCase();
+    const hierarchyLabel = showProperty
+      ? `${featureLabel} • ${propertyLabel}`
+      : featureLabel;
+
+    const handleParentBindingInputChangeSafe = (
+      targetId: string,
+      bindingInputId: string | null,
+      slotId?: string,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingInputChange(targetId, bindingInputId, slotId);
+    };
+
+    const handleParentBindingRemapChangeSafe = (
+      targetId: string,
+      field: BindingField,
+      value: number,
+      slotId?: string,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingRemapChange(targetId, field, value, slotId);
+    };
+
+    const handleParentAddSlotSafe = (targetId: string) => {
+      if (disabled) {
+        return;
+      }
+      onParentAddBindingSlot(targetId);
+    };
+
+    const handleParentRemoveSlotSafe = (targetId: string, slotId: string) => {
+      if (disabled) {
+        return;
+      }
+      onParentRemoveBindingSlot(targetId, slotId);
+    };
+
+    const handleParentExpressionChangeSafe = (
+      targetId: string,
+      expression: string,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingExpressionChange(targetId, expression);
+    };
+
+    const handleParentAliasChangeSafe = (
+      targetId: string,
+      slotId: string,
+      alias: string,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingSlotAliasChange(targetId, slotId, alias);
+    };
+
+    const handleParentOperatorToggleSafe = (
+      targetId: string,
+      operator: BindingOperatorType,
+      enabled: boolean,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingOperatorToggle(targetId, operator, enabled);
+    };
+
+    const handleParentOperatorParamChangeSafe = (
+      targetId: string,
+      operator: BindingOperatorType,
+      paramId: string,
+      value: number,
+    ) => {
+      if (disabled) {
+        return;
+      }
+      onParentBindingOperatorParamChange(targetId, operator, paramId, value);
+    };
+
+    const handleParentResetBindingSafe = (targetId: string) => {
+      if (disabled) {
+        return;
+      }
+      onParentResetBinding(targetId);
+    };
 
     const toggleInputExpanded = () => {
       const willCollapse = expandedInputs.has(input.id);
@@ -502,6 +693,9 @@ export function StandardInputsSection({
     const ensureParentBindingAndSlot = (
       nextBinding: AnimatableBinding | null,
     ) => {
+      if (disabled) {
+        return;
+      }
       onEnsureParentBinding(input.id);
       const hasAdditionalSlot =
         nextBinding &&
@@ -516,7 +710,7 @@ export function StandardInputsSection({
 
     const toggleParentExpanded = () => {
       const willExpand = !isParentExpanded;
-      if (willExpand) {
+      if (willExpand && !disabled) {
         ensureParentBindingAndSlot(parentBinding);
       }
       setExpandedParents((previous) => {
@@ -563,6 +757,9 @@ export function StandardInputsSection({
       : null;
 
     const handleStartChildSelection = () => {
+      if (disabled) {
+        return;
+      }
       if (childOptions.length === 0) {
         return;
       }
@@ -709,11 +906,13 @@ export function StandardInputsSection({
       if (!hasChildMappings) {
         return;
       }
-      childMappings.forEach((mapping) => {
-        if (mapping.kind === "input") {
-          onEnsureParentBinding(mapping.targetId);
-        }
-      });
+      if (!disabled) {
+        childMappings.forEach((mapping) => {
+          if (mapping.kind === "input") {
+            onEnsureParentBinding(mapping.targetId);
+          }
+        });
+      }
       setExpandedChildSections((previous) => {
         if (previous.has(input.id)) {
           return previous;
@@ -725,6 +924,9 @@ export function StandardInputsSection({
     };
 
     const handleAddParentClick = () => {
+      if (disabled) {
+        return;
+      }
       ensureParentBindingAndSlot(parentBinding);
       setExpandedParents((previous) => {
         const next = new Set(previous);
@@ -734,6 +936,9 @@ export function StandardInputsSection({
     };
 
     const handleRemoveChildLink = (childId: string) => {
+      if (disabled) {
+        return;
+      }
       onUnlinkChildInput(input.id, childId);
       if (expandedChildSections.has(input.id) && childMappings.length <= 1) {
         setExpandedChildSections((previous) => {
@@ -748,6 +953,9 @@ export function StandardInputsSection({
     };
 
     const handleRemoveFeatureLink = (targetId: string) => {
+      if (disabled) {
+        return;
+      }
       onUnbindTarget(targetId);
       if (expandedChildSections.has(input.id) && childMappings.length <= 1) {
         setExpandedChildSections((previous) => {
@@ -764,6 +972,9 @@ export function StandardInputsSection({
     const handleRemoveParentConnection = (
       connection: (typeof parentConnections)[number],
     ) => {
+      if (disabled) {
+        return;
+      }
       connection.slotIds.forEach((slotId) => {
         onParentBindingInputChange(input.id, null, slotId);
       });
@@ -774,6 +985,9 @@ export function StandardInputsSection({
       field: BindingField,
       value: number,
     ) => {
+      if (disabled) {
+        return;
+      }
       if (!mapping.slotId) {
         return;
       }
@@ -790,6 +1004,9 @@ export function StandardInputsSection({
     };
 
     const handleNumericChange = (event: ChangeEvent<HTMLInputElement>) => {
+      if (disabled) {
+        return;
+      }
       const parsed = Number(event.target.value);
       if (!Number.isFinite(parsed)) {
         return;
@@ -798,6 +1015,9 @@ export function StandardInputsSection({
     };
 
     const handleSliderChange = (event: ChangeEvent<HTMLInputElement>) => {
+      if (disabled) {
+        return;
+      }
       const parsed = Number(event.target.value);
       if (!Number.isFinite(parsed)) {
         return;
@@ -806,6 +1026,9 @@ export function StandardInputsSection({
     };
 
     const handlePathCommit = (nextPath: string) => {
+      if (disabled) {
+        return;
+      }
       const trimmed = nextPath.trim();
       if (!trimmed || trimmed === input.path) {
         return;
@@ -825,7 +1048,7 @@ export function StandardInputsSection({
     };
 
     return (
-      <div key={input.id} className="feature-panel__input-card">
+      <div key={input.id} className={cardClassName} data-disabled={disabled}>
         <div className="feature-panel__input-header">
           <div className="feature-panel__input-header-main">
             <button
@@ -835,8 +1058,29 @@ export function StandardInputsSection({
               aria-expanded={isExpanded}
               aria-label={`${isExpanded ? "Collapse" : "Expand"} ${input.path}`}
             />
-            <span className="feature-panel__input-name">{input.path}</span>
-            <label className="feature-panel__input-slider">
+            <div className="feature-panel__input-title">
+              <span className="feature-panel__input-badge">{shapeLabel}</span>
+              <span className="feature-panel__input-hierarchy">
+                {hierarchyLabel}
+              </span>
+              {disabled && (
+                <span className="feature-panel__input-status">Disabled</span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="feature-panel__input-toggle"
+              onClick={handleToggleEnabled}
+              aria-pressed={!disabled}
+              aria-label={toggleTitle}
+              title={toggleTitle}
+            >
+              {toggleLabel}
+            </button>
+            <label
+              className="feature-panel__input-slider"
+              data-disabled={sliderDisabled}
+            >
               <input
                 type="range"
                 min={range.min}
@@ -855,6 +1099,7 @@ export function StandardInputsSection({
                 min={range.min}
                 max={range.max}
                 step={Math.max((range.max - range.min) / 200, 0.001)}
+                disabled={numericDisabled}
                 onChange={handleNumericChange}
               />
             </label>
@@ -884,6 +1129,7 @@ export function StandardInputsSection({
                   onBlur={handlePathBlur}
                   onKeyDown={handlePathKeyDown}
                   spellCheck={false}
+                  disabled={disabled}
                 />
               </label>
             </div>
@@ -901,6 +1147,7 @@ export function StandardInputsSection({
                       type="button"
                       className="feature-panel__input-action feature-panel__input-action--primary"
                       onClick={handleAddParentClick}
+                      disabled={disabled}
                     >
                       Add parent
                     </button>
@@ -950,6 +1197,7 @@ export function StandardInputsSection({
                               );
                             }}
                             title="Remove slider mapping"
+                            disabled={disabled}
                           >
                             ×
                           </button>
@@ -985,6 +1233,7 @@ export function StandardInputsSection({
                               handleRemoveParentConnection(parent);
                             }}
                             title={`Remove ${parent.label} mapping`}
+                            disabled={disabled}
                           >
                             ×
                           </button>
@@ -1006,21 +1255,21 @@ export function StandardInputsSection({
                       standardInputs={standardInputList}
                       standardInputLookup={standardInputLookup}
                       issues={parentIssues}
-                      onBindingInputChange={onParentBindingInputChange}
-                      onBindingRemapChange={onParentBindingRemapChange}
-                      onAddBindingSlot={onParentAddBindingSlot}
-                      onRemoveBindingSlot={onParentRemoveBindingSlot}
+                      onBindingInputChange={handleParentBindingInputChangeSafe}
+                      onBindingRemapChange={handleParentBindingRemapChangeSafe}
+                      onAddBindingSlot={handleParentAddSlotSafe}
+                      onRemoveBindingSlot={handleParentRemoveSlotSafe}
                       onBindingExpressionChange={
-                        onParentBindingExpressionChange
+                        handleParentExpressionChangeSafe
                       }
-                      onBindingSlotAliasChange={onParentBindingSlotAliasChange}
-                      onBindingOperatorToggle={onParentBindingOperatorToggle}
+                      onBindingSlotAliasChange={handleParentAliasChangeSafe}
+                      onBindingOperatorToggle={handleParentOperatorToggleSafe}
                       onBindingOperatorParamChange={
-                        onParentBindingOperatorParamChange
+                        handleParentOperatorParamChangeSafe
                       }
                       onResetBinding={
-                        parentBinding
-                          ? () => onParentResetBinding(input.id)
+                        parentBinding && !disabled
+                          ? () => handleParentResetBindingSafe(input.id)
                           : undefined
                       }
                       expandable={false}
@@ -1047,7 +1296,7 @@ export function StandardInputsSection({
                       type="button"
                       className="feature-panel__input-action feature-panel__input-action--primary"
                       onClick={handleStartChildSelection}
-                      disabled={childOptions.length === 0}
+                      disabled={disabled || childOptions.length === 0}
                     >
                       Add child
                     </button>
@@ -1118,6 +1367,7 @@ export function StandardInputsSection({
                                 className="feature-panel__input-chip-dismiss"
                                 onClick={handleRemove}
                                 title={`Remove ${mapping.label} mapping`}
+                                disabled={disabled}
                               >
                                 ×
                               </button>
@@ -1174,6 +1424,7 @@ export function StandardInputsSection({
                             optionClassName="feature-tree__binding-slot-option"
                             optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
                             emptyClassName="feature-tree__binding-slot-option feature-tree__binding-slot-option--empty"
+                            disabled={disabled}
                             dataOptionAttribute="data-option"
                           />
                         </label>
@@ -1182,7 +1433,7 @@ export function StandardInputsSection({
                             type="button"
                             className="feature-panel__input-action feature-panel__input-action--primary"
                             onClick={confirmChildSelection}
-                            disabled={!selectedChildId}
+                            disabled={disabled || !selectedChildId}
                           >
                             Link child
                           </button>
@@ -1324,6 +1575,19 @@ export function StandardInputsSection({
                 </div>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => setShowDisabled((previous) => !previous)}
+              className="feature-panel__input-action feature-panel__input-action--secondary"
+              data-active={showDisabled}
+              disabled={!showDisabled && totalDisabledInputs === 0}
+            >
+              {showDisabled
+                ? "Hide disabled"
+                : `Show disabled${
+                    totalDisabledInputs ? ` (${totalDisabledInputs})` : ""
+                  }`}
+            </button>
             <button
               type="button"
               onClick={onResetAllInputs}

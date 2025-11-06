@@ -33,6 +33,7 @@ export interface PersistedRigState {
   selectedStandardInputRoots?: string[];
   selectedStandardInputSubgroups?: string[];
   featureLabels?: Record<string, string>;
+  disabledStandardInputIds?: string[];
   /** @deprecated retained for backward compatibility with legacy saves */
   derivedStandardInputs?: Record<string, RigBindingDefinition>;
   /** Parent/child binding definitions keyed by standard input id */

@@ -232,6 +232,11 @@ function evaluateBinding({
   };
 }
 
+interface InputExportMetadata {
+  source?: "auto" | "custom" | "preset";
+  root?: string;
+}
+
 interface BuildGraphOptions {
   faceId: string;
   animatables: Record<string, AnimatableValue>;
@@ -239,6 +244,7 @@ interface BuildGraphOptions {
   bindings: BindingMap;
   inputsById: Map<string, StandardRigInput>;
   inputBindings: InputBindingMap;
+  inputMetadata?: Map<string, InputExportMetadata>;
 }
 
 export interface GraphBindingSummary {
@@ -700,7 +706,11 @@ export function buildRigGraphSpec({
   bindings,
   inputsById,
   inputBindings,
+  inputMetadata,
 }: BuildGraphOptions): BuildGraphResult {
+  const metadataByInputId =
+    inputMetadata ?? new Map<string, InputExportMetadata>();
+
   const nodes: NodeSpec[] = [];
   const edges: NonNullable<GraphSpec["edges"]> = [];
   const inputNodes = new Map<
@@ -1049,18 +1059,33 @@ export function buildRigGraphSpec({
       ...(baseSpec.metadata as Record<string, unknown> | undefined),
       vizij: {
         faceId,
-        inputs: Array.from(inputsById.values()).map((input) => ({
-          id: input.id,
-          path: input.path,
-          sourceId: input.sourceId,
-          label: input.label,
-          group: input.group,
-          defaultValue: input.defaultValue,
-          range: {
-            min: input.range.min,
-            max: input.range.max,
-          },
-        })),
+        inputs: Array.from(inputsById.values()).map((input) => {
+          const meta = metadataByInputId.get(input.id);
+          const derivedRoot = meta?.root ?? input.group;
+          let derivedSource = meta?.source;
+          if (!derivedSource && input.path.startsWith("/standard/")) {
+            derivedSource = "preset";
+          }
+          const entry: Record<string, unknown> = {
+            id: input.id,
+            path: input.path,
+            sourceId: input.sourceId,
+            label: input.label,
+            group: input.group,
+            defaultValue: input.defaultValue,
+            range: {
+              min: input.range.min,
+              max: input.range.max,
+            },
+          };
+          if (derivedSource) {
+            entry.source = derivedSource;
+          }
+          if (derivedRoot) {
+            entry.root = derivedRoot;
+          }
+          return entry;
+        }),
         bindings: filteredSummaryBindings.map((binding) => ({
           ...binding,
           remap: { ...binding.remap },

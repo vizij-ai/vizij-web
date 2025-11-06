@@ -128,6 +128,8 @@ export interface AnimatableValuesPanelProps {
     inputId: string,
     updates: { path?: string; label?: string; sourceId?: string | null },
   ): void;
+  onDisableStandardInput(inputId: string): void;
+  onEnableStandardInput(inputId: string): void;
   onDeleteCustomStandardInput(inputId: string): void;
   onAddBindingSlot(targetId: string): void;
   onRemoveBindingSlot(targetId: string, slotId: string): void;
