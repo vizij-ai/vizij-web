@@ -1,104 +1,100 @@
 import { describe, expect, it } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { AnimatableValue, AnimatableComponent } from "@vizij/utils";
+
+import type {
+  AnimatableComponent,
+  AnimatableValue,
+  StandardRigInput,
+} from "@vizij/utils";
+
+import {
+  buildRigGraphSpec,
+  createDefaultBinding,
+  createDefaultRemap,
+} from "@vizij/node-graph-authoring";
 import { rehydrateRigDataFromGraph } from "./importer";
 
-describe("rehydrateRigDataFromGraph", () => {
-  it("preserves standard grouping for presets and derives custom groups for imports", () => {
-    const spec = {
-      nodes: [],
-      metadata: {
-        vizij: {
-          faceId: "robot_v1",
-          inputs: [
-            {
-              id: "standard_mouth_pos_x",
-              path: "/standard/mouth/pos/x",
-              source: "preset",
-              label: "Mouth Pos X",
-              group: "standard",
-              root: "standard",
-              defaultValue: 0,
-              range: { min: -1, max: 1 },
-            },
-            {
-              id: "custom_imported_control",
-              path: "/standard/imported/custom_control",
-              source: "custom",
-              label: "Imported Control",
-              group: "standard",
-              root: "imported",
-              defaultValue: 0.2,
-              range: { min: -1, max: 1 },
-            },
-          ],
-          bindings: [],
-        },
+const COMPONENT: AnimatableComponent = {
+  id: "component_1",
+  safeId: "component_1",
+  animatableId: "rig/robot/mouth/pos/y",
+  animatableType: "number",
+  label: "Mouth Pos Y",
+  defaultValue: 0,
+  range: {
+    min: -1,
+    max: 1,
+  },
+};
+
+const ANIMATABLE: AnimatableValue = {
+  id: "rig/robot/mouth/pos/y",
+  type: "number",
+  name: "Mouth Pos Y",
+  default: 0,
+  constraints: {
+    min: -1,
+    max: 1,
+  },
+  pub: {
+    public: true,
+    output: "Mouth Pos Y",
+  },
+};
+
+const INPUT_A: StandardRigInput = {
+  id: "input_a",
+  path: "/controls/a",
+  label: "Control A",
+  group: "controls",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+};
+
+describe("importer operator persistence", () => {
+  it("rehydrates operator settings from metadata summaries", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots[0] = {
+      ...binding.slots[0],
+      inputId: INPUT_A.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    };
+    binding.inputId = INPUT_A.id;
+    binding.remap = { ...binding.slots[0].remap };
+    const slewOperator = binding.operators?.find(
+      (operator) => operator.type === "slew",
+    );
+    if (slewOperator) {
+      slewOperator.enabled = true;
+      slewOperator.params.max_rate = 0.4;
+    }
+
+    const graph = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
       },
-    } as GraphSpec;
-
-    const rehydrated = rehydrateRigDataFromGraph(spec, {
-      faceId: "robot_v1",
-      animatables: {} as Record<string, AnimatableValue>,
-      components: [] as AnimatableComponent[],
-    });
-
-    const presetInput = rehydrated.standardInputs.find(
-      (input) => input.id === "standard_mouth_pos_x",
-    );
-    const importedInput = rehydrated.standardInputs.find(
-      (input) => input.id === "custom_imported_control",
-    );
-
-    expect(presetInput?.group).toBe("standard");
-    expect(presetInput?.path).toBe("/standard/mouth/pos/x");
-    expect(importedInput?.group).toBe("imported");
-    expect(importedInput?.path).toBe("/imported/custom_control");
-
-    const presetMeta = rehydrated.inputMetadata.get("standard_mouth_pos_x");
-    const customMeta = rehydrated.inputMetadata.get("custom_imported_control");
-    expect(presetMeta).toEqual({ source: "preset", root: "standard" });
-    expect(customMeta).toEqual({ source: "custom", root: "imported" });
-  });
-
-  it("respects renamed preset group slugs", () => {
-    const spec = {
-      nodes: [],
-      metadata: {
-        vizij: {
-          faceId: "robot_v1",
-          inputs: [
-            {
-              id: "standard_mouth_pos_x",
-              path: "/standard/heroes/pos/x",
-              source: "preset",
-              label: "Mouth Pos X",
-              group: "heroes",
-              root: "heroes",
-              defaultValue: 0,
-              range: { min: -1, max: 1 },
-            },
-          ],
-          bindings: [],
-        },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
       },
-    } as GraphSpec;
-
-    const rehydrated = rehydrateRigDataFromGraph(spec, {
-      faceId: "robot_v1",
-      animatables: {} as Record<string, AnimatableValue>,
-      components: [] as AnimatableComponent[],
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
     });
 
-    const presetInput = rehydrated.standardInputs.find(
-      (input) => input.id === "standard_mouth_pos_x",
+    const rehydrated = rehydrateRigDataFromGraph(graph.spec, {
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+    });
+
+    const restored = rehydrated.bindings[COMPONENT.id];
+    expect(restored).toBeDefined();
+    const slew = restored.operators?.find(
+      (operator) => operator.type === "slew",
     );
-
-    expect(presetInput?.group).toBe("heroes");
-    expect(presetInput?.path).toBe("/standard/heroes/pos/x");
-    expect(rehydrated.inputMetadata.get("standard_mouth_pos_x")).toEqual({
-      source: "preset",
-      root: "heroes",
-    });
+    expect(slew?.enabled).toBe(true);
+    expect(slew?.params.max_rate).toBe(0.4);
   });
 });

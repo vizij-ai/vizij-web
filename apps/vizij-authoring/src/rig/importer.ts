@@ -8,6 +8,7 @@ import {
   ensureBindingStructure,
   type AnimatableBinding,
   type BindingMap,
+  type BindingOperator,
   type InputBindingMap,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
@@ -108,6 +109,16 @@ function coerceExpression(value: string | null | undefined, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function cloneOperatorSnapshot(
+  operators: BindingOperator[],
+): BindingOperator[] {
+  return operators.map((operator) => ({
+    type: operator.type,
+    enabled: !!operator.enabled,
+    params: { ...(operator.params ?? {}) },
+  }));
+}
+
 function buildBindingFromSummaries(
   targetId: string,
   target: BindingTarget,
@@ -163,6 +174,13 @@ function buildBindingFromSummaries(
       primarySlot.alias ?? PRIMARY_SLOT_ALIAS,
     ),
   };
+
+  const operatorSource = summaries.find(
+    (summary) => summary.operators && summary.operators.length > 0,
+  )?.operators;
+  if (operatorSource && operatorSource.length > 0) {
+    binding.operators = cloneOperatorSnapshot(operatorSource);
+  }
 
   return ensureBindingStructure(binding, target);
 }

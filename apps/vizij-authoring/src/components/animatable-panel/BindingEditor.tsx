@@ -8,7 +8,11 @@ import type {
   AnimatableBinding,
   BindingOperatorType,
 } from "@vizij/node-graph-authoring";
-import { bindingOperatorDefinitions } from "@vizij/node-graph-authoring";
+import {
+  bindingOperatorDefinitions,
+  EXPRESSION_FUNCTION_VOCABULARY,
+  RESERVED_EXPRESSION_VARIABLES,
+} from "@vizij/node-graph-authoring";
 import { REMAP_INPUT_FIELDS, REMAP_OUTPUT_FIELDS } from "./bindingFields";
 import {
   FilterableSelect,
@@ -270,8 +274,27 @@ export function BindingEditor({
       .join(", ");
   }, [slots, standardInputLookup]);
 
-  const functionHints =
-    "Functions: sin(value), cos(value), tan(value), log(value, base), power(base, exponent) / pow(base, exponent), clamp(value, min, max)";
+  const functionHints = useMemo(() => {
+    const maxEntries = 8;
+    const entries = EXPRESSION_FUNCTION_VOCABULARY.slice(0, maxEntries)
+      .map((entry) => `${entry.name}()`)
+      .join(", ");
+    if (!entries) {
+      return "";
+    }
+    const suffix =
+      EXPRESSION_FUNCTION_VOCABULARY.length > maxEntries ? ", …" : "";
+    return `Functions: ${entries}${suffix}`;
+  }, []);
+
+  const reservedHints = useMemo(() => {
+    const available = RESERVED_EXPRESSION_VARIABLES.filter(
+      (variable) => variable.available !== false,
+    )
+      .map((variable) => variable.name)
+      .join(", ");
+    return available ? `Reserved: ${available}` : "";
+  }, []);
 
   const issueList = useMemo(
     () => (issues ? [...new Set(issues)] : []),
@@ -699,7 +722,12 @@ export function BindingEditor({
               Aliases: {aliasHints}
             </p>
           )}
-          <p className="feature-tree__expression-hints">{functionHints}</p>
+          {functionHints && (
+            <p className="feature-tree__expression-hints">{functionHints}</p>
+          )}
+          {reservedHints && (
+            <p className="feature-tree__expression-hints">{reservedHints}</p>
+          )}
           {issueList.length > 0 && (
             <ul className="feature-tree__expression-errors">
               {issueList.map((issue) => (

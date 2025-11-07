@@ -6,6 +6,7 @@
     "outDir": "dist",
     "strict": true,
     "moduleResolution": "Bundler",
+    "types": ["node"],
     "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {

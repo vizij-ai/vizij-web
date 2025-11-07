@@ -1,4 +1,4 @@
-import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
@@ -26,19 +26,38 @@ import {
 } from "./expression";
 import {
   SCALAR_FUNCTIONS,
+  type ExpressionValueType,
   type ScalarFunctionDefinition,
 } from "./expressionFunctions";
 import {
   getBindingOperatorDefinition,
   type BindingOperatorDefinition,
 } from "./operators";
+import {
+  createExpressionVariableTable,
+  type ExpressionVariableTable,
+} from "./expressionVariables";
+import { RESERVED_EXPRESSION_VARIABLES } from "./expressionVocabulary";
+import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
+import { createIrGraphBuilder, toIrBindingSummary } from "./ir/builder";
+import { compileIrGraph } from "./ir/compiler";
+import type {
+  IrConstant,
+  IrEdge,
+  IrGraph,
+  IrGraphSummary,
+  IrIssue,
+  IrNode,
+  IrCompileOptions,
+  IrCompileResult,
+} from "./ir/types";
 
 type VectorComponent = "x" | "y" | "z" | "r" | "g" | "b";
-type GraphEdge = NonNullable<GraphSpec["edges"]>[number];
+type GraphEdge = IrEdge;
 
 interface BindingGraphContext {
-  nodes: NodeSpec[];
-  edges: NonNullable<GraphSpec["edges"]>;
+  nodes: IrNode[];
+  edges: IrEdge[];
   ensureInputNode: (
     inputId: string,
   ) => { nodeId: string; input: StandardRigInput } | null;
@@ -78,10 +97,12 @@ function evaluateBinding({
     edges,
     constants: new Map(),
     counter: 0,
+    reservedNodes: new Map(),
+    nodeValueTypes: new Map(),
   };
   const targetValueType: BindingValueType =
     target.valueType === "vector" ? "vector" : "scalar";
-  const aliasNodes = new Map<string, string>();
+  const variableTable = createExpressionVariableTable();
   const slotSummaries: GraphBindingSummary[] = [];
   const expressionIssues: string[] = [];
   const rawExpression =
@@ -101,6 +122,11 @@ function evaluateBinding({
       if (selfNodeId) {
         slotOutputId = selfNodeId;
         hasActiveSlot = true;
+        setNodeValueType(
+          exprContext,
+          slotOutputId,
+          slotValueType === "vector" ? "vector" : "scalar",
+        );
       } else {
         expressionIssues.push("Self reference unavailable for this input.");
         slotOutputId = getConstantNodeId(exprContext, target.defaultValue);
@@ -112,7 +138,7 @@ function evaluateBinding({
         nodes.push({
           id: remapNodeId,
           type: "centered_remap",
-          input_defaults: {
+          inputDefaults: {
             in_low: slot.remap.inLow,
             in_anchor: slot.remap.inAnchor,
             in_high: slot.remap.inHigh,
@@ -122,9 +148,14 @@ function evaluateBinding({
           },
         });
         edges.push({
-          from: { node_id: inputNode.nodeId },
-          to: { node_id: remapNodeId, input: "in" },
+          from: { nodeId: inputNode.nodeId },
+          to: { nodeId: remapNodeId, portId: "in" },
         });
+        setNodeValueType(
+          exprContext,
+          remapNodeId,
+          slotValueType === "vector" ? "vector" : "scalar",
+        );
         slotOutputId = remapNodeId;
         hasActiveSlot = true;
       } else {
@@ -134,7 +165,22 @@ function evaluateBinding({
     } else {
       slotOutputId = getConstantNodeId(exprContext, 0);
     }
-    aliasNodes.set(alias, slotOutputId);
+    variableTable.registerSlotVariable({
+      name: alias,
+      nodeId: slotOutputId,
+      slotId,
+      slotAlias: alias,
+      inputId: slot.inputId ?? null,
+      targetId,
+      animatableId,
+      component,
+      valueType: slotValueType,
+    });
+    setNodeValueType(
+      exprContext,
+      slotOutputId,
+      slotValueType === "vector" ? "vector" : "scalar",
+    );
     slotSummaries.push({
       targetId,
       animatableId,
@@ -150,7 +196,23 @@ function evaluateBinding({
 
   if (slotSummaries.length === 0) {
     const alias = PRIMARY_SLOT_ALIAS;
-    aliasNodes.set(alias, getConstantNodeId(exprContext, 0));
+    const constantId = getConstantNodeId(exprContext, 0);
+    variableTable.registerSlotVariable({
+      name: alias,
+      nodeId: constantId,
+      slotId: PRIMARY_SLOT_ID,
+      slotAlias: alias,
+      inputId: null,
+      targetId,
+      animatableId,
+      component,
+      valueType: targetValueType,
+    });
+    setNodeValueType(
+      exprContext,
+      constantId,
+      targetValueType === "vector" ? "vector" : "scalar",
+    );
     slotSummaries.push({
       targetId,
       animatableId,
@@ -164,6 +226,26 @@ function evaluateBinding({
     });
   }
 
+  RESERVED_EXPRESSION_VARIABLES.forEach((reserved) => {
+    if (reserved.available === false) {
+      return;
+    }
+    let nodeId: string | null = null;
+    if (reserved.name === "self") {
+      nodeId = selfNodeId ?? null;
+    } else {
+      nodeId = ensureReservedVariableNode(reserved.name, exprContext);
+    }
+    variableTable.registerReservedVariable({
+      name: reserved.name,
+      nodeId,
+      description: reserved.description,
+      targetId: reserved.scope === "binding" ? targetId : undefined,
+      animatableId: reserved.scope === "binding" ? animatableId : undefined,
+      component: reserved.scope === "binding" ? component : undefined,
+    });
+  });
+
   const defaultAlias = slotSummaries[0]?.slotAlias ?? PRIMARY_SLOT_ALIAS;
   const expressionText =
     trimmedExpression.length > 0 ? trimmedExpression : defaultAlias;
@@ -172,18 +254,24 @@ function evaluateBinding({
   let expressionAst: ControlExpressionNode | null = null;
 
   if (parseResult.node && parseResult.errors.length === 0) {
-    const references = collectExpressionReferences(parseResult.node);
-    const missing: string[] = [];
-    references.forEach((ref) => {
-      if (!aliasNodes.has(ref)) {
-        missing.push(ref);
-      }
-    });
+    const references = Array.from(
+      collectExpressionReferences(parseResult.node),
+    );
+    const missing = variableTable.missing(references);
     if (missing.length === 0) {
       expressionAst = parseResult.node;
     } else {
-      missing.forEach((ref) => {
-        expressionIssues.push(`Unknown control "${ref}".`);
+      missing.forEach((missingVar) => {
+        if (
+          missingVar.reason === "unresolved" &&
+          missingVar.entry?.kind === "reserved"
+        ) {
+          expressionIssues.push(
+            `Reserved variable "${missingVar.name}" is unavailable for this binding.`,
+          );
+        } else {
+          expressionIssues.push(`Unknown control "${missingVar.name}".`);
+        }
       });
     }
   } else {
@@ -198,25 +286,29 @@ function evaluateBinding({
     valueNodeId = materializeExpression(
       expressionAst,
       exprContext,
-      aliasNodes,
+      variableTable,
       expressionIssues,
     );
   }
 
   if (!valueNodeId) {
-    const fallbackAlias = aliasNodes.has(defaultAlias)
-      ? defaultAlias
-      : aliasNodes.keys().next().value;
-    valueNodeId =
-      (fallbackAlias ? aliasNodes.get(fallbackAlias) : undefined) ??
-      getConstantNodeId(exprContext, 0);
+    const fallbackNodeId =
+      variableTable.resolveNodeId(defaultAlias) ?? variableTable.firstNodeId();
+    valueNodeId = fallbackNodeId ?? getConstantNodeId(exprContext, 0);
   }
 
   const issuesCopy = expressionIssues.length
     ? [...new Set(expressionIssues)]
     : undefined;
+  const operatorSnapshot = cloneOperators(
+    (binding as AnimatableBinding & { operators?: BindingOperator[] })
+      ?.operators,
+  );
   slotSummaries.forEach((summary) => {
     summary.expression = expressionText;
+    if (operatorSnapshot) {
+      summary.operators = cloneOperators(operatorSnapshot);
+    }
     if (issuesCopy && issuesCopy.length > 0) {
       summary.issues = issuesCopy;
       const issueSet = bindingIssues.get(summary.targetId) ?? new Set<string>();
@@ -237,7 +329,7 @@ interface InputExportMetadata {
   root?: string;
 }
 
-interface BuildGraphOptions {
+export interface BuildGraphOptions {
   faceId: string;
   animatables: Record<string, AnimatableValue>;
   components: AnimatableComponent[];
@@ -258,6 +350,7 @@ export interface GraphBindingSummary {
   expression: string;
   valueType: BindingValueType;
   issues?: string[];
+  operators?: BindingOperator[];
 }
 
 export interface BuildGraphResult {
@@ -271,6 +364,10 @@ export interface BuildGraphResult {
   issues: {
     byTarget: Record<string, string[]>;
     fatal: string[];
+  };
+  ir?: {
+    graph: IrGraph;
+    compile: (options?: IrCompileOptions) => IrCompileResult;
   };
 }
 
@@ -360,10 +457,79 @@ function extractComponentDefault(
 
 interface ExpressionBuildContext {
   componentSafeId: string;
-  nodes: NodeSpec[];
-  edges: NonNullable<GraphSpec["edges"]>;
+  nodes: IrNode[];
+  edges: IrEdge[];
   constants: Map<string, string>;
   counter: number;
+  reservedNodes: Map<string, string>;
+  nodeValueTypes: Map<string, ExpressionValueType>;
+}
+
+function setNodeValueType(
+  context: ExpressionBuildContext,
+  nodeId: string,
+  valueType: ExpressionValueType,
+): void {
+  context.nodeValueTypes.set(nodeId, valueType);
+}
+
+function getNodeValueType(
+  context: ExpressionBuildContext,
+  nodeId: string,
+): ExpressionValueType {
+  return context.nodeValueTypes.get(nodeId) ?? "any";
+}
+
+function matchesValueType(
+  actual: ExpressionValueType,
+  expected: ExpressionValueType,
+): boolean {
+  if (expected === "any" || actual === "any") {
+    return true;
+  }
+  if (expected === "scalar") {
+    return actual === "scalar" || actual === "boolean";
+  }
+  return actual === expected;
+}
+
+function ensureOperandValueType(
+  context: ExpressionBuildContext,
+  operandId: string,
+  expected: ExpressionValueType,
+  functionName: string,
+  inputId: string,
+  issues: string[],
+): void {
+  if (expected === "any") {
+    return;
+  }
+  const actual = getNodeValueType(context, operandId);
+  if (matchesValueType(actual, expected)) {
+    return;
+  }
+  const expectation =
+    expected === "vector"
+      ? "a vector"
+      : expected === "boolean"
+        ? "a boolean"
+        : "a scalar";
+  issues.push(
+    `Function "${functionName}" expects ${expectation} input for "${inputId}", but the expression produced ${actual}.`,
+  );
+}
+
+function cloneOperators(
+  operators: BindingOperator[] | undefined,
+): BindingOperator[] | undefined {
+  if (!operators || operators.length === 0) {
+    return undefined;
+  }
+  return operators.map((operator) => ({
+    type: operator.type,
+    enabled: !!operator.enabled,
+    params: { ...(operator.params ?? {}) },
+  }));
 }
 
 function getConstantNodeId(
@@ -384,6 +550,7 @@ function getConstantNodeId(
     },
   });
   context.constants.set(key, nodeId);
+  setNodeValueType(context, nodeId, "scalar");
   return nodeId;
 }
 
@@ -398,17 +565,18 @@ function createBinaryOperationNode(
     id: nodeId,
     type: operator,
   });
+  setNodeValueType(context, nodeId, "scalar");
   const leftInput =
     operator === "subtract" || operator === "divide" ? "lhs" : "operand_1";
   const rightInput =
     operator === "subtract" || operator === "divide" ? "rhs" : "operand_2";
   context.edges.push({
-    from: { node_id: leftId },
-    to: { node_id: nodeId, input: leftInput },
+    from: { nodeId: leftId },
+    to: { nodeId: nodeId, portId: leftInput },
   });
   context.edges.push({
-    from: { node_id: rightId },
-    to: { node_id: nodeId, input: rightInput },
+    from: { nodeId: rightId },
+    to: { nodeId: nodeId, portId: rightInput },
   });
   return nodeId;
 }
@@ -429,10 +597,11 @@ function createVariadicOperationNode(
     id: nodeId,
     type: operator,
   });
+  setNodeValueType(context, nodeId, "scalar");
   operandIds.forEach((operandId, index) => {
     context.edges.push({
-      from: { node_id: operandId },
-      to: { node_id: nodeId, input: `operand_${index + 1}` },
+      from: { nodeId: operandId },
+      to: { nodeId: nodeId, portId: `operand_${index + 1}` },
     });
   });
   return nodeId;
@@ -443,49 +612,139 @@ function createNamedOperationNode(
   operator: string,
   inputNames: string[],
   operandIds: string[],
+  resultType: ExpressionValueType = "scalar",
 ): string {
   const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
   context.nodes.push({
     id: nodeId,
     type: operator,
   });
+  setNodeValueType(context, nodeId, resultType);
   inputNames.forEach((inputName, index) => {
     const operandId = operandIds[index]!;
     context.edges.push({
-      from: { node_id: operandId },
-      to: { node_id: nodeId, input: inputName },
+      from: { nodeId: operandId },
+      to: { nodeId: nodeId, portId: inputName },
     });
   });
+  return nodeId;
+}
+
+function ensureReservedVariableNode(
+  name: string,
+  context: ExpressionBuildContext,
+): string | null {
+  const existing = context.reservedNodes.get(name);
+  if (existing) {
+    return existing;
+  }
+  switch (name) {
+    case "time": {
+      return createReservedTimeNode(context, name, "time");
+    }
+    case "deltaTime": {
+      return createReservedTimeNode(context, name, "deltaTime");
+    }
+    case "frame": {
+      return createReservedTimeNode(context, name, "frame");
+    }
+    default:
+      return null;
+  }
+}
+
+function createReservedTimeNode(
+  context: ExpressionBuildContext,
+  name: string,
+  kind: "time" | "deltaTime" | "frame",
+): string {
+  const nodeId = `${kind}_${context.componentSafeId}_${context.counter++}`;
+  context.nodes.push({
+    id: nodeId,
+    type: "time",
+    metadata: {
+      reservedVariable: kind,
+    },
+  });
+  setNodeValueType(context, nodeId, "scalar");
+  context.reservedNodes.set(name, nodeId);
   return nodeId;
 }
 
 function emitScalarFunctionNode(
   definition: ScalarFunctionDefinition,
   operands: string[],
+  argNodes: ControlExpressionNode[],
   context: ExpressionBuildContext,
+  variables: ExpressionVariableTable,
+  issues: string[],
 ): string {
+  if (definition.nodeType === "case") {
+    return emitCaseFunctionNode(
+      definition,
+      operands,
+      argNodes,
+      context,
+      variables,
+      issues,
+    );
+  }
+
+  const orderedOperands = operands.slice(0, definition.inputs.length);
+  definition.inputs.forEach((input, index) => {
+    const operandId = orderedOperands[index];
+    if (!operandId) {
+      return;
+    }
+    ensureOperandValueType(
+      context,
+      operandId,
+      input.valueType,
+      definition.nodeType,
+      input.id,
+      issues,
+    );
+  });
+
+  const variadicOperands = definition.variadic
+    ? operands.slice(definition.inputs.length)
+    : [];
   if (definition.variadic) {
+    variadicOperands.forEach((operandId, _variadicIndex) => {
+      ensureOperandValueType(
+        context,
+        operandId,
+        definition.variadic!.valueType,
+        definition.nodeType,
+        definition.variadic!.id,
+        issues,
+      );
+    });
+  }
+
+  if (definition.variadic && definition.inputs.length === 0) {
     const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
     context.nodes.push({
       id: nodeId,
       type: definition.nodeType,
     });
-    operands.forEach((operandId, index) => {
+    variadicOperands.forEach((operandId, index) => {
       context.edges.push({
-        from: { node_id: operandId },
+        from: { nodeId: operandId },
         to: {
-          node_id: nodeId,
-          input: `${definition.variadic!.id}_${index + 1}`,
+          nodeId,
+          portId: `${definition.variadic!.id}_${index + 1}`,
         },
       });
     });
+    setNodeValueType(context, nodeId, definition.resultValueType);
     return nodeId;
   }
 
   const providedNames: string[] = [];
   const providedOperands: string[] = [];
   definition.inputs.forEach((input, index) => {
-    const operandId = operands[index];
+    const operandId = orderedOperands[index];
     if (!operandId) {
       return;
     }
@@ -493,20 +752,139 @@ function emitScalarFunctionNode(
     providedOperands.push(operandId);
   });
 
-  return createNamedOperationNode(
+  const nodeId = createNamedOperationNode(
     context,
     definition.nodeType,
     providedNames,
     providedOperands,
+    definition.resultValueType,
   );
+
+  if (definition.variadic) {
+    variadicOperands.forEach((operandId, index) => {
+      context.edges.push({
+        from: { nodeId: operandId },
+        to: {
+          nodeId,
+          portId: `${definition.variadic!.id}_${index + 1}`,
+        },
+      });
+    });
+  }
+
+  return nodeId;
+}
+
+function emitCaseFunctionNode(
+  definition: ScalarFunctionDefinition,
+  operands: string[],
+  argNodes: ControlExpressionNode[],
+  context: ExpressionBuildContext,
+  variables: ExpressionVariableTable,
+  issues: string[],
+): string {
+  const selectorId = operands[0];
+  const defaultId = operands[1];
+  const branchOperands = operands.slice(2);
+  const branchArgs = argNodes.slice(2);
+
+  if (!selectorId || branchOperands.length === 0) {
+    issues.push(
+      'Function "case" requires a selector, default, and at least one branch.',
+    );
+    return getConstantNodeId(context, 0);
+  }
+
+  const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
+  const caseLabels = branchOperands.map((_, index) => {
+    const extracted = extractCaseLabel(branchArgs[index], variables);
+    if (extracted) {
+      return extracted;
+    }
+    const fallback = `case_${index + 1}`;
+    issues.push(
+      `Case branch ${index + 1} is missing an alias; generated fallback label ${fallback}.`,
+    );
+    return fallback;
+  });
+
+  context.nodes.push({
+    id: nodeId,
+    type: definition.nodeType,
+    params: caseLabels.length > 0 ? { case_labels: caseLabels } : undefined,
+  });
+
+  ensureOperandValueType(
+    context,
+    selectorId,
+    definition.inputs[0]?.valueType ?? "any",
+    definition.nodeType,
+    definition.inputs[0]?.id ?? "selector",
+    issues,
+  );
+  context.edges.push({
+    from: { nodeId: selectorId },
+    to: { nodeId, portId: definition.inputs[0]?.id ?? "selector" },
+  });
+
+  if (defaultId) {
+    ensureOperandValueType(
+      context,
+      defaultId,
+      definition.inputs[1]?.valueType ?? "any",
+      definition.nodeType,
+      "default",
+      issues,
+    );
+    context.edges.push({
+      from: { nodeId: defaultId },
+      to: { nodeId, portId: "default" },
+    });
+  }
+
+  branchOperands.forEach((operandId, index) => {
+    const portId = `${definition.variadic?.id ?? "operand"}_${index + 1}`;
+    ensureOperandValueType(
+      context,
+      operandId,
+      definition.variadic?.valueType ?? "any",
+      definition.nodeType,
+      portId,
+      issues,
+    );
+    context.edges.push({
+      from: { nodeId: operandId },
+      to: { nodeId, portId },
+    });
+  });
+
+  setNodeValueType(context, nodeId, "any");
+  return nodeId;
+}
+
+function extractCaseLabel(
+  node: ControlExpressionNode | undefined,
+  variables: ExpressionVariableTable,
+): string | null {
+  if (!node || node.type !== "Reference") {
+    return null;
+  }
+  const entry = variables.resolve(node.name);
+  if (entry && entry.metadata && "slotAlias" in entry.metadata) {
+    const alias = entry.metadata.slotAlias?.trim();
+    if (alias && alias.length > 0) {
+      return alias;
+    }
+  }
+  return node.name;
 }
 
 function applyBindingOperators(
   operators: BindingOperator[],
   baseNodeId: string,
   safeId: string,
-  nodes: NodeSpec[],
-  edges: NonNullable<GraphSpec["edges"]>,
+  nodes: IrNode[],
+  edges: IrEdge[],
 ): string {
   let currentNodeId = baseNodeId;
   operators.forEach((operator, index) => {
@@ -529,12 +907,12 @@ function applyBindingOperators(
     nodes.push({
       id: nodeId,
       type: definition.nodeType,
-      params: params as NodeSpec["params"],
+      params: params as IrNode["params"],
     });
     const inputId = definition.inputs[0] ?? "in";
     edges.push({
-      from: { node_id: currentNodeId },
-      to: { node_id: nodeId, input: inputId },
+      from: { nodeId: currentNodeId },
+      to: { nodeId: nodeId, portId: inputId },
     });
     currentNodeId = nodeId;
   });
@@ -566,7 +944,7 @@ const BINARY_FUNCTION_OPERATOR_MAP: Record<string, string> = {
 function materializeExpression(
   node: ControlExpressionNode,
   context: ExpressionBuildContext,
-  aliasNodes: Map<string, string>,
+  variables: ExpressionVariableTable,
   issues: string[],
 ): string {
   switch (node.type) {
@@ -574,7 +952,7 @@ function materializeExpression(
       return getConstantNodeId(context, node.value);
     }
     case "Reference": {
-      const mapped = aliasNodes.get(node.name);
+      const mapped = variables.resolveNodeId(node.name);
       if (!mapped) {
         issues.push(`Unknown control "${node.name}".`);
         return getConstantNodeId(context, 0);
@@ -585,7 +963,7 @@ function materializeExpression(
       const operandId = materializeExpression(
         node.operand,
         context,
-        aliasNodes,
+        variables,
         issues,
       );
       switch (node.operator) {
@@ -604,7 +982,14 @@ function materializeExpression(
             issues.push('Function "not" is not available in metadata.');
             return getConstantNodeId(context, 0);
           }
-          return emitScalarFunctionNode(definition, [operandId], context);
+          return emitScalarFunctionNode(
+            definition,
+            [operandId],
+            [node.operand],
+            context,
+            variables,
+            issues,
+          );
         }
         default:
           issues.push("Unsupported unary operator.");
@@ -617,7 +1002,7 @@ function materializeExpression(
         const children: ControlExpressionNode[] = [];
         collectOperands(node, "+", children);
         const operandIds = children.map((child) =>
-          materializeExpression(child, context, aliasNodes, issues),
+          materializeExpression(child, context, variables, issues),
         );
         return createVariadicOperationNode(context, "add", operandIds);
       }
@@ -625,7 +1010,7 @@ function materializeExpression(
         const children: ControlExpressionNode[] = [];
         collectOperands(node, "*", children);
         const operandIds = children.map((child) =>
-          materializeExpression(child, context, aliasNodes, issues),
+          materializeExpression(child, context, variables, issues),
         );
         return createVariadicOperationNode(context, "multiply", operandIds);
       }
@@ -633,13 +1018,13 @@ function materializeExpression(
       const leftId = materializeExpression(
         node.left,
         context,
-        aliasNodes,
+        variables,
         issues,
       );
       const rightId = materializeExpression(
         node.right,
         context,
-        aliasNodes,
+        variables,
         issues,
       );
 
@@ -657,7 +1042,14 @@ function materializeExpression(
           issues.push(`Function "${mappedFunction}" is not available.`);
           return getConstantNodeId(context, 0);
         }
-        return emitScalarFunctionNode(definition, [leftId, rightId], context);
+        return emitScalarFunctionNode(
+          definition,
+          [leftId, rightId],
+          [node.left, node.right],
+          context,
+          variables,
+          issues,
+        );
       }
 
       issues.push(`Unsupported operator "${operator}".`);
@@ -673,7 +1065,7 @@ function materializeExpression(
       }
 
       const operands = node.args.map((arg) =>
-        materializeExpression(arg, context, aliasNodes, issues),
+        materializeExpression(arg, context, variables, issues),
       );
 
       if (operands.length < definition.minArgs) {
@@ -690,7 +1082,14 @@ function materializeExpression(
         return getConstantNodeId(context, 0);
       }
 
-      return emitScalarFunctionNode(definition, operands, context);
+      return emitScalarFunctionNode(
+        definition,
+        operands,
+        node.args,
+        context,
+        variables,
+        issues,
+      );
     }
     default: {
       issues.push("Unsupported expression node.");
@@ -710,9 +1109,15 @@ export function buildRigGraphSpec({
 }: BuildGraphOptions): BuildGraphResult {
   const metadataByInputId =
     inputMetadata ?? new Map<string, InputExportMetadata>();
+  const irBuilder = createIrGraphBuilder({
+    faceId,
+    registryVersion: nodeRegistryVersion,
+    source: "graphBuilder",
+    generatedAt: new Date().toISOString(),
+  });
 
-  const nodes: NodeSpec[] = [];
-  const edges: NonNullable<GraphSpec["edges"]> = [];
+  const nodes: IrNode[] = [];
+  const edges: IrEdge[] = [];
   const inputNodes = new Map<
     string,
     { nodeId: string; input: StandardRigInput }
@@ -890,6 +1295,7 @@ export function buildRigGraphSpec({
         expression: PRIMARY_SLOT_ALIAS,
         valueType: target.valueType === "vector" ? "vector" : "scalar",
         issues: ["Binding not found."],
+        operators: undefined,
       });
       const fallbackIssues =
         bindingIssues.get(component.id) ?? new Set<string>();
@@ -941,8 +1347,8 @@ export function buildRigGraphSpec({
         },
       });
       edges.push({
-        from: { node_id: valueNodeId },
-        to: { node_id: outputNodeId, input: "in" },
+        from: { nodeId: valueNodeId },
+        to: { nodeId: outputNodeId, portId: "in" },
       });
       return;
     }
@@ -973,8 +1379,8 @@ export function buildRigGraphSpec({
         sourceId = constNodeId;
       }
       edges.push({
-        from: { node_id: sourceId },
-        to: { node_id: joinNodeId, input: `operand_${index + 1}` },
+        from: { nodeId: sourceId },
+        to: { nodeId: joinNodeId, portId: `operand_${index + 1}` },
       });
     });
 
@@ -987,42 +1393,43 @@ export function buildRigGraphSpec({
       },
     });
     edges.push({
-      from: { node_id: joinNodeId },
-      to: { node_id: outputNodeId, input: "in" },
+      from: { nodeId: joinNodeId },
+      to: { nodeId: outputNodeId, portId: "in" },
     });
   });
 
-  const nodeById = new Map<string, NodeSpec>();
+  const nodeById = new Map<string, IrNode>();
   nodes.forEach((node) => {
     nodeById.set(node.id, node);
   });
 
   const constantUsage = new Map<string, number>();
   edges.forEach((edge: GraphEdge) => {
-    const source = nodeById.get(edge.from.node_id);
+    const source = nodeById.get(edge.from.nodeId);
     if (source?.type === "constant") {
       constantUsage.set(source.id, (constantUsage.get(source.id) ?? 0) + 1);
     }
   });
 
-  const updatedEdges: NonNullable<GraphSpec["edges"]> = [];
+  const updatedEdges: IrEdge[] = [];
   const constantsToRemove = new Set<string>();
 
   edges.forEach((edge: GraphEdge) => {
-    const source = nodeById.get(edge.from.node_id);
+    const source = nodeById.get(edge.from.nodeId);
     if (
       source?.type === "constant" &&
       constantUsage.get(source.id) === 1 &&
       source.params &&
       Object.prototype.hasOwnProperty.call(source.params, "value")
     ) {
-      const target = nodeById.get(edge.to.node_id);
+      const target = nodeById.get(edge.to.nodeId);
       if (target) {
         const value = (source.params as { value?: unknown }).value;
         if (value !== undefined) {
-          target.input_defaults = {
-            ...(target.input_defaults ?? {}),
-            [edge.to.input]: value,
+          const targetPort = edge.to.portId ?? "in";
+          target.inputDefaults = {
+            ...(target.inputDefaults ?? {}),
+            [targetPort]: value,
           };
           nodeById.set(target.id, target);
           constantsToRemove.add(source.id);
@@ -1047,55 +1454,45 @@ export function buildRigGraphSpec({
       computedInputs.has(binding.animatableId),
   );
 
-  const spec: GraphSpec = {
-    nodes: filteredNodes,
-    edges: updatedEdges.length ? updatedEdges : undefined,
-  };
-
-  const baseSpec = spec as Record<string, unknown>;
-  const specWithMetadata = {
-    ...baseSpec,
-    metadata: {
-      ...(baseSpec.metadata as Record<string, unknown> | undefined),
-      vizij: {
-        faceId,
-        inputs: Array.from(inputsById.values()).map((input) => {
-          const meta = metadataByInputId.get(input.id);
-          const derivedRoot = meta?.root ?? input.group;
-          let derivedSource = meta?.source;
-          if (!derivedSource && input.path.startsWith("/standard/")) {
-            derivedSource = "preset";
-          }
-          const entry: Record<string, unknown> = {
-            id: input.id,
-            path: input.path,
-            sourceId: input.sourceId,
-            label: input.label,
-            group: input.group,
-            defaultValue: input.defaultValue,
-            range: {
-              min: input.range.min,
-              max: input.range.max,
-            },
-          };
-          if (derivedSource) {
-            entry.source = derivedSource;
-          }
-          if (derivedRoot) {
-            entry.root = derivedRoot;
-          }
-          return entry;
-        }),
-        bindings: filteredSummaryBindings.map((binding) => ({
-          ...binding,
-          remap: { ...binding.remap },
-          expression: binding.expression,
-          valueType: binding.valueType,
-          issues: binding.issues ? [...binding.issues] : undefined,
-        })),
-      },
+  const vizijMetadata = {
+    vizij: {
+      faceId,
+      inputs: Array.from(inputsById.values()).map((input) => {
+        const meta = metadataByInputId.get(input.id);
+        const derivedRoot = meta?.root ?? input.group;
+        let derivedSource = meta?.source;
+        if (!derivedSource && input.path.startsWith("/standard/")) {
+          derivedSource = "preset";
+        }
+        const entry: Record<string, unknown> = {
+          id: input.id,
+          path: input.path,
+          sourceId: input.sourceId,
+          label: input.label,
+          group: input.group,
+          defaultValue: input.defaultValue,
+          range: {
+            min: input.range.min,
+            max: input.range.max,
+          },
+        };
+        if (derivedSource) {
+          entry.source = derivedSource;
+        }
+        if (derivedRoot) {
+          entry.root = derivedRoot;
+        }
+        return entry;
+      }),
+      bindings: filteredSummaryBindings.map((binding) => ({
+        ...binding,
+        remap: { ...binding.remap },
+        expression: binding.expression,
+        valueType: binding.valueType,
+        issues: binding.issues ? [...binding.issues] : undefined,
+      })),
     },
-  } as GraphSpec;
+  };
 
   const issuesByTarget: Record<string, string[]> = {};
   bindingIssues.forEach((issues, targetId) => {
@@ -1110,29 +1507,164 @@ export function buildRigGraphSpec({
   });
   remapDefaultIssues.forEach((issue) => fatalIssues.add(issue));
 
-  return {
-    spec: specWithMetadata,
-    summary: {
-      faceId,
-      inputs: Array.from(inputNodes.values()).map(({ input }) =>
-        buildRigInputPath(faceId, input.path),
-      ),
-      outputs: [...dynamicOutputs, ...computedInputList],
-      bindings: filteredSummaryBindings,
+  const summaryPayload = {
+    faceId,
+    inputs: Array.from(inputNodes.values()).map(({ input }) =>
+      buildRigInputPath(faceId, input.path),
+    ),
+    outputs: [...dynamicOutputs, ...computedInputList],
+    bindings: filteredSummaryBindings,
+  };
+
+  const irSummary: IrGraphSummary = {
+    faceId: summaryPayload.faceId,
+    inputs: [...summaryPayload.inputs],
+    outputs: [...summaryPayload.outputs],
+    bindings: toIrBindingSummary(
+      filteredSummaryBindings.map((binding) => ({
+        ...binding,
+        remap: { ...binding.remap } as Record<string, unknown>,
+        issues: binding.issues ? [...binding.issues] : undefined,
+      })),
+    ),
+  };
+
+  const fatalIssueList = Array.from(fatalIssues);
+  const irIssues = createIrIssuesFromLegacy(issuesByTarget, fatalIssueList);
+
+  filteredNodes.forEach((node) => {
+    irBuilder.addNode(cloneIrNode(node));
+    const constant = extractIrConstantFromNode(node);
+    if (constant) {
+      irBuilder.addConstant(constant);
+    }
+  });
+  updatedEdges.forEach((edge: GraphEdge) => {
+    irBuilder.addEdge(cloneIrEdge(edge));
+  });
+  irBuilder.setSummary(irSummary);
+  irIssues.forEach((issue) => irBuilder.addIssue(issue));
+  irBuilder.updateMetadata({
+    annotations: {
+      graphSpecMetadata: cloneJsonLike(vizijMetadata),
     },
+  });
+  const irGraph = irBuilder.build();
+  const compiled = compileIrGraph(irGraph, { preferLegacySpec: false });
+
+  return {
+    spec: compiled.spec,
+    summary: summaryPayload,
     issues: {
       byTarget: issuesByTarget,
-      fatal: Array.from(fatalIssues),
+      fatal: fatalIssueList,
+    },
+    ir: {
+      graph: irGraph,
+      compile: (options?: IrCompileOptions) => compileIrGraph(irGraph, options),
     },
   };
 }
-function validateRemapDefaults(nodes: NodeSpec[]): string[] {
+function createIrIssuesFromLegacy(
+  issuesByTarget: Record<string, string[]>,
+  fatalIssues: string[],
+): IrIssue[] {
+  const fatalSet = new Set(fatalIssues);
+  const collected: IrIssue[] = [];
+  let counter = 0;
+
+  Object.entries(issuesByTarget).forEach(([targetId, messages]) => {
+    messages.forEach((message) => {
+      counter += 1;
+      collected.push({
+        id: `issue_${counter}`,
+        severity: fatalSet.has(message) ? "error" : "warning",
+        message,
+        targetId,
+        tags: fatalSet.has(message) ? ["fatal"] : undefined,
+      });
+    });
+  });
+
+  fatalSet.forEach((message) => {
+    const alreadyCaptured = collected.some(
+      (issue) => issue.message === message,
+    );
+    if (alreadyCaptured) {
+      return;
+    }
+    counter += 1;
+    collected.push({
+      id: `issue_${counter}`,
+      severity: "error",
+      message,
+      tags: ["fatal"],
+    });
+  });
+
+  return collected;
+}
+
+function cloneIrNode(node: IrNode): IrNode {
+  return {
+    id: node.id,
+    type: node.type,
+    category: node.category,
+    label: node.label,
+    description: node.description,
+    params: cloneJsonLike(node.params),
+    inputDefaults: cloneJsonLike(node.inputDefaults),
+    metadata: cloneJsonLike(node.metadata),
+  };
+}
+
+function cloneIrEdge(edge: IrEdge): IrEdge {
+  return {
+    id: edge.id,
+    from: {
+      nodeId: edge.from.nodeId,
+      portId: edge.from.portId,
+      component: edge.from.component,
+    },
+    to: {
+      nodeId: edge.to.nodeId,
+      portId: edge.to.portId,
+      component: edge.to.component,
+    },
+    metadata: cloneJsonLike(edge.metadata),
+  };
+}
+
+function extractIrConstantFromNode(node: IrNode): IrConstant | null {
+  if (node.type !== "constant") {
+    return null;
+  }
+  const value = (node.params as { value?: unknown } | undefined)?.value;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return {
+    id: node.id,
+    value,
+    valueType: "scalar",
+    metadata: cloneJsonLike(node.metadata),
+  };
+}
+
+function cloneJsonLike<T>(value: T): T {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function validateRemapDefaults(nodes: IrNode[]): string[] {
   const issues: string[] = [];
   nodes.forEach((node) => {
     if (node.type !== "centered_remap") {
       return;
     }
-    const defaults = node.input_defaults ?? {};
+    const defaults = node.inputDefaults ?? {};
     (
       [
         "in_low",

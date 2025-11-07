@@ -12,7 +12,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./cli/reportIr": {
+      "import": "./dist/cli/reportIr.js",
+      "require": "./dist/cli/reportIr.cjs"
     }
+  },
+  "bin": {
+    "vizij-ir-report": "./dist/cli/reportIr.cjs"
   },
   "repository": {
     "type": "git",
@@ -25,10 +32,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts src/index.ts",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts src/index.ts",
+    "build": "tsup src/index.ts src/cli/reportIr.ts --format esm,cjs --dts src/index.ts",
+    "dev": "tsup src/index.ts src/cli/reportIr.ts --format esm,cjs --watch --dts src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
+    "report:ir": "node dist/cli/reportIr.js",
     "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
     "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
     "prettier:check": "prettier --check .",
@@ -43,6 +51,7 @@
     "@vizij/utils": "^0.0.2"
   },
   "devDependencies": {
+    "@types/node": "^22.10.1",
     "tsup": "^8.0.1",
     "typescript": "^5.5.0",
     "vitest": "^3.2.4",

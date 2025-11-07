@@ -12,4 +12,6 @@ declare module "@vizij/node-graph-wasm/metadata" {
   export function requireNodeSignature(
     typeId: NodeType | string,
   ): NodeSignature;
+  export function listNodeTypeIds(): NodeType[];
+  export const nodeRegistryVersion: string;
 }

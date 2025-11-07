@@ -470,6 +470,40 @@ describe("buildRigGraphSpec", () => {
     expect(powerInputs).toEqual(["base", "exp"].sort());
   });
 
+  it("attaches an IR envelope that can be compiled via the legacy spec", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "A";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    expect(result.ir).toBeDefined();
+    expect(result.ir?.graph.faceId).toBe("robot");
+    const compiled = result.ir?.compile();
+    expect(compiled?.spec).toEqual(result.spec);
+    const pureCompile = result.ir?.compile({ preferLegacySpec: false });
+    expect(pureCompile?.spec.nodes).toEqual(result.spec.nodes);
+    expect(pureCompile?.spec.edges).toEqual(result.spec.edges);
+  });
+
   it("creates comparison and logic nodes via metadata functions", () => {
     const binding = createDefaultBinding(COMPONENT);
     binding.slots = [
@@ -514,6 +548,53 @@ describe("buildRigGraphSpec", () => {
       (node: GraphSpec["nodes"][number]) => node.type === "if",
     );
     expect(ifNode).toBeDefined();
+  });
+
+  it("creates blend nodes via metadata-driven functions", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_b",
+        alias: "B",
+        inputId: INPUT_B.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_c",
+        alias: "C",
+        inputId: INPUT_C.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "defaultBlend(0, 0, join(A, B, C), A, B, C)";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+        [INPUT_C.id, INPUT_C],
+      ]),
+      inputBindings: {},
+    });
+
+    const blendNode = spec.nodes.find(
+      (node: GraphSpec["nodes"][number]) => node.type === "default-blend",
+    );
+    expect(blendNode).toBeDefined();
   });
 
   it("reports issues for incorrect metadata function arity", () => {
@@ -586,6 +667,245 @@ describe("buildRigGraphSpec", () => {
     expect(
       (springNode?.params as Record<string, number> | undefined)?.stiffness,
     ).toBe(200);
+  });
+
+  it("applies damp operators with configured params", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots[0] = {
+      ...binding.slots[0],
+      inputId: INPUT_A.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    };
+    binding.inputId = INPUT_A.id;
+    binding.remap = { ...binding.slots[0].remap };
+    const dampOperator = binding.operators?.find(
+      (operator) => operator.type === "damp",
+    );
+    expect(dampOperator).toBeDefined();
+    if (dampOperator) {
+      dampOperator.enabled = true;
+      dampOperator.params.half_life = 0.5;
+    }
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const dampNode = spec.nodes.find((node) => node.type === "damp");
+    expect(dampNode).toBeDefined();
+    expect(
+      (dampNode?.params as Record<string, number> | undefined)?.half_life,
+    ).toBe(0.5);
+  });
+
+  it("applies slew operators with configured params", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots[0] = {
+      ...binding.slots[0],
+      inputId: INPUT_A.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    };
+    binding.inputId = INPUT_A.id;
+    binding.remap = { ...binding.slots[0].remap };
+    const slewOperator = binding.operators?.find(
+      (operator) => operator.type === "slew",
+    );
+    expect(slewOperator).toBeDefined();
+    if (slewOperator) {
+      slewOperator.enabled = true;
+      slewOperator.params.max_rate = 0.25;
+    }
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const slewNode = spec.nodes.find((node) => node.type === "slew");
+    expect(slewNode).toBeDefined();
+    expect(
+      (slewNode?.params as Record<string, number> | undefined)?.max_rate,
+    ).toBe(0.25);
+  });
+
+  it("exports operator metadata in binding summaries", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots[0] = {
+      ...binding.slots[0],
+      inputId: INPUT_A.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    };
+    binding.inputId = INPUT_A.id;
+    binding.remap = { ...binding.slots[0].remap };
+    const dampOperator = binding.operators?.find(
+      (operator) => operator.type === "damp",
+    );
+    if (dampOperator) {
+      dampOperator.enabled = true;
+      dampOperator.params.half_life = 0.33;
+    }
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const summaryEntry = result.summary.bindings.find(
+      (entry) =>
+        entry.targetId === COMPONENT.id &&
+        entry.slotAlias === binding.slots[0]?.alias,
+    );
+    expect(summaryEntry?.operators).toBeDefined();
+    const dampSummary = summaryEntry?.operators?.find(
+      (operator) => operator.type === "damp",
+    );
+    expect(dampSummary?.enabled).toBe(true);
+    expect(dampSummary?.params?.half_life).toBe(0.33);
+  });
+
+  it("creates case nodes with aliases as labels", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_selector",
+        alias: "mode",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_happy",
+        alias: "happy",
+        inputId: INPUT_B.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_sad",
+        alias: "sad",
+        inputId: null,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "case(mode, 0, happy, sad)";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+    });
+
+    const caseNode = spec.nodes.find(
+      (node: GraphSpec["nodes"][number]) => node.type === "case",
+    );
+    expect(caseNode).toBeDefined();
+    expect(caseNode?.params).toMatchObject({
+      case_labels: ["happy", "sad"],
+    });
+  });
+
+  it("emits type errors when vector functions receive scalar operands", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_b",
+        alias: "B",
+        inputId: INPUT_B.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "vectoradd(A, B)";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id] ?? [];
+    expect(
+      issues.some(
+        (issue) =>
+          issue.includes("vectoradd") &&
+          issue.includes("expects a vector input"),
+      ),
+    ).toBe(true);
+  });
+
+  it("supports deltaTime and frame reserved variables", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.expression = "deltaTime + frame";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const reservedNodes = (spec.nodes ?? []).filter(
+      (node) =>
+        (node.metadata as { reservedVariable?: string } | undefined)
+          ?.reservedVariable,
+    );
+    expect(
+      reservedNodes.map((node) => node.metadata?.reservedVariable),
+    ).toEqual(expect.arrayContaining(["deltaTime", "frame"]));
   });
 
   it("blends parent bindings with manual slider", () => {
@@ -866,4 +1186,55 @@ describe("buildRigGraphSpec issues", () => {
       expect(derivedBIssues.length).toBeGreaterThan(0);
     }
   });
+});
+it("creates scalar math nodes like abs/min/max/modulo/round", () => {
+  const binding = createDefaultBinding(COMPONENT);
+  binding.slots = [
+    {
+      id: "slot_a",
+      alias: "A",
+      inputId: INPUT_A.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    },
+    {
+      id: "slot_b",
+      alias: "B",
+      inputId: INPUT_B.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    },
+    {
+      id: "slot_c",
+      alias: "C",
+      inputId: INPUT_C.id,
+      remap: { ...createDefaultRemap(COMPONENT) },
+    },
+  ];
+  binding.expression = "round(abs(A) + min(B, C) - max(A, B) + modulo(A, B))";
+
+  const { spec } = buildRigGraphSpec({
+    faceId: "robot",
+    animatables: {
+      [ANIMATABLE.id]: ANIMATABLE,
+    },
+    components: [COMPONENT],
+    bindings: {
+      [COMPONENT.id]: binding,
+    },
+    inputsById: new Map([
+      [INPUT_A.id, INPUT_A],
+      [INPUT_B.id, INPUT_B],
+      [INPUT_C.id, INPUT_C],
+    ]),
+    inputBindings: {},
+  });
+
+  const nodeTypes = new Set(
+    (spec.nodes ?? []).map((node: GraphSpec["nodes"][number]) => node.type),
+  );
+  expect(nodeTypes.has("abs")).toBe(true);
+  expect(
+    Array.from(nodeTypes).some((type) => type === "min" || type === "max"),
+  ).toBe(true);
+  expect(nodeTypes.has("modulo")).toBe(true);
+  expect(nodeTypes.has("round")).toBe(true);
 });

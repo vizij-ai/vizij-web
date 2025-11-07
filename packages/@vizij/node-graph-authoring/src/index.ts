@@ -2,3 +2,8 @@ export * from "./graphBuilder";
 export * from "./state";
 export * from "./expression";
 export * from "./operators";
+export * from "./expressionVariables";
+export * from "./expressionVocabulary";
+export * from "./ir/types";
+export * from "./ir/builder";
+export * from "./ir/compiler";

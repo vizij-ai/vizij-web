@@ -43,6 +43,11 @@
     "release:ci": "pnpm run verify:packages && pnpm run publish:packages",
     "release": "pnpm install --frozen-lockfile && pnpm run release:ci"
   },
+  "pnpm": {
+    "overrides": {
+      "@vizij/node-graph-wasm": "link:../vizij-rs/npm/@vizij/node-graph-wasm"
+    }
+  },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
     "@eslint/js": "^9.19.0",
