@@ -2364,11 +2364,23 @@ button.danger:hover:not(:disabled),
   flex: 1;
 }
 
-.feature-panel__input-path {
-  font-size: 0.68rem;
-  color: #64748b;
-  word-break: break-all;
-  padding-left: 2.4rem;
+.feature-panel__input-path-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #cbd5f5;
+}
+
+.feature-panel__input-path-prefix {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.feature-panel__input-path-label .feature-panel__input-text {
+  flex: 1;
+  min-width: 8rem;
 }
 
 .feature-tree {
@@ -3588,6 +3600,15 @@ button.danger:hover:not(:disabled),
   color: #64748b;
 }
 
+.pose-rig-list__meta--path {
+  word-break: break-word;
+  color: #94a3b8;
+}
+
+.pose-rig-list__meta--timestamp {
+  color: #475569;
+}
+
 .pose-rig-list__controls {
   display: flex;
   flex-direction: column;
@@ -3691,12 +3712,26 @@ button.danger:hover:not(:disabled),
 .pose-rig-input-meta {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
+}
+
+.pose-rig-input-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .pose-rig-input-label {
   font-weight: 600;
+}
+
+.pose-rig-input-path {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  word-break: break-word;
 }
 
 .pose-rig-input-neutral {

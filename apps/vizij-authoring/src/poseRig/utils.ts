@@ -132,3 +132,56 @@ export function duplicatePoseDefinition(pose: PoseDefinition): PoseDefinition {
     updatedAt: new Date().toISOString(),
   };
 }
+
+function sanitizePosePathSegment(value: string, fallback: string): string {
+  const fromLabel = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (fromLabel) {
+    return fromLabel;
+  }
+  const fromFallback = fallback
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return fromFallback || "pose";
+}
+
+function nextPosePathSegment(
+  pose: PoseDefinition,
+  usage: Map<string, number>,
+): string {
+  const base = sanitizePosePathSegment(pose.name ?? "", pose.id);
+  const used = usage.get(base) ?? 0;
+  usage.set(base, used + 1);
+  if (used === 0) {
+    return base;
+  }
+  return `${base}_${used + 1}`;
+}
+
+export interface PoseWeightPathInfo {
+  segment: string;
+  relativePath: string;
+  absolutePath: string;
+}
+
+export function buildPoseWeightPathMap(
+  poses: PoseDefinition[],
+  faceId: string | null,
+): Map<string, PoseWeightPathInfo> {
+  const trim = faceId?.trim();
+  const faceSegment = trim && trim.length > 0 ? trim : "face";
+  const usage = new Map<string, number>();
+  const map = new Map<string, PoseWeightPathInfo>();
+  poses.forEach((pose) => {
+    const segment = nextPosePathSegment(pose, usage);
+    const relativePath = `/poses/${segment}.weight`;
+    const absolutePath = buildRigInputPath(faceSegment, relativePath);
+    map.set(pose.id, { segment, relativePath, absolutePath });
+  });
+  return map;
+}

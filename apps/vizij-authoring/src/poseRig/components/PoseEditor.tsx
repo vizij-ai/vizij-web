@@ -2,12 +2,14 @@ import { ChangeEvent, useId, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, StandardInputId } from "../types";
 import { FilterableSelect } from "../../components/common/FilterableSelect";
+import { formatRigPathLabel } from "../../utils/rigPaths";
 
 interface PoseEditorProps {
   pose: PoseDefinition | null;
   neutralValues: Record<StandardInputId, number>;
   currentValues: Record<StandardInputId, number>;
   inputs: StandardRigInput[];
+  faceId?: string | null;
   disabled?: boolean;
   onRename: (name: string) => void;
   onCapture: () => void;
@@ -64,6 +66,7 @@ export function PoseEditor({
   neutralValues,
   currentValues,
   inputs,
+  faceId,
   disabled,
   onRename,
   onCapture,
@@ -286,6 +289,7 @@ export function PoseEditor({
                   const saved = value ?? neutral;
                   const liveValue = currentValues[input.id] ?? saved ?? neutral;
                   const isDirty = Math.abs(liveValue - saved) > LIVE_EPSILON;
+                  const formattedPath = formatRigPathLabel(input.path, faceId);
                   return (
                     <li
                       key={input.id}
@@ -296,9 +300,14 @@ export function PoseEditor({
                       }
                     >
                       <div className="pose-rig-input-meta">
-                        <span className="pose-rig-input-label">
-                          {input.label}
-                        </span>
+                        <div className="pose-rig-input-meta-info">
+                          <span className="pose-rig-input-label">
+                            {input.label}
+                          </span>
+                          <span className="pose-rig-input-path">
+                            Path: {formattedPath}
+                          </span>
+                        </div>
                         <span className="pose-rig-input-neutral">
                           Neutral {neutral.toFixed(3)}
                         </span>

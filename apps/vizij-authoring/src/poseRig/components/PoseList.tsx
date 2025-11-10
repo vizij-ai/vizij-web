@@ -7,6 +7,7 @@ interface PoseListProps {
   selectedPoseId: string | null;
   isNeutralSelected: boolean;
   disabled?: boolean;
+  posePathLabels?: Map<string, string>;
   onSelectNeutral: () => void;
   onApplyPose: (poseId: string) => void;
   onCreatePose: (name?: string) => void;
@@ -20,6 +21,7 @@ export function PoseList({
   selectedPoseId,
   isNeutralSelected,
   disabled,
+  posePathLabels,
   onSelectNeutral,
   onApplyPose,
   onCreatePose,
@@ -117,6 +119,7 @@ export function PoseList({
         {sorted.map((pose) => {
           const isSelected = selectedPoseId === pose.id;
           const updatedLabel = new Date(pose.updatedAt).toLocaleString();
+          const pathLabel = posePathLabels?.get(pose.id) ?? null;
           return (
             <div
               key={pose.id}
@@ -158,7 +161,14 @@ export function PoseList({
                   ) : (
                     <span className="pose-rig-list__name">{pose.name}</span>
                   )}
-                  <span className="pose-rig-list__meta">{updatedLabel}</span>
+                  {pathLabel && (
+                    <span className="pose-rig-list__meta pose-rig-list__meta--path">
+                      Path: {pathLabel}
+                    </span>
+                  )}
+                  <span className="pose-rig-list__meta pose-rig-list__meta--timestamp">
+                    Updated {updatedLabel}
+                  </span>
                 </div>
               </div>
               <div className="pose-rig-list__controls">

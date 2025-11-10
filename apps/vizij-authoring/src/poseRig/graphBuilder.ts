@@ -1,6 +1,6 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
-import { buildRigInputPath } from "./utils";
+import { buildPoseWeightPathMap, buildRigInputPath } from "./utils";
 import type {
   PoseDefinition,
   PoseRigGraphSummary,
@@ -26,23 +26,6 @@ function sanitizeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
-function sanitizePathSegment(value: string, fallback: string): string {
-  const fromLabel = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  if (fromLabel) {
-    return fromLabel;
-  }
-  const fromFallback = fallback
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return fromFallback || "pose";
-}
-
 function getNeutralValue(
   input: StandardRigInput,
   neutralInputs: Record<StandardInputId, number>,
@@ -65,19 +48,6 @@ function clampValueForInput(input: StandardRigInput, value: number): number {
   return value;
 }
 
-function createPosePathSegment(
-  pose: PoseDefinition,
-  usage: Map<string, number>,
-): string {
-  const base = sanitizePathSegment(pose.name ?? "", pose.id);
-  const used = usage.get(base) ?? 0;
-  usage.set(base, used + 1);
-  if (used === 0) {
-    return base;
-  }
-  return `${base}_${used + 1}`;
-}
-
 function createPoseInputNode(pose: PoseDefinition, path: string): NodeSpec {
   return {
     id: `pose_${sanitizeId(pose.id)}`,
@@ -87,10 +57,6 @@ function createPoseInputNode(pose: PoseDefinition, path: string): NodeSpec {
       value: { float: 0 },
     },
   };
-}
-
-function buildPoseWeightPath(faceId: string, segment: string): string {
-  return buildRigInputPath(faceId, `/poses/${segment}.weight`);
 }
 
 export function buildPoseGraphSpec(options: {
@@ -106,7 +72,7 @@ export function buildPoseGraphSpec(options: {
   const faceSegment =
     trimmedFaceId && trimmedFaceId.length > 0 ? trimmedFaceId : "face";
 
-  const posePathUsage = new Map<string, number>();
+  const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId);
   const poseConstants = new Map<string, string>();
   const poseInputs: Array<{ pose: PoseDefinition; nodeId: string }> = [];
 
@@ -129,8 +95,9 @@ export function buildPoseGraphSpec(options: {
     });
     poseConstants.set(pose.id, nodeId);
 
-    const pathSegment = createPosePathSegment(pose, posePathUsage);
-    const poseWeightPath = buildPoseWeightPath(faceSegment, pathSegment);
+    const poseWeightPath =
+      poseWeightPathMap.get(pose.id)?.absolutePath ??
+      buildRigInputPath(faceSegment, `/poses/${sanitizeId(pose.id)}.weight`);
     const inputNode = createPoseInputNode(pose, poseWeightPath);
     nodes.push(inputNode);
     poseInputs.push({ pose, nodeId: inputNode.id });

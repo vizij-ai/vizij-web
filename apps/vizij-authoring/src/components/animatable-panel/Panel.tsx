@@ -685,6 +685,7 @@ export function AnimatableValuesPanel({
                   <AnimatableTree
                     shapes={visibleShapes}
                     treeState={treeState}
+                    faceId={faceId}
                     componentsById={componentsById}
                     bindings={bindings}
                     bindingIssues={bindingIssues}

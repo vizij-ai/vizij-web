@@ -906,7 +906,7 @@ export default function App() {
 
             {activeWorkbench === "pose-rig" && (
               <div className="sidebar__panel sidebar__panel--pose">
-                <PoseRigWorkbench state={poseRig} />
+                <PoseRigWorkbench state={poseRig} faceId={faceId} />
               </div>
             )}
           </div>

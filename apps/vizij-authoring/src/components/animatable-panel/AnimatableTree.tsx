@@ -49,6 +49,7 @@ import {
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import { BindingEditor } from "./BindingEditor";
+import { formatRigPathLabel } from "../../utils/rigPaths";
 
 type OutputControlConfig = {
   defaultValue: number;
@@ -68,6 +69,7 @@ interface PropertyBindingRowProps {
   treeState: AnimatableTreeState;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
+  faceId?: string | null;
   namespace: string;
   values: Map<string, RawValue | undefined>;
   onBindingInputChange: (
@@ -119,6 +121,7 @@ function PropertyBindingRow({
   treeState,
   standardInputs,
   standardInputLookup,
+  faceId,
   namespace,
   values,
   onBindingInputChange,
@@ -172,7 +175,9 @@ function PropertyBindingRow({
         inputLabel = "Self";
       } else if (slot.inputId) {
         const meta = standardInputLookup.get(slot.inputId);
-        inputLabel = meta?.path ?? meta?.label ?? slot.inputId;
+        inputLabel = meta?.path
+          ? formatRigPathLabel(meta.path, faceId)
+          : (meta?.label ?? slot.inputId);
       }
       return {
         id: slot.id ?? `${bindingTarget.targetId}:${index}`,
@@ -183,7 +188,13 @@ function PropertyBindingRow({
         expressionNode: diagnostics?.expressionNode,
       };
     });
-  }, [binding, bindingTarget, resolveSlotDiagnostics, standardInputLookup]);
+  }, [
+    binding,
+    bindingTarget,
+    resolveSlotDiagnostics,
+    standardInputLookup,
+    faceId,
+  ]);
 
   if (!bindingTarget || !binding || !targetId) {
     return (
@@ -296,6 +307,7 @@ function PropertyBindingRow({
         label={property.label}
         standardInputs={standardInputs}
         standardInputLookup={standardInputLookup}
+        faceId={faceId}
         issues={issueList}
         headerActions={liveOutputNode}
         onBindingInputChange={onBindingInputChange}
@@ -486,6 +498,7 @@ interface PropertyControlsProps {
   values: Map<string, RawValue | undefined>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
+  faceId?: string | null;
   inputValues: StandardInputValues;
   inputRanges: Map<string, { min: number; max: number }>;
   bindingTargets: BindingTarget[];
@@ -546,6 +559,7 @@ function PropertyControls({
   values,
   standardInputs,
   standardInputLookup,
+  faceId,
   inputValues,
   inputRanges,
   bindingTargets,
@@ -757,6 +771,7 @@ function PropertyControls({
         treeState={treeState}
         standardInputs={standardInputs}
         standardInputLookup={standardInputLookup}
+        faceId={faceId}
         namespace={namespace}
         values={values}
         onBindingInputChange={onBindingInputChange}
@@ -809,6 +824,7 @@ interface FeatureNodeProps {
   values: Map<string, RawValue | undefined>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
+  faceId?: string | null;
   inputValues: StandardInputValues;
   inputRanges: Map<string, { min: number; max: number }>;
   onInputValueChange: (inputId: string, value: number) => void;
@@ -889,6 +905,7 @@ function FeatureNode({
   values,
   standardInputs,
   standardInputLookup,
+  faceId,
   inputValues,
   inputRanges,
   onInputValueChange,
@@ -1040,6 +1057,7 @@ function FeatureNode({
                 values={values}
                 standardInputs={standardInputs}
                 standardInputLookup={standardInputLookup}
+                faceId={faceId}
                 inputValues={inputValues}
                 inputRanges={inputRanges}
                 bindingTargets={bindingTargets}
@@ -1075,6 +1093,7 @@ function FeatureNode({
 interface AnimatableTreeProps {
   shapes: ShapeTreeNode[];
   treeState: AnimatableTreeState;
+  faceId: string;
   componentsById: Map<string, AnimatableComponent>;
   bindings: BindingMap;
   bindingIssues: Map<string, readonly string[]>;
@@ -1141,6 +1160,7 @@ interface AnimatableTreeProps {
 export function AnimatableTree({
   shapes,
   treeState,
+  faceId,
   componentsById,
   bindings,
   bindingIssues,
@@ -1248,6 +1268,7 @@ export function AnimatableTree({
                     featureFlags={featureFlags}
                     standardInputs={standardInputs}
                     standardInputLookup={standardInputLookup}
+                    faceId={faceId}
                     inputValues={inputValues}
                     inputRanges={inputRanges}
                     onInputValueChange={onInputValueChange}

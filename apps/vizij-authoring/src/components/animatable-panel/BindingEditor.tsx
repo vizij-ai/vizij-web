@@ -24,6 +24,7 @@ import {
 import type { BindingField } from "./types";
 import { createSlotKey } from "./slotKeys";
 import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
+import { formatRigPathLabel } from "../../utils/rigPaths";
 
 type BindingFeatureFlags = {
   vectorAuthoringBeta?: boolean;
@@ -319,6 +320,7 @@ interface BindingEditorProps {
   label: string;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
+  faceId?: string | null;
   issues?: readonly string[];
   onBindingInputChange: (
     targetId: string,
@@ -374,6 +376,7 @@ export function BindingEditor({
   label,
   standardInputs,
   standardInputLookup,
+  faceId,
   issues,
   onBindingInputChange,
   onBindingRemapChange: _onBindingRemapChange,
@@ -882,15 +885,18 @@ export function BindingEditor({
                 ? standardInputLookup.get(normalizedSlotInputId)
                 : null;
 
+            const formattedSelectedInputLabel =
+              selectedInput?.path &&
+              formatRigPathLabel(selectedInput.path, faceId);
+
             const currentLabel =
               normalizedSlotInputId === null
                 ? "Unbound"
                 : normalizedSlotInputId === SELF_BINDING_ID
                   ? "Slider (self)"
-                  : selectedInput
-                    ? selectedInput.path
-                    : (standardInputLookup.get(normalizedSlotInputId)?.path ??
-                      normalizedSlotInputId);
+                  : (formattedSelectedInputLabel ??
+                    selectedInput?.label ??
+                    normalizedSlotInputId);
 
             const baseOptions: FilterableSelectOption[] = [
               {
@@ -905,7 +911,7 @@ export function BindingEditor({
               },
               ...standardInputs.map((input) => ({
                 value: input.id,
-                label: input.path,
+                label: formatRigPathLabel(input.path, faceId),
                 keywords: [input.path, input.id, input.label ?? ""].filter(
                   (entry) => entry.length > 0,
                 ),

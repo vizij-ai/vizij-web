@@ -43,6 +43,7 @@ import { FilterableSelect } from "../common/FilterableSelect";
 import { confirmDialog, alertDialog } from "../../utils/dialogs";
 import { downloadBlob } from "../../utils/download";
 import { extractStandardInputSubgroups } from "../../utils/standardInputs";
+import { buildRigPathPrefix, formatRigPathLabel } from "../../utils/rigPaths";
 
 interface InputUsage {
   targetId: string;
@@ -286,6 +287,7 @@ export function StandardInputsSection({
   }, [graphError, graphStatus]);
 
   const formattedGraphTime = formatGraphClock(graphTimeSeconds);
+  const rigPathPrefix = buildRigPathPrefix(faceId);
   const transportDisabled = graphStatus !== "ready";
   const handlePlayPauseTransport = () => {
     if (graphPlaybackState === "playing") {
@@ -1420,7 +1422,7 @@ export function StandardInputsSection({
           <div className="feature-panel__input-body">
             <div className="feature-panel__input-row feature-panel__input-row--path">
               <label className="feature-panel__input-path-label">
-                Path
+                Path: {rigPathPrefix}
                 <input
                   className="feature-panel__input-text"
                   type="text"
@@ -1550,9 +1552,10 @@ export function StandardInputsSection({
                     <BindingEditor
                       binding={bindingForEditor}
                       targetId={input.id}
-                      label={`${input.path} mapping`}
+                      label={`${formatRigPathLabel(input.path, faceId)} mapping`}
                       standardInputs={standardInputList}
                       standardInputLookup={standardInputLookup}
+                      faceId={faceId}
                       issues={parentIssues}
                       onBindingInputChange={handleParentBindingInputChangeSafe}
                       onBindingRemapChange={handleParentBindingRemapChangeSafe}

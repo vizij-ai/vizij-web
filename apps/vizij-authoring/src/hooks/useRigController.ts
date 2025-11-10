@@ -1854,6 +1854,7 @@ export function useRigController({
       }
       const currentValues = inputValuesRef.current;
       if (__DEV__) {
+        // eslint-disable-next-line no-console -- debug logger
         console.debug("[vizij] stage all inputs", {
           count:
             bindingEntries.size > 0
@@ -2096,6 +2097,7 @@ export function useRigController({
       }
       stageRigInput(graphPath, { float: value });
       if (__DEV__) {
+        // eslint-disable-next-line no-console -- debug logger
         console.debug("[vizij] staged input", {
           inputId,
           graphPath,
@@ -4212,27 +4214,27 @@ export function useRigController({
       nextBindingMap.set(inputId, path);
     });
     graphInputBindingsByIdRef.current = nextBindingMap;
-    if (__DEV__) {
-      console.groupCollapsed(
-        "[vizij] graph inputs",
-        sliderBindings.length,
-        "/",
-        summaryInputPaths.length,
-      );
-      console.debug("face", faceId);
-      const missingSliderIds = managedStandardInputs
-        .map(({ input }) => input.id)
-        .filter((id) => !matchedSliderIds.has(id));
-      console.debug("missing slider bindings", missingSliderIds.slice(0, 10));
-      console.debug(
-        "unmatched graph inputs",
-        unmatchedGraphInputs.slice(0, 10),
-      );
-      if (typeof window !== "undefined") {
-        (window as any).__vizijGraphInputs = sliderBindings;
-      }
-      console.groupEnd();
-    }
+    // if (__DEV__) {
+    //   console.groupCollapsed(
+    //     "[vizij] graph inputs",
+    //     sliderBindings.length,
+    //     "/",
+    //     summaryInputPaths.length,
+    //   );
+    //   console.debug("face", faceId);
+    //   const missingSliderIds = managedStandardInputs
+    //     .map(({ input }) => input.id)
+    //     .filter((id) => !matchedSliderIds.has(id));
+    //   console.debug("missing slider bindings", missingSliderIds.slice(0, 10));
+    //   console.debug(
+    //     "unmatched graph inputs",
+    //     unmatchedGraphInputs.slice(0, 10),
+    //   );
+    //   if (typeof window !== "undefined") {
+    //     (window as any).__vizijGraphInputs = sliderBindings;
+    //   }
+    //   console.groupEnd();
+    // }
     setGraphInputDefaults(defaults);
   }, [
     clearRigStaged,
