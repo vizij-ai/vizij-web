@@ -32,7 +32,6 @@ import {
   type InputBindingMap,
   type AnimatableBinding,
   type BindingMap,
-  type BindingOperatorType,
   type BindingValueType,
   bindingTargetFromInput,
   createDefaultParentBinding,
@@ -136,17 +135,6 @@ interface StandardInputsSectionProps {
     targetId: string,
     slotId: string,
     valueType: BindingValueType,
-  ) => void;
-  onParentBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onParentBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
   ) => void;
   onParentResetBinding: (targetId: string) => void;
   graphStatus: "idle" | "loading" | "ready" | "error";
@@ -263,8 +251,6 @@ export function StandardInputsSection({
   onParentBindingExpressionChange,
   onParentBindingSlotAliasChange,
   onParentBindingSlotValueTypeChange,
-  onParentBindingOperatorToggle,
-  onParentBindingOperatorParamChange,
   onParentResetBinding,
   graphStatus,
   graphError,
@@ -402,6 +388,8 @@ export function StandardInputsSection({
   const [issuePanelOpen, setIssuePanelOpen] = useState(false);
   const [issueFilter, setIssueFilter] = useState("");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+
+  const vectorAuthoringEnabled = featureFlags.vectorAuthoringBeta !== false;
 
   const standardInputList = useMemo(
     () => inputs.map((entry) => entry.input),
@@ -764,6 +752,27 @@ export function StandardInputsSection({
       : isParentExpanded
         ? createDefaultParentBinding(parentTarget)
         : null;
+    const parentSlots = parentBinding?.slots ?? [];
+    const parentStatusLabel =
+      parentSlots.length > 0
+        ? `${parentSlots.length} control${parentSlots.length === 1 ? "" : "s"}`
+        : "No controls yet";
+
+    const resolveSlotSourceLabel = (
+      slot: AnimatableBinding["slots"][number],
+    ): string => {
+      if (slot.inputId === SELF_BINDING_ID) {
+        return "Manual (self)";
+      }
+      if (slot.inputId) {
+        const parentMeta = standardInputLookup.get(slot.inputId);
+        if (parentMeta) {
+          return formatRigPathLabel(parentMeta.path, faceId);
+        }
+        return slot.inputId;
+      }
+      return "Unbound";
+    };
 
     const parentHasSelfSlot = parentBinding?.slots.some(
       (slot) => slot.inputId === SELF_BINDING_ID,
@@ -880,27 +889,15 @@ export function StandardInputsSection({
       onParentBindingSlotAliasChange(targetId, slotId, alias);
     };
 
-    const handleParentOperatorToggleSafe = (
+    const handleParentSlotValueTypeChangeSafe = (
       targetId: string,
-      operator: BindingOperatorType,
-      enabled: boolean,
+      slotId: string,
+      valueType: BindingValueType,
     ) => {
       if (disabled) {
         return;
       }
-      onParentBindingOperatorToggle(targetId, operator, enabled);
-    };
-
-    const handleParentOperatorParamChangeSafe = (
-      targetId: string,
-      operator: BindingOperatorType,
-      paramId: string,
-      value: number,
-    ) => {
-      if (disabled) {
-        return;
-      }
-      onParentBindingOperatorParamChange(targetId, operator, paramId, value);
+      onParentBindingSlotValueTypeChange(targetId, slotId, valueType);
     };
 
     const handleParentResetBindingSafe = (targetId: string) => {
@@ -1081,54 +1078,14 @@ export function StandardInputsSection({
 
     const childMappings = [...childInputMappings, ...featureMappings];
 
-    const selfSlot =
-      parentBinding?.slots.find((slot) => slot.inputId === SELF_BINDING_ID) ??
-      null;
-
-    const parentConnections = parentBinding
-      ? (() => {
-          const slotMap = new Map<
-            string,
-            { label: string; slotIds: string[] }
-          >();
-          parentBinding.slots.forEach((slot) => {
-            const parentId = slot.inputId;
-            if (!parentId || parentId === SELF_BINDING_ID) {
-              return;
-            }
-            const label = entriesById.get(parentId)?.input.path ?? parentId;
-            const record = slotMap.get(parentId);
-            if (record) {
-              record.slotIds.push(slot.id);
-            } else {
-              slotMap.set(parentId, { label, slotIds: [slot.id] });
-            }
-          });
-          return Array.from(slotMap.entries())
-            .map(([parentId, value]) => ({
-              id: parentId,
-              label: value.label,
-              slotIds: value.slotIds,
-            }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-        })()
-      : [];
-
-    const showSelfChip = Boolean(selfSlot && parentConnections.length > 0);
-
-    const totalParentLinks = parentConnections.length + (showSelfChip ? 1 : 0);
-
-    const parentStatusLabel =
-      totalParentLinks > 0 ? `${totalParentLinks} linked` : "None linked";
-
     const childStatusLabel =
       childMappings.length > 0
         ? `${childMappings.length} linked`
         : "None linked";
 
     const parentToggleLabel = isParentExpanded
-      ? "Hide mapping"
-      : "Show mapping";
+      ? "Hide editor"
+      : "Edit expression";
 
     const isChildExpanded = expandedChildSections.has(input.id);
     const hasChildMappings = childMappings.length > 0;
@@ -1213,17 +1170,6 @@ export function StandardInputsSection({
           return next;
         });
       }
-    };
-
-    const handleRemoveParentConnection = (
-      connection: (typeof parentConnections)[number],
-    ) => {
-      if (disabled) {
-        return;
-      }
-      connection.slotIds.forEach((slotId) => {
-        onParentBindingInputChange(input.id, null, slotId);
-      });
     };
 
     const handleNumericChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1438,7 +1384,7 @@ export function StandardInputsSection({
               <section className="feature-panel__mapping-group feature-panel__mapping-group--parents">
                 <div className="feature-panel__mapping-header">
                   <div className="feature-panel__mapping-title">
-                    <span>Parent Controls</span>
+                    <span>Driver expression</span>
                     <span className="feature-panel__mapping-status">
                       {parentStatusLabel}
                     </span>
@@ -1450,7 +1396,7 @@ export function StandardInputsSection({
                       onClick={handleAddParentClick}
                       disabled={disabled}
                     >
-                      Add parent
+                      Add control
                     </button>
                     <button
                       type="button"
@@ -1461,90 +1407,92 @@ export function StandardInputsSection({
                     </button>
                   </div>
                 </div>
-                <div className="feature-panel__mapping-content">
-                  {totalParentLinks > 0 ? (
-                    <div className="feature-panel__mapping-chips">
-                      {showSelfChip && selfSlot && (
-                        <span
-                          key="parent:self"
-                          role="button"
-                          tabIndex={0}
-                          className="feature-panel__input-chip feature-panel__input-chip--parent"
-                          data-expanded={isParentExpanded}
-                          onClick={toggleParentExpanded}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              toggleParentExpanded();
-                            }
-                          }}
-                        >
-                          <span
-                            className="feature-panel__chip-disclosure"
-                            aria-hidden="true"
-                          >
-                            {isParentExpanded ? "v" : ">"}
-                          </span>
-                          Slider (self)
-                          <button
-                            type="button"
-                            className="feature-panel__input-chip-dismiss"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onParentBindingInputChange(
-                                input.id,
-                                null,
-                                selfSlot.id,
-                              );
-                            }}
-                            title="Remove slider mapping"
-                            disabled={disabled}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )}
-                      {parentConnections.map((parent) => (
-                        <span
-                          key={`parent:${parent.id}`}
-                          role="button"
-                          tabIndex={0}
-                          className="feature-panel__input-chip feature-panel__input-chip--parent"
-                          data-expanded={isParentExpanded}
-                          onClick={toggleParentExpanded}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              toggleParentExpanded();
-                            }
-                          }}
-                        >
-                          <span
-                            className="feature-panel__chip-disclosure"
-                            aria-hidden="true"
-                          >
-                            {isParentExpanded ? "v" : ">"}
-                          </span>
-                          {parent.label}
-                          <button
-                            type="button"
-                            className="feature-panel__input-chip-dismiss"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleRemoveParentConnection(parent);
-                            }}
-                            title={`Remove ${parent.label} mapping`}
-                            disabled={disabled}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="feature-panel__mapping-empty">
-                      No parent inputs linked.
+                <div className="feature-panel__binding-summary">
+                  <div className="feature-panel__binding-expression">
+                    <span>Expression</span>
+                    <code title={parentBinding?.expression ?? "No expression"}>
+                      {parentBinding?.expression?.trim() || "—"}
+                    </code>
+                  </div>
+                  {parentSlots.length === 0 ? (
+                    <p className="feature-panel__binding-empty">
+                      No controls yet. Add one to wire this driver or compose an
+                      expression.
                     </p>
+                  ) : (
+                    <div className="feature-panel__binding-slot-list">
+                      {parentSlots.map((slot, index) => {
+                        const aliasLabel =
+                          slot.alias?.trim() || slot.id || `s${index + 1}`;
+                        const sourceLabel = resolveSlotSourceLabel(slot);
+                        const slotValueType = slot.valueType ?? "scalar";
+                        return (
+                          <div
+                            key={slot.id}
+                            className="feature-panel__binding-slot-row"
+                          >
+                            <div className="feature-panel__binding-slot-details">
+                              <code>{aliasLabel}</code>
+                              <span>{sourceLabel}</span>
+                            </div>
+                            <div className="feature-panel__binding-slot-meta">
+                              {vectorAuthoringEnabled && (
+                                <div
+                                  className="feature-tree__binding-slot-type-toggle feature-panel__binding-slot-type"
+                                  role="group"
+                                  aria-label={`Value type for ${aliasLabel}`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="feature-tree__binding-slot-type-button"
+                                    data-active={slotValueType === "scalar"}
+                                    disabled={disabled}
+                                    onClick={() => {
+                                      if (slotValueType !== "scalar") {
+                                        handleParentSlotValueTypeChangeSafe(
+                                          input.id,
+                                          slot.id,
+                                          "scalar",
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    Scalar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="feature-tree__binding-slot-type-button"
+                                    data-active={slotValueType === "vector"}
+                                    disabled={disabled}
+                                    onClick={() => {
+                                      if (slotValueType !== "vector") {
+                                        handleParentSlotValueTypeChangeSafe(
+                                          input.id,
+                                          slot.id,
+                                          "vector",
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    Vector
+                                  </button>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                className="feature-panel__input-action feature-panel__input-action--secondary"
+                                onClick={() =>
+                                  handleParentRemoveSlotSafe(input.id, slot.id)
+                                }
+                                disabled={disabled}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
                 {isParentExpanded && bindingForEditor && (
@@ -1567,10 +1515,6 @@ export function StandardInputsSection({
                       onBindingSlotAliasChange={handleParentAliasChangeSafe}
                       onBindingSlotValueTypeChange={
                         onParentBindingSlotValueTypeChange
-                      }
-                      onBindingOperatorToggle={handleParentOperatorToggleSafe}
-                      onBindingOperatorParamChange={
-                        handleParentOperatorParamChangeSafe
                       }
                       onResetBinding={
                         parentBinding && !disabled
@@ -1783,6 +1727,36 @@ export function StandardInputsSection({
         </div>
       )}
       {!isCollapsed && (
+        <div className="feature-panel__stat-actions">
+          <button
+            type="button"
+            className="feature-panel__input-action feature-panel__input-action--secondary"
+            onClick={handleDownloadIr}
+          >
+            Download IR JSON
+          </button>
+          <button
+            type="button"
+            className="feature-panel__input-action feature-panel__input-action--secondary"
+            onClick={handleDownloadMachineReport}
+            disabled={!graphReport}
+          >
+            Download machine report
+          </button>
+          {featureFlags.irInspectorBeta && (
+            <button
+              type="button"
+              className="feature-panel__input-action feature-panel__input-action--secondary"
+              data-active={inspectorOpen ? "true" : "false"}
+              onClick={() => setInspectorOpen((previous) => !previous)}
+              disabled={!graphReport}
+            >
+              {inspectorOpen ? "Hide IR inspector" : "Open IR inspector"}
+            </button>
+          )}
+        </div>
+      )}
+      {!isCollapsed && (
         <div className="feature-panel__section-body">
           <div className="feature-panel__transport">
             <div className="feature-panel__transport-time">
@@ -1974,24 +1948,11 @@ export function StandardInputsSection({
                 </p>
               )}
               <div className="feature-panel__insights-actions">
-                <button
-                  type="button"
-                  className="feature-panel__input-action feature-panel__input-action--secondary"
-                  onClick={handleDownloadIr}
-                >
-                  Download IR JSON
-                </button>
-                {featureFlags.irInspectorBeta && (
-                  <button
-                    type="button"
-                    className="feature-panel__input-action feature-panel__input-action--secondary"
-                    data-active={inspectorOpen ? "true" : "false"}
-                    onClick={() => setInspectorOpen((previous) => !previous)}
-                    disabled={!graphReport}
-                  >
-                    {inspectorOpen ? "Hide IR inspector" : "Open IR inspector"}
-                  </button>
-                )}
+                <p>
+                  Tip: use the IR inspector to copy diff-ready commands or paste
+                  output from <code>vizij-ir-report --dump</code> for quick
+                  comparisons.
+                </p>
               </div>
             </div>
           </div>

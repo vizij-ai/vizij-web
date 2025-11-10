@@ -9,7 +9,6 @@ import {
   buildDefaultSlotExpression,
   type AnimatableBinding,
   type BindingMap,
-  type BindingOperator,
   type InputBindingMap,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
@@ -64,6 +63,7 @@ interface VizijMetadataContainer {
 }
 
 export interface RehydratedRigData {
+  sourceFaceId: string | null;
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -120,16 +120,6 @@ function normalizeImportedInputPath(
 function coerceExpression(value: string | null | undefined, fallback: string) {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : fallback;
-}
-
-function cloneOperatorSnapshot(
-  operators: BindingOperator[],
-): BindingOperator[] {
-  return operators.map((operator) => ({
-    type: operator.type,
-    enabled: !!operator.enabled,
-    params: { ...(operator.params ?? {}) },
-  }));
 }
 
 function buildBindingFromSummaries(
@@ -195,13 +185,6 @@ function buildBindingFromSummaries(
   const metadataSource = summaries.find((summary) => summary.metadata);
   if (metadataSource?.metadata) {
     binding.metadata = cloneBindingMetadata(metadataSource.metadata);
-  }
-
-  const operatorSource = summaries.find(
-    (summary) => summary.operators && summary.operators.length > 0,
-  )?.operators;
-  if (operatorSource && operatorSource.length > 0) {
-    binding.operators = cloneOperatorSnapshot(operatorSource);
   }
 
   return ensureBindingStructure(binding, target);
@@ -296,10 +279,12 @@ export function rehydrateRigDataFromGraph(
     throw new Error("Graph spec is missing Vizij metadata.");
   }
 
-  if (vizij.faceId && vizij.faceId !== options.faceId) {
+  const importedFaceId = vizij.faceId?.trim() ?? null;
+
+  if (importedFaceId && importedFaceId !== options.faceId) {
     // eslint-disable-next-line no-console -- diagnostics for mismatched assets
     console.warn(
-      `Imported graph metadata targets faceId "${vizij.faceId}" but the loaded GLB is "${options.faceId}". Continuing with the loaded asset.`,
+      `Imported graph metadata targets faceId "${importedFaceId}" but the loaded GLB is "${options.faceId}". Continuing with the loaded asset.`,
     );
   }
 
@@ -340,6 +325,7 @@ export function rehydrateRigDataFromGraph(
   populateInputHierarchy(standardInputsById, inputBindings);
 
   return {
+    sourceFaceId: importedFaceId,
     standardInputs,
     bindings,
     inputBindings,

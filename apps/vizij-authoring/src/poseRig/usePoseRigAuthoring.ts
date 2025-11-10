@@ -239,11 +239,6 @@ export function usePoseRigAuthoring(
   const poseConfigNameTouchedRef = useRef(false);
 
   useEffect(() => {
-    rootRef.current = rootId;
-    faceRef.current = faceId;
-  }, [faceId, rootId]);
-
-  useEffect(() => {
     neutralDefaultsRef.current = createNeutralInputs(standardInputs);
   }, [standardInputs]);
 
@@ -306,7 +301,11 @@ export function usePoseRigAuthoring(
   }, [standardInputs]);
 
   useEffect(() => {
-    if (rootRef.current !== rootId || faceRef.current !== faceId) {
+    const previousRootId = rootRef.current;
+    const previousFaceId = faceRef.current;
+    const faceChanged = previousFaceId !== faceId;
+    const rootChanged = previousRootId !== rootId;
+    if (faceChanged || rootChanged) {
       resetPoseState();
       rootRef.current = rootId;
       faceRef.current = faceId;

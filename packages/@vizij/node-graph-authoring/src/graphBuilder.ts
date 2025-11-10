@@ -15,7 +15,6 @@ import {
   type BindingValueType,
   type BindingTarget,
   type InputBindingMap,
-  type BindingOperator,
   PRIMARY_SLOT_ALIAS,
   PRIMARY_SLOT_ID,
 } from "./state";
@@ -30,10 +29,6 @@ import {
   type ExpressionValueType,
   type ScalarFunctionDefinition,
 } from "./expressionFunctions";
-import {
-  getBindingOperatorDefinition,
-  type BindingOperatorDefinition,
-} from "./operators";
 import {
   createExpressionVariableTable,
   type ExpressionVariableEntry,
@@ -67,6 +62,8 @@ interface BindingGraphContext {
   ) => { nodeId: string; input: StandardRigInput } | null;
   bindingIssues: Map<string, Set<string>>;
   summaryBindings: GraphBindingSummary[];
+  graphReservedNodes: Map<string, string>;
+  generateReservedNodeId: (kind: string) => string;
 }
 
 interface EvaluateBindingArgs {
@@ -104,6 +101,8 @@ function evaluateBinding({
     reservedNodes: new Map(),
     nodeValueTypes: new Map(),
     slotRemapNodes: new Map(),
+    graphReservedNodes: context.graphReservedNodes,
+    generateReservedNodeId: context.generateReservedNodeId,
   };
   const targetValueType: BindingValueType =
     target.valueType === "vector" ? "vector" : "scalar";
@@ -301,18 +300,11 @@ function evaluateBinding({
   const issuesCopy = expressionIssues.length
     ? [...new Set(expressionIssues)]
     : undefined;
-  const operatorSnapshot = cloneOperators(
-    (binding as AnimatableBinding & { operators?: BindingOperator[] })
-      ?.operators,
-  );
   slotSummaries.forEach((summary) => {
     summary.expression = expressionText;
     summary.expressionNodeId = valueNodeId;
     if (expressionMetadata) {
       summary.metadata = expressionMetadata;
-    }
-    if (operatorSnapshot) {
-      summary.operators = cloneOperators(operatorSnapshot);
     }
     if (issuesCopy && issuesCopy.length > 0) {
       summary.issues = issuesCopy;
@@ -357,7 +349,6 @@ export interface GraphBindingSummary {
   nodeId: string;
   expressionNodeId: string;
   issues?: string[];
-  operators?: BindingOperator[];
   metadata?: RigBindingMetadata;
 }
 
@@ -489,6 +480,8 @@ interface ExpressionBuildContext {
   reservedNodes: Map<string, string>;
   nodeValueTypes: Map<string, ExpressionValueType>;
   slotRemapNodes: Map<string, string>;
+  graphReservedNodes: Map<string, string>;
+  generateReservedNodeId: (kind: string) => string;
 }
 
 function setNodeValueType(
@@ -634,19 +627,6 @@ function shouldSkipAutoRemapForArgument(
   return index === 0;
 }
 
-function cloneOperators(
-  operators: BindingOperator[] | undefined,
-): BindingOperator[] | undefined {
-  if (!operators || operators.length === 0) {
-    return undefined;
-  }
-  return operators.map((operator) => ({
-    type: operator.type,
-    enabled: !!operator.enabled,
-    params: { ...(operator.params ?? {}) },
-  }));
-}
-
 function getConstantNodeId(
   context: ExpressionBuildContext,
   value: number,
@@ -780,36 +760,29 @@ function ensureReservedVariableNode(
   if (existing) {
     return existing;
   }
-  switch (name) {
-    case "time": {
-      return createReservedTimeNode(context, name, "time");
-    }
-    case "deltaTime": {
-      return createReservedTimeNode(context, name, "deltaTime");
-    }
-    case "frame": {
-      return createReservedTimeNode(context, name, "frame");
-    }
-    default:
-      return null;
+  if (name === "time" || name === "deltaTime" || name === "frame") {
+    const nodeId = ensureGraphTimeNode(context);
+    context.reservedNodes.set(name, nodeId);
+    return nodeId;
   }
+  return null;
 }
 
-function createReservedTimeNode(
-  context: ExpressionBuildContext,
-  name: string,
-  kind: "time" | "deltaTime" | "frame",
-): string {
-  const nodeId = `${kind}_${context.componentSafeId}_${context.counter++}`;
+function ensureGraphTimeNode(context: ExpressionBuildContext): string {
+  const existing = context.graphReservedNodes.get("time");
+  if (existing) {
+    return existing;
+  }
+  const nodeId = context.generateReservedNodeId("time");
   context.nodes.push({
     id: nodeId,
     type: "time",
     metadata: {
-      reservedVariable: kind,
+      reservedVariable: "time",
     },
   });
   setNodeValueType(context, nodeId, "scalar");
-  context.reservedNodes.set(name, nodeId);
+  context.graphReservedNodes.set("time", nodeId);
   return nodeId;
 }
 
@@ -1019,46 +992,6 @@ function extractCaseLabel(
     }
   }
   return node.name;
-}
-
-function applyBindingOperators(
-  operators: BindingOperator[],
-  baseNodeId: string,
-  safeId: string,
-  nodes: IrNode[],
-  edges: IrEdge[],
-): string {
-  let currentNodeId = baseNodeId;
-  operators.forEach((operator, index) => {
-    if (!operator.enabled) {
-      return;
-    }
-    let definition: BindingOperatorDefinition;
-    try {
-      definition = getBindingOperatorDefinition(operator.type);
-    } catch {
-      return;
-    }
-    const nodeId = `${operator.type}_${safeId}_${index + 1}`;
-    const params: Record<string, number> = {};
-    definition.params.forEach((param) => {
-      const configured = operator.params?.[param.id];
-      params[param.id] =
-        typeof configured === "number" ? configured : param.defaultValue;
-    });
-    nodes.push({
-      id: nodeId,
-      type: definition.nodeType,
-      params: params as IrNode["params"],
-    });
-    const inputId = definition.inputs[0] ?? "in";
-    edges.push({
-      from: { nodeId: currentNodeId },
-      to: { nodeId: nodeId, portId: inputId },
-    });
-    currentNodeId = nodeId;
-  });
-  return currentNodeId;
 }
 
 function collectOperands(
@@ -1281,6 +1214,13 @@ export function buildRigGraphSpec({
 
   const nodes: IrNode[] = [];
   const edges: IrEdge[] = [];
+  const graphReservedNodes = new Map<string, string>();
+  const reservedNodeCounters = new Map<string, number>();
+  const generateReservedNodeId = (kind: string): string => {
+    const nextValue = (reservedNodeCounters.get(kind) ?? 0) + 1;
+    reservedNodeCounters.set(kind, nextValue);
+    return `reserved_${kind}_${nextValue}`;
+  };
   const inputNodes = new Map<
     string,
     { nodeId: string; input: StandardRigInput }
@@ -1348,6 +1288,8 @@ export function buildRigGraphSpec({
             ensureInputNode,
             bindingIssues,
             summaryBindings,
+            graphReservedNodes,
+            generateReservedNodeId,
           },
           selfNodeId,
         });
@@ -1439,6 +1381,8 @@ export function buildRigGraphSpec({
             ensureInputNode,
             bindingIssues,
             summaryBindings,
+            graphReservedNodes,
+            generateReservedNodeId,
           },
         });
       valueNodeId = producedNodeId;
@@ -1458,7 +1402,6 @@ export function buildRigGraphSpec({
         expression: PRIMARY_SLOT_ALIAS,
         valueType: target.valueType === "vector" ? "vector" : "scalar",
         issues: ["Binding not found."],
-        operators: undefined,
         nodeId: PRIMARY_SLOT_ID,
         expressionNodeId: PRIMARY_SLOT_ID,
       });
@@ -1473,18 +1416,7 @@ export function buildRigGraphSpec({
       return;
     }
 
-    const operatorList = binding
-      ? ((binding as AnimatableBinding & { operators?: BindingOperator[] })
-          .operators ?? [])
-      : [];
-    const finalNodeId = applyBindingOperators(
-      operatorList,
-      valueNodeId,
-      component.safeId,
-      nodes,
-      edges,
-    );
-    entry.values.set(key, finalNodeId);
+    entry.values.set(key, valueNodeId);
   });
 
   inputsById.forEach((_input, inputId) => {

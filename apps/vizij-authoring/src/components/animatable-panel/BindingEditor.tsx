@@ -8,7 +8,6 @@ import {
 } from "@vizij/utils";
 import type {
   AnimatableBinding,
-  BindingOperatorType,
   BindingValueType,
 } from "@vizij/node-graph-authoring";
 import {
@@ -346,17 +345,6 @@ interface BindingEditorProps {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  onBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   onRequestCreateStandardInput?: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
@@ -409,6 +397,9 @@ export function BindingEditor({
     Set<string>
   >(() => new Set());
   const expressionInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [functionReferenceExpanded, setFunctionReferenceExpanded] =
+    useState(false);
+  const [caseBuilderExpanded, setCaseBuilderExpanded] = useState(false);
   useEffect(() => {
     const activeKeys = new Set(
       slots.map((slot, index) =>
@@ -933,6 +924,8 @@ export function BindingEditor({
                   ]
                 : baseOptions;
 
+            const slotValueType = slot.valueType ?? "scalar";
+
             return (
               <div key={slot.id} className="feature-tree__binding-slot">
                 <div className="feature-tree__binding-slot-header">
@@ -973,22 +966,47 @@ export function BindingEditor({
                   )}
                 </div>
                 {vectorAuthoringEnabled && (
-                  <label className="feature-tree__binding-slot-type">
-                    <span>Slot value type</span>
-                    <select
-                      value={slot.valueType ?? "scalar"}
-                      onChange={(event) =>
-                        onBindingSlotValueTypeChange(
-                          targetId,
-                          slot.id,
-                          event.target.value as BindingValueType,
-                        )
-                      }
-                    >
-                      <option value="scalar">Scalar</option>
-                      <option value="vector">Vector</option>
-                    </select>
-                  </label>
+                  <div
+                    className="feature-tree__binding-slot-type-toggle"
+                    role="group"
+                    aria-label={`Value type for ${label} slot ${index + 1}`}
+                  >
+                    <span>Value type</span>
+                    <div className="feature-tree__binding-slot-type-options">
+                      <button
+                        type="button"
+                        className="feature-tree__binding-slot-type-button"
+                        data-active={slotValueType === "scalar"}
+                        onClick={() => {
+                          if (slotValueType !== "scalar") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "scalar",
+                            );
+                          }
+                        }}
+                      >
+                        Scalar
+                      </button>
+                      <button
+                        type="button"
+                        className="feature-tree__binding-slot-type-button"
+                        data-active={slotValueType === "vector"}
+                        onClick={() => {
+                          if (slotValueType !== "vector") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "vector",
+                            );
+                          }
+                        }}
+                      >
+                        Vector
+                      </button>
+                    </div>
+                  </div>
                 )}
                 <div className="feature-tree__binding-slot-controls">
                   <span className="feature-tree__property-label">
@@ -1124,231 +1142,273 @@ export function BindingEditor({
           )}
           {caseMetadata && <CaseMetadataSummary metadata={caseMetadata} />}
           {expressionFunctionGroups.length > 0 && (
-            <div className="feature-tree__function-reference">
-              <div className="feature-tree__function-list-header">
-                <h4 className="feature-tree__section-title">
-                  Function Reference
-                </h4>
-                <span>{EXPRESSION_FUNCTION_VOCABULARY.length} available</span>
-              </div>
-              <FilterableSelect
-                className="feature-tree__binding-slot-combobox feature-tree__function-select"
-                triggerClassName="feature-tree__property-select feature-tree__function-select-trigger"
-                menuClassName="feature-tree__binding-slot-menu feature-tree__function-select-menu"
-                listClassName="feature-tree__binding-slot-option-list feature-tree__function-select-options"
-                filterInputClassName="feature-tree__binding-slot-filter"
-                optionClassName="feature-tree__binding-slot-option"
-                optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
-                emptyClassName="feature-tree__binding-slot-option--empty"
-                value={selectedFunctionId}
-                options={functionSelectOptions}
-                onChange={setSelectedFunctionId}
-                placeholder="Browse functions…"
-                searchPlaceholder="Search functions or aliases"
-                noResultsLabel="No matching functions"
-                currentLabelOverride={functionSelectCurrentLabel}
-              />
-              {selectedFunctionDetail ? (
-                <div className="feature-tree__function-details">
-                  <div className="feature-tree__function-details-header">
-                    <div className="feature-tree__function-name-block">
-                      <div className="feature-tree__function-name-row">
-                        <span className="feature-tree__function-name">
-                          {selectedFunctionDetail.name}()
-                        </span>
-                        {selectedFunctionCategoryLabel && (
-                          <span className="feature-tree__pill feature-tree__function-category-pill">
-                            {selectedFunctionCategoryLabel}
-                          </span>
-                        )}
+            <div className="feature-tree__collapsible">
+              <button
+                type="button"
+                className="feature-tree__collapsible-toggle"
+                data-state={functionReferenceExpanded ? "open" : "closed"}
+                onClick={() =>
+                  setFunctionReferenceExpanded((previous) => !previous)
+                }
+              >
+                {functionReferenceExpanded
+                  ? "Hide function reference"
+                  : `Show function reference (${EXPRESSION_FUNCTION_VOCABULARY.length})`}
+              </button>
+              {functionReferenceExpanded && (
+                <div className="feature-tree__function-reference">
+                  <div className="feature-tree__function-list-header">
+                    <h4 className="feature-tree__section-title">
+                      Function Reference
+                    </h4>
+                    <span>
+                      {EXPRESSION_FUNCTION_VOCABULARY.length} available
+                    </span>
+                  </div>
+                  <FilterableSelect
+                    className="feature-tree__binding-slot-combobox feature-tree__function-select"
+                    triggerClassName="feature-tree__property-select feature-tree__function-select-trigger"
+                    menuClassName="feature-tree__binding-slot-menu feature-tree__function-select-menu"
+                    listClassName="feature-tree__binding-slot-option-list feature-tree__function-select-options"
+                    filterInputClassName="feature-tree__binding-slot-filter"
+                    optionClassName="feature-tree__binding-slot-option"
+                    optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
+                    emptyClassName="feature-tree__binding-slot-option--empty"
+                    value={selectedFunctionId}
+                    options={functionSelectOptions}
+                    onChange={setSelectedFunctionId}
+                    placeholder="Browse functions…"
+                    searchPlaceholder="Search functions or aliases"
+                    noResultsLabel="No matching functions"
+                    currentLabelOverride={functionSelectCurrentLabel}
+                  />
+                  {selectedFunctionDetail ? (
+                    <div className="feature-tree__function-details">
+                      <div className="feature-tree__function-details-header">
+                        <div className="feature-tree__function-name-block">
+                          <div className="feature-tree__function-name-row">
+                            <span className="feature-tree__function-name">
+                              {selectedFunctionDetail.name}()
+                            </span>
+                            {selectedFunctionCategoryLabel && (
+                              <span className="feature-tree__pill feature-tree__function-category-pill">
+                                {selectedFunctionCategoryLabel}
+                              </span>
+                            )}
+                          </div>
+                          {functionSignaturePreview && (
+                            <p className="feature-tree__function-signature">
+                              {functionSignaturePreview}
+                            </p>
+                          )}
+                        </div>
+                        <dl className="feature-tree__function-meta">
+                          {selectedFunctionArgumentSummary && (
+                            <div className="feature-tree__function-meta-pair">
+                              <dt>Arguments</dt>
+                              <dd>{selectedFunctionArgumentSummary}</dd>
+                            </div>
+                          )}
+                          <div className="feature-tree__function-meta-pair">
+                            <dt>Returns</dt>
+                            <dd>{selectedFunctionReturnType}</dd>
+                          </div>
+                        </dl>
                       </div>
-                      {functionSignaturePreview && (
-                        <p className="feature-tree__function-signature">
-                          {functionSignaturePreview}
+                      {selectedFunctionDescriptions.length > 0 ? (
+                        selectedFunctionDescriptions.map((paragraph) => (
+                          <p
+                            key={paragraph}
+                            className="feature-tree__function-description"
+                          >
+                            {paragraph}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="feature-tree__function-description">
+                          This function does not include documentation yet.
                         </p>
                       )}
-                    </div>
-                    <dl className="feature-tree__function-meta">
-                      {selectedFunctionArgumentSummary && (
-                        <div className="feature-tree__function-meta-pair">
-                          <dt>Arguments</dt>
-                          <dd>{selectedFunctionArgumentSummary}</dd>
+                      {selectedFunctionAliases.length > 0 && (
+                        <div className="feature-tree__function-aliases">
+                          <span>Aliases</span>
+                          <div className="feature-tree__function-alias-list">
+                            {selectedFunctionAliases.map((alias) => (
+                              <span
+                                key={alias}
+                                className="feature-tree__pill feature-tree__function-alias-pill"
+                              >
+                                {alias}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
-                      <div className="feature-tree__function-meta-pair">
-                        <dt>Returns</dt>
-                        <dd>{selectedFunctionReturnType}</dd>
+                      <div className="feature-tree__function-parameters">
+                        <div className="feature-tree__function-parameters-header">
+                          <span>Parameters</span>
+                          <span>{selectedFunctionParameterSummary}</span>
+                        </div>
+                        {selectedFunctionHasParameters ? (
+                          <ul className="feature-tree__function-parameter-list">
+                            {selectedFunctionParameters.map((param) => {
+                              const variadicNote =
+                                param.kind === "variadic"
+                                  ? describeVariadicRange(param.repeatRange)
+                                  : "";
+                              return (
+                                <li
+                                  key={param.id}
+                                  className="feature-tree__function-parameter"
+                                >
+                                  <div className="feature-tree__function-parameter-header">
+                                    <div className="feature-tree__function-parameter-title">
+                                      <span className="feature-tree__function-parameter-name">
+                                        {param.label}
+                                      </span>
+                                      <span className="feature-tree__function-parameter-id">
+                                        {param.id}
+                                        {param.kind === "variadic" ? "…" : ""}
+                                      </span>
+                                    </div>
+                                    <div className="feature-tree__function-parameter-flags">
+                                      <span className="feature-tree__pill feature-tree__function-type-pill">
+                                        {param.typeLabel}
+                                      </span>
+                                      {param.kind === "variadic" && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Variadic
+                                        </span>
+                                      )}
+                                      {param.optional && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Optional
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="feature-tree__function-parameter-doc">
+                                    {param.doc ??
+                                      `Provide a ${param.typeLabel.toLowerCase()} value.`}
+                                    {variadicNote && (
+                                      <span className="feature-tree__function-parameter-extra">
+                                        {variadicNote}
+                                      </span>
+                                    )}
+                                  </p>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="feature-tree__function-parameter-empty">
+                            This function does not take any inputs.
+                          </p>
+                        )}
                       </div>
-                    </dl>
-                  </div>
-                  {selectedFunctionDescriptions.length > 0 ? (
-                    selectedFunctionDescriptions.map((paragraph) => (
-                      <p
-                        key={paragraph}
-                        className="feature-tree__function-description"
-                      >
-                        {paragraph}
-                      </p>
-                    ))
+                    </div>
                   ) : (
-                    <p className="feature-tree__function-description">
-                      This function does not include documentation yet.
-                    </p>
-                  )}
-                  {selectedFunctionAliases.length > 0 && (
-                    <div className="feature-tree__function-aliases">
-                      <span>Aliases</span>
-                      <div className="feature-tree__function-alias-list">
-                        {selectedFunctionAliases.map((alias) => (
-                          <span
-                            key={alias}
-                            className="feature-tree__pill feature-tree__function-alias-pill"
-                          >
-                            {alias}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="feature-tree__function-parameters">
-                    <div className="feature-tree__function-parameters-header">
-                      <span>Parameters</span>
-                      <span>{selectedFunctionParameterSummary}</span>
-                    </div>
-                    {selectedFunctionHasParameters ? (
-                      <ul className="feature-tree__function-parameter-list">
-                        {selectedFunctionParameters.map((param) => {
-                          const variadicNote =
-                            param.kind === "variadic"
-                              ? describeVariadicRange(param.repeatRange)
-                              : "";
-                          return (
-                            <li
-                              key={param.id}
-                              className="feature-tree__function-parameter"
-                            >
-                              <div className="feature-tree__function-parameter-header">
-                                <div className="feature-tree__function-parameter-title">
-                                  <span className="feature-tree__function-parameter-name">
-                                    {param.label}
-                                  </span>
-                                  <span className="feature-tree__function-parameter-id">
-                                    {param.id}
-                                    {param.kind === "variadic" ? "…" : ""}
-                                  </span>
-                                </div>
-                                <div className="feature-tree__function-parameter-flags">
-                                  <span className="feature-tree__pill feature-tree__function-type-pill">
-                                    {param.typeLabel}
-                                  </span>
-                                  {param.kind === "variadic" && (
-                                    <span className="feature-tree__pill feature-tree__function-pill--subtle">
-                                      Variadic
-                                    </span>
-                                  )}
-                                  {param.optional && (
-                                    <span className="feature-tree__pill feature-tree__function-pill--subtle">
-                                      Optional
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="feature-tree__function-parameter-doc">
-                                {param.doc ??
-                                  `Provide a ${param.typeLabel.toLowerCase()} value.`}
-                                {variadicNote && (
-                                  <span className="feature-tree__function-parameter-extra">
-                                    {variadicNote}
-                                  </span>
-                                )}
-                              </p>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : (
-                      <p className="feature-tree__function-parameter-empty">
-                        This function does not take any inputs.
+                    <div className="feature-tree__function-details feature-tree__function-details--empty">
+                      <p>
+                        Select a function to see its description and inputs.
                       </p>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="feature-tree__function-details feature-tree__function-details--empty">
-                  <p>Select a function to see its description and inputs.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
           {conditionalAuthoringEnabled && slotAliasOptions.length > 0 && (
-            <div className="feature-tree__case-builder">
-              <h4 className="feature-tree__section-title">
-                Case Expression Builder
-              </h4>
-              <div className="feature-tree__case-row">
-                <label>
-                  Selector
-                  <select
-                    value={caseSelector}
-                    onChange={(event) => setCaseSelector(event.target.value)}
-                  >
-                    {[...slotAliasOptions, ...reservedVariableNames]
-                      .filter(
-                        (token, index, array) =>
-                          token && array.indexOf(token) === index,
-                      )
-                      .map((token) => (
-                        <option key={token} value={token}>
-                          {token}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label>
-                  Default
-                  <select
-                    value={caseDefault}
-                    onChange={(event) => setCaseDefault(event.target.value)}
-                  >
-                    {["self", ...slotAliasOptions, ...reservedVariableNames]
-                      .filter(
-                        (token, index, array) =>
-                          token && array.indexOf(token) === index,
-                      )
-                      .map((token) => (
-                        <option key={token} value={token}>
-                          {token}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              </div>
-              <div className="feature-tree__case-branches">
-                <span>Branches</span>
-                {slotAliasOptions.map((alias) => {
-                  const checked = caseBranches.includes(alias);
-                  return (
-                    <label key={alias} className="feature-tree__case-branch">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) =>
-                          handleCaseBranchToggle(alias, event.target.checked)
-                        }
-                      />
-                      <span>{alias}</span>
-                    </label>
-                  );
-                })}
-              </div>
+            <div className="feature-tree__collapsible">
               <button
                 type="button"
-                className="feature-panel__input-action feature-panel__input-action--secondary"
-                onClick={handleApplyCaseExpression}
-                disabled={caseBranches.length === 0}
+                className="feature-tree__collapsible-toggle"
+                data-state={caseBuilderExpanded ? "open" : "closed"}
+                onClick={() => setCaseBuilderExpanded((previous) => !previous)}
               >
-                Apply case expression
+                {caseBuilderExpanded
+                  ? "Hide case builder"
+                  : "Show case builder"}
               </button>
+              {caseBuilderExpanded && (
+                <div className="feature-tree__case-builder">
+                  <h4 className="feature-tree__section-title">
+                    Case Expression Builder
+                  </h4>
+                  <div className="feature-tree__case-row">
+                    <label>
+                      Selector
+                      <select
+                        value={caseSelector}
+                        onChange={(event) =>
+                          setCaseSelector(event.target.value)
+                        }
+                      >
+                        {[...slotAliasOptions, ...reservedVariableNames]
+                          .filter(
+                            (token, index, array) =>
+                              token && array.indexOf(token) === index,
+                          )
+                          .map((token) => (
+                            <option key={token} value={token}>
+                              {token}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label>
+                      Default
+                      <select
+                        value={caseDefault}
+                        onChange={(event) => setCaseDefault(event.target.value)}
+                      >
+                        {["self", ...slotAliasOptions, ...reservedVariableNames]
+                          .filter(
+                            (token, index, array) =>
+                              token && array.indexOf(token) === index,
+                          )
+                          .map((token) => (
+                            <option key={token} value={token}>
+                              {token}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="feature-tree__case-branches">
+                    <span>Branches</span>
+                    {slotAliasOptions.map((alias) => {
+                      const checked = caseBranches.includes(alias);
+                      return (
+                        <label
+                          key={alias}
+                          className="feature-tree__case-branch"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) =>
+                              handleCaseBranchToggle(
+                                alias,
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <span>{alias}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    onClick={handleApplyCaseExpression}
+                    disabled={caseBranches.length === 0}
+                  >
+                    Apply case expression
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

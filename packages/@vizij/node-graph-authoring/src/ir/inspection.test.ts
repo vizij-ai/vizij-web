@@ -169,18 +169,6 @@ function createBuildGraphResult(): BuildGraphResult {
           nodeId: "node-zeta",
           expressionNodeId: "expr-zeta",
           issues: ["binding-issue-b", "binding-issue-a"],
-          operators: [
-            {
-              type: "spring",
-              enabled: false,
-              params: { zebra: 2, alpha: 1 },
-            },
-            {
-              type: "damp",
-              enabled: true,
-              params: { beta: 3, alpha: 2 },
-            },
-          ],
           metadata: {
             expression: {
               case: caseMetadata,
@@ -236,13 +224,6 @@ describe("buildMachineReport", () => {
       "binding-issue-a",
       "binding-issue-b",
     ]);
-    expect(
-      report.summary.bindings[1].operators?.map((operator) => operator.type),
-    ).toEqual(["damp", "spring"]);
-    expect(report.summary.bindings[1].operators?.[0].params).toEqual({
-      alpha: 2,
-      beta: 3,
-    });
     expect(report.summary.bindings[1].metadata).toEqual({
       expression: {
         case: {

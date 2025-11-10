@@ -75,20 +75,11 @@ export function cloneRigBindingSlot(slot: RigBindingSlot): RigBindingSlot {
   };
 }
 
-export type RigBindingOperatorType = "spring" | "damp" | "slew";
-
-export interface RigBindingOperatorDefinition {
-  type: RigBindingOperatorType;
-  enabled: boolean;
-  params: Record<string, number>;
-}
-
 export interface RigBindingDefinition {
   inputId: string | null;
   remap: RemapSettings;
   slots: RigBindingSlot[];
   expression: string;
-  operators?: RigBindingOperatorDefinition[];
   metadata?: RigBindingMetadata;
 }
 
@@ -100,13 +91,6 @@ export function cloneRigBindingDefinition(
     remap: cloneRemapSettings(definition.remap),
     slots: definition.slots.map(cloneRigBindingSlot),
     expression: definition.expression,
-    operators: definition.operators
-      ? definition.operators.map((operator) => ({
-          type: operator.type,
-          enabled: operator.enabled,
-          params: { ...operator.params },
-        }))
-      : undefined,
     metadata: definition.metadata
       ? (JSON.parse(JSON.stringify(definition.metadata)) as RigBindingMetadata)
       : undefined,

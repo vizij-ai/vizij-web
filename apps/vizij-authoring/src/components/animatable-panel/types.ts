@@ -16,7 +16,6 @@ import type {
   AnimatableBinding,
   StandardInputValues,
   InputBindingMap,
-  BindingOperatorType,
   BindingValueType,
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput, RemapSettings } from "@vizij/utils";
@@ -168,17 +167,6 @@ export interface AnimatableValuesPanelProps {
     slotId: string,
     valueType: BindingValueType,
   ): void;
-  onBindingOperatorToggle(
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ): void;
-  onBindingOperatorParamChange(
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ): void;
   onParentBindingInputChange(
     targetId: string,
     inputId: string | null,
@@ -202,17 +190,6 @@ export interface AnimatableValuesPanelProps {
     targetId: string,
     slotId: string,
     valueType: BindingValueType,
-  ): void;
-  onParentBindingOperatorToggle(
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ): void;
-  onParentBindingOperatorParamChange(
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
   ): void;
   onParentResetBinding(targetId: string): void;
   onFeatureLabelChange(entry: FeatureEntry, value: string): void;

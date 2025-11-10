@@ -75,8 +75,6 @@ export function AnimatableValuesPanel({
   onBindingExpressionChange,
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
-  onBindingOperatorToggle,
-  onBindingOperatorParamChange,
   onParentBindingInputChange,
   onParentBindingRemapChange,
   onParentAddBindingSlot,
@@ -84,8 +82,6 @@ export function AnimatableValuesPanel({
   onParentBindingExpressionChange,
   onParentBindingSlotAliasChange,
   onParentBindingSlotValueTypeChange,
-  onParentBindingOperatorToggle,
-  onParentBindingOperatorParamChange,
   onParentResetBinding,
   onFeatureLabelChange,
   onFeatureFlagChange,
@@ -586,10 +582,6 @@ export function AnimatableValuesPanel({
             onParentBindingSlotValueTypeChange={
               onParentBindingSlotValueTypeChange
             }
-            onParentBindingOperatorToggle={onParentBindingOperatorToggle}
-            onParentBindingOperatorParamChange={
-              onParentBindingOperatorParamChange
-            }
             onParentResetBinding={onParentResetBinding}
             graphStatus={graphStatus}
             graphError={graphError}
@@ -706,8 +698,6 @@ export function AnimatableValuesPanel({
                     onBindingExpressionChange={onBindingExpressionChange}
                     onBindingSlotAliasChange={onBindingSlotAliasChange}
                     onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
-                    onBindingOperatorToggle={onBindingOperatorToggle}
-                    onBindingOperatorParamChange={onBindingOperatorParamChange}
                     onShapeRename={onRenameShape}
                     onFeatureLabelChange={handleFeatureLabelChange}
                     onToggleAnimated={handleAnimatedToggle}

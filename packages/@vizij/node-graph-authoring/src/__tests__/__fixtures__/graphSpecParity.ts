@@ -11,24 +11,10 @@ export const DERIVED_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_derived_input_0",
+      id: "reserved_time_1",
       type: "time",
       metadata: {
         reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_derived_input_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_derived_input_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
       },
     },
     {
@@ -42,28 +28,7 @@ export const DERIVED_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_1_0",
-      type: "time",
-      metadata: {
-        reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_1_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_1_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
-      },
-    },
-    {
-      id: "expr_component_1_3",
+      id: "expr_component_1_0",
       type: "subtract",
       inputDefaults: {
         lhs: 0,
@@ -80,11 +45,11 @@ export const DERIVED_GRAPH_SPEC_FIXTURE = {
   edges: [
     {
       from: "input_input_b",
-      to: "expr_component_1_3",
+      to: "expr_component_1_0",
       input: "rhs",
     },
     {
-      from: "expr_component_1_3",
+      from: "expr_component_1_0",
       to: "out_rig_robot_mouth_pos_y",
       input: "in",
     },
@@ -111,24 +76,10 @@ export const RESERVED_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_1_0",
+      id: "reserved_time_1",
       type: "time",
       metadata: {
         reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_1_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_1_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
       },
     },
     {
@@ -161,24 +112,10 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_vec_x_0",
+      id: "reserved_time_1",
       type: "time",
       metadata: {
         reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_vec_x_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_vec_x_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
       },
     },
     {
@@ -191,7 +128,7 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "expr_component_vec_x_3",
+      id: "expr_component_vec_x_0",
       type: "piecewise_remap",
     },
     {
@@ -205,27 +142,6 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_vec_y_0",
-      type: "time",
-      metadata: {
-        reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_vec_y_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_vec_y_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
-      },
-    },
-    {
       id: "const_component_vec_y_1",
       type: "constant",
       params: {
@@ -235,7 +151,7 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "expr_component_vec_y_3",
+      id: "expr_component_vec_y_0",
       type: "piecewise_remap",
     },
     {
@@ -249,27 +165,6 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_vec_z_0",
-      type: "time",
-      metadata: {
-        reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_vec_z_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_vec_z_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
-      },
-    },
-    {
       id: "const_component_vec_z_1",
       type: "constant",
       params: {
@@ -279,7 +174,7 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "expr_component_vec_z_3",
+      id: "expr_component_vec_z_0",
       type: "piecewise_remap",
     },
     {
@@ -297,61 +192,61 @@ export const VECTOR_GRAPH_SPEC_FIXTURE = {
   edges: [
     {
       from: "input_input_a",
-      to: "expr_component_vec_x_3",
+      to: "expr_component_vec_x_0",
       input: "in",
     },
     {
       from: "const_component_vec_x_1",
-      to: "expr_component_vec_x_3",
+      to: "expr_component_vec_x_0",
       input: "input_breakpoints",
     },
     {
       from: "const_component_vec_x_1",
-      to: "expr_component_vec_x_3",
+      to: "expr_component_vec_x_0",
       input: "output_breakpoints",
     },
     {
       from: "input_input_b",
-      to: "expr_component_vec_y_3",
+      to: "expr_component_vec_y_0",
       input: "in",
     },
     {
       from: "const_component_vec_y_1",
-      to: "expr_component_vec_y_3",
+      to: "expr_component_vec_y_0",
       input: "input_breakpoints",
     },
     {
       from: "const_component_vec_y_1",
-      to: "expr_component_vec_y_3",
+      to: "expr_component_vec_y_0",
       input: "output_breakpoints",
     },
     {
       from: "input_input_c",
-      to: "expr_component_vec_z_3",
+      to: "expr_component_vec_z_0",
       input: "in",
     },
     {
       from: "const_component_vec_z_1",
-      to: "expr_component_vec_z_3",
+      to: "expr_component_vec_z_0",
       input: "input_breakpoints",
     },
     {
       from: "const_component_vec_z_1",
-      to: "expr_component_vec_z_3",
+      to: "expr_component_vec_z_0",
       input: "output_breakpoints",
     },
     {
-      from: "expr_component_vec_x_3",
+      from: "expr_component_vec_x_0",
       to: "join_rig_robot_head_pos",
       input: "operand_1",
     },
     {
-      from: "expr_component_vec_y_3",
+      from: "expr_component_vec_y_0",
       to: "join_rig_robot_head_pos",
       input: "operand_2",
     },
     {
-      from: "expr_component_vec_z_3",
+      from: "expr_component_vec_z_0",
       to: "join_rig_robot_head_pos",
       input: "operand_3",
     },
@@ -376,24 +271,10 @@ export const CASE_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_derived_case_slot_0",
+      id: "reserved_time_1",
       type: "time",
       metadata: {
         reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_derived_case_slot_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_derived_case_slot_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
       },
     },
     {
@@ -417,28 +298,7 @@ export const CASE_GRAPH_SPEC_FIXTURE = {
       },
     },
     {
-      id: "time_component_1_0",
-      type: "time",
-      metadata: {
-        reservedVariable: "time",
-      },
-    },
-    {
-      id: "deltaTime_component_1_1",
-      type: "time",
-      metadata: {
-        reservedVariable: "deltaTime",
-      },
-    },
-    {
-      id: "frame_component_1_2",
-      type: "time",
-      metadata: {
-        reservedVariable: "frame",
-      },
-    },
-    {
-      id: "expr_component_1_3",
+      id: "expr_component_1_0",
       type: "case",
       params: {
         case_labels: ["happy"],
@@ -458,16 +318,16 @@ export const CASE_GRAPH_SPEC_FIXTURE = {
   edges: [
     {
       from: "input_input_c",
-      to: "expr_component_1_3",
+      to: "expr_component_1_0",
       input: "default",
     },
     {
       from: "input_input_b",
-      to: "expr_component_1_3",
+      to: "expr_component_1_0",
       input: "operand_1",
     },
     {
-      from: "expr_component_1_3",
+      from: "expr_component_1_0",
       to: "out_rig_robot_mouth_pos_y",
       input: "in",
     },

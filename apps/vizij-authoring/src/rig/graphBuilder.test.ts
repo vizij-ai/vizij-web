@@ -515,46 +515,6 @@ describe("buildRigGraphSpec", () => {
     );
   });
 
-  it("applies spring operators after the expression", () => {
-    const binding = createDefaultBinding(COMPONENT);
-    binding.slots[0] = {
-      ...binding.slots[0],
-      inputId: INPUT_A.id,
-      remap: { ...createDefaultRemap(COMPONENT) },
-    };
-    binding.inputId = INPUT_A.id;
-    binding.remap = { ...binding.slots[0].remap };
-    const springOperator = binding.operators?.find(
-      (operator) => operator.type === "spring",
-    );
-    expect(springOperator).toBeDefined();
-    if (springOperator) {
-      springOperator.enabled = true;
-      springOperator.params.stiffness = 150;
-    }
-
-    const { spec } = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    const springNode = spec.nodes.find(
-      (node: NodeSpec) => node.type === "spring",
-    );
-    expect(springNode).toBeDefined();
-    expect(
-      (springNode?.params as Record<string, number> | undefined)?.stiffness,
-    ).toBe(150);
-  });
-
   it("blends parent bindings with manual slider", () => {
     const componentBinding = createDefaultBinding(COMPONENT);
     componentBinding.slots[0] = {

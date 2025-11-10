@@ -21,13 +21,11 @@ import { downloadBlob } from "./utils/download";
 import { applyDefaultsToRobotData } from "./utils/robotData";
 import {
   buildRigGraphSpec,
-  buildMachineReport,
   compileIrGraph,
   type IrGraph,
 } from "@vizij/node-graph-authoring";
 import { alertDialog } from "./utils/dialogs";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
-import { computeObjectHash } from "./utils/hash";
+import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import type { VizijBundleSummary } from "./components/app/VizijBundleSummaryPanel";
 
 function faceSlug(value: string | null | undefined): string {
@@ -39,6 +37,10 @@ function faceSlug(value: string | null | undefined): string {
 }
 
 type WorkbenchView = "import-export" | "drivers" | "properties" | "pose-rig";
+
+type BundleGraphWithIr = VizijBundleGraphEntry & {
+  ir?: IrGraph | null;
+};
 
 const WORKBENCH_OPTIONS: ReadonlyArray<{
   id: WorkbenchView;
@@ -131,8 +133,6 @@ export default function App() {
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
     handleUpdateBindingSlotAlias,
-    handleBindingOperatorToggle,
-    handleBindingOperatorParamChange,
     handleEnsureParentBinding,
     handleBindingSlotValueTypeChange,
     handleParentBindingInputChange,
@@ -142,8 +142,6 @@ export default function App() {
     handleParentBindingExpressionChange,
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
-    handleParentBindingOperatorToggle,
-    handleParentBindingOperatorParamChange,
     handleParentResetBinding,
     handleUpdateFeatureLabel,
     handleFeatureFlagChange,
@@ -170,6 +168,7 @@ export default function App() {
     rootId,
     sourceName,
   });
+  const faceIdRef = useRef(faceId);
 
   const getExportableBodies = useVizijStore(
     (state) => state.getExportableBodies,
@@ -187,6 +186,10 @@ export default function App() {
     onInputValueChange: handleInputValueChange,
     applyInputBatch: applyStandardInputBatch,
   });
+
+  useEffect(() => {
+    faceIdRef.current = faceId;
+  }, [faceId]);
 
   useEffect(() => {
     setIncludeVizijBundle(true);
@@ -236,6 +239,22 @@ export default function App() {
     setIncludeImportedAnimations(value);
   }, []);
 
+  const waitForFaceIdMatch = useCallback(
+    async (targetFaceId: string, shouldCancel: () => boolean) => {
+      const MAX_ATTEMPTS = 30;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+        if (shouldCancel()) {
+          return;
+        }
+        if (faceIdRef.current === targetFaceId) {
+          return;
+        }
+        await waitForNextFrame();
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -255,19 +274,7 @@ export default function App() {
         poses: loadedBundle.poses?.config ?? null,
       };
 
-      let fingerprint: string | null = null;
-      try {
-        fingerprint = await computeObjectHash(fingerprintPayload);
-      } catch (error) {
-        console.warn(
-          "[vizij-authoring] Failed to hash bundle for import.",
-          error,
-        );
-        fingerprint = JSON.stringify({
-          version: loadedBundle.version,
-          exportedAt: loadedBundle.exportedAt ?? null,
-        });
-      }
+      const fingerprint = JSON.stringify(fingerprintPayload);
 
       if (cancelled) {
         return;
@@ -280,14 +287,20 @@ export default function App() {
         rigImportedRef.current = false;
       }
 
+      const bundleGraphs = loadedBundle.graphs as
+        | BundleGraphWithIr[]
+        | undefined;
       const rigEntry =
-        loadedBundle.graphs?.find(
-          (entry) => entry.kind?.toLowerCase?.() === "rig",
-        ) ?? loadedBundle.graphs?.[0];
+        bundleGraphs?.find((entry) => entry.kind?.toLowerCase?.() === "rig") ??
+        bundleGraphs?.[0];
 
+      let importedFaceIdFromRig: string | null = null;
       if (!rigImportedRef.current && rigEntry?.spec) {
         try {
-          await handleImportGraphSpec(rigEntry.spec as any);
+          const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
+          const normalisedSpec = await normalizeGraphSpec(preparedSpec);
+          const result = await handleImportGraphSpec(normalisedSpec);
+          importedFaceIdFromRig = result?.importedFaceId ?? null;
           rigImportedRef.current = true;
         } catch (err) {
           console.warn(
@@ -306,6 +319,12 @@ export default function App() {
 
       if (loadedBundle.poses?.config) {
         try {
+          if (importedFaceIdFromRig) {
+            await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
+            if (cancelled) {
+              return;
+            }
+          }
           poseRig.importPoseConfigFromData(loadedBundle.poses.config as any);
         } catch (err) {
           console.warn(
@@ -334,7 +353,7 @@ export default function App() {
     standardInputCount,
     poseRig.importPoseConfigFromData,
     handleImportGraphSpec,
-    computeObjectHash,
+    waitForFaceIdMatch,
   ]);
 
   const handleSelectFile = useCallback(
@@ -413,22 +432,24 @@ export default function App() {
       inputBindings,
     });
 
-    const diagnostics = {
-      machineReport: cloneSerializable(buildMachineReport(graphResult)),
-      irGraph: graphResult.ir?.graph
-        ? cloneSerializable(graphResult.ir.graph)
-        : undefined,
-    };
-    const enrichedSpec = attachGraphDiagnostics(graphResult.spec, diagnostics);
-
     const baseName = fileName.replace(/\.json$/i, "");
     const base = baseName.length > 0 ? baseName : `${slug}_rig`;
     const specFileName = `${base}.json`;
 
-    const graphBlob = new Blob([JSON.stringify(enrichedSpec, null, 2)], {
+    const specPayload = cloneSerializable(graphResult.spec);
+    const graphBlob = new Blob([JSON.stringify(specPayload, null, 2)], {
       type: "application/json",
     });
     downloadBlob(graphBlob, specFileName);
+
+    if (graphResult.ir?.graph) {
+      const irPayload = cloneSerializable(graphResult.ir.graph);
+      const irFileName = `${base}.ir.json`;
+      const irBlob = new Blob([JSON.stringify(irPayload, null, 2)], {
+        type: "application/json",
+      });
+      downloadBlob(irBlob, irFileName);
+    }
   }, [
     animatableComponents,
     bindings,
@@ -499,16 +520,10 @@ export default function App() {
         inputsById: standardInputsById,
         inputBindings,
       });
-      const rigDiagnostics = {
-        machineReport: cloneSerializable(buildMachineReport(rigGraphResult)),
-        irGraph: rigGraphResult.ir?.graph
-          ? cloneSerializable(rigGraphResult.ir.graph)
-          : undefined,
-      };
-      const rigSpec = attachGraphDiagnostics(
-        rigGraphResult.spec,
-        rigDiagnostics,
-      );
+      const rigIrGraph = rigGraphResult.ir?.graph
+        ? cloneSerializable(rigGraphResult.ir.graph)
+        : undefined;
+      const rigSpec = cloneSerializable(rigGraphResult.spec);
 
       const poseGraphSpec = poseRig.poseGraphSpec
         ? (cloneSerializable(poseRig.poseGraphSpec) as Record<string, unknown>)
@@ -520,24 +535,14 @@ export default function App() {
           ) as unknown as VizijPoseRigConfig)
         : null;
 
-      const [rigHash, poseGraphHash, poseConfigHash] = await Promise.all([
-        computeObjectHash(rigSpec).catch(() => undefined),
-        poseGraphSpec
-          ? computeObjectHash(poseGraphSpec).catch(() => undefined)
-          : Promise.resolve(undefined),
-        poseConfig
-          ? computeObjectHash(poseConfig).catch(() => undefined)
-          : Promise.resolve(undefined),
-      ]);
-
-      const graphs: VizijBundleGraphEntry[] = [
+      const graphs: BundleGraphWithIr[] = [
         {
           id: rigGraphResult.summary.faceId ?? faceSlug(faceId),
           kind: "rig",
           label: `${faceSlug(faceId)} rig`,
           spec: rigSpec,
+          ir: rigIrGraph ?? null,
           metadata: {
-            hash: rigHash,
             exportedAt: exportTimestamp,
             faceId: faceId ?? undefined,
             issues:
@@ -555,7 +560,6 @@ export default function App() {
           label: poseRig.poseGraphFileName || "pose graph",
           spec: poseGraphSpec,
           metadata: {
-            hash: poseGraphHash,
             exportedAt: exportTimestamp,
           },
         });
@@ -591,7 +595,6 @@ export default function App() {
           ? {
               config: poseConfig,
               metadata: {
-                hash: poseConfigHash,
                 exportedAt: exportTimestamp,
               },
             }
@@ -780,8 +783,6 @@ export default function App() {
       onBindingExpressionChange={handleUpdateBindingExpression}
       onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
       onBindingSlotValueTypeChange={handleBindingSlotValueTypeChange}
-      onBindingOperatorToggle={handleBindingOperatorToggle}
-      onBindingOperatorParamChange={handleBindingOperatorParamChange}
       onParentBindingInputChange={handleParentBindingInputChange}
       onParentBindingRemapChange={handleParentBindingRemapChange}
       onParentAddBindingSlot={handleParentAddBindingSlot}
@@ -790,10 +791,6 @@ export default function App() {
       onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
       onParentBindingSlotValueTypeChange={
         handleParentBindingSlotValueTypeChange
-      }
-      onParentBindingOperatorToggle={handleParentBindingOperatorToggle}
-      onParentBindingOperatorParamChange={
-        handleParentBindingOperatorParamChange
       }
       onParentResetBinding={handleParentResetBinding}
       onFeatureLabelChange={(entry, value) =>
@@ -920,33 +917,6 @@ function cloneSerializable<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function attachGraphDiagnostics(
-  spec: GraphSpec,
-  diagnostics: { machineReport?: unknown; irGraph?: unknown },
-): Record<string, unknown> {
-  const cloned = cloneSerializable(spec) as Record<string, unknown>;
-  if (!diagnostics.machineReport && !diagnostics.irGraph) {
-    return cloned;
-  }
-  const metadata =
-    cloned.metadata && typeof cloned.metadata === "object"
-      ? { ...(cloned.metadata as Record<string, unknown>) }
-      : {};
-  const vizij =
-    metadata.vizij && typeof metadata.vizij === "object"
-      ? { ...(metadata.vizij as Record<string, unknown>) }
-      : {};
-  if (diagnostics.machineReport) {
-    vizij.machineReport = diagnostics.machineReport;
-  }
-  if (diagnostics.irGraph) {
-    vizij.irGraph = diagnostics.irGraph;
-  }
-  metadata.vizij = vizij;
-  cloned.metadata = metadata;
-  return cloned;
-}
-
 function extractVizijMetadataSection(
   payload: unknown,
 ): Record<string, unknown> | null {
@@ -983,8 +953,13 @@ function extractIrGraphFromPayload(payload: unknown): IrGraph | null {
   return null;
 }
 
-function prepareSpecForImport(payload: unknown): unknown {
-  const irGraph = extractIrGraphFromPayload(payload);
+function prepareSpecForImport(
+  payload: unknown,
+  irGraphPayload?: unknown,
+): unknown {
+  const irGraph = irGraphPayload
+    ? cloneSerializable(irGraphPayload as IrGraph)
+    : extractIrGraphFromPayload(payload);
   if (!irGraph) {
     return payload;
   }

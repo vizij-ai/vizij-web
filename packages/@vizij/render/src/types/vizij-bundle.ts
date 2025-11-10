@@ -26,6 +26,7 @@ export interface VizijBundleGraphEntry {
   spec: Record<string, unknown>;
   label?: string;
   metadata?: VizijBundleGraphMetadata;
+  ir?: Record<string, unknown> | null;
 }
 
 export interface VizijPoseDefinition {

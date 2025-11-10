@@ -3,7 +3,6 @@ import { findNodeSignature } from "@vizij/node-graph-wasm/metadata";
 import type { RemapSettings, RigBindingMetadata } from "@vizij/utils";
 
 import type { BuildGraphResult, GraphBindingSummary } from "../graphBuilder";
-import type { BindingOperator } from "../state";
 import type {
   IrBindingSummary,
   IrConstant,
@@ -45,7 +44,6 @@ export interface MachineBindingSummary {
   nodeId: string;
   expressionNodeId: string;
   issues?: string[];
-  operators?: BindingOperator[];
   metadata?: RigBindingMetadata;
 }
 
@@ -261,7 +259,6 @@ function normalizeGraphBindingSummaries(
     nodeId: binding.nodeId,
     expressionNodeId: binding.expressionNodeId,
     issues: normalizeStringArray(binding.issues),
-    operators: normalizeOperators(binding.operators),
     metadata: cloneBindingMetadata(binding.metadata),
   }));
   normalized.sort((a, b) => bindingSortKey(a).localeCompare(bindingSortKey(b)));
@@ -509,33 +506,6 @@ function normalizeRegistryParamSpec(
     normalized.max = param.max;
   }
   return normalized;
-}
-
-function normalizeOperators(
-  operators?: BindingOperator[],
-): BindingOperator[] | undefined {
-  if (!operators || operators.length === 0) {
-    return undefined;
-  }
-  return [...operators]
-    .map((operator) => ({
-      type: operator.type,
-      enabled: !!operator.enabled,
-      params: sortNumberRecord(operator.params),
-    }))
-    .sort((a, b) => a.type.localeCompare(b.type));
-}
-
-function sortNumberRecord(
-  record: Record<string, number>,
-): Record<string, number> {
-  const sorted: Record<string, number> = {};
-  Object.keys(record)
-    .sort()
-    .forEach((key) => {
-      sorted[key] = record[key];
-    });
-  return sorted;
 }
 
 function normalizeRemap(remap: RemapSettings): RemapSettings {

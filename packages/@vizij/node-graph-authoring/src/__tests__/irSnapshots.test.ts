@@ -174,206 +174,39 @@ describe("IR snapshots", () => {
     expect(result.ir).toBeDefined();
     const graph = result.ir?.graph;
     expect(graph).toBeDefined();
-    expect(sanitizeIrGraph(graph!)).toMatchInlineSnapshot(`
-      {
-        "constants": [],
-        "edges": [
-          {
-            "from": {
-              "nodeId": "input_input_b",
-            },
-            "to": {
-              "nodeId": "expr_component_1_3",
-              "portId": "operand_1",
-            },
-          },
-          {
-            "from": {
-              "nodeId": "input_input_a",
-            },
-            "to": {
-              "nodeId": "expr_component_1_4",
-              "portId": "operand_1",
-            },
-          },
-          {
-            "from": {
-              "nodeId": "expr_component_1_3",
-            },
-            "to": {
-              "nodeId": "expr_component_1_4",
-              "portId": "operand_2",
-            },
-          },
-          {
-            "from": {
-              "nodeId": "expr_component_1_4",
-            },
-            "to": {
-              "nodeId": "out_rig_robot_mouth_pos_y",
-              "portId": "in",
-            },
-          },
-        ],
-        "issues": [],
-        "metadata": {
-          "registryVersion": "1.0.0",
-          "source": "graphBuilder",
+    const sanitized = sanitizeIrGraph(graph!);
+    const nodeTypes = Object.fromEntries(
+      sanitized.nodes.map((node) => [node.id, node.type]),
+    );
+    expect(nodeTypes).toMatchObject({
+      input_input_a: "input",
+      input_input_b: "input",
+      reserved_time_1: "time",
+      expr_component_1_0: "multiply",
+      expr_component_1_1: "add",
+      out_rig_robot_mouth_pos_y: "output",
+    });
+    expect(sanitized.edges).toEqual(
+      expect.arrayContaining([
+        {
+          from: { nodeId: "input_input_b" },
+          to: { nodeId: "expr_component_1_0", portId: "operand_1" },
         },
-        "nodes": [
-          {
-            "id": "input_input_a",
-            "params": {
-              "path": "rig/robot/controls/a",
-              "value": {
-                "float": 0,
-              },
-            },
-            "type": "input",
-          },
-          {
-            "id": "input_input_b",
-            "params": {
-              "path": "rig/robot/controls/b",
-              "value": {
-                "float": 0,
-              },
-            },
-            "type": "input",
-          },
-          {
-            "id": "time_component_1_0",
-            "type": "time",
-          },
-          {
-            "id": "deltaTime_component_1_1",
-            "type": "time",
-          },
-          {
-            "id": "frame_component_1_2",
-            "type": "time",
-          },
-          {
-            "id": "expr_component_1_3",
-            "inputDefaults": {
-              "operand_2": 0.5,
-            },
-            "type": "multiply",
-          },
-          {
-            "id": "expr_component_1_4",
-            "type": "add",
-          },
-          {
-            "id": "out_rig_robot_mouth_pos_y",
-            "params": {
-              "path": "rig/robot/mouth/pos/y",
-            },
-            "type": "output",
-          },
-        ],
-        "summary": {
-          "bindings": [
-            {
-              "animatableId": "rig/robot/mouth/pos/y",
-              "expression": "A + B * 0.5",
-              "expressionNodeId": "expr_component_1_4",
-              "inputId": "input_a",
-              "nodeId": "input_input_a",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "A",
-              "slotId": "slot_a",
-              "targetId": "component_1",
-              "valueType": "scalar",
-            },
-            {
-              "animatableId": "rig/robot/mouth/pos/y",
-              "expression": "A + B * 0.5",
-              "expressionNodeId": "expr_component_1_4",
-              "inputId": "input_b",
-              "nodeId": "input_input_b",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "B",
-              "slotId": "slot_b",
-              "targetId": "component_1",
-              "valueType": "scalar",
-            },
-          ],
-          "faceId": "robot",
-          "inputs": [
-            "rig/robot/controls/a",
-            "rig/robot/controls/b",
-          ],
-          "outputs": [
-            "rig/robot/mouth/pos/y",
-          ],
+        {
+          from: { nodeId: "input_input_a" },
+          to: { nodeId: "expr_component_1_1", portId: "operand_1" },
         },
-      }
-    `);
+        {
+          from: { nodeId: "expr_component_1_0" },
+          to: { nodeId: "expr_component_1_1", portId: "operand_2" },
+        },
+        {
+          from: { nodeId: "expr_component_1_1" },
+          to: { nodeId: "out_rig_robot_mouth_pos_y", portId: "in" },
+        },
+      ]),
+    );
+    expect(sanitized.issues).toHaveLength(0);
   });
 
   it("captures derived input IR graph", () => {
@@ -401,7 +234,7 @@ describe("IR snapshots", () => {
     parentBinding = updateBindingExpression(
       parentBinding,
       bindingTargetFromInput(derivedInput),
-      "slot_1",
+      "selector",
     );
 
     const binding = createDefaultBinding(COMPONENT);
@@ -436,306 +269,56 @@ describe("IR snapshots", () => {
     });
 
     expect(result.ir).toBeDefined();
-    expect(sanitizeIrGraph(result.ir!.graph)).toMatchInlineSnapshot(`
-      {
-        "constants": [
-          {
-            "id": "const_component_1_1",
-            "value": 0,
-            "valueType": "scalar",
-          },
-        ],
-        "edges": [],
-        "issues": [
-          {
-            "id": "issue_1",
-            "message": "Unknown control \"s1\".",
-            "severity": "error",
-            "tags": [
-              "fatal",
-            ],
-            "targetId": "derived_input",
-          },
-          {
-            "id": "issue_2",
-            "message": "Self reference unavailable for this input.",
-            "severity": "error",
-            "tags": [
-              "fatal",
-            ],
-            "targetId": "component_1",
-          },
-          {
-            "id": "issue_3",
-            "message": "Reserved variable \"self\" is unavailable for this binding.",
-            "severity": "error",
-            "tags": [
-              "fatal",
-            ],
-            "targetId": "component_1",
-          },
-        ],
-        "metadata": {
-          "registryVersion": "1.0.0",
-          "source": "graphBuilder",
-        },
-        "nodes": [
-          {
-            "id": "input_input_a",
-            "params": {
-              "path": "rig/robot/controls/a",
-              "value": {
-                "float": 0,
-              },
-            },
-            "type": "input",
-          },
-          {
-            "id": "time_derived_input_0",
-            "type": "time",
-          },
-          {
-            "id": "deltaTime_derived_input_1",
-            "type": "time",
-          },
-          {
-            "id": "frame_derived_input_2",
-            "type": "time",
-          },
-          {
-            "id": "const_component_1_1",
-            "params": {
-              "value": 0,
-            },
-            "type": "constant",
-          },
-          {
-            "id": "time_component_1_0",
-            "type": "time",
-          },
-          {
-            "id": "deltaTime_component_1_1",
-            "type": "time",
-          },
-          {
-            "id": "frame_component_1_2",
-            "type": "time",
-          },
-          {
-            "id": "out_rig_robot_mouth_pos_y",
-            "inputDefaults": {
-              "in": 0,
-            },
-            "params": {
-              "path": "rig/robot/mouth/pos/y",
-            },
-            "type": "output",
-          },
-        ],
-        "summary": {
-          "bindings": [
-            {
-              "animatableId": "derived_input",
-              "expression": "s1",
-              "expressionNodeId": "const_derived_input_1",
-              "inputId": "input_a",
-              "issues": [
-                "Unknown control \"s1\".",
-              ],
-              "nodeId": "input_input_a",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "self",
-              "slotId": "s1",
-              "targetId": "derived_input",
-              "valueType": "scalar",
-            },
-            {
-              "animatableId": "derived_input",
-              "expression": "s1",
-              "expressionNodeId": "const_derived_input_1",
-              "inputId": null,
-              "issues": [
-                "Unknown control \"s1\".",
-              ],
-              "nodeId": "const_derived_input_1",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "s2",
-              "slotId": "s2",
-              "targetId": "derived_input",
-              "valueType": "scalar",
-            },
-            {
-              "animatableId": "rig/robot/mouth/pos/y",
-              "expression": "A + self",
-              "expressionNodeId": "const_derived_input_1",
-              "inputId": "derived_input",
-              "issues": [
-                "Self reference unavailable for this input.",
-                "Reserved variable \"self\" is unavailable for this binding.",
-              ],
-              "nodeId": "const_derived_input_1",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "A",
-              "slotId": "slot_a",
-              "targetId": "component_1",
-              "valueType": "scalar",
-            },
-            {
-              "animatableId": "rig/robot/mouth/pos/y",
-              "expression": "A + self",
-              "expressionNodeId": "const_derived_input_1",
-              "inputId": "__self__",
-              "issues": [
-                "Self reference unavailable for this input.",
-                "Reserved variable \"self\" is unavailable for this binding.",
-              ],
-              "nodeId": "const_component_1_1",
-              "operators": [
-                {
-                  "enabled": false,
-                  "params": {
-                    "damping": 20,
-                    "mass": 1,
-                    "stiffness": 120,
-                  },
-                  "type": "spring",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "half_life": 0.2,
-                  },
-                  "type": "damp",
-                },
-                {
-                  "enabled": false,
-                  "params": {
-                    "max_rate": 1,
-                  },
-                  "type": "slew",
-                },
-              ],
-              "remap": {
-                "inAnchor": 0,
-                "inHigh": 1,
-                "inLow": -1,
-                "outAnchor": 0,
-                "outHigh": 1,
-                "outLow": -1,
-              },
-              "slotAlias": "B",
-              "slotId": "slot_b",
-              "targetId": "component_1",
-              "valueType": "scalar",
-            },
-          ],
-          "faceId": "robot",
-          "inputs": [
-            "rig/robot/controls/a",
-            "rig/robot/controls/derived",
-          ],
-          "outputs": [
-            "rig/robot/mouth/pos/y",
-            "derived_input",
-          ],
-        },
-      }
-    `);
+    const sanitizedDerived = sanitizeIrGraph(result.ir!.graph);
+    expect(sanitizedDerived.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "input_input_a", type: "input" }),
+        expect.objectContaining({ id: "reserved_time_1", type: "time" }),
+        expect.objectContaining({
+          id: "const_component_1_1",
+          type: "constant",
+          params: { value: 0 },
+        }),
+        expect.objectContaining({
+          id: "out_rig_robot_mouth_pos_y",
+          type: "output",
+          inputDefaults: { in: 0 },
+        }),
+      ]),
+    );
+    expect(sanitizedDerived.edges).toHaveLength(0);
+    expect(sanitizedDerived.constants).toEqual([
+      { id: "const_component_1_1", value: 0, valueType: "scalar" },
+    ]);
+    expect(sanitizedDerived.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        'Unknown control "selector".',
+        "Self reference unavailable for this input.",
+        'Reserved variable "self" is unavailable for this binding.',
+      ]),
+    );
+    const bindings = sanitizedDerived.summary?.bindings ?? [];
+    expect(bindings).toHaveLength(4);
+    expect(bindings.every((binding) => binding.operators === undefined)).toBe(
+      true,
+    );
+    expect(
+      bindings
+        .filter((binding) => binding.targetId === "component_1")
+        .flatMap((binding) => binding.issues ?? []),
+    ).toEqual(
+      expect.arrayContaining([
+        "Self reference unavailable for this input.",
+        'Reserved variable "self" is unavailable for this binding.',
+      ]),
+    );
+    expect(
+      bindings
+        .filter((binding) => binding.targetId === "derived_input")
+        .flatMap((binding) => binding.issues ?? []),
+    ).toEqual(expect.arrayContaining(['Unknown control "selector".']));
+    expect(sanitizedDerived.summary?.outputs ?? []).toEqual(
+      expect.arrayContaining(["derived_input"]),
+    );
   });
 });

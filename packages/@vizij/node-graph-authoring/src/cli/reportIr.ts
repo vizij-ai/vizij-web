@@ -166,20 +166,12 @@ function printIssues(result: BuildGraphResult): void {
 
 function printBindingSummary(
   result: BuildGraphResult,
-  options: BuildGraphOptions,
+  _options: BuildGraphOptions,
 ): void {
   console.log("\nBinding summary:");
-  const bindingIndex = new Map(
-    Object.entries(options.bindings ?? {}) as [
-      string,
-      NonNullable<BuildGraphOptions["bindings"]>[string],
-    ][],
-  );
   result.summary.bindings.forEach((binding) => {
-    const key = binding.targetId;
-    const operatorSummary = summarizeOperators(bindingIndex.get(key));
     console.log(
-      `  - ${binding.targetId} (${binding.slotAlias}): expr="${binding.expression}"${operatorSummary}`,
+      `  - ${binding.targetId} (${binding.slotAlias}): expr="${binding.expression}"`,
     );
     if (binding.issues && binding.issues.length > 0) {
       binding.issues.forEach((issue) => {
@@ -187,23 +179,6 @@ function printBindingSummary(
       });
     }
   });
-}
-
-function summarizeOperators(binding: unknown): string {
-  if (
-    !binding ||
-    !Array.isArray((binding as { operators?: unknown }).operators)
-  ) {
-    return "";
-  }
-  const operators = (
-    binding as { operators: Array<{ type: string; enabled: boolean }> }
-  ).operators;
-  const enabled = operators.filter((op) => op.enabled).map((op) => op.type);
-  if (enabled.length === 0) {
-    return "";
-  }
-  return ` operators=[${enabled.join(", ")}]`;
 }
 
 async function main(): Promise<void> {

@@ -13,7 +13,6 @@ import {
   createDefaultParentBinding,
   createDefaultRemap,
   addBindingSlot,
-  bindingTargetFromComponent,
   bindingTargetFromInput,
   updateBindingExpression,
   updateBindingWithInput,
@@ -160,47 +159,6 @@ describe("IR regression coverage", () => {
       (node) => node.type === "default-blend",
     );
     expect(hasDefaultBlend).toBe(true);
-  });
-
-  it("covers time/reserved variables with oscillator + spring operators", () => {
-    const binding = createDefaultBinding(bindingTargetFromComponent(COMPONENT));
-    binding.slots = [
-      {
-        id: "slot_a",
-        alias: "A",
-        inputId: INPUT_A.id,
-        remap: { ...createDefaultRemap(bindingTargetFromInput(INPUT_A)) },
-      },
-    ];
-    binding.expression = "oscillator(A, time)";
-    const springOperator = binding.operators?.find(
-      (operator) => operator.type === "spring",
-    );
-    if (springOperator) {
-      springOperator.enabled = true;
-    }
-
-    const result = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    expectIrParity(result);
-    expect(
-      (result.ir?.graph.nodes ?? []).some((node) => node.type === "oscillator"),
-    ).toBe(true);
-    expect(
-      (result.ir?.graph.nodes ?? []).some((node) => node.type === "spring"),
-    ).toBe(true);
-    expect(result.ir?.graph.issues ?? []).toHaveLength(0);
   });
 
   it("ensures conditional case graphs remain parity-safe", () => {

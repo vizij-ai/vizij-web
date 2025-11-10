@@ -638,163 +638,6 @@ describe("buildRigGraphSpec", () => {
     );
   });
 
-  it("applies spring operators after the expression", () => {
-    const binding = createDefaultBinding(COMPONENT);
-    binding.slots[0] = {
-      ...binding.slots[0],
-      inputId: INPUT_A.id,
-      remap: { ...createDefaultRemap(COMPONENT) },
-    };
-    binding.inputId = INPUT_A.id;
-    binding.remap = { ...binding.slots[0].remap };
-    const springOperator = binding.operators?.find(
-      (operator) => operator.type === "spring",
-    );
-    expect(springOperator).toBeDefined();
-    if (springOperator) {
-      springOperator.enabled = true;
-      springOperator.params.stiffness = 200;
-    }
-
-    const { spec } = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    const springNode = spec.nodes.find((node) => node.type === "spring");
-    expect(springNode).toBeDefined();
-    expect(
-      (springNode?.params as Record<string, number> | undefined)?.stiffness,
-    ).toBe(200);
-  });
-
-  it("applies damp operators with configured params", () => {
-    const binding = createDefaultBinding(COMPONENT);
-    binding.slots[0] = {
-      ...binding.slots[0],
-      inputId: INPUT_A.id,
-      remap: { ...createDefaultRemap(COMPONENT) },
-    };
-    binding.inputId = INPUT_A.id;
-    binding.remap = { ...binding.slots[0].remap };
-    const dampOperator = binding.operators?.find(
-      (operator) => operator.type === "damp",
-    );
-    expect(dampOperator).toBeDefined();
-    if (dampOperator) {
-      dampOperator.enabled = true;
-      dampOperator.params.half_life = 0.5;
-    }
-
-    const { spec } = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    const dampNode = spec.nodes.find((node) => node.type === "damp");
-    expect(dampNode).toBeDefined();
-    expect(
-      (dampNode?.params as Record<string, number> | undefined)?.half_life,
-    ).toBe(0.5);
-  });
-
-  it("applies slew operators with configured params", () => {
-    const binding = createDefaultBinding(COMPONENT);
-    binding.slots[0] = {
-      ...binding.slots[0],
-      inputId: INPUT_A.id,
-      remap: { ...createDefaultRemap(COMPONENT) },
-    };
-    binding.inputId = INPUT_A.id;
-    binding.remap = { ...binding.slots[0].remap };
-    const slewOperator = binding.operators?.find(
-      (operator) => operator.type === "slew",
-    );
-    expect(slewOperator).toBeDefined();
-    if (slewOperator) {
-      slewOperator.enabled = true;
-      slewOperator.params.max_rate = 0.25;
-    }
-
-    const { spec } = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    const slewNode = spec.nodes.find((node) => node.type === "slew");
-    expect(slewNode).toBeDefined();
-    expect(
-      (slewNode?.params as Record<string, number> | undefined)?.max_rate,
-    ).toBe(0.25);
-  });
-
-  it("exports operator metadata in binding summaries", () => {
-    const binding = createDefaultBinding(COMPONENT);
-    binding.slots[0] = {
-      ...binding.slots[0],
-      inputId: INPUT_A.id,
-      remap: { ...createDefaultRemap(COMPONENT) },
-    };
-    binding.inputId = INPUT_A.id;
-    binding.remap = { ...binding.slots[0].remap };
-    const dampOperator = binding.operators?.find(
-      (operator) => operator.type === "damp",
-    );
-    if (dampOperator) {
-      dampOperator.enabled = true;
-      dampOperator.params.half_life = 0.33;
-    }
-
-    const result = buildRigGraphSpec({
-      faceId: "robot",
-      animatables: {
-        [ANIMATABLE.id]: ANIMATABLE,
-      },
-      components: [COMPONENT],
-      bindings: {
-        [COMPONENT.id]: binding,
-      },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
-      inputBindings: {},
-    });
-
-    const summaryEntry = result.summary.bindings.find(
-      (entry) =>
-        entry.targetId === COMPONENT.id &&
-        entry.slotAlias === binding.slots[0]?.alias,
-    );
-    expect(summaryEntry?.operators).toBeDefined();
-    const dampSummary = summaryEntry?.operators?.find(
-      (operator) => operator.type === "damp",
-    );
-    expect(dampSummary?.enabled).toBe(true);
-    expect(dampSummary?.params?.half_life).toBe(0.33);
-  });
-
   it("creates case nodes with aliases as labels", () => {
     const binding = createDefaultBinding(COMPONENT);
     binding.slots = [
@@ -923,9 +766,7 @@ describe("buildRigGraphSpec", () => {
         .map((node) => node.metadata?.reservedVariable)
         .filter((value): value is string => Boolean(value)),
     );
-    expect(reservedVariables.has("time")).toBe(true);
-    expect(reservedVariables.has("deltaTime")).toBe(true);
-    expect(reservedVariables.has("frame")).toBe(true);
+    expect(reservedVariables).toEqual(new Set(["time"]));
 
     const compiled = result.ir?.compile({ preferLegacySpec: false });
     expect(compiled?.spec).toBeDefined();
@@ -1129,14 +970,14 @@ describe("buildRigGraphSpec", () => {
       inputBindings: {},
     });
 
-    const reservedNodes = (spec.nodes ?? []).filter(
-      (node) =>
+    const reservedNodes = (spec.nodes ?? []).filter((node) =>
+      Boolean(
         (node.metadata as { reservedVariable?: string } | undefined)
           ?.reservedVariable,
+      ),
     );
-    expect(
-      reservedNodes.map((node) => node.metadata?.reservedVariable),
-    ).toEqual(expect.arrayContaining(["deltaTime", "frame"]));
+    expect(reservedNodes).toHaveLength(1);
+    expect(reservedNodes[0]?.metadata?.reservedVariable).toBe("time");
   });
 
   it("blends parent bindings with manual slider", () => {

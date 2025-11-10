@@ -44,7 +44,6 @@ import type {
 import {
   type BindingMap,
   type StandardInputValues,
-  type BindingOperatorType,
   type BindingValueType,
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
@@ -97,17 +96,6 @@ interface PropertyBindingRowProps {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  onBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   onRequestCreateStandardInput?: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
@@ -133,8 +121,6 @@ function PropertyBindingRow({
   onBindingExpressionChange,
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
-  onBindingOperatorToggle,
-  onBindingOperatorParamChange,
   outputControls,
   featureFlags,
 }: PropertyBindingRowProps) {
@@ -317,8 +303,6 @@ function PropertyBindingRow({
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
         onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
-        onBindingOperatorToggle={onBindingOperatorToggle}
-        onBindingOperatorParamChange={onBindingOperatorParamChange}
         onRequestCreateStandardInput={onRequestCreateStandardInput}
         onResetBinding={onResetBinding}
         expanded={expanded}
@@ -531,17 +515,6 @@ interface PropertyControlsProps {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  onBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
   onConstraintChange: (
     entry: FeatureEntry,
@@ -573,8 +546,6 @@ function PropertyControls({
   onBindingExpressionChange,
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
-  onBindingOperatorToggle,
-  onBindingOperatorParamChange,
   onDefaultChange,
   onConstraintChange,
   featureFlags,
@@ -783,8 +754,6 @@ function PropertyControls({
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
         onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
-        onBindingOperatorToggle={onBindingOperatorToggle}
-        onBindingOperatorParamChange={onBindingOperatorParamChange}
         outputControls={outputControls}
         featureFlags={featureFlags}
       />
@@ -856,17 +825,6 @@ interface FeatureNodeProps {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  onBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -918,8 +876,6 @@ function FeatureNode({
   onBindingExpressionChange,
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
-  onBindingOperatorToggle,
-  onBindingOperatorParamChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onDefaultChange,
@@ -1071,8 +1027,6 @@ function FeatureNode({
                 onBindingExpressionChange={onBindingExpressionChange}
                 onBindingSlotAliasChange={onBindingSlotAliasChange}
                 onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
-                onBindingOperatorToggle={onBindingOperatorToggle}
-                onBindingOperatorParamChange={onBindingOperatorParamChange}
                 onDefaultChange={onDefaultChange}
                 onConstraintChange={onConstraintChange}
                 featureFlags={featureFlags}
@@ -1134,17 +1088,6 @@ interface AnimatableTreeProps {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  onBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  onBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   onToggleAnimated: (entry: FeatureEntry, makeAnimated: boolean) => void;
   onFeatureLabelChange: (entry: FeatureEntry, value: string) => void;
   onDefaultChange: (entry: FeatureEntry, value: RawValue) => void;
@@ -1182,8 +1125,6 @@ export function AnimatableTree({
   onBindingExpressionChange,
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
-  onBindingOperatorToggle,
-  onBindingOperatorParamChange,
   onToggleAnimated,
   onFeatureLabelChange,
   onDefaultChange,
@@ -1281,8 +1222,6 @@ export function AnimatableTree({
                     onBindingExpressionChange={onBindingExpressionChange}
                     onBindingSlotAliasChange={onBindingSlotAliasChange}
                     onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
-                    onBindingOperatorToggle={onBindingOperatorToggle}
-                    onBindingOperatorParamChange={onBindingOperatorParamChange}
                     onFeatureLabelChange={onFeatureLabelChange}
                     onToggleAnimated={onToggleAnimated}
                     onDefaultChange={onDefaultChange}

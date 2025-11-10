@@ -34,8 +34,6 @@ import {
   updateBindingSlotAlias,
   updateBindingSlotRemap,
   updateBindingSlotValueType,
-  setBindingOperatorEnabled,
-  updateBindingOperatorParam,
   buildCanonicalBindingExpression,
   PRIMARY_SLOT_ID,
   PRIMARY_SLOT_ALIAS,
@@ -48,7 +46,6 @@ import {
   type InputBindingMap,
   type BindingTarget,
   type StandardInputValues,
-  type BindingOperatorType,
   type BindingValueType,
 } from "@vizij/node-graph-authoring";
 import type { RemapSettings } from "@vizij/utils";
@@ -414,17 +411,6 @@ export interface RigController {
     value: number,
     slotId?: string,
   ) => void;
-  handleBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  handleBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   handleResetBinding: (targetId: string) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
   handleLinkChildInput: (parentId: string, childId: string) => void;
@@ -491,24 +477,15 @@ export interface RigController {
     slotId: string,
     valueType: BindingValueType,
   ) => void;
-  handleParentBindingOperatorToggle: (
-    targetId: string,
-    operator: BindingOperatorType,
-    enabled: boolean,
-  ) => void;
-  handleParentBindingOperatorParamChange: (
-    targetId: string,
-    operator: BindingOperatorType,
-    paramId: string,
-    value: number,
-  ) => void;
   handleParentResetBinding: (targetId: string) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleSelectStandardInputSubgroups: (subgroups: string[]) => void;
   handleFaceIdChange: (value: string) => void;
   handleFocusSelectionIndex: (index: number) => void;
   handleClearSelection: () => void;
-  handleImportGraphSpec: (spec: GraphSpec) => Promise<void>;
+  handleImportGraphSpec: (
+    spec: GraphSpec,
+  ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
   setStoreState: ReturnType<typeof useVizijStoreSetter>;
   collectAnimatableExportState: () => {
     appliedOverrides: boolean;
@@ -2447,66 +2424,6 @@ export function useRigController({
     [componentsById],
   );
 
-  const handleBindingOperatorToggle = useCallback(
-    (targetId: string, operator: BindingOperatorType, enabled: boolean) => {
-      const component = componentsById.get(targetId);
-      if (!component) {
-        return;
-      }
-      const target = bindingTargetFromComponent(component);
-      setBindings((previous) => {
-        const binding = previous[targetId];
-        if (!binding) {
-          return previous;
-        }
-        const next = setBindingOperatorEnabled(binding, operator, enabled);
-        if (next === binding) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [targetId]: ensureBindingStructure(next, target),
-        };
-      });
-    },
-    [componentsById],
-  );
-
-  const handleBindingOperatorParamChange = useCallback(
-    (
-      targetId: string,
-      operator: BindingOperatorType,
-      paramId: string,
-      value: number,
-    ) => {
-      const component = componentsById.get(targetId);
-      if (!component) {
-        return;
-      }
-      const target = bindingTargetFromComponent(component);
-      setBindings((previous) => {
-        const binding = previous[targetId];
-        if (!binding) {
-          return previous;
-        }
-        const next = updateBindingOperatorParam(
-          binding,
-          operator,
-          paramId,
-          value,
-        );
-        if (next === binding) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [targetId]: ensureBindingStructure(next, target),
-        };
-      });
-    },
-    [componentsById],
-  );
-
   const handleUpdateFeatureLabel = useCallback(
     (featureId: string, defaultLabel: string, value: string) => {
       const trimmed = value.trim();
@@ -3288,29 +3205,6 @@ export function useRigController({
     [updateInputBinding],
   );
 
-  const handleParentBindingOperatorToggle = useCallback(
-    (targetId: string, operator: BindingOperatorType, enabled: boolean) => {
-      updateInputBinding(targetId, createDefaultParentBinding, (binding) =>
-        setBindingOperatorEnabled(binding, operator, enabled),
-      );
-    },
-    [updateInputBinding],
-  );
-
-  const handleParentBindingOperatorParamChange = useCallback(
-    (
-      targetId: string,
-      operator: BindingOperatorType,
-      paramId: string,
-      value: number,
-    ) => {
-      updateInputBinding(targetId, createDefaultParentBinding, (binding) =>
-        updateBindingOperatorParam(binding, operator, paramId, value),
-      );
-    },
-    [updateInputBinding],
-  );
-
   const handleParentBindingSlotAliasChange = useCallback(
     (targetId: string, slotId: string, alias: string) => {
       updateInputBinding(
@@ -3473,7 +3367,9 @@ export function useRigController({
   );
 
   const handleImportGraphSpec = useCallback(
-    async (spec: GraphSpec) => {
+    async (
+      spec: GraphSpec,
+    ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
         const rehydrated = rehydrateRigDataFromGraph(spec, {
           faceId,
@@ -3481,6 +3377,13 @@ export function useRigController({
           components: animatableComponents,
         });
 
+        const importedFaceIdRaw = rehydrated.sourceFaceId;
+        const importedFaceId =
+          importedFaceIdRaw && importedFaceIdRaw.trim().length > 0
+            ? sanitizeFaceId(importedFaceIdRaw)
+            : null;
+        const faceChangedDuringImport =
+          !!importedFaceId && importedFaceId !== faceId;
         const normalizedInputMetadata = new Map<
           string,
           { source?: "auto" | "custom" | "preset"; root?: string }
@@ -3564,8 +3467,9 @@ export function useRigController({
           nextInputValues[input.id] = input.defaultValue;
         });
 
+        const resolvedFaceId = importedFaceId ?? faceId ?? "face";
         const rebuiltSpec = buildRigGraphSpec({
-          faceId,
+          faceId: resolvedFaceId,
           animatables,
           components: animatableComponents,
           bindings: rehydrated.bindings,
@@ -3602,7 +3506,7 @@ export function useRigController({
               .join("\n")}\n\nApply the reconstructed bindings?`,
           );
           if (!accept) {
-            return;
+            return { faceChanged: false, importedFaceId: null };
           }
         }
 
@@ -3614,9 +3518,15 @@ export function useRigController({
         setBindings(rehydrated.bindings);
         setInputBindings(rehydrated.inputBindings);
         setSelectedStandardInputRoots([]);
+        setSelectedStandardInputSubgroups([]);
         setTimeout(() => {
           skipPersistRef.current = false;
         }, 0);
+
+        if (importedFaceId && importedFaceId !== faceId) {
+          lastLoadedFaceIdRef.current = importedFaceId;
+          setFaceId(importedFaceId);
+        }
 
         if (missingBlueprintPaths.length > 0) {
           alertDialog(
@@ -3625,12 +3535,17 @@ export function useRigController({
               .join(", ")}.`,
           );
         }
+        return {
+          faceChanged: faceChangedDuringImport,
+          importedFaceId: importedFaceId ?? null,
+        };
       } catch (error) {
         alertDialog(
           `Failed to import graph: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
+        return { faceChanged: false, importedFaceId: null };
       }
     },
     [
@@ -3646,6 +3561,7 @@ export function useRigController({
       setInputBindings,
       setSelectedStandardInputRoots,
       setSelectedStandardInputSubgroups,
+      setFaceId,
       alertDialog,
       confirmDialog,
     ],
@@ -4390,8 +4306,6 @@ export function useRigController({
     handleClearCachedState,
     handleBindingInputChange,
     handleBindingRemapChange,
-    handleBindingOperatorToggle,
-    handleBindingOperatorParamChange,
     handleResetBinding,
     handleCreateCustomStandardInput,
     handleLinkChildInput,
@@ -4416,8 +4330,6 @@ export function useRigController({
     handleParentBindingExpressionChange,
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
-    handleParentBindingOperatorToggle,
-    handleParentBindingOperatorParamChange,
     handleParentResetBinding,
     handleSelectStandardInputRoots,
     handleSelectStandardInputSubgroups,
