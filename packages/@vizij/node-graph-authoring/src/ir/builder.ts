@@ -151,6 +151,8 @@ export function toIrBindingSummary(
     expression: string;
     valueType: "scalar" | "vector";
     issues?: string[];
+    nodeId: string;
+    expressionNodeId: string;
   }[],
 ): IrBindingSummary[] {
   return summaries.map((summary) => ({

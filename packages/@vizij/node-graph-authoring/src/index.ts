@@ -7,3 +7,4 @@ export * from "./expressionVocabulary";
 export * from "./ir/types";
 export * from "./ir/builder";
 export * from "./ir/compiler";
+export * from "./ir/inspection";

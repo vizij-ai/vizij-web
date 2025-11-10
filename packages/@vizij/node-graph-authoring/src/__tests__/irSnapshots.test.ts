@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape -- inline JSON snapshots need explicit escaped quotes */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -65,24 +66,63 @@ const INPUT_B: StandardRigInput = {
   range: { min: -1, max: 1 },
 };
 
+function sanitizeEdgeEndpoint(
+  endpoint: IrGraph["edges"][number]["from"] | null | undefined,
+) {
+  if (!endpoint) {
+    return undefined;
+  }
+  const clean: { nodeId?: string; portId?: string; component?: string } = {};
+  if (endpoint.nodeId) {
+    clean.nodeId = endpoint.nodeId;
+  }
+  if (endpoint.portId) {
+    clean.portId = endpoint.portId;
+  }
+  if (
+    endpoint.component !== undefined &&
+    endpoint.component !== null &&
+    endpoint.component !== ""
+  ) {
+    clean.component = endpoint.component;
+  }
+  return clean;
+}
+
 function sanitizeIrGraph(graph: IrGraph) {
+  const summary = graph.summary
+    ? (JSON.parse(JSON.stringify(graph.summary)) as IrGraph["summary"])
+    : undefined;
+
   return {
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      type: node.type,
-      params: node.params ?? undefined,
-      inputDefaults: node.inputDefaults ?? undefined,
-    })),
+    nodes: graph.nodes.map((node) => {
+      const sanitized: {
+        id: string;
+        type: string;
+        params?: IrGraph["nodes"][number]["params"];
+        inputDefaults?: IrGraph["nodes"][number]["inputDefaults"];
+      } = {
+        id: node.id,
+        type: node.type,
+      };
+      if (node.params && Object.keys(node.params).length > 0) {
+        sanitized.params = node.params;
+      }
+      if (node.inputDefaults && Object.keys(node.inputDefaults).length > 0) {
+        sanitized.inputDefaults = node.inputDefaults;
+      }
+      return sanitized;
+    }),
     edges: graph.edges.map((edge) => ({
-      from: edge.from,
-      to: edge.to,
+      from: sanitizeEdgeEndpoint(edge.from),
+      to: sanitizeEdgeEndpoint(edge.to),
     })),
     constants: graph.constants.map((constant) => ({
       id: constant.id,
       value: constant.value,
       valueType: constant.valueType,
     })),
-    summary: graph.summary,
+    summary,
     metadata: {
       source: graph.metadata.source,
       registryVersion: graph.metadata.registryVersion,
@@ -140,72 +180,36 @@ describe("IR snapshots", () => {
         "edges": [
           {
             "from": {
-              "component": undefined,
-              "nodeId": "input_input_a",
-              "portId": undefined,
-            },
-            "to": {
-              "component": undefined,
-              "nodeId": "remap_component_1_slot_a",
-              "portId": "in",
-            },
-          },
-          {
-            "from": {
-              "component": undefined,
               "nodeId": "input_input_b",
-              "portId": undefined,
             },
             "to": {
-              "component": undefined,
-              "nodeId": "remap_component_1_slot_b",
-              "portId": "in",
-            },
-          },
-          {
-            "from": {
-              "component": undefined,
-              "nodeId": "remap_component_1_slot_b",
-              "portId": undefined,
-            },
-            "to": {
-              "component": undefined,
               "nodeId": "expr_component_1_3",
               "portId": "operand_1",
             },
           },
           {
             "from": {
-              "component": undefined,
-              "nodeId": "remap_component_1_slot_a",
-              "portId": undefined,
+              "nodeId": "input_input_a",
             },
             "to": {
-              "component": undefined,
               "nodeId": "expr_component_1_4",
               "portId": "operand_1",
             },
           },
           {
             "from": {
-              "component": undefined,
               "nodeId": "expr_component_1_3",
-              "portId": undefined,
             },
             "to": {
-              "component": undefined,
               "nodeId": "expr_component_1_4",
               "portId": "operand_2",
             },
           },
           {
             "from": {
-              "component": undefined,
               "nodeId": "expr_component_1_4",
-              "portId": undefined,
             },
             "to": {
-              "component": undefined,
               "nodeId": "out_rig_robot_mouth_pos_y",
               "portId": "in",
             },
@@ -219,7 +223,6 @@ describe("IR snapshots", () => {
         "nodes": [
           {
             "id": "input_input_a",
-            "inputDefaults": undefined,
             "params": {
               "path": "rig/robot/controls/a",
               "value": {
@@ -229,21 +232,7 @@ describe("IR snapshots", () => {
             "type": "input",
           },
           {
-            "id": "remap_component_1_slot_a",
-            "inputDefaults": {
-              "in_anchor": 0,
-              "in_high": 1,
-              "in_low": -1,
-              "out_anchor": 0,
-              "out_high": 1,
-              "out_low": -1,
-            },
-            "params": undefined,
-            "type": "centered_remap",
-          },
-          {
             "id": "input_input_b",
-            "inputDefaults": undefined,
             "params": {
               "path": "rig/robot/controls/b",
               "value": {
@@ -253,34 +242,15 @@ describe("IR snapshots", () => {
             "type": "input",
           },
           {
-            "id": "remap_component_1_slot_b",
-            "inputDefaults": {
-              "in_anchor": 0,
-              "in_high": 1,
-              "in_low": -1,
-              "out_anchor": 0,
-              "out_high": 1,
-              "out_low": -1,
-            },
-            "params": undefined,
-            "type": "centered_remap",
-          },
-          {
             "id": "time_component_1_0",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "deltaTime_component_1_1",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "frame_component_1_2",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
@@ -288,18 +258,14 @@ describe("IR snapshots", () => {
             "inputDefaults": {
               "operand_2": 0.5,
             },
-            "params": undefined,
             "type": "multiply",
           },
           {
             "id": "expr_component_1_4",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "add",
           },
           {
             "id": "out_rig_robot_mouth_pos_y",
-            "inputDefaults": undefined,
             "params": {
               "path": "rig/robot/mouth/pos/y",
             },
@@ -310,10 +276,10 @@ describe("IR snapshots", () => {
           "bindings": [
             {
               "animatableId": "rig/robot/mouth/pos/y",
-              "component": undefined,
               "expression": "A + B * 0.5",
+              "expressionNodeId": "expr_component_1_4",
               "inputId": "input_a",
-              "issues": undefined,
+              "nodeId": "input_input_a",
               "operators": [
                 {
                   "enabled": false,
@@ -354,10 +320,10 @@ describe("IR snapshots", () => {
             },
             {
               "animatableId": "rig/robot/mouth/pos/y",
-              "component": undefined,
               "expression": "A + B * 0.5",
+              "expressionNodeId": "expr_component_1_4",
               "inputId": "input_b",
-              "issues": undefined,
+              "nodeId": "input_input_b",
               "operators": [
                 {
                   "enabled": false,
@@ -479,36 +445,11 @@ describe("IR snapshots", () => {
             "valueType": "scalar",
           },
         ],
-        "edges": [
-          {
-            "from": {
-              "component": undefined,
-              "nodeId": "input_input_a",
-              "portId": undefined,
-            },
-            "to": {
-              "component": undefined,
-              "nodeId": "remap_derived_input_s1",
-              "portId": "in",
-            },
-          },
-          {
-            "from": {
-              "component": undefined,
-              "nodeId": "remap_component_1_slot_a",
-              "portId": undefined,
-            },
-            "to": {
-              "component": undefined,
-              "nodeId": "out_rig_robot_mouth_pos_y",
-              "portId": "in",
-            },
-          },
-        ],
+        "edges": [],
         "issues": [
           {
             "id": "issue_1",
-            "message": "Unknown control "s1".",
+            "message": "Unknown control \"s1\".",
             "severity": "error",
             "tags": [
               "fatal",
@@ -526,7 +467,7 @@ describe("IR snapshots", () => {
           },
           {
             "id": "issue_3",
-            "message": "Reserved variable "self" is unavailable for this binding.",
+            "message": "Reserved variable \"self\" is unavailable for this binding.",
             "severity": "error",
             "tags": [
               "fatal",
@@ -541,7 +482,6 @@ describe("IR snapshots", () => {
         "nodes": [
           {
             "id": "input_input_a",
-            "inputDefaults": undefined,
             "params": {
               "path": "rig/robot/controls/a",
               "value": {
@@ -551,53 +491,19 @@ describe("IR snapshots", () => {
             "type": "input",
           },
           {
-            "id": "remap_derived_input_s1",
-            "inputDefaults": {
-              "in_anchor": 0,
-              "in_high": 1,
-              "in_low": -1,
-              "out_anchor": 0,
-              "out_high": 1,
-              "out_low": -1,
-            },
-            "params": undefined,
-            "type": "centered_remap",
-          },
-          {
             "id": "time_derived_input_0",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "deltaTime_derived_input_1",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "frame_derived_input_2",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
-            "id": "remap_component_1_slot_a",
-            "inputDefaults": {
-              "in": 0,
-              "in_anchor": 0,
-              "in_high": 1,
-              "in_low": -1,
-              "out_anchor": 0,
-              "out_high": 1,
-              "out_low": -1,
-            },
-            "params": undefined,
-            "type": "centered_remap",
-          },
-          {
             "id": "const_component_1_1",
-            "inputDefaults": undefined,
             "params": {
               "value": 0,
             },
@@ -605,25 +511,21 @@ describe("IR snapshots", () => {
           },
           {
             "id": "time_component_1_0",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "deltaTime_component_1_1",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "frame_component_1_2",
-            "inputDefaults": undefined,
-            "params": undefined,
             "type": "time",
           },
           {
             "id": "out_rig_robot_mouth_pos_y",
-            "inputDefaults": undefined,
+            "inputDefaults": {
+              "in": 0,
+            },
             "params": {
               "path": "rig/robot/mouth/pos/y",
             },
@@ -634,12 +536,13 @@ describe("IR snapshots", () => {
           "bindings": [
             {
               "animatableId": "derived_input",
-              "component": undefined,
               "expression": "s1",
+              "expressionNodeId": "const_derived_input_1",
               "inputId": "input_a",
               "issues": [
-                "Unknown control "s1".",
+                "Unknown control \"s1\".",
               ],
+              "nodeId": "input_input_a",
               "operators": [
                 {
                   "enabled": false,
@@ -680,12 +583,13 @@ describe("IR snapshots", () => {
             },
             {
               "animatableId": "derived_input",
-              "component": undefined,
               "expression": "s1",
+              "expressionNodeId": "const_derived_input_1",
               "inputId": null,
               "issues": [
-                "Unknown control "s1".",
+                "Unknown control \"s1\".",
               ],
+              "nodeId": "const_derived_input_1",
               "operators": [
                 {
                   "enabled": false,
@@ -726,13 +630,14 @@ describe("IR snapshots", () => {
             },
             {
               "animatableId": "rig/robot/mouth/pos/y",
-              "component": undefined,
               "expression": "A + self",
+              "expressionNodeId": "const_derived_input_1",
               "inputId": "derived_input",
               "issues": [
                 "Self reference unavailable for this input.",
-                "Reserved variable "self" is unavailable for this binding.",
+                "Reserved variable \"self\" is unavailable for this binding.",
               ],
+              "nodeId": "const_derived_input_1",
               "operators": [
                 {
                   "enabled": false,
@@ -773,13 +678,14 @@ describe("IR snapshots", () => {
             },
             {
               "animatableId": "rig/robot/mouth/pos/y",
-              "component": undefined,
               "expression": "A + self",
+              "expressionNodeId": "const_derived_input_1",
               "inputId": "__self__",
               "issues": [
                 "Self reference unavailable for this input.",
-                "Reserved variable "self" is unavailable for this binding.",
+                "Reserved variable \"self\" is unavailable for this binding.",
               ],
+              "nodeId": "const_component_1_1",
               "operators": [
                 {
                   "enabled": false,

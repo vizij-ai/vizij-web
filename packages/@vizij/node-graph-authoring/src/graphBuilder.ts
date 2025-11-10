@@ -2,6 +2,7 @@ import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
+import type { RigBindingMetadata } from "@vizij/utils";
 import { buildAnimatableValue } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import type { BindingMap } from "./state";
@@ -35,12 +36,15 @@ import {
 } from "./operators";
 import {
   createExpressionVariableTable,
+  type ExpressionVariableEntry,
   type ExpressionVariableTable,
+  type SlotVariableMetadata,
 } from "./expressionVariables";
 import { RESERVED_EXPRESSION_VARIABLES } from "./expressionVocabulary";
 import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
 import { createIrGraphBuilder, toIrBindingSummary } from "./ir/builder";
 import { compileIrGraph } from "./ir/compiler";
+import { buildBindingMetadataFromExpression } from "./bindingMetadata";
 import type {
   IrConstant,
   IrEdge,
@@ -99,6 +103,7 @@ function evaluateBinding({
     counter: 0,
     reservedNodes: new Map(),
     nodeValueTypes: new Map(),
+    slotRemapNodes: new Map(),
   };
   const targetValueType: BindingValueType =
     target.valueType === "vector" ? "vector" : "scalar";
@@ -134,30 +139,13 @@ function evaluateBinding({
     } else if (slot.inputId) {
       const inputNode = ensureInputNode(slot.inputId);
       if (inputNode) {
-        const remapNodeId = `remap_${safeId}_${sanitizeNodeId(slotId)}`;
-        nodes.push({
-          id: remapNodeId,
-          type: "centered_remap",
-          inputDefaults: {
-            in_low: slot.remap.inLow,
-            in_anchor: slot.remap.inAnchor,
-            in_high: slot.remap.inHigh,
-            out_low: slot.remap.outLow,
-            out_anchor: slot.remap.outAnchor,
-            out_high: slot.remap.outHigh,
-          },
-        });
-        edges.push({
-          from: { nodeId: inputNode.nodeId },
-          to: { nodeId: remapNodeId, portId: "in" },
-        });
+        slotOutputId = inputNode.nodeId;
+        hasActiveSlot = true;
         setNodeValueType(
           exprContext,
-          remapNodeId,
+          slotOutputId,
           slotValueType === "vector" ? "vector" : "scalar",
         );
-        slotOutputId = remapNodeId;
-        hasActiveSlot = true;
       } else {
         expressionIssues.push(`Missing standard input "${slot.inputId}".`);
         slotOutputId = getConstantNodeId(exprContext, 0);
@@ -175,6 +163,8 @@ function evaluateBinding({
       animatableId,
       component,
       valueType: slotValueType,
+      remap: { ...slot.remap },
+      autoRemap: slot.inputId !== SELF_BINDING_ID && slotValueType === "scalar",
     });
     setNodeValueType(
       exprContext,
@@ -191,6 +181,8 @@ function evaluateBinding({
       remap: { ...slot.remap },
       expression: trimmedExpression,
       valueType: slotValueType,
+      nodeId: slotOutputId,
+      expressionNodeId: slotOutputId,
     });
   });
 
@@ -207,6 +199,8 @@ function evaluateBinding({
       animatableId,
       component,
       valueType: targetValueType,
+      remap: createDefaultRemap(target),
+      autoRemap: false,
     });
     setNodeValueType(
       exprContext,
@@ -223,6 +217,8 @@ function evaluateBinding({
       remap: createDefaultRemap(target),
       expression: trimmedExpression,
       valueType: targetValueType,
+      nodeId: constantId,
+      expressionNodeId: constantId,
     });
   }
 
@@ -280,6 +276,11 @@ function evaluateBinding({
     });
   }
 
+  const expressionMetadata = buildBindingMetadataFromExpression(
+    expressionAst,
+    variableTable,
+  );
+
   let valueNodeId: string | null = null;
 
   if (expressionAst) {
@@ -306,6 +307,10 @@ function evaluateBinding({
   );
   slotSummaries.forEach((summary) => {
     summary.expression = expressionText;
+    summary.expressionNodeId = valueNodeId;
+    if (expressionMetadata) {
+      summary.metadata = expressionMetadata;
+    }
     if (operatorSnapshot) {
       summary.operators = cloneOperators(operatorSnapshot);
     }
@@ -349,8 +354,11 @@ export interface GraphBindingSummary {
   remap: RemapSettings;
   expression: string;
   valueType: BindingValueType;
+  nodeId: string;
+  expressionNodeId: string;
   issues?: string[];
   operators?: BindingOperator[];
+  metadata?: RigBindingMetadata;
 }
 
 export interface BuildGraphResult {
@@ -376,8 +384,25 @@ function sanitizeNodeId(value: string): string {
 }
 
 function buildRigInputPath(faceId: string, inputPath: string): string {
-  const trimmed = inputPath.startsWith("/") ? inputPath.slice(1) : inputPath;
-  return `rig/${faceId}/${trimmed}`;
+  let trimmed = inputPath.startsWith("/") ? inputPath.slice(1) : inputPath;
+  if (!trimmed) {
+    return `rig/${faceId}`;
+  }
+  while (trimmed.startsWith("rig/")) {
+    const segments = trimmed.split("/");
+    if (segments.length >= 3) {
+      const existingFaceId = segments[1];
+      const remainder = segments.slice(2).join("/");
+      if (existingFaceId === faceId) {
+        return trimmed;
+      }
+      trimmed = remainder || "";
+    } else {
+      trimmed = segments.slice(1).join("/");
+    }
+  }
+  const suffix = trimmed ? `/${trimmed}` : "";
+  return `rig/${faceId}${suffix}`;
 }
 
 function getComponentOrder(
@@ -463,6 +488,7 @@ interface ExpressionBuildContext {
   counter: number;
   reservedNodes: Map<string, string>;
   nodeValueTypes: Map<string, ExpressionValueType>;
+  slotRemapNodes: Map<string, string>;
 }
 
 function setNodeValueType(
@@ -519,6 +545,95 @@ function ensureOperandValueType(
   );
 }
 
+function resolveSlotReferenceNode(
+  entry: ExpressionVariableEntry,
+  fallbackNodeId: string,
+  context: ExpressionBuildContext,
+): string {
+  if (entry.kind !== "slot") {
+    return fallbackNodeId;
+  }
+  const metadata = entry.metadata as SlotVariableMetadata | undefined;
+  if (!metadata || metadata.autoRemap === false || !metadata.remap) {
+    return fallbackNodeId;
+  }
+  if (metadata.valueType !== "scalar") {
+    return fallbackNodeId;
+  }
+  if (isIdentityRemap(metadata.remap)) {
+    return fallbackNodeId;
+  }
+  const cacheKey = metadata.slotId ?? entry.name;
+  const existing = context.slotRemapNodes.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+  const remapNodeId = createSlotRemapNode(
+    context,
+    fallbackNodeId,
+    metadata.remap,
+    metadata.slotAlias ?? cacheKey,
+  );
+  context.slotRemapNodes.set(cacheKey, remapNodeId);
+  return remapNodeId;
+}
+
+function createSlotRemapNode(
+  context: ExpressionBuildContext,
+  sourceNodeId: string,
+  remap: RemapSettings,
+  slotKey: string,
+): string {
+  const safeSlotKey = sanitizeNodeId(slotKey || "slot");
+  const nodeId = `slot_remap_${safeSlotKey}_${context.counter++}`;
+  context.nodes.push({
+    id: nodeId,
+    type: "centered_remap",
+    inputDefaults: {
+      in_low: remap.inLow,
+      in_anchor: remap.inAnchor,
+      in_high: remap.inHigh,
+      out_low: remap.outLow,
+      out_anchor: remap.outAnchor,
+      out_high: remap.outHigh,
+    },
+  });
+  context.edges.push({
+    from: { nodeId: sourceNodeId },
+    to: { nodeId, portId: "in" },
+  });
+  setNodeValueType(context, nodeId, "scalar");
+  return nodeId;
+}
+
+function isIdentityRemap(remap: RemapSettings): boolean {
+  return (
+    nearlyEqual(remap.inLow, remap.outLow) &&
+    nearlyEqual(remap.inAnchor, remap.outAnchor) &&
+    nearlyEqual(remap.inHigh, remap.outHigh)
+  );
+}
+
+function nearlyEqual(a: number, b: number, epsilon = 1e-4): boolean {
+  return Math.abs(a - b) <= epsilon;
+}
+
+const REMAP_FUNCTION_NODE_TYPES = new Set([
+  "piecewise_remap",
+  "centered_remap",
+  "remap",
+]);
+
+function shouldSkipAutoRemapForArgument(
+  nodeType: string,
+  index: number,
+): boolean {
+  if (!REMAP_FUNCTION_NODE_TYPES.has(nodeType)) {
+    return false;
+  }
+  return index === 0;
+}
+
 function cloneOperators(
   operators: BindingOperator[] | undefined,
 ): BindingOperator[] | undefined {
@@ -551,6 +666,33 @@ function getConstantNodeId(
   });
   context.constants.set(key, nodeId);
   setNodeValueType(context, nodeId, "scalar");
+  return nodeId;
+}
+
+function getVectorConstantNodeId(
+  context: ExpressionBuildContext,
+  values: number[],
+): string {
+  const normalized = values.map((value) =>
+    Number.isFinite(value) ? value : 0,
+  );
+  const key = `vector:${normalized.join(",")}`;
+  const existing = context.constants.get(key);
+  if (existing) {
+    return existing;
+  }
+  const nodeId = `const_${context.componentSafeId}_${context.constants.size + 1}`;
+  context.nodes.push({
+    id: nodeId,
+    type: "constant",
+    params: {
+      value: {
+        vector: normalized,
+      },
+    },
+  });
+  context.constants.set(key, nodeId);
+  setNodeValueType(context, nodeId, "vector");
   return nodeId;
 }
 
@@ -941,23 +1083,36 @@ const BINARY_FUNCTION_OPERATOR_MAP: Record<string, string> = {
   "||": "or",
 };
 
+interface ExpressionMaterializeOptions {
+  autoRemap?: boolean;
+}
+
 function materializeExpression(
   node: ControlExpressionNode,
   context: ExpressionBuildContext,
   variables: ExpressionVariableTable,
   issues: string[],
+  options?: ExpressionMaterializeOptions,
 ): string {
+  const autoRemap = options?.autoRemap !== false;
   switch (node.type) {
     case "Literal": {
       return getConstantNodeId(context, node.value);
     }
+    case "VectorLiteral": {
+      return getVectorConstantNodeId(context, node.values);
+    }
     case "Reference": {
-      const mapped = variables.resolveNodeId(node.name);
-      if (!mapped) {
+      const entry = variables.resolve(node.name);
+      if (!entry) {
         issues.push(`Unknown control "${node.name}".`);
         return getConstantNodeId(context, 0);
       }
-      return mapped;
+      const mappedId = entry.nodeId ?? getConstantNodeId(context, 0);
+      if (!autoRemap || entry.kind !== "slot") {
+        return mappedId;
+      }
+      return resolveSlotReferenceNode(entry, mappedId, context);
     }
     case "Unary": {
       const operandId = materializeExpression(
@@ -1064,8 +1219,16 @@ function materializeExpression(
         return getConstantNodeId(context, 0);
       }
 
-      const operands = node.args.map((arg) =>
-        materializeExpression(arg, context, variables, issues),
+      const operands = node.args.map((arg, index) =>
+        materializeExpression(
+          arg,
+          context,
+          variables,
+          issues,
+          shouldSkipAutoRemapForArgument(definition.nodeType, index)
+            ? { autoRemap: false }
+            : undefined,
+        ),
       );
 
       if (operands.length < definition.minArgs) {
@@ -1296,6 +1459,8 @@ export function buildRigGraphSpec({
         valueType: target.valueType === "vector" ? "vector" : "scalar",
         issues: ["Binding not found."],
         operators: undefined,
+        nodeId: PRIMARY_SLOT_ID,
+        expressionNodeId: PRIMARY_SLOT_ID,
       });
       const fallbackIssues =
         bindingIssues.get(component.id) ?? new Set<string>();
@@ -1490,6 +1655,9 @@ export function buildRigGraphSpec({
         expression: binding.expression,
         valueType: binding.valueType,
         issues: binding.issues ? [...binding.issues] : undefined,
+        metadata: binding.metadata
+          ? cloneJsonLike(binding.metadata)
+          : undefined,
       })),
     },
   };

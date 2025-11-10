@@ -72,6 +72,8 @@ export interface IrBindingSummary {
   remap: Record<string, unknown>;
   expression: string;
   valueType: "scalar" | "vector";
+  nodeId: string;
+  expressionNodeId: string;
   issues?: string[];
 }
 

@@ -16,6 +16,7 @@ import {
   addBindingSlot,
   updateBindingWithInput,
   updateBindingExpression,
+  buildCanonicalBindingExpression,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
 
@@ -119,13 +120,18 @@ describe("buildRigGraphSpec", () => {
     const remapNodes = spec.nodes.filter(
       (node: GraphSpec["nodes"][number]) => node.type === "centered_remap",
     );
-    expect(remapNodes).toHaveLength(2);
+    expect(remapNodes).toHaveLength(0);
+    const piecewiseNodes = spec.nodes.filter(
+      (node: GraphSpec["nodes"][number]) => node.type === "piecewise_remap",
+    );
+    expect(piecewiseNodes).toHaveLength(2);
 
     const summaryEntries = summary.bindings;
     expect(summaryEntries).toHaveLength(2);
-    expect(summaryEntries.every((entry) => entry.expression === "A + B")).toBe(
-      true,
-    );
+    const expectedExpression = buildCanonicalBindingExpression(binding);
+    expect(
+      summaryEntries.every((entry) => entry.expression === expectedExpression),
+    ).toBe(true);
     expect(summaryEntries.map((entry) => entry.inputId).sort()).toEqual([
       "input_a",
       "input_b",
@@ -759,7 +765,7 @@ describe("buildRigGraphSpec issues", () => {
     const remapNodes = result.spec.nodes.filter(
       (node: GraphSpec["nodes"][number]) => node.type === "centered_remap",
     );
-    expect(remapNodes.length).toBeGreaterThanOrEqual(1);
+    expect(remapNodes).toHaveLength(0);
   });
 
   it("flags derived input cycles", () => {

@@ -4,6 +4,7 @@ import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
+  RemapSettings,
   StandardRigInput,
 } from "@vizij/utils";
 
@@ -16,6 +17,7 @@ import {
   addBindingSlot,
   updateBindingWithInput,
   updateBindingExpression,
+  buildCanonicalBindingExpression,
 } from "../state";
 import { SELF_BINDING_ID } from "@vizij/utils";
 
@@ -116,16 +118,21 @@ describe("buildRigGraphSpec", () => {
     );
     expect(addNode).toBeDefined();
 
-    const remapNodes = spec.nodes.filter(
+    const centeredRemapNodes = spec.nodes.filter(
       (node: GraphSpec["nodes"][number]) => node.type === "centered_remap",
     );
-    expect(remapNodes).toHaveLength(2);
+    expect(centeredRemapNodes).toHaveLength(0);
+    const piecewiseNodes = spec.nodes.filter(
+      (node: GraphSpec["nodes"][number]) => node.type === "piecewise_remap",
+    );
+    expect(piecewiseNodes).toHaveLength(2);
 
     const summaryEntries = summary.bindings;
     expect(summaryEntries).toHaveLength(2);
-    expect(summaryEntries.every((entry) => entry.expression === "A + B")).toBe(
-      true,
-    );
+    const expectedExpression = buildCanonicalBindingExpression(binding);
+    expect(
+      summaryEntries.every((entry) => entry.expression === expectedExpression),
+    ).toBe(true);
     expect(summaryEntries.map((entry) => entry.inputId).sort()).toEqual([
       "input_a",
       "input_b",
@@ -837,6 +844,230 @@ describe("buildRigGraphSpec", () => {
     });
   });
 
+  it("compiles nested functional expressions from the vocabulary", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_b",
+        alias: "B",
+        inputId: INPUT_B.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "add(A, if(greaterthan(B, 1), 0, 1))";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+    });
+
+    expect(result.ir).toBeDefined();
+    const compiled = result.ir?.compile({ preferLegacySpec: false });
+    expect(compiled?.spec).toBeDefined();
+    const nodeTypes = new Set(
+      (compiled?.spec.nodes ?? []).map(
+        (node: GraphSpec["nodes"][number]) => node.type,
+      ),
+    );
+    expect(nodeTypes.has("add")).toBe(true);
+    expect(nodeTypes.has("if")).toBe(true);
+    expect(nodeTypes.has("greaterthan")).toBe(true);
+  });
+
+  it("materialises reserved time variables when referenced in expressions", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "add(A, time, deltaTime, frame)";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const irGraph = result.ir?.graph;
+    expect(irGraph).toBeDefined();
+    const reservedVariables = new Set(
+      (irGraph?.nodes ?? [])
+        .map((node) => node.metadata?.reservedVariable)
+        .filter((value): value is string => Boolean(value)),
+    );
+    expect(reservedVariables.has("time")).toBe(true);
+    expect(reservedVariables.has("deltaTime")).toBe(true);
+    expect(reservedVariables.has("frame")).toBe(true);
+
+    const compiled = result.ir?.compile({ preferLegacySpec: false });
+    expect(compiled?.spec).toBeDefined();
+    const addNode = compiled?.spec.nodes.find(
+      (node: GraphSpec["nodes"][number]) => node.type === "add",
+    );
+    expect(addNode).toBeDefined();
+  });
+
+  it("does not emit type errors for scalar conditionals", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_b",
+        alias: "B",
+        inputId: INPUT_B.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "add(A, if(greaterthan(B, 1), 0, 1))";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+    });
+
+    const targetIssues = result.issues.byTarget[COMPONENT.id] ?? [];
+    expect(targetIssues).toHaveLength(0);
+  });
+
+  it("supports piecewise remap expressions with vector literals", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+    ];
+    binding.expression = "piecewise_remap(A, vec(-1, 0, 1), [0, 0.5, 1])";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+    });
+
+    const targetIssues = result.issues.byTarget[COMPONENT.id] ?? [];
+    expect(targetIssues).toHaveLength(0);
+    const piecewiseNode = result.spec.nodes.find(
+      (node) => node.type === "piecewise_remap",
+    );
+    expect(piecewiseNode).toBeDefined();
+    const centeredNodes = result.spec.nodes.filter(
+      (node) => node.type === "centered_remap",
+    );
+    expect(centeredNodes).toHaveLength(0);
+  });
+
+  it("injects centered remap nodes for non-canonical expressions", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+        remap: { ...createDefaultRemap(COMPONENT) },
+      },
+      {
+        id: "slot_b",
+        alias: "B",
+        inputId: INPUT_B.id,
+        remap: {
+          ...createDefaultRemap(COMPONENT),
+          outLow: COMPONENT.range.min / 2,
+          outHigh: COMPONENT.range.max / 2,
+        },
+      },
+    ];
+    binding.expression = "max(A, clamp(B, 0, 1))";
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [INPUT_B.id, INPUT_B],
+      ]),
+      inputBindings: {},
+    });
+
+    const centeredNodes = result.spec.nodes.filter(
+      (node) => node.type === "centered_remap",
+    );
+    const slotRemaps = binding.slots.map((slot) => slot.remap);
+    const expectedRemaps = slotRemaps.filter(
+      (remap) => !isIdentityRemap(remap),
+    );
+    expect(centeredNodes).toHaveLength(expectedRemaps.length);
+    const defaults = centeredNodes
+      .map(
+        (node) =>
+          node.inputDefaults ??
+          (node as Record<string, unknown>).input_defaults,
+      )
+      .filter((entry): entry is Record<string, number> => Boolean(entry));
+    expect(defaults).toEqual(
+      expect.arrayContaining(expectedRemaps.map(remapToDefaults)),
+    );
+  });
+
   it("emits type errors when vector functions receive scalar operands", () => {
     const binding = createDefaultBinding(COMPONENT);
     binding.slots = [
@@ -1118,7 +1349,7 @@ describe("buildRigGraphSpec issues", () => {
     const remapNodes = result.spec.nodes.filter(
       (node: GraphSpec["nodes"][number]) => node.type === "centered_remap",
     );
-    expect(remapNodes.length).toBeGreaterThanOrEqual(1);
+    expect(remapNodes).toHaveLength(0);
   });
 
   it("flags derived input cycles", () => {
@@ -1238,3 +1469,26 @@ it("creates scalar math nodes like abs/min/max/modulo/round", () => {
   expect(nodeTypes.has("modulo")).toBe(true);
   expect(nodeTypes.has("round")).toBe(true);
 });
+
+function remapToDefaults(remap: RemapSettings): Record<string, number> {
+  return {
+    in_low: remap.inLow,
+    in_anchor: remap.inAnchor,
+    in_high: remap.inHigh,
+    out_low: remap.outLow,
+    out_anchor: remap.outAnchor,
+    out_high: remap.outHigh,
+  };
+}
+
+function isIdentityRemap(remap: RemapSettings): boolean {
+  return (
+    nearlyEqual(remap.inLow, remap.outLow) &&
+    nearlyEqual(remap.inAnchor, remap.outAnchor) &&
+    nearlyEqual(remap.inHigh, remap.outHigh)
+  );
+}
+
+function nearlyEqual(a: number, b: number, epsilon = 1e-4): boolean {
+  return Math.abs(a - b) <= epsilon;
+}

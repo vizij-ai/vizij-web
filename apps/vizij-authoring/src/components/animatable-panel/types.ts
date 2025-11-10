@@ -21,8 +21,14 @@ import type {
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput, RemapSettings } from "@vizij/utils";
 import type { VectorDescriptorType } from "@vizij/utils";
+import type { BuildGraphResult } from "@vizij/node-graph-authoring";
+import type { MachineReport } from "@vizij/node-graph-authoring";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../../utils/constants";
-import type { ManagedStandardInput } from "../../hooks/useRigController";
+import type {
+  ManagedStandardInput,
+  AuthoringFeatureFlag,
+} from "../../hooks/useRigController";
+import type { PersistedGraphInsight } from "../../rig/persistence";
 
 export type VectorComponent =
   | (typeof XYZ_COMPONENTS)[number]
@@ -96,6 +102,19 @@ export interface AnimatableValuesPanelProps {
   inputBindings: InputBindingMap;
   bindingIssues: Map<string, readonly string[]>;
   featureLabelOverrides: Record<string, string>;
+  featureFlags: Record<AuthoringFeatureFlag, boolean>;
+  graphInputDefaults: Record<string, number>;
+  values: Map<string, RawValue | undefined>;
+  graphTimeSeconds: number;
+  graphPlaybackState: "playing" | "paused";
+  onGraphPlay(): void;
+  onGraphPause(): void;
+  onGraphStop(): void;
+  onGraphStep(): void;
+  onFeatureFlagChange(flag: AuthoringFeatureFlag, enabled: boolean): void;
+  graphInsights: PersistedGraphInsight | null;
+  graphMachineReport: MachineReport | null;
+  getGraphIr: () => BuildGraphResult["ir"] | null;
   onBindingInputChange(
     targetId: string,
     inputId: string | null,
@@ -126,7 +145,12 @@ export interface AnimatableValuesPanelProps {
   onEnsureParentBinding(inputId: string): void;
   onUpdateStandardInput(
     inputId: string,
-    updates: { path?: string; label?: string; sourceId?: string | null },
+    updates: {
+      path?: string;
+      label?: string;
+      sourceId?: string | null;
+      defaultValue?: number;
+    },
   ): void;
   onDisableStandardInput(inputId: string): void;
   onEnableStandardInput(inputId: string): void;
@@ -138,6 +162,11 @@ export interface AnimatableValuesPanelProps {
     targetId: string,
     slotId: string,
     alias: string,
+  ): void;
+  onBindingSlotValueTypeChange(
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
   ): void;
   onBindingOperatorToggle(
     targetId: string,
@@ -168,6 +197,11 @@ export interface AnimatableValuesPanelProps {
     targetId: string,
     slotId: string,
     alias: string,
+  ): void;
+  onParentBindingSlotValueTypeChange(
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
   ): void;
   onParentBindingOperatorToggle(
     targetId: string,

@@ -33,8 +33,10 @@ import {
   updateBindingExpression,
   updateBindingSlotAlias,
   updateBindingSlotRemap,
+  updateBindingSlotValueType,
   setBindingOperatorEnabled,
   updateBindingOperatorParam,
+  buildCanonicalBindingExpression,
   PRIMARY_SLOT_ID,
   PRIMARY_SLOT_ALIAS,
   bindingTargetFromComponent,
@@ -47,6 +49,7 @@ import {
   type BindingTarget,
   type StandardInputValues,
   type BindingOperatorType,
+  type BindingValueType,
 } from "@vizij/node-graph-authoring";
 import type { RemapSettings } from "@vizij/utils";
 import {
@@ -54,11 +57,13 @@ import {
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
   deriveLabelFromNormalizedPath,
+  deriveStandardRigInputIdFromPath,
   normalizeStandardRigInputPath,
   normalizeStandardRigGroup,
   STANDARD_RIG_INPUTS,
   stripStandardInputPathPrefix,
   type RigBindingDefinition,
+  type RigBindingSlot,
   type StandardRigInput,
 } from "@vizij/utils";
 import {
@@ -66,6 +71,7 @@ import {
   saveRigState,
   deleteRigState,
   type PersistedAutoStandardInput,
+  type PersistedGraphInsight,
 } from "../rig/persistence";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { alertDialog, confirmDialog } from "../utils/dialogs";
@@ -76,6 +82,8 @@ import {
 import {
   buildRigGraphSpec,
   type BuildGraphResult,
+  buildMachineReport,
+  type MachineReport,
 } from "@vizij/node-graph-authoring";
 import {
   useGraphInstance,
@@ -89,9 +97,22 @@ import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import { rehydrateRigDataFromGraph } from "../rig/importer";
 import { extractStandardInputSubgroups } from "../utils/standardInputs";
 
+const __DEV__ = process.env.NODE_ENV !== "production";
+
 const STANDARD_BLUEPRINT_PATHS = new Set(
   STANDARD_RIG_INPUTS.map((input) => normalizeStandardRigInputPath(input.path)),
 );
+
+const FEATURE_FLAG_DEFAULTS = {
+  vectorAuthoringBeta: true,
+  conditionalAuthoringBeta: true,
+  irInspectorBeta: true,
+} as const;
+
+export type AuthoringFeatureFlag = keyof typeof FEATURE_FLAG_DEFAULTS;
+type FeatureFlagState = Record<AuthoringFeatureFlag, boolean>;
+
+const RIG_STATE_SCHEMA_VERSION = 3;
 
 function resolvePersistedAutoKey(
   sourceId?: string | null,
@@ -104,6 +125,69 @@ function resolvePersistedAutoKey(
     return normalizeStandardRigInputPath(sourcePath);
   }
   return null;
+}
+
+function createGraphInsightSnapshot(
+  result: BuildGraphResult,
+): PersistedGraphInsight {
+  return {
+    summary: {
+      faceId: result.summary.faceId,
+      inputs: [...result.summary.inputs],
+      outputs: [...result.summary.outputs],
+      bindings: result.summary.bindings.length,
+    },
+    issues: {
+      fatal: [...result.issues.fatal],
+      byTarget: Object.fromEntries(
+        Object.entries(result.issues.byTarget).map(([targetId, issues]) => [
+          targetId,
+          [...issues],
+        ]),
+      ),
+    },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function deriveAliasFromInputDescriptor(
+  input?: StandardRigInput | null,
+): string | null {
+  if (!input) {
+    return null;
+  }
+  const normalized = normalizeStandardRigInputPath(input.path);
+  const segments = normalized.split("/").filter(Boolean);
+  const fallback = input.id ?? input.label ?? null;
+  const candidate =
+    segments.length > 0 ? segments[segments.length - 1] : fallback;
+  if (!candidate) {
+    return null;
+  }
+  return candidate;
+}
+
+function isDefaultSlotAlias(slot: RigBindingSlot, index: number): boolean {
+  if (slot.inputId === SELF_BINDING_ID) {
+    return false;
+  }
+  const alias = slot.alias?.trim();
+  if (!alias) {
+    return true;
+  }
+  const normalizedAlias = alias.toLowerCase();
+  if (normalizedAlias === "self") {
+    return false;
+  }
+  const defaultAlias = `s${index + 1}`;
+  if (normalizedAlias === defaultAlias) {
+    return true;
+  }
+  const slotIdNormalized = slot.id?.trim().toLowerCase();
+  if (slotIdNormalized && slotIdNormalized === normalizedAlias) {
+    return true;
+  }
+  return false;
 }
 
 function replaceSlugInPath(
@@ -128,6 +212,15 @@ function replaceSlugInPath(
   }
   segments[offset] = newSlug;
   return normalizeStandardRigInputPath(`/${segments.join("/")}`);
+}
+
+function clampNumberToRange(value: number, min: number, max: number): number {
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  if (!Number.isFinite(value)) {
+    return low;
+  }
+  return Math.min(Math.max(value, low), high);
 }
 
 function convertValueJSONToRaw(
@@ -281,12 +374,22 @@ export interface RigController {
   graphError: string | null;
   bindingIssues: Map<string, readonly string[]>;
   featureLabelOverrides: Record<string, string>;
+  featureFlags: FeatureFlagState;
+  graphMachineReport: MachineReport | null;
+  getGraphIr: () => BuildGraphResult["ir"] | null;
   managedStandardInputs: ManagedStandardInput[];
   standardInputRoots: string[];
   selectedStandardInputRoots: string[];
   selectedStandardInputSubgroups: string[];
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
+  graphInputDefaults: Record<string, number>;
+  graphTimeSeconds: number;
+  graphPlaybackState: "playing" | "paused";
+  playGraph: () => void;
+  pauseGraph: () => void;
+  stopGraph: () => void;
+  stepGraph: () => void;
   inputValues: StandardInputValues;
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -329,7 +432,11 @@ export interface RigController {
   handleRenameShape: (shapeId: string, value: string) => void;
   handleUpdateStandardInput: (
     inputId: string,
-    updates: { path?: string; label?: string },
+    updates: {
+      path?: string;
+      label?: string;
+      defaultValue?: number;
+    },
   ) => void;
   handleDisableStandardInput: (inputId: string) => void;
   handleEnableStandardInput: (inputId: string) => void;
@@ -342,10 +449,19 @@ export interface RigController {
     slotId: string,
     alias: string,
   ) => void;
+  handleBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
   handleUpdateFeatureLabel: (
     featureId: string,
     defaultLabel: string,
     value: string,
+  ) => void;
+  handleFeatureFlagChange: (
+    flag: AuthoringFeatureFlag,
+    enabled: boolean,
   ) => void;
   handleEnsureParentBinding: (targetId: string) => void;
   handleParentBindingInputChange: (
@@ -369,6 +485,11 @@ export interface RigController {
     targetId: string,
     slotId: string,
     alias: string,
+  ) => void;
+  handleParentBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
   ) => void;
   handleParentBindingOperatorToggle: (
     targetId: string,
@@ -399,6 +520,7 @@ export interface RigController {
     updates: Record<StandardInputId, number>,
     options?: { replace?: boolean },
   ) => void;
+  graphInsights: PersistedGraphInsight | null;
 }
 
 export function useRigController({
@@ -420,12 +542,20 @@ export function useRigController({
     evalAll: evalRigGraph,
     stageInput: stageRigInput,
     clearStaged: clearRigStaged,
+    step: stepRigGraph,
+    setTime: setRigTime,
   } = useGraphInstance(undefined, { autoEval: false });
 
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [graphError, setGraphError] = useState<string | null>(null);
+  const [graphTimeSeconds, setGraphTimeSeconds] = useState(0);
+  const graphTimeRef = useRef(0);
+  const [graphPlaybackState, setGraphPlaybackState] = useState<
+    "playing" | "paused"
+  >("playing");
+  const playbackStateRef = useRef<"playing" | "paused">("playing");
 
   const [faceId, setFaceIdState] = useState<string>("robot");
   const [autoInputs, setAutoInputs] = useState<Map<string, AutoInputState>>(
@@ -446,6 +576,19 @@ export function useRigController({
   >([]);
   const viewerSelectionActiveRef = useRef(false);
   const [inputValues, setInputValues] = useState<StandardInputValues>({});
+  const inputValuesRef = useRef<StandardInputValues>(inputValues);
+  const updateInputValues = useCallback(
+    (updater: (prev: StandardInputValues) => StandardInputValues) => {
+      setInputValues((previous) => {
+        const next = updater(previous);
+        if (next !== previous) {
+          inputValuesRef.current = next;
+        }
+        return next;
+      });
+    },
+    [],
+  );
   const [bindings, setBindings] = useState<BindingMap>(() =>
     createDefaultBindings([]),
   );
@@ -460,6 +603,11 @@ export function useRigController({
   const [featureLabelOverrides, setFeatureLabelOverrides] = useState<
     Record<string, string>
   >({});
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlagState>(
+    FEATURE_FLAG_DEFAULTS,
+  );
+  const [graphInsights, setGraphInsights] =
+    useState<PersistedGraphInsight | null>(null);
 
   const persistedAutoInputsRef = useRef<
     Map<string, PersistedAutoStandardInput>
@@ -477,6 +625,29 @@ export function useRigController({
 
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
+  const graphIrRef = useRef<BuildGraphResult["ir"] | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number | null>(null);
+  const graphInputBindingsRef = useRef<
+    Array<{
+      graphPath: string;
+      inputId?: string;
+      defaultValue: number;
+    }>
+  >([]);
+  const graphInputBindingsByIdRef = useRef<Map<string, string>>(new Map());
+
+  function buildFallbackGraphPath(
+    faceId: string,
+    input: StandardRigInput,
+  ): string {
+    const normalizedPath = normalizeStandardRigInputPath(input.path);
+    const trimmed = normalizedPath.replace(/^\/+/, "");
+    return trimmed.length > 0 ? `rig/${faceId}/${trimmed}` : `rig/${faceId}`;
+  }
+  const [graphInputDefaults, setGraphInputDefaults] = useState<
+    Record<string, number>
+  >({});
   const lastAutoFaceIdRef = useRef<string | null>(null);
   const lastLoadedFaceIdRef = useRef<string | null>(null);
   const skipPersistRef = useRef(false);
@@ -906,7 +1077,7 @@ export function useRigController({
         });
       }
 
-      setInputValues((previous) => {
+      updateInputValues((previous) => {
         if (idRemap.size === 0) {
           return previous;
         }
@@ -1127,7 +1298,7 @@ export function useRigController({
       setCustomInputs,
       setDisabledStandardInputIds,
       setInputBindings,
-      setInputValues,
+      updateInputValues,
       setSelectedStandardInputRoots,
       setFeatureLabelOverrides,
       setSelectedStandardInputSubgroups,
@@ -1418,6 +1589,19 @@ export function useRigController({
     [standardInputs],
   );
 
+  const standardInputsByPath = useMemo(() => {
+    const entries = new Map<string, StandardRigInput>();
+    standardInputs.forEach((input) => {
+      const normalized = normalizeStandardRigInputPath(input.path);
+      entries.set(normalized, input);
+      const stripped = stripStandardInputPathPrefix(normalized);
+      if (stripped !== normalized) {
+        entries.set(stripped, input);
+      }
+    });
+    return entries;
+  }, [standardInputs]);
+
   const standardInputMetadataById = useMemo(() => {
     const entries = new Map<
       string,
@@ -1435,14 +1619,6 @@ export function useRigController({
     });
     return entries;
   }, [managedStandardInputs]);
-
-  const standardInputsByPath = useMemo(
-    () =>
-      new Map<string, StandardRigInput>(
-        standardInputs.map((input) => [input.path, input]),
-      ),
-    [standardInputs],
-  );
 
   const standardInputsByIdRef = useRef(standardInputsById);
 
@@ -1500,19 +1676,41 @@ export function useRigController({
     standardInputMetadataById,
   ]);
 
-  const graphSpecSignature = useMemo(() => {
+  const runtimeGraphSpec = useMemo<{
+    spec: GraphSpec;
+    source: "legacy" | "ir";
+  } | null>(() => {
     if (!rigGraphBuild) {
       return null;
     }
-    if (rigGraphBuild.issues.fatal.length > 0) {
-      return null;
+    if (rigGraphBuild.ir) {
+      try {
+        const compiled = rigGraphBuild.ir.compile({ preferLegacySpec: false });
+        if (compiled?.spec) {
+          if (compiled.issues && compiled.issues.length > 0) {
+            // eslint-disable-next-line no-console -- diagnostics for IR compile
+            console.warn(
+              "[vizij-authoring] IR runtime compile reported issues",
+              compiled.issues,
+            );
+          }
+          return {
+            spec: compiled.spec,
+            source: "ir",
+          };
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console -- diagnostics for IR compile
+        console.error(
+          "[vizij-authoring] Failed to compile IR graph for runtime",
+          error,
+        );
+      }
     }
-    try {
-      return JSON.stringify(rigGraphBuild.spec);
-    } catch (err) {
-      console.error("Failed to serialise rig graph spec signature", err);
-      return `${Date.now()}`;
-    }
+    return {
+      spec: rigGraphBuild.spec,
+      source: "legacy",
+    };
   }, [rigGraphBuild]);
 
   const bindingIssues = useMemo(
@@ -1525,6 +1723,47 @@ export function useRigController({
           )
         : new Map<string, readonly string[]>(),
     [rigGraphBuild],
+  );
+
+  const graphMachineReport = useMemo(
+    () => (rigGraphBuild ? buildMachineReport(rigGraphBuild) : null),
+    [rigGraphBuild],
+  );
+
+  const getGraphIr = useCallback(() => graphIrRef.current, []);
+
+  useEffect(() => {
+    if (!rigGraphBuild) {
+      return;
+    }
+    setGraphInsights(createGraphInsightSnapshot(rigGraphBuild));
+  }, [rigGraphBuild]);
+
+  const maybeAutoAliasSlot = useCallback(
+    (
+      binding: AnimatableBinding,
+      target: BindingTarget,
+      slotId: string,
+      input: StandardRigInput | undefined,
+    ): AnimatableBinding => {
+      if (!input) {
+        return binding;
+      }
+      const slotIndex = binding.slots.findIndex((slot) => slot.id === slotId);
+      if (slotIndex < 0) {
+        return binding;
+      }
+      const slot = binding.slots[slotIndex]!;
+      if (!isDefaultSlotAlias(slot, slotIndex)) {
+        return binding;
+      }
+      const aliasCandidate = deriveAliasFromInputDescriptor(input);
+      if (!aliasCandidate) {
+        return binding;
+      }
+      return updateBindingSlotAlias(binding, target, slotId, aliasCandidate);
+    },
+    [],
   );
 
   const resetDrivenAnimatables = useCallback(() => {
@@ -1542,6 +1781,160 @@ export function useRigController({
       setValue(animId, namespace, resetValue);
     });
   }, [animatables, namespace, setValue]);
+
+  const cancelAnimationLoop = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    lastFrameTimeRef.current = null;
+  }, []);
+
+  const applyGraphOutputs = useCallback(
+    (result: unknown) => {
+      if (!result) {
+        resetDrivenAnimatables();
+        return;
+      }
+      const writes: WriteOpJSON[] = Array.isArray((result as any)?.writes)
+        ? ((result as any).writes as WriteOpJSON[])
+        : [];
+      const nextDriven = new Set<string>();
+
+      writes.forEach((write) => {
+        if (!write || typeof write.path !== "string") {
+          return;
+        }
+        const animatable = animatables[write.path];
+        if (!animatable) {
+          return;
+        }
+        const rawValue = convertValueJSONToRaw(
+          animatable,
+          write.value as ValueJSON,
+        );
+        if (rawValue === undefined) {
+          return;
+        }
+        setValue(write.path, namespace, rawValue);
+        nextDriven.add(write.path);
+      });
+
+      drivenAnimatablesRef.current.forEach((animId) => {
+        if (nextDriven.has(animId)) {
+          return;
+        }
+        const animatable = animatables[animId];
+        if (!animatable) {
+          return;
+        }
+        const resetValue = buildAnimatableValue(animatable, undefined);
+        setValue(animId, namespace, resetValue);
+      });
+
+      drivenAnimatablesRef.current = nextDriven;
+    },
+    [animatables, namespace, resetDrivenAnimatables, setValue],
+  );
+
+  const stageInputsFromState = useCallback(
+    (options?: { clear?: boolean }) => {
+      if (graphStatus !== "ready") {
+        return;
+      }
+      const bindingEntries = graphInputBindingsByIdRef.current;
+      if (
+        bindingEntries.size === 0 &&
+        graphInputBindingsRef.current.length === 0
+      ) {
+        return;
+      }
+      if (options?.clear) {
+        clearRigStaged();
+      }
+      const currentValues = inputValuesRef.current;
+      if (__DEV__) {
+        console.debug("[vizij] stage all inputs", {
+          count:
+            bindingEntries.size > 0
+              ? bindingEntries.size
+              : graphInputBindingsRef.current.length,
+          clear: options?.clear ?? false,
+        });
+      }
+      if (bindingEntries.size > 0) {
+        bindingEntries.forEach((graphPath, inputId) => {
+          const stored = currentValues[inputId];
+          const fallbackInput = standardInputsById.get(inputId);
+          const value =
+            typeof stored === "number" && Number.isFinite(stored)
+              ? stored
+              : (fallbackInput?.defaultValue ?? 0);
+          stageRigInput(graphPath, { float: value });
+        });
+        return;
+      }
+      graphInputBindingsRef.current.forEach(
+        ({ graphPath, inputId, defaultValue }) => {
+          const stored = inputId ? currentValues[inputId] : undefined;
+          const value =
+            typeof stored === "number" && Number.isFinite(stored)
+              ? stored
+              : defaultValue;
+          stageRigInput(graphPath, { float: value });
+        },
+      );
+    },
+    [clearRigStaged, graphStatus, stageRigInput, standardInputsById],
+  );
+
+  const evaluateGraphNow = useCallback(() => {
+    if (graphStatus !== "ready") {
+      return;
+    }
+    stageInputsFromState();
+    const result = evalRigGraph();
+    applyGraphOutputs(result);
+  }, [applyGraphOutputs, evalRigGraph, graphStatus, stageInputsFromState]);
+
+  const runGraphStep = useCallback(
+    (deltaSeconds: number) => {
+      if (graphStatus !== "ready") {
+        return;
+      }
+      const clampedDelta = Math.max(deltaSeconds, 0);
+      graphTimeRef.current += clampedDelta;
+      setGraphTimeSeconds(graphTimeRef.current);
+      setRigTime(graphTimeRef.current);
+      stageInputsFromState();
+      stepRigGraph(clampedDelta);
+      const result = evalRigGraph();
+      applyGraphOutputs(result);
+    },
+    [
+      applyGraphOutputs,
+      evalRigGraph,
+      graphStatus,
+      setRigTime,
+      stageInputsFromState,
+      stepRigGraph,
+    ],
+  );
+
+  const runAnimationFrame = useCallback(
+    (timestamp: number) => {
+      if (playbackStateRef.current !== "playing") {
+        animationFrameRef.current = null;
+        return;
+      }
+      const last = lastFrameTimeRef.current ?? timestamp;
+      lastFrameTimeRef.current = timestamp;
+      const deltaSeconds = Math.max((timestamp - last) / 1000, 0);
+      runGraphStep(deltaSeconds);
+      animationFrameRef.current = requestAnimationFrame(runAnimationFrame);
+    },
+    [runGraphStep],
+  );
 
   const rootRenderable = useMemo(() => {
     return rootId ? (world[rootId] as Group | undefined) : undefined;
@@ -1609,7 +2002,7 @@ export function useRigController({
   }, [autoBlueprints, autoInputs]);
 
   useEffect(() => {
-    setInputValues((previous) => {
+    updateInputValues((previous) => {
       const next: StandardInputValues = { ...previous };
       let changed = false;
       const validIds = new Set<string>();
@@ -1632,7 +2025,7 @@ export function useRigController({
 
       return changed ? next : previous;
     });
-  }, [managedStandardInputs]);
+  }, [managedStandardInputs, updateInputValues]);
 
   useEffect(() => {
     const validIds = new Set(standardInputs.map((input) => input.id));
@@ -1675,14 +2068,57 @@ export function useRigController({
     });
   }, [componentsById, standardInputs]);
 
+  const stageGraphInputValue = useCallback(
+    (inputId: string, value: number) => {
+      if (graphStatus !== "ready") {
+        if (__DEV__) {
+          console.warn(
+            "[vizij] skipped staging input while graph not ready",
+            inputId,
+            value,
+          );
+        }
+        return;
+      }
+      let graphPath = graphInputBindingsByIdRef.current.get(inputId) ?? null;
+      if (!graphPath) {
+        const input = standardInputsById.get(inputId);
+        if (input) {
+          graphPath = buildFallbackGraphPath(faceId, input);
+          graphInputBindingsByIdRef.current.set(inputId, graphPath);
+        }
+      }
+      if (!graphPath) {
+        if (__DEV__) {
+          console.warn("[vizij] no graph input binding for", inputId, value);
+        }
+        return;
+      }
+      stageRigInput(graphPath, { float: value });
+      if (__DEV__) {
+        console.debug("[vizij] staged input", {
+          inputId,
+          graphPath,
+          value,
+          fallback: !graphInputBindingsRef.current.some(
+            (binding) => binding.graphPath === graphPath,
+          ),
+        });
+      }
+    },
+    [faceId, graphStatus, stageRigInput, standardInputsById],
+  );
+
   const handleInputValueChange = useCallback(
     (inputId: string, value: number) => {
-      setInputValues((previous) => ({
+      updateInputValues((previous) => ({
         ...previous,
         [inputId]: value,
       }));
+      stageGraphInputValue(inputId, value);
+      evaluateGraphNow();
     },
-    [],
+    [evaluateGraphNow, stageGraphInputValue, updateInputValues],
   );
 
   const applyStandardInputBatch = useCallback(
@@ -1699,7 +2135,7 @@ export function useRigController({
       if (entries.length === 0) {
         return;
       }
-      setInputValues((previous) => {
+      updateInputValues((previous) => {
         if (options?.replace) {
           const next: StandardInputValues = {};
           const entryIds = new Set<StandardInputId>();
@@ -1733,12 +2169,21 @@ export function useRigController({
         });
         return changed ? next : previous;
       });
+      entries.forEach(([inputId, value]) => {
+        stageGraphInputValue(inputId, value);
+      });
+      evaluateGraphNow();
     },
-    [standardInputsById],
+    [
+      evaluateGraphNow,
+      stageGraphInputValue,
+      standardInputsById,
+      updateInputValues,
+    ],
   );
 
   const handleResetAllInputValues = useCallback(() => {
-    setInputValues((previous) => {
+    updateInputValues((previous) => {
       const defaults = createDefaultInputValues(
         managedStandardInputs.map((entry) => entry.input),
       );
@@ -1752,7 +2197,7 @@ export function useRigController({
       }
       return defaults;
     });
-  }, [managedStandardInputs]);
+  }, [managedStandardInputs, updateInputValues]);
 
   const handleClearCachedState = useCallback(() => {
     if (!faceId) {
@@ -1766,7 +2211,7 @@ export function useRigController({
     setAutoInputs(new Map());
     setInputBindings({});
     setBindings(createDefaultBindings(animatableComponents));
-    setInputValues({});
+    updateInputValues(() => ({}));
     setSelectedStandardInputRoots([]);
     setSelectedStandardInputSubgroups([]);
     setFeatureLabelOverrides({});
@@ -1774,7 +2219,7 @@ export function useRigController({
       skipPersistRef.current = false;
       rebuildAutoInputs();
     }, 0);
-  }, [animatableComponents, faceId, rebuildAutoInputs]);
+  }, [animatableComponents, faceId, rebuildAutoInputs, updateInputValues]);
 
   const handleSelectStandardInputRoots = useCallback(
     (nextRoots: string[]) => {
@@ -1817,16 +2262,22 @@ export function useRigController({
           inputMeta,
           targetSlotId,
         );
-        if (updated === current) {
+        const nextBinding = maybeAutoAliasSlot(
+          updated,
+          target,
+          targetSlotId,
+          inputMeta,
+        );
+        if (nextBinding === current) {
           return previous;
         }
         return {
           ...previous,
-          [targetId]: updated,
+          [targetId]: nextBinding,
         };
       });
     },
-    [componentsById, standardInputsById],
+    [componentsById, maybeAutoAliasSlot, standardInputsById],
   );
 
   const handleBindingRemapChange = useCallback(
@@ -1964,6 +2415,36 @@ export function useRigController({
     [componentsById],
   );
 
+  const handleBindingSlotValueTypeChange = useCallback(
+    (targetId: string, slotId: string, valueType: BindingValueType) => {
+      setBindings((previous) => {
+        const binding = previous[targetId];
+        if (!binding) {
+          return previous;
+        }
+        const component = componentsById.get(targetId);
+        if (!component) {
+          return previous;
+        }
+        const target = bindingTargetFromComponent(component);
+        const next = updateBindingSlotValueType(
+          binding,
+          target,
+          slotId,
+          valueType,
+        );
+        if (next === binding) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: next,
+        };
+      });
+    },
+    [componentsById],
+  );
+
   const handleBindingOperatorToggle = useCallback(
     (targetId: string, operator: BindingOperatorType, enabled: boolean) => {
       const component = componentsById.get(targetId);
@@ -2049,6 +2530,21 @@ export function useRigController({
     [],
   );
 
+  const handleFeatureFlagChange = useCallback(
+    (flag: AuthoringFeatureFlag, enabled: boolean) => {
+      setFeatureFlags((previous) => {
+        if (previous[flag] === enabled) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [flag]: enabled,
+        };
+      });
+    },
+    [],
+  );
+
   const handleResetBinding = useCallback(
     (targetId: string) => {
       const component = componentsById.get(targetId);
@@ -2110,7 +2606,7 @@ export function useRigController({
         return null;
       }
       const created: StandardRigInput = createdInput;
-      setInputValues((previous) => ({
+      updateInputValues((previous) => ({
         ...previous,
         [created.id]: created.defaultValue,
       }));
@@ -2122,7 +2618,12 @@ export function useRigController({
   const handleUpdateStandardInput = useCallback(
     (
       inputId: string,
-      updates: { path?: string; label?: string; sourceId?: string | null },
+      updates: {
+        path?: string;
+        label?: string;
+        sourceId?: string | null;
+        defaultValue?: number;
+      },
     ) => {
       const autoEntry = Array.from(autoInputsRef.current.entries()).find(
         ([, entry]) => entry.input.id === inputId,
@@ -2132,7 +2633,10 @@ export function useRigController({
         const wantsPath = updates.path !== undefined;
         const wantsLabel = updates.label !== undefined;
         const wantsSourceId = updates.sourceId !== undefined;
-        if (!wantsPath && !wantsLabel && !wantsSourceId) {
+        const wantsDefaultValue =
+          typeof updates.defaultValue === "number" &&
+          Number.isFinite(updates.defaultValue);
+        if (!wantsPath && !wantsLabel && !wantsSourceId && !wantsDefaultValue) {
           return;
         }
 
@@ -2189,6 +2693,13 @@ export function useRigController({
           : (entryState.metadata.root ??
             entryState.input.group ??
             GROUP_FALLBACK);
+        const normalizedDefaultValue = wantsDefaultValue
+          ? clampNumberToRange(
+              updates.defaultValue as number,
+              entryState.input.range.min,
+              entryState.input.range.max,
+            )
+          : entryState.input.defaultValue;
         const nextSourceId =
           wantsSourceId && updates.sourceId === null
             ? undefined
@@ -2203,7 +2714,8 @@ export function useRigController({
           normalizedPath === entryState.input.path &&
           nextLabel === entryState.input.label &&
           nextGroup === entryState.input.group &&
-          nextSourceId === entryState.input.sourceId
+          nextSourceId === entryState.input.sourceId &&
+          normalizedDefaultValue === entryState.input.defaultValue
         ) {
           return;
         }
@@ -2218,7 +2730,7 @@ export function useRigController({
             path: normalizedPath,
             label: nextLabel,
             group: nextGroup,
-            defaultValue: current.input.defaultValue,
+            defaultValue: normalizedDefaultValue,
             range: {
               min: current.input.range.min,
               max: current.input.range.max,
@@ -2270,8 +2782,8 @@ export function useRigController({
             label:
               nextLabel !== entryState.generatedLabel ? nextLabel : undefined,
             defaultValue:
-              entryState.input.defaultValue !== entryState.generatedDefaultValue
-                ? entryState.input.defaultValue
+              normalizedDefaultValue !== entryState.generatedDefaultValue
+                ? normalizedDefaultValue
                 : undefined,
             range:
               entryState.input.range.min !== entryState.generatedRange.min ||
@@ -2323,7 +2835,21 @@ export function useRigController({
             : updates.label !== undefined
               ? deriveLabelFromNormalizedPath(normalizedPath)
               : current.label;
-        if (normalizedPath === current.path && nextLabel === current.label) {
+        const wantsDefaultValue =
+          typeof updates.defaultValue === "number" &&
+          Number.isFinite(updates.defaultValue);
+        const normalizedDefaultValue = wantsDefaultValue
+          ? clampNumberToRange(
+              updates.defaultValue as number,
+              current.range.min,
+              current.range.max,
+            )
+          : current.defaultValue;
+        if (
+          normalizedPath === current.path &&
+          nextLabel === current.label &&
+          normalizedDefaultValue === current.defaultValue
+        ) {
           return previous;
         }
         const nextGroup = deriveGroupFromNormalizedPath(normalizedPath);
@@ -2332,7 +2858,7 @@ export function useRigController({
           path: normalizedPath,
           label: nextLabel,
           group: nextGroup,
-          defaultValue: current.defaultValue,
+          defaultValue: normalizedDefaultValue,
           range: {
             min: current.range.min,
             max: current.range.max,
@@ -2464,7 +2990,7 @@ export function useRigController({
       setCustomInputs((previous) =>
         previous.filter((input) => input.id !== inputId),
       );
-      setInputValues((previous) => {
+      updateInputValues((previous) => {
         if (!Object.prototype.hasOwnProperty.call(previous, inputId)) {
           return previous;
         }
@@ -2475,7 +3001,7 @@ export function useRigController({
       removeInputFromAnimatableBindings(inputId);
       pruneInputBindings(inputId, snapshot);
     },
-    [pruneInputBindings, removeInputFromAnimatableBindings],
+    [pruneInputBindings, removeInputFromAnimatableBindings, updateInputValues],
   );
 
   const handleDisableStandardInput = useCallback(
@@ -2531,23 +3057,29 @@ export function useRigController({
 
   const canonicalBindingExpression = useCallback(
     (binding: AnimatableBinding): string => {
-      const aliases: string[] = [];
-      binding.slots.forEach((slot) => {
-        if (!slot.inputId) {
-          return;
-        }
-        const alias = (slot.alias || slot.id || "").trim();
-        if (!alias) {
-          return;
-        }
-        if (!aliases.includes(alias)) {
-          aliases.push(alias);
-        }
-      });
-      return aliases.join(" + ");
+      return buildCanonicalBindingExpression(binding);
     },
     [],
   );
+
+  const aliasOnlyExpression = useCallback((binding: AnimatableBinding) => {
+    const slots = binding.slots ?? [];
+    if (slots.length === 0) {
+      return PRIMARY_SLOT_ALIAS;
+    }
+    return slots
+      .map((slot, index) => {
+        const alias = (slot.alias || slot.id || "").trim();
+        if (alias.length > 0) {
+          return alias;
+        }
+        if (index === 0) {
+          return PRIMARY_SLOT_ALIAS;
+        }
+        return `s${index + 1}`;
+      })
+      .join(" + ");
+  }, []);
 
   const updateInputBinding = useCallback(
     (
@@ -2571,37 +3103,35 @@ export function useRigController({
         const current = previous[targetId] ?? initializer(target);
         const ensured = ensureBindingStructure(current, target);
         const canonicalBefore = canonicalBindingExpression(ensured);
+        const aliasBefore = aliasOnlyExpression(ensured);
         const expressionBefore = (ensured.expression ?? "").trim();
         const preserveExpression = options?.preserveExpression === true;
         const expressionWasAuto =
-          expressionBefore === "" || expressionBefore === canonicalBefore;
+          expressionBefore === "" ||
+          expressionBefore === canonicalBefore ||
+          expressionBefore === aliasBefore;
         const transformed = transform(ensured, target);
         let normalized = ensureBindingStructure(transformed, target);
         const expressionAfter = (normalized.expression ?? "").trim();
-        const fallbackAlias = normalized.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS;
+        const aliasAfter = aliasOnlyExpression(normalized);
+        const canonicalFallback =
+          canonicalBindingExpression(normalized) || aliasAfter;
         if (preserveExpression) {
           if (
             expressionAfter.length === 0 &&
-            expressionAfter !== fallbackAlias
+            expressionAfter !== canonicalFallback
           ) {
             normalized = {
               ...normalized,
-              expression: fallbackAlias,
+              expression: canonicalFallback,
             };
           }
         } else if (expressionWasAuto) {
           const canonicalAfter = canonicalBindingExpression(normalized);
-          if (canonicalAfter.length > 0) {
-            if (expressionAfter !== canonicalAfter) {
-              normalized = {
-                ...normalized,
-                expression: canonicalAfter,
-              };
-            }
-          } else if (expressionAfter !== fallbackAlias) {
+          if (expressionAfter !== canonicalAfter) {
             normalized = {
               ...normalized,
-              expression: fallbackAlias,
+              expression: canonicalAfter,
             };
           }
         }
@@ -2682,16 +3212,20 @@ export function useRigController({
       updateInputBinding(
         targetId,
         createDefaultParentBinding,
-        (binding, target) =>
-          updateBindingWithInput(
+        (binding, target) => {
+          const resolvedSlotId =
+            slotId ?? binding.slots[0]?.id ?? PRIMARY_SLOT_ID;
+          const updated = updateBindingWithInput(
             binding,
             target,
             input,
-            slotId ?? binding.slots[0]?.id ?? PRIMARY_SLOT_ID,
-          ),
+            resolvedSlotId,
+          );
+          return maybeAutoAliasSlot(updated, target, resolvedSlotId, input);
+        },
       );
     },
-    [updateInputBinding],
+    [maybeAutoAliasSlot, updateInputBinding],
   );
 
   const handleParentBindingRemapChange = useCallback(
@@ -2782,6 +3316,23 @@ export function useRigController({
         createDefaultParentBinding,
         (binding, target) =>
           updateBindingSlotAlias(binding, target, slotId, alias),
+      );
+    },
+    [updateInputBinding],
+  );
+
+  const handleParentBindingSlotValueTypeChange = useCallback(
+    (targetId: string, slotId: string, valueType: BindingValueType) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) =>
+          updateBindingSlotValueType(
+            binding,
+            target,
+            slotId ?? binding.slots[0]?.id ?? PRIMARY_SLOT_ID,
+            valueType,
+          ),
       );
     },
     [updateInputBinding],
@@ -3057,7 +3608,7 @@ export function useRigController({
         persistedAutoInputsRef.current = new Map();
         setAutoInputs(nextAutoInputs);
         setCustomInputs(nextCustomInputs);
-        setInputValues(nextInputValues);
+        updateInputValues(() => nextInputValues);
         setBindings(rehydrated.bindings);
         setInputBindings(rehydrated.inputBindings);
         setSelectedStandardInputRoots([]);
@@ -3088,7 +3639,7 @@ export function useRigController({
       featureLabelOverrides,
       setAutoInputs,
       setCustomInputs,
-      setInputValues,
+      updateInputValues,
       setBindings,
       setInputBindings,
       setSelectedStandardInputRoots,
@@ -3317,7 +3868,7 @@ export function useRigController({
       });
       setCustomInputs([...persistedCustom, ...legacyCustomInputs]);
       setAutoInputs(new Map());
-      setInputValues(persisted.inputValues ?? {});
+      updateInputValues(() => persisted.inputValues ?? {});
       setDisabledStandardInputIds(
         Array.isArray(persisted.disabledStandardInputIds)
           ? persisted.disabledStandardInputIds
@@ -3343,6 +3894,11 @@ export function useRigController({
           : [],
       );
       setFeatureLabelOverrides(persisted.featureLabels ?? {});
+      setFeatureFlags({
+        ...FEATURE_FLAG_DEFAULTS,
+        ...(persisted.featureFlags ?? {}),
+      });
+      setGraphInsights(persisted.graphInsights ?? null);
       pendingInputBindingDefinitionsRef.current =
         persisted.inputBindingDefinitions ??
         persisted.derivedStandardInputs ??
@@ -3357,12 +3913,14 @@ export function useRigController({
       persistedAutoInputsRef.current = new Map();
       setCustomInputs([]);
       setAutoInputs(new Map());
-      setInputValues({});
+      updateInputValues(() => ({}));
       setDisabledStandardInputIds([]);
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
       setSelectedStandardInputSubgroups([]);
       setFeatureLabelOverrides({});
+      setFeatureFlags({ ...FEATURE_FLAG_DEFAULTS });
+      setGraphInsights(null);
       pendingInputBindingDefinitionsRef.current = null;
       setInputBindings({});
     }
@@ -3449,7 +4007,9 @@ export function useRigController({
         Object.keys(bindingDefinitions).length > 0
           ? bindingDefinitions
           : undefined,
-      schemaVersion: 2,
+      featureFlags,
+      graphInsights: graphInsights ?? undefined,
+      schemaVersion: RIG_STATE_SCHEMA_VERSION,
     });
   }, [
     animatableComponents,
@@ -3463,6 +4023,8 @@ export function useRigController({
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     disabledStandardInputIds,
+    featureFlags,
+    graphInsights,
   ]);
 
   useEffect(() => {
@@ -3481,10 +4043,11 @@ export function useRigController({
   }, [faceId, rootRenderable, setFaceId, sourceName]);
 
   useEffect(() => {
-    if (!rigGraphBuild) {
+    if (!rigGraphBuild || !runtimeGraphSpec) {
       setGraphStatus("idle");
       setGraphError(null);
       graphSummaryRef.current = null;
+      graphIrRef.current = null;
       resetDrivenAnimatables();
       unloadRigGraph();
       clearRigStaged();
@@ -3494,6 +4057,7 @@ export function useRigController({
     const fatalIssues = rigGraphBuild.issues.fatal;
     if (fatalIssues.length > 0) {
       graphSummaryRef.current = null;
+      graphIrRef.current = null;
       resetDrivenAnimatables();
       unloadRigGraph();
       clearRigStaged();
@@ -3504,16 +4068,6 @@ export function useRigController({
       return;
     }
 
-    if (!graphSpecSignature) {
-      setGraphStatus("idle");
-      setGraphError(null);
-      graphSummaryRef.current = null;
-      resetDrivenAnimatables();
-      unloadRigGraph();
-      clearRigStaged();
-      return;
-    }
-
     let cancelled = false;
 
     setGraphStatus("loading");
@@ -3521,11 +4075,12 @@ export function useRigController({
 
     (async () => {
       try {
-        await loadRigGraph(rigGraphBuild.spec);
+        await loadRigGraph(runtimeGraphSpec.spec);
         if (cancelled) {
           return;
         }
         graphSummaryRef.current = rigGraphBuild.summary;
+        graphIrRef.current = rigGraphBuild.ir ?? null;
         setGraphStatus("ready");
         setGraphError(null);
       } catch (err) {
@@ -3533,6 +4088,7 @@ export function useRigController({
           return;
         }
         graphSummaryRef.current = null;
+        graphIrRef.current = null;
         setGraphStatus("error");
         setGraphError(err instanceof Error ? err.message : String(err));
         resetDrivenAnimatables();
@@ -3542,103 +4098,215 @@ export function useRigController({
     return () => {
       cancelled = true;
       graphSummaryRef.current = null;
+      graphIrRef.current = null;
       resetDrivenAnimatables();
       unloadRigGraph();
       clearRigStaged();
     };
   }, [
     clearRigStaged,
-    graphSpecSignature,
     loadRigGraph,
+    faceId,
     resetDrivenAnimatables,
     rigGraphBuild,
+    runtimeGraphSpec,
     unloadRigGraph,
   ]);
 
   useEffect(() => {
     const summary = graphSummaryRef.current;
     if (graphStatus !== "ready" || !summary) {
+      graphInputBindingsRef.current = [];
+      graphInputBindingsByIdRef.current = new Map();
+      setGraphInputDefaults({});
       resetDrivenAnimatables();
       return;
     }
 
     clearRigStaged();
 
-    const inputPaths = Array.isArray(summary.inputs) ? summary.inputs : [];
-    inputPaths.forEach((graphPath) => {
-      if (typeof graphPath !== "string") {
-        return;
-      }
-      let value = 0;
-      const segments = graphPath.split("/");
-      if (segments.length >= 3) {
-        const normalized = `/${segments.slice(2).join("/")}`;
-        const inputMeta = standardInputsByPath.get(normalized);
-        if (inputMeta) {
-          const stored =
-            inputValues[inputMeta.id] ?? inputMeta.defaultValue ?? 0;
-          value = Number.isFinite(stored) ? Number(stored) : 0;
+    const facePrefix = `rig/${faceId}/`;
+    const summaryInputPaths = Array.isArray(summary.inputs)
+      ? summary.inputs
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.replace(/^\/+/, ""))
+      : [];
+
+    const sliderBindings: Array<{
+      graphPath: string;
+      inputId?: string;
+      defaultValue: number;
+    }> = [];
+    const defaults: Record<string, number> = {};
+    const matchedSliderIds = new Set<string>();
+    const unmatchedGraphInputs: string[] = [];
+
+    summaryInputPaths.forEach((graphPath) => {
+      let remainder = graphPath;
+      if (graphPath.startsWith(facePrefix)) {
+        remainder = graphPath.slice(facePrefix.length);
+      } else if (graphPath.startsWith("rig/")) {
+        const segments = graphPath.split("/");
+        if (segments.length >= 3) {
+          remainder = segments.slice(2).join("/");
+        } else {
+          remainder = segments.slice(1).join("/");
         }
       }
-      stageRigInput(graphPath, { float: value });
+      remainder = remainder.replace(/^\/+/g, "");
+      const candidatePaths = [
+        `/${remainder}`,
+        stripStandardInputPathPrefix(`/${remainder}`),
+      ];
+      let matched: StandardRigInput | undefined;
+      for (const candidatePath of candidatePaths) {
+        const normalizedCandidate =
+          normalizeStandardRigInputPath(candidatePath);
+        matched = standardInputsByPath.get(normalizedCandidate);
+        if (matched) {
+          break;
+        }
+      }
+      if (!matched) {
+        const candidateId = deriveStandardRigInputIdFromPath(`/${remainder}`);
+        matched = standardInputsById.get(candidateId);
+      }
+      if (matched) {
+        matchedSliderIds.add(matched.id);
+        defaults[matched.id] = matched.defaultValue ?? 0;
+        sliderBindings.push({
+          graphPath,
+          inputId: matched.id,
+          defaultValue: matched.defaultValue ?? 0,
+        });
+      } else {
+        unmatchedGraphInputs.push(graphPath);
+      }
     });
 
-    const result = evalRigGraph();
-    if (!result) {
-      resetDrivenAnimatables();
+    const bindingMap = new Map<string, string>();
+    sliderBindings.forEach((binding) => {
+      if (binding.inputId) {
+        bindingMap.set(binding.inputId, binding.graphPath);
+      }
+    });
+
+    if (faceId) {
+      managedStandardInputs.forEach(({ input }) => {
+        if (bindingMap.has(input.id)) {
+          return;
+        }
+        const fallbackPath = buildFallbackGraphPath(faceId, input);
+        sliderBindings.push({
+          graphPath: fallbackPath,
+          inputId: input.id,
+          defaultValue: input.defaultValue ?? 0,
+        });
+        bindingMap.set(input.id, fallbackPath);
+      });
+    }
+
+    graphInputBindingsRef.current = sliderBindings;
+    const nextBindingMap = new Map<string, string>();
+    bindingMap.forEach((path, inputId) => {
+      nextBindingMap.set(inputId, path);
+    });
+    graphInputBindingsByIdRef.current = nextBindingMap;
+    if (__DEV__) {
+      console.groupCollapsed(
+        "[vizij] graph inputs",
+        sliderBindings.length,
+        "/",
+        summaryInputPaths.length,
+      );
+      console.debug("face", faceId);
+      const missingSliderIds = managedStandardInputs
+        .map(({ input }) => input.id)
+        .filter((id) => !matchedSliderIds.has(id));
+      console.debug("missing slider bindings", missingSliderIds.slice(0, 10));
+      console.debug(
+        "unmatched graph inputs",
+        unmatchedGraphInputs.slice(0, 10),
+      );
+      if (typeof window !== "undefined") {
+        (window as any).__vizijGraphInputs = sliderBindings;
+      }
+      console.groupEnd();
+    }
+    setGraphInputDefaults(defaults);
+  }, [
+    clearRigStaged,
+    faceId,
+    graphStatus,
+    managedStandardInputs,
+    resetDrivenAnimatables,
+    standardInputsById,
+    standardInputsByPath,
+  ]);
+
+  useEffect(() => {
+    if (graphStatus !== "ready") {
+      playbackStateRef.current = "paused";
+      setGraphPlaybackState("paused");
+      cancelAnimationLoop();
+      graphTimeRef.current = 0;
+      setGraphTimeSeconds(0);
+      setRigTime(0);
       return;
     }
 
-    const writes: WriteOpJSON[] = Array.isArray((result as any)?.writes)
-      ? ((result as any).writes as WriteOpJSON[])
-      : [];
-
-    const nextDriven = new Set<string>();
-
-    writes.forEach((write) => {
-      if (!write || typeof write.path !== "string") {
-        return;
+    if (graphPlaybackState === "playing") {
+      playbackStateRef.current = "playing";
+      if (animationFrameRef.current === null) {
+        lastFrameTimeRef.current = performance.now();
+        animationFrameRef.current = requestAnimationFrame(runAnimationFrame);
       }
-      const animatable = animatables[write.path];
-      if (!animatable) {
-        return;
-      }
-      const rawValue = convertValueJSONToRaw(
-        animatable,
-        write.value as ValueJSON,
-      );
-      if (rawValue === undefined) {
-        return;
-      }
-      setValue(write.path, namespace, rawValue);
-      nextDriven.add(write.path);
-    });
-
-    drivenAnimatablesRef.current.forEach((animId) => {
-      if (nextDriven.has(animId)) {
-        return;
-      }
-      const animatable = animatables[animId];
-      if (!animatable) {
-        return;
-      }
-      const resetValue = buildAnimatableValue(animatable, undefined);
-      setValue(animId, namespace, resetValue);
-    });
-
-    drivenAnimatablesRef.current = nextDriven;
+    } else {
+      playbackStateRef.current = "paused";
+      cancelAnimationLoop();
+    }
   }, [
-    animatables,
-    clearRigStaged,
-    evalRigGraph,
+    cancelAnimationLoop,
+    graphPlaybackState,
     graphStatus,
-    inputValues,
-    namespace,
-    resetDrivenAnimatables,
-    setValue,
-    stageRigInput,
-    standardInputsByPath,
+    runAnimationFrame,
+    setRigTime,
   ]);
+
+  const playGraph = useCallback(() => {
+    if (graphStatus !== "ready") {
+      return;
+    }
+    setGraphPlaybackState("playing");
+  }, [graphStatus]);
+
+  const pauseGraph = useCallback(() => {
+    setGraphPlaybackState("paused");
+  }, []);
+
+  const stopGraph = useCallback(() => {
+    setGraphPlaybackState("paused");
+    playbackStateRef.current = "paused";
+    cancelAnimationLoop();
+    graphTimeRef.current = 0;
+    setGraphTimeSeconds(0);
+    setRigTime(0);
+    resetDrivenAnimatables();
+  }, [cancelAnimationLoop, resetDrivenAnimatables, setRigTime]);
+
+  const stepGraph = useCallback(() => {
+    if (graphStatus !== "ready") {
+      return;
+    }
+    if (graphPlaybackState === "playing") {
+      setGraphPlaybackState("paused");
+    }
+    runGraphStep(1 / 60);
+  }, [graphPlaybackState, graphStatus, runGraphStep]);
+
+  useEffect(() => {
+    stageInputsFromState({ clear: true });
+  }, [graphInputDefaults, graphStatus, stageInputsFromState]);
 
   const collectAnimatableExportState = useCallback(() => {
     const nextAnimatables = { ...animatables };
@@ -3692,12 +4360,18 @@ export function useRigController({
     graphError,
     bindingIssues,
     featureLabelOverrides,
+    featureFlags,
+    graphMachineReport,
+    getGraphIr,
     managedStandardInputs,
     standardInputRoots,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     standardInputs,
     standardInputsById,
+    graphInputDefaults,
+    graphTimeSeconds,
+    graphPlaybackState,
     inputValues,
     bindings,
     inputBindings,
@@ -3730,13 +4404,16 @@ export function useRigController({
     handleRemoveBindingSlot,
     handleUpdateBindingExpression,
     handleUpdateBindingSlotAlias,
+    handleBindingSlotValueTypeChange,
     handleUpdateFeatureLabel,
+    handleFeatureFlagChange,
     handleParentBindingInputChange,
     handleParentBindingRemapChange,
     handleParentAddBindingSlot,
     handleParentRemoveBindingSlot,
     handleParentBindingExpressionChange,
     handleParentBindingSlotAliasChange,
+    handleParentBindingSlotValueTypeChange,
     handleParentBindingOperatorToggle,
     handleParentBindingOperatorParamChange,
     handleParentResetBinding,
@@ -3748,5 +4425,10 @@ export function useRigController({
     handleImportGraphSpec,
     setStoreState,
     collectAnimatableExportState,
+    playGraph,
+    pauseGraph,
+    stopGraph,
+    stepGraph,
+    graphInsights,
   };
 }

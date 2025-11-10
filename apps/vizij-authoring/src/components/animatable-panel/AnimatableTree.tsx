@@ -11,6 +11,11 @@ import {
   isApproximatelyEqual,
 } from "./panelUtils";
 import { RigPreview } from "./RigPreview";
+import {
+  useSlotDiagnosticsResolver,
+  type SlotDiagnosticsNode,
+} from "./SlotDiagnosticsContext";
+import { SELF_BINDING_ID } from "@vizij/utils";
 import type {
   BindingField,
   BindingTarget,
@@ -22,7 +27,11 @@ import type {
   VectorFeatureEntry,
 } from "./types";
 import type { AnimatableTreeState } from "./useAnimatableTreeState";
-import { computeNumberBounds, computeVectorBounds } from "@vizij/utils";
+import {
+  computeNumberBounds,
+  computeVectorBounds,
+  getLookup,
+} from "@vizij/utils";
 import type {
   AnimatableComponent,
   AnimatableNumber,
@@ -59,6 +68,8 @@ interface PropertyBindingRowProps {
   treeState: AnimatableTreeState;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
+  namespace: string;
+  values: Map<string, RawValue | undefined>;
   onBindingInputChange: (
     targetId: string,
     inputId: string | null,
@@ -79,6 +90,11 @@ interface PropertyBindingRowProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
   onBindingOperatorToggle: (
     targetId: string,
     operator: BindingOperatorType,
@@ -93,12 +109,8 @@ interface PropertyBindingRowProps {
   onRequestCreateStandardInput?: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
-  outputDefaults?: {
-    rangeMin: number;
-    rangeMax: number;
-    defaultValue: number;
-  };
   outputControls?: OutputControlConfig;
+  featureFlags: Record<string, boolean>;
 }
 
 function PropertyBindingRow({
@@ -107,6 +119,8 @@ function PropertyBindingRow({
   treeState,
   standardInputs,
   standardInputLookup,
+  namespace,
+  values,
   onBindingInputChange,
   onBindingRemapChange,
   onResetBinding,
@@ -115,15 +129,61 @@ function PropertyBindingRow({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingSlotValueTypeChange,
   onBindingOperatorToggle,
   onBindingOperatorParamChange,
-  outputDefaults,
   outputControls,
+  featureFlags,
 }: PropertyBindingRowProps) {
   const expanded = treeState.isExpanded("property", property.id);
 
   const binding = bindingTarget?.binding ?? null;
   const targetId = bindingTarget?.targetId ?? null;
+  const liveOutputAnimatableId = bindingTarget?.component.animatableId ?? null;
+  const resolveSlotDiagnostics = useSlotDiagnosticsResolver();
+
+  const currentOutputValue = useMemo(() => {
+    if (!liveOutputAnimatableId) {
+      return undefined;
+    }
+    const lookupKey = getLookup(namespace, liveOutputAnimatableId);
+    return values.get(lookupKey);
+  }, [liveOutputAnimatableId, namespace, values]);
+
+  const slotPipelines = useMemo(() => {
+    if (!bindingTarget || !binding?.slots) {
+      return [] as Array<{
+        id: string;
+        alias?: string | null;
+        inputLabel: string;
+        upstreamNodes: SlotDiagnosticsNode[];
+        downstreamNodes: SlotDiagnosticsNode[];
+        expressionNode?: SlotDiagnosticsNode;
+      }>;
+    }
+    return binding.slots.map((slot, index) => {
+      const diagnostics = slot.id
+        ? resolveSlotDiagnostics?.(bindingTarget.targetId, slot.id)
+        : undefined;
+      const upstreamNodes = diagnostics?.upstreamNodes ?? [];
+      const downstreamNodes = diagnostics?.downstreamNodes ?? [];
+      let inputLabel = "Unbound";
+      if (slot.inputId === SELF_BINDING_ID) {
+        inputLabel = "Self";
+      } else if (slot.inputId) {
+        const meta = standardInputLookup.get(slot.inputId);
+        inputLabel = meta?.path ?? meta?.label ?? slot.inputId;
+      }
+      return {
+        id: slot.id ?? `${bindingTarget.targetId}:${index}`,
+        alias: slot.alias,
+        inputLabel,
+        upstreamNodes,
+        downstreamNodes,
+        expressionNode: diagnostics?.expressionNode,
+      };
+    });
+  }, [binding, bindingTarget, resolveSlotDiagnostics, standardInputLookup]);
 
   if (!bindingTarget || !binding || !targetId) {
     return (
@@ -141,8 +201,95 @@ function PropertyBindingRow({
     treeState.setExpanded("property", property.id, nextExpanded);
   };
 
+  const formattedCurrentOutput =
+    currentOutputValue !== undefined
+      ? formatRawValue(currentOutputValue)
+      : formatRawValue(bindingTarget.component.defaultValue);
+
+  const liveOutputNode = (
+    <span className="feature-tree__property-live">
+      <span className="feature-tree__property-live-label">Current output</span>
+      <span className="feature-tree__property-live-value">
+        {formattedCurrentOutput}
+      </span>
+    </span>
+  );
+
   return (
     <>
+      {slotPipelines.length > 0 && (
+        <div className="feature-tree__property-pipeline">
+          <h4 className="feature-tree__section-title">Signal path</h4>
+          <ul className="feature-tree__pipeline-list">
+            {slotPipelines.map((slot) => (
+              <li key={slot.id} className="feature-tree__pipeline-item">
+                <div className="feature-tree__pipeline-row">
+                  <span className="feature-tree__pipeline-alias">
+                    {slot.alias ?? "Slot"}
+                  </span>
+                  <span className="feature-tree__pipeline-arrow">→</span>
+                  <span className="feature-tree__pipeline-input">
+                    {slot.inputLabel}
+                  </span>
+                </div>
+                {slot.upstreamNodes.length > 0 && (
+                  <div className="feature-tree__pipeline-track">
+                    <span className="feature-tree__pipeline-track-label">
+                      Input chain
+                    </span>
+                    <div className="feature-tree__pipeline-track-chips">
+                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--input">
+                        {slot.inputLabel}
+                      </span>
+                      {slot.upstreamNodes.map((node) => (
+                        <span
+                          key={`${slot.id}-up-${node.id}`}
+                          className="feature-tree__pipeline-chip"
+                          title={`${node.label} · ${node.type}`}
+                        >
+                          {node.label}
+                        </span>
+                      ))}
+                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--alias">
+                        {slot.alias ?? "Slot"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {(slot.expressionNode || slot.downstreamNodes.length > 0) && (
+                  <div className="feature-tree__pipeline-track">
+                    <span className="feature-tree__pipeline-track-label">
+                      Output chain
+                    </span>
+                    <div className="feature-tree__pipeline-track-chips">
+                      {slot.expressionNode && (
+                        <span
+                          className="feature-tree__pipeline-chip feature-tree__pipeline-chip--expression"
+                          title={`${slot.expressionNode.label} · ${slot.expressionNode.type}`}
+                        >
+                          {slot.expressionNode.label}
+                        </span>
+                      )}
+                      {slot.downstreamNodes.map((node) => (
+                        <span
+                          key={`${slot.id}-down-${node.id}`}
+                          className="feature-tree__pipeline-chip"
+                          title={`${node.label} · ${node.type}`}
+                        >
+                          {node.label}
+                        </span>
+                      ))}
+                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--output">
+                        {property.label}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <BindingEditor
         binding={binding}
         targetId={bindingTarget.targetId}
@@ -150,19 +297,21 @@ function PropertyBindingRow({
         standardInputs={standardInputs}
         standardInputLookup={standardInputLookup}
         issues={issueList}
+        headerActions={liveOutputNode}
         onBindingInputChange={onBindingInputChange}
         onBindingRemapChange={onBindingRemapChange}
         onAddBindingSlot={onAddBindingSlot}
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
+        onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
         onBindingOperatorToggle={onBindingOperatorToggle}
         onBindingOperatorParamChange={onBindingOperatorParamChange}
         onRequestCreateStandardInput={onRequestCreateStandardInput}
         onResetBinding={onResetBinding}
         expanded={expanded}
         onExpandedChange={handleExpandedChange}
-        outputDefaults={outputDefaults}
+        featureFlags={featureFlags}
       ></BindingEditor>
       {outputControls && (
         <div className="feature-tree__property-column">
@@ -333,6 +482,8 @@ function StaticValueEditor({
 interface PropertyControlsProps {
   feature: FeatureTreeNode;
   treeState: AnimatableTreeState;
+  namespace: string;
+  values: Map<string, RawValue | undefined>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
@@ -362,6 +513,11 @@ interface PropertyControlsProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
   onBindingOperatorToggle: (
     targetId: string,
     operator: BindingOperatorType,
@@ -380,11 +536,14 @@ interface PropertyControlsProps {
       constraints: NonNullable<AnimatableValue["constraints"]>,
     ) => NonNullable<AnimatableValue["constraints"]>,
   ) => void;
+  featureFlags: Record<string, boolean>;
 }
 
 function PropertyControls({
   feature,
   treeState,
+  namespace,
+  values,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -399,10 +558,12 @@ function PropertyControls({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingSlotValueTypeChange,
   onBindingOperatorToggle,
   onBindingOperatorParamChange,
   onDefaultChange,
   onConstraintChange,
+  featureFlags,
 }: PropertyControlsProps) {
   const bindingTargetMap = useMemo(() => {
     const map = new Map<string, BindingTarget>();
@@ -426,14 +587,6 @@ function PropertyControls({
     const bindingTarget = bindingTargetMap.get(property.targetId);
 
     let outputControls: OutputControlConfig | undefined;
-
-    const outputDefaults = bindingTarget?.component
-      ? {
-          rangeMin: bindingTarget.component.range.min,
-          rangeMax: bindingTarget.component.range.max,
-          defaultValue: bindingTarget.component.defaultValue,
-        }
-      : undefined;
 
     if (animatable.type === "number") {
       const numericDescriptor = descriptor as AnimatableNumber | undefined;
@@ -604,6 +757,8 @@ function PropertyControls({
         treeState={treeState}
         standardInputs={standardInputs}
         standardInputLookup={standardInputLookup}
+        namespace={namespace}
+        values={values}
         onBindingInputChange={onBindingInputChange}
         onBindingRemapChange={onBindingRemapChange}
         onResetBinding={onResetBinding}
@@ -612,10 +767,11 @@ function PropertyControls({
         onRemoveBindingSlot={onRemoveBindingSlot}
         onBindingExpressionChange={onBindingExpressionChange}
         onBindingSlotAliasChange={onBindingSlotAliasChange}
+        onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
         onBindingOperatorToggle={onBindingOperatorToggle}
         onBindingOperatorParamChange={onBindingOperatorParamChange}
-        outputDefaults={outputDefaults}
         outputControls={outputControls}
+        featureFlags={featureFlags}
       />
     );
   };
@@ -649,6 +805,8 @@ interface FeatureNodeProps {
   componentsById: Map<string, AnimatableComponent>;
   bindings: BindingMap;
   bindingIssues: Map<string, readonly string[]>;
+  namespace: string;
+  values: Map<string, RawValue | undefined>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
@@ -677,6 +835,11 @@ interface FeatureNodeProps {
     slotId: string,
     alias: string,
   ) => void;
+  onBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
   onBindingOperatorToggle: (
     targetId: string,
     operator: BindingOperatorType,
@@ -698,6 +861,7 @@ interface FeatureNodeProps {
     ) => NonNullable<AnimatableValue["constraints"]>,
   ) => void;
   onStaticUpdate: (entry: FeatureEntry, value: RawValue) => void;
+  featureFlags: Record<string, boolean>;
 }
 
 const VECTOR_COMPONENT_TYPES: ReadonlySet<
@@ -721,6 +885,8 @@ function FeatureNode({
   componentsById,
   bindings,
   bindingIssues,
+  namespace,
+  values,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -734,6 +900,7 @@ function FeatureNode({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingSlotValueTypeChange,
   onBindingOperatorToggle,
   onBindingOperatorParamChange,
   onToggleAnimated,
@@ -741,6 +908,7 @@ function FeatureNode({
   onDefaultChange,
   onConstraintChange,
   onStaticUpdate,
+  featureFlags,
 }: FeatureNodeProps) {
   const expanded = treeState.isExpanded("feature", feature.id);
   const toggleFeature = useCallback(() => {
@@ -868,6 +1036,8 @@ function FeatureNode({
               <PropertyControls
                 feature={feature}
                 treeState={treeState}
+                namespace={namespace}
+                values={values}
                 standardInputs={standardInputs}
                 standardInputLookup={standardInputLookup}
                 inputValues={inputValues}
@@ -882,10 +1052,12 @@ function FeatureNode({
                 onRemoveBindingSlot={onRemoveBindingSlot}
                 onBindingExpressionChange={onBindingExpressionChange}
                 onBindingSlotAliasChange={onBindingSlotAliasChange}
+                onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
                 onBindingOperatorToggle={onBindingOperatorToggle}
                 onBindingOperatorParamChange={onBindingOperatorParamChange}
                 onDefaultChange={onDefaultChange}
                 onConstraintChange={onConstraintChange}
+                featureFlags={featureFlags}
               />
             </>
           ) : (
@@ -906,6 +1078,9 @@ interface AnimatableTreeProps {
   componentsById: Map<string, AnimatableComponent>;
   bindings: BindingMap;
   bindingIssues: Map<string, readonly string[]>;
+  featureFlags: Record<string, boolean>;
+  namespace: string;
+  values: Map<string, RawValue | undefined>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: StandardInputValues;
@@ -934,6 +1109,11 @@ interface AnimatableTreeProps {
     targetId: string,
     slotId: string,
     alias: string,
+  ) => void;
+  onBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
   ) => void;
   onBindingOperatorToggle: (
     targetId: string,
@@ -964,6 +1144,9 @@ export function AnimatableTree({
   componentsById,
   bindings,
   bindingIssues,
+  featureFlags,
+  namespace,
+  values,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -978,6 +1161,7 @@ export function AnimatableTree({
   onRemoveBindingSlot,
   onBindingExpressionChange,
   onBindingSlotAliasChange,
+  onBindingSlotValueTypeChange,
   onBindingOperatorToggle,
   onBindingOperatorParamChange,
   onToggleAnimated,
@@ -1059,6 +1243,9 @@ export function AnimatableTree({
                     componentsById={componentsById}
                     bindings={bindings}
                     bindingIssues={bindingIssues}
+                    namespace={namespace}
+                    values={values}
+                    featureFlags={featureFlags}
                     standardInputs={standardInputs}
                     standardInputLookup={standardInputLookup}
                     inputValues={inputValues}
@@ -1072,6 +1259,7 @@ export function AnimatableTree({
                     onRemoveBindingSlot={onRemoveBindingSlot}
                     onBindingExpressionChange={onBindingExpressionChange}
                     onBindingSlotAliasChange={onBindingSlotAliasChange}
+                    onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
                     onBindingOperatorToggle={onBindingOperatorToggle}
                     onBindingOperatorParamChange={onBindingOperatorParamChange}
                     onFeatureLabelChange={onFeatureLabelChange}

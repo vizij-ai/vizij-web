@@ -6,6 +6,7 @@ import {
   bindingTargetFromInput,
   bindingToDefinition,
   ensureBindingStructure,
+  buildDefaultSlotExpression,
   type AnimatableBinding,
   type BindingMap,
   type BindingOperator,
@@ -26,7 +27,17 @@ import {
   type AnimatableValue,
   type StandardRigInput,
 } from "@vizij/utils";
-import type { GraphBindingSummary } from "@vizij/node-graph-authoring";
+import type { GraphBindingSummary, IrGraph } from "@vizij/node-graph-authoring";
+import type { RigBindingMetadata } from "@vizij/utils";
+
+function cloneBindingMetadata(
+  metadata: RigBindingMetadata | undefined,
+): RigBindingMetadata | undefined {
+  if (!metadata) {
+    return undefined;
+  }
+  return JSON.parse(JSON.stringify(metadata)) as RigBindingMetadata;
+}
 
 interface VizijGraphMetadataInput {
   id: string;
@@ -44,6 +55,8 @@ interface VizijGraphMetadata {
   faceId: string;
   inputs: VizijGraphMetadataInput[];
   bindings: GraphBindingSummary[];
+  machineReport?: Record<string, unknown>;
+  irGraph?: IrGraph;
 }
 
 interface VizijMetadataContainer {
@@ -171,9 +184,18 @@ function buildBindingFromSummaries(
     slots,
     expression: coerceExpression(
       summaries[0]?.expression,
-      primarySlot.alias ?? PRIMARY_SLOT_ALIAS,
+      buildDefaultSlotExpression(
+        primarySlot.alias ?? PRIMARY_SLOT_ALIAS,
+        primarySlot.inputId ?? null,
+        primarySlot.remap,
+      ),
     ),
   };
+
+  const metadataSource = summaries.find((summary) => summary.metadata);
+  if (metadataSource?.metadata) {
+    binding.metadata = cloneBindingMetadata(metadataSource.metadata);
+  }
 
   const operatorSource = summaries.find(
     (summary) => summary.operators && summary.operators.length > 0,

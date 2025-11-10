@@ -4,6 +4,10 @@ export type ControlExpressionNode =
       value: number;
     }
   | {
+      type: "VectorLiteral";
+      values: number[];
+    }
+  | {
       type: "Reference";
       name: string;
     }
@@ -48,7 +52,15 @@ export interface ExpressionParseResult {
   errors: ExpressionParseError[];
 }
 
-const WHITESPACE = /\s/;
+const STANDARD_WHITESPACE = /\s/;
+const EXTRA_WHITESPACE_CHARS = new Set(["\u0000", "\u200B", "\uFEFF"]);
+
+function isWhitespaceCharacter(char: string | null): boolean {
+  if (!char) {
+    return false;
+  }
+  return STANDARD_WHITESPACE.test(char) || EXTRA_WHITESPACE_CHARS.has(char);
+}
 const IDENT_START = /[A-Za-z_]/;
 const IDENT_PART = /[A-Za-z0-9_]/;
 const DIGIT = /[0-9]/;
@@ -298,6 +310,10 @@ class ControlExpressionParser {
       });
       return null;
     }
+    if (char === "[") {
+      this.index += 1;
+      return this.parseVectorLiteral("]", "vector literal");
+    }
     if (IDENT_START.test(char)) {
       return this.parseIdentifierOrFunction();
     }
@@ -327,6 +343,9 @@ class ControlExpressionParser {
     this.skipWhitespace();
     if (this.peek() === "(") {
       this.index += 1;
+      if (name.toLowerCase() === "vec") {
+        return this.parseVectorLiteral(")", `"${name}" literal`);
+      }
       const args: ControlExpressionNode[] = [];
       this.skipWhitespace();
       if (this.peek() === ")") {
@@ -390,28 +409,143 @@ class ControlExpressionParser {
     };
   }
 
-  private parseNumber(): ControlExpressionNode | null {
+  private parseVectorLiteral(
+    terminator: string,
+    context: string,
+  ): ControlExpressionNode | null {
+    const values = this.parseVectorLiteralValues(terminator, context);
+    if (!values) {
+      return null;
+    }
+    return {
+      type: "VectorLiteral",
+      values,
+    };
+  }
+
+  private parseVectorLiteralValues(
+    terminator: string,
+    context: string,
+  ): number[] | null {
+    const values: number[] = [];
+    this.skipWhitespace();
+    if (this.peek() === terminator) {
+      this.errors.push({
+        index: this.index,
+        message: `Expected at least one value in ${context}.`,
+      });
+      return null;
+    }
+    while (true) {
+      this.skipWhitespace();
+      const literalValue = this.parseNumericLiteralValue();
+      if (literalValue === null) {
+        this.errors.push({
+          index: this.index,
+          message: `Expected numeric literal in ${context}.`,
+        });
+        return null;
+      }
+      values.push(literalValue);
+      this.skipWhitespace();
+      const next = this.peek();
+      if (next === ",") {
+        this.index += 1;
+        this.skipWhitespace();
+        if (this.peek() === terminator) {
+          this.errors.push({
+            index: this.index,
+            message: `Expected value after "," in ${context}.`,
+          });
+          return null;
+        }
+        continue;
+      }
+      if (next === terminator) {
+        this.index += 1;
+        break;
+      }
+      if (next === null) {
+        this.errors.push({
+          index: this.index,
+          message: `Unterminated ${context}.`,
+        });
+      } else {
+        this.errors.push({
+          index: this.index,
+          message: `Expected "," or "${terminator}" in ${context}.`,
+        });
+      }
+      return null;
+    }
+    if (values.length === 0) {
+      this.errors.push({
+        index: this.index,
+        message: `Expected at least one value in ${context}.`,
+      });
+      return null;
+    }
+    return values;
+  }
+
+  private parseNumericLiteralValue(allowLeadingSign = true): number | null {
     const start = this.index;
+    if (allowLeadingSign && (this.peek() === "+" || this.peek() === "-")) {
+      this.index += 1;
+    }
     let hasDigits = false;
+    let seenDecimal = false;
+    let seenExponent = false;
+    let exponentDigits = false;
+    let inExponent = false;
     while (!this.isAtEnd()) {
       const char = this.peek()!;
       if (DIGIT.test(char)) {
         hasDigits = true;
+        if (inExponent) {
+          exponentDigits = true;
+        }
         this.index += 1;
         continue;
       }
-      if (char === ".") {
+      if (char === "." && !seenDecimal && !seenExponent) {
+        seenDecimal = true;
         this.index += 1;
+        continue;
+      }
+      if ((char === "e" || char === "E") && !seenExponent && hasDigits) {
+        seenExponent = true;
+        inExponent = true;
+        exponentDigits = false;
+        this.index += 1;
+        const sign = this.peek();
+        if (sign === "+" || sign === "-") {
+          this.index += 1;
+        }
         continue;
       }
       break;
     }
+    if (!hasDigits || (seenExponent && !exponentDigits)) {
+      this.index = start;
+      return null;
+    }
     const raw = this.input.slice(start, this.index);
     const value = Number(raw);
-    if (!hasDigits || Number.isNaN(value)) {
+    if (!Number.isFinite(value)) {
+      this.index = start;
+      return null;
+    }
+    return value;
+  }
+
+  private parseNumber(): ControlExpressionNode | null {
+    const start = this.index;
+    const value = this.parseNumericLiteralValue(false);
+    if (value === null) {
       this.errors.push({
         index: start,
-        message: `Invalid numeric literal "${raw}".`,
+        message: "Invalid numeric literal.",
       });
       return null;
     }
@@ -432,7 +566,11 @@ class ControlExpressionParser {
   }
 
   private skipWhitespace(): void {
-    while (!this.isAtEnd() && WHITESPACE.test(this.peek()!)) {
+    while (!this.isAtEnd()) {
+      const char = this.peek();
+      if (!isWhitespaceCharacter(char)) {
+        break;
+      }
       this.index += 1;
     }
   }

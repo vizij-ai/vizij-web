@@ -38,7 +38,23 @@ export interface PersistedRigState {
   derivedStandardInputs?: Record<string, RigBindingDefinition>;
   /** Parent/child binding definitions keyed by standard input id */
   inputBindingDefinitions?: Record<string, RigBindingDefinition>;
+  featureFlags?: Record<string, boolean>;
+  graphInsights?: PersistedGraphInsight;
   schemaVersion?: number;
+}
+
+export interface PersistedGraphInsight {
+  summary: {
+    faceId: string;
+    inputs: string[];
+    outputs: string[];
+    bindings: number;
+  };
+  issues: {
+    fatal: string[];
+    byTarget: Record<string, string[]>;
+  };
+  generatedAt: string;
 }
 
 type PersistedRigStateMap = Record<string, PersistedRigState>;

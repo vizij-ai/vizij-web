@@ -1,4 +1,5 @@
 import type { BindingValueType } from "./state";
+import type { RemapSettings } from "@vizij/utils";
 
 export type ExpressionVariableKind = "slot" | "reserved";
 
@@ -10,6 +11,8 @@ export interface SlotVariableMetadata {
   animatableId: string;
   component?: string;
   valueType: BindingValueType;
+  remap?: RemapSettings;
+  autoRemap?: boolean;
 }
 
 export interface ReservedVariableMetadata {
@@ -71,6 +74,8 @@ class DefaultExpressionVariableTable implements ExpressionVariableTable {
         animatableId: options.animatableId,
         component: options.component,
         valueType: options.valueType,
+        remap: options.remap,
+        autoRemap: options.autoRemap,
       },
     });
   }

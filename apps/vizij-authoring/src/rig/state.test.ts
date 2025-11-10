@@ -6,6 +6,7 @@ import {
   reconcileBindings,
   updateBindingSlotAlias,
   addBindingSlot,
+  buildCanonicalBindingExpression,
   type BindingMap,
 } from "@vizij/node-graph-authoring";
 import type { AnimatableComponent } from "@vizij/utils";
@@ -122,7 +123,7 @@ describe("reconcileBindings", () => {
     base.expression = "s1 + s2";
     const updated = updateBindingSlotAlias(base, COMPONENT, "s2", "Upper Lip");
     expect(updated.slots[1]?.alias).toBe("Upper_Lip");
-    expect(updated.expression).toBe("s1 + Upper_Lip");
+    expect(updated.expression).toBe(buildCanonicalBindingExpression(updated));
   });
 
   it("ensures alias uniqueness when duplicates are requested", () => {

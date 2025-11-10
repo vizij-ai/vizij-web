@@ -37,8 +37,25 @@ export function ensureNeutralDefaults(
 }
 
 export function buildRigInputPath(faceId: string, path: string): string {
-  const trimmed = path.startsWith("/") ? path.slice(1) : path;
-  return `rig/${faceId}/${trimmed}`;
+  let trimmed = path.startsWith("/") ? path.slice(1) : path;
+  if (!trimmed) {
+    return `rig/${faceId}`;
+  }
+  while (trimmed.startsWith("rig/")) {
+    const segments = trimmed.split("/");
+    if (segments.length >= 3) {
+      const existingFaceId = segments[1];
+      const remainder = segments.slice(2).join("/");
+      if (existingFaceId === faceId) {
+        return trimmed;
+      }
+      trimmed = remainder || "";
+    } else {
+      trimmed = segments.slice(1).join("/");
+    }
+  }
+  const suffix = trimmed ? `/${trimmed}` : "";
+  return `rig/${faceId}${suffix}`;
 }
 
 export function buildBindingsByInput(

@@ -22,6 +22,41 @@ export function cloneRemapSettings(remap: RemapSettings): RemapSettings {
 
 export type BindingValueType = "scalar" | "vector";
 
+export type RigBindingOperandKind =
+  | "slot"
+  | "reserved"
+  | "literal"
+  | "expression"
+  | "unknown";
+
+export interface RigBindingOperandMetadata {
+  kind: RigBindingOperandKind;
+  ref?: string;
+  slotId?: string;
+  alias?: string;
+  inputId?: string | null;
+  valueType?: BindingValueType;
+  description?: string;
+  literalValue?: number;
+  expression?: string;
+}
+
+export interface RigBindingCaseMetadata {
+  kind: "case";
+  selector?: RigBindingOperandMetadata;
+  defaultBranch?: RigBindingOperandMetadata;
+  branches: RigBindingOperandMetadata[];
+}
+
+export interface RigBindingExpressionMetadata {
+  case?: RigBindingCaseMetadata;
+}
+
+export interface RigBindingMetadata {
+  expression?: RigBindingExpressionMetadata;
+  [key: string]: unknown;
+}
+
 export interface RigBindingSlot {
   id: string;
   alias: string;
@@ -54,6 +89,7 @@ export interface RigBindingDefinition {
   slots: RigBindingSlot[];
   expression: string;
   operators?: RigBindingOperatorDefinition[];
+  metadata?: RigBindingMetadata;
 }
 
 export function cloneRigBindingDefinition(
@@ -70,6 +106,9 @@ export function cloneRigBindingDefinition(
           enabled: operator.enabled,
           params: { ...operator.params },
         }))
+      : undefined,
+    metadata: definition.metadata
+      ? (JSON.parse(JSON.stringify(definition.metadata)) as RigBindingMetadata)
       : undefined,
   };
 }
@@ -121,13 +160,30 @@ export function normalizeStandardRigInputPath(path: string): string {
   }
   let normalized = trimmed.replace(/\\/g, "/");
   normalized = normalized.replace(/\/\/+/g, "/");
+  normalized = stripRigPathPrefix(normalized);
   if (!normalized.startsWith("/")) {
     normalized = `/${normalized}`;
   }
   if (normalized.length > 1 && normalized.endsWith("/")) {
     normalized = normalized.slice(0, -1);
   }
+  if (normalized === "/") {
+    return "/custom/input";
+  }
   return normalized;
+}
+
+function stripRigPathPrefix(value: string): string {
+  let working = value.startsWith("/") ? value.slice(1) : value;
+  const pattern = /^rig\/[\w-]+\/(.*)$/i;
+  while (true) {
+    const match = working.match(pattern);
+    if (!match) {
+      break;
+    }
+    working = match[1] ?? "";
+  }
+  return working;
 }
 
 export function deriveStandardRigInputIdFromPath(path: string): string {

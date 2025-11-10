@@ -7,6 +7,7 @@ import {
   type RigBindingDefinition,
   type RigBindingSlot,
   type RemapSettings,
+  type RigBindingMetadata,
 } from "@vizij/utils";
 
 export type { BindingValueType };
@@ -429,6 +430,15 @@ function cloneRemap(remap: RemapSettings): RemapSettings {
   return cloneRemapSettings(remap);
 }
 
+function cloneBindingMetadata(
+  metadata: RigBindingMetadata | undefined,
+): RigBindingMetadata | undefined {
+  if (!metadata) {
+    return undefined;
+  }
+  return JSON.parse(JSON.stringify(metadata)) as RigBindingMetadata;
+}
+
 function sanitizeRemap(
   remap: RemapSettings | LegacyRemapSettings | undefined,
   target: BindingTarget,
@@ -484,20 +494,21 @@ export function createDefaultBinding(
 ): AnimatableBinding {
   const remap = createDefaultRemap(component);
   const valueType = getTargetValueType(component);
+  const slots: AnimatableBindingSlot[] = [
+    {
+      id: PRIMARY_SLOT_ID,
+      alias: PRIMARY_SLOT_ALIAS,
+      inputId: null,
+      remap: cloneRemap(remap),
+      valueType,
+    },
+  ];
   return {
     targetId: component.id,
     inputId: null,
     remap,
-    slots: [
-      {
-        id: PRIMARY_SLOT_ID,
-        alias: PRIMARY_SLOT_ALIAS,
-        inputId: null,
-        remap: cloneRemap(remap),
-        valueType,
-      },
-    ],
-    expression: PRIMARY_SLOT_ALIAS,
+    slots,
+    expression: buildCanonicalExpressionFromSlots(slots),
     operators: createDefaultOperators(),
   };
 }
@@ -521,7 +532,7 @@ export function createDefaultParentBinding(
     ...ensured,
     inputId: SELF_BINDING_ID,
     slots,
-    expression: "self",
+    expression: buildCanonicalExpressionFromSlots(slots),
   };
 }
 
@@ -611,9 +622,14 @@ function ensurePrimarySlot(
 
   const rawExpression =
     typeof binding.expression === "string" ? binding.expression.trim() : "";
-  let expression =
-    rawExpression.length > 0 ? rawExpression : normalizedSlots[0].alias;
-  expression = rewriteLegacyExpression(expression, aliasReplacements);
+  const canonicalExpression =
+    buildCanonicalExpressionFromSlots(normalizedSlots);
+  let expression: string;
+  if (expressionMatchesAliasOnly(rawExpression, normalizedSlots)) {
+    expression = canonicalExpression;
+  } else {
+    expression = rewriteLegacyExpression(rawExpression, aliasReplacements);
+  }
 
   const normalizedBinding: AnimatableBinding = {
     ...binding,
@@ -774,6 +790,36 @@ export function updateBindingSlotAlias(
   return updated;
 }
 
+export function updateBindingSlotValueType(
+  binding: AnimatableBinding,
+  target: BindingTarget,
+  slotId: string,
+  nextValueType: BindingValueType,
+): AnimatableBinding {
+  const base = ensurePrimarySlot(binding, target);
+  const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
+  if (slotIndex < 0) {
+    return base;
+  }
+  const normalizedType = sanitizeSlotValueType(
+    nextValueType,
+    getTargetValueType(target),
+  );
+  const slots = base.slots.map((slot, index) => {
+    if (index !== slotIndex) {
+      return slot;
+    }
+    return {
+      ...slot,
+      valueType: normalizedType,
+    };
+  });
+  return {
+    ...base,
+    slots,
+  };
+}
+
 export function setBindingOperatorEnabled(
   binding: AnimatableBinding,
   type: BindingOperatorType,
@@ -874,12 +920,10 @@ export function updateBindingExpression(
 ): AnimatableBinding {
   const base = ensurePrimarySlot(binding, target);
   const trimmed = expression.trim();
+  const canonicalExpression = buildCanonicalExpressionFromSlots(base.slots);
   return {
     ...base,
-    expression:
-      trimmed.length > 0
-        ? trimmed
-        : (base.slots[0]?.alias ?? PRIMARY_SLOT_ALIAS),
+    expression: trimmed.length > 0 ? trimmed : canonicalExpression,
   };
 }
 
@@ -891,6 +935,12 @@ export function updateBindingSlotRemap(
   value: number,
 ): AnimatableBinding {
   const base = ensurePrimarySlot(binding, target);
+  const existingExpression =
+    typeof base.expression === "string" ? base.expression.trim() : "";
+  const canonicalBefore = buildCanonicalExpressionFromSlots(base.slots);
+  const expressionWasDefault =
+    expressionMatchesAliasOnly(existingExpression, base.slots) ||
+    expressionsEquivalent(existingExpression, canonicalBefore);
   const nextSlots = base.slots.map((slot) => {
     if (slot.id !== slotId) {
       return slot;
@@ -918,7 +968,17 @@ export function updateBindingSlotRemap(
       [field]: value,
     };
   }
-  return updated;
+  if (!expressionWasDefault) {
+    return updated;
+  }
+  const canonicalAfter = buildCanonicalExpressionFromSlots(updated.slots);
+  if (expressionsEquivalent(updated.expression ?? "", canonicalAfter)) {
+    return updated;
+  }
+  return {
+    ...updated,
+    expression: canonicalAfter,
+  };
 }
 
 export function updateBindingWithInput(
@@ -928,6 +988,12 @@ export function updateBindingWithInput(
   slotId: string = PRIMARY_SLOT_ID,
 ): AnimatableBinding {
   const base = ensurePrimarySlot(binding, target);
+  const existingExpression =
+    typeof base.expression === "string" ? base.expression.trim() : "";
+  const canonicalBefore = buildCanonicalExpressionFromSlots(base.slots);
+  const expressionWasDefault =
+    expressionMatchesAliasOnly(existingExpression, base.slots) ||
+    expressionsEquivalent(existingExpression, canonicalBefore);
   const slotIndex = base.slots.findIndex((slot) => slot.id === slotId);
 
   const effectiveIndex = slotIndex >= 0 ? slotIndex : base.slots.length;
@@ -952,6 +1018,7 @@ export function updateBindingWithInput(
 
   const currentSlot = slots[effectiveIndex];
 
+  let nextBinding: AnimatableBinding;
   if (!input) {
     const normalizedSlotRemap = sanitizeRemap(currentSlot.remap, target);
     const updatedRemap: RemapSettings = {
@@ -966,45 +1033,57 @@ export function updateBindingWithInput(
       remap: cloneRemap(updatedRemap),
     };
     if (effectiveIndex === 0) {
-      return {
+      nextBinding = {
         ...base,
         inputId: null,
         remap: cloneRemap(updatedRemap),
         slots,
       };
+    } else {
+      nextBinding = {
+        ...base,
+        slots,
+      };
     }
-    return {
-      ...base,
-      slots,
+  } else {
+    const normalizedRemap = sanitizeRemap(currentSlot.remap, target);
+    const updatedRemap: RemapSettings = {
+      ...normalizedRemap,
+      inLow: input.range.min,
+      inAnchor: clamp(input.defaultValue, input.range.min, input.range.max),
+      inHigh: input.range.max,
+      ...deriveOutputDefaults(target),
     };
-  }
-
-  const normalizedRemap = sanitizeRemap(currentSlot.remap, target);
-  const updatedRemap: RemapSettings = {
-    ...normalizedRemap,
-    inLow: input.range.min,
-    inAnchor: clamp(input.defaultValue, input.range.min, input.range.max),
-    inHigh: input.range.max,
-    ...deriveOutputDefaults(target),
-  };
-  slots[effectiveIndex] = {
-    ...currentSlot,
-    inputId: input.id,
-    remap: cloneRemap(updatedRemap),
-  };
-
-  if (effectiveIndex === 0) {
-    return {
-      ...base,
+    slots[effectiveIndex] = {
+      ...currentSlot,
       inputId: input.id,
       remap: cloneRemap(updatedRemap),
-      slots,
     };
-  }
 
+    if (effectiveIndex === 0) {
+      nextBinding = {
+        ...base,
+        inputId: input.id,
+        remap: cloneRemap(updatedRemap),
+        slots,
+      };
+    } else {
+      nextBinding = {
+        ...base,
+        slots,
+      };
+    }
+  }
+  if (!expressionWasDefault) {
+    return nextBinding;
+  }
+  const canonicalAfter = buildCanonicalExpressionFromSlots(nextBinding.slots);
+  if (expressionsEquivalent(nextBinding.expression ?? "", canonicalAfter)) {
+    return nextBinding;
+  }
   return {
-    ...base,
-    slots,
+    ...nextBinding,
+    expression: canonicalAfter,
   };
 }
 
@@ -1099,6 +1178,7 @@ export function bindingToDefinition(
     })),
     expression: binding.expression,
     operators,
+    metadata: cloneBindingMetadata(binding.metadata),
   } as RigBindingDefinition;
 
   return definition;
@@ -1133,6 +1213,113 @@ export function bindingFromDefinition(
           params: { ...operator.params },
         }))
       : undefined,
+    metadata: cloneBindingMetadata(definition.metadata),
   };
   return ensureBindingStructure(binding, target);
+}
+function sanitizeLiteral(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (Object.is(value, -0)) {
+    return 0;
+  }
+  return value;
+}
+
+function formatVectorLiteral(values: number[]): string {
+  return `vec(${values.map((value) => sanitizeLiteral(value)).join(", ")})`;
+}
+
+export function buildPiecewiseRemapExpression(
+  alias: string,
+  remap: RemapSettings,
+): string {
+  const sanitizedAlias =
+    alias && alias.trim().length > 0 ? alias.trim() : PRIMARY_SLOT_ALIAS;
+  const inputBreakpoints = [remap.inLow, remap.inAnchor, remap.inHigh];
+  const outputBreakpoints = [remap.outLow, remap.outAnchor, remap.outHigh];
+  return `piecewise_remap(${sanitizedAlias}, ${formatVectorLiteral(
+    inputBreakpoints,
+  )}, ${formatVectorLiteral(outputBreakpoints)})`;
+}
+
+function isSelfAlias(alias: string): boolean {
+  return alias.trim().toLowerCase() === "self";
+}
+
+export function buildDefaultSlotExpression(
+  alias: string,
+  inputId: string | null,
+  remap: RemapSettings,
+): string {
+  const sanitizedAlias =
+    alias && alias.trim().length > 0 ? alias.trim() : PRIMARY_SLOT_ALIAS;
+  if (inputId === SELF_BINDING_ID || isSelfAlias(sanitizedAlias)) {
+    return sanitizedAlias;
+  }
+  return buildPiecewiseRemapExpression(sanitizedAlias, remap);
+}
+
+function normalizeSlotAliasForExpression(
+  slot: AnimatableBindingSlot,
+  index: number,
+): string {
+  if (slot.alias && slot.alias.trim().length > 0) {
+    return slot.alias.trim();
+  }
+  if (slot.id && slot.id.trim().length > 0) {
+    return slot.id.trim();
+  }
+  return defaultSlotId(index);
+}
+
+function buildAliasOnlyExpression(
+  slots: readonly AnimatableBindingSlot[],
+): string {
+  if (!slots.length) {
+    return PRIMARY_SLOT_ALIAS;
+  }
+  return slots
+    .map((slot, index) => normalizeSlotAliasForExpression(slot, index))
+    .join(" + ");
+}
+
+function buildCanonicalExpressionFromSlots(
+  slots: readonly AnimatableBindingSlot[],
+): string {
+  if (!slots.length) {
+    return PRIMARY_SLOT_ALIAS;
+  }
+  return slots
+    .map((slot, index) =>
+      buildDefaultSlotExpression(
+        normalizeSlotAliasForExpression(slot, index),
+        slot.inputId ?? null,
+        slot.remap,
+      ),
+    )
+    .join(" + ");
+}
+
+function expressionsEquivalent(left: string, right: string): boolean {
+  return left.trim() === right.trim();
+}
+
+function expressionMatchesAliasOnly(
+  expression: string,
+  slots: readonly AnimatableBindingSlot[],
+): boolean {
+  if (expression.trim().length === 0) {
+    return true;
+  }
+  const aliasOnly = buildAliasOnlyExpression(slots);
+  return expressionsEquivalent(expression, aliasOnly);
+}
+
+export function buildCanonicalBindingExpression(
+  binding: AnimatableBinding,
+): string {
+  const slots = binding.slots ?? [];
+  return buildCanonicalExpressionFromSlots(slots);
 }

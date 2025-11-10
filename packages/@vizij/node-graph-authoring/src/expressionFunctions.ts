@@ -87,6 +87,26 @@ const FUNCTION_CONFIGS: ScalarFunctionConfig[] = [
     description: "Clamp an input between min/max.",
   },
   {
+    typeId: "remap",
+    names: ["remap"],
+    category: "utility",
+    description:
+      "Linearly map a value from the input range to the output range.",
+  },
+  {
+    typeId: "centered_remap",
+    names: ["centeredremap", "centered_remap"],
+    category: "utility",
+    description:
+      "Remap a value using in/out ranges that include explicit anchors.",
+  },
+  {
+    typeId: "piecewise_remap",
+    names: ["piecewiseremap", "piecewise_remap"],
+    category: "utility",
+    description: "Map a value through piecewise-linear breakpoints.",
+  },
+  {
     typeId: "abs",
     names: ["abs"],
     category: "math",
@@ -456,6 +476,28 @@ for (const config of FUNCTION_CONFIGS) {
       (signature.outputs as SignatureOutput[])?.[0]?.ty ?? null,
     ),
   };
+
+  if (config.typeId === "if" || config.typeId === "case") {
+    const adjustedInputs: OrderedInputSpec[] = definition.inputs.map(
+      (input, index) => {
+        if (config.typeId === "if" && index === 0) {
+          return input;
+        }
+        return {
+          ...input,
+          valueType: "any" as ExpressionValueType,
+        };
+      },
+    );
+    definition.inputs = adjustedInputs;
+    if (definition.variadic) {
+      definition.variadic = {
+        ...definition.variadic,
+        valueType: "any" as ExpressionValueType,
+      };
+    }
+    definition.resultValueType = "any";
+  }
 
   const names = new Set<string>(
     [config.typeId, ...config.names].map((name) => name.toLowerCase()),

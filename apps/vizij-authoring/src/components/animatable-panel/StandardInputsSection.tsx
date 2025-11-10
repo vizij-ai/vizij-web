@@ -1,6 +1,8 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FocusEvent,
@@ -13,26 +15,47 @@ import {
   type StandardRigInput,
   type RemapSettings,
 } from "@vizij/utils";
-import type { ManagedStandardInput } from "../../hooks/useRigController";
+import type {
+  ManagedStandardInput,
+  AuthoringFeatureFlag,
+} from "../../hooks/useRigController";
+import type { PersistedGraphInsight } from "../../rig/persistence";
+import type { BuildGraphResult } from "@vizij/node-graph-authoring";
+import {
+  diffMachineReports,
+  type MachineDiffEntry,
+  type MachineDiffResult,
+  type MachineReport,
+} from "@vizij/node-graph-authoring";
 import {
   type StandardInputValues,
   type InputBindingMap,
   type AnimatableBinding,
   type BindingMap,
   type BindingOperatorType,
+  type BindingValueType,
   bindingTargetFromInput,
   createDefaultParentBinding,
 } from "@vizij/node-graph-authoring";
 import type { BindingField } from "./types";
 import { BindingEditor } from "./BindingEditor";
 import { FilterableSelect } from "../common/FilterableSelect";
-import { confirmDialog } from "../../utils/dialogs";
+import { confirmDialog, alertDialog } from "../../utils/dialogs";
+import { downloadBlob } from "../../utils/download";
 import { extractStandardInputSubgroups } from "../../utils/standardInputs";
 
 interface InputUsage {
   targetId: string;
   label: string;
   kind: "animatable" | "child";
+}
+
+interface IssueEntry {
+  targetId: string;
+  label: string;
+  issues: string[];
+  isStandardInput: boolean;
+  rootKey: string | null;
 }
 
 interface StandardInputsSectionProps {
@@ -48,10 +71,22 @@ interface StandardInputsSectionProps {
   selectedSubgroups: string[];
   onSelectedSubgroupsChange: (next: string[]) => void;
   inputValues: StandardInputValues;
+  graphInputDefaults: Record<string, number>;
   effectiveInputRanges: Map<string, { min: number; max: number }>;
   inputUsage: Map<string, InputUsage[]>;
   bindingIssues: Map<string, readonly string[]>;
   bindings: BindingMap;
+  featureFlags: Record<AuthoringFeatureFlag, boolean>;
+  onFeatureFlagChange(flag: AuthoringFeatureFlag, enabled: boolean): void;
+  graphInsights: PersistedGraphInsight | null;
+  graphReport: MachineReport | null;
+  getGraphIr: () => BuildGraphResult["ir"] | null;
+  graphTimeSeconds: number;
+  graphPlaybackState: "playing" | "paused";
+  onGraphPlay(): void;
+  onGraphPause(): void;
+  onGraphStop(): void;
+  onGraphStep(): void;
   onInputValueChange: (inputId: string, value: number) => void;
   onCreateInput: () => void;
   onResetAllInputs: () => void;
@@ -61,7 +96,12 @@ interface StandardInputsSectionProps {
   onUnlinkChildInput: (parentId: string, childId: string) => void;
   onUpdateInput: (
     inputId: string,
-    updates: { path?: string; label?: string; sourceId?: string | null },
+    updates: {
+      path?: string;
+      label?: string;
+      sourceId?: string | null;
+      defaultValue?: number;
+    },
   ) => void;
   onDisableInput: (inputId: string) => void;
   onEnableInput: (inputId: string) => void;
@@ -91,6 +131,11 @@ interface StandardInputsSectionProps {
     slotId: string,
     alias: string,
   ) => void;
+  onParentBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
   onParentBindingOperatorToggle: (
     targetId: string,
     operator: BindingOperatorType,
@@ -103,12 +148,6 @@ interface StandardInputsSectionProps {
     value: number,
   ) => void;
   onParentResetBinding: (targetId: string) => void;
-  onBindingRemapChange: (
-    targetId: string,
-    field: BindingField,
-    value: number,
-    slotId?: string,
-  ) => void;
   graphStatus: "idle" | "loading" | "ready" | "error";
   graphError: string | null;
 }
@@ -132,6 +171,18 @@ function humanizeToken(value: string | undefined | null): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatGraphClock(seconds: number): string {
+  if (!Number.isFinite(seconds)) {
+    return "00:00.00";
+  }
+  const abs = Math.max(seconds, 0);
+  const minutes = Math.floor(abs / 60);
+  const secs = abs - minutes * 60;
+  return `${minutes.toString().padStart(2, "0")}:${secs
+    .toFixed(2)
+    .padStart(5, "0")}`;
 }
 
 const CHILD_KEY_DELIMITER = "\u0000";
@@ -174,10 +225,22 @@ export function StandardInputsSection({
   selectedSubgroups,
   onSelectedSubgroupsChange,
   inputValues,
+  graphInputDefaults,
   effectiveInputRanges,
   inputUsage,
   bindingIssues,
   bindings,
+  featureFlags,
+  onFeatureFlagChange,
+  graphInsights,
+  graphReport,
+  getGraphIr,
+  graphTimeSeconds,
+  graphPlaybackState,
+  onGraphPlay,
+  onGraphPause,
+  onGraphStop,
+  onGraphStep,
   onInputValueChange,
   onCreateInput,
   onResetAllInputs,
@@ -198,13 +261,18 @@ export function StandardInputsSection({
   onParentRemoveBindingSlot,
   onParentBindingExpressionChange,
   onParentBindingSlotAliasChange,
+  onParentBindingSlotValueTypeChange,
   onParentBindingOperatorToggle,
   onParentBindingOperatorParamChange,
   onParentResetBinding,
-  onBindingRemapChange,
   graphStatus,
   graphError,
 }: StandardInputsSectionProps) {
+  const betaFlagOptions: Array<{ key: AuthoringFeatureFlag; label: string }> = [
+    { key: "vectorAuthoringBeta", label: "Vector slots" },
+    { key: "conditionalAuthoringBeta", label: "Conditional bindings" },
+    { key: "irInspectorBeta", label: "IR inspector" },
+  ];
   const graphStatusMessage = useMemo(() => {
     if (graphStatus === "error") {
       return graphError
@@ -216,6 +284,34 @@ export function StandardInputsSection({
     }
     return null;
   }, [graphError, graphStatus]);
+
+  const formattedGraphTime = formatGraphClock(graphTimeSeconds);
+  const transportDisabled = graphStatus !== "ready";
+  const handlePlayPauseTransport = () => {
+    if (graphPlaybackState === "playing") {
+      onGraphPause();
+    } else {
+      onGraphPlay();
+    }
+  };
+  const handleStopTransport = () => {
+    onGraphStop();
+  };
+  const handleStepTransport = () => {
+    onGraphStep();
+  };
+
+  const driverStats = useMemo(() => {
+    if (!graphReport) {
+      return null;
+    }
+    return {
+      bindings: graphReport.summary.bindings.length,
+      issues: Object.keys(graphReport.issues.byTarget ?? {}).length,
+      nodes: graphReport.irGraph?.nodes.length ?? 0,
+      registry: graphReport.irGraph?.metadata?.registryVersion ?? "—",
+    };
+  }, [graphReport]);
 
   const availableRoots = useMemo(() => {
     const merged = new Set<string>(roots);
@@ -301,6 +397,9 @@ export function StandardInputsSection({
   >(() => new Set());
   const [capturePoseName, setCapturePoseName] = useState("");
   const [showDisabled, setShowDisabled] = useState(false);
+  const [issuePanelOpen, setIssuePanelOpen] = useState(false);
+  const [issueFilter, setIssueFilter] = useState("");
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   const standardInputList = useMemo(
     () => inputs.map((entry) => entry.input),
@@ -315,6 +414,84 @@ export function StandardInputsSection({
     [inputs],
   );
 
+  const issueEntries = useMemo<IssueEntry[]>(() => {
+    if (!graphInsights) {
+      return [];
+    }
+    const byTarget = graphInsights.issues?.byTarget ?? {};
+    return Object.entries(byTarget)
+      .map(([targetId, rawMessages]) => {
+        const messages = rawMessages.filter(
+          (message) => typeof message === "string" && message.trim().length > 0,
+        );
+        const entry = entriesById.get(targetId);
+        const standardInput = entry?.input ?? null;
+        return {
+          targetId,
+          label:
+            standardInput?.path ??
+            standardInput?.label ??
+            entry?.input.label ??
+            targetId,
+          issues:
+            messages.length > 0 ? messages : ["Unknown issue reported in IR"],
+          isStandardInput: Boolean(standardInput),
+          rootKey: entry ? getRootKey(entry) : null,
+        };
+      })
+      .sort((a, b) => {
+        if (b.issues.length !== a.issues.length) {
+          return b.issues.length - a.issues.length;
+        }
+        return a.label.localeCompare(b.label);
+      });
+  }, [entriesById, graphInsights]);
+
+  const totalIssueCount = useMemo(
+    () => issueEntries.reduce((sum, entry) => sum + entry.issues.length, 0),
+    [issueEntries],
+  );
+
+  const filteredIssueEntries = useMemo(() => {
+    const token = issueFilter.trim().toLowerCase();
+    if (!token) {
+      return issueEntries;
+    }
+    return issueEntries.filter((entry) => {
+      if (entry.label.toLowerCase().includes(token)) {
+        return true;
+      }
+      if (entry.targetId.toLowerCase().includes(token)) {
+        return true;
+      }
+      return entry.issues.some((issue) => issue.toLowerCase().includes(token));
+    });
+  }, [issueEntries, issueFilter]);
+  const issueToggleLabel = issuePanelOpen
+    ? "Hide binding issues"
+    : `Show binding issues (${issueEntries.length})`;
+
+  useEffect(() => {
+    if (!featureFlags.irInspectorBeta) {
+      setInspectorOpen(false);
+    }
+  }, [featureFlags.irInspectorBeta]);
+
+  useEffect(() => {
+    if (!graphReport) {
+      setInspectorOpen(false);
+    }
+  }, [graphReport]);
+
+  useEffect(() => {
+    if (issueEntries.length === 0) {
+      setIssuePanelOpen(false);
+      if (issueFilter) {
+        setIssueFilter("");
+      }
+    }
+  }, [issueEntries.length, issueFilter]);
+
   const cancelChildSelection = useCallback(() => {
     setChildSelection({ parentId: null, childId: null });
   }, []);
@@ -328,6 +505,41 @@ export function StandardInputsSection({
       return { parentId: null, childId: null };
     });
   }, [onLinkChildInput]);
+
+  const handleRevealIssueTarget = useCallback(
+    (targetId: string) => {
+      const entry = entriesById.get(targetId);
+      if (!entry) {
+        return;
+      }
+      const rootKey = getRootKey(entry);
+      if (
+        selectedRoots.length > 0 &&
+        rootKey &&
+        !selectedRoots.includes(rootKey)
+      ) {
+        onSelectedRootsChange([...selectedRoots, rootKey]);
+      }
+      setExpandedInputs((previous) => {
+        if (previous.has(targetId)) {
+          return previous;
+        }
+        const next = new Set(previous);
+        next.add(targetId);
+        return next;
+      });
+      setExpandedParents((previous) => {
+        if (previous.has(targetId)) {
+          return previous;
+        }
+        const next = new Set(previous);
+        next.add(targetId);
+        return next;
+      });
+      setIssuePanelOpen(true);
+    },
+    [entriesById, onSelectedRootsChange, selectedRoots],
+  );
 
   const handleFaceIdInput = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -445,6 +657,34 @@ export function StandardInputsSection({
     }
   }, [onClearCachedState]);
 
+  const handleDownloadIr = useCallback(() => {
+    const graph = getGraphIr();
+    if (!graph) {
+      alertDialog("No IR graph is ready yet. Build the graph first.");
+      return;
+    }
+    const safeFaceId =
+      faceId && faceId.trim().length > 0 ? faceId.trim() : "vizij";
+    const fileName = `${safeFaceId}_rig.ir.json`;
+    const blob = new Blob([JSON.stringify(graph, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(blob, fileName);
+  }, [faceId, getGraphIr]);
+
+  const handleDownloadMachineReport = useCallback(() => {
+    if (!graphReport) {
+      alertDialog("No machine report is ready yet. Build the graph first.");
+      return;
+    }
+    const safeFaceId =
+      faceId && faceId.trim().length > 0 ? faceId.trim() : "vizij";
+    const blob = new Blob([JSON.stringify(graphReport, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(blob, `${safeFaceId}_machine-report.json`);
+  }, [faceId, graphReport]);
+
   const graphAlert = useMemo(() => {
     if (!graphStatusMessage) {
       return null;
@@ -505,6 +745,10 @@ export function StandardInputsSection({
     const disabled = entry.disabled;
     const range = effectiveInputRanges.get(input.id) ?? input.range;
     const value = inputValues[input.id] ?? input.defaultValue;
+    const runtimeDefaultValue =
+      graphInputDefaults[input.id] ?? input.defaultValue ?? 0;
+    const defaultFieldStep = Math.max((range.max - range.min) / 200, 0.001);
+    const defaultInputKey = `${input.id}::default::${runtimeDefaultValue}`;
     const usage = inputUsage.get(input.id) ?? [];
     const animatableUsage = usage.filter((item) => item.kind === "animatable");
     const isAuto = source === "auto";
@@ -980,29 +1224,6 @@ export function StandardInputsSection({
       });
     };
 
-    const handleChildRemapChange = (
-      mapping: ChildMapping,
-      field: BindingField,
-      value: number,
-    ) => {
-      if (disabled) {
-        return;
-      }
-      if (!mapping.slotId) {
-        return;
-      }
-      if (mapping.kind === "input") {
-        onParentBindingRemapChange(
-          mapping.targetId,
-          field,
-          value,
-          mapping.slotId,
-        );
-      } else {
-        onBindingRemapChange(mapping.targetId, field, value, mapping.slotId);
-      }
-    };
-
     const handleNumericChange = (event: ChangeEvent<HTMLInputElement>) => {
       if (disabled) {
         return;
@@ -1023,6 +1244,59 @@ export function StandardInputsSection({
         return;
       }
       onInputValueChange(input.id, parsed);
+    };
+
+    const commitGraphDefault = (nextValue: number) => {
+      if (disabled) {
+        return;
+      }
+      if (!Number.isFinite(nextValue)) {
+        return;
+      }
+      const clamped = clamp(nextValue, range.min, range.max);
+      if (clamped === runtimeDefaultValue) {
+        return;
+      }
+      onUpdateInput(input.id, { defaultValue: clamped });
+    };
+
+    const handleDefaultInputBlur = (event: FocusEvent<HTMLInputElement>) => {
+      if (disabled) {
+        event.target.value = runtimeDefaultValue.toString();
+        return;
+      }
+      const parsed = Number(event.target.value);
+      if (!Number.isFinite(parsed)) {
+        event.target.value = runtimeDefaultValue.toString();
+        return;
+      }
+      const clamped = clamp(parsed, range.min, range.max);
+      event.target.value = clamped.toString();
+      if (clamped === runtimeDefaultValue) {
+        return;
+      }
+      commitGraphDefault(clamped);
+    };
+
+    const handleDefaultInputKeyDown = (
+      event: KeyboardEvent<HTMLInputElement>,
+    ) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleDefaultInputBlur(
+          event as unknown as FocusEvent<HTMLInputElement>,
+        );
+        return;
+      }
+      if (event.key === "Escape") {
+        (event.target as HTMLInputElement).value =
+          runtimeDefaultValue.toString();
+        (event.target as HTMLInputElement).blur();
+      }
+    };
+
+    const handleApplyCurrentAsDefault = () => {
+      commitGraphDefault(value);
     };
 
     const handlePathCommit = (nextPath: string) => {
@@ -1103,6 +1377,31 @@ export function StandardInputsSection({
                 onChange={handleNumericChange}
               />
             </label>
+            <div className="feature-panel__input-default-note">
+              <label className="feature-panel__input-value">
+                <span>Graph default</span>
+                <input
+                  key={defaultInputKey}
+                  className="feature-panel__input-number"
+                  type="number"
+                  min={range.min}
+                  max={range.max}
+                  step={defaultFieldStep}
+                  defaultValue={runtimeDefaultValue}
+                  disabled={disabled}
+                  onBlur={handleDefaultInputBlur}
+                  onKeyDown={handleDefaultInputKeyDown}
+                />
+              </label>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={handleApplyCurrentAsDefault}
+                disabled={disabled || value === runtimeDefaultValue}
+              >
+                Use current
+              </button>
+            </div>
           </div>
           {!isAuto && (
             <div className="feature-panel__input-header-actions">
@@ -1263,6 +1562,9 @@ export function StandardInputsSection({
                         handleParentExpressionChangeSafe
                       }
                       onBindingSlotAliasChange={handleParentAliasChangeSafe}
+                      onBindingSlotValueTypeChange={
+                        onParentBindingSlotValueTypeChange
+                      }
                       onBindingOperatorToggle={handleParentOperatorToggleSafe}
                       onBindingOperatorParamChange={
                         handleParentOperatorParamChangeSafe
@@ -1273,11 +1575,7 @@ export function StandardInputsSection({
                           : undefined
                       }
                       expandable={false}
-                      outputDefaults={{
-                        rangeMin: parentTarget.range.min,
-                        rangeMax: parentTarget.range.max,
-                        defaultValue: parentTarget.defaultValue,
-                      }}
+                      featureFlags={featureFlags}
                     />
                   </div>
                 )}
@@ -1339,8 +1637,6 @@ export function StandardInputsSection({
                             handleToggleChildMappings();
                           }
                         };
-                        const canEdit =
-                          Boolean(mapping.slotId) && Boolean(mapping.remap);
                         const disclosureSymbol = showChildDetails ? "v" : ">";
                         return (
                           <div
@@ -1374,23 +1670,10 @@ export function StandardInputsSection({
                             </span>
                             {showChildDetails && (
                               <div className="feature-panel__mapping-editor feature-panel__mapping-editor--child">
-                                {canEdit && mapping.remap ? (
-                                  <SlotRemapEditor
-                                    remap={mapping.remap}
-                                    issues={mapping.issues}
-                                    onRemapChange={(field, value) =>
-                                      handleChildRemapChange(
-                                        mapping,
-                                        field,
-                                        value,
-                                      )
-                                    }
-                                  />
-                                ) : (
-                                  <p className="feature-panel__mapping-empty">
-                                    No editable remap available for this link.
-                                  </p>
-                                )}
+                                <p className="feature-panel__mapping-empty">
+                                  Remap editing now lives in the expression
+                                  editor.
+                                </p>
                               </div>
                             )}
                           </div>
@@ -1486,7 +1769,50 @@ export function StandardInputsSection({
         inputs through setting parent/child relationships.
       </p>
       {!isCollapsed && (
+        <div className="feature-panel__stat-grid">
+          <StatBlock label="Bindings" value={driverStats?.bindings ?? "—"} />
+          <StatBlock
+            label="Targets w/ issues"
+            value={driverStats?.issues ?? "—"}
+          />
+          <StatBlock label="IR nodes" value={driverStats?.nodes ?? "—"} />
+          <StatBlock label="Registry" value={driverStats?.registry ?? "—"} />
+        </div>
+      )}
+      {!isCollapsed && (
         <div className="feature-panel__section-body">
+          <div className="feature-panel__transport">
+            <div className="feature-panel__transport-time">
+              <span>Graph time</span>
+              <strong>{formattedGraphTime}</strong>
+            </div>
+            <div className="feature-panel__transport-controls">
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={handlePlayPauseTransport}
+                disabled={transportDisabled}
+              >
+                {graphPlaybackState === "playing" ? "Pause" : "Play"}
+              </button>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={handleStopTransport}
+                disabled={transportDisabled}
+              >
+                Stop
+              </button>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={handleStepTransport}
+                disabled={transportDisabled}
+              >
+                Step
+              </button>
+            </div>
+          </div>
           <div className="feature-panel__input-toolbar">
             <label className="feature-panel__face-id">
               Face
@@ -1611,6 +1937,102 @@ export function StandardInputsSection({
             </button>
           </div>
 
+          <div className="feature-panel__beta-zone">
+            <div className="feature-panel__beta-flags">
+              <h4>Expression-first betas</h4>
+              {betaFlagOptions.map(({ key, label }) => (
+                <label key={key} className="feature-panel__beta-flag">
+                  <input
+                    type="checkbox"
+                    checked={featureFlags[key] ?? false}
+                    onChange={(event) =>
+                      onFeatureFlagChange(key, event.target.checked)
+                    }
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="feature-panel__insights">
+              {graphInsights ? (
+                <>
+                  <p>
+                    Last build:{" "}
+                    {new Date(graphInsights.generatedAt).toLocaleString()}
+                  </p>
+                  <p>
+                    {graphInsights.summary.bindings} bindings ·{" "}
+                    {graphInsights.issues.fatal.length} fatal issues
+                  </p>
+                </>
+              ) : (
+                <p>
+                  No IR snapshot captured yet. Build the rig to populate it.
+                </p>
+              )}
+              <div className="feature-panel__insights-actions">
+                <button
+                  type="button"
+                  className="feature-panel__input-action feature-panel__input-action--secondary"
+                  onClick={handleDownloadIr}
+                >
+                  Download IR JSON
+                </button>
+                {featureFlags.irInspectorBeta && (
+                  <button
+                    type="button"
+                    className="feature-panel__input-action feature-panel__input-action--secondary"
+                    data-active={inspectorOpen ? "true" : "false"}
+                    onClick={() => setInspectorOpen((previous) => !previous)}
+                    disabled={!graphReport}
+                  >
+                    {inspectorOpen ? "Hide IR inspector" : "Open IR inspector"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {issueEntries.length > 0 && (
+            <div className="feature-panel__issue-controls">
+              <div>
+                <strong>{totalIssueCount}</strong> issue
+                {totalIssueCount === 1 ? "" : "s"} across {issueEntries.length}{" "}
+                binding
+                {issueEntries.length === 1 ? "" : "s"}
+              </div>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                data-active={issuePanelOpen ? "true" : "false"}
+                onClick={() => setIssuePanelOpen((previous) => !previous)}
+              >
+                {issueToggleLabel}
+              </button>
+            </div>
+          )}
+
+          {issuePanelOpen && (
+            <IssueListPanel
+              entries={filteredIssueEntries}
+              totalTargets={issueEntries.length}
+              totalIssues={totalIssueCount}
+              filter={issueFilter}
+              onFilterChange={setIssueFilter}
+              onReveal={handleRevealIssueTarget}
+            />
+          )}
+
+          {featureFlags.irInspectorBeta && (
+            <IrInspectorDrawer
+              open={inspectorOpen}
+              report={graphReport}
+              onClose={() => setInspectorOpen(false)}
+              onDownloadIr={handleDownloadIr}
+              onDownloadReport={handleDownloadMachineReport}
+            />
+          )}
+
           {graphAlert}
 
           {emptyMessage ? (
@@ -1626,105 +2048,578 @@ export function StandardInputsSection({
   );
 }
 
-interface SlotRemapEditorProps {
-  remap: RemapSettings;
-  onRemapChange: (field: BindingField, value: number) => void;
-  issues?: readonly string[];
+interface IssueListPanelProps {
+  entries: IssueEntry[];
+  totalTargets: number;
+  totalIssues: number;
+  filter: string;
+  onFilterChange(value: string): void;
+  onReveal(targetId: string): void;
 }
 
-function SlotRemapEditor({
-  remap,
-  onRemapChange,
-  issues,
-}: SlotRemapEditorProps) {
-  const handleNumberChange =
-    (field: BindingField) => (event: ChangeEvent<HTMLInputElement>) => {
-      const { value } = event.target;
-      if (value.length === 0) {
-        return;
-      }
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) {
-        return;
-      }
-      onRemapChange(field, parsed);
-    };
+function IssueListPanel({
+  entries,
+  totalTargets,
+  totalIssues,
+  filter,
+  onFilterChange,
+  onReveal,
+}: IssueListPanelProps) {
+  const handleFilterChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      onFilterChange(event.target.value);
+    },
+    [onFilterChange],
+  );
 
   return (
-    <div className="feature-panel__child-remap">
-      <div className="feature-tree__matrix-columns feature-tree__matrix-columns--slots">
-        <div className="feature-tree__property-column">
-          <h4>Input</h4>
-          <div className="feature-tree__matrix-grid">
-            <label>
-              <span>Min</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.inLow}
-                onChange={handleNumberChange("inLow")}
-              />
-            </label>
-            <label>
-              <span>Anchor</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.inAnchor}
-                onChange={handleNumberChange("inAnchor")}
-              />
-            </label>
-            <label>
-              <span>Max</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.inHigh}
-                onChange={handleNumberChange("inHigh")}
-              />
-            </label>
-          </div>
-        </div>
-        <div className="feature-tree__property-column">
-          <h4>Output</h4>
-          <div className="feature-tree__matrix-grid">
-            <label>
-              <span>Min</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.outLow}
-                onChange={handleNumberChange("outLow")}
-              />
-            </label>
-            <label>
-              <span>Anchor</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.outAnchor}
-                onChange={handleNumberChange("outAnchor")}
-              />
-            </label>
-            <label>
-              <span>Max</span>
-              <input
-                type="number"
-                step={0.01}
-                value={remap.outHigh}
-                onChange={handleNumberChange("outHigh")}
-              />
-            </label>
-          </div>
-        </div>
+    <div className="feature-panel__issue-panel">
+      <div className="feature-panel__issue-panel-filter">
+        <label>
+          <span>Filter binding issues</span>
+          <input
+            type="text"
+            value={filter}
+            onChange={handleFilterChange}
+            placeholder="Search by id or message"
+            className="feature-panel__input-text"
+          />
+        </label>
+        <span>
+          Showing {entries.length} of {totalTargets} targets ({totalIssues}{" "}
+          issues)
+        </span>
       </div>
-      {issues && issues.length > 0 && (
-        <ul className="feature-tree__expression-errors">
-          {issues.map((issue) => (
-            <li key={issue}>{issue}</li>
+      {entries.length === 0 ? (
+        <p className="feature-panel__issue-panel-empty">
+          No bindings match the current filter.
+        </p>
+      ) : (
+        <div className="feature-panel__issue-list">
+          {entries.map((entry) => (
+            <div key={entry.targetId} className="feature-panel__issue-entry">
+              <div className="feature-panel__issue-entry-header">
+                <div className="feature-panel__issue-entry-meta">
+                  <span className="feature-panel__issue-entry-label">
+                    {entry.label}
+                  </span>
+                  <code className="feature-panel__issue-entry-code">
+                    {entry.targetId}
+                  </code>
+                  {entry.rootKey && (
+                    <span className="feature-panel__issue-entry-root">
+                      · {entry.rootKey}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="feature-panel__input-action feature-panel__input-action--secondary"
+                  onClick={() => onReveal(entry.targetId)}
+                  disabled={!entry.isStandardInput}
+                  title={
+                    entry.isStandardInput
+                      ? "Reveal this input card"
+                      : "Issue targets a non-standard binding"
+                  }
+                >
+                  Reveal
+                </button>
+              </div>
+              <ul className="feature-panel__issue-entry-list">
+                {entry.issues.map((issue, index) => (
+                  <li key={`${entry.targetId}-${index}`}>{issue}</li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
+}
+
+interface IrInspectorDrawerProps {
+  open: boolean;
+  report: MachineReport | null;
+  onClose(): void;
+  onDownloadIr(): void;
+  onDownloadReport(): void;
+}
+
+const IR_DIFF_LIMIT = 200;
+const BUG_REPORT_DIFF_PREVIEW_LIMIT = 8;
+
+function IrInspectorDrawer({
+  open,
+  report,
+  onClose,
+  onDownloadIr,
+  onDownloadReport,
+}: IrInspectorDrawerProps) {
+  const [diffText, setDiffText] = useState("");
+  const [diffResult, setDiffResult] = useState<MachineDiffResult | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+  const [cliFeedback, setCliFeedback] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+  const [bugTemplateFeedback, setBugTemplateFeedback] = useState<
+    "idle" | "copied" | "error"
+  >("idle");
+  const [graphJson, setGraphJson] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (open && report?.irGraph) {
+      setGraphJson(JSON.stringify(report.irGraph, null, 2));
+    } else {
+      setGraphJson(null);
+    }
+  }, [open, report]);
+
+  useEffect(() => {
+    if (!open) {
+      setDiffText("");
+      setDiffResult(null);
+      setDiffError(null);
+      setCopyFeedback("idle");
+      setCliFeedback("idle");
+      setBugTemplateFeedback("idle");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, [open]);
+
+  const bindingCount = report?.summary.bindings.length ?? 0;
+  const fatalCount = report?.issues.fatal.length ?? 0;
+  const issueTargetCount = report
+    ? Object.keys(report.issues.byTarget ?? {}).length
+    : 0;
+  const nodeCount = report?.irGraph?.nodes.length ?? 0;
+  const edgeCount = report?.irGraph?.edges.length ?? 0;
+  const constantCount = report?.irGraph?.constants.length ?? 0;
+  const registryVersion = report?.irGraph?.metadata?.registryVersion ?? "—";
+
+  const bugReportTemplate = useMemo(() => {
+    if (!report || !diffResult) {
+      return null;
+    }
+    return buildBugReportTemplate(report, diffResult);
+  }, [diffResult, report]);
+
+  const handleCopyReport = useCallback(async () => {
+    if (!report) {
+      return;
+    }
+    const payload = JSON.stringify(report, null, 2);
+    try {
+      await navigator.clipboard?.writeText(payload);
+      setCopyFeedback("copied");
+      setTimeout(() => setCopyFeedback("idle"), 1500);
+    } catch (error) {
+      console.warn("[vizij-authoring] Failed to copy IR report", error);
+      setCopyFeedback("error");
+    }
+  }, [report]);
+
+  const handleCliCommand = useCallback(async () => {
+    if (!report) {
+      return;
+    }
+    try {
+      const command = buildVizijIrDiffCommand(report.faceId);
+      await navigator.clipboard?.writeText(command);
+      setCliFeedback("copied");
+      setTimeout(() => setCliFeedback("idle"), 1500);
+    } catch (error) {
+      console.warn("[vizij-authoring] Failed to copy CLI command", error);
+      setCliFeedback("error");
+      setTimeout(() => setCliFeedback("idle"), 1500);
+    }
+  }, [report]);
+
+  const handleDiffCompare = useCallback(() => {
+    if (!report) {
+      setDiffError("Generate a current IR snapshot before diffing.");
+      return;
+    }
+    const trimmed = diffText.trim();
+    if (!trimmed) {
+      setDiffError("Paste a machine report (vizij-ir-report --dump) first.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!isMachineReportCandidate(parsed)) {
+        throw new Error(
+          "Input is not a machine report. Use `vizij-ir-report --dump` or paste an exported report.",
+        );
+      }
+      const diff = diffMachineReports(report, parsed, {
+        limit: IR_DIFF_LIMIT,
+      });
+      setDiffResult(diff);
+      setDiffError(null);
+    } catch (error) {
+      setDiffResult(null);
+      setDiffError(error instanceof Error ? error.message : String(error));
+    }
+  }, [diffText, report]);
+
+  const handleDiffFileChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setDiffText(reader.result);
+        }
+      };
+      reader.readAsText(file);
+    },
+    [],
+  );
+
+  const handleClearDiff = useCallback(() => {
+    setDiffText("");
+    setDiffResult(null);
+    setDiffError(null);
+    setBugTemplateFeedback("idle");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  const handleCopyBugTemplate = useCallback(async () => {
+    if (!bugReportTemplate) {
+      return;
+    }
+    try {
+      await navigator.clipboard?.writeText(bugReportTemplate);
+      setBugTemplateFeedback("copied");
+      setTimeout(() => setBugTemplateFeedback("idle"), 1500);
+    } catch (error) {
+      console.warn("[vizij-authoring] Failed to copy bug template", error);
+      setBugTemplateFeedback("error");
+      setTimeout(() => setBugTemplateFeedback("idle"), 1500);
+    }
+  }, [bugReportTemplate]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <section className="feature-panel__drawer" aria-label="IR inspector">
+      <div className="feature-panel__drawer-header">
+        <div>
+          <h4>IR inspector</h4>
+          {report && <span>Face: {report.faceId}</span>}
+        </div>
+        <button
+          type="button"
+          className="feature-panel__input-action feature-panel__input-action--secondary"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+      {report ? (
+        <>
+          <div className="feature-panel__drawer-summary">
+            <div className="feature-panel__drawer-summary-grid">
+              <StatBlock label="Bindings" value={bindingCount} />
+              <StatBlock label="Fatal issues" value={fatalCount} />
+              <StatBlock label="Targets w/ issues" value={issueTargetCount} />
+              <StatBlock label="IR nodes" value={nodeCount} />
+              <StatBlock label="Edges" value={edgeCount} />
+              <StatBlock label="Constants" value={constantCount} />
+              <StatBlock label="Registry" value={registryVersion} />
+            </div>
+            <div className="feature-panel__drawer-actions">
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                onClick={onDownloadIr}
+              >
+                Download IR JSON
+              </button>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                data-state={copyFeedback}
+                onClick={handleCopyReport}
+              >
+                {copyFeedback === "copied"
+                  ? "Report copied"
+                  : "Copy machine report"}
+              </button>
+              <button
+                type="button"
+                className="feature-panel__input-action feature-panel__input-action--secondary"
+                data-state={cliFeedback}
+                onClick={() => {
+                  onDownloadReport();
+                  handleCliCommand();
+                }}
+              >
+                {cliFeedback === "copied"
+                  ? "vizij-ir-report cmd copied"
+                  : "Prep vizij-ir-report diff"}
+              </button>
+            </div>
+          </div>
+          {graphJson ? (
+            <details className="feature-panel__drawer-graph">
+              <summary>IR graph payload</summary>
+              <pre>{graphJson}</pre>
+            </details>
+          ) : (
+            <p className="feature-panel__drawer-note">
+              BuildGraphResult did not include an IR payload for this snapshot.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="feature-panel__drawer-note">
+          No IR snapshot available. Run a successful build to populate this
+          view.
+        </p>
+      )}
+      <div className="feature-panel__drawer-diff">
+        <h5>Diff against saved report</h5>
+        <p>
+          Paste output from <code>vizij-ir-report --dump</code> or upload a
+          machine report JSON to compare against the current build.
+        </p>
+        <textarea
+          value={diffText}
+          onChange={(event) => setDiffText(event.target.value)}
+          placeholder="Paste machine report JSON…"
+          className="feature-panel__drawer-diff-input"
+          rows={6}
+          spellCheck={false}
+        />
+        <div className="feature-panel__drawer-diff-actions">
+          <label className="feature-panel__drawer-file">
+            <span>Upload</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              onChange={handleDiffFileChange}
+            />
+          </label>
+          <div className="feature-panel__drawer-diff-buttons">
+            <button
+              type="button"
+              className="feature-panel__input-action feature-panel__input-action--secondary"
+              onClick={handleDiffCompare}
+              disabled={!report || diffText.trim().length === 0}
+            >
+              Compare
+            </button>
+            <button
+              type="button"
+              className="feature-panel__input-action feature-panel__input-action--secondary"
+              onClick={handleClearDiff}
+              disabled={!diffText && !diffResult}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+        {diffError && (
+          <p className="feature-panel__drawer-error">{diffError}</p>
+        )}
+        {diffResult && (
+          <>
+            <DiffResultList
+              limitReached={diffResult.limitReached}
+              entries={diffResult.differences}
+            />
+            {bugReportTemplate && (
+              <div className="feature-panel__drawer-diff-actions feature-panel__drawer-diff-actions--template">
+                <button
+                  type="button"
+                  className="feature-panel__input-action feature-panel__input-action--secondary"
+                  data-state={bugTemplateFeedback}
+                  onClick={handleCopyBugTemplate}
+                >
+                  {bugTemplateFeedback === "copied"
+                    ? "Bug template copied"
+                    : "Copy bug report template"}
+                </button>
+                <small>
+                  Captures the diff summary and CLI repro steps for filing
+                  regressions.
+                </small>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+interface StatBlockProps {
+  label: string;
+  value: string | number;
+  helper?: string;
+  tone?: "success" | "warning";
+}
+
+function StatBlock({ label, value, helper, tone }: StatBlockProps) {
+  return (
+    <div
+      className={`feature-panel__drawer-stat${
+        tone ? ` feature-panel__drawer-stat--${tone}` : ""
+      }`}
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {helper && <small>{helper}</small>}
+    </div>
+  );
+}
+
+interface DiffResultListProps {
+  entries: MachineDiffEntry[];
+  limitReached: boolean;
+}
+
+function DiffResultList({ entries, limitReached }: DiffResultListProps) {
+  if (!entries.length) {
+    return (
+      <p className="feature-panel__drawer-diff-note">
+        No differences detected.
+      </p>
+    );
+  }
+  return (
+    <div className="feature-panel__drawer-diff-results">
+      <p>
+        {entries.length} difference{entries.length === 1 ? "" : "s"}
+        {limitReached ? " (diff limit reached)" : null}
+      </p>
+      <ul>
+        {entries.map((entry, index) => (
+          <li key={`${entry.path}-${index}`}>
+            <code>{entry.path}</code> – {entry.kind}
+            {entry.kind === "mismatch" && (
+              <>
+                : expected {formatDiffValue(entry.expected)}, actual{" "}
+                {formatDiffValue(entry.actual)}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatDiffValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+  if (typeof value === "string") {
+    return value.length > 60 ? `${value.slice(0, 57)}…` : value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    const asString = JSON.stringify(value);
+    return asString.length > 60 ? `${asString.slice(0, 57)}…` : asString;
+  } catch {
+    return String(value);
+  }
+}
+
+function isMachineReportCandidate(value: unknown): value is MachineReport {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value as Partial<MachineReport>;
+  return (
+    typeof candidate.reportVersion === "number" &&
+    typeof candidate.summary === "object" &&
+    typeof candidate.issues === "object"
+  );
+}
+
+function buildVizijIrDiffCommand(faceId?: string | null): string {
+  const safeFaceId =
+    faceId && faceId.trim().length > 0 ? faceId.trim() : "vizij";
+  return `vizij-ir-report --diff ${safeFaceId}_machine-report.json saved-report.json`;
+}
+
+function buildBugReportTemplate(
+  report: MachineReport,
+  diff: MachineDiffResult,
+): string {
+  const previewEntries = diff.differences.slice(
+    0,
+    BUG_REPORT_DIFF_PREVIEW_LIMIT,
+  );
+  const diffSummary =
+    previewEntries.length > 0
+      ? previewEntries.map(formatDiffEntrySummary).join("\n")
+      : "- No structural differences captured.";
+  const remaining = diff.differences.length - previewEntries.length;
+  const remainderLine =
+    remaining > 0
+      ? `\n…plus ${remaining} additional difference${remaining === 1 ? "" : "s"}.`
+      : "";
+  const registry = report.irGraph?.metadata?.registryVersion ?? "—";
+  const faceLabel =
+    report.faceId && report.faceId.trim().length > 0
+      ? report.faceId.trim()
+      : "unknown";
+  const diffCommand = buildVizijIrDiffCommand(report.faceId);
+  const timestamp = new Date().toISOString();
+
+  return `### IR dual-run divergence report
+
+- Face: ${faceLabel}
+- Registry: ${registry}
+- Bindings captured: ${report.summary.bindings.length}
+- Fatal issues: ${report.issues.fatal.length}
+- Diff limit reached: ${diff.limitReached ? "yes" : "no"}
+
+#### Diff summary (${previewEntries.length}${remaining > 0 ? "+" : ""})
+${diffSummary}${remainderLine}
+
+#### Suggested reproduction steps
+1. Export the current machine report (Drivers ▸ IR inspector ▸ Download machine report).
+2. Run \`${diffCommand}\`.
+3. Attach the exported IR JSON, baseline report, and diff output.
+
+#### Notes
+- Observed at ${timestamp}
+- Add expectations / extra context here.
+`;
+}
+
+function formatDiffEntrySummary(entry: MachineDiffEntry): string {
+  const path = entry.path || "/";
+  switch (entry.kind) {
+    case "missing":
+      return `- missing ${path} (expected ${formatDiffValue(entry.expected)})`;
+    case "unexpected":
+      return `- unexpected ${path} (actual ${formatDiffValue(entry.actual)})`;
+    default:
+      return `- mismatch ${path} (expected ${formatDiffValue(
+        entry.expected,
+      )}, actual ${formatDiffValue(entry.actual)})`;
+  }
 }

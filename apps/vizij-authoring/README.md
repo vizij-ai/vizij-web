@@ -22,6 +22,18 @@ a GLB.
 - Parent/child mappings are frozen while a driver is disabled; re-enable to edit the mapping or restore cached parent bindings.
 - Graph exports (`GLB + graph`) include the enriched metadata, so round-tripping through `File → Import graph` keeps auto/custom drivers aligned with their source renderables.
 
+## IR tooling
+
+- The Drivers panel surfaces live IR stats (binding counts, issue totals, registry version) and links directly into the IR inspector so you can review machine reports or diff snapshots without leaving the app.
+- Each binding slot now shows its expression variable, upstream machine-report nodes, and CASE metadata inline, which makes it easier to validate how expressions travel through the compiled IR graph.
+- The IR inspector adds a “Prep vizij-ir-report diff” button that downloads the current machine report and copies a ready-to-run CLI command, keeping parity checks one click away.
+
+### Refreshing IR parity fixtures
+
+1. Update the stacked-operator inline snapshot with `pnpm --filter @vizij/node-graph-authoring vitest src/__tests__/irParity.test.ts --run --update`.
+2. Regenerate `src/__tests__/__fixtures__/graphSpecParity.ts` via the helper snippet documented in `packages/@vizij/node-graph-authoring/README.md#updating-ir-parity-fixtures`.
+3. Re-run `pnpm --filter @vizij/node-graph-authoring test` and `pnpm --filter vizij-authoring typecheck` to confirm the refreshed fixtures stay in sync.
+
 ## Scripts
 
 ```bash
