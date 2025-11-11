@@ -1,5 +1,11 @@
 # @vizij/utils
 
+## 0.0.3
+
+### Patch Changes
+
+- ed31344: Updated to latest vizij-rs dependencies
+
 ## 0.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @vizij/animation-react
 
+## 0.0.8
+
+### Patch Changes
+
+- ed31344: Updated to latest vizij-rs dependencies
+
 ## 0.0.7
 
 ### Patch Changes

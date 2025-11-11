@@ -1,5 +1,13 @@
 # @vizij/node-graph-authoring
 
+## 0.0.5
+
+### Patch Changes
+
+- ed31344: Updated to latest vizij-rs dependencies
+- Updated dependencies [ed31344]
+  - @vizij/utils@0.0.3
+
 ## 0.0.4
 
 ### Patch Changes

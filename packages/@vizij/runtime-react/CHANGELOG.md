@@ -1,5 +1,15 @@
 # @vizij/runtime-react
 
+## 0.0.14
+
+### Patch Changes
+
+- ed31344: Updated to latest vizij-rs dependencies
+- Updated dependencies [ed31344]
+  - @vizij/orchestrator-react@0.0.7
+  - @vizij/render@0.0.7
+  - @vizij/utils@0.0.3
+
 ## 0.0.13
 
 ### Patch Changes
