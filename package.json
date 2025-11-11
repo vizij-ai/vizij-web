@@ -40,18 +40,10 @@
     "version:packages": "changeset version",
     "verify:packages": "pnpm run build:packages && pnpm -r --filter \"@vizij/*\" run --if-present lint && pnpm -r --filter \"@vizij/*\" run --if-present test",
     "publish:packages": "pnpm exec changeset publish",
-    "release:ci": "pnpm run verify:packages && pnpm run publish:packages",
+    "ci:version": "pnpm run version:packages",
+    "ci:publish": "node ./scripts/ci-publish.mjs",
+    "release:ci": "pnpm run verify:packages && pnpm run ci:publish",
     "release": "pnpm install --frozen-lockfile && pnpm run release:ci"
-  },
-  "pnpm": {
-    "overrides": {
-      "@vizij/animation-wasm": "link:../vizij-rs/npm/@vizij/animation-wasm",
-      "@vizij/node-graph-wasm": "link:../vizij-rs/npm/@vizij/node-graph-wasm",
-      "@vizij/orchestrator-wasm": "link:../vizij-rs/npm/@vizij/orchestrator-wasm",
-      "@vizij/value-json": "link:../vizij-rs/npm/@vizij/value-json",
-      "@vizij/wasm-loader": "link:../vizij-rs/npm/@vizij/wasm-loader",
-      "@vizij/test-fixtures": "link:../vizij-rs/npm/@vizij/test-fixtures"
-    }
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
@@ -66,5 +58,10 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.22.0",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "source-map": "0.7.4"
+    }
   }
 }

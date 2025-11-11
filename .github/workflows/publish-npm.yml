@@ -4,182 +4,90 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "npm-utils-v*.*.*"
-      - "npm-render-v*.*.*"
-      - "npm-animation-react-v*.*.*"
-      - "npm-node-graph-react-v*.*.*"
-      - "npm-orchestrator-react-v*.*.*"
-      - "npm-runtime-react-v*.*.*"
+      - "npm-pub-*"
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
+env:
+  RELEASE_COMMIT_MESSAGE: "chore(release): version packages"
+
 jobs:
-  publish_utils:
-    if: startsWith(github.ref, 'refs/tags/npm-utils-v')
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/utils..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/utils" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/utils" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/utils" exec npm pack --dry-run
-      - name: Publish @vizij/utils
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/utils" exec npm publish --access public --provenance
+          fetch-depth: 0
 
-  publish_render:
-    if: startsWith(github.ref, 'refs/tags/npm-render-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/render..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/render" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/render" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/render" exec npm pack --dry-run
-      - name: Publish @vizij/render
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/render" exec npm publish --access public --provenance
+      - name: Determine release branch
+        id: branch
+        run: |
+          set -euo pipefail
+          branches=$(git branch -r --contains "$GITHUB_SHA" | sed -E 's/^[[:space:]]+//' | grep -v 'origin/HEAD' || true)
+          if [ -z "$branches" ]; then
+            echo "Unable to detect a remote branch containing $GITHUB_SHA" >&2
+            exit 1
+          fi
+          release_branch=$(echo "$branches" | head -n 1 | sed 's|origin/||')
+          echo "Detected release branch: $release_branch"
+          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_BRANCH=$release_branch" >> "$GITHUB_ENV"
 
-  publish_animation_react:
-    if: startsWith(github.ref, 'refs/tags/npm-animation-react-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/animation-react..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/animation-react" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/animation-react" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
-      - name: Publish @vizij/animation-react
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/animation-react" exec npm publish --access public --provenance
+      - name: Checkout release branch
+        run: |
+          git checkout -B "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH"
 
-  publish_node_graph_react:
-    if: startsWith(github.ref, 'refs/tags/npm-node-graph-react-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/node-graph-react..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/node-graph-react" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/node-graph-react" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
-      - name: Publish @vizij/node-graph-react
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/node-graph-react" exec npm publish --access public --provenance
+          registry-url: "https://registry.npmjs.org"
 
-  publish_orchestrator_react:
-    if: startsWith(github.ref, 'refs/tags/npm-orchestrator-react-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
       - name: Enable pnpm
         run: corepack enable pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/orchestrator-react..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/orchestrator-react" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/orchestrator-react" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/orchestrator-react" exec npm pack --dry-run
-      - name: Publish @vizij/orchestrator-react
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/orchestrator-react" exec npm publish --access public --provenance
 
-  publish_runtime_react:
-    if: startsWith(github.ref, 'refs/tags/npm-runtime-react-v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-      - name: Enable pnpm
-        run: corepack enable pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build package and dependencies
-        run: pnpm --filter "@vizij/runtime-react..." run build
-      - name: Test package
-        run: pnpm --filter "@vizij/runtime-react" run test
-      - name: Typecheck package
-        run: pnpm --filter "@vizij/runtime-react" run typecheck
-      - name: npm pack dry-run
-        run: pnpm --filter "@vizij/runtime-react" exec npm pack --dry-run
-      - name: Publish @vizij/runtime-react
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Changesets version
+        id: version
+        run: |
+          pnpm ci:version
+          if git status --porcelain | grep -q .
+          then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit release artifacts
+        if: steps.version.outputs.has_changes == 'true'
+        run: |
+          git add -A
+          git commit -m "$RELEASE_COMMIT_MESSAGE"
+
+      - name: Publish npm packages
+        if: steps.version.outputs.has_changes == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-        run: pnpm --filter "@vizij/runtime-react" exec npm publish --access public --provenance
+        run: pnpm ci:publish
+
+      - name: Push release commit and tags
+        if: steps.version.outputs.has_changes == 'true'
+        env:
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
+        run: |
+          git push origin HEAD:"$RELEASE_BRANCH"
+          git push origin --follow-tags
+
+      - name: No release needed
+        if: steps.version.outputs.has_changes != 'true'
+        run: echo "No unpublished packages detected; skipping publish."

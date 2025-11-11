@@ -18,10 +18,10 @@
   },
   "dependencies": {
     "@vizij/animation-react": "workspace:*",
-    "@vizij/animation-wasm": "^0.3.6",
-    "@vizij/value-json": "^0.1.1",
+    "@vizij/animation-wasm": "^0.3.7",
+    "@vizij/value-json": "^0.1.2",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph-wasm": "^0.4.8",
+    "@vizij/node-graph-wasm": "^0.4.9",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

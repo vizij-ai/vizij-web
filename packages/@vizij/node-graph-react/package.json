@@ -37,8 +37,8 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/node-graph-wasm": "^0.4.8",
-    "@vizij/value-json": "^0.1.1"
+    "@vizij/node-graph-wasm": "^0.4.9",
+    "@vizij/value-json": "^0.1.2"
   },
   "peerDependencies": {
     "react": ">=18",

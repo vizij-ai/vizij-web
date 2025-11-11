@@ -62,6 +62,20 @@ const FUNCTION_OVERRIDES: Partial<Record<NodeType, FunctionOverride>> = {
     variadic: { id: "operand", min: 1, max: null, valueType: "any" },
     minArgs: 3,
     maxArgs: null,
+    params: [],
+  },
+  slew: {
+    dropTrailingInputs: 1,
+    params: [
+      {
+        id: "max_rate",
+        label: "max_rate",
+        optional: false,
+        valueType: "scalar",
+      },
+    ],
+    minArgs: 2,
+    maxArgs: 2,
   },
 } as Partial<Record<NodeType, FunctionOverride>>;
 
