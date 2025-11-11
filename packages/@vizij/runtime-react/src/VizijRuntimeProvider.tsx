@@ -25,6 +25,8 @@ import {
   type MergeStrategyOptions,
   type ValueJSON,
   type AnimationRegistrationConfig,
+  type ControllerId,
+  type WriteOp,
 } from "@vizij/orchestrator-react";
 import { valueAsNumber } from "@vizij/value-json";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
@@ -669,7 +671,7 @@ function VizijRuntimeProviderInner({
 
   const clearControllers = useCallback(() => {
     const existing = listControllers();
-    existing.graphs.forEach((id) => {
+    existing.graphs.forEach((id: ControllerId) => {
       try {
         removeGraph(id);
       } catch (err: unknown) {
@@ -681,7 +683,7 @@ function VizijRuntimeProviderInner({
         });
       }
     });
-    existing.anims.forEach((id) => {
+    existing.anims.forEach((id: ControllerId) => {
       try {
         removeAnimation(id);
       } catch (err: unknown) {
@@ -813,7 +815,7 @@ function VizijRuntimeProviderInner({
 
   useEffect(() => {
     if (!ready && autoCreate) {
-      createOrchestrator().catch((err) => {
+      createOrchestrator().catch((err: unknown) => {
         pushError({
           message: "Failed to create orchestrator runtime",
           cause: err,
@@ -982,7 +984,7 @@ function VizijRuntimeProviderInner({
     }
     const setWorldValue = store.getState().setValue;
     const namespaceValue = status.namespace;
-    writes.forEach((write) => {
+    writes.forEach((write: WriteOp) => {
       const path = normalisePath(write.path);
       if (!outputPathsRef.current.has(path)) {
         return;

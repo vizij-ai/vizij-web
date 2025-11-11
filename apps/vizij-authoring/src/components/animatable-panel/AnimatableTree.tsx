@@ -11,10 +11,7 @@ import {
   isApproximatelyEqual,
 } from "./panelUtils";
 import { RigPreview } from "./RigPreview";
-import {
-  useSlotDiagnosticsResolver,
-  type SlotDiagnosticsNode,
-} from "./SlotDiagnosticsContext";
+import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import type {
   BindingField,
@@ -48,6 +45,7 @@ import {
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import { BindingEditor } from "./BindingEditor";
+import { BindingChainPanel, type BindingChainSlot } from "./BindingChainPanel";
 import { formatRigPathLabel } from "../../utils/rigPaths";
 
 type OutputControlConfig = {
@@ -139,16 +137,9 @@ function PropertyBindingRow({
     return values.get(lookupKey);
   }, [liveOutputAnimatableId, namespace, values]);
 
-  const slotPipelines = useMemo(() => {
+  const slotPipelines = useMemo<BindingChainSlot[]>(() => {
     if (!bindingTarget || !binding?.slots) {
-      return [] as Array<{
-        id: string;
-        alias?: string | null;
-        inputLabel: string;
-        upstreamNodes: SlotDiagnosticsNode[];
-        downstreamNodes: SlotDiagnosticsNode[];
-        expressionNode?: SlotDiagnosticsNode;
-      }>;
+      return [];
     }
     return binding.slots.map((slot, index) => {
       const diagnostics = slot.id
@@ -167,8 +158,9 @@ function PropertyBindingRow({
       }
       return {
         id: slot.id ?? `${bindingTarget.targetId}:${index}`,
-        alias: slot.alias,
-        inputLabel,
+        aliasLabel: slot.alias ?? `Slot ${index + 1}`,
+        sourceLabel: inputLabel,
+        targetLabel: property.label,
         upstreamNodes,
         downstreamNodes,
         expressionNode: diagnostics?.expressionNode,
@@ -177,6 +169,7 @@ function PropertyBindingRow({
   }, [
     binding,
     bindingTarget,
+    property.label,
     resolveSlotDiagnostics,
     standardInputLookup,
     faceId,
@@ -215,77 +208,7 @@ function PropertyBindingRow({
   return (
     <>
       {slotPipelines.length > 0 && (
-        <div className="feature-tree__property-pipeline">
-          <h4 className="feature-tree__section-title">Signal path</h4>
-          <ul className="feature-tree__pipeline-list">
-            {slotPipelines.map((slot) => (
-              <li key={slot.id} className="feature-tree__pipeline-item">
-                <div className="feature-tree__pipeline-row">
-                  <span className="feature-tree__pipeline-alias">
-                    {slot.alias ?? "Slot"}
-                  </span>
-                  <span className="feature-tree__pipeline-arrow">→</span>
-                  <span className="feature-tree__pipeline-input">
-                    {slot.inputLabel}
-                  </span>
-                </div>
-                {slot.upstreamNodes.length > 0 && (
-                  <div className="feature-tree__pipeline-track">
-                    <span className="feature-tree__pipeline-track-label">
-                      Input chain
-                    </span>
-                    <div className="feature-tree__pipeline-track-chips">
-                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--input">
-                        {slot.inputLabel}
-                      </span>
-                      {slot.upstreamNodes.map((node) => (
-                        <span
-                          key={`${slot.id}-up-${node.id}`}
-                          className="feature-tree__pipeline-chip"
-                          title={`${node.label} · ${node.type}`}
-                        >
-                          {node.label}
-                        </span>
-                      ))}
-                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--alias">
-                        {slot.alias ?? "Slot"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {(slot.expressionNode || slot.downstreamNodes.length > 0) && (
-                  <div className="feature-tree__pipeline-track">
-                    <span className="feature-tree__pipeline-track-label">
-                      Output chain
-                    </span>
-                    <div className="feature-tree__pipeline-track-chips">
-                      {slot.expressionNode && (
-                        <span
-                          className="feature-tree__pipeline-chip feature-tree__pipeline-chip--expression"
-                          title={`${slot.expressionNode.label} · ${slot.expressionNode.type}`}
-                        >
-                          {slot.expressionNode.label}
-                        </span>
-                      )}
-                      {slot.downstreamNodes.map((node) => (
-                        <span
-                          key={`${slot.id}-down-${node.id}`}
-                          className="feature-tree__pipeline-chip"
-                          title={`${node.label} · ${node.type}`}
-                        >
-                          {node.label}
-                        </span>
-                      ))}
-                      <span className="feature-tree__pipeline-chip feature-tree__pipeline-chip--output">
-                        {property.label}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <BindingChainPanel slots={slotPipelines} title="Signal path" />
       )}
       <BindingEditor
         binding={binding}

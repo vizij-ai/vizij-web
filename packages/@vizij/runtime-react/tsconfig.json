@@ -7,7 +7,16 @@
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@vizij/render": ["../render/src"],
+      "@vizij/render/*": ["../render/src/*"],
+      "@vizij/orchestrator-react": ["../orchestrator-react/src"],
+      "@vizij/orchestrator-react/*": ["../orchestrator-react/src/*"],
+      "@vizij/utils": ["../utils/src"],
+      "@vizij/utils/*": ["../utils/src/*"]
+    }
   },
   "include": ["src"]
 }

@@ -37,8 +37,8 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/animation-wasm": "^0.3.5",
-    "@vizij/value-json": "^0.1.0"
+    "@vizij/animation-wasm": "^0.3.6",
+    "@vizij/value-json": "^0.1.1"
   },
   "peerDependencies": {
     "react": ">=18",

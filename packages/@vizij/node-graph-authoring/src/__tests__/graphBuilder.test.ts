@@ -195,6 +195,63 @@ describe("buildRigGraphSpec", () => {
     expect(nodeTypes.has("and")).toBe(true);
   });
 
+  it("applies literal parameter arguments for transition nodes", () => {
+    const buildSpecWithExpression = (expression: string) => {
+      const binding = createDefaultBinding(COMPONENT);
+      binding.slots = [
+        {
+          id: "slot_a",
+          alias: "A",
+          inputId: INPUT_A.id,
+          remap: { ...createDefaultRemap(COMPONENT) },
+        },
+      ];
+      binding.inputId = INPUT_A.id;
+      binding.remap = { ...binding.slots[0].remap };
+      binding.expression = expression;
+      return buildRigGraphSpec({
+        faceId: "robot",
+        animatables: {
+          [ANIMATABLE.id]: ANIMATABLE,
+        },
+        components: [COMPONENT],
+        bindings: {
+          [COMPONENT.id]: binding,
+        },
+        inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+        inputBindings: {},
+      });
+    };
+
+    const springResult = buildSpecWithExpression("spring(A, 240, 32, 2)");
+    const springNode = springResult.spec.nodes.find(
+      (node: NodeSpec) => node.type === "spring",
+    ) as NodeSpec | undefined;
+    expect(springNode?.params).toMatchObject({
+      stiffness: 240,
+      damping: 32,
+      mass: 2,
+    });
+
+    const dampResult = buildSpecWithExpression("damp(A, 0.45)");
+    const dampNode = dampResult.spec.nodes.find(
+      (node: NodeSpec) => node.type === "damp",
+    ) as NodeSpec | undefined;
+    expect(dampNode?.params).toMatchObject({
+      half_life: 0.45,
+    });
+
+    const slewResult = buildSpecWithExpression("slew(A, B)");
+    const slewNode = slewResult.spec.nodes.find(
+      (node: NodeSpec) => node.type === "slew",
+    ) as NodeSpec | undefined;
+    expect(slewNode?.params).toBeUndefined();
+    const slewIssues = slewResult.issues.byTarget[COMPONENT.id] ?? [];
+    expect(slewIssues).toContain(
+      'Function "slew" requires a literal scalar for "max_rate".',
+    );
+  });
+
   it("embeds input metadata in the exported vizij header", () => {
     const { spec } = buildRigGraphSpec({
       faceId: "robot",

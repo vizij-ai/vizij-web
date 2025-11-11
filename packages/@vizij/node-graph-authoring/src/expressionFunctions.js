@@ -1,59 +1,5 @@
 import { requireNodeSignature } from "@vizij/node-graph-wasm/metadata";
-import type { NodeType } from "@vizij/node-graph-wasm";
-
-type NodeSignature = ReturnType<typeof requireNodeSignature>;
-
-export type ExpressionFunctionCategory =
-  | "math"
-  | "logic"
-  | "time"
-  | "utility"
-  | "vector";
-
-export type ExpressionValueType = "scalar" | "vector" | "boolean" | "any";
-
-interface ScalarFunctionConfig {
-  typeId: NodeType;
-  names: string[];
-  minArgs?: number;
-  maxArgs?: number | null;
-  category?: ExpressionFunctionCategory;
-  description?: string;
-}
-
-interface OrderedInputSpec {
-  id: string;
-  optional: boolean;
-  valueType: ExpressionValueType;
-}
-
-interface VariadicInputSpec {
-  id: string;
-  min: number;
-  max: number | null;
-  valueType: ExpressionValueType;
-}
-
-interface ParamArgumentSpec {
-  id: string;
-  label: string;
-  doc?: string;
-  optional: boolean;
-  valueType: ExpressionValueType;
-  min?: number;
-  max?: number;
-}
-
-interface FunctionOverride {
-  replaceInputs?: OrderedInputSpec[];
-  dropTrailingInputs?: number;
-  variadic?: VariadicInputSpec | null;
-  params?: ParamArgumentSpec[];
-  minArgs?: number;
-  maxArgs?: number | null;
-}
-
-const FUNCTION_OVERRIDES: Partial<Record<NodeType, FunctionOverride>> = {
+const FUNCTION_OVERRIDES = {
   case: {
     replaceInputs: [
       { id: "selector", optional: false, valueType: "any" },
@@ -62,28 +8,23 @@ const FUNCTION_OVERRIDES: Partial<Record<NodeType, FunctionOverride>> = {
     variadic: { id: "operand", min: 1, max: null, valueType: "any" },
     minArgs: 3,
     maxArgs: null,
+    params: [],
   },
-} as Partial<Record<NodeType, FunctionOverride>>;
-
-export interface ScalarFunctionDefinition {
-  nodeType: NodeType;
-  inputs: OrderedInputSpec[];
-  variadic: VariadicInputSpec | null;
-  params: ParamArgumentSpec[];
-  minArgs: number;
-  maxArgs: number | null;
-  resultValueType: ExpressionValueType;
-}
-
-export interface ScalarFunctionVocabularyEntry {
-  name: string;
-  aliases: string[];
-  nodeType: NodeType;
-  category: ExpressionFunctionCategory;
-  description?: string;
-}
-
-const FUNCTION_CONFIGS: ScalarFunctionConfig[] = [
+  slew: {
+    dropTrailingInputs: 1,
+    params: [
+      {
+        id: "max_rate",
+        label: "max_rate",
+        optional: false,
+        valueType: "scalar",
+      },
+    ],
+    minArgs: 2,
+    maxArgs: 2,
+  },
+};
+const FUNCTION_CONFIGS = [
   {
     typeId: "sin",
     names: ["sin"],
@@ -460,37 +401,16 @@ const FUNCTION_CONFIGS: ScalarFunctionConfig[] = [
     description: "Weighted sum across vectors with optional masks.",
   },
 ];
-
-export const SCALAR_FUNCTIONS = new Map<string, ScalarFunctionDefinition>();
-export const SCALAR_FUNCTION_VOCABULARY: ScalarFunctionVocabularyEntry[] = [];
-
-type SignatureInput = {
-  id: string;
-  optional?: boolean | number | null;
-};
-type SignatureOutput = {
-  id: string;
-  ty?: string | null;
-};
-type SignatureParam = {
-  id: string;
-  label?: string | null;
-  doc?: string | null;
-  default_json?: unknown;
-  ty?: string | null;
-  min?: number | null;
-  max?: number | null;
-};
-
+export const SCALAR_FUNCTIONS = new Map();
+export const SCALAR_FUNCTION_VOCABULARY = [];
 for (const config of FUNCTION_CONFIGS) {
   const signature = requireNodeSignature(config.typeId);
-  const signatureInputs = signature.inputs as SignatureInput[];
-  let inputs: OrderedInputSpec[] = signatureInputs.map((input) => ({
+  const signatureInputs = signature.inputs;
+  let inputs = signatureInputs.map((input) => ({
     id: input.id,
     optional: Boolean(input.optional),
-    valueType: inferExpressionValueType((input as { ty?: string | null }).ty),
+    valueType: inferExpressionValueType(input.ty),
   }));
-
   let variadic = signature.variadic_inputs
     ? {
         id: signature.variadic_inputs.id,
@@ -502,21 +422,17 @@ for (const config of FUNCTION_CONFIGS) {
         valueType: inferExpressionValueType(signature.variadic_inputs.ty),
       }
     : null;
-
   const baseRequiredInputs = inputs.filter((input) => !input.optional).length;
   const variadicMin = variadic?.min ?? 0;
   const derivedMin = baseRequiredInputs + variadicMin;
-
-  let derivedMax: number | null;
+  let derivedMax;
   if (variadic) {
     derivedMax =
       variadic.max === null ? null : inputs.length + (variadic.max ?? 0);
   } else {
     derivedMax = inputs.length;
   }
-
   let params = buildParamArgumentSpecs(signature);
-
   const override = FUNCTION_OVERRIDES[config.typeId];
   if (override) {
     if (override.replaceInputs) {
@@ -533,7 +449,6 @@ for (const config of FUNCTION_CONFIGS) {
     }
   }
   const requiredParamCount = params.filter((param) => !param.optional).length;
-
   const minArgs =
     override?.minArgs !== undefined
       ? override.minArgs
@@ -548,8 +463,7 @@ for (const config of FUNCTION_CONFIGS) {
         : derivedMax === null
           ? null
           : derivedMax + params.length;
-
-  const definition: ScalarFunctionDefinition = {
+  const definition = {
     nodeType: config.typeId,
     inputs,
     variadic,
@@ -557,33 +471,29 @@ for (const config of FUNCTION_CONFIGS) {
     minArgs,
     maxArgs,
     resultValueType: inferExpressionValueType(
-      (signature.outputs as SignatureOutput[])?.[0]?.ty ?? null,
+      signature.outputs?.[0]?.ty ?? null,
     ),
   };
-
   if (config.typeId === "if" || config.typeId === "case") {
-    const adjustedInputs: OrderedInputSpec[] = definition.inputs.map(
-      (input, index) => {
-        if (config.typeId === "if" && index === 0) {
-          return input;
-        }
-        return {
-          ...input,
-          valueType: "any" as ExpressionValueType,
-        };
-      },
-    );
+    const adjustedInputs = definition.inputs.map((input, index) => {
+      if (config.typeId === "if" && index === 0) {
+        return input;
+      }
+      return {
+        ...input,
+        valueType: "any",
+      };
+    });
     definition.inputs = adjustedInputs;
     if (definition.variadic) {
       definition.variadic = {
         ...definition.variadic,
-        valueType: "any" as ExpressionValueType,
+        valueType: "any",
       };
     }
     definition.resultValueType = "any";
   }
-
-  const names = new Set<string>(
+  const names = new Set(
     [config.typeId, ...config.names].map((name) => name.toLowerCase()),
   );
   names.forEach((name) => {
@@ -599,14 +509,11 @@ for (const config of FUNCTION_CONFIGS) {
     description: config.description,
   });
 }
-
-function buildParamArgumentSpecs(
-  signature: NodeSignature | null,
-): ParamArgumentSpec[] {
+function buildParamArgumentSpecs(signature) {
   if (!signature || !Array.isArray(signature.params)) {
     return [];
   }
-  const params = signature.params as SignatureParam[];
+  const params = signature.params;
   return params.map((param) => ({
     id: param.id,
     label: param.label ?? param.id,
@@ -617,8 +524,7 @@ function buildParamArgumentSpecs(
     max: typeof param.max === "number" ? param.max : undefined,
   }));
 }
-
-function inferExpressionValueType(ty?: string | null): ExpressionValueType {
+function inferExpressionValueType(ty) {
   if (!ty) {
     return "scalar";
   }

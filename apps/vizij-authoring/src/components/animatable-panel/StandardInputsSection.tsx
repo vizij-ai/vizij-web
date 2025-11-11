@@ -37,12 +37,18 @@ import {
   createDefaultParentBinding,
 } from "@vizij/node-graph-authoring";
 import type { BindingField } from "./types";
+import { getSlotIdentifier } from "./slotKeys";
 import { BindingEditor } from "./BindingEditor";
+import { BindingChainPanel, type BindingChainSlot } from "./BindingChainPanel";
 import { FilterableSelect } from "../common/FilterableSelect";
 import { confirmDialog, alertDialog } from "../../utils/dialogs";
 import { downloadBlob } from "../../utils/download";
 import { extractStandardInputSubgroups } from "../../utils/standardInputs";
 import { buildRigPathPrefix, formatRigPathLabel } from "../../utils/rigPaths";
+import {
+  useSlotDiagnosticsResolver,
+  type SlotDiagnosticsNode,
+} from "./SlotDiagnosticsContext";
 
 interface InputUsage {
   targetId: string;
@@ -300,6 +306,8 @@ export function StandardInputsSection({
       registry: graphReport.irGraph?.metadata?.registryVersion ?? "—",
     };
   }, [graphReport]);
+
+  const resolveSlotDiagnostics = useSlotDiagnosticsResolver();
 
   const availableRoots = useMemo(() => {
     const merged = new Set<string>(roots);
@@ -933,28 +941,17 @@ export function StandardInputsSection({
       });
     };
 
-    const ensureParentBindingAndSlot = (
-      nextBinding: AnimatableBinding | null,
-    ) => {
+    const ensureParentBinding = () => {
       if (disabled) {
         return;
       }
       onEnsureParentBinding(input.id);
-      const hasAdditionalSlot =
-        nextBinding &&
-        nextBinding.slots.some(
-          (slot, index) =>
-            index > 0 || (slot.inputId && slot.inputId !== SELF_BINDING_ID),
-        );
-      if (!hasAdditionalSlot) {
-        onParentAddBindingSlot(input.id);
-      }
     };
 
     const toggleParentExpanded = () => {
       const willExpand = !isParentExpanded;
       if (willExpand && !disabled) {
-        ensureParentBindingAndSlot(parentBinding);
+        ensureParentBinding();
       }
       setExpandedParents((previous) => {
         const next = new Set(previous);
@@ -1093,6 +1090,36 @@ export function StandardInputsSection({
 
     const childToggleLabel = showChildDetails ? "Hide mapping" : "Show mapping";
 
+    const driverChainSlots: BindingChainSlot[] =
+      parentSlots.length > 0 && resolveSlotDiagnostics
+        ? parentSlots.map((slot, index) => {
+            const slotKey = getSlotIdentifier(slot, index);
+            const diagnostics = resolveSlotDiagnostics!(input.id, slotKey);
+            const downstreamExtras: SlotDiagnosticsNode[] = [];
+            childMappings.forEach((mapping) => {
+              if (mapping.slotId && mapping.slotId === (slot.id ?? slotKey)) {
+                downstreamExtras.push({
+                  id: `${mapping.key}-chain`,
+                  label: mapping.label,
+                  type: mapping.kind === "feature" ? "feature" : "input",
+                });
+              }
+            });
+            return {
+              id: slotKey,
+              aliasLabel: slot.alias ?? `s${index + 1}`,
+              sourceLabel: resolveSlotSourceLabel(slot),
+              targetLabel: hierarchyLabel,
+              upstreamNodes: diagnostics?.upstreamNodes ?? [],
+              downstreamNodes: [
+                ...(diagnostics?.downstreamNodes ?? []),
+                ...downstreamExtras,
+              ],
+              expressionNode: diagnostics?.expressionNode,
+            };
+          })
+        : [];
+
     const handleToggleChildMappings = () => {
       const currentlyExpanded = expandedChildSections.has(input.id);
       if (currentlyExpanded) {
@@ -1130,7 +1157,8 @@ export function StandardInputsSection({
       if (disabled) {
         return;
       }
-      ensureParentBindingAndSlot(parentBinding);
+      ensureParentBinding();
+      onParentAddBindingSlot(input.id);
       setExpandedParents((previous) => {
         const next = new Set(previous);
         next.add(input.id);
@@ -1495,6 +1523,15 @@ export function StandardInputsSection({
                     </div>
                   )}
                 </div>
+                {isParentExpanded && driverChainSlots.length > 0 && (
+                  <BindingChainPanel
+                    slots={driverChainSlots}
+                    title="Signal path"
+                    upstreamLabel="Upstream"
+                    downstreamLabel="Downstream"
+                    variant="dense"
+                  />
+                )}
                 {isParentExpanded && bindingForEditor && (
                   <div className="feature-panel__mapping-editor">
                     <BindingEditor

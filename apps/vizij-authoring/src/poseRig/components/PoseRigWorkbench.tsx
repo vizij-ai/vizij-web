@@ -3,6 +3,7 @@ import type { StandardRigInput } from "@vizij/utils";
 import { NeutralEditor } from "./NeutralEditor";
 import { PoseEditor } from "./PoseEditor";
 import { PoseList } from "./PoseList";
+import { PoseGroupExportPanel } from "./PoseGroupExportPanel";
 import type { UsePoseRigAuthoringResult } from "../usePoseRigAuthoring";
 import { buildPoseWeightPathMap } from "../utils";
 import { formatRigPathLabel } from "../../utils/rigPaths";
@@ -131,6 +132,12 @@ export function PoseRigWorkbench({ state, faceId }: PoseRigWorkbenchProps) {
           onDuplicatePose={state.duplicatePose}
           onDeletePose={state.deletePose}
           posePathLabels={posePathLabels}
+        />
+        <PoseGroupExportPanel
+          poses={state.poses}
+          faceId={faceId}
+          neutralInputs={state.neutralInputs}
+          standardInputs={state.standardInputs}
         />
         {state.isNeutralSelected ? (
           <NeutralEditor

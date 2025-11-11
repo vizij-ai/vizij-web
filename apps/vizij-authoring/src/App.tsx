@@ -521,7 +521,11 @@ export default function App() {
         inputBindings,
       });
       const rigIrGraph = rigGraphResult.ir?.graph
-        ? cloneSerializable(rigGraphResult.ir.graph)
+        ? (cloneSerializable(rigGraphResult.ir.graph) as Record<
+            string,
+            unknown
+          > &
+            IrGraph)
         : undefined;
       const rigSpec = cloneSerializable(rigGraphResult.spec);
 

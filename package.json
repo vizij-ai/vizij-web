@@ -45,7 +45,12 @@
   },
   "pnpm": {
     "overrides": {
-      "@vizij/node-graph-wasm": "link:../vizij-rs/npm/@vizij/node-graph-wasm"
+      "@vizij/animation-wasm": "link:../vizij-rs/npm/@vizij/animation-wasm",
+      "@vizij/node-graph-wasm": "link:../vizij-rs/npm/@vizij/node-graph-wasm",
+      "@vizij/orchestrator-wasm": "link:../vizij-rs/npm/@vizij/orchestrator-wasm",
+      "@vizij/value-json": "link:../vizij-rs/npm/@vizij/value-json",
+      "@vizij/wasm-loader": "link:../vizij-rs/npm/@vizij/wasm-loader",
+      "@vizij/test-fixtures": "link:../vizij-rs/npm/@vizij/test-fixtures"
     }
   },
   "devDependencies": {

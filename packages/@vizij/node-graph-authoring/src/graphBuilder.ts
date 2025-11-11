@@ -256,6 +256,7 @@ function evaluateBinding({
     if (missing.length === 0) {
       expressionAst = parseResult.node;
     } else {
+      validateLiteralParamArguments(parseResult.node, expressionIssues);
       missing.forEach((missingVar) => {
         if (
           missingVar.reason === "unresolved" &&
@@ -735,12 +736,17 @@ function createNamedOperationNode(
   inputNames: string[],
   operandIds: string[],
   resultType: ExpressionValueType = "scalar",
+  params?: Record<string, unknown>,
 ): string {
   const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
-  context.nodes.push({
+  const node: IrNode = {
     id: nodeId,
     type: operator,
-  });
+  };
+  if (params && Object.keys(params).length > 0) {
+    node.params = params;
+  }
+  context.nodes.push(node);
   setNodeValueType(context, nodeId, resultType);
   inputNames.forEach((inputName, index) => {
     const operandId = operandIds[index]!;
@@ -790,9 +796,11 @@ function emitScalarFunctionNode(
   definition: ScalarFunctionDefinition,
   operands: string[],
   argNodes: ControlExpressionNode[],
+  totalArgCount: number,
   context: ExpressionBuildContext,
   variables: ExpressionVariableTable,
   issues: string[],
+  paramArgOverride?: ControlExpressionNode[],
 ): string {
   if (definition.nodeType === "case") {
     return emitCaseFunctionNode(
@@ -821,8 +829,22 @@ function emitScalarFunctionNode(
     );
   });
 
+  const availableAfterInputs = Math.max(
+    0,
+    totalArgCount - definition.inputs.length,
+  );
+  const paramArgCount =
+    definition.params.length > 0
+      ? Math.min(definition.params.length, availableAfterInputs)
+      : 0;
+  const variadicArgCount = definition.variadic
+    ? Math.max(0, availableAfterInputs - paramArgCount)
+    : 0;
   const variadicOperands = definition.variadic
-    ? operands.slice(definition.inputs.length)
+    ? operands.slice(
+        definition.inputs.length,
+        definition.inputs.length + variadicArgCount,
+      )
     : [];
   if (definition.variadic) {
     variadicOperands.forEach((operandId, _variadicIndex) => {
@@ -837,12 +859,38 @@ function emitScalarFunctionNode(
     });
   }
 
+  const paramArgStart = definition.inputs.length + variadicArgCount;
+  const paramArgNodes =
+    paramArgCount > 0
+      ? (paramArgOverride ??
+        argNodes.slice(paramArgStart, paramArgStart + paramArgCount))
+      : [];
+
+  const isSlewDebugEnabled =
+    typeof process !== "undefined" &&
+    process?.env &&
+    process.env.DEBUG_SLEW === "1";
+  if (isSlewDebugEnabled && definition.nodeType === "slew") {
+    console.log("slew-debug", {
+      totalArgs: totalArgCount,
+      inputs: definition.inputs.length,
+      paramCount: definition.params.length,
+      paramArgCount,
+      paramArgNodesTypes: paramArgNodes.map((node) => node?.type ?? null),
+    });
+  }
+  const nodeParams = buildParamAssignments(definition, paramArgNodes, issues);
+
   if (definition.variadic && definition.inputs.length === 0) {
     const nodeId = `expr_${context.componentSafeId}_${context.counter++}`;
-    context.nodes.push({
+    const node: IrNode = {
       id: nodeId,
       type: definition.nodeType,
-    });
+    };
+    if (nodeParams) {
+      node.params = nodeParams;
+    }
+    context.nodes.push(node);
     variadicOperands.forEach((operandId, index) => {
       context.edges.push({
         from: { nodeId: operandId },
@@ -873,6 +921,7 @@ function emitScalarFunctionNode(
     providedNames,
     providedOperands,
     definition.resultValueType,
+    nodeParams ?? undefined,
   );
 
   if (definition.variadic) {
@@ -977,6 +1026,101 @@ function emitCaseFunctionNode(
   return nodeId;
 }
 
+type ScalarFunctionParamSpec = ScalarFunctionDefinition["params"][number];
+
+function buildParamAssignments(
+  definition: ScalarFunctionDefinition,
+  paramArgNodes: ControlExpressionNode[],
+  issues: string[],
+): Record<string, unknown> | null {
+  if (!definition.params.length || paramArgNodes.length === 0) {
+    return null;
+  }
+  const assignments: Record<string, unknown> = {};
+  paramArgNodes.forEach((node, index) => {
+    const spec = definition.params[index];
+    if (!spec) {
+      return;
+    }
+    const literal = extractParamLiteral(
+      node,
+      spec,
+      definition.nodeType,
+      issues,
+    );
+    if (literal !== null) {
+      assignments[spec.id] = literal;
+    }
+  });
+  return Object.keys(assignments).length > 0 ? assignments : null;
+}
+
+function extractParamLiteral(
+  node: ControlExpressionNode,
+  spec: ScalarFunctionParamSpec,
+  functionName: string,
+  issues: string[],
+): number | number[] | boolean | null {
+  if (spec.valueType === "vector") {
+    if (node.type !== "VectorLiteral") {
+      issues.push(
+        `Function "${functionName}" requires a literal vector for "${spec.id}".`,
+      );
+      return null;
+    }
+    if (!Array.isArray(node.values) || node.values.length === 0) {
+      issues.push(
+        `Function "${functionName}" requires at least one value for "${spec.id}".`,
+      );
+      return null;
+    }
+    return node.values.map((value) => clampScalarParamValue(value, spec));
+  }
+  if (node.type !== "Literal") {
+    issues.push(
+      `Function "${functionName}" requires a literal ${describeParamExpectation(spec.valueType)} for "${spec.id}".`,
+    );
+    return null;
+  }
+  const numeric = Number(node.value);
+  if (!Number.isFinite(numeric)) {
+    issues.push(
+      `Function "${functionName}" requires a finite ${describeParamExpectation(spec.valueType)} for "${spec.id}".`,
+    );
+    return null;
+  }
+  const clamped = clampScalarParamValue(numeric, spec);
+  if (spec.valueType === "boolean") {
+    return clamped !== 0;
+  }
+  return clamped;
+}
+
+function clampScalarParamValue(
+  value: number,
+  spec: ScalarFunctionParamSpec,
+): number {
+  let next = Number.isFinite(value) ? value : 0;
+  if (typeof spec.min === "number" && next < spec.min) {
+    next = spec.min;
+  }
+  if (typeof spec.max === "number" && next > spec.max) {
+    next = spec.max;
+  }
+  return next;
+}
+
+function describeParamExpectation(valueType: ExpressionValueType): string {
+  switch (valueType) {
+    case "vector":
+      return "vector";
+    case "boolean":
+      return "boolean";
+    default:
+      return "scalar";
+  }
+}
+
 function extractCaseLabel(
   node: ControlExpressionNode | undefined,
   variables: ExpressionVariableTable,
@@ -1005,6 +1149,48 @@ function collectOperands(
     return;
   }
   target.push(node);
+}
+
+function validateLiteralParamArguments(
+  node: ControlExpressionNode,
+  issues: string[],
+): void {
+  if (node.type === "Function") {
+    const definition = SCALAR_FUNCTIONS.get(node.name.toLowerCase());
+    if (definition && definition.params.length > 0) {
+      const totalArgCount = node.args.length;
+      const availableAfterInputs = Math.max(
+        0,
+        totalArgCount - definition.inputs.length,
+      );
+      const paramArgCount = Math.min(
+        definition.params.length,
+        availableAfterInputs,
+      );
+      const variadicArgCount = definition.variadic
+        ? Math.max(0, availableAfterInputs - paramArgCount)
+        : 0;
+      const paramArgStart = definition.inputs.length + variadicArgCount;
+      for (let index = 0; index < paramArgCount; index++) {
+        const spec = definition.params[index];
+        const paramNode = node.args[paramArgStart + index];
+        if (!spec || !paramNode) {
+          continue;
+        }
+        extractParamLiteral(paramNode, spec, node.name, issues);
+      }
+    }
+    node.args.forEach((child) => validateLiteralParamArguments(child, issues));
+    return;
+  }
+  if (node.type === "Unary") {
+    validateLiteralParamArguments(node.operand, issues);
+    return;
+  }
+  if (node.type === "Binary") {
+    validateLiteralParamArguments(node.left, issues);
+    validateLiteralParamArguments(node.right, issues);
+  }
 }
 
 const BINARY_FUNCTION_OPERATOR_MAP: Record<string, string> = {
@@ -1074,6 +1260,7 @@ function materializeExpression(
             definition,
             [operandId],
             [node.operand],
+            1,
             context,
             variables,
             issues,
@@ -1134,6 +1321,7 @@ function materializeExpression(
           definition,
           [leftId, rightId],
           [node.left, node.right],
+          2,
           context,
           variables,
           issues,
@@ -1152,7 +1340,49 @@ function materializeExpression(
         return getConstantNodeId(context, 0);
       }
 
-      const operands = node.args.map((arg, index) =>
+      const argNodes = node.args;
+      const argCount = argNodes.length;
+
+      if (argCount < definition.minArgs) {
+        issues.push(
+          `Function "${name}" expects at least ${definition.minArgs} arguments, received ${argCount}.`,
+        );
+        return getConstantNodeId(context, 0);
+      }
+
+      if (definition.maxArgs !== null && argCount > definition.maxArgs) {
+        issues.push(
+          `Function "${name}" expects at most ${definition.maxArgs} arguments, received ${argCount}.`,
+        );
+        return getConstantNodeId(context, 0);
+      }
+
+      if (name === "slew") {
+        const maxRateArg = argNodes[1];
+        if (!maxRateArg || maxRateArg.type !== "Literal") {
+          issues.push(
+            'Function "slew" requires a literal scalar for "max_rate".',
+          );
+        }
+      }
+
+      const availableAfterInputs = Math.max(
+        0,
+        argCount - definition.inputs.length,
+      );
+      const paramArgCount =
+        definition.params.length > 0
+          ? Math.min(definition.params.length, availableAfterInputs)
+          : 0;
+      const variadicArgCount = definition.variadic
+        ? Math.max(0, availableAfterInputs - paramArgCount)
+        : 0;
+      const operandLimit = Math.min(
+        argCount,
+        definition.inputs.length + variadicArgCount,
+      );
+      const operandNodes = argNodes.slice(0, operandLimit);
+      const operands = operandNodes.map((arg, index) =>
         materializeExpression(
           arg,
           context,
@@ -1164,27 +1394,23 @@ function materializeExpression(
         ),
       );
 
-      if (operands.length < definition.minArgs) {
-        issues.push(
-          `Function "${name}" expects at least ${definition.minArgs} arguments, received ${operands.length}.`,
-        );
-        return getConstantNodeId(context, 0);
-      }
-
-      if (definition.maxArgs !== null && operands.length > definition.maxArgs) {
-        issues.push(
-          `Function "${name}" expects at most ${definition.maxArgs} arguments, received ${operands.length}.`,
-        );
-        return getConstantNodeId(context, 0);
-      }
+      const paramArgStart = operandLimit;
+      const paramArgNodes =
+        paramArgCount > 0
+          ? argNodes.slice(paramArgStart, paramArgStart + paramArgCount)
+          : [];
+      const paramOverride =
+        definition.nodeType === "case" ? undefined : paramArgNodes;
 
       return emitScalarFunctionNode(
         definition,
         operands,
-        node.args,
+        argNodes,
+        argCount,
         context,
         variables,
         issues,
+        paramOverride,
       );
     }
     default: {

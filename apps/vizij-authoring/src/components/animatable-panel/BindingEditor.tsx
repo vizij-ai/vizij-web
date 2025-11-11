@@ -13,15 +13,19 @@ import type {
 import {
   EXPRESSION_FUNCTION_VOCABULARY,
   RESERVED_EXPRESSION_VARIABLES,
+  SCALAR_FUNCTIONS,
   parseControlExpression,
 } from "@vizij/node-graph-authoring";
-import type { ControlExpressionNode } from "@vizij/node-graph-authoring";
+import type {
+  ControlExpressionNode,
+  ScalarFunctionDefinition,
+} from "@vizij/node-graph-authoring";
 import {
   FilterableSelect,
   type FilterableSelectOption,
 } from "../common/FilterableSelect";
 import type { BindingField } from "./types";
-import { createSlotKey } from "./slotKeys";
+import { createSlotKey, getSlotIdentifier } from "./slotKeys";
 import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
 import { formatRigPathLabel } from "../../utils/rigPaths";
 
@@ -62,7 +66,7 @@ type FunctionParameterDetail = {
   doc?: string;
   optional: boolean;
   typeLabel: string;
-  kind: "ordered" | "variadic";
+  kind: "ordered" | "variadic" | "param";
   repeatRange?: {
     min: number;
     max: number | null;
@@ -112,8 +116,22 @@ function formatPortTypeLabel(type?: string | null): string {
   }
 }
 
+function formatExpressionValueTypeLabel(valueType: string): string {
+  switch (valueType) {
+    case "vector":
+      return "Vector";
+    case "boolean":
+      return "Boolean";
+    case "any":
+      return "Any";
+    default:
+      return "Scalar";
+  }
+}
+
 function buildParameterDetails(
   signature: NodeSignature | null,
+  definition?: ScalarFunctionDefinition | null,
 ): FunctionParameterDetail[] {
   if (!signature) {
     return [];
@@ -148,7 +166,18 @@ function buildParameterDetails(
         },
       ]
     : [];
-  return [...ordered, ...variadic];
+  const params: FunctionParameterDetail[] =
+    definition?.params?.map(
+      (param: ScalarFunctionDefinition["params"][number]) => ({
+        id: param.id,
+        label: param.label,
+        doc: param.doc,
+        optional: param.optional,
+        typeLabel: formatExpressionValueTypeLabel(param.valueType),
+        kind: "param" as const,
+      }),
+    ) ?? [];
+  return [...ordered, ...variadic, ...params];
 }
 
 function deriveArgumentRange(signature: NodeSignature | null): {
@@ -219,12 +248,22 @@ function buildFunctionDetail(
       error,
     );
   }
+  const definition =
+    SCALAR_FUNCTIONS.get(entry.nodeType) ??
+    SCALAR_FUNCTIONS.get(entry.name.toLowerCase()) ??
+    null;
+  const argumentRange = definition
+    ? {
+        min: definition.minArgs,
+        max: definition.maxArgs ?? null,
+      }
+    : deriveArgumentRange(signature);
   return {
     ...entry,
     signature,
     signatureDoc: signature?.doc,
-    parameters: buildParameterDetails(signature),
-    argumentRange: deriveArgumentRange(signature),
+    parameters: buildParameterDetails(signature, definition),
+    argumentRange,
     returnTypeLabel: formatPortTypeLabel(signature?.outputs?.[0]?.ty),
   };
 }
@@ -435,6 +474,29 @@ export function BindingEditor({
   }, [expandable, isExpanded, isControlled, onExpandedChange]);
 
   const expressionValue = binding.expression ?? slots[0]?.alias ?? "";
+  const [expressionDraft, setExpressionDraft] = useState(expressionValue);
+  const [expressionDirty, setExpressionDirty] = useState(false);
+  const [expressionFocused, setExpressionFocused] = useState(false);
+
+  useEffect(() => {
+    if (!expressionFocused) {
+      setExpressionDraft(expressionValue);
+      setExpressionDirty(false);
+    }
+  }, [expressionFocused, expressionValue]);
+
+  const commitExpressionDraft = useCallback(() => {
+    if (!expressionDirty) {
+      return;
+    }
+    onBindingExpressionChange(targetId, expressionDraft);
+    setExpressionDirty(false);
+  }, [expressionDirty, expressionDraft, onBindingExpressionChange, targetId]);
+
+  const handleExpressionDraftChange = useCallback((nextValue: string) => {
+    setExpressionDraft(nextValue);
+    setExpressionDirty(true);
+  }, []);
 
   const aliasHints = useMemo(() => {
     return slots
@@ -714,6 +776,8 @@ export function BindingEditor({
       caseDefault && caseDefault.length > 0 ? caseDefault : "self";
     const tokens = [selectorToken, defaultToken, ...filteredBranches];
     const expressionText = `case(${tokens.join(", ")})`;
+    setExpressionDraft(expressionText);
+    setExpressionDirty(false);
     onBindingExpressionChange(targetId, expressionText);
   }, [
     caseBranches,
@@ -721,6 +785,8 @@ export function BindingEditor({
     caseSelector,
     conditionalAuthoringEnabled,
     onBindingExpressionChange,
+    setExpressionDraft,
+    setExpressionDirty,
     slotAliasOptions,
     slotAliasOrder,
     targetId,
@@ -733,22 +799,24 @@ export function BindingEditor({
         return;
       }
       const input = expressionInputRef.current;
+      const currentValue = expressionDraft;
+      const needsSpace = (value: string) =>
+        value.length > 0 && !/\s$/.test(value);
       if (!input) {
         const nextValue =
-          expressionValue.trim().length > 0
-            ? `${expressionValue} ${trimmedToken}`
+          currentValue.trim().length > 0
+            ? `${currentValue}${needsSpace(currentValue) ? " " : ""}${trimmedToken}`
             : trimmedToken;
-        onBindingExpressionChange(targetId, nextValue);
+        handleExpressionDraftChange(nextValue);
         return;
       }
-      const start = input.selectionStart ?? expressionValue.length;
+      const start = input.selectionStart ?? currentValue.length;
       const end = input.selectionEnd ?? start;
-      const prefix = expressionValue.slice(0, start);
-      const suffix = expressionValue.slice(end);
-      const needsLeadingSpace = prefix.length > 0 && !/\s$/.test(prefix);
-      const insertion = `${needsLeadingSpace ? " " : ""}${trimmedToken}`;
+      const prefix = currentValue.slice(0, start);
+      const suffix = currentValue.slice(end);
+      const insertion = `${needsSpace(prefix) ? " " : ""}${trimmedToken}`;
       const nextValue = `${prefix}${insertion}${suffix}`;
-      onBindingExpressionChange(targetId, nextValue);
+      handleExpressionDraftChange(nextValue);
       requestAnimationFrame(() => {
         if (expressionInputRef.current) {
           const cursor = start + insertion.length;
@@ -757,7 +825,7 @@ export function BindingEditor({
         }
       });
     },
-    [expressionValue, onBindingExpressionChange, targetId],
+    [expressionDraft, handleExpressionDraftChange],
   );
 
   const issueList = useMemo(
@@ -775,25 +843,6 @@ export function BindingEditor({
       null
     );
   }, [resolveSlotDiagnostics, slots, targetId]);
-
-  const slotSummaries = useMemo(
-    () =>
-      slots.map((slot) => {
-        const inputMeta =
-          slot.inputId && slot.inputId !== SELF_BINDING_ID
-            ? standardInputLookup.get(slot.inputId)
-            : null;
-        return {
-          id: slot.id,
-          alias: slot.alias,
-          valueType: slot.valueType ?? "scalar",
-          inputLabel: slot.inputId
-            ? (inputMeta?.path ?? slot.inputId)
-            : "Unbound",
-        };
-      }),
-    [slots, standardInputLookup],
-  );
 
   const header = (
     <div className="feature-tree__property-main feature-panel__binding-header">
@@ -1103,10 +1152,15 @@ export function BindingEditor({
           <textarea
             id={`binding-expression-${targetId}`}
             ref={expressionInputRef}
-            value={expressionValue}
+            value={expressionDraft}
             onChange={(event) =>
-              onBindingExpressionChange(targetId, event.target.value)
+              handleExpressionDraftChange(event.target.value)
             }
+            onFocus={() => setExpressionFocused(true)}
+            onBlur={() => {
+              setExpressionFocused(false);
+              commitExpressionDraft();
+            }}
             aria-invalid={issueList.length > 0}
             spellCheck={false}
           />
@@ -1280,6 +1334,11 @@ export function BindingEditor({
                                           Variadic
                                         </span>
                                       )}
+                                      {param.kind === "param" && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Config
+                                        </span>
+                                      )}
                                       {param.optional && (
                                         <span className="feature-tree__pill feature-tree__function-pill--subtle">
                                           Optional
@@ -1412,43 +1471,10 @@ export function BindingEditor({
             </div>
           )}
         </div>
-        {vectorAuthoringEnabled && slotSummaries.length > 0 && (
-          <div className="feature-tree__binding-summary">
-            <h4 className="feature-tree__section-title">Slot summary</h4>
-            <ul>
-              {slotSummaries.map((summary) => (
-                <li key={summary.id}>
-                  <span>{summary.alias}</span>
-                  <span className="feature-tree__binding-summary-spacer">
-                    •
-                  </span>
-                  <span>{summary.valueType}</span>
-                  <span className="feature-tree__binding-summary-spacer">
-                    •
-                  </span>
-                  <span>{summary.inputLabel}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
         {children}
       </div>
     </div>
   );
-}
-
-function getSlotIdentifier(
-  slot: AnimatableBinding["slots"][number],
-  index: number,
-): string {
-  if (slot.id && slot.id.trim().length > 0) {
-    return slot.id.trim();
-  }
-  if (slot.alias && slot.alias.trim().length > 0) {
-    return slot.alias.trim();
-  }
-  return `s${index + 1}`;
 }
 
 function formatOperandMetadata(operand?: RigBindingOperandMetadata): string {

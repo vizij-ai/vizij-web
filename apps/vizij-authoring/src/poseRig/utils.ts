@@ -133,9 +133,19 @@ export function duplicatePoseDefinition(pose: PoseDefinition): PoseDefinition {
   };
 }
 
-function sanitizePosePathSegment(value: string, fallback: string): string {
+export function slugifyLabel(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  return sanitizePosePathSegment(value, fallback);
+}
+
+function sanitizePosePathSegment(
+  value: string | null | undefined,
+  fallback: string,
+): string {
   const fromLabel = value
-    .trim()
+    ?.trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
@@ -172,14 +182,20 @@ export interface PoseWeightPathInfo {
 export function buildPoseWeightPathMap(
   poses: PoseDefinition[],
   faceId: string | null,
+  options?: { baseSegment?: string | null },
 ): Map<string, PoseWeightPathInfo> {
   const trim = faceId?.trim();
   const faceSegment = trim && trim.length > 0 ? trim : "face";
+  const baseSegment =
+    options?.baseSegment && options.baseSegment.trim().length > 0
+      ? sanitizePosePathSegment(options.baseSegment, "poses")
+      : "poses";
+  const baseRelativePath = `/${baseSegment}`;
   const usage = new Map<string, number>();
   const map = new Map<string, PoseWeightPathInfo>();
   poses.forEach((pose) => {
     const segment = nextPosePathSegment(pose, usage);
-    const relativePath = `/poses/${segment}.weight`;
+    const relativePath = `${baseRelativePath}/${segment}.weight`;
     const absolutePath = buildRigInputPath(faceSegment, relativePath);
     map.set(pose.id, { segment, relativePath, absolutePath });
   });

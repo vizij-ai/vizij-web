@@ -64,15 +64,19 @@ export function buildPoseGraphSpec(options: {
   neutralInputs: Record<StandardInputId, number>;
   poses: PoseDefinition[];
   standardInputs: StandardRigInput[];
+  poseGroupSegment?: string | null;
 }): { spec: GraphSpec; summary: PoseRigGraphSummary } {
-  const { faceId, neutralInputs, poses, standardInputs } = options;
+  const { faceId, neutralInputs, poses, standardInputs, poseGroupSegment } =
+    options;
   const nodes: NodeSpec[] = [];
   const edges: EdgeSpec[] = [];
   const trimmedFaceId = faceId?.trim();
   const faceSegment =
     trimmedFaceId && trimmedFaceId.length > 0 ? trimmedFaceId : "face";
 
-  const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId);
+  const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId, {
+    baseSegment: poseGroupSegment ?? undefined,
+  });
   const poseConstants = new Map<string, string>();
   const poseInputs: Array<{ pose: PoseDefinition; nodeId: string }> = [];
 

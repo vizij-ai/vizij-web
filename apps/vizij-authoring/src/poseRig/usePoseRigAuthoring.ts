@@ -7,6 +7,7 @@ import {
   createNeutralInputs,
   ensureNeutralDefaults,
   duplicatePoseDefinition,
+  slugifyLabel,
 } from "./utils";
 import {
   buildPoseRigConfig,
@@ -48,19 +49,6 @@ function updatePoseDefinition(
     ...updates,
     updatedAt: new Date().toISOString(),
   };
-}
-
-function slugify(value: string | null | undefined, fallback: string): string {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return fallback;
-  }
-  return (
-    trimmed
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "") || fallback
-  );
 }
 
 function normalizePoseSnapshot(
@@ -316,8 +304,8 @@ export function usePoseRigAuthoring(
     if (poseGraphNameTouchedRef.current && poseConfigNameTouchedRef.current) {
       return;
     }
-    const faceSlug = slugify(faceId, "face");
-    const rigSlug = slugify(rigName, DEFAULT_RIG_NAME);
+    const faceSlug = slugifyLabel(faceId, "face");
+    const rigSlug = slugifyLabel(rigName, DEFAULT_RIG_NAME);
     const baseName = `${faceSlug}-${rigSlug}`;
     if (!poseGraphNameTouchedRef.current) {
       setPoseGraphFileName(`${baseName}.pose.graph.json`);

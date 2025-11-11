@@ -3,6 +3,7 @@ export * from "./state";
 export * from "./expression";
 export * from "./expressionVariables";
 export * from "./expressionVocabulary";
+export * from "./expressionFunctions";
 export * from "./ir/types";
 export * from "./ir/builder";
 export * from "./ir/compiler";
