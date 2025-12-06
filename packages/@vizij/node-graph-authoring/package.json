@@ -1,0 +1,63 @@
+{
+  "name": "@vizij/node-graph-authoring",
+  "description": "Authoring-time graph builder utilities for Vizij node graphs.",
+  "version": "0.0.5",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./cli/reportIr": {
+      "import": "./dist/cli/reportIr.js",
+      "require": "./dist/cli/reportIr.cjs"
+    }
+  },
+  "bin": {
+    "vizij-ir-report": "./dist/cli/reportIr.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/node-graph-authoring"
+  },
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/cli/reportIr.ts --format esm,cjs --dts src/index.ts",
+    "dev": "tsup src/index.ts src/cli/reportIr.ts --format esm,cjs --watch --dts src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node ./scripts/run-vitest.mjs",
+    "report:ir": "node dist/cli/reportIr.js",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "clean": "rm -rf dist coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
+    "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
+  },
+  "dependencies": {
+    "@vizij/node-graph-wasm": "^0.4.9",
+    "@vizij/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4",
+    "prettier": "^3.4.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

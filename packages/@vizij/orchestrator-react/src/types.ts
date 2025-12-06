@@ -8,7 +8,11 @@ import type {
   AnimationSetup as WasmAnimationSetup,
   ConflictLog,
   GraphRegistrationInput as WasmGraphRegistrationInput,
+  GraphRegistrationConfig as WasmGraphRegistrationConfig,
   GraphSubscriptions as WasmGraphSubscriptions,
+  MergedGraphRegistrationConfig as WasmMergedGraphRegistrationConfig,
+  MergeStrategyOptions as WasmMergeStrategyOptions,
+  MergeConflictStrategy as WasmMergeConflictStrategy,
   InitInput as WasmInitInput,
   OrchestratorFrame as WasmOrchestratorFrame,
   Shape as WasmShape,
@@ -51,7 +55,41 @@ export type CreateOrchOptions = {
 export type ControllerId = string;
 
 export type GraphRegistrationInput = WasmGraphRegistrationInput;
+export type GraphRegistrationConfig = WasmGraphRegistrationConfig;
 export type GraphSubscriptions = WasmGraphSubscriptions;
+
+/**
+ * Extended merge conflict strategies recognised by the wasm bridge.
+ * Older builds only exposed "error" | "namespace" | "blend", so we
+ * widen the union with the newer additive and weighted blend aliases.
+ */
+export type MergeConflictStrategy =
+  | WasmMergeConflictStrategy
+  | "blend_equal"
+  | "blend_equal_weights"
+  | "add"
+  | "sum"
+  | "blend-sum"
+  | "additive"
+  | "default-blend"
+  | "blend-default"
+  | "blend-weights"
+  | "weights";
+
+export type MergeStrategyOptions = Omit<
+  WasmMergeStrategyOptions,
+  "outputs" | "intermediate"
+> & {
+  outputs?: MergeConflictStrategy;
+  intermediate?: MergeConflictStrategy;
+};
+
+export type MergedGraphRegistrationConfig = Omit<
+  WasmMergedGraphRegistrationConfig,
+  "strategy"
+> & {
+  strategy?: MergeStrategyOptions;
+};
 
 export type AnimationRegistrationConfig = WasmAnimationRegistrationConfig;
 export type AnimationSetup = WasmAnimationSetup;
@@ -60,6 +98,7 @@ export type OrchestratorReactCtx = {
   ready: boolean;
   createOrchestrator: (opts?: CreateOrchOptions) => Promise<void>;
   registerGraph: (cfg: GraphRegistrationInput) => ControllerId;
+  registerMergedGraph: (cfg: MergedGraphRegistrationConfig) => ControllerId;
   registerAnimation: (cfg: AnimationRegistrationConfig) => ControllerId;
   prebind?: (resolver: PrebindResolver) => void;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
@@ -73,4 +112,6 @@ export type OrchestratorReactCtx = {
   getPathSnapshot: (path: string) => ValueJSON | undefined;
   subscribeToFrame: (cb: () => void) => () => void;
   getFrameSnapshot: () => OrchestratorFrame | null;
+  normalizeGraphSpec?: (spec: object | string) => Promise<object>;
+  abiVersion?: () => Promise<number>;
 };

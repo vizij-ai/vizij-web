@@ -12,6 +12,7 @@ import type {
   WriteOpJSON,
   PortSnapshot,
   InitInput,
+  Registry,
 } from "@vizij/node-graph-wasm";
 
 /* Playback types */
@@ -127,6 +128,8 @@ export interface GraphRuntimeContextValue {
   getSnapshot: () => StoreSnapshot;
   subscribe: (listener: () => void) => () => void;
   getVersion: () => number;
+  normalizeGraphSpec?: (spec: GraphSpec | string) => Promise<GraphSpec>;
+  getNodeSchemas?: () => Promise<Registry>;
   startPlayback: (mode?: PlaybackMode, hz?: number) => void;
   stopPlayback: () => void;
   getPlaybackMode: () => PlaybackMode;

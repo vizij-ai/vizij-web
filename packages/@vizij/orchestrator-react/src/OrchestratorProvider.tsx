@@ -8,6 +8,7 @@ import React, {
 import {
   init as initOrchestratorWasm,
   createOrchestrator as createOrchestratorWasm,
+  abi_version as orchestratorAbiVersion,
   type Orchestrator as OrchestratorRuntime,
 } from "@vizij/orchestrator-wasm";
 import { OrchestratorContext } from "./context";
@@ -15,6 +16,7 @@ import type {
   ControllerId,
   CreateOrchOptions,
   GraphRegistrationInput,
+  MergedGraphRegistrationConfig,
   AnimationRegistrationConfig,
   InitInput,
   OrchestratorFrame,
@@ -49,6 +51,22 @@ function normalizeInitInput(
   return undefined;
 }
 
+function normalizeTypedPath(path: string): string {
+  if (typeof path !== "string") {
+    throw new Error("Typed paths must be provided as strings.");
+  }
+  const trimmed = path.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Typed paths must not be empty.");
+  }
+  if (/\s/.test(trimmed)) {
+    throw new Error(
+      "Typed paths may not contain whitespace. Use '/' to separate namespace segments.",
+    );
+  }
+  return trimmed;
+}
+
 export type OrchestratorProviderProps = {
   children: React.ReactNode;
   /** Optional init() input forwarded to the wasm layer. */
@@ -75,13 +93,14 @@ export function OrchestratorProvider({
   createOptions,
   autostart = false,
 }: OrchestratorProviderProps): JSX.Element {
-  const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    // React StrictMode double-mounts components in dev; ensure we reset to true on every mount.
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const initPromiseRef = useRef<Promise<void> | null>(null);
   const orchestratorRef = useRef<OrchestratorRuntime | null>(null);
@@ -114,8 +133,18 @@ export function OrchestratorProvider({
       const subscribers = pathSubscribersRef.current;
 
       for (const write of frame.merged_writes) {
-        cache.set(write.path, write.value);
-        const listeners = subscribers.get(write.path);
+        let pathKey = write.path;
+        try {
+          pathKey = normalizeTypedPath(write.path);
+        } catch (err) {
+          console.warn(
+            "@vizij/orchestrator-react: received write with invalid path",
+            write.path,
+            err,
+          );
+        }
+        cache.set(pathKey, write.value);
+        const listeners = subscribers.get(pathKey);
         if (listeners) {
           listeners.forEach((listener) => listener());
         }
@@ -192,6 +221,14 @@ export function OrchestratorProvider({
     [requireOrchestrator],
   );
 
+  const registerMergedGraph = useCallback(
+    (cfg: MergedGraphRegistrationConfig): ControllerId => {
+      const instance = requireOrchestrator();
+      return instance.registerMergedGraph(cfg);
+    },
+    [requireOrchestrator],
+  );
+
   const registerAnimation = useCallback(
     (cfg: AnimationRegistrationConfig): ControllerId => {
       const instance = requireOrchestrator();
@@ -210,13 +247,11 @@ export function OrchestratorProvider({
 
   const setInput = useCallback(
     (path: string, value: ValueJSON, shape?: ShapeJSON) => {
-      if (typeof path !== "string" || path.length === 0) {
-        throw new Error("setInput requires a non-empty string path.");
-      }
+      const normalizedPath = normalizeTypedPath(path);
       const instance = requireOrchestrator();
-      instance.setInput(path, value as ValueJSON, shape);
-      pathCacheRef.current.set(path, value);
-      const listeners = pathSubscribersRef.current.get(path);
+      instance.setInput(normalizedPath, value as ValueJSON, shape);
+      pathCacheRef.current.set(normalizedPath, value);
+      const listeners = pathSubscribersRef.current.get(normalizedPath);
       if (listeners) {
         listeners.forEach((listener) => {
           try {
@@ -235,14 +270,12 @@ export function OrchestratorProvider({
 
   const removeInput = useCallback(
     (path: string): boolean => {
-      if (typeof path !== "string" || path.length === 0) {
-        throw new Error("removeInput requires a non-empty string path.");
-      }
+      const normalizedPath = normalizeTypedPath(path);
       const instance = requireOrchestrator();
-      const removed = instance.removeInput(path);
+      const removed = instance.removeInput(normalizedPath);
       if (removed) {
-        pathCacheRef.current.delete(path);
-        const listeners = pathSubscribersRef.current.get(path);
+        pathCacheRef.current.delete(normalizedPath);
+        const listeners = pathSubscribersRef.current.get(normalizedPath);
         if (listeners) {
           listeners.forEach((listener) => listener());
         }
@@ -286,6 +319,24 @@ export function OrchestratorProvider({
     [requireOrchestrator],
   );
 
+  const normalizeGraphSpec = useCallback(
+    async (spec: object | string): Promise<object> => {
+      const instance = await ensureOrchestrator();
+      if (typeof instance.normalizeGraphSpec !== "function") {
+        throw new Error(
+          "@vizij/orchestrator-wasm does not expose normalizeGraphSpec(). Update to a compatible version.",
+        );
+      }
+      return await instance.normalizeGraphSpec(spec);
+    },
+    [ensureOrchestrator],
+  );
+
+  const abiVersion = useCallback(async (): Promise<number> => {
+    await ensureInit();
+    return orchestratorAbiVersion();
+  }, [ensureInit]);
+
   const getLatestFrame = useCallback(() => latestFrameRef.current, []);
   const getFrameSnapshot = useCallback(() => latestFrameRef.current, []);
 
@@ -297,27 +348,42 @@ export function OrchestratorProvider({
     };
   }, []);
 
-  const getPathSnapshot = useCallback(
-    (path: string) => pathCacheRef.current.get(path),
-    [],
-  );
+  const getPathSnapshot = useCallback((path: string) => {
+    try {
+      const normalizedPath = normalizeTypedPath(path);
+      return pathCacheRef.current.get(normalizedPath);
+    } catch {
+      return undefined;
+    }
+  }, []);
 
   const subscribeToPath = useCallback((path: string, cb: () => void) => {
     if (!path) {
       return noopUnsubscribe;
     }
-    let listeners = pathSubscribersRef.current.get(path);
+    let normalizedPath: string;
+    try {
+      normalizedPath = normalizeTypedPath(path);
+    } catch (err) {
+      console.error(
+        "@vizij/orchestrator-react: subscribeToPath received invalid path",
+        path,
+        err,
+      );
+      return noopUnsubscribe;
+    }
+    let listeners = pathSubscribersRef.current.get(normalizedPath);
     if (!listeners) {
       listeners = new Set();
-      pathSubscribersRef.current.set(path, listeners);
+      pathSubscribersRef.current.set(normalizedPath, listeners);
     }
     listeners.add(cb);
     return () => {
-      const current = pathSubscribersRef.current.get(path);
+      const current = pathSubscribersRef.current.get(normalizedPath);
       if (!current) return;
       current.delete(cb);
       if (current.size === 0) {
-        pathSubscribersRef.current.delete(path);
+        pathSubscribersRef.current.delete(normalizedPath);
       }
     };
   }, []);
@@ -417,6 +483,7 @@ export function OrchestratorProvider({
       ready,
       createOrchestrator: createOrchestratorFn,
       registerGraph,
+      registerMergedGraph,
       registerAnimation,
       prebind,
       setInput,
@@ -430,11 +497,14 @@ export function OrchestratorProvider({
       getPathSnapshot,
       subscribeToFrame,
       getFrameSnapshot,
+      normalizeGraphSpec,
+      abiVersion,
     }),
     [
       ready,
       createOrchestratorFn,
       registerGraph,
+      registerMergedGraph,
       registerAnimation,
       prebind,
       setInput,
@@ -448,6 +518,8 @@ export function OrchestratorProvider({
       getPathSnapshot,
       subscribeToFrame,
       getFrameSnapshot,
+      normalizeGraphSpec,
+      abiVersion,
     ],
   );
 

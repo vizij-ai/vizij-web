@@ -8,6 +8,7 @@ import type {
 import { createGraphStore } from "./utils/createGraphStore";
 import { normalizeSpec } from "./utils/normalizeSpec";
 import * as wasm from "@vizij/node-graph-wasm";
+import type { Registry } from "@vizij/node-graph-wasm";
 import { GraphReadyController } from "./runtime/graphReady";
 
 type Graph = any;
@@ -131,15 +132,30 @@ export function GraphProvider({
   const applyStagedInputs = useCallback(() => {
     const graph = graphRef.current;
     if (!graph) return;
+    const module = wasmModuleRef.current ?? wasm;
     const staged = stagedInputsRef.current;
     const keys = Object.keys(staged);
     if (keys.length === 0) return;
     for (const path of keys) {
       const { value, shape } = staged[path];
       try {
+        const canonicalValue =
+          module && typeof (module as any).toValueJSON === "function"
+            ? (module as any).toValueJSON(value)
+            : value;
+        const canonicalShape =
+          typeof shape === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(shape);
+                } catch {
+                  return shape;
+                }
+              })()
+            : shape;
         // WASM Graph API: stageInput(path, value, shape?)
         // Always pass the shape argument explicitly (may be undefined) to keep call arity stable
-        graph.stageInput(path, value, shape);
+        graph.stageInput(path, canonicalValue, canonicalShape);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("Error staging input on graph:", err);
@@ -164,6 +180,7 @@ export function GraphProvider({
       const mod = wasmModuleRef.current ?? wasm;
       let res: any = null;
 
+      let lastError: unknown = null;
       // Try instance methods
       const candidates = [
         "evalAll",
@@ -179,7 +196,8 @@ export function GraphProvider({
           try {
             res = fn.call(graph);
             if (res != null) break;
-          } catch {
+          } catch (err) {
+            lastError = err;
             // continue trying others
           }
         }
@@ -204,7 +222,8 @@ export function GraphProvider({
             try {
               res = fn(graph);
               if (res != null) break;
-            } catch {
+            } catch (err) {
+              lastError = err;
               // continue
             }
           }
@@ -212,6 +231,13 @@ export function GraphProvider({
       }
 
       if (res == null) {
+        if (lastError) {
+          // eslint-disable-next-line no-console
+          console.error(
+            "[GraphProvider] evalTick: graph evaluation threw",
+            lastError,
+          );
+        }
         // eslint-disable-next-line no-console
         console.warn(
           "[GraphProvider] evalTick: no known eval method produced a result.",
@@ -468,6 +494,18 @@ export function GraphProvider({
       publishEvalResult(null);
       return g;
     },
+    normalizeGraphSpec: async (spec: GraphSpec | string) => {
+      return await normalizeSpec(spec);
+    },
+    getNodeSchemas: async (): Promise<Registry> => {
+      const module = wasmModuleRef.current ?? wasm;
+      if (!module || typeof (module as any).getNodeSchemas !== "function") {
+        throw new Error(
+          "@vizij/node-graph-wasm does not expose getNodeSchemas(). Update to ^0.4.1 or newer.",
+        );
+      }
+      return await (module as any).getNodeSchemas();
+    },
     unloadGraph: () => {
       if (graphRef.current && typeof graphRef.current.free === "function") {
         try {
@@ -486,11 +524,23 @@ export function GraphProvider({
       shape?: any,
       immediateEval?: boolean,
     ) => {
+      if (typeof path !== "string") {
+        throw new Error("stageInput requires a typed path string.");
+      }
+      const normalizedPath = path.trim();
+      if (normalizedPath.length === 0) {
+        throw new Error("stageInput requires a non-empty typed path.");
+      }
+      if (/\s/.test(normalizedPath)) {
+        throw new Error(
+          "stageInput path may not contain whitespace. Use TypedPath segments separated by '/'.",
+        );
+      }
       if (value === undefined) {
-        delete stagedInputsRef.current[path];
+        delete stagedInputsRef.current[normalizedPath];
       } else {
         // Persist staged input; will be applied before next eval
-        stagedInputsRef.current[path] = { value, shape };
+        stagedInputsRef.current[normalizedPath] = { value, shape };
       }
       // If caller requests immediate evaluation, apply staged inputs now and eval.
       if (immediateEval) {
@@ -799,6 +849,8 @@ export function GraphProvider({
     getSnapshot: runtimeBase.getSnapshot!,
     subscribe: runtimeBase.subscribe!,
     getVersion: runtimeBase.getVersion!,
+    normalizeGraphSpec: runtimeBase.normalizeGraphSpec,
+    getNodeSchemas: runtimeBase.getNodeSchemas,
     startPlayback: runtimeBase.startPlayback!,
     stopPlayback: runtimeBase.stopPlayback!,
     getPlaybackMode: runtimeBase.getPlaybackMode!,

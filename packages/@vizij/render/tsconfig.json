@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "declaration": true,
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@vizij/utils": ["../utils/src"],
+      "@vizij/utils/*": ["../utils/src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/index.tsx", "dist", "build", "node_modules"]
+}

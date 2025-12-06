@@ -1,0 +1,891 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  GraphProvider,
+  useGraphRuntime,
+  useNodeOutput,
+  valueAsNumber,
+  valueAsVector,
+  useGraphLoaded,
+  useGraphOutputs,
+  samples as graphSamples,
+} from "@vizij/node-graph-react";
+import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
+import { readFileAsText, parseGraphSpecJSON } from "./utils/file";
+import {
+  MinimalDemoChrome,
+  MinimalDemoSection,
+  minimalDemoTheme,
+} from "@vizij/minimal-demo-ui";
+import { cloneDeepSafe } from "@vizij/utils";
+
+const cloneGraphSpec = (spec: GraphSpec): GraphSpec => {
+  return cloneDeepSafe(spec);
+};
+
+/* ---------- Value editors for Input nodes (leaf-focused) ---------- */
+
+type OnValueChange = (next: ValueJSON) => void;
+
+function isValueJSON(v: any): v is ValueJSON {
+  return v && typeof v === "object";
+}
+
+function FloatField({
+  v,
+  onChange,
+}: {
+  v: number;
+  onChange: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(v));
+  useEffect(() => setText(String(v)), [v]);
+  return (
+    <input
+      type="number"
+      step="any"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const n = parseFloat(text);
+        if (Number.isFinite(n)) onChange(n);
+        else setText(String(v));
+      }}
+      style={{ width: 100 }}
+    />
+  );
+}
+
+function VecNField({
+  arr,
+  onChange,
+}: {
+  arr: number[];
+  onChange: (next: number[]) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 6,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      {arr.map((x, i) => (
+        <FloatField
+          key={i}
+          v={x}
+          onChange={(n) => {
+            const copy = arr.slice();
+            copy[i] = n;
+            onChange(copy);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Render a minimal editor for common ValueJSON leaves:
+ * - { float }, { vec3 }, { vector }, { tuple: [ ... ] } (best-effort)
+ * Other variants render as read-only JSON for now.
+ */
+function ValueEditor({
+  value,
+  onChange,
+}: {
+  value: ValueJSON;
+  onChange: OnValueChange;
+}) {
+  if (typeof value !== "object" || value === null) {
+    return <code style={{ opacity: 0.7 }}>{JSON.stringify(value)}</code>;
+  }
+  if ("float" in value) {
+    return (
+      <FloatField v={value.float} onChange={(n) => onChange({ float: n })} />
+    );
+  }
+  if ("bool" in value) {
+    return (
+      <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={!!value.bool}
+          onChange={(event) => onChange({ bool: event.target.checked })}
+        />
+        <span>True?</span>
+      </label>
+    );
+  }
+  if ("text" in value) {
+    return (
+      <input
+        value={value.text ?? ""}
+        onChange={(event) => onChange({ text: event.target.value })}
+        style={{ width: "100%", padding: "4px 8px" }}
+      />
+    );
+  }
+  if ("vec2" in value) {
+    return (
+      <VecNField
+        arr={value.vec2}
+        onChange={(next) =>
+          onChange({ vec2: [next[0] ?? 0, next[1] ?? 0] } as ValueJSON)
+        }
+      />
+    );
+  }
+  if ("vec3" in value) {
+    return (
+      <VecNField
+        arr={value.vec3}
+        onChange={(next) =>
+          onChange({ vec3: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0] })
+        }
+      />
+    );
+  }
+  if ("vec4" in value) {
+    return (
+      <VecNField
+        arr={value.vec4}
+        onChange={(next) =>
+          onChange({
+            vec4: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0, next[3] ?? 0],
+          } as ValueJSON)
+        }
+      />
+    );
+  }
+  if ("vector" in value) {
+    return (
+      <VecNField
+        arr={value.vector}
+        onChange={(next) => onChange({ vector: next })}
+      />
+    );
+  }
+  if ("tuple" in value) {
+    // Render editors for each tuple element recursively when recognizable
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {(value.tuple as ValueJSON[]).map((entry: ValueJSON, idx: number) => (
+          <div
+            key={idx}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <span>#{idx}:</span>
+            {isValueJSON(entry) ? (
+              <ValueEditor
+                value={entry}
+                onChange={(next) => {
+                  const copy = value.tuple.slice();
+                  copy[idx] = next;
+                  onChange({ tuple: copy });
+                }}
+              />
+            ) : (
+              <code style={{ opacity: 0.7 }}>{JSON.stringify(entry)}</code>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if ("transform" in value) {
+    // Show position editing only as a simple example
+    const translation = value.transform.translation ?? [0, 0, 0];
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div>pos:</div>
+        <VecNField
+          arr={translation}
+          onChange={(next) =>
+            onChange({
+              transform: {
+                translation: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0],
+                rotation: value.transform.rotation,
+                scale: value.transform.scale,
+              },
+            })
+          }
+        />
+      </div>
+    );
+  }
+  // Fallback read-only renderer
+  return <code style={{ opacity: 0.7 }}>{JSON.stringify(value)}</code>;
+}
+
+/* ---------- Output panel component (avoids hooks-in-loop) ---------- */
+
+function OutputPanel({ nodeId }: { nodeId: string }) {
+  const snapshot = useNodeOutput(nodeId, "out");
+  const asNum = valueAsNumber(snapshot);
+  const asVec = valueAsVector(snapshot);
+
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug("[demo-graph] Output snapshot", nodeId, snapshot);
+  }, [snapshot, nodeId]);
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${minimalDemoTheme.border}`,
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 12,
+        background: minimalDemoTheme.card,
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>{nodeId}</div>
+      <div style={{ fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
+        {asVec
+          ? `[${asVec.map((x) => (Number.isFinite(x) ? x.toFixed(3) : String(x))).join(", ")}]`
+          : asNum !== undefined
+            ? asNum.toFixed(4)
+            : JSON.stringify(snapshot?.value)}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Graph UI: Lists input editors and output values ---------- */
+
+function GraphUI({
+  spec,
+  autostart,
+}: {
+  spec: GraphSpec;
+  autostart?: boolean;
+}) {
+  const rt = useGraphRuntime() as any;
+  const { graphLoaded } = useGraphLoaded();
+  const frameVersion = useGraphOutputs((snap: any) => snap?.version ?? 0);
+
+  // Detect Input and Output nodes from current spec
+  const inputNodes = useMemo(
+    () =>
+      Array.isArray(spec.nodes)
+        ? spec.nodes.filter(
+            (n: any) => n.type === "input" || n.type === "Input",
+          )
+        : [],
+    [spec],
+  );
+  const outputNodes = useMemo(
+    () =>
+      Array.isArray(spec.nodes)
+        ? spec.nodes.filter(
+            (n: any) => n.type === "output" || n.type === "Output",
+          )
+        : [],
+    [spec],
+  );
+
+  // Track local state for all Input nodes (keyed by path) and stage all on changes.
+  const [inputState, setInputState] = useState<
+    Record<string, { value: ValueJSON; declared?: ShapeJSON }>
+  >({});
+
+  // Initialize local state from spec and seed provider staging.
+  useEffect(() => {
+    const nextState: Record<
+      string,
+      { value: ValueJSON; declared?: ShapeJSON }
+    > = {};
+    inputNodes.forEach((node: any) => {
+      const path = node.params?.path as string | undefined;
+      if (!path) return;
+      const value = (node.params?.value ?? { float: 0 }) as ValueJSON;
+      const declared: ShapeJSON | undefined =
+        node.output_shapes && typeof node.output_shapes === "object"
+          ? (node.output_shapes["out"] as ShapeJSON | undefined)
+          : undefined;
+      nextState[path] = { value, declared };
+    });
+    setInputState(nextState);
+
+    if (graphLoaded) {
+      const entries = Object.entries(nextState);
+      entries.forEach(([p, entry], i) => {
+        const immediate = !autostart && i === entries.length - 1;
+        rt.stageInput?.(p, entry.value, entry.declared, immediate);
+      });
+    }
+  }, [spec, inputNodes, graphLoaded]);
+
+  // When pausing, restage all current state and perform a single immediate eval to lock outputs.
+  useEffect(() => {
+    if (autostart === false) {
+      if (graphLoaded) {
+        const entries = Object.entries(inputState);
+        if (entries.length > 0) {
+          entries.forEach(([p, entry], i) => {
+            rt.stageInput?.(
+              p,
+              entry.value,
+              entry.declared,
+              i === entries.length - 1,
+            );
+          });
+        }
+      }
+    }
+  }, [autostart, inputState, graphLoaded]);
+
+  // While playing, re-stage current input values each frame so host inputs
+  // are always registered before the provider's eval tick.
+  useEffect(() => {
+    if (autostart && graphLoaded) {
+      const entries = Object.entries(inputState);
+      if (entries.length > 0) {
+        entries.forEach(([p, entry]) => {
+          rt.stageInput?.(p, entry.value, entry.declared, false);
+        });
+      }
+    }
+  }, [autostart, graphLoaded, frameVersion, inputState]);
+
+  // // Debug: observe writes and current IO node lists
+  // const writes = useGraphWrites();
+  // useEffect(() => {
+  //   if (writes && writes.length) {
+  //     // eslint-disable-next-line no-console
+  //     console.debug("[demo-graph] Writes batch", JSON.stringify(writes));
+  //   }
+  // }, [writes]);
+
+  // useEffect(() => {
+  //   // eslint-disable-next-line no-console
+  //   console.debug("[demo-graph] IO nodes", {
+  //     inputs: inputNodes.map((n: any) => ({ id: n.id, path: n.params?.path })),
+  //     outputs: outputNodes.map((n: any) => ({ id: n.id })),
+  //   });
+  // }, [inputNodes, outputNodes]);
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+      <section>
+        <h3>Inputs</h3>
+        {inputNodes.length === 0 ? (
+          <div style={{ opacity: 0.7 }}>No Input nodes</div>
+        ) : (
+          inputNodes.map((node: any) => {
+            const path = node.params?.path as string | undefined;
+            const defaultValue = (node.params?.value ?? {
+              float: 0,
+            }) as ValueJSON;
+            const declared: ShapeJSON | undefined =
+              node.output_shapes && typeof node.output_shapes === "object"
+                ? (node.output_shapes["out"] as ShapeJSON | undefined)
+                : undefined;
+
+            // Prefer local state over spec defaults so the editor reflects live changes
+            const stateEntry = path ? inputState[path] : undefined;
+            const displayValue = (stateEntry?.value ??
+              defaultValue) as ValueJSON;
+            const displayDeclared = (stateEntry?.declared ?? declared) as
+              | ShapeJSON
+              | undefined;
+
+            return (
+              <div
+                key={node.id}
+                style={{
+                  border: `1px solid ${minimalDemoTheme.border}`,
+                  padding: 12,
+                  borderRadius: 8,
+                  marginBottom: 12,
+                  background: minimalDemoTheme.card,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  {node.id}{" "}
+                  {path ? (
+                    <small style={{ opacity: 0.7 }}>({path})</small>
+                  ) : null}
+                </div>
+                <ValueEditor
+                  value={displayValue}
+                  onChange={(next) => {
+                    if (!path) return;
+                    // Update local state and stage all inputs so unchanged inputs don't fall back to defaults.
+                    setInputState((prev) => {
+                      const nextState = {
+                        ...prev,
+                        [path]: { value: next, declared: displayDeclared },
+                      };
+                      const entries = Object.entries(nextState);
+                      entries.forEach(([p, entry]) => {
+                        const immediate = !autostart && p === path; // avoid forcing extra evals while playing
+                        rt.stageInput?.(
+                          p,
+                          entry.value,
+                          entry.declared,
+                          immediate,
+                        );
+                      });
+                      return nextState;
+                    });
+                  }}
+                />
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      <section>
+        <h3>Outputs</h3>
+        <p
+          style={{
+            fontSize: "0.85rem",
+            color: minimalDemoTheme.muted,
+            marginTop: -4,
+          }}
+        >
+          Vector and transform ports are rendered as numeric arrays. The wasm
+          runtime flattens shapes into <code>{'{ id: "Vector" }'}</code>{" "}
+          metadata, so downstream hosts should rely on declared shapes when
+          preserving semantics.
+        </p>
+        {outputNodes.length === 0 ? (
+          <div style={{ opacity: 0.7 }}>No Output nodes</div>
+        ) : (
+          outputNodes.map((node: any) => (
+            <OutputPanel key={node.id} nodeId={node.id} />
+          ))
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ---------- Controls: load/save, pick sample, play/pause ---------- */
+
+function Controls({
+  spec,
+  onApplySpec,
+  autostart,
+  setAutostart,
+  availableSamples,
+  selectedSample,
+  onSelectSample,
+  loadingSamples,
+  loadingSelection,
+  sampleError,
+}: {
+  spec: GraphSpec;
+  onApplySpec: (spec: GraphSpec) => void;
+  autostart: boolean;
+  setAutostart: (next: boolean) => void;
+  availableSamples: string[];
+  selectedSample: string | null;
+  onSelectSample: (id: string) => Promise<boolean>;
+  loadingSamples: boolean;
+  loadingSelection: boolean;
+  sampleError: string | null;
+}) {
+  const rt = useGraphRuntime();
+  const [fileError, setFileError] = useState<string | null>(null);
+  const selectValue = selectedSample ?? "__custom__";
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError(null);
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const text = await readFileAsText(f);
+      const parsed = parseGraphSpecJSON(text);
+      onApplySpec(parsed);
+    } catch (err: any) {
+      setFileError(err?.message ?? String(err));
+    } finally {
+      e.currentTarget.value = "";
+    }
+  };
+
+  const onSave = () => {
+    const blob = new Blob([JSON.stringify(spec, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "graph-spec.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSampleChange = async (id: string) => {
+    if (!id || id === "__custom__" || loadingSelection) {
+      return;
+    }
+    setFileError(null);
+    void onSelectSample(id);
+  };
+
+  const togglePlay = (next: boolean) => {
+    setAutostart(next);
+    if (next) {
+      rt.startPlayback?.();
+    } else {
+      rt.stopPlayback?.();
+      rt.evalAll?.();
+    }
+  };
+
+  const stepOnce = () => {
+    setAutostart(false);
+    rt.stopPlayback?.();
+    rt.applyStagedInputs?.();
+    rt.step?.(1 / 60);
+    rt.evalAll?.();
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => togglePlay(true)}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: `1px solid ${minimalDemoTheme.border}`,
+            background: autostart
+              ? minimalDemoTheme.code
+              : minimalDemoTheme.card,
+          }}
+          disabled={autostart}
+        >
+          Play
+        </button>
+        <button
+          onClick={() => togglePlay(false)}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: `1px solid ${minimalDemoTheme.border}`,
+            background: !autostart
+              ? minimalDemoTheme.code
+              : minimalDemoTheme.card,
+          }}
+          disabled={!autostart}
+        >
+          Pause
+        </button>
+        <button
+          onClick={stepOnce}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: `1px solid ${minimalDemoTheme.border}`,
+            background: minimalDemoTheme.card,
+          }}
+        >
+          Step
+        </button>
+      </div>
+
+      <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <strong>Graph file</strong>
+        <input
+          type="file"
+          accept=".json,application/json"
+          onChange={onFileChange}
+        />
+      </label>
+
+      <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <strong>Sample</strong>
+        <select
+          value={selectValue}
+          onChange={(e) => handleSampleChange(e.target.value)}
+          disabled={loadingSamples || loadingSelection}
+        >
+          <option value="__custom__">
+            {loadingSamples ? "Loading samples…" : "Custom (from editor/file)"}
+          </option>
+          {availableSamples.map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        onClick={onSave}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 6,
+          border: `1px solid ${minimalDemoTheme.border}`,
+          background: minimalDemoTheme.card,
+        }}
+      >
+        Save
+      </button>
+
+      {loadingSelection ? (
+        <div style={{ color: minimalDemoTheme.muted }}>Loading sample…</div>
+      ) : null}
+      {fileError || sampleError ? (
+        <div style={{ color: "#b91c1c" }}>
+          Error: {fileError ?? sampleError}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SpecEditor({
+  spec,
+  onApplySpec,
+}: {
+  spec: GraphSpec;
+  onApplySpec: (spec: GraphSpec) => void;
+}) {
+  const [draft, setDraft] = useState<string>(() =>
+    JSON.stringify(spec, null, 2),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(JSON.stringify(spec, null, 2));
+    setError(null);
+  }, [spec]);
+
+  const applyDraft = () => {
+    try {
+      const parsed = parseGraphSpecJSON(draft);
+      onApplySpec(parsed);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    }
+  };
+
+  return (
+    <section
+      style={{
+        border: `1px solid ${minimalDemoTheme.border}`,
+        borderRadius: 12,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        background: minimalDemoTheme.card,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h3 style={{ margin: 0 }}>Graph JSON</h3>
+        <button
+          onClick={() => {
+            setDraft(JSON.stringify(spec, null, 2));
+            setError(null);
+          }}
+          style={{
+            padding: "4px 10px",
+            borderRadius: 6,
+            border: `1px solid ${minimalDemoTheme.border}`,
+            background: minimalDemoTheme.card,
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={24}
+        spellCheck={false}
+        style={{
+          width: "100%",
+          fontFamily: "monospace",
+          fontSize: 13,
+          background: minimalDemoTheme.code,
+          color: minimalDemoTheme.text,
+          border: `1px solid ${minimalDemoTheme.border}`,
+          borderRadius: 6,
+          padding: 8,
+          resize: "vertical",
+        }}
+      />
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button
+          onClick={applyDraft}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: `1px solid ${minimalDemoTheme.border}`,
+            background: minimalDemoTheme.card,
+          }}
+        >
+          Apply JSON
+        </button>
+      </div>
+      {error ? <div style={{ color: "#b91c1c" }}>Error: {error}</div> : null}
+    </section>
+  );
+}
+
+/* ---------- App ---------- */
+
+export default function App() {
+  const [autostart, setAutostart] = useState(true);
+  const [spec, setSpec] = useState<GraphSpec | null>(null);
+  const [availableSamples, setAvailableSamples] = useState<string[]>([]);
+  const [selectedSample, setSelectedSample] = useState<string | null>(null);
+  const [loadingSamples, setLoadingSamples] = useState(true);
+  const [loadingSelection, setLoadingSelection] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const applyCustomSpec = useCallback((next: GraphSpec) => {
+    if (!mountedRef.current) return;
+    setSpec(cloneGraphSpec(next));
+    setSelectedSample(null);
+  }, []);
+
+  const handleSelectSample = useCallback(async (id: string) => {
+    if (!mountedRef.current) return false;
+    setSampleError(null);
+    setLoadingSelection(true);
+    try {
+      const loaded = (await graphSamples.load(id)) as GraphSpec;
+      if (!mountedRef.current) return false;
+      const cloned = cloneGraphSpec(loaded);
+      setSpec(cloned);
+      setSelectedSample(id);
+      return true;
+    } catch (err: any) {
+      if (!mountedRef.current) return false;
+      const message =
+        err instanceof Error ? err.message : String(err ?? "unknown");
+      setSampleError(`Failed to load sample "${id}": ${message}`);
+      return false;
+    } finally {
+      if (mountedRef.current) {
+        setLoadingSelection(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const names = await graphSamples.list();
+        if (cancelled || !mountedRef.current) return;
+        const sorted = names.slice().sort((a, b) => a.localeCompare(b));
+        setAvailableSamples(sorted);
+        if (sorted.length > 0) {
+          const preferred = sorted.includes("weighted-average")
+            ? "weighted-average"
+            : sorted[0];
+          await handleSelectSample(preferred);
+        }
+      } catch (err: any) {
+        if (cancelled || !mountedRef.current) return;
+        const message =
+          err instanceof Error ? err.message : String(err ?? "unknown");
+        setSampleError(`Failed to list node-graph samples: ${message}`);
+      } finally {
+        if (!cancelled && mountedRef.current) {
+          setLoadingSamples(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleSelectSample]);
+
+  if (!spec) {
+    return (
+      <MinimalDemoChrome
+        title="Vizij node graph demo"
+        subtitle="Minimal Vizij sample"
+        description="Load StoredGraph specs, edit them inline, and poke at inputs/outputs without extra studio chrome."
+      >
+        <MinimalDemoSection title="Status">
+          <p style={{ margin: 0, color: minimalDemoTheme.muted }}>
+            {loadingSamples || loadingSelection
+              ? "Loading node-graph samples…"
+              : (sampleError ??
+                "Unable to load a sample graph. Check the console for details.")}
+          </p>
+        </MinimalDemoSection>
+      </MinimalDemoChrome>
+    );
+  }
+
+  return (
+    <GraphProvider spec={spec} autoStart={autostart} updateHz={60}>
+      <MinimalDemoChrome
+        title="Vizij node graph demo"
+        subtitle="Minimal Vizij sample"
+        description="Swap between bundled samples, edit the JSON spec, and stage inputs + outputs to see how the runtime responds."
+      >
+        <MinimalDemoSection
+          title="Playback & samples"
+          description="Choose a sample, toggle playback, or load your own StoredGraph JSON."
+        >
+          <Controls
+            spec={spec}
+            onApplySpec={applyCustomSpec}
+            autostart={autostart}
+            setAutostart={setAutostart}
+            availableSamples={availableSamples}
+            selectedSample={selectedSample}
+            onSelectSample={handleSelectSample}
+            loadingSamples={loadingSamples}
+            loadingSelection={loadingSelection}
+            sampleError={sampleError}
+          />
+        </MinimalDemoSection>
+
+        <MinimalDemoSection
+          title="Graph view & editor"
+          description="Tweak inputs and review outputs alongside the raw graph JSON."
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 0.85fr)",
+              gap: 24,
+              alignItems: "start",
+            }}
+          >
+            <GraphUI spec={spec} autostart={autostart} />
+            <SpecEditor spec={spec} onApplySpec={applyCustomSpec} />
+          </div>
+        </MinimalDemoSection>
+      </MinimalDemoChrome>
+    </GraphProvider>
+  );
+}

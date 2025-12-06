@@ -1,0 +1,44 @@
+{
+  "name": "@vizij/minimal-demo-ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared chrome + theme helpers for Vizij minimal demo apps.",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.tsx --format esm,cjs --dts --external react,react-dom",
+    "dev": "tsup src/index.tsx --format esm,cjs --dts --external react,react-dom --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.26",
+    "prettier": "^3.4.2",
+    "tsup": "^8.0.1",
+    "typescript": "^5.5.0"
+  }
+}

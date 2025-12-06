@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@vizij/runtime-react": [
+        "../../packages/@vizij/runtime-react/src/index.ts"
+      ],
+      "@vizij/render": ["../../packages/@vizij/render/src"],
+      "@vizij/render/*": ["../../packages/@vizij/render/src/*"],
+      "@vizij/orchestrator-react": [
+        "../../packages/@vizij/orchestrator-react/src"
+      ],
+      "@vizij/orchestrator-react/*": [
+        "../../packages/@vizij/orchestrator-react/src/*"
+      ],
+      "@vizij/utils": ["../../packages/@vizij/utils/src"],
+      "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"]
+    }
+  }
+}

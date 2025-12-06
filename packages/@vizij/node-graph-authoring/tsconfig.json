@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "declaration": true,
+    "outDir": "dist",
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "baseUrl": "./",
+    "paths": {
+      "@vizij/node-graph-authoring": ["src/index.ts"],
+      "@vizij/utils": ["../utils/src/index.ts"],
+      "@vizij/utils/*": ["../utils/src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["dist", "build", "node_modules", "src/__tests__"]
+}

@@ -1,0 +1,46 @@
+.sidebar__panel {
+  background: var(--color-slate-900);
+  border: 1px solid var(--border-default);
+  border-radius: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sidebar__panel--pose {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.sidebar__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.715rem;
+}
+
+.sidebar__panel-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sidebar__panel-title {
+  margin: 0;
+  font-size: var(--space-4);
+  font-weight: 600;
+}
+
+.sidebar__panel-description {
+  margin: 0;
+  color: var(--color-slate-400);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.workbench-panel__body > .sidebar__panel,
+.workbench-panel__body > .workbench-panel__scroll {
+  flex: 1 1 auto;
+}

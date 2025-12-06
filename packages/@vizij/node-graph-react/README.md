@@ -10,11 +10,13 @@ This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handl
 
 1. [Overview](#overview)
 2. [Installation](#installation)
-3. [Quick Start](#quick-start)
-4. [Core Concepts](#core-concepts)
-5. [Hooks Reference](#hooks-reference)
-6. [Development & Testing](#development--testing)
-7. [Related Packages](#related-packages)
+3. [Peer Dependencies](#peer-dependencies)
+4. [Quick Start](#quick-start)
+5. [Core Concepts](#core-concepts)
+6. [Hooks Reference](#hooks-reference)
+7. [Development & Testing](#development--testing)
+8. [Publishing](#publishing)
+9. [Related Packages](#related-packages)
 
 ---
 
@@ -31,10 +33,48 @@ This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handl
 ## Installation
 
 ```bash
+# pnpm
+pnpm add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
+
+# npm
 npm install @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
+
+# yarn
+yarn add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
 ```
 
 When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../README.md#local-wasm-development) for details.
+
+> **Bundler note:** The underlying `@vizij/node-graph-wasm` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
+>
+> ```js
+> // next.config.js
+> module.exports = {
+>   webpack: (config) => {
+>     config.experiments = {
+>       ...(config.experiments ?? {}),
+>       asyncWebAssembly: true,
+>     };
+>     config.module.rules.push({
+>       test: /\.wasm$/,
+>       type: "asset/resource",
+>     });
+>     return config;
+>   },
+> };
+> ```
+>
+> Passing a string URL to `@vizij/node-graph-wasm`’s `init()` keeps Webpack’s URL wrapper from interfering.
+
+---
+
+## Peer Dependencies
+
+- `react >= 18`
+- `react-dom >= 18`
+- `@vizij/node-graph-wasm` (ensure the wasm package is published from `vizij-rs` before tagging a release)
+
+Keep these versions aligned across Vizij packages to avoid duplicate React instances or ABI mismatches.
 
 ---
 
@@ -126,9 +166,10 @@ function Awaiter() {
 `useGraphRuntime` returns an object with:
 
 - Control methods: `loadGraph`, `unloadGraph`, `evalAll`, `stageInput`, `applyStagedInputs`, `clearStagedInputs`, `setParam`, `step`, `setTime`, `startPlayback`, `stopPlayback`, `getWrites`, `clearWrites`.
+- Registry helpers: `normalizeGraphSpec?(spec)` and `getNodeSchemas?()` forward to the underlying WASM bindings so editors can fetch canonical specs and the node palette (including new controllers such as `case`, `default-blend`, and the weighted blend family).
 - Readiness helpers: `ready`, `graphLoaded`, `waitForGraphReady?`, `on?`, `off?`.
 - Snapshot utilities: `getSnapshot`, `subscribe`, `getVersion`.
-- Improved staging semantics: passing `undefined` now removes entries instead of staging invalid payloads.
+- Improved staging semantics: passing `undefined` now removes entries instead of staging invalid payloads, and typed paths are validated (no whitespace, trimmed) before staging to avoid runtime panics.
 
 ### Internal Store
 
@@ -171,6 +212,33 @@ pnpm --filter "@vizij/node-graph-react" typecheck
 ```
 
 Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise the real WASM runtime end-to-end, rebuild the wrapper in `vizij-rs` and run one of the demo apps (e.g., `apps/demo-graph`).
+
+---
+
+## Publishing
+
+Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
+
+1. Run a changeset and apply version bumps:
+   ```bash
+   pnpm changeset
+   pnpm version:packages
+   ```
+2. Validate locally:
+   ```bash
+   pnpm install
+   pnpm --filter "@vizij/node-graph-react" build
+   pnpm --filter "@vizij/node-graph-react" test
+   pnpm --filter "@vizij/node-graph-react" typecheck
+   pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
+   ```
+3. Push a tag matching `npm-node-graph-react-vX.Y.Z`:
+   ```bash
+   git tag npm-node-graph-react-v0.3.0
+   git push origin npm-node-graph-react-v0.3.0
+   ```
+
+The action will build, test, and publish the package with provenance metadata.
 
 ---
 

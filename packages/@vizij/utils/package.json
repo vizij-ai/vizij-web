@@ -1,0 +1,49 @@
+{
+  "name": "@vizij/utils",
+  "description": "Shared typescript utilities.",
+  "version": "0.0.3",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/utils"
+  },
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts src/index.ts",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write .",
+    "test": "node ./scripts/run-vitest.mjs",
+    "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
+    "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4",
+    "prettier": "^3.4.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

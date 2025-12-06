@@ -1,0 +1,93 @@
+name: publish-npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "npm-pub-*"
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  RELEASE_COMMIT_MESSAGE: "chore(release): version packages"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release branch
+        id: branch
+        run: |
+          set -euo pipefail
+          branches=$(git branch -r --contains "$GITHUB_SHA" | sed -E 's/^[[:space:]]+//' | grep -v 'origin/HEAD' || true)
+          if [ -z "$branches" ]; then
+            echo "Unable to detect a remote branch containing $GITHUB_SHA" >&2
+            exit 1
+          fi
+          release_branch=$(echo "$branches" | head -n 1 | sed 's|origin/||')
+          echo "Detected release branch: $release_branch"
+          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_BRANCH=$release_branch" >> "$GITHUB_ENV"
+
+      - name: Checkout release branch
+        run: |
+          git checkout -B "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable pnpm
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Changesets version
+        id: version
+        run: |
+          pnpm ci:version
+          if git status --porcelain | grep -q .
+          then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit release artifacts
+        if: steps.version.outputs.has_changes == 'true'
+        run: |
+          git add -A
+          git commit -m "$RELEASE_COMMIT_MESSAGE"
+
+      - name: Publish npm packages
+        if: steps.version.outputs.has_changes == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm ci:publish
+
+      - name: Push release commit and tags
+        if: steps.version.outputs.has_changes == 'true'
+        env:
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
+        run: |
+          git push origin HEAD:"$RELEASE_BRANCH"
+          git push origin --follow-tags
+
+      - name: No release needed
+        if: steps.version.outputs.has_changes != 'true'
+        run: echo "No unpublished packages detected; skipping publish."

@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "semio-vizij"
+  },
+  "targets": {
+    "semio-vizij": {
+      "hosting": {
+        "vizij-showcase": [
+          "vizij-showcase"
+        ]
+      }
+    }
+  }
+}

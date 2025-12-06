@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { StoredAnimation } from "@vizij/animation-wasm";
+import { cloneDeepSafe } from "@vizij/utils";
 
 const cloneAnimation = (anim: StoredAnimation): StoredAnimation =>
-  JSON.parse(JSON.stringify(anim));
+  cloneDeepSafe(anim);
 
 const makePointKey = (trackIdx: number, pointIdx: number) =>
   `${trackIdx}:${pointIdx}`;

@@ -37,6 +37,17 @@ vi.mock("@vizij/node-graph-wasm", () => {
     Graph: vi.fn(() => makeInstance()),
     normalizeGraphSpec: vi.fn(async (s: any) => s),
     getNodeSchemas: vi.fn(() => Promise.resolve({ version: "1", nodes: [] })),
+    toValueJSON: vi.fn((value: any) => value),
+    listNodeGraphFixtures: vi.fn(async () => []),
+    loadNodeGraphBundle: vi.fn(async () => ({
+      spec: { nodes: [], edges: [] },
+    })),
+    loadNodeGraphSpec: vi.fn(async (name: string) => {
+      void name;
+      return { nodes: [], edges: [] } as any;
+    }),
+    loadNodeGraphSpecJson: vi.fn(async () => "{}"),
+    loadNodeGraphStage: vi.fn(async () => null),
   };
 });
 
@@ -80,8 +91,10 @@ describe("Input staging and teardown", () => {
       expect(screen.getByTestId("ready").textContent).toBe("true");
     });
 
-    // There should be one graph instance constructed
-    expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    // Wait for the provider to construct the graph instance
+    await waitFor(() => {
+      expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    });
     const g = graphInstances[0];
 
     // Stage an input with immediateEval true via runtime API (wrap in act to avoid update warnings)
@@ -121,7 +134,9 @@ describe("Input staging and teardown", () => {
       expect(screen.getByTestId("ready").textContent).toBe("true");
     });
 
-    expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      expect(graphInstances.length).toBeGreaterThanOrEqual(1);
+    });
     const g = graphInstances[0];
 
     // Unmount provider and ensure graph.free was called
