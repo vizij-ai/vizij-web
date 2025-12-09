@@ -107,6 +107,45 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
       </ol>
     ),
   },
+  "std-face-mapper": {
+    label: "Standard Face Mapping workflow",
+    summary: "Map your face to a standard feature space",
+    content: (
+      <p>
+        <p>
+        The Standard Face Mapper allows you to align your face to predefined
+        feature spaces. This enables consistent facial rigging and animation
+        across different models by providing a common reference frame.
+        </p>
+        <p>
+          There is no single Standard feature space. Instead we refer to A Standard,
+          which may be developed by the community or specific entities.
+          By mapping your face to a given Standard, your face complies with its feature space,
+          and thus supports being controlled by rigs and animations built for that Standard.
+        </p>
+        <ol>
+          <li>
+            Load your face model and a Standard model which you will use as reference.
+          </li>
+          <li>
+            Your face model should already be rigged with the Vizij rigging system.
+          </li>
+          <li>
+            The reference model can be any face that is already rigged to the Standard feature space.
+          </li>
+          <li>
+            Use the reference controls to set features on the reference model.
+          </li>
+          <li>
+            By viewing them side by side, adjust the mapping controls to align your face model so that it matches the reference model's features as close as as possible.
+          </li>
+          <li>
+            Once you are satisfied with the mapping, save the mapping configuration into your Vizij bundle for future use.
+          </li>
+        </ol>
+      </p>
+    ),
+  },
 };
 
 export default function App() {
@@ -241,6 +280,7 @@ function AppContent({ loader }: AppContentProps) {
       "import-export": `${guideIdBase}-import-export`,
       "scene-composer": `${guideIdBase}-scene-composer`,
       "pose-rig": `${guideIdBase}-pose-rig`,
+      "std-face-mapper": `${guideIdBase}-std-face-mapper`,
     }),
     [guideIdBase],
   );
@@ -250,7 +290,9 @@ function AppContent({ loader }: AppContentProps) {
     "import-export": false,
     "scene-composer": false,
     "pose-rig": false,
+    "std-face-mapper": false,
   });
+  const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
   useBundleSynchronizer({
     faceId,
@@ -293,6 +335,27 @@ function AppContent({ loader }: AppContentProps) {
     }));
   };
 
+  const viewerElement = (
+    <Viewer
+      rootId={rootId}
+      statusMessage={statusMessage}
+      namespace={DEFAULT_NAMESPACE}
+      onClearSelection={handleClearSelection}
+      graphTimeSeconds={graphTimeSeconds}
+      graphFrameRate={graphFrameRate}
+      graphPlaybackState={graphPlaybackState}
+      graphStatus={graphStatus}
+      onPlayGraph={playGraph}
+      onPauseGraph={pauseGraph}
+      onStopGraph={stopGraph}
+      onStepGraph={stepGraph}
+      faceId={faceId}
+      faceSegment={faceSegment}
+      onFaceIdChange={handleFaceIdChange}
+      onResetAllInputs={handleResetAllInputs}
+    />
+  );
+
   return (
     <>
       <div className="app-shell">
@@ -313,24 +376,26 @@ function AppContent({ loader }: AppContentProps) {
           />
         </aside>
 
-        <Viewer
-          rootId={rootId}
-          statusMessage={statusMessage}
-          namespace={DEFAULT_NAMESPACE}
-          onClearSelection={handleClearSelection}
-          graphTimeSeconds={graphTimeSeconds}
-          graphFrameRate={graphFrameRate}
-          graphPlaybackState={graphPlaybackState}
-          graphStatus={graphStatus}
-          onPlayGraph={playGraph}
-          onPauseGraph={pauseGraph}
-          onStopGraph={stopGraph}
-          onStepGraph={stepGraph}
-          faceId={faceId}
-          faceSegment={faceSegment}
-          onFaceIdChange={handleFaceIdChange}
-          onResetAllInputs={handleResetAllInputs}
-        />
+        {activeWorkbench === "std-face-mapper" ? (
+          <div
+            className={`viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`}
+          >
+            {viewerElement}
+            <div className="viewer-split__placeholder">
+              <button
+                type="button"
+                className="viewer-split__toggle"
+                title={viewerSplitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
+                onClick={() => setViewerSplitVertical((v) => !v)}
+              >
+                {viewerSplitVertical ? "⬌" : "⬍"}
+              </button>
+              Placeholder
+            </div>
+          </div>
+        ) : (
+          viewerElement
+        )}
 
         <aside className="sidebar sidebar--right">
           <div className="workbench-panel__content">
