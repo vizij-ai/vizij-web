@@ -111,7 +111,7 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
     label: "Standard Face Mapping workflow",
     summary: "Map your face to a standard feature space",
     content: (
-      <p>
+      <div>
         <p>
         The Standard Face Mapper allows you to align your face to predefined
         feature spaces. This enables consistent facial rigging and animation
@@ -143,7 +143,7 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
             Once you are satisfied with the mapping, save the mapping configuration into your Vizij bundle for future use.
           </li>
         </ol>
-      </p>
+      </div>
     ),
   },
 };
