@@ -1528,6 +1528,107 @@ body {
   flex-shrink: 0;
 }
 
+/* Ensure tabs and mapping layout fill available space in workbench */
+.workbench-panel__body:has(.mapping-controls-layout) {
+  overflow-y: hidden;
+}
+
+.workbench-panel__body .tabs:has(.mapping-controls-layout) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workbench-panel__body .tabs__panel:has(.mapping-controls-layout) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.mapping-controls-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--space-3);
+}
+
+.mapping-controls-layout__section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.7);
+  padding: var(--space-3);
+}
+
+.mapping-controls-layout__section--reference {
+  flex: 0 0 auto;
+}
+
+.mapping-controls-layout__section--mapping {
+  flex: 1 1 60%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mapping-controls-layout__section--mapping > .sidebar__section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mapping-controls-layout__scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.group-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-2);
+}
+
+.group-selector__btn {
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-slate-400);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.group-selector__btn:hover {
+  background: var(--color-slate-800);
+  color: var(--color-slate-200);
+}
+
+.group-selector__btn--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.group-selector__btn--active:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
 .reference-input-group {
   display: flex;
   flex-direction: column;
