@@ -469,24 +469,17 @@ function AppContent({ loader }: AppContentProps) {
           >
             {viewerElement}
             <div className="viewer-split__placeholder">
-              <button
-                type="button"
-                className="viewer-split__toggle"
-                title={viewerSplitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
-                onClick={() => setViewerSplitVertical((v) => !v)}
-              >
-                {viewerSplitVertical ? "⬌" : "⬍"}
-              </button>
               <OrchestratorProvider autostart={false}>
                 <ReferenceFaceRuntime
                   file={secondFaceFileToLoad}
                   active={true}
                   visible={true}
                   driveOrchestrator={true}
-                  label={"Reference Face"}
                   onStandardInputsReady={handleRefFaceStandardInputsReady}
                   onLoadingStateChange={handleRefFaceLoadingStateChange}
                   onAnimateValueReady={handleRefFaceAnimateValueReady}
+                  splitVertical={viewerSplitVertical}
+                  onToggleSplit={() => setViewerSplitVertical((v) => !v)}
                 />
               </OrchestratorProvider>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { VizijAssetBundle, VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
@@ -14,7 +14,6 @@ type ReferenceFaceRuntimeProps = {
   driveOrchestrator?: boolean;
   visible?: boolean;
   hiddenStepHz?: number;
-  label?: string;
   /** Called when standard inputs are detected from the loaded face */
   onStandardInputsReady?: (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => void;
   /** Called when loading state changes */
@@ -23,6 +22,10 @@ type ReferenceFaceRuntimeProps = {
   onAnimateValueReady?: (animateValue: ReferenceFaceRuntimeProps["_animateValueFn"]) => void;
   /** Internal type for the animate function */
   _animateValueFn?: (path: string, value: number) => void;
+  /** Whether the split is vertical */
+  splitVertical?: boolean;
+  /** Callback to toggle split orientation */
+  onToggleSplit?: () => void;
 };
 
 const FACE_ASSET_GLB_BASE = {
@@ -31,16 +34,16 @@ const FACE_ASSET_GLB_BASE = {
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
 
-function createBundleConfig(file: File | null): VizijAssetBundle {
+function createBundleConfig(file: File): VizijAssetBundle {
   return {
     namespace: "refface",
-  glb: {
-    ...FACE_ASSET_GLB_BASE,
-    src: file ? URL.createObjectURL(file) : "/assets/Hugo_Latest_Rigged.glb",
-  },
-  pose: {
-    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-  },
+    glb: {
+      ...FACE_ASSET_GLB_BASE,
+      src: URL.createObjectURL(file),
+    },
+    pose: {
+      stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+    },
   };
 }
 
@@ -53,13 +56,15 @@ export function ReferenceFaceRuntime({
   driveOrchestrator = false,
   visible = true,
   hiddenStepHz = 1,
-  label,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
+  splitVertical,
+  onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
   const bundle = useMemo(
     () => {
+      if (!file) return null;
       return createBundleConfig(file);
     },
     [file],
@@ -67,6 +72,16 @@ export function ReferenceFaceRuntime({
 
   if (!active) {
     return <>{fallback}</>;
+  }
+
+  // Show placeholder when no file is loaded
+  if (!bundle) {
+    return (
+      <ReferenceFacePlaceholder
+        splitVertical={splitVertical}
+        onToggleSplit={onToggleSplit}
+      />
+    );
   }
 
   const shouldAutostart = autostart && visible;
@@ -83,7 +98,6 @@ export function ReferenceFaceRuntime({
       <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
       <RuntimeDebugBeacon
         namespace={namespace}
-        label={label}
         visible={visible}
         driver={driveOrchestrator}
         autostart={shouldAutostart}
@@ -93,15 +107,9 @@ export function ReferenceFaceRuntime({
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
         onAnimateValueReady={onAnimateValueReady}
-      >
-        <HeroPassiveBehavior enabled={true} />
-        <RuntimeFaceFrame
-          variant="fill"
-          label={label}
-          className="hero-face-card"
-          skipBounds={true}
-        />
-      </ReferenceFaceBridge>
+        splitVertical={splitVertical}
+        onToggleSplit={onToggleSplit}
+      />
     </VizijRuntimeProvider>
   );
 }
@@ -131,19 +139,18 @@ function HiddenStepController({
 
 function RuntimeDebugBeacon(props: {
   namespace: string;
-  label?: string;
   visible: boolean;
   driver: boolean;
   autostart: boolean;
   hiddenStepHz: number;
 }) {
-  const { namespace, label, visible, driver, autostart, hiddenStepHz } = props;
+  const { namespace, visible, driver, autostart, hiddenStepHz } = props;
   const { stepHz } = useVizijRuntime();
 
   useEffect(() => {
     broadcastRuntimeStatus({
       namespace,
-      label,
+      label: "Reference Face",
       visible,
       driver,
       autostart,
@@ -151,29 +158,35 @@ function RuntimeDebugBeacon(props: {
       stepHz,
       timestamp: Date.now(),
     });
-  }, [autostart, driver, hiddenStepHz, label, namespace, visible, stepHz]);
+  }, [autostart, driver, hiddenStepHz, namespace, visible, stepHz]);
 
   return null;
 }
 
 type ReferenceFaceBridgeProps = {
-  children: ReactNode;
   onStandardInputsReady?: (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => void;
   onLoadingStateChange?: (isLoading: boolean, isLoaded: boolean) => void;
   onAnimateValueReady?: (animateValue: ((path: string, value: number) => void) | undefined) => void;
+  /** Whether the split is vertical */
+  splitVertical?: boolean;
+  /** Callback to toggle split orientation */
+  onToggleSplit?: () => void;
 };
 
 /**
  * Bridge component that connects the Vizij runtime to callbacks.
  * It extracts standard inputs from the runtime and reports them to the parent.
+ * Also manages idle behavior state and renders the face with header.
  */
 function ReferenceFaceBridge({
-  children,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
+  splitVertical,
+  onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const { ready, loading, animateValue, inputConstraints, faceId } = useVizijRuntime();
+  const { ready, loading, animateValue, inputConstraints, faceId, stepHz } = useVizijRuntime();
+  const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(true);
   const animateValueRef = useRef(animateValue);
   const faceIdRef = useRef(faceId);
 
@@ -247,5 +260,85 @@ function ReferenceFaceBridge({
     onAnimateValueReady?.(animateFn);
   }, [ready, onAnimateValueReady]);
 
-  return <>{children}</>;
+  const formattedFps = stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+
+  return (
+    <div className="ref-face-viewer">
+      <header className="ref-face-viewer__header">
+        <div className="ref-face-viewer__title-group">
+          <p className="ref-face-viewer__eyebrow">Reference Face</p>
+          <p className="ref-face-viewer__status">
+            {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
+          </p>
+        </div>
+        <div className="ref-face-viewer__controls">
+          <span className="ref-face-viewer__fps">{formattedFps}</span>
+          <button
+            type="button"
+            className={`ref-face-viewer__idle-btn ${idleBehaviorEnabled ? "ref-face-viewer__idle-btn--active" : ""}`}
+            onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
+            title={idleBehaviorEnabled ? "Disable idle behaviors" : "Enable idle behaviors"}
+          >
+            {idleBehaviorEnabled ? "Idle: ON" : "Idle: OFF"}
+          </button>
+          {onToggleSplit && (
+            <button
+              type="button"
+              className="ref-face-viewer__split-btn"
+              title={splitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
+              onClick={onToggleSplit}
+            >
+              {splitVertical ? "⬌" : "⬍"}
+            </button>
+          )}
+        </div>
+      </header>
+      <div className="ref-face-viewer__canvas">
+        <HeroPassiveBehavior enabled={idleBehaviorEnabled} />
+        <RuntimeFaceFrame
+          variant="fill"
+          className="hero-face-card"
+          skipBounds={true}
+        />
+      </div>
+    </div>
+  );
+}
+
+type ReferenceFacePlaceholderProps = {
+  splitVertical?: boolean;
+  onToggleSplit?: () => void;
+};
+
+function ReferenceFacePlaceholder({
+  splitVertical,
+  onToggleSplit,
+}: ReferenceFacePlaceholderProps) {
+  return (
+    <div className="ref-face-viewer">
+      <header className="ref-face-viewer__header">
+        <div className="ref-face-viewer__title-group">
+          <p className="ref-face-viewer__eyebrow">Reference Face</p>
+          <p className="ref-face-viewer__status">No file loaded</p>
+        </div>
+        <div className="ref-face-viewer__controls">
+          {onToggleSplit && (
+            <button
+              type="button"
+              className="ref-face-viewer__split-btn"
+              title={splitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
+              onClick={onToggleSplit}
+            >
+              {splitVertical ? "⬌" : "⬍"}
+            </button>
+          )}
+        </div>
+      </header>
+      <div className="ref-face-viewer__canvas ref-face-viewer__canvas--empty">
+        <p className="ref-face-viewer__placeholder-text">
+          Load a reference face GLB using the sidebar to begin.
+        </p>
+      </div>
+    </div>
+  );
 }
