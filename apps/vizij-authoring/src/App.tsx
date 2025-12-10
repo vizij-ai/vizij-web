@@ -196,6 +196,7 @@ function AppContent({ loader }: AppContentProps) {
   const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<Map<string, StandardRigInput>>(new Map());
   const [refFaceInputValues, setRefFaceInputValues] = useState<Record<string, number>>({});
   const refFaceAnimateValueRef = useRef<((path: string, value: number) => void) | undefined>(undefined);
+  const mainFaceInputChangeRef = useRef<((inputId: string, value: number) => void) | undefined>(undefined);
 
   const handleRefFaceStandardInputsReady = useCallback(
     (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
@@ -235,12 +236,12 @@ function AppContent({ loader }: AppContentProps) {
       }
       setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
 
+      // Animate the reference face - this will also trigger onStandardInputChange
+      // which propagates to the main face
       const animateFn = refFaceAnimateValueRef.current;
-      if (!animateFn) {
-        console.warn(`[App] Animate function not ready yet`);
-        return;
+      if (animateFn) {
+        animateFn(input.path, value);
       }
-      animateFn(input.path, value);
     },
     [refFaceStandardInputsById],
   );
@@ -249,10 +250,22 @@ function AppContent({ loader }: AppContentProps) {
     const resetValues: Record<string, number> = {};
     for (const input of refFaceStandardInputs) {
       resetValues[input.id] = input.defaultValue;
+      // Animate the reference face - this will also trigger onStandardInputChange
+      // which propagates to the main face
       refFaceAnimateValueRef.current?.(input.path, input.defaultValue);
     }
     setRefFaceInputValues(resetValues);
   }, [refFaceStandardInputs]);
+
+  // Handler for when standard input values change on the reference face (from any source)
+  // This is called from ReferenceFaceRuntime whenever animateFn is invoked
+  const handleRefFaceStandardInputChange = useCallback(
+    (inputId: string, value: number) => {
+      // Propagate to the main face
+      mainFaceInputChangeRef.current?.(inputId, value);
+    },
+    [],
+  );
 
   const referenceFaceContextValue: ReferenceFaceState = useMemo(
     () => ({
@@ -308,6 +321,14 @@ function AppContent({ loader }: AppContentProps) {
   const handleResetAllInputs = useBindingAuthoring(
     (state) => state.handleResetAllInputValues,
   );
+  const mainFaceHandleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
+
+  // Keep the ref updated so handleRefFaceInputValueChange can access it
+  useEffect(() => {
+    mainFaceInputChangeRef.current = mainFaceHandleInputValueChange;
+  }, [mainFaceHandleInputValueChange]);
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
@@ -484,6 +505,7 @@ function AppContent({ loader }: AppContentProps) {
                   onStandardInputsReady={handleRefFaceStandardInputsReady}
                   onLoadingStateChange={handleRefFaceLoadingStateChange}
                   onAnimateValueReady={handleRefFaceAnimateValueReady}
+                  onStandardInputChange={handleRefFaceStandardInputChange}
                   splitVertical={viewerSplitVertical}
                   onToggleSplit={() => setViewerSplitVertical((v) => !v)}
                 />

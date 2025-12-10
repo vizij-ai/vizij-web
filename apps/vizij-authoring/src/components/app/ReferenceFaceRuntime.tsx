@@ -26,6 +26,8 @@ type ReferenceFaceRuntimeProps = {
   onAnimateValueReady?: (animateValue: ReferenceFaceRuntimeProps["_animateValueFn"]) => void;
   /** Internal type for the animate function */
   _animateValueFn?: (path: string, value: number) => void;
+  /** Called when any standard input value changes on the reference face (from any source) */
+  onStandardInputChange?: (inputId: string, value: number) => void;
   /** Whether the split is vertical */
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
@@ -63,6 +65,7 @@ export function ReferenceFaceRuntime({
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
+  onStandardInputChange,
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
@@ -111,6 +114,7 @@ export function ReferenceFaceRuntime({
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
         onAnimateValueReady={onAnimateValueReady}
+        onStandardInputChange={onStandardInputChange}
         splitVertical={splitVertical}
         onToggleSplit={onToggleSplit}
       />
@@ -171,6 +175,8 @@ type ReferenceFaceBridgeProps = {
   onStandardInputsReady?: (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => void;
   onLoadingStateChange?: (isLoading: boolean, isLoaded: boolean) => void;
   onAnimateValueReady?: (animateValue: ((path: string, value: number) => void) | undefined) => void;
+  /** Called when any standard input value changes on the reference face */
+  onStandardInputChange?: (inputId: string, value: number) => void;
   /** Whether the split is vertical */
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
@@ -186,6 +192,7 @@ function ReferenceFaceBridge({
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
+  onStandardInputChange,
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
@@ -195,6 +202,7 @@ function ReferenceFaceBridge({
   const setInputRef = useRef(setInput);
   const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
+  const onStandardInputChangeRef = useRef(onStandardInputChange);
 
   // Keep refs updated
   useEffect(() => {
@@ -202,16 +210,22 @@ function ReferenceFaceBridge({
     setInputRef.current = setInput;
     stepRef.current = step;
     faceIdRef.current = faceId;
-  }, [animateValue, setInput, step, faceId]);
+    onStandardInputChangeRef.current = onStandardInputChange;
+  }, [animateValue, setInput, step, faceId, onStandardInputChange]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
-  const { standardInputs, standardInputsById } = useMemo(() => {
+  const { standardInputs, standardInputsById, standardInputsByPath } = useMemo(() => {
     if (!ready || !inputConstraints) {
-      return { standardInputs: [], standardInputsById: new Map<string, StandardRigInput>() };
+      return {
+        standardInputs: [],
+        standardInputsById: new Map<string, StandardRigInput>(),
+        standardInputsByPath: new Map<string, StandardRigInput>(),
+      };
     }
 
     const available: StandardRigInput[] = [];
     const byId = new Map<string, StandardRigInput>();
+    const byPath = new Map<string, StandardRigInput>();
     const seenPaths = new Set<string>();
 
     // Iterate over all input constraint paths and find those with /standard/
@@ -246,6 +260,7 @@ function ReferenceFaceBridge({
 
       available.push(input);
       byId.set(input.id, input);
+      byPath.set(input.path, input);
     }
 
     // Sort by group then by label for consistent ordering
@@ -255,8 +270,14 @@ function ReferenceFaceBridge({
       return a.label.localeCompare(b.label);
     });
 
-    return { standardInputs: available, standardInputsById: byId };
+    return { standardInputs: available, standardInputsById: byId, standardInputsByPath: byPath };
   }, [ready, inputConstraints]);
+
+  // Keep a ref of standardInputsByPath for use in callbacks
+  const standardInputsByPathRef = useRef(standardInputsByPath);
+  useEffect(() => {
+    standardInputsByPathRef.current = standardInputsByPath;
+  }, [standardInputsByPath]);
 
   // Report loading state changes
   useEffect(() => {
@@ -284,6 +305,12 @@ function ReferenceFaceBridge({
 
       // Just set the input - the runtime's animation loop will pick it up
       setInputRef.current(rigPath, { float: value });
+
+      // Also notify the callback so the value can be propagated
+      const input = standardInputsByPathRef.current.get(inputPath);
+      if (input && onStandardInputChangeRef.current) {
+        onStandardInputChangeRef.current(input.id, value);
+      }
     };
 
     onAnimateValueReady?.(animateFn);
