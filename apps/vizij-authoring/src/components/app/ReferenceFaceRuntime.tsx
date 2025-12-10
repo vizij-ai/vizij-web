@@ -197,7 +197,7 @@ function ReferenceFaceBridge({
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
   const { ready, loading, animateValue, setInput, step, inputConstraints, faceId, stepHz } = useVizijRuntime();
-  const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(true);
+  const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(false);
   const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
   const stepRef = useRef(step);

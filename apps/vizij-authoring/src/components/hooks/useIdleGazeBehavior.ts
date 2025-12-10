@@ -161,7 +161,14 @@ export function useIdleGazeBehavior({
 
     return () => {
       clearTimers();
+      // Reset blink/eyelids
       animateBlinkStage(0, 0.12, "easeOut");
+      // Reset eye gaze positions to center
+      const resetDuration = 0.15;
+      void animateValue(rigPaths.eyes.leftX, { float: 0 }, { duration: resetDuration, easing: "easeOut" });
+      void animateValue(rigPaths.eyes.rightX, { float: 0 }, { duration: resetDuration, easing: "easeOut" });
+      void animateValue(rigPaths.eyes.leftY, { float: 0 }, { duration: resetDuration, easing: "easeOut" });
+      void animateValue(rigPaths.eyes.rightY, { float: 0 }, { duration: resetDuration, easing: "easeOut" });
     };
   }, [animateValue, enabled, pointerActive, rigPaths]);
 }
