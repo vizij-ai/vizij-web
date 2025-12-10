@@ -34,6 +34,8 @@ import { Panel } from "./components/ui";
 import { RiggingTabs } from "./components/app/RiggingTabs";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
 import { StdFaceMapImportExport } from "./components/app/StdFaceMapImportExport";
+import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
+import { OrchestratorProvider } from "@vizij/orchestrator-react";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -393,7 +395,15 @@ function AppContent({ loader }: AppContentProps) {
               >
                 {viewerSplitVertical ? "⬌" : "⬍"}
               </button>
-              Placeholder
+              <OrchestratorProvider autostart={false}>
+                <ReferenceFaceRuntime
+                  active={true}
+                  visible={true}
+                  driveOrchestrator={true}
+                  label={"Reference Face"}
+                >
+              </ReferenceFaceRuntime>
+              </OrchestratorProvider>
             </div>
           </div>
         ) : (
