@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { SidebarSection } from "../common/SidebarSection";
 import { RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
@@ -6,6 +6,7 @@ import { STANDARD_RIG_INPUTS, type StandardRigInput } from "@vizij/utils";
 
 export function StdFaceMappingControls() {
   const referenceFace = useReferenceFace();
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
   const groupedInputs = useMemo(() => {
     const groups = new Map<string, StandardRigInput[]>();
@@ -19,69 +20,15 @@ export function StdFaceMappingControls() {
     return groups;
   }, []);
 
+  const groupNames = useMemo(() => Array.from(groupedInputs.keys()), [groupedInputs]);
+
+  // Default to first group if none selected
+  const activeGroup = selectedGroup ?? groupNames[0] ?? null;
+
   const availableInputIds = useMemo(() => {
     return new Set(referenceFace.standardInputs.map((input) => input.id));
   }, [referenceFace.standardInputs]);
 
-  return (
-    <div className="workbench-panel__scroll">
-      <SidebarSection
-        title="Reference Control"
-        description="Control the reference face to set target feature values."
-      >
-        {!referenceFace.isLoaded && !referenceFace.isLoading && (
-          <p className="sidebar__placeholder-text">
-            Load a reference face in the Setup tab to control it here.
-          </p>
-        )}
-        {referenceFace.isLoading && (
-          <p className="sidebar__placeholder-text">Loading reference face...</p>
-        )}
-        {referenceFace.isLoaded && (
-          <div className="sidebar__stack">
-            {Array.from(groupedInputs.entries()).map(([group, inputs]) => (
-              <ReferenceInputGroup
-                key={group}
-                group={group}
-                inputs={inputs}
-                availableInputIds={availableInputIds}
-                inputValues={referenceFace.inputValues}
-                onInputChange={referenceFace.handleInputValueChange}
-              />
-            ))}
-          </div>
-        )}
-      </SidebarSection>
-
-      <SidebarSection
-        title="Mapping Editor"
-        description="Adjust your face to match the reference features."
-      >
-        <div className="sidebar__stack">
-          <p className="sidebar__placeholder-text">
-            Mapping controls will appear here.
-          </p>
-        </div>
-      </SidebarSection>
-    </div>
-  );
-}
-
-interface ReferenceInputGroupProps {
-  group: string;
-  inputs: StandardRigInput[];
-  availableInputIds: Set<string>;
-  inputValues: Record<string, number>;
-  onInputChange: (inputId: string, value: number) => void;
-}
-
-function ReferenceInputGroup({
-  group,
-  inputs,
-  availableInputIds,
-  inputValues,
-  onInputChange,
-}: ReferenceInputGroupProps) {
   const formatGroupName = (name: string) => {
     return name
       .split("_")
@@ -90,8 +37,78 @@ function ReferenceInputGroup({
   };
 
   return (
+    <div className="mapping-controls-layout">
+      <div className="mapping-controls-layout__section mapping-controls-layout__section--reference">
+        <SidebarSection
+          title="Reference Control"
+          description="Control the reference face to set target feature values."
+        >
+          {!referenceFace.isLoaded && !referenceFace.isLoading && (
+            <p className="sidebar__placeholder-text">
+              Load a reference face in the Setup tab to control it here.
+            </p>
+          )}
+          {referenceFace.isLoading && (
+            <p className="sidebar__placeholder-text">Loading reference face...</p>
+          )}
+          {referenceFace.isLoaded && (
+            <div className="sidebar__stack">
+              <div className="group-selector">
+                {groupNames.map((group) => (
+                  <button
+                    key={group}
+                    type="button"
+                    className={`group-selector__btn ${activeGroup === group ? "group-selector__btn--active" : ""}`}
+                    onClick={() => setSelectedGroup(group)}
+                  >
+                    {formatGroupName(group)}
+                  </button>
+                ))}
+              </div>
+              {activeGroup && groupedInputs.has(activeGroup) && (
+                <ReferenceInputGroup
+                  inputs={groupedInputs.get(activeGroup)!}
+                  availableInputIds={availableInputIds}
+                  inputValues={referenceFace.inputValues}
+                  onInputChange={referenceFace.handleInputValueChange}
+                />
+              )}
+            </div>
+          )}
+        </SidebarSection>
+      </div>
+
+      <div className="mapping-controls-layout__section mapping-controls-layout__section--mapping">
+        <SidebarSection
+          title="Mapping Editor"
+          description="Adjust your face to match the reference features."
+        >
+          <div className="mapping-controls-layout__scroll">
+            <p className="sidebar__placeholder-text">
+              Mapping controls will appear here.
+            </p>
+          </div>
+        </SidebarSection>
+      </div>
+    </div>
+  );
+}
+
+interface ReferenceInputGroupProps {
+  inputs: StandardRigInput[];
+  availableInputIds: Set<string>;
+  inputValues: Record<string, number>;
+  onInputChange: (inputId: string, value: number) => void;
+}
+
+function ReferenceInputGroup({
+  inputs,
+  availableInputIds,
+  inputValues,
+  onInputChange,
+}: ReferenceInputGroupProps) {
+  return (
     <div className="reference-input-group">
-      <h4 className="reference-input-group__title">{formatGroupName(group)}</h4>
       <div className="reference-input-group__inputs">
         {inputs.map((input) => {
           const isAvailable = availableInputIds.has(input.id);
