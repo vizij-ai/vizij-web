@@ -1036,6 +1036,85 @@ body {
   color: var(--color-slate-200);
 }
 
+/* Face frame styles for reference face viewer */
+.face-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.face-frame--fill {
+  width: 100%;
+  height: 100%;
+}
+
+.face-frame__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.face-frame__label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.face-frame__subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.face-frame__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at 50% 30%,
+    var(--bg-canvas-highlight, #1e293b) 0%,
+    var(--bg-canvas, #0f172a) 100%
+  );
+}
+
+.face-frame--fill .face-frame__canvas {
+  height: 100%;
+}
+
+.face-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.face-frame__status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+}
+
+.face-frame__status--error {
+  color: #f87171;
+}
+
+.face-frame__footer {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  padding: 0 8px;
+}
+
 .viewer {
   flex: 1 1 0;
   display: flex;
