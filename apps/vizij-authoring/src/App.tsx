@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useId } from "react";
+import { useCallback, useEffect, useMemo, useState, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
@@ -36,6 +36,8 @@ import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSec
 import { StdFaceMapImportExport } from "./components/app/StdFaceMapImportExport";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
+import { ReferenceFaceProvider, type ReferenceFaceState } from "./state/ReferenceFaceContext";
+import type { StandardRigInput } from "@vizij/utils";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -186,6 +188,86 @@ function AppContent({ loader }: AppContentProps) {
   } = loader;
 
   const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(null);
+
+  // Reference face state management
+  const [refFaceIsLoading, setRefFaceIsLoading] = useState(false);
+  const [refFaceIsLoaded, setRefFaceIsLoaded] = useState(false);
+  const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<StandardRigInput[]>([]);
+  const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<Map<string, StandardRigInput>>(new Map());
+  const [refFaceInputValues, setRefFaceInputValues] = useState<Record<string, number>>({});
+  const refFaceAnimateValueRef = useRef<((path: string, value: number) => void) | undefined>(undefined);
+
+  const handleRefFaceStandardInputsReady = useCallback(
+    (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
+      setRefFaceStandardInputs(inputs);
+      setRefFaceStandardInputsById(byId);
+      // Initialize input values with defaults
+      const initialValues: Record<string, number> = {};
+      for (const input of inputs) {
+        initialValues[input.id] = input.defaultValue;
+      }
+      setRefFaceInputValues(initialValues);
+    },
+    [],
+  );
+
+  const handleRefFaceLoadingStateChange = useCallback(
+    (isLoading: boolean, isLoaded: boolean) => {
+      setRefFaceIsLoading(isLoading);
+      setRefFaceIsLoaded(isLoaded);
+    },
+    [],
+  );
+
+  const handleRefFaceAnimateValueReady = useCallback(
+    (animateFn: ((path: string, value: number) => void) | undefined) => {
+      refFaceAnimateValueRef.current = animateFn;
+    },
+    [],
+  );
+
+  const handleRefFaceInputValueChange = useCallback(
+    (inputId: string, value: number) => {
+      const input = refFaceStandardInputsById.get(inputId);
+      if (!input) {
+        console.warn(`[App] Unknown reference face input ID: ${inputId}`);
+        return;
+      }
+      setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
+      refFaceAnimateValueRef.current?.(input.path, value);
+    },
+    [refFaceStandardInputsById],
+  );
+
+  const handleRefFaceResetAllInputValues = useCallback(() => {
+    const resetValues: Record<string, number> = {};
+    for (const input of refFaceStandardInputs) {
+      resetValues[input.id] = input.defaultValue;
+      refFaceAnimateValueRef.current?.(input.path, input.defaultValue);
+    }
+    setRefFaceInputValues(resetValues);
+  }, [refFaceStandardInputs]);
+
+  const referenceFaceContextValue: ReferenceFaceState = useMemo(
+    () => ({
+      isLoaded: refFaceIsLoaded,
+      isLoading: refFaceIsLoading,
+      standardInputs: refFaceStandardInputs,
+      standardInputsById: refFaceStandardInputsById,
+      inputValues: refFaceInputValues,
+      handleInputValueChange: handleRefFaceInputValueChange,
+      handleResetAllInputValues: handleRefFaceResetAllInputValues,
+    }),
+    [
+      refFaceIsLoaded,
+      refFaceIsLoading,
+      refFaceStandardInputs,
+      refFaceStandardInputsById,
+      refFaceInputValues,
+      handleRefFaceInputValueChange,
+      handleRefFaceResetAllInputValues,
+    ],
+  );
 
   const faceId = useGraphRuntime((state) => state.faceId);
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
@@ -397,12 +479,15 @@ function AppContent({ loader }: AppContentProps) {
               </button>
               <OrchestratorProvider autostart={false}>
                 <ReferenceFaceRuntime
+                  file={secondFaceFileToLoad}
                   active={true}
                   visible={true}
                   driveOrchestrator={true}
                   label={"Reference Face"}
-                >
-              </ReferenceFaceRuntime>
+                  onStandardInputsReady={handleRefFaceStandardInputsReady}
+                  onLoadingStateChange={handleRefFaceLoadingStateChange}
+                  onAnimateValueReady={handleRefFaceAnimateValueReady}
+                />
               </OrchestratorProvider>
             </div>
           </div>
@@ -519,9 +604,11 @@ function AppContent({ loader }: AppContentProps) {
               )}
 
               {activeWorkbench === "std-face-mapper" && (
-                <StdFaceMapImportExport
-                  onSelectFile={setSecondFaceFileToLoad}
-                />
+                <ReferenceFaceProvider value={referenceFaceContextValue}>
+                  <StdFaceMapImportExport
+                    onSelectFile={setSecondFaceFileToLoad}
+                  />
+                </ReferenceFaceProvider>
               )}
             </div>
           </div>

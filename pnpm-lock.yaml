@@ -490,9 +490,15 @@ importers:
       '@vizij/node-graph-wasm':
         specifier: ^0.5.0
         version: 0.5.0
+      '@vizij/orchestrator-react':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/orchestrator-react
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
+      '@vizij/runtime-react':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/runtime-react
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils

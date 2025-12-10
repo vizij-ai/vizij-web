@@ -10,12 +10,14 @@ import { FACE_ROOT_BOUNDS } from "../config/runtimeFace";
 export type RuntimeFaceFrameProps = {
   label?: string;
   subtitle?: string;
-  variant?: "sm" | "md" | "lg";
+  variant?: "sm" | "md" | "lg" | "fill";
   className?: string;
   pointerTargetRef?: RefObject<HTMLDivElement>;
   onCanvasClick?: () => void;
   overlay?: ReactNode;
   footer?: ReactNode;
+  /** Skip forcing camera bounds - let the loaded face define its own bounds */
+  skipBounds?: boolean;
 };
 
 export function RuntimeFaceFrame({
@@ -27,6 +29,7 @@ export function RuntimeFaceFrame({
   onCanvasClick,
   overlay,
   footer,
+  skipBounds = false,
 }: RuntimeFaceFrameProps) {
   const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
 
@@ -53,7 +56,7 @@ export function RuntimeFaceFrame({
         className="face-frame__canvas"
         onClick={onCanvasClick}
       >
-        <FaceCameraBounds />
+        {!skipBounds && <FaceCameraBounds />}
         <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
         <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
         {overlay}
