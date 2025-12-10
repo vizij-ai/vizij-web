@@ -33,6 +33,7 @@ import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { Panel } from "./components/ui";
 import { RiggingTabs } from "./components/app/RiggingTabs";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
+import { StdFaceMapImportExport } from "./components/app/StdFaceMapImportExport";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -181,6 +182,8 @@ function AppContent({ loader }: AppContentProps) {
     bundle: loadedBundle,
     updateBundle,
   } = loader;
+
+  const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(null);
 
   const faceId = useGraphRuntime((state) => state.faceId);
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
@@ -503,6 +506,12 @@ function AppContent({ loader }: AppContentProps) {
                     onImportPoseGraph={handleImportPoseGraphFile}
                   />
                 </Panel>
+              )}
+
+              {activeWorkbench === "std-face-mapper" && (
+                <StdFaceMapImportExport
+                  onSelectFile={setSecondFaceFileToLoad}
+                />
               )}
             </div>
           </div>

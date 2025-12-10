@@ -31,7 +31,7 @@ export const WORKBENCH_OPTIONS: WorkbenchOption[] = [
   {
     id: "std-face-mapper",
     label: "Standard Face Mapping",
-    description: "Map standard feature spaces to your model.",
+    description: "Map your model to standard feature spaces.",
     icon: "face",
   },
 ];
