@@ -251,7 +251,6 @@ function ReferenceInputGroup({
                 max={input.range.max}
                 step={0.01}
                 onChange={(newValue) => {
-                  console.log("[ReferenceFace] Input change:", input.id, newValue);
                   onInputChange(input.id, newValue);
                 }}
               />
