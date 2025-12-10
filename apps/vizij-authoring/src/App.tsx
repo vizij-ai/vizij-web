@@ -234,7 +234,13 @@ function AppContent({ loader }: AppContentProps) {
         return;
       }
       setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
-      refFaceAnimateValueRef.current?.(input.path, value);
+
+      const animateFn = refFaceAnimateValueRef.current;
+      if (!animateFn) {
+        console.warn(`[App] Animate function not ready yet`);
+        return;
+      }
+      animateFn(input.path, value);
     },
     [refFaceStandardInputsById],
   );

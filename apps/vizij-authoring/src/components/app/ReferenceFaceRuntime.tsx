@@ -3,7 +3,11 @@ import { VizijAssetBundle, VizijRuntimeProvider, useVizijRuntime } from "@vizij/
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
-import { STANDARD_RIG_INPUTS, type StandardRigInput } from "@vizij/utils";
+import {
+  createStandardRigInputFromPath,
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 
 type ReferenceFaceRuntimeProps = {
   namespace?: string;
@@ -185,42 +189,71 @@ function ReferenceFaceBridge({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const { ready, loading, animateValue, inputConstraints, faceId, stepHz } = useVizijRuntime();
+  const { ready, loading, animateValue, setInput, step, inputConstraints, faceId, stepHz } = useVizijRuntime();
   const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(true);
   const animateValueRef = useRef(animateValue);
+  const setInputRef = useRef(setInput);
+  const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
 
   // Keep refs updated
   useEffect(() => {
     animateValueRef.current = animateValue;
+    setInputRef.current = setInput;
+    stepRef.current = step;
     faceIdRef.current = faceId;
-  }, [animateValue, faceId]);
+  }, [animateValue, setInput, step, faceId]);
 
-  // Extract standard inputs that are available in the loaded face
+  // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById } = useMemo(() => {
     if (!ready || !inputConstraints) {
       return { standardInputs: [], standardInputsById: new Map<string, StandardRigInput>() };
     }
 
-    // Build a set of available paths from inputConstraints
-    const availablePaths = new Set(Object.keys(inputConstraints));
-
-    // Filter STANDARD_RIG_INPUTS to only include those available in the runtime
     const available: StandardRigInput[] = [];
     const byId = new Map<string, StandardRigInput>();
+    const seenPaths = new Set<string>();
 
-    for (const input of STANDARD_RIG_INPUTS) {
-      // The runtime paths are prefixed with rig/<faceId>/
-      // Check if any path ends with the standard input path
-      const matchingPath = Array.from(availablePaths).find(
-        (path) => path.endsWith(input.path) || path.includes(`/${input.path.slice(1)}`)
-      );
-
-      if (matchingPath) {
-        available.push(input);
-        byId.set(input.id, input);
+    // Iterate over all input constraint paths and find those with /standard/
+    for (const [fullPath, constraint] of Object.entries(inputConstraints)) {
+      // Check if this path contains /standard/
+      if (!fullPath.includes("/standard/")) {
+        continue;
       }
+
+      // Normalize the path to get a canonical form
+      const normalizedPath = normalizeStandardRigInputPath(fullPath);
+
+      // Skip if we've already processed this normalized path
+      if (seenPaths.has(normalizedPath)) {
+        continue;
+      }
+      seenPaths.add(normalizedPath);
+
+      // Create a StandardRigInput from the path
+      const input = createStandardRigInputFromPath(normalizedPath);
+
+      // Override with constraint metadata if available
+      if (constraint.min !== undefined || constraint.max !== undefined) {
+        input.range = {
+          min: constraint.min ?? input.range.min,
+          max: constraint.max ?? input.range.max,
+        };
+      }
+      if (constraint.defaultValue !== undefined) {
+        input.defaultValue = constraint.defaultValue;
+      }
+
+      available.push(input);
+      byId.set(input.id, input);
     }
+
+    // Sort by group then by label for consistent ordering
+    available.sort((a, b) => {
+      const groupCompare = a.group.localeCompare(b.group);
+      if (groupCompare !== 0) return groupCompare;
+      return a.label.localeCompare(b.label);
+    });
 
     return { standardInputs: available, standardInputsById: byId };
   }, [ready, inputConstraints]);
@@ -249,12 +282,8 @@ function ReferenceFaceBridge({
       const currentFaceId = faceIdRef.current;
       const rigPath = currentFaceId ? `rig/${currentFaceId}${inputPath}` : `rig/face${inputPath}`;
 
-      animateValueRef.current(rigPath, value, {
-        duration: 100,
-        easing: "easeOut",
-      }).catch((err) => {
-        console.error(`[ReferenceFaceBridge] Failed to animate ${rigPath}:`, err);
-      });
+      // Just set the input - the runtime's animation loop will pick it up
+      setInputRef.current(rigPath, { float: value });
     };
 
     onAnimateValueReady?.(animateFn);
