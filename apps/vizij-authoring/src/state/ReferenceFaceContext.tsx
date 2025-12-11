@@ -10,6 +10,8 @@ export interface ReferenceFaceState {
   standardInputs: StandardRigInput[];
   /** Map of input ID to StandardRigInput for quick lookup */
   standardInputsById: Map<string, StandardRigInput>;
+  /** Set of input IDs that have bindings (connections to other nodes) */
+  inputIdsWithBindings: Set<string>;
   /** Current input values */
   inputValues: Record<string, number>;
   /** Handler to change an input value */
@@ -23,6 +25,7 @@ const defaultState: ReferenceFaceState = {
   isLoading: false,
   standardInputs: [],
   standardInputsById: new Map(),
+  inputIdsWithBindings: new Set(),
   inputValues: {},
   handleInputValueChange: () => {},
   handleResetAllInputValues: () => {},

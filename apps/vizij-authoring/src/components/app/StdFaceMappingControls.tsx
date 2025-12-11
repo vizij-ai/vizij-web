@@ -2,15 +2,16 @@ import { useMemo, useState } from "react";
 import { SidebarSection } from "../common/SidebarSection";
 import { RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
-import { STANDARD_RIG_INPUTS, type StandardRigInput } from "@vizij/utils";
+import type { StandardRigInput } from "@vizij/utils";
 
 export function StdFaceMappingControls() {
   const referenceFace = useReferenceFace();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
+  // Group standard inputs from the reference face (not a hardcoded list)
   const groupedInputs = useMemo(() => {
     const groups = new Map<string, StandardRigInput[]>();
-    for (const input of STANDARD_RIG_INPUTS) {
+    for (const input of referenceFace.standardInputs) {
       const group = input.group;
       if (!groups.has(group)) {
         groups.set(group, []);
@@ -18,16 +19,16 @@ export function StdFaceMappingControls() {
       groups.get(group)!.push(input);
     }
     return groups;
-  }, []);
+  }, [referenceFace.standardInputs]);
 
   const groupNames = useMemo(() => Array.from(groupedInputs.keys()), [groupedInputs]);
 
   // Default to first group if none selected
   const activeGroup = selectedGroup ?? groupNames[0] ?? null;
 
-  const availableInputIds = useMemo(() => {
-    return new Set(referenceFace.standardInputs.map((input) => input.id));
-  }, [referenceFace.standardInputs]);
+  // Use the binding information from the context to determine which inputs have bindings
+  // This checks if the input node has outgoing edges in the graph
+  const inputIdsWithBindings = referenceFace.inputIdsWithBindings;
 
   const formatGroupName = (name: string) => {
     return name
@@ -68,7 +69,7 @@ export function StdFaceMappingControls() {
               {activeGroup && groupedInputs.has(activeGroup) && (
                 <ReferenceInputGroup
                   inputs={groupedInputs.get(activeGroup)!}
-                  availableInputIds={availableInputIds}
+                  inputIdsWithBindings={inputIdsWithBindings}
                   inputValues={referenceFace.inputValues}
                   onInputChange={referenceFace.handleInputValueChange}
                 />
@@ -96,14 +97,14 @@ export function StdFaceMappingControls() {
 
 interface ReferenceInputGroupProps {
   inputs: StandardRigInput[];
-  availableInputIds: Set<string>;
+  inputIdsWithBindings: Set<string>;
   inputValues: Record<string, number>;
   onInputChange: (inputId: string, value: number) => void;
 }
 
 function ReferenceInputGroup({
   inputs,
-  availableInputIds,
+  inputIdsWithBindings,
   inputValues,
   onInputChange,
 }: ReferenceInputGroupProps) {
@@ -111,14 +112,17 @@ function ReferenceInputGroup({
     <div className="reference-input-group">
       <div className="reference-input-group__inputs">
         {inputs.map((input) => {
-          const isAvailable = availableInputIds.has(input.id);
+          const hasBinding = inputIdsWithBindings.has(input.id);
           const value = inputValues[input.id] ?? input.defaultValue;
 
-          if (!isAvailable) {
+          if (!hasBinding) {
             return (
-              <div key={input.id} className="reference-input-row reference-input-row--missing">
+              <div key={input.id} className="reference-input-row reference-input-row--no-binding">
                 <span className="reference-input-row__label">{input.label}</span>
-                <span className="reference-input-row__missing">Not in rig</span>
+                <span className="reference-input-row__status reference-input-row__status--no-binding">
+                  <span className="reference-input-row__status-icon">○</span>
+                  No binding
+                </span>
               </div>
             );
           }
