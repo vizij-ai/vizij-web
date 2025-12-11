@@ -36,8 +36,13 @@ import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSec
 import { StdFaceMapImportExport } from "./components/app/StdFaceMapImportExport";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
+import type { VizijBundleExtension } from "@vizij/render";
 import { ReferenceFaceProvider, type ReferenceFaceState } from "./state/ReferenceFaceContext";
 import type { StandardRigInput } from "@vizij/utils";
+import {
+  extractBindingsFromBundle,
+  getInputIdsWithBindings,
+} from "./utils/standardInputBindings";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -194,9 +199,31 @@ function AppContent({ loader }: AppContentProps) {
   const [refFaceIsLoaded, setRefFaceIsLoaded] = useState(false);
   const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<StandardRigInput[]>([]);
   const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<Map<string, StandardRigInput>>(new Map());
+  const [refFaceInputIdsWithBindings, setRefFaceInputIdsWithBindings] = useState<Set<string>>(new Set());
   const [refFaceInputValues, setRefFaceInputValues] = useState<Record<string, number>>({});
   const refFaceAnimateValueRef = useRef<((path: string, value: number) => void) | undefined>(undefined);
   const mainFaceInputChangeRef = useRef<((inputId: string, value: number) => void) | undefined>(undefined);
+
+  // Reset binding info when file is cleared
+  useEffect(() => {
+    if (!secondFaceFileToLoad) {
+      setRefFaceInputIdsWithBindings(new Set());
+    }
+  }, [secondFaceFileToLoad]);
+
+  // Handle bundle ready from ReferenceFaceRuntime - extract binding information
+  const handleRefFaceBundleReady = useCallback(
+    (bundle: VizijBundleExtension | null) => {
+      if (!bundle) {
+        setRefFaceInputIdsWithBindings(new Set());
+        return;
+      }
+      const bindingInfo = extractBindingsFromBundle(bundle);
+      const idsWithBindings = getInputIdsWithBindings(bindingInfo);
+      setRefFaceInputIdsWithBindings(idsWithBindings);
+    },
+    [],
+  );
 
   const handleRefFaceStandardInputsReady = useCallback(
     (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
@@ -273,6 +300,7 @@ function AppContent({ loader }: AppContentProps) {
       isLoading: refFaceIsLoading,
       standardInputs: refFaceStandardInputs,
       standardInputsById: refFaceStandardInputsById,
+      inputIdsWithBindings: refFaceInputIdsWithBindings,
       inputValues: refFaceInputValues,
       handleInputValueChange: handleRefFaceInputValueChange,
       handleResetAllInputValues: handleRefFaceResetAllInputValues,
@@ -282,6 +310,7 @@ function AppContent({ loader }: AppContentProps) {
       refFaceIsLoading,
       refFaceStandardInputs,
       refFaceStandardInputsById,
+      refFaceInputIdsWithBindings,
       refFaceInputValues,
       handleRefFaceInputValueChange,
       handleRefFaceResetAllInputValues,
@@ -506,6 +535,7 @@ function AppContent({ loader }: AppContentProps) {
                   onLoadingStateChange={handleRefFaceLoadingStateChange}
                   onAnimateValueReady={handleRefFaceAnimateValueReady}
                   onStandardInputChange={handleRefFaceStandardInputChange}
+                  onBundleReady={handleRefFaceBundleReady}
                   splitVertical={viewerSplitVertical}
                   onToggleSplit={() => setViewerSplitVertical((v) => !v)}
                 />

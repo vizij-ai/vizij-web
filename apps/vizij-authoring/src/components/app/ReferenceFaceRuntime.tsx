@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { VizijAssetBundle, VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
+import type { VizijBundleExtension } from "@vizij/render";
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
@@ -28,6 +29,8 @@ type ReferenceFaceRuntimeProps = {
   _animateValueFn?: (path: string, value: number) => void;
   /** Called when any standard input value changes on the reference face (from any source) */
   onStandardInputChange?: (inputId: string, value: number) => void;
+  /** Called when the bundle extension is extracted from the loaded face */
+  onBundleReady?: (bundle: VizijBundleExtension | null) => void;
   /** Whether the split is vertical */
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
@@ -66,6 +69,7 @@ export function ReferenceFaceRuntime({
   onLoadingStateChange,
   onAnimateValueReady,
   onStandardInputChange,
+  onBundleReady,
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
@@ -115,6 +119,7 @@ export function ReferenceFaceRuntime({
         onLoadingStateChange={onLoadingStateChange}
         onAnimateValueReady={onAnimateValueReady}
         onStandardInputChange={onStandardInputChange}
+        onBundleReady={onBundleReady}
         splitVertical={splitVertical}
         onToggleSplit={onToggleSplit}
       />
@@ -177,6 +182,8 @@ type ReferenceFaceBridgeProps = {
   onAnimateValueReady?: (animateValue: ((path: string, value: number) => void) | undefined) => void;
   /** Called when any standard input value changes on the reference face */
   onStandardInputChange?: (inputId: string, value: number) => void;
+  /** Called when the bundle extension is extracted from the loaded face */
+  onBundleReady?: (bundle: VizijBundleExtension | null) => void;
   /** Whether the split is vertical */
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
@@ -193,10 +200,11 @@ function ReferenceFaceBridge({
   onLoadingStateChange,
   onAnimateValueReady,
   onStandardInputChange,
+  onBundleReady,
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const { ready, loading, animateValue, setInput, step, inputConstraints, faceId, stepHz } = useVizijRuntime();
+  const { ready, loading, animateValue, setInput, step, inputConstraints, faceId, stepHz, assetBundle } = useVizijRuntime();
   const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(false);
   const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
@@ -235,8 +243,14 @@ function ReferenceFaceBridge({
         continue;
       }
 
-      // Normalize the path to get a canonical form
-      const normalizedPath = normalizeStandardRigInputPath(fullPath);
+      // Extract the /standard/... portion from the path (strips namespace prefix like "refface/")
+      const standardMatch = fullPath.match(/(\/standard\/.+)$/);
+      if (!standardMatch) {
+        continue;
+      }
+
+      // Normalize the extracted standard path
+      const normalizedPath = normalizeStandardRigInputPath(standardMatch[1]);
 
       // Skip if we've already processed this normalized path
       if (seenPaths.has(normalizedPath)) {
@@ -283,6 +297,15 @@ function ReferenceFaceBridge({
   useEffect(() => {
     onLoadingStateChange?.(loading, ready);
   }, [loading, ready, onLoadingStateChange]);
+
+  // Report bundle when ready (only once per bundle)
+  const lastReportedBundleRef = useRef<typeof assetBundle.bundle | undefined>(undefined);
+  useEffect(() => {
+    if (ready && assetBundle.bundle !== lastReportedBundleRef.current) {
+      lastReportedBundleRef.current = assetBundle.bundle;
+      onBundleReady?.(assetBundle.bundle ?? null);
+    }
+  }, [ready, assetBundle.bundle, onBundleReady]);
 
   // Report standard inputs when they change
   useEffect(() => {
