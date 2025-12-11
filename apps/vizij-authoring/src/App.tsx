@@ -153,6 +153,23 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
             Once you are satisfied with the mapping, save the mapping configuration into your Vizij bundle for future use.
           </li>
         </ol>
+        <p style={{ marginTop: "1rem" }}>
+          <strong>Mapping Editor Status Indicators:</strong>
+        </p>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <span style={{ color: "#22c55e" }}>●</span>
+            <span><strong>Green</strong> — Track exists and has a binding configured. Ready to use.</span>
+          </li>
+          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <span style={{ color: "#3b82f6" }}>●</span>
+            <span><strong>Blue</strong> — Track exists but has no binding. Configure a binding to drive features.</span>
+          </li>
+          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ color: "#64748b" }}>●</span>
+            <span><strong>Gray</strong> — Track is missing in the main face. Create it first.</span>
+          </li>
+        </ul>
       </div>
     ),
   },

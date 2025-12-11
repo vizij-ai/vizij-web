@@ -2,11 +2,41 @@ import { useMemo, useState } from "react";
 import { SidebarSection } from "../common/SidebarSection";
 import { RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { StandardRigInput } from "@vizij/utils";
 
 export function StdFaceMappingControls() {
   const referenceFace = useReferenceFace();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+
+  // Get main face data for existence and binding checks
+  const mainFaceStandardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
+  // bindings maps targetId -> AnimatableBinding, where binding.inputId or slot.inputId references a standard input
+  const mainFaceBindings = useBindingAuthoring((state) => state.bindings);
+  // Check if main face is actually loaded (animatableComponents only populated when a face with geometry is loaded)
+  const mainFaceAnimatableComponents = useBindingAuthoring(
+    (state) => state.animatableComponents,
+  );
+  const mainFaceIsLoaded = mainFaceAnimatableComponents.length > 0;
+
+  // Build a set of standard input IDs that are used in any binding
+  const mainFaceInputIdsWithBindings = useMemo(() => {
+    const usedIds = new Set<string>();
+    for (const binding of Object.values(mainFaceBindings)) {
+      if (binding.inputId) {
+        usedIds.add(binding.inputId);
+      }
+      for (const slot of binding.slots ?? []) {
+        if (slot.inputId) {
+          usedIds.add(slot.inputId);
+        }
+      }
+    }
+    return usedIds;
+  }, [mainFaceBindings]);
 
   // Group standard inputs from the reference face (not a hardcoded list)
   const groupedInputs = useMemo(() => {
@@ -84,11 +114,30 @@ export function StdFaceMappingControls() {
           title="Mapping Editor"
           description="Adjust your face to match the reference features."
         >
-          <div className="mapping-controls-layout__scroll">
+          {!referenceFace.isLoaded ? (
             <p className="sidebar__placeholder-text">
-              Mapping controls will appear here.
+              Load a reference face to begin mapping.
             </p>
-          </div>
+          ) : !mainFaceIsLoaded ? (
+            <p className="sidebar__placeholder-text">
+              Load a main face to begin mapping.
+            </p>
+          ) : !activeGroup ? (
+            <p className="sidebar__placeholder-text">
+              Select a group above to see mapping options.
+            </p>
+          ) : (
+            <div className="mapping-controls-layout__scroll">
+              <MappingTrackSelector
+                inputs={groupedInputs.get(activeGroup) ?? []}
+                selectedTrackId={selectedTrackId}
+                onSelectTrack={setSelectedTrackId}
+                mainFaceIsLoaded={mainFaceIsLoaded}
+                mainFaceStandardInputsById={mainFaceStandardInputsById}
+                mainFaceInputIdsWithBindings={mainFaceInputIdsWithBindings}
+              />
+            </div>
+          )}
         </SidebarSection>
       </div>
     </div>
@@ -140,6 +189,76 @@ function ReferenceInputGroup({
                 }}
               />
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface MappingTrackSelectorProps {
+  inputs: StandardRigInput[];
+  selectedTrackId: string | null;
+  onSelectTrack: (trackId: string | null) => void;
+  mainFaceIsLoaded: boolean;
+  mainFaceStandardInputsById: Map<string, StandardRigInput>;
+  mainFaceInputIdsWithBindings: Set<string>;
+}
+
+function MappingTrackSelector({
+  inputs,
+  selectedTrackId,
+  onSelectTrack,
+  mainFaceIsLoaded,
+  mainFaceStandardInputsById,
+  mainFaceInputIdsWithBindings,
+}: MappingTrackSelectorProps) {
+
+  if (inputs.length === 0) {
+    return (
+      <p className="sidebar__placeholder-text">
+        No tracks in this group.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mapping-track-selector">
+      <div className="mapping-track-selector__list">
+        {inputs.map((input) => {
+          // If main face isn't loaded, nothing exists there
+          const existsInMainFace = mainFaceIsLoaded && mainFaceStandardInputsById.has(input.id);
+          const hasBindingInMainFace = mainFaceIsLoaded && mainFaceInputIdsWithBindings.has(input.id);
+          const isSelected = selectedTrackId === input.id;
+
+          // Determine combined status: green = bound, blue = exists but unbound, gray = missing
+          const status = !existsInMainFace
+            ? "missing"
+            : hasBindingInMainFace
+              ? "bound"
+              : "unbound";
+
+          const statusTitle = {
+            missing: "Track missing in main face",
+            unbound: "Track exists but has no binding",
+            bound: "Track exists and is bound",
+          }[status];
+
+          return (
+            <button
+              key={input.id}
+              type="button"
+              className={`mapping-track-item ${isSelected ? "mapping-track-item--selected" : ""}`}
+              onClick={() => onSelectTrack(isSelected ? null : input.id)}
+            >
+              <span className="mapping-track-item__label">{input.label}</span>
+              <span
+                className={`mapping-track-item__status mapping-track-item__status--${status}`}
+                title={statusTitle}
+              >
+                ●
+              </span>
+            </button>
           );
         })}
       </div>
