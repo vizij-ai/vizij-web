@@ -1,12 +1,12 @@
 export function FooterSection() {
   return (
-    <footer className="showcase-section footer-section">
+    <footer className="showcase-section">
       <div className="section-header">
         <p className="section-eyebrow">Stay connected</p>
-        <h2 className="section-title">hello@vizij.ai</h2>
+        {/* <h2 className="section-title">hello@vizij.ai</h2> */}
         <p className="section-description">
-          Vizij keeps rendered faces expressive on every device—web, app, or
-          robot.
+          We welcome contributions and issues on github and you can find and
+          join the core team at semio community.
         </p>
       </div>
       <div className="footer-links">

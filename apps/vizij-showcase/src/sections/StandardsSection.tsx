@@ -10,7 +10,7 @@ const STACK = [
 
 export function StandardsSection() {
   return (
-    <section id="standards" className="showcase-section standards-section">
+    <section id="standards" className="showcase-section">
       <div className="section-header">
         <p className="section-eyebrow">Open standards</p>
         <h2 className="section-title">Built on the open stack.</h2>

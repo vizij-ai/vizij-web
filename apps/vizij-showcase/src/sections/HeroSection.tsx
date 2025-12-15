@@ -113,7 +113,7 @@ export function HeroSection() {
           </ShowcaseRuntime>
         ))}
       </div>
-      <div className="section-note section-note--hero">
+      <div className="section-description">
         <p>
           Hugo (from <a href="https://peerbots.org">Peerbots</a>), and{" "}
           <a href="https://quori.org">Quori</a> are driven by Vizij rigs and
