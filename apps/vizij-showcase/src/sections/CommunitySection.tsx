@@ -14,11 +14,13 @@ export function CommunitySection() {
       <div className="section-header">
         <p className="section-eyebrow">Join the community</p>
         <h2 className="section-title">
-          Vizij is built inside the <a href="https://semio.community">Semio Community</a>.
+          Vizij is built inside the{" "}
+          <a href="https://semio.community">Semio Community</a>.
         </h2>
         <p className="section-description">
-          We are building open, extensible tools for expressive robot systems. Join the community to share rigs, contribute
-          code, and co-host workshops.
+          We are building open, extensible tools for expressive robot systems.
+          Join the community to share rigs, contribute code, and co-host
+          workshops.
         </p>
       </div>
       <div className="community-chip-row">

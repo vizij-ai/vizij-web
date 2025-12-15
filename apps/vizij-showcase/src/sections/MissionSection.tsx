@@ -7,10 +7,13 @@ export function MissionSection() {
           Rendered robot face Infrastructure to unify robot system development.
         </h2>
         <p className="section-description">
-          Robot developers often have to spin up an entire pipeline to work on the modules they specialize in. 
-          People deserve expressive faces that feel present, trustworthy, and emotionally legible. Vizij makes
-          expressive embodiment as modular as web design so robot designers can benefit from faces that
-          meet humans wherever they interact and designers, developers, and researchers can focus on adding what they do best.
+          Robot developers often have to spin up an entire pipeline to work on
+          the modules they specialize in. People deserve expressive faces that
+          feel present, trustworthy, and emotionally legible. Vizij makes
+          expressive embodiment as modular as web design so robot designers can
+          benefit from faces that meet humans wherever they interact and
+          designers, developers, and researchers can focus on adding what they
+          do best.
         </p>
       </div>
       <blockquote className="mission-quote">
