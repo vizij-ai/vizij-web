@@ -15,8 +15,8 @@ export function StandardsSection() {
         <p className="section-eyebrow">Open standards</p>
         <h2 className="section-title">Built on the open stack.</h2>
         <p className="section-description">
-          Vizij rides the same technologies teams already trust, so expressive
-          AI stays portable and future-proof.
+          Vizij relies on and integrates with the same technologies teams already trust, so rendered
+          robot faces stay portable and future-proof.
         </p>
       </div>
       <div className="standards-row">

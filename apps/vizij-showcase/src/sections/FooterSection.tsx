@@ -5,7 +5,7 @@ export function FooterSection() {
         <p className="section-eyebrow">Stay connected</p>
         <h2 className="section-title">hello@vizij.ai</h2>
         <p className="section-description">
-          Vizij keeps AI expressive on every surface—web, app, or robot.
+          Vizij keeps rendered faces expressive on every device—web, app, or robot.
         </p>
       </div>
       <div className="footer-links">

@@ -18,7 +18,7 @@ export function RoadmapSection() {
           <ul className="roadmap-list">
             <li>Ship Vizij Core, Rig, and Renderer crates.</li>
             <li>Release open reference rigs and sample robots.</li>
-            <li>Launch the Vizij Studio browser app.</li>
+            <li>Launch open source Vizij customization tools.</li>
             <li>Stand up community governance and documentation.</li>
           </ul>
         </div>
@@ -27,8 +27,8 @@ export function RoadmapSection() {
           <h3 className="roadmap-card__title">Long-term outlook</h3>
           <p className="roadmap-card__body">
             An open expressive-robot ecosystem where anyone can author, share,
-            and remix affective animation and behavior modules across robots,
-            apps, and agents.
+            and remix expressive animation and behavior modules across robots,
+            apps, and devices.
           </p>
         </div>
       </div>

@@ -4,13 +4,13 @@ export function MissionSection() {
       <div className="section-header">
         <p className="section-eyebrow">Why Vizij exists</p>
         <h2 className="section-title">
-          Affective, embodied AI for every interaction.
+          Rendered robot face Infrastructure to unify robot system development.
         </h2>
         <p className="section-description">
-          As AI becomes ubiquitous, people deserve characters that feel present,
-          trustworthy, and emotionally legible. Vizij makes expressive
-          embodiment as modular as web design so assistants can meet humans
-          wherever they interact.
+          Robot developers often have to spin up an entire pipeline to work on the modules they specialize in. 
+          People deserve expressive faces that feel present, trustworthy, and emotionally legible. Vizij makes
+          expressive embodiment as modular as web design so robot designers can benefit from faces that
+          meet humans wherever they interact and designers, developers, and researchers can focus on adding what they do best.
         </p>
       </div>
       <blockquote className="mission-quote">

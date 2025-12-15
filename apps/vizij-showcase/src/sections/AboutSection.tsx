@@ -3,7 +3,7 @@ import { SectionIntro } from "../components/SectionIntro";
 const FEATURES = [
   {
     icon: "🎨",
-    title: "Design emotionally rich faces",
+    title: "Design expressive faces",
     description: "Use GLTF + Vizij metadata to capture nuance.",
   },
   {
@@ -13,8 +13,8 @@ const FEATURES = [
   },
   {
     icon: "🌉",
-    title: "Bridge assistants to robots",
-    description: "Ship to ROS 2, Zenoh, or your own transport.",
+    title: "Bridge web and robot deployments",
+    description: "Deploy by integrating with ROS or your custom infrastructure.",
   },
   {
     icon: "🧩",
@@ -34,8 +34,8 @@ export function AboutSection() {
     <section id="about" className="showcase-section">
       <SectionIntro
         eyebrow="What is Vizij?"
-        title="Infrastructure for affective, embodied AI."
-        description="Vizij combines rendering, animation, and orchestration so AI systems can project expressive, lifelike character wherever people encounter them—screens, apps, or robots."
+        title="Infrastructure for expressive, rendered robot faces."
+        description="Vizij combines rendering, animation, and orchestration so rendered faces can be projected consistently across screens, apps, and robot hardware."
       />
       <div className="feature-grid">
         {FEATURES.map((feature) => (

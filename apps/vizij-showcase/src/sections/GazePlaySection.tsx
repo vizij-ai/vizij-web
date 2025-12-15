@@ -14,8 +14,8 @@ export function GazePlaySection() {
     <section id="gaze" className="showcase-section" ref={ref}>
       <SectionIntro
         eyebrow="Responsive presence"
-        title="Enable your Vizij to give people attention across every surface."
-        description="Use passive gaze behaviors for continuous presense or have mouse, touch, or sensor data steer gaze to demonstrate attention in real time."
+        title="Enable rendered faces to give people attention across every surface."
+        description="Use passive gaze behaviors for idle animations or connect mouse, touch, or sensor data to control gaze for joint attention in real time."
       />
       <ShowcaseRuntime
         namespace="gaze"
