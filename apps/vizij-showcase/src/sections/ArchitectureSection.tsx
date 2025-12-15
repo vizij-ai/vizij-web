@@ -15,7 +15,7 @@ const LAYERS = [
   {
     icon: "🤝",
     title: "Bridges",
-    description: "ROS 2, Zenoh, or WebSocket adapters for live deployments.",
+    description: "ROS, WebSocket adapters, or custom implementations for live deployments.",
   },
 ];
 
@@ -24,8 +24,8 @@ export function ArchitectureSection() {
     <section id="architecture" className="showcase-section">
       <SectionIntro
         eyebrow="Architecture"
-        title="A multi-layer stack for embodied AI."
-        description="Swap renderers, transports, or orchestration logic without rewriting the rig—Vizij stays modular end to end."
+        title="A multi-layer stack for rendered robot faces."
+        description="Swap individual modules without rewriting the entire infrastructure. Vizij stays modular end to end."
       />
       <div className="architecture-grid">
         {LAYERS.map((layer) => (

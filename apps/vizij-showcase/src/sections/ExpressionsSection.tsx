@@ -19,7 +19,7 @@ export function ExpressionsSection() {
       <SectionIntro
         eyebrow="Bundle Poses"
         title="Express emotions with Vizij."
-        description="Package expressions, visemes, and gestures so agents can shift mood easily."
+        description="Package expressions, visemes, and gestures so rendered faces can express mood and intent easily."
       />
       <div className="expression-stack">
         <ShowcaseRuntime

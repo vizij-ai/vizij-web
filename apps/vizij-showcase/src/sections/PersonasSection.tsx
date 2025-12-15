@@ -2,22 +2,22 @@ const PERSONAS = [
   {
     title: "Developers",
     description:
-      "Bridge AI logic, ROS 2 topics, and Vizij runtimes so behavior and expression stay in sync across every surface.",
+      "Bridge behavior logic, ROS 2 topics, and Vizij runtimes so behavior and expression stay in sync across every surface.",
   },
   {
     title: "Animators",
     description:
-      "Preview performances in the browser, craft reusable gestures, and ship character direction straight into embodied agents.",
+      "Preview performances in the browser, craft reusable gestures, and ship character direction straight onto robot hardware.",
   },
   {
     title: "Researchers",
     description:
-      "Run reproducible social-perception studies with sharable rigs, scripted affect, and controllable inputs.",
+      "Run reproducible social-perception studies with sharable rigs, scripted expressions, and controllable inputs.",
   },
   {
     title: "Makers & Educators",
     description:
-      "Give DIY robots honest expressions without proprietary stacks—Vizij runs on laptops, tablets, or embedded GPUs.",
+      "Give DIY robots honest expressions without proprietary stacks—Vizij runs on laptops, tablets, or other connected devices.",
   },
 ];
 
@@ -29,10 +29,10 @@ export function PersonasSection() {
         <h2 className="section-title">
           Vizij meets teams wherever they build.
         </h2>
-        <p className="section-description">
-          Whether you ship in a web app, on-device assistant, or humanoid head,
-          Vizij keeps affective AI consistent from prototype to production.
-        </p>
+          <p className="section-description">
+            Whether you ship to a web app, abstract robot, or humanoid head,
+            Vizij keeps expressive faces consistent from prototype to production.
+          </p>
       </div>
       <div className="persona-grid">
         {PERSONAS.map((persona) => (

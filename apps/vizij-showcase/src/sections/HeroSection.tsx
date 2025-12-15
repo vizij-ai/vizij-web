@@ -42,26 +42,28 @@ export function HeroSection() {
             />
           </div>
           <p className="hero-brand__tagline">
-            Let every AI show up with a face that matches its intent. Vizij
-            keeps affective, embodied assistants consistent on any surface.
+            Design and deploy expressive, rendered robot faces that convey
+            intent and support consistent interactions across browsers,
+            apps, and hardware.
           </p>
           <div className="hero-brand__chips">
-            <span className="hero-chip">Affective Intelligence</span>
-            <span className="hero-chip">Embodied AI</span>
+            <span className="hero-chip">Emotive facial expressions</span>
+            <span className="hero-chip">Granular Gaze Control</span>
+            <span className="hero-chip">Synchronized Lips and Speech</span>
             <span className="hero-chip">Web-native GLTF</span>
-            <span className="hero-chip">Extend with ROS 2 + Zenoh</span>
+            <span className="hero-chip">Integrates with ROS 2</span>
           </div>
         </div>
         <div className="section-header">
-          <p className="section-eyebrow">Vizij · Affective surfaces</p>
+          <p className="section-eyebrow">Vizij · Rendered robot faces</p>
           <h1 className="section-title">
-            Design, animate, and deploy lifelike AI characters.
+            Design, animate, and deploy expressive rendered robot faces.
           </h1>
           <p className="section-description">
-            Vizij is the open platform for affective, embodied AI—built so
-            assistants, agents, and robots feel expressive and human-aligned
-            whether they greet someone in a browser, an app, or on real
-            hardware.
+            Vizij is an open-source ecosystem for building and deploying
+            rendered robot faces. It provides a standardized, modular rig
+            and controller pipeline—covering gaze, visemes, and emotion—so
+            faces behave consistently across hardware.
           </p>
           <div className="hero-cta-row">
             <button
@@ -113,11 +115,11 @@ export function HeroSection() {
       </div>
       <div className="section-note section-note--hero">
         <p>
-          Hugo and Quori are each improvising: mixing expressions and vizemes
-          while coordinating blinks and saccades to stay lifelike. Below, you’ll
-          find focused demos that unpack the building blocks—rig controls, pose
-          kits, gaze behaviors, and speech blending—that make this composite
-          performance work.
+          Hugo (from <a href="https://peerbots.org">Peerbots</a>), and <a href="https://quori.org">Quori</a> are driven by Vizij rigs and controllers, combining
+          expressions, visemes, blinks, and saccades to create communicative,
+          rendered robot faces. Below, feature-specific demos unpack the building
+          blocks—rig controls, poses, gaze behaviors, and speech blending—
+          that enable these performances.
         </p>
       </div>
     </section>

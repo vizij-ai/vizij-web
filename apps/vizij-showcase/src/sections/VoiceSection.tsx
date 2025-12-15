@@ -43,8 +43,8 @@ export function VoiceSection() {
     <section id="voice" className="showcase-section" ref={ref}>
       <SectionIntro
         eyebrow="Speech sync"
-        title="Stream visemes into affective rigs."
-        description="Kick off the sample Amazon Polly read to see how audio events map to facial nuance. Swap in your own SSML or live robot speech next—the scaffolding is ready."
+        title="Stream visemes into rendered faces."
+        description="Kick off the sample Amazon Polly read to see how audio events map to nuanced facial expressions. You can swap in your own viseme-generating model to compare."
       />
       <ShowcaseRuntime
         namespace="voice"

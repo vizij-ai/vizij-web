@@ -15,7 +15,7 @@ export function ControlsSection() {
     <section id="controls" className="showcase-section" ref={ref}>
       <SectionIntro
         eyebrow="Fine-grain control"
-        title="Every feature is addressable."
+        title="Every feature is controllable."
         description="Dial any part of the face—from color and opacity to 3D position, rotation, and scale. Search a path, add it, and drive exact values through Vizij’s orchestrator."
       />
       <ShowcaseRuntime

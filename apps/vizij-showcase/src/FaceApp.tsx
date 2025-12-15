@@ -38,10 +38,10 @@ export function FaceApp() {
       <div className="showcase-shell">
         <HeroSection />
         <AboutSection />
-        <ControlsSection />
         <ExpressionsSection />
         <GazePlaySection />
         <VoiceSection />
+        <ControlsSection />
         <PersonasSection />
         <MissionSection />
         <ArchitectureSection />
