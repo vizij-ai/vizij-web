@@ -43,8 +43,8 @@ export function HeroSection() {
           </div>
           <p className="hero-brand__tagline">
             Design and deploy expressive, rendered robot faces that convey
-            intent and support consistent interactions across browsers,
-            apps, and hardware.
+            intent and support consistent interactions across browsers, apps,
+            and hardware.
           </p>
           <div className="hero-brand__chips">
             <span className="hero-chip">Emotive facial expressions</span>
@@ -61,9 +61,9 @@ export function HeroSection() {
           </h1>
           <p className="section-description">
             Vizij is an open-source ecosystem for building and deploying
-            rendered robot faces. It provides a standardized, modular rig
-            and controller pipeline—covering gaze, visemes, and emotion—so
-            faces behave consistently across hardware.
+            rendered robot faces. It provides a standardized, modular rig and
+            controller pipeline—covering gaze, visemes, and emotion—so faces
+            behave consistently across hardware.
           </p>
           <div className="hero-cta-row">
             <button
@@ -115,11 +115,12 @@ export function HeroSection() {
       </div>
       <div className="section-note section-note--hero">
         <p>
-          Hugo (from <a href="https://peerbots.org">Peerbots</a>), and <a href="https://quori.org">Quori</a> are driven by Vizij rigs and controllers, combining
-          expressions, visemes, blinks, and saccades to create communicative,
-          rendered robot faces. Below, feature-specific demos unpack the building
-          blocks—rig controls, poses, gaze behaviors, and speech blending—
-          that enable these performances.
+          Hugo (from <a href="https://peerbots.org">Peerbots</a>), and{" "}
+          <a href="https://quori.org">Quori</a> are driven by Vizij rigs and
+          controllers, combining expressions, visemes, blinks, and saccades to
+          create communicative, rendered robot faces. Below, feature-specific
+          demos unpack the building blocks—rig controls, poses, gaze behaviors,
+          and speech blending— that enable these performances.
         </p>
       </div>
     </section>

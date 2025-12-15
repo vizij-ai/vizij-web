@@ -29,10 +29,10 @@ export function PersonasSection() {
         <h2 className="section-title">
           Vizij meets teams wherever they build.
         </h2>
-          <p className="section-description">
-            Whether you ship to a web app, abstract robot, or humanoid head,
-            Vizij keeps expressive faces consistent from prototype to production.
-          </p>
+        <p className="section-description">
+          Whether you ship to a web app, abstract robot, or humanoid head, Vizij
+          keeps expressive faces consistent from prototype to production.
+        </p>
       </div>
       <div className="persona-grid">
         {PERSONAS.map((persona) => (

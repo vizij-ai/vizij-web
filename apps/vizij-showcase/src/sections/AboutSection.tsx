@@ -14,7 +14,8 @@ const FEATURES = [
   {
     icon: "🌉",
     title: "Bridge web and robot deployments",
-    description: "Deploy by integrating with ROS or your custom infrastructure.",
+    description:
+      "Deploy by integrating with ROS or your custom infrastructure.",
   },
   {
     icon: "🧩",

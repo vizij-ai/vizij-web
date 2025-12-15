@@ -15,7 +15,8 @@ const LAYERS = [
   {
     icon: "🤝",
     title: "Bridges",
-    description: "ROS, WebSocket adapters, or custom implementations for live deployments.",
+    description:
+      "ROS, WebSocket adapters, or custom implementations for live deployments.",
   },
 ];
 
