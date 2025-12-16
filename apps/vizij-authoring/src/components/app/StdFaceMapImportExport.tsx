@@ -3,11 +3,13 @@ import { AssetLoaderPanel } from "./AssetLoaderPanel";
 import { SidebarSection } from "../common/SidebarSection";
 import { Tabs } from "../ui";
 import { StdFaceMappingControls } from "./StdFaceMappingControls";
+import { StdFaceChannelsPanel } from "./StdFaceChannelsPanel";
 
-type StdFaceMapTab = "setup" | "mapping";
+type StdFaceMapTab = "setup" | "channels" | "mapping";
 
 const TAB_ITEMS = [
   { id: "setup", label: "Setup" },
+  { id: "channels", label: "Channels" },
   { id: "mapping", label: "Mapping" },
 ] as const;
 
@@ -50,6 +52,8 @@ export function StdFaceMapImportExport({
             onClearError={handleClearError}
           />
         );
+      case "channels":
+        return <StdFaceChannelsPanel />;
       case "mapping":
         return <StdFaceMappingControls />;
       default:
