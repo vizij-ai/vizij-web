@@ -4,6 +4,10 @@ import { SidebarSection } from "../common/SidebarSection";
 import { Tabs } from "../ui";
 import { StdFaceMappingControls } from "./StdFaceMappingControls";
 import { StdFaceChannelsPanel } from "./StdFaceChannelsPanel";
+import {
+  useAuthoringUiActions,
+  useAuthoringUiState,
+} from "../../state/AuthoringUiProvider";
 
 type StdFaceMapTab = "setup" | "channels" | "mapping";
 
@@ -86,6 +90,8 @@ function SetupTabContent({
   onSelectFile,
   onClearError,
 }: SetupTabContentProps) {
+  const uiState = useAuthoringUiState();
+  const uiActions = useAuthoringUiActions();
   return (
     <div className="workbench-panel__scroll">
       <SidebarSection
@@ -113,6 +119,8 @@ function SetupTabContent({
             error={error}
             onSelectFile={onSelectFile}
             onClearError={onClearError}
+            skipDiscrepancyCheck={uiState.skipDiscrepancyCheck}
+            onSkipDiscrepancyCheckChange={uiActions.setSkipDiscrepancyCheck}
           />
         </div>
       </SidebarSection>

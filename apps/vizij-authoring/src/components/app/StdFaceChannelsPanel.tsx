@@ -445,11 +445,19 @@ export function StdFaceChannelsPanel() {
       if (!input) continue;
 
       // Replace the old segment with the new one in the path
+      // Handle both middle segments (with trailing slash) and end segments (without)
       const oldSegment = selectedNode.name;
-      const newPath = input.path.replace(
-        `/${oldSegment}/`,
-        `/${renameValue}/`,
-      );
+      let newPath = input.path;
+      if (input.path.includes(`/${oldSegment}/`)) {
+        // Middle segment: /xxx/segment/xxx
+        newPath = input.path.replace(`/${oldSegment}/`, `/${renameValue}/`);
+      } else if (input.path.endsWith(`/${oldSegment}`)) {
+        // End segment: /xxx/segment
+        newPath = input.path.replace(
+          new RegExp(`/${oldSegment}$`),
+          `/${renameValue}`,
+        );
+      }
 
       // Also update the label if it contains the old name
       const oldLabel = input.label || "";

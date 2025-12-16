@@ -378,7 +378,7 @@ function AppContent({ loader }: AppContentProps) {
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
-  const { activeWorkbench, activeRiggingTab } = uiState;
+  const { activeWorkbench, activeRiggingTab, skipDiscrepancyCheck } = uiState;
   const { setRiggingTab } = uiActions;
 
   const poseRig = usePoseRig();
@@ -459,6 +459,7 @@ function AppContent({ loader }: AppContentProps) {
     rootId,
     loadedBundle,
     standardInputCount,
+    skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
   });
