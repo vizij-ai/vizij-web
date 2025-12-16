@@ -99,7 +99,7 @@ export function analyzeStandardInputBindings(
     const connectionCount = nodesWithOutgoingEdges.get(node.id) ?? 0;
     const hasBinding = connectionCount > 0;
 
-    // Derive input ID using the same logic as STANDARD_RIG_INPUTS
+    // Derive input ID from the normalized path
     const inputId = deriveStandardRigInputIdFromPath(standardPath);
 
     result.set(inputId, {

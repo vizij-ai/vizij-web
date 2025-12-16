@@ -17,7 +17,6 @@ import {
   createStandardRigInput,
   deriveGroupFromNormalizedPath,
   normalizeStandardRigInputPath,
-  STANDARD_RIG_INPUTS,
   stripStandardInputPathPrefix,
   type AnimatableComponent,
   type AnimatableValue,
@@ -68,25 +67,12 @@ export interface RehydratedRigData {
   inputMetadata: Map<string, { source?: string; root?: string }>;
 }
 
-const PRESET_STANDARD_INPUT_IDS = new Set(
-  STANDARD_RIG_INPUTS.map((input) => input.id),
-);
-
 function resolveImportedInputGroup(
   descriptor: VizijGraphMetadataInput,
   normalizedPath: string,
 ): string {
   if (descriptor.root && descriptor.root.length > 0) {
     return descriptor.root;
-  }
-  if (PRESET_STANDARD_INPUT_IDS.has(descriptor.id)) {
-    if (descriptor.group && descriptor.group.length > 0) {
-      return descriptor.group;
-    }
-    const derivedStandardGroup = deriveGroupFromNormalizedPath(normalizedPath);
-    return derivedStandardGroup && derivedStandardGroup.length > 0
-      ? derivedStandardGroup
-      : "standard";
   }
   const derivedGroup = deriveGroupFromNormalizedPath(normalizedPath);
   if (descriptor.group && descriptor.group.length > 0) {
@@ -109,9 +95,6 @@ function normalizeImportedInputPath(
   descriptor: VizijGraphMetadataInput,
 ): string {
   const normalized = normalizeStandardRigInputPath(descriptor.path);
-  if (PRESET_STANDARD_INPUT_IDS.has(descriptor.id)) {
-    return normalized;
-  }
   return stripStandardInputPathPrefix(normalized);
 }
 
