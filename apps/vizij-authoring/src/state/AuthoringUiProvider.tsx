@@ -12,13 +12,15 @@ export interface AuthoringUiState {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
   activeRiggingTab: RiggingTab;
+  skipDiscrepancyCheck: boolean;
 }
 
 export type AuthoringUiAction =
   | { type: "set-workbench"; payload: WorkbenchView }
   | { type: "set-include-bundle"; payload: boolean }
   | { type: "set-include-animations"; payload: boolean }
-  | { type: "set-rigging-tab"; payload: RiggingTab };
+  | { type: "set-rigging-tab"; payload: RiggingTab }
+  | { type: "set-skip-discrepancy-check"; payload: boolean };
 
 export type RiggingTab = "rigging" | "face";
 
@@ -27,6 +29,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeVizijBundle: true,
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
+  skipDiscrepancyCheck: false,
 };
 
 export function authoringUiReducer(
@@ -65,6 +68,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, activeRiggingTab: action.payload };
+    case "set-skip-discrepancy-check":
+      if (state.skipDiscrepancyCheck === action.payload) {
+        return state;
+      }
+      return { ...state, skipDiscrepancyCheck: action.payload };
     default:
       return state;
   }
@@ -85,6 +93,7 @@ export interface AuthoringUiActions {
   setIncludeVizijBundle: (value: boolean) => void;
   setIncludeImportedAnimations: (value: boolean) => void;
   setRiggingTab: (value: RiggingTab) => void;
+  setSkipDiscrepancyCheck: (value: boolean) => void;
 }
 
 export function AuthoringUiProvider({
@@ -104,6 +113,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-include-animations", payload: value }),
       setRiggingTab: (value) =>
         dispatch({ type: "set-rigging-tab", payload: value }),
+      setSkipDiscrepancyCheck: (value) =>
+        dispatch({ type: "set-skip-discrepancy-check", payload: value }),
     }),
     [],
   );
