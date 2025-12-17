@@ -537,11 +537,15 @@ function AppContent({ loader }: AppContentProps) {
           />
         </aside>
 
-        {activeWorkbench === "std-face-mapper" ? (
-          <div
-            className={`viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`}
-          >
-            {viewerElement}
+        <div
+          className={
+            activeWorkbench === "std-face-mapper"
+              ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
+              : "viewer-wrapper"
+          }
+        >
+          {viewerElement}
+          {activeWorkbench === "std-face-mapper" && (
             <div className="viewer-split__placeholder">
               <OrchestratorProvider autostart={false}>
                 <ReferenceFaceRuntime
@@ -559,10 +563,8 @@ function AppContent({ loader }: AppContentProps) {
                 />
               </OrchestratorProvider>
             </div>
-          </div>
-        ) : (
-          viewerElement
-        )}
+          )}
+        </div>
 
         <aside className="sidebar sidebar--right">
           <div className="workbench-panel__content">
