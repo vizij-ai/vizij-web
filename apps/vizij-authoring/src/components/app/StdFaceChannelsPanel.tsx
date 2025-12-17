@@ -551,7 +551,20 @@ export function StdFaceChannelsPanel() {
 
       const hasChildren = node.children.size > 0;
       const expanded = isExpanded(node.id);
-      const displayName = node.input?.label || formatSegmentName(node.name);
+
+      // For display, strip the namespace prefix from the label
+      // e.g., "Vizij Mouth Morph Corner Puller" -> "Mouth Morph Corner Puller"
+      let displayName = node.input?.label || formatSegmentName(node.name);
+      if (node.input?.label && node.depth > 0) {
+        // Get the namespace name from the path (first segment of node.id)
+        const namespaceSegment = node.id.split("/")[0];
+        const formattedNamespace = formatSegmentName(namespaceSegment);
+        // Strip namespace prefix from label if present
+        if (displayName.startsWith(formattedNamespace + " ")) {
+          displayName = displayName.slice(formattedNamespace.length + 1);
+        }
+      }
+
       const isSelected = selectedNodeId === node.id;
 
       // Sort children: groups first (non-leaf), then leaves
