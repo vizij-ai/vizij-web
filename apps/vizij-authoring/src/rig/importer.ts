@@ -17,7 +17,6 @@ import {
   createStandardRigInput,
   deriveGroupFromNormalizedPath,
   normalizeStandardRigInputPath,
-  stripStandardInputPathPrefix,
   type AnimatableComponent,
   type AnimatableValue,
   type StandardRigInput,
@@ -94,8 +93,9 @@ function resolveImportedInputGroup(
 function normalizeImportedInputPath(
   descriptor: VizijGraphMetadataInput,
 ): string {
-  const normalized = normalizeStandardRigInputPath(descriptor.path);
-  return stripStandardInputPathPrefix(normalized);
+  // Preserve the /standard/ prefix for standard inputs - don't strip it
+  // The UI (StdFaceChannelsPanel) expects the /standard/ prefix to be present
+  return normalizeStandardRigInputPath(descriptor.path);
 }
 
 function coerceExpression(value: string | null | undefined, fallback: string) {
