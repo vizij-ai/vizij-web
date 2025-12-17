@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui";
 import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type { AnimatableBinding } from "@vizij/node-graph-authoring";
 
 // ============================================================================
@@ -15,6 +16,8 @@ export interface GroupMappingEditorProps {
   mainFaceInputIdsWithBindings: Set<string>;
   mainFaceAnimatableComponents: AnimatableComponent[];
   mainFaceBindings: Record<string, AnimatableBinding>;
+  // Path-based lookup for main face inputs (needed because inputs may have ref face IDs)
+  mainInputsByPath: Map<string, StandardRigInput>;
   // Use proper binding handlers to ensure correct structure for export
   onBindingInputChange: (targetId: string, inputId: string | null, slotId?: string) => void;
   onAddBindingSlot: (targetId: string) => void;
@@ -31,6 +34,7 @@ export function GroupMappingEditor({
   mainFaceInputIdsWithBindings,
   mainFaceAnimatableComponents,
   mainFaceBindings,
+  mainInputsByPath,
   onBindingInputChange,
   onAddBindingSlot,
   onRemoveBindingSlot,
@@ -113,23 +117,38 @@ export function GroupMappingEditor({
 
   // Find animatables that are driven by any of the group's inputs
   // This auto-populates drivenTracks based on existing bindings
+  // Uses path-based matching since inputs may have ref face IDs while bindings use main face IDs
   const existingDrivenTracks = useMemo(() => {
     const driven = new Set<string>();
-    const inputIds = new Set(inputs.map(i => i.id));
+
+    // Build a set of normalized paths for this group
+    const groupPaths = new Set(inputs.map(i => normalizeStandardRigInputPath(i.path)));
+
+    // Build a map from main face input ID -> normalized path
+    const mainInputIdToPath = new Map<string, string>();
+    for (const [path, input] of mainInputsByPath) {
+      mainInputIdToPath.set(input.id, path);
+    }
 
     for (const [targetId, binding] of Object.entries(mainFaceBindings)) {
-      // Check if binding uses any of our group's inputs
-      if (binding.inputId && inputIds.has(binding.inputId)) {
-        driven.add(targetId);
+      // Check if binding uses any of our group's inputs (by path, not ID)
+      if (binding.inputId) {
+        const path = mainInputIdToPath.get(binding.inputId);
+        if (path && groupPaths.has(path)) {
+          driven.add(targetId);
+        }
       }
       for (const slot of binding.slots ?? []) {
-        if (slot.inputId && inputIds.has(slot.inputId)) {
-          driven.add(targetId);
+        if (slot.inputId) {
+          const path = mainInputIdToPath.get(slot.inputId);
+          if (path && groupPaths.has(path)) {
+            driven.add(targetId);
+          }
         }
       }
     }
     return driven;
-  }, [mainFaceBindings, inputs]);
+  }, [mainFaceBindings, inputs, mainInputsByPath]);
 
   // Combined driven tracks: user-added + existing from bindings
   const allDrivenTracks = useMemo(() => {
@@ -385,11 +404,19 @@ export function GroupMappingEditor({
               </div>
               <div className="group-mapping-editor__slot-list">
                 {inputs.map((input) => {
-                  const slotInfo = getSlotForId(input.id);
+                  // Use path-based lookup to get the main face's input (inputs may have ref face IDs)
+                  const normalizedPath = normalizeStandardRigInputPath(input.path);
+                  const mainInput = mainInputsByPath.get(normalizedPath);
+                  const mainInputId = mainInput?.id;
+
+                  // Look up slot using main face's input ID
+                  const slotInfo = mainInputId ? getSlotForId(mainInputId) : undefined;
                   const isUsed = !!slotInfo;
-                  // Check if input exists in main face and has binding
-                  const existsInMain = mainFaceStandardInputsById.has(input.id);
-                  const hasBoundBinding = mainFaceInputIdsWithBindings.has(input.id);
+
+                  // Check if input exists in main face and has binding (using main face's ID)
+                  const existsInMain = mainInput !== undefined;
+                  const hasBoundBinding = mainInputId ? mainFaceInputIdsWithBindings.has(mainInputId) : false;
+
                   // Status colors differ based on whether reference face is loaded:
                   // - With ref face: grey=missing, blue=unbound, green=bound
                   // - Main-face only: grey=unbound, blue=bound (no green)
@@ -413,13 +440,14 @@ export function GroupMappingEditor({
                   }
 
                   return (
-                    <div key={input.id} className="group-mapping-editor__slot-row">
+                    <div key={normalizedPath} className="group-mapping-editor__slot-row">
                       <span className={`group-mapping-editor__status ${statusClass}`} title={statusTitle}>●</span>
                       <input
                         type="checkbox"
                         className="group-mapping-editor__slot-checkbox"
                         checked={isUsed}
-                        onChange={(e) => handleToggleInputSlot(input.id, input.label, e.target.checked)}
+                        disabled={!mainInputId}
+                        onChange={(e) => mainInputId && handleToggleInputSlot(mainInputId, input.label, e.target.checked)}
                       />
                       <span className="group-mapping-editor__slot-path" title={input.path}>
                         {input.label}
