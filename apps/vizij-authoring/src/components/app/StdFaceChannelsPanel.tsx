@@ -10,7 +10,7 @@ import { Button } from "../ui";
  * Represents a node in the standard input tree hierarchy.
  */
 interface TreeNode {
-  /** Unique path-based ID for this node (e.g., "left_eye", "left_eye/pos", "left_eye/pos/x") */
+  /** Unique path-based ID for this node (e.g., "face/left_eye", "face/left_eye/pos") */
   id: string;
   /** Display name for this node (the last segment of the path) */
   name: string;
@@ -20,18 +20,19 @@ interface TreeNode {
   input?: StandardRigInput;
   /** Whether this node represents an actual input (leaf) or just a grouping */
   isLeaf: boolean;
-  /** Depth level: 0 = channel, 1 = track, 2 = attribute */
+  /** Depth level: 0 = namespace, 1 = channel, 2 = track, 3 = attribute */
   depth: number;
 }
 
-type NodeLevel = "channel" | "track" | "attribute";
+type NodeLevel = "namespace" | "channel" | "track" | "attribute";
 
 /**
  * Builds a hierarchical tree from an array of standard inputs.
- * Paths like "/standard/left_eye/pos/x" become:
- * - left_eye (channel, depth 0)
- *   - pos (track, depth 1)
- *     - x (attribute, depth 2)
+ * Paths like "/standard/face/left_eye/pos/x" become:
+ * - face (namespace, depth 0)
+ *   - left_eye (channel, depth 1)
+ *     - pos (track, depth 2)
+ *       - x (attribute, depth 3)
  */
 function buildInputTree(inputs: StandardRigInput[]): Map<string, TreeNode> {
   const root = new Map<string, TreeNode>();
@@ -259,8 +260,9 @@ export function StdFaceChannelsPanel() {
   // Determine the level of the selected node and what can be added
   const selectedLevel: NodeLevel | null = useMemo(() => {
     if (!selectedNode) return null;
-    if (selectedNode.depth === 0) return "channel";
-    if (selectedNode.depth === 1) return "track";
+    if (selectedNode.depth === 0) return "namespace";
+    if (selectedNode.depth === 1) return "channel";
+    if (selectedNode.depth === 2) return "track";
     return "attribute";
   }, [selectedNode]);
 
@@ -269,7 +271,7 @@ export function StdFaceChannelsPanel() {
     const names = new Set<string>();
 
     if (!selectedNode) {
-      // Adding at root level - get all channel names
+      // Adding at root level - get all namespace names
       for (const node of inputTree.values()) {
         names.add(node.name.toLowerCase());
       }
@@ -291,7 +293,7 @@ export function StdFaceChannelsPanel() {
     // Find the parent and get sibling names
     const segments = selectedNode.id.split("/");
     if (segments.length === 1) {
-      // Root level - get all channel names except current
+      // Root level - get all namespace names except current
       for (const node of inputTree.values()) {
         if (node.name !== selectedNode.name) {
           names.add(node.name.toLowerCase());
@@ -337,7 +339,8 @@ export function StdFaceChannelsPanel() {
 
   // Determine what type of node can be added
   const addButtonLabel = useMemo(() => {
-    if (!selectedNode) return "Add Channel";
+    if (!selectedNode) return "Add Namespace";
+    if (selectedLevel === "namespace") return "Add Channel";
     if (selectedLevel === "channel") return "Add Track";
     if (selectedLevel === "track") return "Add Attribute";
     return null; // Can't add under attributes
@@ -369,15 +372,25 @@ export function StdFaceChannelsPanel() {
 
     let newPath: string;
     if (!selectedNode) {
-      // Adding at root level (channel)
-      newPath = `/standard/${newNodeName}/default/value`;
+      // Adding at root level (namespace) - create with default channel/track/attribute
+      newPath = `/standard/${newNodeName}/default/default/value`;
+    } else if (selectedLevel === "namespace") {
+      // Adding channel under namespace
+      const namespaceName = selectedNode.name;
+      newPath = `/standard/${namespaceName}/${newNodeName}/default/value`;
     } else if (selectedLevel === "channel") {
       // Adding track under channel
-      newPath = `/standard/${selectedNode.name}/${newNodeName}/value`;
+      const segments = selectedNode.id.split("/");
+      const namespaceName = segments[0];
+      const channelName = segments[1];
+      newPath = `/standard/${namespaceName}/${channelName}/${newNodeName}/value`;
     } else if (selectedLevel === "track") {
       // Adding attribute under track
-      const channelName = selectedNode.id.split("/")[0];
-      newPath = `/standard/${channelName}/${selectedNode.name}/${newNodeName}`;
+      const segments = selectedNode.id.split("/");
+      const namespaceName = segments[0];
+      const channelName = segments[1];
+      const trackName = segments[2];
+      newPath = `/standard/${namespaceName}/${channelName}/${trackName}/${newNodeName}`;
     } else {
       return; // Can't add under attributes
     }
@@ -551,10 +564,12 @@ export function StdFaceChannelsPanel() {
 
       const levelLabel =
         node.depth === 0
-          ? "channel"
+          ? "ns"
           : node.depth === 1
-            ? "track"
-            : "attr";
+            ? "channel"
+            : node.depth === 2
+              ? "track"
+              : "attr";
 
       return (
         <div key={node.id} className="hierarchy-tree__item">
@@ -639,12 +654,12 @@ export function StdFaceChannelsPanel() {
               )}
             </div>
 
-            {/* Add Channel - always visible above tree */}
+            {/* Add Namespace - always visible above tree */}
             <div className="sidebar__row sidebar__row--compact" style={{ marginBottom: "0.5rem" }}>
               <input
                 type="text"
                 className="sidebar__input sidebar__input--sm"
-                placeholder="Channel name..."
+                placeholder="Namespace name..."
                 value={!selectedNode ? newNodeName : ""}
                 onChange={(e) => {
                   if (!selectedNode) {
@@ -670,7 +685,7 @@ export function StdFaceChannelsPanel() {
                 }}
                 disabled={!selectedNode && (!newNodeName.trim() || !!newNodeNameError)}
               >
-                {selectedNode ? "Deselect" : "Add Channel"}
+                {selectedNode ? "Deselect" : "Add Namespace"}
               </Button>
             </div>
 
@@ -685,7 +700,7 @@ export function StdFaceChannelsPanel() {
             >
               {combinedInputs.length === 0 ? (
                 <p className="sidebar__placeholder-text">
-                  No standard channels. Add a channel below to get started.
+                  No standard channels. Add a namespace above to get started.
                 </p>
               ) : (
                 sortedRootNodes.map((node) => renderNode(node, 0))
@@ -804,8 +819,8 @@ export function StdFaceChannelsPanel() {
 
             {/* Actions toolbar - below the tree */}
             <div className="sidebar__stack sidebar__stack--sm">
-              {/* Add Track or Attribute (only when channel or track is selected) */}
-              {selectedNode && addButtonLabel && addButtonLabel !== "Add Channel" && (
+              {/* Add Channel, Track, or Attribute (only when namespace, channel, or track is selected) */}
+              {selectedNode && addButtonLabel && addButtonLabel !== "Add Namespace" && (
                 <div className="sidebar__row sidebar__row--compact">
                   <input
                     type="text"

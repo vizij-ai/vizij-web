@@ -1491,6 +1491,8 @@ body {
 .viewer__canvas {
   position: relative;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-slate-950);
 }
 
