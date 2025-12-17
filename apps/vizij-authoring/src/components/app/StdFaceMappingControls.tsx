@@ -471,6 +471,7 @@ export function StdFaceMappingControls() {
                 mainFaceInputIdsWithBindings={mainFaceInputIdsWithBindings}
                 mainFaceAnimatableComponents={mainFaceAnimatableComponents}
                 mainFaceBindings={mainFaceBindings}
+                mainInputsByPath={mainInputsByPath}
                 onBindingInputChange={handleBindingInputChange}
                 onAddBindingSlot={handleAddBindingSlot}
                 onRemoveBindingSlot={handleRemoveBindingSlot}
