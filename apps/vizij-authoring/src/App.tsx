@@ -566,7 +566,7 @@ function AppContent({ loader }: AppContentProps) {
           )}
         </div>
 
-        <aside className="sidebar sidebar--right">
+        <aside className={`sidebar sidebar--right${activeWorkbench === "std-face-mapper" ? " sidebar--narrow" : ""}`}>
           <div className="workbench-panel__content">
             <div className="workbench-panel__body">
               {activeOption && (

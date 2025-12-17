@@ -412,6 +412,39 @@ export function StdFaceChannelsPanel() {
     setExpanded,
   ]);
 
+  // Handle rerooting all existing channels under a new namespace
+  const handleRerootAll = useCallback(() => {
+    if (!newNodeName.trim() || newNodeNameError) return;
+    if (combinedInputs.length === 0) return;
+
+    const namespaceName = newNodeName.trim().toLowerCase();
+
+    // Update each input's path to include the new namespace
+    for (const input of combinedInputs) {
+      // Extract path after /standard/
+      const match = input.path.match(/^\/standard\/(.+)$/);
+      if (!match) continue;
+
+      const pathAfterStandard = match[1];
+      // Insert namespace as the first segment
+      const newPath = `/standard/${namespaceName}/${pathAfterStandard}`;
+
+      // Update the label to include the namespace prefix
+      const formattedNamespace = formatSegmentName(namespaceName);
+      const currentLabel = input.label || "";
+      const newLabel = currentLabel.startsWith(formattedNamespace + " ")
+        ? currentLabel // Already has namespace prefix
+        : `${formattedNamespace} ${currentLabel}`;
+
+      handleUpdateStandardInput(input.id, {
+        path: newPath,
+        label: newLabel,
+      });
+    }
+
+    setNewNodeName("");
+  }, [newNodeName, newNodeNameError, combinedInputs, handleUpdateStandardInput]);
+
   // Handle removing the selected node
   const handleRemoveNode = useCallback(() => {
     if (!selectedNode) return;
@@ -668,10 +701,11 @@ export function StdFaceChannelsPanel() {
             </div>
 
             {/* Add Namespace - always visible above tree */}
-            <div className="sidebar__row sidebar__row--compact" style={{ marginBottom: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
               <input
                 type="text"
                 className="sidebar__input sidebar__input--sm"
+                style={{ flex: 1 }}
                 placeholder="Namespace name..."
                 value={!selectedNode ? newNodeName : ""}
                 onChange={(e) => {
@@ -698,8 +732,19 @@ export function StdFaceChannelsPanel() {
                 }}
                 disabled={!selectedNode && (!newNodeName.trim() || !!newNodeNameError)}
               >
-                {selectedNode ? "Deselect" : "Add Namespace"}
+                {selectedNode ? "Deselect" : "Add"}
               </Button>
+              {!selectedNode && combinedInputs.length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleRerootAll}
+                  disabled={!newNodeName.trim() || !!newNodeNameError}
+                  title="Move all existing channels under this namespace"
+                >
+                  Reroot All
+                </Button>
+              )}
             </div>
 
             {/* Tree view - fills available space */}
