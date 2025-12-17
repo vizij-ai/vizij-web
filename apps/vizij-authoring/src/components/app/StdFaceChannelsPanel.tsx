@@ -166,7 +166,7 @@ function nameExistsAtLevel(
   return existingNames.has(name.toLowerCase());
 }
 
-const TREE_MAX_HEIGHT = 400;
+const TREE_MAX_HEIGHT = 800;
 
 export function StdFaceChannelsPanel() {
   const [search, setSearch] = useState("");
@@ -635,7 +635,7 @@ export function StdFaceChannelsPanel() {
   }, [inputTree]);
 
   return (
-    <div className="workbench-panel__scroll">
+    <div className="workbench-panel__scroll" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <SidebarSection
         title="Standard Channels"
         description="View and edit the standard input channel hierarchy."
@@ -645,7 +645,7 @@ export function StdFaceChannelsPanel() {
             Load a face to view its standard channels.
           </p>
         ) : (
-          <>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
             {/* Toolbar with search */}
             <div className="scene-hierarchy__toolbar">
               <input
@@ -702,11 +702,13 @@ export function StdFaceChannelsPanel() {
               </Button>
             </div>
 
-            {/* Tree view */}
+            {/* Tree view - fills available space */}
             <div
               className="scene-hierarchy__tree"
               style={{
                 maxHeight: `${TREE_MAX_HEIGHT}px`,
+                flex: 1,
+                minHeight: 200,
                 overflowY: "auto",
               }}
               onClick={handleTreeBackgroundClick}
@@ -720,124 +722,127 @@ export function StdFaceChannelsPanel() {
               )}
             </div>
 
-            {/* Selected node path and actions */}
-            {selectedNode && (
-              <div className="sidebar__stack" style={{ marginTop: "0.75rem" }}>
-                <p className="sidebar__path-display" style={{ margin: 0 }}>
-                  <code>/standard/{selectedNode.id}</code>
-                </p>
-                <div className="sidebar__row sidebar__row--compact" style={{ gap: "0.5rem" }}>
-                  {isRenaming ? (
-                    <>
-                      <input
-                        type="text"
-                        className="sidebar__input sidebar__input--sm"
-                        value={renameValue}
-                        onChange={(e) =>
-                          setRenameValue(e.target.value.toLowerCase())
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !renameError) {
-                            handleConfirmRename();
-                          } else if (e.key === "Escape") {
-                            handleCancelRename();
+            {/* Bottom section - fixed height for editing controls */}
+            <div style={{ flexShrink: 0, marginTop: "0.75rem" }}>
+              {/* Selected node path and actions */}
+              {selectedNode && (
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <p className="sidebar__path-display" style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem" }}>
+                    <code>/standard/{selectedNode.id}</code>
+                  </p>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    {isRenaming ? (
+                      <>
+                        <input
+                          type="text"
+                          className="sidebar__input sidebar__input--sm"
+                          style={{ flex: 1 }}
+                          value={renameValue}
+                          onChange={(e) =>
+                            setRenameValue(e.target.value.toLowerCase())
                           }
-                        }}
-                        autoFocus
-                      />
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleConfirmRename}
-                        disabled={!!renameError}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelRename}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleStartRename}
-                        style={{ marginRight: "0.5rem" }}
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={handleRemoveNode}
-                      >
-                        Remove
-                      </Button>
-                    </>
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !renameError) {
+                              handleConfirmRename();
+                            } else if (e.key === "Escape") {
+                              handleCancelRename();
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleConfirmRename}
+                          disabled={!!renameError}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCancelRename}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleStartRename}
+                        >
+                          Rename
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={handleRemoveNode}
+                        >
+                          Remove
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  {isRenaming && renameError && (
+                    <p className="sidebar__error-text">{renameError}</p>
                   )}
                 </div>
-                {isRenaming && renameError && (
-                  <p className="sidebar__error-text">{renameError}</p>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* Input properties editor (only for leaf nodes with actual inputs) */}
-            {selectedInput && (
-              <div className="sidebar__input-editor" style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <div className="sidebar__row sidebar__row--labeled">
-                  <label className="sidebar__label">Label</label>
-                  <input
-                    type="text"
-                    className="sidebar__input sidebar__input--sm"
-                    value={selectedInput.label}
-                    onChange={(e) => handleUpdateLabel(e.target.value)}
-                  />
+              {/* Input properties editor (only for leaf nodes with actual inputs) */}
+              {selectedInput && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-slate-400)", width: "2.5rem" }}>Label</label>
+                    <input
+                      type="text"
+                      className="sidebar__input sidebar__input--sm"
+                      style={{ flex: 1 }}
+                      value={selectedInput.label}
+                      onChange={(e) => handleUpdateLabel(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-slate-400)" }}>Default</label>
+                    <input
+                      type="number"
+                      className="sidebar__input sidebar__input--sm"
+                      value={selectedInput.defaultValue}
+                      step="0.01"
+                      style={{ width: "3.5rem" }}
+                      onChange={(e) => handleUpdateDefaultValue(parseFloat(e.target.value) || 0)}
+                    />
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-slate-400)" }}>Min</label>
+                    <input
+                      type="number"
+                      className="sidebar__input sidebar__input--sm"
+                      value={selectedInput.range.min}
+                      step="0.1"
+                      style={{ width: "3.5rem" }}
+                      onChange={(e) => handleUpdateRangeMin(parseFloat(e.target.value) || 0)}
+                    />
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-slate-400)" }}>Max</label>
+                    <input
+                      type="number"
+                      className="sidebar__input sidebar__input--sm"
+                      value={selectedInput.range.max}
+                      step="0.1"
+                      style={{ width: "3.5rem" }}
+                      onChange={(e) => handleUpdateRangeMax(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
                 </div>
-                <div className="sidebar__row sidebar__row--labeled">
-                  <label className="sidebar__label">Default</label>
-                  <input
-                    type="number"
-                    className="sidebar__input sidebar__input--sm"
-                    value={selectedInput.defaultValue}
-                    step="0.01"
-                    onChange={(e) => handleUpdateDefaultValue(parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="sidebar__row sidebar__row--labeled">
-                  <label className="sidebar__label">Min</label>
-                  <input
-                    type="number"
-                    className="sidebar__input sidebar__input--sm"
-                    value={selectedInput.range.min}
-                    step="0.1"
-                    onChange={(e) => handleUpdateRangeMin(parseFloat(e.target.value) || 0)}
-                  />
-                  <label className="sidebar__label">Max</label>
-                  <input
-                    type="number"
-                    className="sidebar__input sidebar__input--sm"
-                    value={selectedInput.range.max}
-                    step="0.1"
-                    onChange={(e) => handleUpdateRangeMax(parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Actions toolbar - below the tree */}
-            <div className="sidebar__stack sidebar__stack--sm">
               {/* Add Channel, Track, or Attribute (only when namespace, channel, or track is selected) */}
               {selectedNode && addButtonLabel && addButtonLabel !== "Add Namespace" && (
-                <div className="sidebar__row sidebar__row--compact">
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                   <input
                     type="text"
                     className="sidebar__input sidebar__input--sm"
+                    style={{ flex: 1 }}
                     placeholder={`${addButtonLabel.replace("Add ", "")} name...`}
                     value={newNodeName}
                     onChange={(e) => setNewNodeName(e.target.value.toLowerCase())}
@@ -861,7 +866,7 @@ export function StdFaceChannelsPanel() {
                 <p className="sidebar__error-text">{newNodeNameError}</p>
               )}
             </div>
-          </>
+          </div>
         )}
       </SidebarSection>
     </div>
