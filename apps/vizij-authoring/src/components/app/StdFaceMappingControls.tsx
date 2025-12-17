@@ -328,20 +328,26 @@ export function StdFaceMappingControls() {
   // Handler to reset all control channels to their neutral/default values
   const handleResetPose = useCallback(() => {
     for (const input of combinedInputsByPath.values()) {
-      if (referenceFace.isLoaded && referenceFace.standardInputsById.has(input.id)) {
-        referenceFace.handleInputValueChange(input.id, input.defaultValue);
+      const normalizedPath = normalizeStandardRigInputPath(input.path);
+
+      // Look up each face's actual input by path to get the correct ID
+      const refInput = refInputsByPath.get(normalizedPath);
+      const mainInput = mainInputsByPath.get(normalizedPath);
+
+      if (referenceFace.isLoaded && refInput) {
+        referenceFace.handleInputValueChange(refInput.id, input.defaultValue);
       }
-      if (mainFaceIsLoaded && mainFaceStandardInputsById.has(input.id)) {
-        mainFaceHandleInputValueChange(input.id, input.defaultValue);
+      if (mainFaceIsLoaded && mainInput) {
+        mainFaceHandleInputValueChange(mainInput.id, input.defaultValue);
       }
     }
   }, [
     combinedInputsByPath,
+    refInputsByPath,
+    mainInputsByPath,
     referenceFace.isLoaded,
-    referenceFace.standardInputsById,
     referenceFace.handleInputValueChange,
     mainFaceIsLoaded,
-    mainFaceStandardInputsById,
     mainFaceHandleInputValueChange,
   ]);
 
