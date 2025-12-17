@@ -838,11 +838,10 @@ export function StdFaceChannelsPanel() {
 
               {/* Add Channel, Track, or Attribute (only when namespace, channel, or track is selected) */}
               {selectedNode && addButtonLabel && addButtonLabel !== "Add Namespace" && (
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   <input
                     type="text"
                     className="sidebar__input sidebar__input--sm"
-                    style={{ flex: 1 }}
                     placeholder={`${addButtonLabel.replace("Add ", "")} name...`}
                     value={newNodeName}
                     onChange={(e) => setNewNodeName(e.target.value.toLowerCase())}
