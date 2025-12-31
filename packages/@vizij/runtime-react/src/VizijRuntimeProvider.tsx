@@ -822,7 +822,7 @@ export function VizijRuntimeProvider({
   onStatusChange,
   orchestratorScope = "auto",
 }: ProviderProps) {
-  const storeRef = useRef<VizijStore>();
+  const storeRef = useRef<VizijStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createVizijStore();
   }

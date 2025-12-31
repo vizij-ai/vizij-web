@@ -56,7 +56,7 @@ function toNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-export default function InputPanel(): JSX.Element {
+export default function InputPanel(): React.JSX.Element {
   const nodes = useEditorStore((s) => s.nodes);
   const runtime = useGraphRuntime();
   const { getNodeSummary } = useRegistry();

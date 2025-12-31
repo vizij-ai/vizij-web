@@ -14,7 +14,7 @@ import { useEditorStore } from "../store/useEditorStore";
  * - Uses runtime (useGraphRuntime) for setTime, step and evalAll operations
  */
 
-export default function TransportBar(): JSX.Element {
+export default function TransportBar(): React.JSX.Element {
   const playback = useGraphPlayback();
   const runtime = useGraphRuntime();
   const [intervalHz, setIntervalHz] = useState<number>(60);

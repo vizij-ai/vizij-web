@@ -18,7 +18,7 @@ import ExpressionAuthoringPanel from "./components/ExpressionAuthoringPanel";
  * - Layout composes Palette | Canvas | Inspector with TransportBar and persistence controls
  */
 
-function AppShell(): JSX.Element {
+function AppShell(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [inputsOpen, setInputsOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -188,7 +188,7 @@ function AppShell(): JSX.Element {
   );
 }
 
-export default function App(): JSX.Element {
+export default function App(): React.JSX.Element {
   // Wire the editor's canonical GraphSpec into the runtime so graphs actually load and evaluate.
   // Only positions are persisted separately; the runtime wiring is reconstructed from inputs.
   const spec = useEditorStore((s) => s.spec);

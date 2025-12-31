@@ -18,6 +18,7 @@
       "@vizij/node-graph-wasm/metadata": [
         "../../packages/@vizij/node-graph-authoring/src/metadata-shim.d.ts"
       ]
-    }
+    },
+    "jsxImportSource": "react"
   }
 }

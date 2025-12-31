@@ -20,7 +20,7 @@ type Suggestion = {
   detail?: string;
 };
 
-export default function ConnectionsAssistant(): JSX.Element {
+export default function ConnectionsAssistant(): React.JSX.Element {
   const [visible, setVisible] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);

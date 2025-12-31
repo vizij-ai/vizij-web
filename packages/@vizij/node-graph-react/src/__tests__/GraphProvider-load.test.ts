@@ -1,6 +1,14 @@
 import React, { useEffect } from "react";
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
+import { render, waitFor, cleanup } from "@testing-library/react";
 import { GraphProvider } from "../GraphProvider";
 import { useGraphRuntime } from "../useGraphRuntime";
 
@@ -74,6 +82,10 @@ afterAll(() => {
   restoreConsoleError?.();
 });
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("GraphProvider readiness", () => {
   it("waitForGraphReady resolves after load and seeds applied", async () => {
     const initialParams = { nodeA: { p1: { float: 42 } } } as const;
@@ -145,5 +157,49 @@ describe("GraphProvider readiness", () => {
     );
 
     wasm.__setMode?.("ok");
+  });
+
+  it("does not resolve readiness after unmount", async () => {
+    let resolveCreate: ((graph: any) => void) | null = null;
+    const wasm: any = await import("@vizij/node-graph-wasm");
+    wasm.createGraph.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    let runtimeRef: any = null;
+    const { unmount } = render(
+      React.createElement(
+        GraphProvider as any,
+        { spec: { nodes: [], edges: [] }, waitForGraph: true },
+        React.createElement(Probe, { onReady: (rt: any) => (runtimeRef = rt) }),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(runtimeRef).toBeTruthy();
+    });
+
+    const readyPromise = runtimeRef.waitForGraphReady?.();
+    unmount();
+
+    resolveCreate?.({
+      setParam: vi.fn(),
+      stageInput: vi.fn(),
+      evalAll: vi.fn(() => ({
+        toValueJSON: () => ({ nodes: {}, writes: [] }),
+      })),
+      step: vi.fn(),
+      setTime: vi.fn(),
+      free: vi.fn(),
+    });
+
+    if (readyPromise) {
+      await expect(
+        Promise.race([readyPromise, Promise.resolve("unmounted")]),
+      ).resolves.toBe("unmounted");
+    }
   });
 });

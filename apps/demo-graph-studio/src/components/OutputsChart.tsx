@@ -78,7 +78,7 @@ export default function OutputsChart({
   width = 300,
   height = 80,
   label,
-}: Props): JSX.Element {
+}: Props): React.JSX.Element {
   const output = useNodeOutput(nodeId, outputKey);
   const bufferRef = useRef<{ t: number; v: number }[]>([]);
   const lastTRef = useRef<number | null>(null);

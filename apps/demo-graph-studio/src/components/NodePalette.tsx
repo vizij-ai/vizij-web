@@ -7,7 +7,7 @@ type PaletteType = {
   doc?: string;
 };
 
-export default function NodePalette(): JSX.Element {
+export default function NodePalette(): React.JSX.Element {
   const { loading, error, nodesByType, getNodeSummary } = useRegistry();
   const [filter, setFilter] = useState("");
 
