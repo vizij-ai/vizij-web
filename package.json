@@ -44,7 +44,10 @@
     "ci:version": "pnpm run version:packages",
     "ci:publish": "node ./scripts/ci-publish.mjs",
     "release:ci": "pnpm run verify:packages && pnpm run ci:publish",
-    "release": "pnpm install --frozen-lockfile && pnpm run release:ci"
+    "release": "pnpm install --frozen-lockfile && pnpm run release:ci",
+    "wasm:status": "node ./scripts/wasm-links.mjs status",
+    "wasm:link": "node ./scripts/wasm-links.mjs link",
+    "wasm:unlink": "node ./scripts/wasm-links.mjs unlink"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",

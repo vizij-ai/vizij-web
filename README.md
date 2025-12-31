@@ -119,7 +119,19 @@ When you need edits from the Rust workspace:
    pnpm run link:wasm
    # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
    ```
-2. Back in this repo, reinstall to pick up the new symlinks:
+2. Back in this repo, link the packages you want (and verify status):
+
+   ```bash
+   # link a subset
+   pnpm run wasm:link -- --pkgs "node-graph-wasm orchestrator-wasm"
+   # or link everything
+   pnpm run wasm:link -- --pkgs all
+
+   # confirm which ones are local vs registry
+   pnpm run wasm:status
+   ```
+
+3. Optionally, reinstall to refresh workspace symlinks / resolution:
    ```bash
    pnpm install
    ```
@@ -128,7 +140,15 @@ Tips:
 
 - Restart Vite dev servers after linking so they pick up new symlinks.
 - Keep crate/npm versions aligned to avoid ABI mismatch errors (`expected 2, got 1`). Rebuild when they diverge.
-- When you want to revert to published packages, run `pnpm install` (or `pnpm unlink --global @vizij/*-wasm`).
+- When you want to revert to published packages:
+  ```bash
+  pnpm run wasm:unlink -- --pkgs all
+  pnpm install
+  ```
+
+Implementation note:
+
+- `pnpm run wasm:link` uses direct symlinks under `node_modules/@vizij/*` pointing at `../vizij-rs/npm/@vizij/*` (rather than `pnpm link --global`), to avoid pnpm global-link flakiness and keep the workflow local to this checkout.
 
 Vite configuration essentials (already applied in apps):
 
