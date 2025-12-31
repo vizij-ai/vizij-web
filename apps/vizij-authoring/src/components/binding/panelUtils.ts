@@ -197,11 +197,9 @@ export function isAnimatableReferencedElsewhere(
     return Object.entries(renderable.features).some(([featureKey, feature]) =>
       Boolean(
         feature &&
-          feature.animated &&
-          feature.value === animatableId &&
-          !(
-            renderable.id === targetElementId && featureKey === targetFeatureKey
-          ),
+        feature.animated &&
+        feature.value === animatableId &&
+        !(renderable.id === targetElementId && featureKey === targetFeatureKey),
       ),
     );
   });

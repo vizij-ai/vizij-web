@@ -1,13 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import {
-  GraphProvider,
-  useGraphPlayback,
-  useGraphOutputs,
-  useGraphRuntime,
-  valueAsNumber,
-} from "../index";
 import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
@@ -73,9 +66,23 @@ vi.mock("@vizij/node-graph-wasm", () => {
 });
 
 describe("Playback & Selectors", () => {
-  beforeEach(() => {
+  let GraphProvider: typeof import("../index").GraphProvider;
+  let useGraphPlayback: typeof import("../index").useGraphPlayback;
+  let useGraphOutputs: typeof import("../index").useGraphOutputs;
+  let useGraphRuntime: typeof import("../index").useGraphRuntime;
+  let valueAsNumber: typeof import("../index").valueAsNumber;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     graphInstances.length = 0;
+    vi.resetModules();
+    ({
+      GraphProvider,
+      useGraphPlayback,
+      useGraphOutputs,
+      useGraphRuntime,
+      valueAsNumber,
+    } = await import("../index"));
   });
 
   const spec: GraphSpec = {

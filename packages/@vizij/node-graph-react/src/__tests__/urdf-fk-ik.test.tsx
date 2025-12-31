@@ -179,6 +179,11 @@ describe("URDF FK/IK integration", () => {
         userAgent: "node.js",
       },
     });
+    (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(Date.now()), 0) as unknown as number;
+    (globalThis as any).cancelAnimationFrame = (id: number) => {
+      clearTimeout(id as unknown as NodeJS.Timeout);
+    };
 
     const candidatePaths = [
       "node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
@@ -218,6 +223,8 @@ describe("URDF FK/IK integration", () => {
     delete (globalThis as any).window;
     delete (globalThis as any).document;
     delete (globalThis as any).navigator;
+    delete (globalThis as any).requestAnimationFrame;
+    delete (globalThis as any).cancelAnimationFrame;
   });
 
   it("solves IK results that replay through FK via the React provider", async () => {

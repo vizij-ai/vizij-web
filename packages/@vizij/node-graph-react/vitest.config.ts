@@ -5,7 +5,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     pool: "forks",
-    isolate: false,
   },
   optimizeDeps: {
     exclude: ["@vizij/node-graph-wasm"], // ← important
