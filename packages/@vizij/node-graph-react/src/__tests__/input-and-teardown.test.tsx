@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { render, screen, waitFor, cleanup, act } from "@testing-library/react";
+import { render, waitFor, cleanup, act } from "@testing-library/react";
 import { GraphProvider, useGraphRuntime } from "../index";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 
@@ -80,7 +80,7 @@ describe("Input staging and teardown", () => {
       return <div data-testid="ready">{String(rt.ready)}</div>;
     };
 
-    render(
+    const { getByTestId } = render(
       <GraphProvider spec={specJson} autoStart={false}>
         <Consumer />
       </GraphProvider>,
@@ -88,7 +88,7 @@ describe("Input staging and teardown", () => {
 
     // Wait for provider to initialize and load the graph
     await waitFor(() => {
-      expect(screen.getByTestId("ready").textContent).toBe("true");
+      expect(getByTestId("ready").textContent).toBe("true");
     });
 
     // Wait for the provider to construct the graph instance
@@ -124,14 +124,14 @@ describe("Input staging and teardown", () => {
       return <div data-testid="ready">{String(rt.ready)}</div>;
     };
 
-    const { unmount } = render(
+    const { unmount, getByTestId } = render(
       <GraphProvider spec={specJson} autoStart={false}>
         <Consumer />
       </GraphProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("ready").textContent).toBe("true");
+      expect(getByTestId("ready").textContent).toBe("true");
     });
 
     await waitFor(() => {
