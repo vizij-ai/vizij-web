@@ -1,8 +1,10 @@
 import type { InputHTMLAttributes } from "react";
 import "./switch.css";
 
-export interface SwitchProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size"> {
+export interface SwitchProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "type" | "size"
+> {
   label?: React.ReactNode;
   hint?: React.ReactNode;
   size?: "sm" | "md";

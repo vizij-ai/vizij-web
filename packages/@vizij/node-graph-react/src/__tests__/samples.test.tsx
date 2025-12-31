@@ -8,8 +8,8 @@ import {
   useGraphRuntime,
   samples,
   valueAsNumber,
-  init as initNodeGraphWasm,
 } from "../index";
+import { init as initNodeGraphWasm } from "@vizij/node-graph-wasm";
 import { getNodeGraphWasmInitInput } from "./helpers";
 
 describe("@vizij/node-graph-react samples", () => {

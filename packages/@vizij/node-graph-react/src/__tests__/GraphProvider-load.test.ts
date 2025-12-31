@@ -9,51 +9,13 @@ import {
   afterEach,
 } from "vitest";
 import { render, waitFor, cleanup } from "@testing-library/react";
-import { GraphProvider } from "../GraphProvider";
-import { useGraphRuntime } from "../useGraphRuntime";
 
 // Mock @vizij/node-graph-wasm with a configurable createGraph
 let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
-vi.mock("@vizij/node-graph-wasm", () => {
-  const init = vi.fn(async () => {});
-  // passthrough normalizer used by normalizeSpec()
-  const normalizeGraphSpec = vi.fn(async (spec: any) => spec);
-  const createGraph = vi.fn(async (_spec: any) => {
-    if (mode === "fail") {
-      throw new Error("mock createGraph error");
-    }
-    const graph = {
-      setParam: vi.fn((_nodeId: string, _key: string, _value: any) => {}),
-      stageInput: vi.fn((_path: string, _value: any, _shape?: any) => {}),
-      evalAll: vi.fn(() => {
-        return {
-          toValueJSON: () => ({
-            nodes: { test_node: { out: { value: { float: 1.0 } } } },
-            writes: [],
-          }),
-        };
-      }),
-      step: vi.fn((_dt: number) => {}),
-      setTime: vi.fn((_t: number) => {}),
-      free: vi.fn(() => {}),
-    };
-    lastGraph = graph;
-    return graph;
-  });
-  const toValueJSON = vi.fn((value: any) => value);
-  return {
-    init,
-    normalizeGraphSpec,
-    createGraph,
-    toValueJSON,
-    __setMode: (m: "ok" | "fail") => {
-      mode = m;
-    },
-    __getLastGraph: () => lastGraph,
-  };
-});
+let GraphProvider: typeof import("../GraphProvider").GraphProvider;
+let useGraphRuntime: typeof import("../useGraphRuntime").useGraphRuntime;
 
 function Probe({ onReady }: { onReady: (rt: any) => void }) {
   const rt = useGraphRuntime();
@@ -84,6 +46,52 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
+  mode = "ok";
+  lastGraph = null;
+});
+
+beforeEach(async () => {
+  vi.resetModules();
+  vi.doMock("@vizij/node-graph-wasm", () => {
+    const init = vi.fn(async () => {});
+    const normalizeGraphSpec = vi.fn(async (spec: any) => spec);
+    const createGraph = vi.fn(async (_spec: any) => {
+      if (mode === "fail") {
+        throw new Error("mock createGraph error");
+      }
+      const graph = {
+        setParam: vi.fn((_nodeId: string, _key: string, _value: any) => {}),
+        stageInput: vi.fn((_path: string, _value: any, _shape?: any) => {}),
+        evalAll: vi.fn(() => {
+          return {
+            toValueJSON: () => ({
+              nodes: { test_node: { out: { value: { float: 1.0 } } } },
+              writes: [],
+            }),
+          };
+        }),
+        step: vi.fn((_dt: number) => {}),
+        setTime: vi.fn((_t: number) => {}),
+        free: vi.fn(() => {}),
+      };
+      lastGraph = graph;
+      return graph;
+    });
+    const toValueJSON = vi.fn((value: any) => value);
+    return {
+      init,
+      normalizeGraphSpec,
+      createGraph,
+      toValueJSON,
+      __setMode: (m: "ok" | "fail") => {
+        mode = m;
+      },
+      __getLastGraph: () => lastGraph,
+    };
+  });
+  ({ GraphProvider } = await import("../GraphProvider"));
+  ({ useGraphRuntime } = await import("../useGraphRuntime"));
 });
 
 describe("GraphProvider readiness", () => {

@@ -1,7 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, waitFor, cleanup, act } from "@testing-library/react";
-import { GraphProvider, useGraphRuntime } from "../index";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
@@ -52,10 +51,15 @@ vi.mock("@vizij/node-graph-wasm", () => {
 });
 
 describe("Input staging and teardown", () => {
-  beforeEach(() => {
+  let GraphProvider: typeof import("../index").GraphProvider;
+  let useGraphRuntime: typeof import("../index").useGraphRuntime;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     graphInstances.length = 0;
     cleanup();
+    vi.resetModules();
+    ({ GraphProvider, useGraphRuntime } = await import("../index"));
   });
 
   const spec: GraphSpec = {
