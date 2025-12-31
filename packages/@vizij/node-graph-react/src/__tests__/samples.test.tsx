@@ -2,7 +2,7 @@
 
 import React from "react";
 import { describe, it, expect, afterAll, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import {
   GraphProvider,
   useGraphRuntime,
@@ -43,20 +43,15 @@ describe("@vizij/node-graph-react samples", () => {
         spec={spec}
         autoStart={false}
         wasmInitInput={getNodeGraphWasmInitInput()}
-        waitForGraph={false}
-        exposeGraphReadyPromise={false}
       >
         <Harness />
       </GraphProvider>,
     );
 
-    for (let i = 0; i < 200; i += 1) {
-      if (runtimeRef?.ready) break;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    if (!runtimeRef?.ready) {
-      throw new Error("runtime did not become ready in time");
-    }
+    await waitFor(() => {
+      expect(runtimeRef?.ready).toBe(true);
+    });
+    await runtimeRef?.waitForGraphReady?.();
 
     const values: number[] = [];
     const pushIfNew = (val: number | undefined) => {
