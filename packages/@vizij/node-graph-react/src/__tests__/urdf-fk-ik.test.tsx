@@ -220,11 +220,8 @@ describe("URDF FK/IK integration", () => {
 
   afterAll(() => {
     cleanup();
-    delete (globalThis as any).window;
-    delete (globalThis as any).document;
-    delete (globalThis as any).navigator;
-    delete (globalThis as any).requestAnimationFrame;
-    delete (globalThis as any).cancelAnimationFrame;
+    // Keep the JSDOM globals to avoid late scheduler callbacks throwing
+    // when React flushes work after this test completes.
   });
 
   it("solves IK results that replay through FK via the React provider", async () => {
