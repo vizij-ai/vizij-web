@@ -15,7 +15,7 @@ function clamp(value: number, min = -1, max = 1) {
 }
 
 export type MouseGazeHandle = {
-  ref: RefObject<HTMLDivElement>;
+  ref: RefObject<HTMLDivElement | null>;
   isPointerActive: boolean;
 };
 

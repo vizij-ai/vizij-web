@@ -773,7 +773,7 @@ function InputDefaultEditor({
   );
 }
 
-export default function InspectorPanel(): JSX.Element {
+export default function InspectorPanel(): React.JSX.Element {
   const selectedId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
   const setNodes = useEditorStore((s) => s.setNodes);

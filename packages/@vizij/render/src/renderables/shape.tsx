@@ -47,8 +47,8 @@ function InnerRenderedShape({
   namespace,
   chain,
 }: RenderedShapeProps): ReactNode {
-  const refGroup = useRef<THREE.Group>() as RefObject<THREE.Group>;
-  const ref = useRef<THREE.Mesh>() as RefObject<THREE.Mesh>;
+  const refGroup = useRef<THREE.Group>(null) as RefObject<THREE.Group>;
+  const ref = useRef<THREE.Mesh>(null) as RefObject<THREE.Mesh>;
   const shape = useVizijStore(useShallow((state) => state.world[id] as Shape));
 
   const refs = useVizijStore(
@@ -107,7 +107,7 @@ function InnerRenderedShape({
     | MeshPhongMaterial
     | MeshNormalMaterial
     | MeshStandardMaterial
-  >();
+  >(null);
 
   const morphTargetSettings: [
     Record<string, number> | undefined,

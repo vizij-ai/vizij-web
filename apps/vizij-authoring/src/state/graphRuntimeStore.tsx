@@ -157,7 +157,7 @@ export function useGraphRuntimeStore<T>(
   equalityFn: (a: T, b: T) => boolean = Object.is,
 ): T {
   const store = useGraphRuntimeStoreApi();
-  const lastValueRef = useRef<T>();
+  const lastValueRef = useRef<T | undefined>(undefined);
   const subscribe = store.subscribe;
   const getSnapshot = () => selector(store.getState());
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

@@ -12,7 +12,9 @@ function clamp(value: number, min = -1, max = 1) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function useMouseGaze(enabled: boolean): RefObject<HTMLDivElement> {
+export function useMouseGaze(
+  enabled: boolean,
+): RefObject<HTMLDivElement | null> {
   const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
   const ref = useRef<HTMLDivElement>(null);

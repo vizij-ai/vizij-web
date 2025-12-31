@@ -117,7 +117,7 @@ const UNARY_OPERATOR_METADATA: Record<
   "!": { title: "Not", description: "Logical NOT." },
 };
 
-export default function ExpressionAuthoringPanel(): JSX.Element {
+export default function ExpressionAuthoringPanel(): React.JSX.Element {
   const [expression, setExpression] = useState("s1");
   const [slots, setSlots] = useState<SlotFormState[]>(DEFAULT_SLOTS);
   const [mode, setMode] = useState<IntegrationMode>("replace");
@@ -828,7 +828,7 @@ function ExpressionFlowDiagram({
   root,
 }: {
   root: FlowRenderableNode;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <div
       style={{
@@ -849,7 +849,10 @@ interface FlowStreamNodeProps {
   depth: number;
 }
 
-function FlowStreamNode({ node, depth }: FlowStreamNodeProps): JSX.Element {
+function FlowStreamNode({
+  node,
+  depth,
+}: FlowStreamNodeProps): React.JSX.Element {
   const hasChildren = node.children.length > 0;
   const laneWidth = computeLaneWidth(depth);
   return (
@@ -888,7 +891,7 @@ function FlowStreamChildren({
 }: {
   node: FlowRenderableNode;
   depth: number;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   const childCount = node.children.length;
   if (!childCount) {
     return null;
@@ -938,7 +941,11 @@ function FlowStreamChildren({
   );
 }
 
-function FlowStreamLabel({ label }: { label?: string }): JSX.Element | null {
+function FlowStreamLabel({
+  label,
+}: {
+  label?: string;
+}): React.JSX.Element | null {
   if (!label) {
     return null;
   }
@@ -970,7 +977,7 @@ function FlowNodeBlock({
 }: {
   node: FlowRenderableNode;
   minWidth: number;
-}): JSX.Element {
+}): React.JSX.Element {
   const accentHex = FLOW_ACCENT_COLORS[node.accent];
   const borderColor = hexToRgba(accentHex, 0.6);
   return (
@@ -1304,7 +1311,7 @@ function FunctionHintOverlay({
   onHighlight,
   onSelect,
   fallbackSuggestion,
-}: FunctionHintOverlayProps): JSX.Element | null {
+}: FunctionHintOverlayProps): React.JSX.Element | null {
   if (!suggestions.length && !fallbackSuggestion) {
     return null;
   }

@@ -143,7 +143,7 @@ export function SceneHierarchyPanel({
     : rootNodes.length > 0;
 
   const renderSubtree = useCallback(
-    (node: SceneObjectNode, depth: number): JSX.Element | null => {
+    (node: SceneObjectNode, depth: number): React.JSX.Element | null => {
       if (!isNodeVisible(node.id) && !node.childIds.some(isNodeVisible)) {
         return null;
       }

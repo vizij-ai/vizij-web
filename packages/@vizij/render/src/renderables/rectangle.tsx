@@ -39,10 +39,11 @@ function InnerRenderedRectangle({
   namespace,
   chain,
 }: RenderedRectangleProps): ReactNode {
-  const rectangleRef = useRef<Mesh>() as RefObject<Mesh>;
-  const materialRef =
-    useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
-  const lineRef = useRef<Mesh>() as RefObject<Line2>;
+  const rectangleRef = useRef<Mesh>(null) as RefObject<Mesh>;
+  const materialRef = useRef<MeshStandardMaterial>(
+    null,
+  ) as RefObject<MeshStandardMaterial>;
+  const lineRef = useRef<Mesh>(null) as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
   const onElementClick = useVizijStore(

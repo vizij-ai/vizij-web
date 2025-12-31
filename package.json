@@ -65,7 +65,9 @@
   },
   "pnpm": {
     "overrides": {
-      "source-map": "0.7.4"
+      "source-map": "0.7.4",
+      "zustand": "5.0.9",
+      "use-sync-external-store": "1.6.0"
     }
   }
 }

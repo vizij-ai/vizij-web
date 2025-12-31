@@ -39,7 +39,7 @@ function InnerRenderedGroup({
   namespace,
   chain,
 }: RenderedGroupProps): ReactNode {
-  const ref = useRef<THREE.Group>() as RefObject<THREE.Group>;
+  const ref = useRef<THREE.Group>(null) as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
   const refIsNull = !group.refs[namespace]?.current;
 

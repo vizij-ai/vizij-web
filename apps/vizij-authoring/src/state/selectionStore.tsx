@@ -96,7 +96,7 @@ export function useSelectionStoreValue<T>(
   equalityFn: (a: T, b: T) => boolean = Object.is,
 ): T {
   const store = useSelectionStoreApi();
-  const lastValueRef = useRef<T>();
+  const lastValueRef = useRef<T | undefined>(undefined);
   const subscribe = store.subscribe;
   const getSnapshot = () => selector(store.getState());
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

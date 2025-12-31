@@ -389,7 +389,7 @@ const createNodeRenderer = (
   return SimpleNode;
 };
 
-export default function EditorCanvas(): JSX.Element {
+export default function EditorCanvas(): React.JSX.Element {
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const setNodes = useEditorStore((s) => s.setNodes);

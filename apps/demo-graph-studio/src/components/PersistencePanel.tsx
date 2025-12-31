@@ -18,7 +18,7 @@ import {
  * - Quick localStorage Save/Load helpers for convenience
  */
 
-export default function PersistencePanel(): JSX.Element {
+export default function PersistencePanel(): React.JSX.Element {
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const setSpec = useEditorStore((s) => s.setSpec);
