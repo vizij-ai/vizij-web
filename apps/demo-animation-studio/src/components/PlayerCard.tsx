@@ -1,13 +1,14 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useAnimation, type Value } from "@vizij/animation-react";
-import { formatValue } from "../utils/valueFormat";
 import type {
   AnimationInfo,
   PlayerInfo,
   InstanceInfo,
   StoredAnimation,
 } from "@vizij/animation-wasm";
-import Timeline, { InstanceSpan, TimelineMarker } from "./Timeline";
+import { formatValue } from "../utils/valueFormat";
+import type { InstanceSpan, TimelineMarker } from "./Timeline";
+import Timeline from "./Timeline";
 import BakedAnimationPlot from "./BakedAnimationPlot";
 import ChartsView from "./OutputsView/ChartsView";
 

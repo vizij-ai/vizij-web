@@ -1,9 +1,9 @@
 import type { AnimationClip, KeyframeTrack } from "three";
+import { cloneDeepSafe } from "@vizij/utils";
 import type {
   VizijAnimationClipData,
   VizijAnimationTrackData,
 } from "../../types/animations";
-import { cloneDeepSafe } from "@vizij/utils";
 
 type PlainObject = Record<string, unknown>;
 

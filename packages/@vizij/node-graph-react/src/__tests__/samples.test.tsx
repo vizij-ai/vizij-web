@@ -1,15 +1,14 @@
 /* @vitest-environment jsdom */
-
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
+import { init as initNodeGraphWasm } from "@vizij/node-graph-wasm";
 import {
   GraphProvider,
   useGraphRuntime,
   samples,
   valueAsNumber,
 } from "../index";
-import { init as initNodeGraphWasm } from "@vizij/node-graph-wasm";
 import { getNodeGraphWasmInitInput } from "./helpers";
 
 describe("@vizij/node-graph-react samples", () => {
@@ -31,7 +30,7 @@ describe("@vizij/node-graph-react samples", () => {
     const spec = await samples.load("simple-gain-offset");
     let runtimeRef: ReturnType<typeof useGraphRuntime> | null = null;
 
-    const Harness: React.FC = () => {
+    const Harness: FC = () => {
       const runtime = useGraphRuntime();
       runtimeRef = runtime;
       return null;

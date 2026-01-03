@@ -4,14 +4,11 @@ import {
   useVizijStore,
   type LoadedVizijAsset,
 } from "@vizij/render";
-import { AssetLoaderPanel } from "./AssetLoaderPanel";
-import { GraphImportPanel } from "./GraphImportPanel";
-import { PoseRigImportPanel, PoseRigExportPanel } from "./PoseRigPanels";
-import { ExportPanel } from "./ExportPanel";
-import { RigGraphExportPanel } from "./RigGraphExportPanel";
-import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
-import { VizijBundleAuditPanel } from "./VizijBundleAuditPanel";
-import { RobotDataAuditPanel } from "./RobotDataAuditPanel";
+import { useDialogQueue, readJsonFile } from "@vizij/authoring-shared";
+import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { VizijBundleExtension } from "@vizij/render";
+import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
 import {
@@ -23,10 +20,6 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { useDialogQueue, readJsonFile } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { VizijBundleExtension } from "@vizij/render";
 import { cloneSerializable } from "../../utils/serialization";
 import { useAuthoringFileNames } from "../../hooks/useAuthoringFileNames";
 import { useVizijExport } from "../../hooks/useVizijExport";
@@ -36,11 +29,18 @@ import {
   prepareSpecForImport,
   remapGraphSpecFace,
 } from "../../utils/graphImport";
-import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
-import { GraphDiagnosticsPanel } from "./GraphDiagnosticsPanel";
 import { InstructionCallout } from "../common/InstructionCallout";
 import { SidebarSection } from "../common/SidebarSection";
 import { Tabs } from "../ui";
+import { GraphDiagnosticsPanel } from "./GraphDiagnosticsPanel";
+import { RobotDataAuditPanel } from "./RobotDataAuditPanel";
+import { VizijBundleAuditPanel } from "./VizijBundleAuditPanel";
+import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
+import { RigGraphExportPanel } from "./RigGraphExportPanel";
+import { ExportPanel } from "./ExportPanel";
+import { PoseRigImportPanel, PoseRigExportPanel } from "./PoseRigPanels";
+import { GraphImportPanel } from "./GraphImportPanel";
+import { AssetLoaderPanel } from "./AssetLoaderPanel";
 
 interface ImportExportWorkbenchProps {
   isLoading: boolean;

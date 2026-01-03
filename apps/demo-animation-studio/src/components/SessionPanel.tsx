@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
+import type { ChangeEventHandler } from "react";
 import type { StoredAnimation, Config } from "@vizij/animation-wasm";
 import type { InstanceSpec } from "./PlayersPanel";
 import type { PrebindRule } from "./PrebindPanel";
@@ -38,9 +39,7 @@ export default function SessionPanel({
     fileRef.current?.click();
   };
 
-  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = async (
-    e,
-  ) => {
+  const onFileChange: ChangeEventHandler<HTMLInputElement> = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const txt = await f.text();

@@ -1,8 +1,10 @@
 /* @vitest-environment jsdom */
-
 import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, act } from "@testing-library/react";
+import { toValueJSON, type ValueInput } from "@vizij/value-json";
+import { cloneDeepSafe } from "@vizij/utils";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -10,8 +12,6 @@ import {
   samples,
 } from "../index";
 import type { GraphRegistrationInput, GraphRegistrationConfig } from "../index";
-import { toValueJSON, type ValueInput } from "@vizij/value-json";
-import { cloneDeepSafe } from "@vizij/utils";
 
 const SAMPLE_DESCRIPTOR = {
   description: "Scalar ramp animation drives a gain/offset graph",
@@ -298,7 +298,7 @@ describe("@vizij/orchestrator-react samples", () => {
     const bundle = await samples.loadBundle("scalar-ramp-pipeline");
     const deferred = createDeferred<Array<Record<string, number>>>();
 
-    const Harness: React.FC = () => {
+    const Harness: FC = () => {
       const orch = useOrchestrator();
       const registeredRef = React.useRef(false);
 

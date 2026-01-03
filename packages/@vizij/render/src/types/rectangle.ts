@@ -1,8 +1,8 @@
-import { RefObject } from "react";
-import { Mesh } from "three";
-import { Feature } from "./feature";
-import { Stored } from "./stored";
-import { RenderableBase } from "./renderable-base";
+import type { RefObject } from "react";
+import type { Mesh } from "three";
+import type { Feature } from "./feature";
+import type { Stored } from "./stored";
+import type { RenderableBase } from "./renderable-base";
 
 /**
  * An object for creating rectangles

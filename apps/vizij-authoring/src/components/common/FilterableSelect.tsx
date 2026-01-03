@@ -1,12 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 export interface FilterableSelectOption {
   value: string | null;
@@ -113,7 +106,7 @@ export function FilterableSelect({
   }, []);
 
   const handleDocumentClick = useCallback(
-    (event: MouseEvent) => {
+    (event: globalThis.MouseEvent) => {
       if (!open) {
         return;
       }

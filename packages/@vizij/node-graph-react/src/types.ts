@@ -2,7 +2,7 @@
  * Shared types for @vizij/node-graph-react
  * These bridge to @vizij/node-graph-wasm type exports and add local runtime types.
  */
-
+import type { ReactNode } from "react";
 import type {
   Graph as WasmGraph,
   GraphSpec,
@@ -26,7 +26,7 @@ export interface PlaybackConfig {
 
 /* Provider props (match GraphProvider implementation) */
 export interface GraphProviderProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   spec?: GraphSpec | string;
   autoStart?: boolean;
   autoMode?: PlaybackMode;

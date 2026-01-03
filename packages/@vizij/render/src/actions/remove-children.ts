@@ -1,5 +1,5 @@
-import { VizijData } from "../store-types";
-import { World } from "../types/world";
+import type { VizijData } from "../store-types";
+import type { World } from "../types/world";
 
 export function removeFromTree(
   state: VizijData,

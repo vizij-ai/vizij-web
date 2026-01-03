@@ -1,9 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import type {

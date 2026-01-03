@@ -1,8 +1,9 @@
 import * as THREE from "three";
-import { AnimationClip, Group } from "three";
-import { GLTFLoader, DRACOLoader, GLTF } from "three-stdlib";
-import { AnimatableValue, RawVector2 } from "@vizij/utils";
-import { World } from "../types/world";
+import type { AnimationClip, Group } from "three";
+import type { GLTF } from "three-stdlib";
+import { GLTFLoader, DRACOLoader } from "three-stdlib";
+import type { AnimatableValue, RawVector2 } from "@vizij/utils";
+import type { World } from "../types/world";
 import type { VizijBundleExtension, VizijAnimationClipData } from "../types";
 import { traverseThree } from "./gltf-loading/traverse-three";
 import { extractVizijBundle } from "./vizij-bundle";

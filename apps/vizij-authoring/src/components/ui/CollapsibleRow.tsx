@@ -1,4 +1,5 @@
-import React, { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback } from "react";
+import type { ReactNode, KeyboardEvent, MouseEvent } from "react";
 import { RowSlider } from "./RowSlider";
 
 export interface CollapsibleRowProps {
@@ -48,7 +49,7 @@ export function CollapsibleRow({
   }, []);
 
   const handleHeaderClick = useCallback(
-    (event: React.MouseEvent) => {
+    (event: MouseEvent) => {
       if (shouldIgnoreInteraction(event.target)) {
         return;
       }
@@ -58,7 +59,7 @@ export function CollapsibleRow({
   );
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
+    (event: KeyboardEvent) => {
       if (!expandedContent || disabled) return;
       if (shouldIgnoreInteraction(event.target)) {
         return;

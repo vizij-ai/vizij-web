@@ -13,7 +13,6 @@ import { RoadmapSection } from "./sections/RoadmapSection";
 import { StandardsSection } from "./sections/StandardsSection";
 import { FooterSection } from "./sections/FooterSection";
 import { RuntimeDebugOverlay } from "./components/RuntimeDebugOverlay";
-
 import "./styles.css";
 
 const SECTION_LINKS: SectionMenuItem[] = [

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOrchestrator } from "@vizij/orchestrator-react";
-
 import { useAppState } from "../state/AppStateContext";
 import type { RigDefinition } from "../orchestrator/useOrchestratorMerging";
 

@@ -1,5 +1,4 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-
 import {
   bindingFromDefinition,
   bindingTargetFromComponent,
@@ -21,7 +20,6 @@ import {
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
-
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 

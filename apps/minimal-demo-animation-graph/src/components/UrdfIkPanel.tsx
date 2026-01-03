@@ -1,12 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { ValueJSON } from "@vizij/node-graph-wasm";
 import {
   useGraphRuntime,
   useNodeOutput,
   valueAsNumber,
 } from "@vizij/node-graph-react";
-import { ParamEditor } from "./ParamEditor";
 import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
+import { ParamEditor } from "./ParamEditor";
 
 const MAX_URDF_BYTES = 1_000_000; // ~1 MB safeguard
 
@@ -94,7 +95,7 @@ export function UrdfIkPanel({
     [nodeId, ready, runtime],
   );
 
-  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_URDF_BYTES) {

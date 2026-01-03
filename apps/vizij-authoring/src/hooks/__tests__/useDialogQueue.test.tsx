@@ -1,7 +1,6 @@
 import { act, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-
 import { useDialogQueue } from "../useDialogQueue";
 import * as dialogs from "../../utils/dialogs";
 

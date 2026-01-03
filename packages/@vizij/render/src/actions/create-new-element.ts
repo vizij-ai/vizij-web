@@ -1,10 +1,11 @@
-import { type RefObject, createRef } from "react";
+import { createRef } from "react";
+import type { RefObject } from "react";
 import { mapValues } from "lodash";
-import { Group as ThreeGroup } from "three";
+import type { Group as ThreeGroup } from "three";
 import { createDefaultGroup } from "../functions/create-world-element";
-import { World } from "../types/world";
-import { VizijData } from "../store-types";
-import { Group as RenderGroup } from "../types/group";
+import type { World } from "../types/world";
+import type { VizijData } from "../store-types";
+import type { Group as RenderGroup } from "../types/group";
 import type { Selection } from "../types/selection";
 
 export function createNewElement(

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { RegistryProvider } from "./contexts/RegistryProvider";
 import { GraphProvider } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
+import { RegistryProvider } from "./contexts/RegistryProvider";
 import { useEditorStore } from "./store/useEditorStore";
 import EditorCanvas from "./components/EditorCanvas";
 import NodePalette from "./components/NodePalette";
@@ -18,7 +19,7 @@ import ExpressionAuthoringPanel from "./components/ExpressionAuthoringPanel";
  * - Layout composes Palette | Canvas | Inspector with TransportBar and persistence controls
  */
 
-function AppShell(): React.JSX.Element {
+function AppShell(): JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [inputsOpen, setInputsOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -188,7 +189,7 @@ function AppShell(): React.JSX.Element {
   );
 }
 
-export default function App(): React.JSX.Element {
+export default function App(): JSX.Element {
   // Wire the editor's canonical GraphSpec into the runtime so graphs actually load and evaluate.
   // Only positions are persisted separately; the runtime wiring is reconstructed from inputs.
   const spec = useEditorStore((s) => s.spec);

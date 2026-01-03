@@ -17,14 +17,14 @@ import type {
   RawValue,
   StandardRigInput,
 } from "@vizij/utils";
-import { faceSlug } from "../utils/faceId";
 import { downloadJsonFile, ensureExtension } from "@vizij/authoring-shared";
+import { getLookup, cloneRawValue } from "@vizij/utils";
+import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
 import type { PoseRigConfigFile } from "../poseRig/types";
-import { getLookup, cloneRawValue } from "@vizij/utils";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;

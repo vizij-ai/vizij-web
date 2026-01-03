@@ -1,5 +1,4 @@
 import type { MutableRefObject } from "react";
-
 import {
   addBindingSlot,
   bindingTargetFromInput,

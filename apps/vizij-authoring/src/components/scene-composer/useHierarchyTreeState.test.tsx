@@ -1,8 +1,6 @@
+import React, { act } from "react";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import React from "react";
-import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-
 import { useHierarchyTreeState } from "./useHierarchyTreeState";
 
 type HookResult = ReturnType<typeof useHierarchyTreeState>;

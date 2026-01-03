@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, waitFor, cleanup, act } from "@testing-library/react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
@@ -78,7 +78,7 @@ describe("Input staging and teardown", () => {
   it("staging with immediateEval triggers evalAll on graph", async () => {
     let runtimeRef: any = null;
 
-    const Consumer: React.FC = () => {
+    const Consumer: FC = () => {
       const rt = useGraphRuntime();
       runtimeRef = rt;
       return <div data-testid="ready">{String(rt.ready)}</div>;
@@ -123,7 +123,7 @@ describe("Input staging and teardown", () => {
   });
 
   it("teardown frees the graph on unmount", async () => {
-    const Consumer: React.FC = () => {
+    const Consumer: FC = () => {
       const rt = useGraphRuntime();
       return <div data-testid="ready">{String(rt.ready)}</div>;
     };

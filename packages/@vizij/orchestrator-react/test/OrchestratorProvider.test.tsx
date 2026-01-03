@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import {
   render,
@@ -8,6 +8,7 @@ import {
   act,
   cleanup,
 } from "@testing-library/react";
+import { createOrchestrator } from "@vizij/orchestrator-wasm";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -15,7 +16,6 @@ import {
   useOrchTarget,
 } from "../src";
 import type { OrchestratorFrame, ValueJSON } from "../src/types";
-import { createOrchestrator } from "@vizij/orchestrator-wasm";
 
 type OrchestratorMock = {
   registerGraph: Mock;
@@ -112,7 +112,7 @@ vi.mock("@vizij/orchestrator-wasm", async () => {
   };
 });
 
-const Harness: React.FC = () => {
+const Harness: FC = () => {
   const ctx = useOrchestrator();
   const frame = useOrchFrame();
   const latest = useOrchTarget("demo/output/value");

@@ -1,4 +1,5 @@
 import React from "react";
+import type { CSSProperties, ChangeEvent } from "react";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -220,7 +221,7 @@ function Editor({
   const [useMergedGraphs] = React.useState(false);
   const [mergeStrategy] = React.useState<"namespace" | "blend">("namespace");
   const [isSampleLoading, setIsSampleLoading] = React.useState(false);
-  const buttonStyle: React.CSSProperties = {
+  const buttonStyle: CSSProperties = {
     borderRadius: 6,
     border: `1px solid ${minimalDemoTheme.border}`,
     background: minimalDemoTheme.card,
@@ -457,7 +458,7 @@ function Editor({
   }, [step]);
 
   const handleFileChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+    (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) {
         return;
@@ -521,7 +522,7 @@ function Editor({
   const sampleSelectValue = selectedSample ?? "__custom__";
 
   const handleSampleSelect = React.useCallback(
-    async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    async (event: ChangeEvent<HTMLSelectElement>) => {
       const id = event.target.value;
       if (!id || id === "__custom__" || id === selectedSample) {
         return;

@@ -4,13 +4,13 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { cloneSerializable } from "../utils/serialization";
-import { normalizeGraphPath } from "../utils/graphPaths";
 import {
   ensureStandardPathInput,
   inferStandardSuggestion,
   readJsonFile,
 } from "@vizij/authoring-shared";
+import { cloneSerializable } from "../utils/serialization";
+import { normalizeGraphPath } from "../utils/graphPaths";
 import {
   remapPoseGraphInputs,
   listPoseGraphOutputs,

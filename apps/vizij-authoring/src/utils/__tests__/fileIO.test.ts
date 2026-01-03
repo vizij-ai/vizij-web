@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-
 import { downloadJsonFile, ensureExtension, readJsonFile } from "../fileIO";
+import { downloadBlob } from "../download";
 
 vi.mock("../download", () => ({
   downloadBlob: vi.fn(),
 }));
 
-import { downloadBlob } from "../download";
 const mockedDownloadBlob = vi.mocked(downloadBlob);
 
 describe("fileIO", () => {

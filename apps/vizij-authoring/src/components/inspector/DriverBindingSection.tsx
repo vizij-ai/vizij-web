@@ -1,25 +1,19 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
+import type { StandardRigInput } from "@vizij/utils";
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ChangeEvent,
-} from "react";
+  type AnimatableBinding,
+  type BindingValueType,
+} from "@vizij/node-graph-authoring";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import type { StandardRigInput } from "@vizij/utils";
 import { BindingEditor } from "../binding";
-import {
-  type AnimatableBinding,
-  type BindingValueType,
-} from "@vizij/node-graph-authoring";
-import { collectDriversForNode } from "./DriverPanel";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
-
 import { Button, Card, CardHeader, CardBody } from "../ui";
+import { collectDriversForNode } from "./DriverPanel";
 
 interface DriverBindingSectionProps {
   node: SceneObjectNode;

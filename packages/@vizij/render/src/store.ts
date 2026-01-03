@@ -1,23 +1,24 @@
-import { MutableRefObject, type RefObject } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { produce, enableMapSet } from "immer";
 import * as THREE from "three";
-import { ThreeEvent } from "@react-three/fiber";
-import { Group, Mesh } from "three";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import type { Group, Mesh } from "three";
 import { type RawValue, type AnimatableValue, getLookup } from "@vizij/utils";
-import { World } from "./types/world";
+import type { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
 import { removeFromTree } from "./actions/remove-children";
-import {
+import type {
   VizijData,
   VizijActions,
   VizijStoreGetter,
   VizijStoreSetter,
 } from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
-import { RenderableFeature } from "./types/renderable-feature";
-import { StaticFeature, GroupFeature, Selection } from "./types";
+import type { RenderableFeature } from "./types/renderable-feature";
+import type { StaticFeature, GroupFeature, Selection } from "./types";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
@@ -50,7 +51,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   onElementClick: (
     selection: Selection,
     _chain: string[],
-    event: ThreeEvent<MouseEvent>,
+    event: ThreeEvent<ReactMouseEvent>,
   ) => {
     event.stopPropagation();
 

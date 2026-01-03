@@ -1,4 +1,5 @@
 import React from "react";
+import type { ChangeEvent, Dispatch } from "react";
 import {
   AnimationProvider,
   useAnimTarget,
@@ -172,7 +173,7 @@ function parseAnimations(text: string): StoredAnimation[] {
 
 type PanelProps = {
   animations: StoredAnimation[];
-  setAnimations: React.Dispatch<StoredAnimation[] | null>;
+  setAnimations: Dispatch<StoredAnimation[] | null>;
   initialAnimations: StoredAnimation[];
   sampleOptions: string[];
   selectedSample: string | null;
@@ -384,7 +385,7 @@ function Panel({
     [animApi, setAnimations, onSampleApplied, onCustomSpec],
   );
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     setStatus(null);
     setError(null);
     const file = e.target.files?.[0];
@@ -436,7 +437,7 @@ function Panel({
   const sampleSelectValue = selectedSample ?? "__custom__";
 
   const handleSampleSelect = React.useCallback(
-    async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    async (event: ChangeEvent<HTMLSelectElement>) => {
       const id = event.target.value;
       if (!id || id === "__custom__" || id === selectedSample) {
         return;

@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
-
 import {
   createStandardRigInput,
   createStandardRigInputFromPath,
   type StandardRigInput,
 } from "@vizij/utils";
-
 import {
   normalizePersistedStandardInputs,
   resolvePersistedAutoKey,

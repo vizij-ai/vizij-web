@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useMemo,
-  useState,
-  useId,
-  useRef,
-  type ChangeEvent,
-} from "react";
+import { useCallback, useMemo, useState, useId, useRef } from "react";
+import type { ChangeEvent } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 
 type RigInputOption = {

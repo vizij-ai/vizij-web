@@ -1,5 +1,4 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-
 import type { StandardInputValues } from "@vizij/node-graph-authoring";
 import {
   createStandardRigInput,
@@ -9,7 +8,6 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import { alertDialog } from "../utils/dialogs";
 import type { AutoInputState } from "../types/autoInputs";

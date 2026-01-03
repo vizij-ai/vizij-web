@@ -1,9 +1,9 @@
+import type { StandardRigInput } from "@vizij/utils";
 import type {
   PoseRigConfigFile,
   LowLevelRigSummary,
   PoseDefinition,
 } from "../types";
-import type { StandardRigInput } from "@vizij/utils";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
 
 export const PoseConfigService = {

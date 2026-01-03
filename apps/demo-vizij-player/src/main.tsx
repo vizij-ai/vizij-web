@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { VizijContext, createVizijStore } from "@vizij/render";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
-
 import App from "./App";
 import { AppStateProvider } from "./state/AppStateContext";
 import "./styles.css";

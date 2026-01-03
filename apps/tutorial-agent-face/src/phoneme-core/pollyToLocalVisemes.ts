@@ -1,5 +1,6 @@
-import { VISEMES, VisemeType } from "./constants";
-import { PollyVisemeId } from "./pollyVisemes";
+import type { VisemeType } from "./constants";
+import { VISEMES } from "./constants";
+import type { PollyVisemeId } from "./pollyVisemes";
 
 export const POLLY_VISEME_TO_LOCAL: Record<PollyVisemeId, VisemeType> = {
   p: VISEMES.PP,

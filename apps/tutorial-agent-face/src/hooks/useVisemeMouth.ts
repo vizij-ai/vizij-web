@@ -10,7 +10,7 @@ import {
   type Phoneme,
   type PhonemeEvent,
 } from "../phoneme-core";
-import { AudioManager } from "../utils/audioManager";
+import type { AudioManager } from "../utils/audioManager";
 import { FACE_VISEME_SEGMENTS, mapPollyViseme } from "../visemeMapping";
 
 export function useVisemeMouth({

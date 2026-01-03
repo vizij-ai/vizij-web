@@ -54,6 +54,19 @@ export default tseslint.config(
         },
       ],
       "import/no-cycle": "off",
+      "import/order": [
+        "error",
+        {
+          distinctGroup: false,
+          "newlines-between": "never",
+        },
+      ],
+      "import/newline-after-import": [
+        "error",
+        {
+          count: 1,
+        },
+      ],
       "no-empty": [
         "error",
         {
@@ -63,6 +76,14 @@ export default tseslint.config(
       "no-useless-catch": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          prefer: "type-imports",
+          fixStyle: "separate-type-imports",
+          disallowTypeAnnotations: false,
+        },
+      ],
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

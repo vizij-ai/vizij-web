@@ -1,10 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useRef,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useRef, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import type {
   BindingMap,
   BindingValueType,
@@ -15,6 +10,7 @@ import type {
   AnimatableComponent as AnimComponent,
   StandardRigInput,
 } from "@vizij/utils";
+import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type { SceneObjectNode } from "../scene/sceneGraph";
 import {
@@ -22,7 +18,6 @@ import {
   type AuthoringFeatureFlag,
   type FeatureFlagState,
 } from "../hooks/useFeatureLabels";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
 
 interface AnimatableExportState {
   appliedOverrides: boolean;

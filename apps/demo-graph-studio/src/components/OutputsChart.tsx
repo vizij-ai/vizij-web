@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useNodeOutput } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
 
 /**
  * OutputsChart
@@ -78,7 +79,7 @@ export default function OutputsChart({
   width = 300,
   height = 80,
   label,
-}: Props): React.JSX.Element {
+}: Props): JSX.Element {
   const output = useNodeOutput(nodeId, outputKey);
   const bufferRef = useRef<{ t: number; v: number }[]>([]);
   const lastTRef = useRef<number | null>(null);

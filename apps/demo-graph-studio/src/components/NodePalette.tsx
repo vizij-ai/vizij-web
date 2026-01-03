@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import type { DragEvent } from "react";
+import type { JSX } from "react/jsx-runtime";
 import { useRegistry } from "../contexts/RegistryProvider";
 
 type PaletteType = {
@@ -7,7 +9,7 @@ type PaletteType = {
   doc?: string;
 };
 
-export default function NodePalette(): React.JSX.Element {
+export default function NodePalette(): JSX.Element {
   const { loading, error, nodesByType, getNodeSummary } = useRegistry();
   const [filter, setFilter] = useState("");
 
@@ -44,7 +46,7 @@ export default function NodePalette(): React.JSX.Element {
     }));
   }, [nodesByType, getNodeSummary]);
 
-  const onDragStart = (e: React.DragEvent, typeId: string) => {
+  const onDragStart = (e: DragEvent, typeId: string) => {
     // React Flow uses 'application/reactflow' by convention for DnD
     e.dataTransfer.setData("application/reactflow", typeId);
     e.dataTransfer.effectAllowed = "move";

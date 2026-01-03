@@ -1,13 +1,5 @@
-import {
-  type ChangeEvent,
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { SPEECH_STATUS_COPY, type SpeechStatus } from "../data/speech";

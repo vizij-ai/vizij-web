@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PoseGraphService } from "./poseGraphService";
 import type { StandardRigInput } from "@vizij/utils";
+import { PoseGraphService } from "./poseGraphService";
 
 describe("PoseGraphService", () => {
   it("builds spec from config", () => {

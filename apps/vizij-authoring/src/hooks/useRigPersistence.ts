@@ -1,12 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
-
+import { useCallback, useEffect, useRef } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   bindingToDefinition,
   createDefaultBindings,
@@ -24,7 +17,6 @@ import {
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
-
 import {
   deleteRigState,
   loadRigState,

@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo } from "react";
+import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
+import type { BindingMap } from "@vizij/node-graph-authoring";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -7,8 +9,6 @@ import type {
   SceneObjectNode,
   SceneObjectFeature,
 } from "../../scene/sceneGraph";
-import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
-import type { BindingMap } from "@vizij/node-graph-authoring";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { Button, CollapsibleGroup, CollapsibleRow } from "../ui";
 

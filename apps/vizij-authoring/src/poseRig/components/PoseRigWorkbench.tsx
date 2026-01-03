@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
-import { NeutralEditor } from "./NeutralEditor";
-import { PoseEditor } from "./PoseEditor";
-import { PoseList } from "./PoseList";
-import { PoseGroupExportPanel } from "./PoseGroupExportPanel";
 import { buildPoseWeightPathMap } from "../utils";
 import { formatRigPathLabel } from "../../utils/rigPaths";
 import { usePoseRig } from "../../state/PoseRigProvider";
@@ -11,6 +7,10 @@ import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { Button, Tabs, Input } from "../../components/ui";
 import "./pose-rig-kind.css";
 import { SceneRiggingSection } from "../../components/scene-composer/SceneRiggingSection";
+import { PoseGroupExportPanel } from "./PoseGroupExportPanel";
+import { PoseList } from "./PoseList";
+import { PoseEditor } from "./PoseEditor";
+import { NeutralEditor } from "./NeutralEditor";
 
 const LIVE_EPSILON = 1e-6;
 

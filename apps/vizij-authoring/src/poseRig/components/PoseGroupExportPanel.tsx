@@ -1,4 +1,5 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import { buildPoseGraphSpec } from "../graphBuilder";
 import type { PoseDefinition, StandardInputId } from "../types";
@@ -6,7 +7,6 @@ import { buildPoseWeightPathMap, slugifyLabel } from "../utils";
 import { alertDialog, promptDialog } from "../../utils/dialogs";
 import { downloadBlob } from "../../utils/download";
 import { InstructionCallout } from "../../components/common/InstructionCallout";
-
 import { Button, Switch, FieldRow, Tabs } from "../../components/ui";
 import "./pose-group-export.css";
 

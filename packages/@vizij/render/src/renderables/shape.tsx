@@ -1,15 +1,7 @@
-import {
-  type Ref,
-  RefObject,
-  ReactNode,
-  memo,
-  useCallback,
-  useRef,
-  useMemo,
-  useEffect,
-} from "react";
+import { memo, useCallback, useRef, useMemo, useEffect } from "react";
+import type { RefObject, ReactNode, Ref } from "react";
 import * as THREE from "three";
-import {
+import type {
   MeshBasicMaterial,
   MeshLambertMaterial,
   MeshNormalMaterial,
@@ -17,20 +9,20 @@ import {
   MeshStandardMaterial,
 } from "three";
 import { useShallow } from "zustand/react/shallow";
+import type { AnimatableValue, RawValue } from "@vizij/utils";
 import {
-  AnimatableValue,
-  RawValue,
   instanceOfRawEuler,
   instanceOfRawHSL,
   instanceOfRawNumber,
   instanceOfRawRGB,
   instanceOfRawVector3,
 } from "@vizij/utils";
-import { Shape } from "../types/shape";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import type { Shape } from "../types/shape";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { useFeatures } from "../hooks/use-features";
 import { createStoredRenderable } from "../functions/create-stored-data";
-import { ThreeEvent } from "@react-three/fiber";
 // eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { Renderable } from "./renderable";
 
@@ -280,7 +272,7 @@ function InnerRenderedShape({
       morphTargetInfluences={morphTargetSettings[1]}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
-      onClick={(e) => {
+      onClick={(e: ThreeEvent<ReactMouseEvent>) => {
         console.log("Clicked element", shape);
         onElementClick({ id, type: "shape", namespace }, [...chain, id], e);
       }}

@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-
 import type { StandardRigInput } from "@vizij/utils";
-
 import {
   buildRigGraphSpec,
   type BuildGraphOptions,

@@ -1,20 +1,22 @@
 import { Fragment, useEffect, useMemo, useRef } from "react";
+import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useShallow } from "zustand/react/shallow";
+import type {
+  BufferGeometry,
+  ColorRepresentation,
+  LineSegments,
+  Object3D,
+} from "three";
 import {
   AdditiveBlending,
-  BufferGeometry,
   Color,
-  ColorRepresentation,
   EdgesGeometry,
   LineBasicMaterial,
-  LineSegments,
   Matrix4,
-  Object3D,
   Quaternion,
   Vector3,
 } from "three";
-import type { RefObject } from "react";
 import type { Selection } from "../types";
 import type { VizijActions, VizijData } from "../store-types";
 import { useVizijStore } from "../hooks/use-vizij-store";
