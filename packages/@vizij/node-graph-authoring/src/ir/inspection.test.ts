@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-
 import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { cloneDeepSafe } from "@vizij/utils";
 import type { BuildGraphResult } from "../graphBuilder";
 import type { MachineReport } from "./inspection";
 import type { IrGraph } from "./types";
@@ -9,7 +9,6 @@ import {
   buildMachineReport,
   diffMachineReports,
 } from "./inspection";
-import { cloneDeepSafe } from "@vizij/utils";
 
 function createIrGraph(): IrGraph {
   return {

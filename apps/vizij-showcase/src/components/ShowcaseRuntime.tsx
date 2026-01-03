@@ -1,4 +1,5 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo } from "react";
+import type { ReactNode } from "react";
 import { VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
 import {
   createShowcaseBundle,

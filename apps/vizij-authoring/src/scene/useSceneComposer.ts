@@ -2,12 +2,12 @@ import { useMemo, useCallback } from "react";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
 import type { BindingValueType } from "@vizij/node-graph-authoring";
 import type { ShapeMaterial } from "@vizij/render";
+import { useVizijStoreGetter } from "@vizij/render";
 import { DEFAULT_NAMESPACE } from "../utils/constants";
 import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../state/RigControllerProvider";
-import { useVizijStoreGetter } from "@vizij/render";
 import type { SceneObjectNode, SceneObjectFeature } from "./sceneGraph";
 import { createFeatureMutations } from "./featureMutations";
 import type { FeatureEntry } from "./featureEntries";

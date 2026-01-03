@@ -5,6 +5,7 @@ import type { AnimatableComponent } from "@vizij/utils";
 import type { RigBindingMetadata } from "@vizij/utils";
 import { buildAnimatableValue, cloneDeepSafe } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
+import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
 import type { BindingMap } from "./state";
 import {
   ensureBindingStructure,
@@ -32,7 +33,6 @@ import {
   type ExpressionVariableTable,
 } from "./expressionVariables";
 import { RESERVED_EXPRESSION_VARIABLES } from "./expressionVocabulary";
-import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
 import { createIrGraphBuilder, toIrBindingSummary } from "./ir/builder";
 import { compileIrGraph } from "./ir/compiler";
 import { buildBindingMetadataFromExpression } from "./bindingMetadata";

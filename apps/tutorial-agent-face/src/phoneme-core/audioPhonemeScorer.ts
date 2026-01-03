@@ -1,5 +1,6 @@
-import { AudioFeatures } from "./types";
-import { PHONEMES, Phoneme } from "./phonemes";
+import type { AudioFeatures } from "./types";
+import type { Phoneme } from "./phonemes";
+import { PHONEMES } from "./phonemes";
 
 // Heuristic scoring -> softmax probability distribution over phonemes
 export function scorePhonemeDistribution(

@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
-
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import {
   createDefaultBinding,

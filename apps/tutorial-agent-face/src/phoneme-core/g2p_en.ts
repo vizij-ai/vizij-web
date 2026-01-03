@@ -1,4 +1,4 @@
-import { Phoneme } from "./phonemes";
+import type { Phoneme } from "./phonemes";
 
 type Rule = {
   pattern: RegExp;

@@ -4,12 +4,12 @@ import {
   normalizeStandardRigInputPath,
 } from "@vizij/utils";
 import type { StandardRigInput, AnimatableComponent } from "@vizij/utils";
-import type { AutoInputState } from "../../types/autoInputs";
 import type {
   BindingMap,
   InputBindingMap,
   StandardInputValues,
 } from "@vizij/node-graph-authoring";
+import type { AutoInputState } from "../../types/autoInputs";
 import { applyShapeInputRename } from "../shapeRenaming";
 
 function createSetter<T>(

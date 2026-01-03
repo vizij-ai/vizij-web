@@ -1,10 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useRef,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useRef, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import type {
   BuildGraphResult,
   MachineReport,

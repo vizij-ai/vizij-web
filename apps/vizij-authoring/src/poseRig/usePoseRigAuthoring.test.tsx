@@ -1,13 +1,9 @@
+import { act, useCallback, useEffect, useState } from "react";
+import type { ReactElement } from "react";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { useCallback, useEffect, useState, type ReactElement } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
-import {
-  usePoseRigAuthoring,
-  type UsePoseRigAuthoringResult,
-} from "./usePoseRigAuthoring";
 import {
   createGraphRuntimeStore,
   GraphRuntimeStoreProvider,
@@ -16,6 +12,10 @@ import {
   createBindingAuthoringStore,
   BindingAuthoringStoreProvider,
 } from "../state/bindingAuthoringStore";
+import {
+  usePoseRigAuthoring,
+  type UsePoseRigAuthoringResult,
+} from "./usePoseRigAuthoring";
 import { PoseRigStoreProvider, createPoseRigStore } from "./store";
 
 // Silence React's act environment warning for the custom hook harness.

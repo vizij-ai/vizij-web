@@ -6,9 +6,8 @@ import {
   useMemo,
   useReducer,
   useRef,
-  type ReactNode,
 } from "react";
-
+import type { ReactNode } from "react";
 import {
   clearPersistedState,
   loadPersistedState,
@@ -16,13 +15,13 @@ import {
 } from "./storage";
 import {
   DEFAULT_APP_STATE,
+  type AnimationAsset,
+  type AnimationTrack,
   type AppState,
   type GlbAsset,
   type GraphAsset,
-  type AnimationAsset,
-  type SimpleAnimationClip,
-  type AnimationTrack,
   type RigPreset,
+  type SimpleAnimationClip,
 } from "./types";
 
 function createId(): string {

@@ -10,13 +10,13 @@ import {
   useGraphOutputs,
   valueAsNumber,
 } from "@vizij/node-graph-react";
+import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
 import { animationValueToValueJSON } from "../utils/animationValueToGraph";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import { slewAnimation, slewPaths } from "../data/slewAnimation";
 import { slewGraphSpec } from "../data/slewGraph";
 import { useSyncedSeries } from "../utils/useSyncedSeries";
 import { ParamEditor } from "../components/ParamEditor";
-import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
 
 function SlewDampInner() {
   const runtime = useGraphRuntime();

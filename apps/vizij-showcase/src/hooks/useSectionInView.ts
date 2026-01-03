@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type RefCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { RefCallback } from "react";
 
 type SectionInViewOptions = {
   threshold?: number;

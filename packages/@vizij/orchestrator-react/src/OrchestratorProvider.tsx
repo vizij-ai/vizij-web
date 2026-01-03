@@ -1,16 +1,12 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   init as initOrchestratorWasm,
   createOrchestrator as createOrchestratorWasm,
   abi_version as orchestratorAbiVersion,
   type Orchestrator as OrchestratorRuntime,
 } from "@vizij/orchestrator-wasm";
+import type { JSX } from "react/jsx-runtime";
 import { OrchestratorContext } from "./context";
 import type {
   ControllerId,
@@ -68,7 +64,7 @@ function normalizeTypedPath(path: string): string {
 }
 
 export type OrchestratorProviderProps = {
-  children: React.ReactNode;
+  children: ReactNode;
   /** Optional init() input forwarded to the wasm layer. */
   initInput?: InitInput;
   /** Automatically create a runtime orchestration instance on mount. Defaults to true. */
@@ -92,7 +88,7 @@ export function OrchestratorProvider({
   autoCreate = true,
   createOptions,
   autostart = false,
-}: OrchestratorProviderProps): React.JSX.Element {
+}: OrchestratorProviderProps): JSX.Element {
   const mountedRef = useRef(false);
   useEffect(() => {
     // React StrictMode double-mounts components in dev; ensure we reset to true on every mount.

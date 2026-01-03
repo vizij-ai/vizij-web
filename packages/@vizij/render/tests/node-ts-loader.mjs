@@ -1,7 +1,8 @@
-import path from "node:path";
+/* eslint-disable import/order */
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { URL, fileURLToPath } from "node:url";
+import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");

@@ -1,6 +1,6 @@
 import { mapValues } from "lodash";
-import { AnimatableValue } from "@vizij/utils";
-import {
+import type { AnimatableValue } from "@vizij/utils";
+import type {
   Feature,
   StaticFeature,
   StoredAnimatedFeature,

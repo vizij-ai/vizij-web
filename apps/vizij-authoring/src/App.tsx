@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useId } from "react";
+import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { useDialogQueue } from "@vizij/authoring-shared";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
 import { Viewer } from "./components/app/Viewer";
 import { WorkbenchNav } from "./components/app/WorkbenchNav";
@@ -8,7 +10,6 @@ import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
-import { useDialogQueue } from "@vizij/authoring-shared";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import {
   WORKBENCH_OPTIONS,
@@ -29,7 +30,6 @@ import {
   type RiggingTab,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
-import type { ReactNode } from "react";
 import { Panel } from "./components/ui";
 import { RiggingTabs } from "./components/app/RiggingTabs";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";

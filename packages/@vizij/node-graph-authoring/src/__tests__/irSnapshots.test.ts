@@ -1,13 +1,11 @@
 /* eslint-disable no-useless-escape -- inline JSON snapshots need explicit escaped quotes */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
 import { SELF_BINDING_ID, cloneDeepSafe } from "@vizij/utils";
-
 import { buildRigGraphSpec } from "../graphBuilder";
 import {
   addBindingSlot,

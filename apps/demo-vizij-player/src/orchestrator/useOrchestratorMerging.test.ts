@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-
+import type { GraphAsset, SimpleAnimationClip } from "../state/types";
 import {
   buildAnimationBridgeGraph,
   buildUiBridgeGraph,
@@ -7,7 +7,6 @@ import {
   extractRigInputs,
   type RigDefinition,
 } from "./useOrchestratorMerging";
-import type { GraphAsset, SimpleAnimationClip } from "../state/types";
 
 describe("useOrchestratorMerging helpers", () => {
   const graph: GraphAsset = {

@@ -4,7 +4,6 @@ import {
   useOrchestrator,
   type GraphRegistrationConfig,
 } from "@vizij/orchestrator-react";
-
 import type {
   MergeWarnings,
   RigDefinition,

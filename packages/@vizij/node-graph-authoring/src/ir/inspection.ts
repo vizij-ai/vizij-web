@@ -1,7 +1,6 @@
 import type { NodeType } from "@vizij/node-graph-wasm";
 import { findNodeSignature } from "@vizij/node-graph-wasm/metadata";
 import { type RigBindingMetadata, cloneDeepSafe } from "@vizij/utils";
-
 import type { BuildGraphResult, GraphBindingSummary } from "../graphBuilder";
 import type {
   IrBindingSummary,

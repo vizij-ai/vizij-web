@@ -1,9 +1,5 @@
-import {
-  useEffect,
-  type MutableRefObject,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useEffect } from "react";
+import type { MutableRefObject, Dispatch, SetStateAction } from "react";
 import { normalizeStandardRigGroup } from "@vizij/utils";
 import type { Selection, World } from "@vizij/render";
 

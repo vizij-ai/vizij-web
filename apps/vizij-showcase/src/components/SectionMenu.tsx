@@ -32,7 +32,7 @@ export function SectionMenu({ sections }: SectionMenuProps) {
       return undefined;
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setIsOpen(false);

@@ -1,5 +1,6 @@
-import { PhonemeProbFrame } from "./types";
-import { Phoneme, PHONEME_TO_VISEME, VisemeId } from "./phonemes";
+import type { PhonemeProbFrame } from "./types";
+import type { Phoneme, VisemeId } from "./phonemes";
+import { PHONEME_TO_VISEME } from "./phonemes";
 
 export interface SynthFrame {
   time: number;

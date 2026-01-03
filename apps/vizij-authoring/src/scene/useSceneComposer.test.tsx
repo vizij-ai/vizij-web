@@ -1,10 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import React from "react";
 import { act } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
-
-import { useSceneComposer } from "./useSceneComposer";
-import type { SceneObjectNode } from "./sceneGraph";
+import { VizijContext, createVizijStore } from "@vizij/render";
 import {
   BindingAuthoringStoreProvider,
   createBindingAuthoringStore,
@@ -14,7 +11,8 @@ import {
   createGraphRuntimeStore,
   type GraphRuntimeState,
 } from "../state/graphRuntimeStore";
-import { VizijContext, createVizijStore } from "@vizij/render";
+import { useSceneComposer } from "./useSceneComposer";
+import type { SceneObjectNode } from "./sceneGraph";
 
 type HookResult = ReturnType<typeof useSceneComposer>;
 

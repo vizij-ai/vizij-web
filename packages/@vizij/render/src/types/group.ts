@@ -1,9 +1,9 @@
-import { RefObject } from "react";
-import { Group as ThreeGroup } from "three";
-import { RawVector2 } from "@vizij/utils";
-import { Feature } from "./feature";
-import { Stored } from "./stored";
-import { RenderableBase } from "./renderable-base";
+import type { RefObject } from "react";
+import type { Group as ThreeGroup } from "three";
+import type { RawVector2 } from "@vizij/utils";
+import type { Feature } from "./feature";
+import type { Stored } from "./stored";
+import type { RenderableBase } from "./renderable-base";
 
 /**
  * An object for creating hierarchies/groups

@@ -1,6 +1,6 @@
-import { SceneHierarchyPanel } from "./SceneHierarchyPanel";
 import { ObjectInspector } from "../inspector/ObjectInspector";
 import { StandardInputCoveragePanel } from "../app/StandardInputCoveragePanel";
+import { SceneHierarchyPanel } from "./SceneHierarchyPanel";
 
 interface SceneRiggingSectionProps {
   showCoverage?: boolean;

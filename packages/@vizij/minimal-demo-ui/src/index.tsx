@@ -1,4 +1,4 @@
-import React from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 const fontStack =
   'Inter, "SF Pro Display", "SF Pro Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
@@ -18,7 +18,7 @@ export const minimalDemoTheme = {
   code: "#050f23",
 } as const;
 
-const baseTextStyles: React.CSSProperties = {
+const baseTextStyles: CSSProperties = {
   color: baseText,
   fontFamily: fontStack,
   lineHeight: 1.5,
@@ -26,10 +26,10 @@ const baseTextStyles: React.CSSProperties = {
 
 export type MinimalDemoChromeProps = {
   title: string;
-  description?: React.ReactNode;
-  subtitle?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
+  description?: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
   maxWidth?: number | string;
   gap?: number;
 };
@@ -120,10 +120,10 @@ export function MinimalDemoChrome({
 }
 
 export type MinimalDemoSectionProps = {
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
+  title?: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
   padding?: string;
 };
 
@@ -178,10 +178,10 @@ export function MinimalDemoSection({
 }
 
 export type MinimalDemoPanelProps = {
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  footer?: React.ReactNode;
-  children: React.ReactNode;
+  title?: ReactNode;
+  description?: ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
 };
 
 export function MinimalDemoPanel({

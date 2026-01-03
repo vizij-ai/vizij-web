@@ -1,4 +1,5 @@
-import React, { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback } from "react";
+import type { ReactNode, KeyboardEvent, MouseEvent } from "react";
 
 export interface CollapsibleGroupProps {
   title: string;
@@ -33,7 +34,7 @@ export function CollapsibleGroup({
   }, []);
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
+    (event: KeyboardEvent) => {
       if (shouldIgnoreInteraction(event.target)) {
         return;
       }
@@ -46,7 +47,7 @@ export function CollapsibleGroup({
   );
 
   const handleHeaderClick = useCallback(
-    (event: React.MouseEvent) => {
+    (event: MouseEvent) => {
       if (shouldIgnoreInteraction(event.target)) {
         return;
       }

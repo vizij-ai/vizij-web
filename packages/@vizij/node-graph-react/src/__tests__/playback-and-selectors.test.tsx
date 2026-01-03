@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
@@ -107,7 +107,7 @@ describe("Playback & Selectors", () => {
   const specJson = JSON.stringify(spec);
 
   it("useGraphPlayback can start/stop and reflect mode", async () => {
-    const PlaybackConsumer: React.FC = () => {
+    const PlaybackConsumer: FC = () => {
       const pb = useGraphPlayback();
       const rt = useGraphRuntime();
 
@@ -151,7 +151,7 @@ describe("Playback & Selectors", () => {
   });
 
   it("useGraphOutputs selector returns node output and updates after load", async () => {
-    const SelectorConsumer: React.FC = () => {
+    const SelectorConsumer: FC = () => {
       const val = useGraphOutputs(
         (snap) => snap?.evalResult?.nodes?.const?.out ?? null,
       );

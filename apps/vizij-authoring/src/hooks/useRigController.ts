@@ -1,12 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type SetStateAction,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SetStateAction } from "react";
 import {
   bindingFromDefinition,
   bindingTargetFromComponent,
@@ -68,6 +61,10 @@ import type {
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
+import type { AutoInputState } from "../types/autoInputs";
+import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
+import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
+import type { SelectionStore } from "../state/selectionStore";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { useFeatureLabels } from "./useFeatureLabels";
@@ -89,10 +86,6 @@ import {
 } from "./graphRuntime";
 import { useRigGraphImport } from "./useRigGraphImport";
 import { useRigPersistence } from "./useRigPersistence";
-import type { AutoInputState } from "../types/autoInputs";
-import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
-import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
-import type { SelectionStore } from "../state/selectionStore";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 

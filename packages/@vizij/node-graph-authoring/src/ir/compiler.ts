@@ -1,6 +1,5 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import { cloneDeepSafe } from "@vizij/utils";
-
 import {
   type IrConstant,
   type IrEdge,

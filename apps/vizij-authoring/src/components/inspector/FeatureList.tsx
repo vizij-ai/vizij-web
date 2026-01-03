@@ -1,4 +1,12 @@
-import React, { useCallback, useMemo, type ReactNode } from "react";
+import React, { useCallback, useMemo } from "react";
+import type { ReactNode } from "react";
+import type { BindingMap, BindingValueType } from "@vizij/node-graph-authoring";
+import {
+  SELF_BINDING_ID,
+  type AnimatableValue,
+  type RawValue,
+  type StandardRigInput,
+} from "@vizij/utils";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import {
@@ -12,13 +20,6 @@ import type {
   SceneObjectFeature,
   SceneFeatureComponent,
 } from "../../scene/sceneGraph";
-import type { BindingMap, BindingValueType } from "@vizij/node-graph-authoring";
-import {
-  SELF_BINDING_ID,
-  type AnimatableValue,
-  type RawValue,
-  type StandardRigInput,
-} from "@vizij/utils";
 import { Button, CollapsibleGroup, CollapsibleRow, Input } from "../ui";
 import "./feature-list.css";
 

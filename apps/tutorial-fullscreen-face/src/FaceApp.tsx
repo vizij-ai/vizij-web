@@ -7,7 +7,6 @@ import {
 } from "@vizij/runtime-react";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
-
 import "./styles.css";
 
 const faceAssetUrl = "/assets/hugo_rigged.glb";

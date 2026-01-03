@@ -1,18 +1,8 @@
-import {
-  type ReactNode,
-  type ComponentProps,
-  Suspense,
-  memo,
-  useContext,
-  useEffect,
-} from "react";
+import { Suspense, memo, useContext, useEffect } from "react";
+import type { ReactNode, ComponentProps, CSSProperties } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import {
-  Object3D,
-  OrthographicCamera as OrthographicCameraType,
-  SRGBColorSpace,
-  NoToneMapping,
-} from "three";
+import type { OrthographicCamera as OrthographicCameraType } from "three";
+import { Object3D, SRGBColorSpace, NoToneMapping } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -21,7 +11,7 @@ import { VizijContext } from "./context";
 import { useDefaultVizijStore } from "./store";
 import { useVizijStore } from "./hooks/use-vizij-store";
 import type { VizijActions, VizijData } from "./store-types";
-import { Group } from "./types";
+import type { Group } from "./types";
 import { SelectionGlowEffect } from "./effects/selection-glow-effect";
 
 type RootBounds = NonNullable<Group["rootBounds"]>;
@@ -29,7 +19,7 @@ type RootBounds = NonNullable<Group["rootBounds"]>;
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export interface VizijProps {
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   className?: string;
   rootId: string;
   namespace?: string;

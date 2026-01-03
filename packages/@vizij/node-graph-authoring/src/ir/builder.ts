@@ -1,5 +1,4 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-
 import {
   type IrBindingSummary,
   type IrConstant,

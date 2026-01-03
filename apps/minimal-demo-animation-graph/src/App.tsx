@@ -1,7 +1,6 @@
-import React from "react";
+import { MinimalDemoChrome, MinimalDemoSection } from "@vizij/minimal-demo-ui";
 import { IkGraphDemo } from "./demos/IkGraphDemo";
 import { SlewDampDemo } from "./demos/SlewDampDemo";
-import { MinimalDemoChrome, MinimalDemoSection } from "@vizij/minimal-demo-ui";
 
 export default function App() {
   return (

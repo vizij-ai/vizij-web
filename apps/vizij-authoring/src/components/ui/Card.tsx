@@ -1,6 +1,7 @@
 import React, { forwardRef } from "react";
+import type { HTMLAttributes } from "react";
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   compact?: boolean;
 }
 
@@ -28,7 +29,7 @@ export const CardHeader = ({
   className,
   children,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: HTMLAttributes<HTMLDivElement>) => (
   <div className={`asset-card__header ${className || ""}`} {...props}>
     {children}
   </div>
@@ -38,7 +39,7 @@ export const CardTitle = ({
   className,
   children,
   ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) => (
+}: HTMLAttributes<HTMLHeadingElement>) => (
   <h3 className={`asset-card__title ${className || ""}`} {...props}>
     {children}
   </h3>
@@ -48,7 +49,7 @@ export const CardDescription = ({
   className,
   children,
   ...props
-}: React.HTMLAttributes<HTMLParagraphElement>) => (
+}: HTMLAttributes<HTMLParagraphElement>) => (
   <p className={`asset-card__description ${className || ""}`} {...props}>
     {children}
   </p>
@@ -59,7 +60,7 @@ export const CardBody = ({
   children,
   compact,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { compact?: boolean }) => (
+}: HTMLAttributes<HTMLDivElement> & { compact?: boolean }) => (
   <div
     className={`asset-card__body ${compact ? "asset-card__body--compact" : ""} ${className || ""}`}
     {...props}

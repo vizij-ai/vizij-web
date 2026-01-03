@@ -1,11 +1,12 @@
 import type { FeatureFrame, PhonemeProbFrame, PhonemeEvent } from "./types";
 import { classifyViseme } from "./visemeClassifier";
-import { LOCAL_TO_POLLY_FALLBACK, PollyMouthShapeId } from "./mouthShapes";
+import type { PollyMouthShapeId } from "./mouthShapes";
+import { LOCAL_TO_POLLY_FALLBACK } from "./mouthShapes";
+import type { Phoneme } from "./phonemes";
 import {
   PHONEME_CLASS,
   PHONEME_DURATION_PRIORS,
   PHONEME_TO_VISEME,
-  Phoneme,
 } from "./phonemes";
 
 export interface AlignerConfig {

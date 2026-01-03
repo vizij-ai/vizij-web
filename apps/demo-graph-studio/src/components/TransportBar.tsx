@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { useGraphPlayback } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
 import { useEditorStore } from "../store/useEditorStore";
 
 /**
@@ -14,7 +15,7 @@ import { useEditorStore } from "../store/useEditorStore";
  * - Uses runtime (useGraphRuntime) for setTime, step and evalAll operations
  */
 
-export default function TransportBar(): React.JSX.Element {
+export default function TransportBar(): JSX.Element {
   const playback = useGraphPlayback();
   const runtime = useGraphRuntime();
   const [intervalHz, setIntervalHz] = useState<number>(60);

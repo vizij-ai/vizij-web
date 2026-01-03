@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import type { FeatureFrame } from "../phoneme-core";
-import { AudioManager } from "../utils/audioManager";
+import type { AudioManager } from "../utils/audioManager";
 
 function sampleVolumeAtTime(
   frames: FeatureFrame[],

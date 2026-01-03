@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
+import type {
   FunctionCall,
   FunctionResponse,
+  LiveServerMessage,
+} from "@google/genai";
+import {
   FunctionCallingConfigMode,
   GoogleGenAI,
-  LiveServerMessage,
   Modality,
   type ToolListUnion,
 } from "@google/genai";
-import { AudioManager } from "../utils/audioManager";
+import type { AudioManager } from "../utils/audioManager";
 import { LiveStatus, MODEL_NAME } from "../phoneme-core";
 
 export type GeminiLiveState = {

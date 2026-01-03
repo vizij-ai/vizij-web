@@ -1,4 +1,5 @@
-import { ChangeEvent, useId, useState } from "react";
+import { useId, useState } from "react";
+import type { ChangeEvent } from "react";
 import { Button, Card, CardHeader, CardBody, Input, Chip } from "../ui";
 
 interface PoseRigImportPanelProps {

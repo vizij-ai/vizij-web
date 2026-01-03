@@ -1,5 +1,4 @@
 import type { VisemeData } from "../types/polly";
-
 import { requireApiBase } from "./apiBase";
 
 const normalizeBase = (base: string): string => base.trim().replace(/\/$/, "");

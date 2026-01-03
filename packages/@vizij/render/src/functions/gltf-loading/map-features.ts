@@ -1,5 +1,5 @@
 import { type AnimatableValue } from "@vizij/utils";
-import {
+import type {
   AnimatedFeature,
   StaticFeature,
   StoredAnimatedFeature,

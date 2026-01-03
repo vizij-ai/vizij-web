@@ -1,8 +1,9 @@
-import { RefObject } from "react";
-import { type Mesh, BufferGeometry, ShapeGeometry } from "three";
-import { Stored } from "./stored";
-import { Feature } from "./feature";
-import { RenderableBase } from "./renderable-base";
+import type { RefObject } from "react";
+import type { BufferGeometry, ShapeGeometry } from "three";
+import { type Mesh } from "three";
+import type { Stored } from "./stored";
+import type { Feature } from "./feature";
+import type { RenderableBase } from "./renderable-base";
 
 /**
  * Represents a 3D mesh object in the scene that can be rendered.

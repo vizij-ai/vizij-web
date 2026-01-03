@@ -3,6 +3,7 @@ const js = require("@eslint/js");
 const globals = require("globals");
 const reactHooks = require("eslint-plugin-react-hooks");
 const reactRefresh = require("eslint-plugin-react-refresh");
+const importPlugin = require("eslint-plugin-import");
 const tseslint = require("typescript-eslint");
 
 const recommendedHookRules =
@@ -28,9 +29,23 @@ module.exports = tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      import: importPlugin,
     },
     rules: {
       ...recommendedHookRules,
+      "import/order": [
+        "error",
+        {
+          distinctGroup: false,
+          "newlines-between": "never",
+        },
+      ],
+      "import/newline-after-import": [
+        "error",
+        {
+          count: 1,
+        },
+      ],
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import type { ChangeEvent, KeyboardEvent, SyntheticEvent } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   EXPRESSION_FUNCTION_VOCABULARY,
@@ -16,6 +17,7 @@ import {
   type ScalarFunctionDefinition,
   type ScalarFunctionVocabularyEntry,
 } from "@vizij/node-graph-authoring";
+import type { JSX } from "react/jsx-runtime";
 import {
   buildExpressionGraph,
   type ExpressionGraphResult,
@@ -117,7 +119,7 @@ const UNARY_OPERATOR_METADATA: Record<
   "!": { title: "Not", description: "Logical NOT." },
 };
 
-export default function ExpressionAuthoringPanel(): React.JSX.Element {
+export default function ExpressionAuthoringPanel(): JSX.Element {
   const [expression, setExpression] = useState("s1");
   const [slots, setSlots] = useState<SlotFormState[]>(DEFAULT_SLOTS);
   const [mode, setMode] = useState<IntegrationMode>("replace");
@@ -206,7 +208,7 @@ export default function ExpressionAuthoringPanel(): React.JSX.Element {
   }, []);
 
   const handleExpressionChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
       setExpression(event.target.value);
       syncSelectionFromTarget(event.target);
       setIsHintSuppressed(false);
@@ -215,7 +217,7 @@ export default function ExpressionAuthoringPanel(): React.JSX.Element {
   );
 
   const handleExpressionPointer = useCallback(
-    (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    (event: SyntheticEvent<HTMLTextAreaElement>) => {
       syncSelectionFromTarget(event.currentTarget);
     },
     [syncSelectionFromTarget],
@@ -251,7 +253,7 @@ export default function ExpressionAuthoringPanel(): React.JSX.Element {
   );
 
   const handleExpressionKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (!showFunctionHints || !functionSuggestions.length) {
         return;
       }
@@ -828,7 +830,7 @@ function ExpressionFlowDiagram({
   root,
 }: {
   root: FlowRenderableNode;
-}): React.JSX.Element {
+}): JSX.Element {
   return (
     <div
       style={{
@@ -849,10 +851,7 @@ interface FlowStreamNodeProps {
   depth: number;
 }
 
-function FlowStreamNode({
-  node,
-  depth,
-}: FlowStreamNodeProps): React.JSX.Element {
+function FlowStreamNode({ node, depth }: FlowStreamNodeProps): JSX.Element {
   const hasChildren = node.children.length > 0;
   const laneWidth = computeLaneWidth(depth);
   return (
@@ -891,7 +890,7 @@ function FlowStreamChildren({
 }: {
   node: FlowRenderableNode;
   depth: number;
-}): React.JSX.Element | null {
+}): JSX.Element | null {
   const childCount = node.children.length;
   if (!childCount) {
     return null;
@@ -941,11 +940,7 @@ function FlowStreamChildren({
   );
 }
 
-function FlowStreamLabel({
-  label,
-}: {
-  label?: string;
-}): React.JSX.Element | null {
+function FlowStreamLabel({ label }: { label?: string }): JSX.Element | null {
   if (!label) {
     return null;
   }
@@ -977,7 +972,7 @@ function FlowNodeBlock({
 }: {
   node: FlowRenderableNode;
   minWidth: number;
-}): React.JSX.Element {
+}): JSX.Element {
   const accentHex = FLOW_ACCENT_COLORS[node.accent];
   const borderColor = hexToRgba(accentHex, 0.6);
   return (
@@ -1311,7 +1306,7 @@ function FunctionHintOverlay({
   onHighlight,
   onSelect,
   fallbackSuggestion,
-}: FunctionHintOverlayProps): React.JSX.Element | null {
+}: FunctionHintOverlayProps): JSX.Element | null {
   if (!suggestions.length && !fallbackSuggestion) {
     return null;
   }

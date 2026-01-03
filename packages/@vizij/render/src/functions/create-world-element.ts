@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import type { Group as ThreeGroup } from "three";
-import { Feature } from "../types/feature";
-import { Group } from "../types/group";
+import type { Feature } from "../types/feature";
+import type { Group } from "../types/group";
 
 export function createDefaultGroup(partialBody: Partial<Group>): Group {
   const translation: Feature =

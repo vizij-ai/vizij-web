@@ -1,4 +1,4 @@
-import { ChangeEvent } from "react";
+import type { ChangeEvent } from "react";
 import { Card, CardBody, Input, Chip } from "../ui";
 
 interface GraphImportPanelProps {

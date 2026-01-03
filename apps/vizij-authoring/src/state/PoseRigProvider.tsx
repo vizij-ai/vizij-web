@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  type ReactNode,
-} from "react";
-import { useBindingAuthoring, useGraphRuntime } from "./RigControllerProvider";
+import { createContext, useContext, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import {
   createPoseRigStore,
   PoseRigStoreProvider,
@@ -15,6 +9,7 @@ import {
   usePoseRigAuthoring,
   type UsePoseRigAuthoringResult,
 } from "../poseRig/usePoseRigAuthoring";
+import { useBindingAuthoring, useGraphRuntime } from "./RigControllerProvider";
 
 function filterRecordByIds<T extends Record<string, number>>(
   record: T,

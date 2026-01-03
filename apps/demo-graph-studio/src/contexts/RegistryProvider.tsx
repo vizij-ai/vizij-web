@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import type { FC, PropsWithChildren } from "react";
 import { init as initGraphWasm, getNodeSchemas } from "@vizij/node-graph-react";
 import type { Registry as WasmRegistry } from "@vizij/node-graph-wasm";
 import { useEditorStore } from "../store/useEditorStore";
@@ -253,9 +254,7 @@ function normalizeSignature(signature: NodeSignature): NormalizedNodeSchema {
   };
 }
 
-export const RegistryProvider: React.FC<React.PropsWithChildren> = ({
-  children,
-}) => {
+export const RegistryProvider: FC<PropsWithChildren> = ({ children }) => {
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

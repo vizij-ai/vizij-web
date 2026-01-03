@@ -2,35 +2,34 @@ import type {
   ComponentPropsWithoutRef,
   PropsWithChildren,
   ReactNode,
+  ElementType,
 } from "react";
+import type { JSX } from "react/jsx-runtime";
 import { Badge } from "./Badge";
 import "./panel.css";
 
 type BaseProps = {
-  as?: React.ElementType;
+  as?: ElementType;
   title?: ReactNode;
   description?: ReactNode;
   badge?: ReactNode;
   actions?: ReactNode;
 };
 
-export type PanelProps<
-  TTag extends keyof React.JSX.IntrinsicElements = "section",
-> = PropsWithChildren<
-  BaseProps &
-    Omit<
-      ComponentPropsWithoutRef<TTag>,
-      "as" | "children" | "title" | "description" | "badge" | "actions"
-    >
->;
+export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
+  PropsWithChildren<
+    BaseProps &
+      Omit<
+        ComponentPropsWithoutRef<TTag>,
+        "as" | "children" | "title" | "description" | "badge" | "actions"
+      >
+  >;
 
 /**
  * Standard panel wrapper that applies the shared sidebar panel styling and
  * handles a consistent header layout (title + description + badge/actions).
  */
-export function Panel<
-  TTag extends keyof React.JSX.IntrinsicElements = "section",
->({
+export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   as,
   title,
   description,
@@ -40,7 +39,7 @@ export function Panel<
   children,
   ...rest
 }: PanelProps<TTag>) {
-  const Component = (as ?? "section") as keyof React.JSX.IntrinsicElements;
+  const Component = (as ?? "section") as keyof JSX.IntrinsicElements;
   const hasHeader = Boolean(title || description || badge || actions);
 
   const renderBadge = () => {

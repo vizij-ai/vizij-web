@@ -1,10 +1,12 @@
 /* @vitest-environment node */
-
-import React, { useEffect } from "react";
+import { resolve as resolvePath } from "node:path";
+import { readFile } from "node:fs/promises";
+import { useEffect } from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-
+import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
 import {
   NodeGraphProvider,
   useGraphRuntime,
@@ -12,9 +14,6 @@ import {
   init as initGraphWasm,
 } from "../index";
 import type { GraphRuntimeContextValue } from "../types";
-import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
-import { resolve as resolvePath } from "node:path";
-import { readFile } from "node:fs/promises";
 
 const urdfXml = `
 <robot name="planar_arm">
@@ -160,7 +159,7 @@ const runtimeRef: { current: GraphRuntimeContextValue | null } = {
   current: null,
 };
 
-const RuntimeTap: React.FC = () => {
+const RuntimeTap: FC = () => {
   const runtime = useGraphRuntime();
   useEffect(() => {
     runtimeRef.current = runtime;

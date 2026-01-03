@@ -1,4 +1,5 @@
 import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
@@ -65,7 +66,7 @@ vi.mock("@vizij/node-graph-wasm", () => {
   };
 });
 
-const TestConsumer: React.FC<{
+const TestConsumer: FC<{
   useNodeGraph: typeof import("../index").useNodeGraph;
   useGraphWrites: typeof import("../index").useGraphWrites;
   valueAsNumber: typeof import("../index").valueAsNumber;

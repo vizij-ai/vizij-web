@@ -102,7 +102,7 @@ export function PoseButtonPanel() {
 
     const activeKeys = new Set<string>();
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       const binding = keyBindings.get(event.code);
       if (!binding || activeKeys.has(event.code)) {
         return;
@@ -125,7 +125,7 @@ export function PoseButtonPanel() {
       });
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
+    const handleKeyUp = (event: globalThis.KeyboardEvent) => {
       const binding = keyBindings.get(event.code);
       if (!binding || !activeKeys.has(event.code)) {
         return;

@@ -1,15 +1,14 @@
 /* @vitest-environment jsdom */
-
 import React from "react";
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
+import { init as initAnimationWasm } from "@vizij/animation-wasm";
 import {
   AnimationProvider,
   useAnimation,
   valueAsNumber,
   samples,
 } from "../index";
-import { init as initAnimationWasm } from "@vizij/animation-wasm";
 import { getAnimationWasmInitInput } from "./helpers";
 
 const originalWarn = console.warn;

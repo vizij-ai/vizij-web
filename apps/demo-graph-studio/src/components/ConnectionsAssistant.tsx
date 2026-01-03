@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import type { JSX } from "react/jsx-runtime";
 
 /**
  * ConnectionsAssistant
@@ -20,7 +21,7 @@ type Suggestion = {
   detail?: string;
 };
 
-export default function ConnectionsAssistant(): React.JSX.Element {
+export default function ConnectionsAssistant(): JSX.Element {
   const [visible, setVisible] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);

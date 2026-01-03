@@ -1,4 +1,5 @@
-import { createRef, type RefObject } from "react";
+import { createRef } from "react";
+import type { RefObject } from "react";
 
 export function iterateOrExtract(data: any, cb: (data: any) => void): void {
   if (Array.isArray(data)) {
