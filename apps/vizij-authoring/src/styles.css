@@ -96,8 +96,8 @@ body {
 }
 
 .sidebar--right.sidebar--narrow {
-  flex: 0 0 25%;
-  max-width: 30%;
+  flex: 0 0 30%;
+  max-width: 40%;
 }
 
 .sidebar__topbar {
