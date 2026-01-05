@@ -18,3 +18,4 @@
 .idea/
 .vscode/
 .eslintcache
+.claude/settings.local.json
