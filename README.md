@@ -47,12 +47,24 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
 | `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                | `dev`, `build`, `typecheck`, `preview` |
 | `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                               | `dev`, `build`, `typecheck`, `preview` |
-| `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, export GLBs and rig graphs.                        | `dev`, `build`, `typecheck`, `preview` |
+| `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.           | `dev`, `build`, `typecheck`, `preview` |
 | `demo-vizij-player`            | `apps/demo-vizij-player`            | Authoring surface for facial rigs and orchestrator-driven playback.     | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-orchestrator`    | `apps/minimal-demo-orchestrator`    | Orchestrator blackboard visualiser with canned controllers.             | `dev`, `build`, `typecheck`, `preview` |
+
+### vizij-authoring Features
+
+The `vizij-authoring` app is the primary tool for creating and configuring Vizij face rigs. Key features include:
+
+- **Scene Composer** – Import GLB models and configure scene hierarchy
+- **Rigging Panel** – Create bindings between standard inputs and animatable components using expressions
+- **Standard Face Mapping** – Configure standard input channels for facial animation:
+  - **Setup Tab**: Load a reference face GLB to use as a visual guide
+  - **Channels Tab**: Manage the standard input hierarchy (namespace → channel → track → attribute)
+  - **Mapping Tab**: Compare main and reference faces side-by-side, configure bindings with a group-centric editor
+- **Import/Export** – Save and load Vizij bundles as GLB files with embedded rig graphs
 
 ---
 
