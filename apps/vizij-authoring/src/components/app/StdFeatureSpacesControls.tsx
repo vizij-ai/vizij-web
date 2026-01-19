@@ -5,7 +5,7 @@ import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
-import { GroupMappingEditor } from "./StdFaceMappingEditor";
+import { GroupMappingEditor } from "./StdFeatureSpacesMappingEditor";
 
 /**
  * Status indicator for a single face or channel:
@@ -76,7 +76,7 @@ function deriveNamespaceAndChannelFromPath(path: string): {
   }
 }
 
-export function StdFaceMappingControls() {
+export function StdFeatureSpacesControls() {
   const referenceFace = useReferenceFace();
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(
     null,
