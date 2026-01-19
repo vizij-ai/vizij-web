@@ -197,7 +197,7 @@ function nameExistsAtLevel(
 
 const TREE_MAX_HEIGHT = 800;
 
-export function StdFaceChannelsPanel() {
+export function StdFeatureSpacesChannelsPanel() {
   const [search, setSearch] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [newNodeName, setNewNodeName] = useState("");

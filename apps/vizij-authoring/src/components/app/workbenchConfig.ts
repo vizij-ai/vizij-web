@@ -1,5 +1,5 @@
 /** Shared definition of the authoring workbench tabs. */
-export type WorkbenchView = "scene-composer" | "import-export" | "pose-rig" | "std-face-mapper";
+export type WorkbenchView = "scene-composer" | "import-export" | "pose-rig" | "std-feature-spaces";
 
 export interface WorkbenchOption {
   id: WorkbenchView;
@@ -29,8 +29,8 @@ export const WORKBENCH_OPTIONS: WorkbenchOption[] = [
     icon: "accessibility_new",
   },
   {
-    id: "std-face-mapper",
-    label: "Standard Face Mapping",
+    id: "std-feature-spaces",
+    label: "Standard Feature Spaces",
     description: "Map your model to standard feature spaces.",
     icon: "face",
   },

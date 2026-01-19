@@ -18,6 +18,29 @@ a GLB.
 - **Pose rig workflow** – Assign each pose to a group in the Pose Editor (or multi-select poses from the library to batch-apply a group), review grouped/collapsible sections, and export a pose-driver graph per group. Rig paths now follow `rig/{face}/{group}/{pose}.weight`, so exports preserve the grouping structure automatically.
 - **Rig graph import safety** – Importing `.graph.json` files now checks the embedded face id; when it disagrees with the loaded GLB you can remap the graph to the current face instead of juggling multiple assets.
 
+### Standard Feature Spaces Editor
+
+The Standard Feature Spaces Editor enables you to define and configure standard input channels for facial rigs. This provides a unified naming convention that enables interoperability between different face rigs and animation systems.
+
+**Workflow:**
+1. Load a **main face** GLB that needs standard input configuration
+2. Optionally load a **reference face** GLB with complete bindings as a visual guide
+3. Use the **Channels tab** to view/edit the standard input hierarchy
+4. Use the **Mapping tab** to configure bindings by comparing faces side-by-side
+
+**Tab Overview:**
+- **Setup Tab**: Load reference faces, export configurations
+- **Channels Tab**: Hierarchical tree editor for managing namespace → channel → track → attribute structure
+- **Mapping Tab**: Group-centric binding editor with synchronized sliders for both faces
+
+**Path Structure:**
+```
+/standard/{namespace}/{channel}/{track}/{attribute}
+```
+Example: `/standard/semio/left_eye/pos/x`
+
+See [STD_FACE_MAPPING_SPEC.md](src/components/app/STD_FACE_MAPPING_SPEC.md) for detailed technical documentation.
+
 ### Driver authoring tips
 
 - Toggle drivers via the `Enable/Disable` pill in the Drivers panel; disabled entries are greyed out and can be surfaced with the `Show disabled` toolbar control.

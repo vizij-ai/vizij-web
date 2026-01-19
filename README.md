@@ -60,11 +60,38 @@ The `vizij-authoring` app is the primary tool for creating and configuring Vizij
 
 - **Scene Composer** – Import GLB models and configure scene hierarchy
 - **Rigging Panel** – Create bindings between standard inputs and animatable components using expressions
-- **Standard Face Mapping** – Configure standard input channels for facial animation:
+- **Standard Feature Spaces Editor** – Define and configure standard input channels for facial animation:
   - **Setup Tab**: Load a reference face GLB to use as a visual guide
   - **Channels Tab**: Manage the standard input hierarchy (namespace → channel → track → attribute)
   - **Mapping Tab**: Compare main and reference faces side-by-side, configure bindings with a group-centric editor
 - **Import/Export** – Save and load Vizij bundles as GLB files with embedded rig graphs
+
+### Standard Feature Spaces
+
+Standard Feature Spaces provide a unified naming convention for rig inputs, enabling interoperability between different face rigs and animation systems. Each standard input follows a hierarchical path:
+
+```
+/standard/{namespace}/{channel}/{track}/{attribute}
+```
+
+- **Namespace**: Groups related channels under a feature space (e.g., `semio`)
+- **Channel**: Feature group (e.g., `mouth`, `left_eye`, `right_eye`, `left_eyebrow`)
+- **Track**: Control type (e.g., `pos`, `morph`, `rotation`)
+- **Attribute**: Individual value (e.g., `x`, `y`, `z`, or morph target names)
+
+#### Semio Namespace
+
+The `semio` namespace is the primary standard feature space for Vizij facial rigs. It defines channels for:
+
+| Channel | Description | Common Tracks |
+|---------|-------------|---------------|
+| `left_eye` / `right_eye` | Eye gaze and lid control | `pos` (x, y), `rotation` |
+| `left_eyebrow` / `right_eyebrow` | Eyebrow movement | `pos`, `morph` |
+| `mouth` | Lip shapes and jaw movement | `morph` (visemes, expressions), `pos` |
+| `head` | Head orientation | `pos`, `rotation` |
+| `jaw` | Jaw articulation | `pos`, `rotation` |
+
+The actual channels available depend on the loaded reference face GLB. Use the Standard Feature Spaces Editor in `vizij-authoring` to explore and configure channels for your specific rig.
 
 ---
 

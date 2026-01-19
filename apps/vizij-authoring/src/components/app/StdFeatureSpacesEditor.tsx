@@ -2,14 +2,14 @@ import { useCallback, useState } from "react";
 import { AssetLoaderPanel } from "./AssetLoaderPanel";
 import { SidebarSection } from "../common/SidebarSection";
 import { Tabs } from "../ui";
-import { StdFaceMappingControls } from "./StdFaceMappingControls";
-import { StdFaceChannelsPanel } from "./StdFaceChannelsPanel";
+import { StdFeatureSpacesControls } from "./StdFeatureSpacesControls";
+import { StdFeatureSpacesChannelsPanel } from "./StdFeatureSpacesChannelsPanel";
 import {
   useAuthoringUiActions,
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
 
-type StdFaceMapTab = "setup" | "channels" | "mapping";
+type StdFeatureSpacesTab = "setup" | "channels" | "mapping";
 
 const TAB_ITEMS = [
   { id: "setup", label: "Setup" },
@@ -17,14 +17,14 @@ const TAB_ITEMS = [
   { id: "mapping", label: "Mapping" },
 ] as const;
 
-interface StdFaceMapImportExportProps {
+interface StdFeatureSpacesEditorProps {
   onSelectFile: (file: File) => void;
 }
 
-export function StdFaceMapImportExport({
+export function StdFeatureSpacesEditor({
   onSelectFile,
-}: StdFaceMapImportExportProps) {
-  const [activeTab, setActiveTab] = useState<StdFaceMapTab>("setup");
+}: StdFeatureSpacesEditorProps) {
+  const [activeTab, setActiveTab] = useState<StdFeatureSpacesTab>("setup");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,9 +57,9 @@ export function StdFaceMapImportExport({
           />
         );
       case "channels":
-        return <StdFaceChannelsPanel />;
+        return <StdFeatureSpacesChannelsPanel />;
       case "mapping":
-        return <StdFaceMappingControls />;
+        return <StdFeatureSpacesControls />;
       default:
         return null;
     }
@@ -69,7 +69,7 @@ export function StdFaceMapImportExport({
     <Tabs
       items={TAB_ITEMS}
       value={activeTab}
-      onValueChange={(id) => setActiveTab(id as StdFaceMapTab)}
+      onValueChange={(id) => setActiveTab(id as StdFeatureSpacesTab)}
       renderPanel={renderTabPanel}
       size="sm"
       variant="pill"
@@ -95,11 +95,11 @@ function SetupTabContent({
   return (
     <div className="workbench-panel__scroll">
       <SidebarSection
-        title="Load reference Standard face"
-        description="Load a GLB with a Vizij bundle containing a Standard face to use as reference."
+        title="Load reference face"
+        description="Load a GLB with a Vizij bundle containing a face rigged to the Standard Feature Space to use as reference."
         instructions={{
           label: "Reference GLB loader",
-          summary: "Load a GLB with a Vizij bundle containing a Standard face",
+          summary: "Load a GLB with a Vizij bundle containing a face rigged to a Standard Feature Space",
           size: "compact",
           content: (
             <ol>
@@ -127,18 +127,18 @@ function SetupTabContent({
 
       <SidebarSection
         title="Exporting (Soon)"
-        description="Save your Standard face mapping for reuse in other projects."
+        description="Save your Standard Feature Spaces configuration for reuse in other projects."
         instructions={{
           label: "Work in Progress",
-          summary: "Exporting face mappings is coming soon",
+          summary: "Exporting feature space configurations is coming soon",
           size: "compact",
           content: (
             <ul>
               <li>
-                Currently Standard face mapping are exported as part of the main Vizij bundle export.
+                Currently Standard Feature Spaces configurations are exported as part of the main Vizij bundle export.
               </li>
               <li>
-                Please use the main Import / Export tool to save your face mapping to a Vizij bundle.
+                Please use the main Import / Export tool to save your feature space configuration to a Vizij bundle.
               </li>
             </ul>
           ),

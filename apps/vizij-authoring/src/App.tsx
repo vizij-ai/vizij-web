@@ -33,7 +33,7 @@ import type { ReactNode } from "react";
 import { Panel } from "./components/ui";
 import { RiggingTabs } from "./components/app/RiggingTabs";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
-import { StdFaceMapImportExport } from "./components/app/StdFaceMapImportExport";
+import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import type { VizijBundleExtension } from "@vizij/render";
@@ -117,18 +117,18 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
       </ol>
     ),
   },
-  "std-face-mapper": {
-    label: "Standard Face Mapping workflow",
-    summary: "Map your face to a standard feature space",
+  "std-feature-spaces": {
+    label: "Standard Feature Spaces workflow",
+    summary: "Map your face to a Standard Feature Space",
     content: (
       <div>
         <p>
-        The Standard Face Mapper allows you to align your face to predefined
+        The Standard Feature Spaces Editor allows you to align your face to predefined
         feature spaces. This enables consistent facial rigging and animation
         across different models by providing a common reference frame.
         </p>
         <p>
-          There is no single Standard feature space. Instead we refer to A Standard,
+          There is no single Standard Feature Space. Instead we refer to a Standard,
           which may be developed by the community or specific entities.
           By mapping your face to a given Standard, your face complies with its feature space,
           and thus supports being controlled by rigs and animations built for that Standard.
@@ -440,7 +440,7 @@ function AppContent({ loader }: AppContentProps) {
       "import-export": `${guideIdBase}-import-export`,
       "scene-composer": `${guideIdBase}-scene-composer`,
       "pose-rig": `${guideIdBase}-pose-rig`,
-      "std-face-mapper": `${guideIdBase}-std-face-mapper`,
+      "std-feature-spaces": `${guideIdBase}-std-feature-spaces`,
     }),
     [guideIdBase],
   );
@@ -450,7 +450,7 @@ function AppContent({ loader }: AppContentProps) {
     "import-export": false,
     "scene-composer": false,
     "pose-rig": false,
-    "std-face-mapper": false,
+    "std-feature-spaces": false,
   });
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
@@ -539,13 +539,13 @@ function AppContent({ loader }: AppContentProps) {
 
         <div
           className={
-            activeWorkbench === "std-face-mapper"
+            activeWorkbench === "std-feature-spaces"
               ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
               : "viewer-wrapper"
           }
         >
           {viewerElement}
-          {activeWorkbench === "std-face-mapper" && (
+          {activeWorkbench === "std-feature-spaces" && (
             <div className="viewer-split__placeholder">
               <OrchestratorProvider autostart={false}>
                 <ReferenceFaceRuntime
@@ -566,7 +566,7 @@ function AppContent({ loader }: AppContentProps) {
           )}
         </div>
 
-        <aside className={`sidebar sidebar--right${activeWorkbench === "std-face-mapper" ? " sidebar--narrow" : ""}`}>
+        <aside className={`sidebar sidebar--right${activeWorkbench === "std-feature-spaces" ? " sidebar--narrow" : ""}`}>
           <div className="workbench-panel__content">
             <div className="workbench-panel__body">
               {activeOption && (
@@ -674,9 +674,9 @@ function AppContent({ loader }: AppContentProps) {
                 </Panel>
               )}
 
-              {activeWorkbench === "std-face-mapper" && (
+              {activeWorkbench === "std-feature-spaces" && (
                 <ReferenceFaceProvider value={referenceFaceContextValue}>
-                  <StdFaceMapImportExport
+                  <StdFeatureSpacesEditor
                     onSelectFile={setSecondFaceFileToLoad}
                   />
                 </ReferenceFaceProvider>
