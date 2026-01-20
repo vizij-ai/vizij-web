@@ -18,6 +18,7 @@
     "dev:minimal-demo-graph": "pnpm --filter minimal-demo-graph run dev",
     "dev:minimal-demo-orchestrator": "pnpm --filter minimal-demo-orchestrator run dev",
     "dev:tutorial-fullscreen-face": "pnpm --filter fullscreen-face run dev",
+    "dev:vizij-ws-app": "pnpm --filter vizij-ws-app run dev",
     "build": "pnpm run build:packages && pnpm run build:apps",
     "build:packages": "pnpm --filter \"./packages/**\" run --if-present build",
     "build:apps": "pnpm --filter \"./apps/**\" run --if-present build",

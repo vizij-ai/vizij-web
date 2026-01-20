@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::Parser;
 use log::{info, LevelFilter};
 use std::sync::Arc;
@@ -13,6 +14,7 @@ struct AppState {
     ws_state: Arc<Mutex<WsServerState>>,
     ws_cancel_token: Mutex<Option<CancellationToken>>,
     port: u16,
+    glb_source: Option<String>,
 }
 
 /// Command line arguments
@@ -22,6 +24,10 @@ struct Args {
     /// WebSocket server port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
+
+    /// GLB file path or URL to load on startup
+    #[arg(short, long)]
+    glb: Option<String>,
 }
 
 /// Start the WebSocket server
@@ -107,6 +113,22 @@ async fn set_tracks(app_handle: tauri::AppHandle, tracks: Vec<String>) -> Result
     Ok(())
 }
 
+/// Get the GLB source from CLI argument (path or URL)
+#[tauri::command]
+async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
+    let state = app_handle.state::<AppState>();
+    state.glb_source.clone()
+}
+
+/// Read a local GLB file and return as base64
+#[tauri::command]
+async fn read_glb_file(path: String) -> Result<String, String> {
+    let contents = tokio::fs::read(&path)
+        .await
+        .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
+    Ok(STANDARD.encode(&contents))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Parse command line arguments
@@ -122,15 +144,20 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
             let port = args.port;
+            let glb_source = args.glb.clone();
 
             // Set up the application state
             app.manage(AppState {
                 ws_state: Arc::new(Mutex::new(WsServerState::default())),
                 ws_cancel_token: Mutex::new(None),
                 port,
+                glb_source: glb_source.clone(),
             });
 
             info!("Vizij WS App initialized with port {}", port);
+            if let Some(ref src) = glb_source {
+                info!("GLB source: {}", src);
+            }
 
             Ok(())
         })
@@ -140,6 +167,8 @@ pub fn run() {
             get_port,
             get_tracks,
             set_tracks,
+            get_glb_source,
+            read_glb_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
