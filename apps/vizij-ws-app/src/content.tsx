@@ -1,194 +1,135 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useShallow } from "zustand/shallow";
-import { loadGLTF, useVizijStore, Vizij, Group } from "vizij";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  VizijRuntimeProvider,
+  VizijRuntimeFace,
+  useVizijRuntime,
+  type VizijAssetBundle,
+} from "@vizij/runtime-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import { useSyncedData } from "./use-synced-data";
 import { useWsContext } from "./ws-context";
-
-// Default model to load on startup
-const DEFAULT_MODEL_PATH = "C:\\repo\\semio\\vizij-web\\apps\\vizij-showcase\\public\\assets\\Hugo_Latest.glb";
-
-interface Bounds {
-  center: { x: number; y: number };
-  size: { x: number; y: number };
-}
+import {
+  getGlbSource,
+  createAssetBundleFromSource,
+  createAssetBundleFromFile,
+} from "./lib/createAssetBundle";
+import { useSyncedData } from "./use-synced-data";
 
 function Content() {
-  const [rootId, setRootId] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [rootGroup, setRootGroup] = useState<Group | undefined>(undefined);
-  const [safeArea, setSafeArea] = useState<Bounds>({
-    center: { x: 0, y: 0 },
-    size: { x: 3, y: 2 },
-  });
-  const [bgColor, setBgColor] = useState<string>("#737373");
-  const [loadingDefault, setLoadingDefault] = useState(true);
-  const hasAttemptedDefaultLoad = useRef(false);
+  const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const hasCheckedCliSource = useRef(false);
 
   const { isConnected, port } = useWsContext();
 
-  const { addWorldElements, updateElementById } = useVizijStore(
-    useShallow((state) => ({
-      addWorldElements: state.addWorldElements,
-      updateElementById: state.updateElementById,
-    }))
-  );
-
-  // Handle file loading
-  const handleFile = useCallback(
-    (f: File) => {
-      const reader = new FileReader();
-      reader.addEventListener(
-        "load",
-        (event) => {
-          const loadHandler = async (): Promise<void> => {
-            if (event.target && typeof event.target.result === "string") {
-              const [world, animatables] = await loadGLTF(
-                event.target.result,
-                ["default"],
-                false,
-                safeArea
-              );
-              const root = Object.values(world).find(
-                (e) => e.type === "group" && e.rootBounds
-              );
-              addWorldElements(world, animatables, true);
-              setRootId((root as Group | undefined)?.id ?? "");
-              setRootGroup(root as Group | undefined);
-              const bounds = (root as Group | undefined)?.rootBounds;
-              if (bounds) {
-                setSafeArea(bounds);
-              }
-              setFile(f);
-            }
-          };
-
-          void loadHandler()
-            .then((result) => {
-              console.log("Loading result:", result);
-            })
-            .catch((error) => {
-              console.error("Error loading:", error);
-            });
-        },
-        false
-      );
-      reader.readAsDataURL(f);
-    },
-    [addWorldElements, safeArea]
-  );
-
+  // Check for CLI source on mount
   useEffect(() => {
-    if (file) {
-      handleFile(file);
-    }
-  }, [file, handleFile]);
+    if (hasCheckedCliSource.current) return;
+    hasCheckedCliSource.current = true;
 
-  useEffect(() => {
-    if (rootId && rootGroup) {
-      updateElementById(rootId, (element) => {
-        if (element.type === "group") {
-          element.rootBounds = safeArea;
-        }
-        return element;
-      });
-    }
-  }, [safeArea, rootId, rootGroup, updateElementById]);
-
-  const animatables = useVizijStore(useShallow((state) => state.animatables));
-
-  const nameToIdMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    Object.entries(animatables).forEach(([id, animatable]) => {
-      if (animatable.pub?.output) {
-        map[animatable.pub?.output] = id;
-      } else if (animatable.name !== undefined && animatable.name !== "") {
-        map[animatable.name] = id;
-      }
-    });
-    return map;
-  }, [animatables]);
-
-  useSyncedData(nameToIdMap);
-
-  // Auto-load default model on startup
-  useEffect(() => {
-    if (hasAttemptedDefaultLoad.current) return;
-    hasAttemptedDefaultLoad.current = true;
-
-    const loadDefaultModel = async () => {
+    const checkCliSource = async () => {
       try {
-        console.log("Loading default model:", DEFAULT_MODEL_PATH);
-        const fileContents = await readFile(DEFAULT_MODEL_PATH);
-        const fileName = DEFAULT_MODEL_PATH.split("\\").pop() || "model.glb";
-        const mimeType = "model/gltf-binary";
-        const fileBlob = new Blob([fileContents], { type: mimeType });
-        const newFile = new File([fileBlob], fileName, { type: mimeType });
-        setFile(newFile);
-      } catch (error) {
-        console.error("Error loading default model:", error);
+        const source = await getGlbSource();
+        if (source) {
+          console.log("Loading GLB from CLI source:", source);
+          const bundle = await createAssetBundleFromSource(source);
+          setAssetBundle(bundle);
+        }
+      } catch (err) {
+        console.error("Error loading CLI source:", err);
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
-        setLoadingDefault(false);
+        setLoading(false);
       }
     };
 
-    loadDefaultModel();
+    checkCliSource();
   }, []);
 
-  const handleOpenFile = async () => {
+  // Handle file dialog
+  const handleOpenFile = useCallback(async () => {
     const selectedFile = await open({
       multiple: false,
       filters: [
         {
-          name: "Vizij Files",
+          name: "GLB/GLTF Files",
           extensions: ["gltf", "glb"],
         },
       ],
     });
 
     if (selectedFile && typeof selectedFile === "string") {
-      console.log("found file", selectedFile);
+      setLoading(true);
+      setError(null);
       try {
         const fileContents = await readFile(selectedFile);
         const fileName =
           selectedFile.split("/").pop() ||
           selectedFile.split("\\").pop() ||
-          "model.gltf";
+          "model.glb";
         const mimeType = fileName.toLowerCase().endsWith(".glb")
           ? "model/gltf-binary"
           : "model/gltf+json";
-        const fileBlob = new Blob([fileContents], { type: mimeType });
-        const newFile = new File([fileBlob], fileName, { type: mimeType });
-        setFile(newFile);
-      } catch (error) {
-        console.error("Error reading file:", error);
-        setFile(null);
-        setRootId(null);
+        const file = new File([fileContents], fileName, { type: mimeType });
+        const bundle = createAssetBundleFromFile(file);
+        setAssetBundle(bundle);
+      } catch (err) {
+        console.error("Error reading file:", err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
       }
-    } else {
-      setFile(null);
-      setRootId(null);
     }
-  };
+  }, []);
 
-  if (!rootId) {
+  // Reset to file picker
+  const handleBack = useCallback(() => {
+    setAssetBundle(null);
+    setError(null);
+  }, []);
+
+  // Loading state
+  if (loading) {
     return (
       <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">Vizij WS</h1>
-        {loadingDefault ? (
-          <p className="text-neutral-400">Loading default model...</p>
-        ) : (
-          <>
-            <p className="text-neutral-400">No model loaded</p>
-            <button
-              onClick={handleOpenFile}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
-            >
-              Open GLTF/GLB File
-            </button>
-          </>
-        )}
+        <p className="text-neutral-400">Loading...</p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <p className="text-red-400">Error: {error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            handleOpenFile();
+          }}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+        >
+          Try Another File
+        </button>
+      </div>
+    );
+  }
+
+  // No asset bundle - show file picker
+  if (!assetBundle) {
+    return (
+      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <p className="text-neutral-400">No model loaded</p>
+        <button
+          onClick={handleOpenFile}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+        >
+          Open GLB/GLTF File
+        </button>
         <div className="mt-8 text-sm text-neutral-500">
           <p>WebSocket server: ws://localhost:{port}</p>
           <p>
@@ -198,25 +139,99 @@ function Content() {
             </span>
           </p>
         </div>
+        <p className="mt-4 text-xs text-neutral-600">
+          Tip: Use --glb &lt;path-or-url&gt; to load a model on startup
+        </p>
       </div>
     );
   }
 
+  // Render with runtime provider
+  return (
+    <VizijRuntimeProvider
+      assetBundle={assetBundle}
+      autostart={true}
+      driveOrchestrator={true}
+    >
+      <RuntimeContent onBack={handleBack} />
+    </VizijRuntimeProvider>
+  );
+}
+
+interface RuntimeContentProps {
+  onBack: () => void;
+}
+
+function RuntimeContent({ onBack }: RuntimeContentProps) {
+  const { loading, ready, error } = useVizijRuntime();
+  const { isConnected, port } = useWsContext();
+  const [bgColor, setBgColor] = useState("#737373");
+
+  // Hook for WebSocket data sync
+  useSyncedData();
+
+  // Runtime loading state
+  if (loading) {
+    return (
+      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <p className="text-neutral-400">Loading model...</p>
+      </div>
+    );
+  }
+
+  // Runtime error state
+  if (error) {
+    // Log full error details to console for debugging
+    console.error("[vizij-ws] Runtime error:", error);
+    console.error("[vizij-ws] Error cause:", error.cause);
+
+    // Provide helpful message based on error phase
+    const helpText =
+      error.phase === "orchestrator"
+        ? "The GLB file may be missing a VIZIJ_bundle extension or the orchestrator failed to initialize."
+        : error.phase === "registration"
+          ? "The GLB file is missing a rig graph. Make sure the file was exported with VIZIJ bundle data."
+          : "Check the browser console (F12) for more details.";
+
+    return (
+      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <p className="text-red-400">Error: {error.message}</p>
+        <p className="text-neutral-400 text-sm max-w-md text-center">{helpText}</p>
+        {error.cause && (
+          <p className="text-neutral-500 text-xs max-w-md text-center font-mono">
+            {String(error.cause)}
+          </p>
+        )}
+        <button
+          onClick={onBack}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+        >
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  // Not ready yet
+  if (!ready) {
+    return (
+      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <p className="text-neutral-400">Initializing...</p>
+      </div>
+    );
+  }
+
+  // Render the 3D viewer
   return (
     <div className="h-screen w-full relative" style={{ backgroundColor: bgColor }}>
-      <Vizij className="h-full w-full" rootId={rootId} />
+      <VizijRuntimeFace className="h-full w-full" />
 
       {/* Back button */}
       <button
-        onClick={() => {
-          setRootId(null);
-          setFile(null);
-          setRootGroup(undefined);
-          setSafeArea({
-            center: { x: 0, y: 0 },
-            size: { x: 3, y: 2 },
-          });
-        }}
+        onClick={onBack}
         className="absolute top-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
       >
         Back
