@@ -6,6 +6,8 @@ interface AssetLoaderPanelProps {
   error: string | null;
   onSelectFile: (file: File) => void;
   onClearError: () => void;
+  skipDiscrepancyCheck: boolean;
+  onSkipDiscrepancyCheckChange: (value: boolean) => void;
 }
 
 export function AssetLoaderPanel({
@@ -13,6 +15,8 @@ export function AssetLoaderPanel({
   error,
   onSelectFile,
   onClearError,
+  skipDiscrepancyCheck,
+  onSkipDiscrepancyCheckChange,
 }: AssetLoaderPanelProps) {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -42,6 +46,15 @@ export function AssetLoaderPanel({
         <p className="asset-card__hint asset-card__hint--muted">
           Supports high-poly GLBs exported from Vizij or other DCC tools.
         </p>
+
+        <label className="asset-card__checkbox-row">
+          <input
+            type="checkbox"
+            checked={skipDiscrepancyCheck}
+            onChange={(e) => onSkipDiscrepancyCheckChange(e.target.checked)}
+          />
+          <span>Skip discrepancy check (regenerate rig from GLB)</span>
+        </label>
 
         {error && (
           <div className="asset-card__alert" role="alert">

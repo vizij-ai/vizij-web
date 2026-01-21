@@ -37,7 +37,10 @@ export function useStandardInputCollections(
   } = options;
 
   const standardInputs = useMemo(
-    () => managedStandardInputs.map((entry) => entry.input),
+    () =>
+      managedStandardInputs
+        .filter((entry) => !entry.disabled)
+        .map((entry) => entry.input),
     [managedStandardInputs],
   );
 
@@ -64,37 +67,41 @@ export function useStandardInputCollections(
       string,
       { source?: "auto" | "custom" | "preset"; root?: string }
     >();
-    managedStandardInputs.forEach((entry) => {
-      const isPreset = entry.metadata?.elementType === "standard";
-      const source: "auto" | "custom" | "preset" | undefined = isPreset
-        ? "preset"
-        : entry.source;
-      entries.set(entry.input.id, {
-        source,
-        root: entry.metadata?.root ?? entry.input.group ?? groupFallback,
+    managedStandardInputs
+      .filter((entry) => !entry.disabled)
+      .forEach((entry) => {
+        const isPreset = entry.metadata?.elementType === "standard";
+        const source: "auto" | "custom" | "preset" | undefined = isPreset
+          ? "preset"
+          : entry.source;
+        entries.set(entry.input.id, {
+          source,
+          root: entry.metadata?.root ?? entry.input.group ?? groupFallback,
+        });
       });
-    });
     return entries;
   }, [groupFallback, managedStandardInputs]);
 
   const elementRootLookup = useMemo(() => {
     const grouped = new Map<string, Set<string>>();
-    managedStandardInputs.forEach((entry) => {
-      const elementId = entry.metadata?.elementId;
-      if (!elementId) {
-        return;
-      }
-      const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
-      if (!root) {
-        return;
-      }
-      const bucket = grouped.get(elementId);
-      if (bucket) {
-        bucket.add(root);
-      } else {
-        grouped.set(elementId, new Set([root]));
-      }
-    });
+    managedStandardInputs
+      .filter((entry) => !entry.disabled)
+      .forEach((entry) => {
+        const elementId = entry.metadata?.elementId;
+        if (!elementId) {
+          return;
+        }
+        const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
+        if (!root) {
+          return;
+        }
+        const bucket = grouped.get(elementId);
+        if (bucket) {
+          bucket.add(root);
+        } else {
+          grouped.set(elementId, new Set([root]));
+        }
+      });
     const lookup = new Map<string, readonly string[]>();
     grouped.forEach((roots, elementId) => {
       lookup.set(elementId, Array.from(roots));
@@ -104,24 +111,28 @@ export function useStandardInputCollections(
 
   const allStandardInputSubgroups = useMemo(() => {
     const set = new Set<string>();
-    managedStandardInputs.forEach((entry) => {
-      const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
-      extractStandardInputSubgroups(entry.input.path, root).forEach(
-        (subgroup) => {
-          if (subgroup) {
-            set.add(subgroup);
-          }
-        },
-      );
-    });
+    managedStandardInputs
+      .filter((entry) => !entry.disabled)
+      .forEach((entry) => {
+        const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
+        extractStandardInputSubgroups(entry.input.path, root).forEach(
+          (subgroup) => {
+            if (subgroup) {
+              set.add(subgroup);
+            }
+          },
+        );
+      });
     return set;
   }, [groupFallback, managedStandardInputs]);
 
   useEffect(() => {
     const map = new Map<string, StandardRigInput>();
-    managedStandardInputs.forEach((entry) => {
-      map.set(entry.input.id, entry.input);
-    });
+    managedStandardInputs
+      .filter((entry) => !entry.disabled)
+      .forEach((entry) => {
+        map.set(entry.input.id, entry.input);
+      });
     allStandardInputsRef.current = map;
   }, [allStandardInputsRef, managedStandardInputs]);
 
