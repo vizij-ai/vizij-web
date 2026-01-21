@@ -14,6 +14,7 @@ import {
   createAssetBundleFromFile,
 } from "./lib/createAssetBundle";
 import { useSyncedData } from "./use-synced-data";
+import { DebugOverlay } from "./components/DebugOverlay";
 
 function Content() {
   const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
@@ -255,6 +256,9 @@ function RuntimeContent({ onBack }: RuntimeContentProps) {
           </p>
         </div>
       </div>
+
+      {/* Debug overlay */}
+      <DebugOverlay />
     </div>
   );
 }

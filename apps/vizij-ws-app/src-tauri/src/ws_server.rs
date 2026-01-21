@@ -19,6 +19,22 @@ pub enum IncomingMessage {
     Reset,
     /// Request the list of available tracks
     GetTracks,
+    /// Request the list of available nodes (with optional path filter)
+    ListNodes { path: Option<String> },
+}
+
+/// Node metadata returned in list_nodes response
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NodeInfo {
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub default_value: Option<f64>,
 }
 
 /// Messages sent to WebSocket clients
@@ -27,6 +43,8 @@ pub enum IncomingMessage {
 pub enum OutgoingMessage {
     /// List of available tracks
     Tracks { tracks: Vec<String> },
+    /// List of available nodes
+    Nodes { nodes: Vec<NodeInfo> },
     /// Acknowledgment
     Ack { success: bool, message: Option<String> },
 }
@@ -34,16 +52,15 @@ pub enum OutgoingMessage {
 /// Shared state for the WebSocket server
 pub struct WsServerState {
     pub tracks: RwLock<Vec<String>>,
+    pub nodes: RwLock<Vec<NodeInfo>>,
     pub is_running: RwLock<bool>,
 }
 
 impl Default for WsServerState {
     fn default() -> Self {
         Self {
-            tracks: RwLock::new(vec![
-                "placeholder_track_1".to_string(),
-                "placeholder_track_2".to_string(),
-            ]),
+            tracks: RwLock::new(vec![]),
+            nodes: RwLock::new(vec![]),
             is_running: RwLock::new(false),
         }
     }
@@ -77,8 +94,34 @@ async fn handle_connection(
                     Ok(incoming) => {
                         let response = match incoming {
                             IncomingMessage::Update { values } => {
-                                // Emit update-values event to frontend
-                                if let Err(e) = app_handle.emit("update-values", &values) {
+                                // Validate paths against known input nodes
+                                let known_paths: Vec<String> = {
+                                    let state_guard = state.lock().await;
+                                    let known_nodes = state_guard.nodes.read().await;
+                                    known_nodes
+                                        .iter()
+                                        .filter(|n| n.kind.as_deref() == Some("input"))
+                                        .map(|n| n.path.clone())
+                                        .collect()
+                                };
+
+                                // Check for invalid paths
+                                let invalid_paths: Vec<&str> = values
+                                    .keys()
+                                    .filter(|path| !known_paths.iter().any(|p| p == *path))
+                                    .map(|s| s.as_str())
+                                    .collect();
+
+                                if !invalid_paths.is_empty() {
+                                    warn!("Invalid paths in update: {:?}", invalid_paths);
+                                    OutgoingMessage::Ack {
+                                        success: false,
+                                        message: Some(format!(
+                                            "Unknown input path(s): {}",
+                                            invalid_paths.join(", ")
+                                        )),
+                                    }
+                                } else if let Err(e) = app_handle.emit("update-values", &values) {
                                     error!("Failed to emit update-values: {}", e);
                                     OutgoingMessage::Ack {
                                         success: false,
@@ -112,6 +155,27 @@ async fn handle_connection(
                                 let state = state.lock().await;
                                 let tracks = state.tracks.read().await.clone();
                                 OutgoingMessage::Tracks { tracks }
+                            }
+                            IncomingMessage::ListNodes { path } => {
+                                let state = state.lock().await;
+                                let all_nodes = state.nodes.read().await.clone();
+
+                                // Filter nodes by path prefix if provided
+                                let filtered_nodes = match path {
+                                    Some(prefix) => {
+                                        let prefix = prefix.trim_end_matches('/');
+                                        all_nodes
+                                            .into_iter()
+                                            .filter(|node| {
+                                                node.path.starts_with(prefix)
+                                                    || node.path.starts_with(&format!("{}/", prefix))
+                                            })
+                                            .collect()
+                                    }
+                                    None => all_nodes,
+                                };
+
+                                OutgoingMessage::Nodes { nodes: filtered_nodes }
                             }
                         };
 

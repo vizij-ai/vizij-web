@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 mod ws_server;
-use ws_server::WsServerState;
+use ws_server::{NodeInfo, WsServerState};
 
 /// Application state
 struct AppState {
@@ -113,6 +113,17 @@ async fn set_tracks(app_handle: tauri::AppHandle, tracks: Vec<String>) -> Result
     Ok(())
 }
 
+/// Set available nodes (called by frontend when model loads)
+#[tauri::command]
+async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<NodeInfo>) -> Result<(), String> {
+    let state = app_handle.state::<AppState>();
+    let ws_state = state.ws_state.lock().await;
+    let count = nodes.len();
+    *ws_state.nodes.write().await = nodes;
+    info!("Nodes updated: {} available", count);
+    Ok(())
+}
+
 /// Get the GLB source from CLI argument (path or URL)
 #[tauri::command]
 async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
@@ -167,6 +178,7 @@ pub fn run() {
             get_port,
             get_tracks,
             set_tracks,
+            set_nodes,
             get_glb_source,
             read_glb_file,
         ])
