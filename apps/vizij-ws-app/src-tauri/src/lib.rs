@@ -131,6 +131,14 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
     state.glb_source.clone()
 }
 
+/// Check if the WebSocket server is running
+#[tauri::command]
+async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
+    let state = app_handle.state::<AppState>();
+    let cancel_token = state.ws_cancel_token.lock().await;
+    cancel_token.is_some()
+}
+
 /// Read a local GLB file and return as base64
 #[tauri::command]
 async fn read_glb_file(path: String) -> Result<String, String> {
@@ -175,6 +183,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_ws_server,
             stop_ws_server,
+            is_ws_running,
             get_port,
             get_tracks,
             set_tracks,
