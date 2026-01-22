@@ -600,12 +600,30 @@ importers:
       '@tauri-apps/plugin-log':
         specifier: ^2.5.0
         version: 2.8.0
+      '@vizij/node-graph-authoring':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/node-graph-authoring
+      '@vizij/node-graph-react':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/node-graph-react
+      '@vizij/node-graph-wasm':
+        specifier: ^0.4.9
+        version: 0.4.9
+      '@vizij/orchestrator-react':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/orchestrator-react
+      '@vizij/orchestrator-wasm':
+        specifier: ^0.2.9
+        version: 0.2.9
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/utils':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/utils
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -615,9 +633,6 @@ importers:
       three:
         specifier: ^0.170.0
         version: 0.170.0
-      zustand:
-        specifier: ^5.0.2
-        version: 5.0.8(@types/react@18.3.26)(immer@10.2.0)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.3

@@ -332,6 +332,7 @@ function AppContent({ loader }: AppContentProps) {
         console.warn(`[App] Unknown reference face input ID: ${inputId}`);
         return;
       }
+      console.warn(`[App] Reference face input change: ${inputId} = ${value}`);
       setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
 
       // Animate the reference face - this will also trigger onStandardInputChange
