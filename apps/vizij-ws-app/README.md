@@ -1,131 +1,237 @@
 # Vizij WS App
 
-A standalone Tauri application that displays GLTF/GLB 3D models and accepts WebSocket commands for remote control.
+A standalone desktop application that renders Vizij avatars and accepts real-time control via WebSocket. Perfect for integrating facial animation into robotics, VTubing, games, or any application that needs programmatic avatar control.
 
-## Prerequisites
+## Features
 
-- Node.js 18+
-- Rust (latest stable)
-- Tauri CLI prerequisites: https://tauri.app/start/prerequisites/
+- Load any Vizij-compatible GLB avatar file
+- Real-time WebSocket server on configurable port (default `ws://localhost:9000`)
+- Control facial features, eye gaze, expressions via simple JSON messages
+- Cross-platform (Windows, macOS, Linux)
+- Fullscreen and multi-monitor support
+- Kiosk mode for installations
 
-## Setup
+---
 
-```bash
-cd apps/vizij-ws-app
-npm install
-```
+## Workflow
 
-## Running
+This app is designed to be **built once and deployed as a standalone executable**. The typical workflow is:
 
-### Development mode
+1. **Build** the application on your development machine
+2. **Copy** the resulting executable to your target machine
+3. **Run** with command line arguments to configure behavior
 
-```bash
-npm run dev
-```
+The executable is self-contained and requires no additional runtime dependencies.
 
-With custom WebSocket port:
-
-```bash
-npm run dev -- -- --port 9001
-```
-
-### Production build
-
-```bash
-npm run build
-npm run tauri build
-```
-
-Run the built binary with:
-
-```bash
-./src-tauri/target/release/vizij-ws --port 9001
-```
+---
 
 ## Command Line Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--port`, `-p` | 9000 | WebSocket server port |
+```
+vizij-ws [OPTIONS]
+vizij-ws <COMMAND>
+```
+
+### Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `list-displays` | List available displays/monitors and exit |
+
+### Options
+
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--glb <PATH>` | `-g` | Path or URL to GLB/GLTF avatar file | None (shows file picker) |
+| `--port <PORT>` | `-p` | WebSocket server port | 9000 |
+| `--fullscreen` | `-f` | Launch in fullscreen mode | false |
+| `--display <INDEX>` | `-d` | Monitor index (0 = primary) | Primary monitor |
+| `--width <PIXELS>` | `-W` | Window width | 800 |
+| `--height <PIXELS>` | `-H` | Window height | 600 |
+| `--no-decorations` | | Remove window title bar and borders | false |
+| `--always-on-top` | | Keep window above other windows | false |
+
+---
+
+## Build Prerequisites
+
+### Node.js (v18 or later)
+
+**Windows:**
+```bash
+winget install OpenJS.NodeJS.LTS
+```
+
+**macOS:**
+```bash
+brew install node
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+### pnpm
+
+```bash
+npm install -g pnpm
+```
+
+### Rust
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**Windows:** Also install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++".
+
+### Linux-only dependencies
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
+
+---
+
+## Development
+
+For testing and development within the monorepo:
+
+```bash
+# Clone and install
+git clone https://github.com/anthropics/vizij-web.git
+cd vizij-web
+pnpm install
+
+# Run in dev mode
+pnpm dev:vizij-ws-app
+
+# Pass CLI arguments
+pnpm dev:vizij-ws-app -- -- --glb /path/to/avatar.glb --fullscreen
+```
+
+---
+
+## Deployment
+
+### Building
+
+```bash
+cd apps/vizij-ws-app
+pnpm tauri build
+```
+
+Output locations:
+- **Windows:** `src-tauri/target/release/vizij-ws.exe`
+- **macOS:** `src-tauri/target/release/bundle/macos/Vizij WS.app`
+- **Linux:** `src-tauri/target/release/vizij-ws`
+
+### Running
+
+Copy the executable to your target machine and run. On Windows PowerShell, use `.\` prefix:
+
+```bash
+# Basic usage
+.\vizij-ws.exe --glb C:\path\to\avatar.glb
+
+# Fullscreen on second monitor
+.\vizij-ws.exe --glb avatar.glb --fullscreen --display 1
+
+# Kiosk mode
+.\vizij-ws.exe --glb avatar.glb --fullscreen --no-decorations --always-on-top
+
+# Custom WebSocket port
+.\vizij-ws.exe --glb avatar.glb --port 8080
+
+# List available displays
+.\vizij-ws.exe list-displays
+```
+
+On Linux/macOS:
+
+```bash
+./vizij-ws --glb /path/to/avatar.glb
+```
+
+---
 
 ## WebSocket Protocol
 
-Connect to `ws://localhost:<port>` (default: `ws://localhost:9000`)
+Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
 
-### Incoming Messages (Server → App)
+### Update Values
 
-**Update values:**
 ```json
 {
   "type": "update",
   "values": {
-    "eye_left": 0.5,
-    "mouth_open": 1.0,
-    "head_rotation": 45.0
+    "standard/left_eye/pos/x": 0.5,
+    "standard/left_eye/pos/y": 0.3,
+    "standard/right_eye/pos/x": 0.5,
+    "standard/right_eye/pos/y": 0.3
   }
 }
 ```
 
-**Reset to defaults:**
+### Reset
+
 ```json
 {
   "type": "reset"
 }
 ```
 
-**Get available tracks:**
-```json
-{
-  "type": "get_tracks"
-}
+### Path Format
+
+Paths follow the Vizij rig convention. The app automatically prefixes paths with `rig/{faceId}/`, so you only need to send the feature path.
+
+**Common eye gaze paths:**
+
+| Path | Description | Range |
+|------|-------------|-------|
+| `standard/left_eye/pos/x` | Left eye horizontal | -1 (left) to 1 (right) |
+| `standard/left_eye/pos/y` | Left eye vertical | -1 (down) to 1 (up) |
+| `standard/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
+| `standard/right_eye/pos/y` | Right eye vertical | -1 (down) to 1 (up) |
+
+Click the **Debug** button in the app to see all available paths for your loaded avatar.
+
+---
+
+## Troubleshooting
+
+### "WebSocket connection failed"
+
+1. Ensure the app is running and a model is loaded
+2. Check that the port is not in use: `netstat -an | grep 9000`
+3. Wait for "Runtime: ready" status before connecting
+
+### "Model not moving"
+
+1. Open DevTools (F12) and check for errors
+2. Click **Debug** to see available paths
+3. Verify paths match the format shown in Debug output
+4. Ensure values are in valid range (typically -1 to 1)
+
+### Build errors
+
+**Windows:** Install Visual Studio Build Tools with "Desktop development with C++"
+
+**Linux:**
+```bash
+sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev \
+  libappindicator3-dev \
+  librsvg2-dev \
+  patchelf \
+  libssl-dev \
+  libgtk-3-dev
 ```
 
-### Outgoing Messages (App → Server)
+---
 
-**Tracks list response:**
-```json
-{
-  "type": "tracks",
-  "tracks": ["eye_left", "eye_right", "mouth_open"]
-}
-```
+## License
 
-**Acknowledgment:**
-```json
-{
-  "type": "ack",
-  "success": true,
-  "message": null
-}
-```
-
-## Example: Python Client
-
-```python
-import asyncio
-import websockets
-import json
-
-async def control_vizij():
-    async with websockets.connect("ws://localhost:9000") as ws:
-        # Update some values
-        await ws.send(json.dumps({
-            "type": "update",
-            "values": {"eye_left": 0.5, "mouth_open": 1.0}
-        }))
-        response = await ws.recv()
-        print("Response:", response)
-
-        # Get available tracks
-        await ws.send(json.dumps({"type": "get_tracks"}))
-        tracks = await ws.recv()
-        print("Tracks:", tracks)
-
-asyncio.run(control_vizij())
-```
-
-## Notes
-
-- The app uses `vizij` as a workspace dependency from the monorepo
-- To migrate to a standalone project, you'll need to publish or copy the vizij package
-- Track names correspond to animatable properties in the loaded GLTF/GLB model
+See the repository root for license information.
