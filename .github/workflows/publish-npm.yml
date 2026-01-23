@@ -42,7 +42,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       - name: Enable pnpm
@@ -75,10 +75,9 @@ jobs:
 
       - name: Publish npm packages
         if: steps.version.outputs.has_changes == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: pnpm ci:publish
+        run: |
+          pnpm run verify:packages
+          pnpm ci:publish
 
       - name: Push release commit and tags
         if: steps.version.outputs.has_changes == 'true'
