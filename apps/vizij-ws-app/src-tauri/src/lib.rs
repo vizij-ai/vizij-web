@@ -284,15 +284,12 @@ pub fn run() {
 
                 // Apply window settings
                 if cli.fullscreen {
-                    if let Err(e) = window.set_fullscreen(true) {
-                        log::error!("Failed to set fullscreen: {}", e);
-                    } else {
-                        info!("Fullscreen mode enabled");
-                    }
-
-                    // Move to target monitor if specified
-                    if let Some(monitor) = target_monitor {
+                    // For fullscreen: first move to target monitor, set size, then go fullscreen
+                    if let Some(ref monitor) = target_monitor {
                         let pos = monitor.position();
+                        let size = monitor.size();
+
+                        // Move window to target monitor first
                         if let Err(e) = window.set_position(tauri::Position::Physical(
                             tauri::PhysicalPosition::new(pos.x, pos.y),
                         )) {
@@ -300,6 +297,22 @@ pub fn run() {
                         } else if let Some(idx) = cli.display {
                             info!("Window moved to display {}", idx);
                         }
+
+                        // Set window size to match monitor's native resolution
+                        if let Err(e) = window.set_size(tauri::Size::Physical(
+                            tauri::PhysicalSize::new(size.width, size.height),
+                        )) {
+                            log::error!("Failed to set window size: {}", e);
+                        } else {
+                            info!("Window size set to monitor resolution: {}x{}", size.width, size.height);
+                        }
+                    }
+
+                    // Now enable fullscreen
+                    if let Err(e) = window.set_fullscreen(true) {
+                        log::error!("Failed to set fullscreen: {}", e);
+                    } else {
+                        info!("Fullscreen mode enabled");
                     }
                 } else {
                     // Set window size
