@@ -160,7 +160,10 @@ describe("NodeGraphProvider", () => {
       </NodeGraphProvider>,
     );
 
-    await waitFor(() => screen.getByTestId("set-path"));
+    await waitFor(() => {
+      expect(screen.getByTestId("set-path")).toBeTruthy();
+      expect(graphInstances.length).toBeGreaterThan(0);
+    });
     fireEvent.click(screen.getByTestId("set-path"));
 
     const instance = graphInstances[0];
