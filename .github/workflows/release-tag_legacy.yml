@@ -1,9 +1,7 @@
-name: Release on Tag
+name: Release on Tag (Legacy)
 
 on:
-  push:
-    tags:
-      - "release-*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,7 +18,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - name: Enable pnpm
         run: corepack enable pnpm
@@ -29,6 +27,4 @@ jobs:
       - name: Verify packages
         run: pnpm run verify:packages
       - name: Publish changed packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm run publish:packages

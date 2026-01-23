@@ -37,7 +37,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/orchestrator-wasm": "^0.2.9",
+    "@vizij/orchestrator-wasm": "^0.3.0",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.1.2"
   },
