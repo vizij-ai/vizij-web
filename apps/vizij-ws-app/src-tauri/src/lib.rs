@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use log::{info, LevelFilter};
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -17,10 +17,13 @@ struct AppState {
     glb_source: Option<String>,
 }
 
-/// Command line arguments
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
+/// CLI structure with optional subcommands
+#[derive(Parser, Debug, Clone)]
+#[command(author, version, about = "Vizij WebSocket-controlled avatar renderer", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// WebSocket server port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
@@ -28,6 +31,86 @@ struct Args {
     /// GLB file path or URL to load on startup
     #[arg(short, long)]
     glb: Option<String>,
+
+    /// Start in fullscreen mode
+    #[arg(short, long, default_value_t = false)]
+    fullscreen: bool,
+
+    /// Display/monitor index (0 = primary, 1 = secondary, etc.)
+    #[arg(short, long)]
+    display: Option<usize>,
+
+    /// Window width in pixels (ignored if fullscreen)
+    #[arg(short = 'W', long, default_value_t = 800)]
+    width: u32,
+
+    /// Window height in pixels (ignored if fullscreen)
+    #[arg(short = 'H', long, default_value_t = 600)]
+    height: u32,
+
+    /// Hide window decorations (title bar, borders)
+    #[arg(long, default_value_t = false)]
+    no_decorations: bool,
+
+    /// Keep window always on top
+    #[arg(long, default_value_t = false)]
+    always_on_top: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum Commands {
+    /// List available displays/monitors and exit
+    ListDisplays,
+}
+
+/// Attach to parent console on Windows (needed for CLI output in GUI apps)
+#[cfg(windows)]
+fn attach_console() {
+    use windows::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+    unsafe {
+        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
+
+#[cfg(not(windows))]
+fn attach_console() {}
+
+/// List available displays using tao (Tauri's windowing library)
+fn list_displays() {
+    attach_console();
+
+    use tao::event_loop::EventLoop;
+
+    let event_loop = EventLoop::new();
+    let monitors: Vec<_> = event_loop.available_monitors().collect();
+    let primary = event_loop.primary_monitor();
+
+    println!("Available displays:\n");
+
+    for (idx, monitor) in monitors.iter().enumerate() {
+        let size = monitor.size();
+        let pos = monitor.position();
+        let scale = monitor.scale_factor();
+        let name = monitor.name().unwrap_or_else(|| "Unknown".to_string());
+        let is_primary = primary.as_ref().map(|p| p.name() == monitor.name()).unwrap_or(false);
+
+        println!(
+            "  Display {}: {}{}",
+            idx,
+            name,
+            if is_primary { " (primary)" } else { "" }
+        );
+        println!("    Resolution: {}x{}", size.width, size.height);
+        println!("    Position:   ({}, {})", pos.x, pos.y);
+        println!("    Scale:      {:.2}x", scale);
+        println!();
+    }
+
+    if monitors.is_empty() {
+        println!("  No displays found.");
+    } else {
+        println!("Use --display <INDEX> to select a display (e.g., --display 1)");
+    }
 }
 
 /// Start the WebSocket server
@@ -151,7 +234,13 @@ async fn read_glb_file(path: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Parse command line arguments
-    let args = Args::parse();
+    let cli = Cli::parse();
+
+    // Handle subcommands that exit early
+    if let Some(Commands::ListDisplays) = cli.command {
+        list_displays();
+        return;
+    }
 
     tauri::Builder::default()
         .plugin(
@@ -162,8 +251,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
-            let port = args.port;
-            let glb_source = args.glb.clone();
+            let port = cli.port;
+            let glb_source = cli.glb.clone();
 
             // Set up the application state
             app.manage(AppState {
@@ -176,6 +265,85 @@ pub fn run() {
             info!("Vizij WS App initialized with port {}", port);
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
+            }
+
+            // Configure window based on CLI arguments
+            if let Some(window) = app.get_webview_window("main") {
+                // Get available monitors
+                let monitors: Vec<_> = window.available_monitors().unwrap_or_default();
+
+                // Select target monitor
+                let target_monitor = if let Some(display_idx) = cli.display {
+                    monitors.get(display_idx).cloned().or_else(|| {
+                        info!("Display {} not found, using primary", display_idx);
+                        window.primary_monitor().ok().flatten()
+                    })
+                } else {
+                    window.primary_monitor().ok().flatten()
+                };
+
+                // Apply window settings
+                if cli.fullscreen {
+                    if let Err(e) = window.set_fullscreen(true) {
+                        log::error!("Failed to set fullscreen: {}", e);
+                    } else {
+                        info!("Fullscreen mode enabled");
+                    }
+
+                    // Move to target monitor if specified
+                    if let Some(monitor) = target_monitor {
+                        let pos = monitor.position();
+                        if let Err(e) = window.set_position(tauri::Position::Physical(
+                            tauri::PhysicalPosition::new(pos.x, pos.y),
+                        )) {
+                            log::error!("Failed to move window to display: {}", e);
+                        } else if let Some(idx) = cli.display {
+                            info!("Window moved to display {}", idx);
+                        }
+                    }
+                } else {
+                    // Set window size
+                    if let Err(e) = window.set_size(tauri::Size::Physical(
+                        tauri::PhysicalSize::new(cli.width, cli.height),
+                    )) {
+                        log::error!("Failed to set window size: {}", e);
+                    } else {
+                        info!("Window size: {}x{}", cli.width, cli.height);
+                    }
+
+                    // Center on target monitor
+                    if let Some(monitor) = target_monitor {
+                        let monitor_pos = monitor.position();
+                        let monitor_size = monitor.size();
+                        let x = monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
+                        let y = monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
+                        if let Err(e) = window.set_position(tauri::Position::Physical(
+                            tauri::PhysicalPosition::new(x, y),
+                        )) {
+                            log::error!("Failed to position window: {}", e);
+                        } else if let Some(idx) = cli.display {
+                            info!("Window centered on display {}", idx);
+                        }
+                    }
+                }
+
+                // Apply decorations setting
+                if cli.no_decorations {
+                    if let Err(e) = window.set_decorations(false) {
+                        log::error!("Failed to hide decorations: {}", e);
+                    } else {
+                        info!("Window decorations hidden");
+                    }
+                }
+
+                // Apply always on top setting
+                if cli.always_on_top {
+                    if let Err(e) = window.set_always_on_top(true) {
+                        log::error!("Failed to set always on top: {}", e);
+                    } else {
+                        info!("Window set to always on top");
+                    }
+                }
             }
 
             Ok(())
