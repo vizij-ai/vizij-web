@@ -92,6 +92,7 @@ export function useRigGraphImport({
   return useCallback(
     async (
       spec: GraphSpec,
+      options?: { skipDiscrepancyCheck?: boolean },
     ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
         const rehydrated = rehydrateRigDataFromGraph(spec, {
@@ -224,8 +225,9 @@ export function useRigGraphImport({
           missingBlueprintPaths,
         });
         const shouldOpenDiscrepancyWizard =
-          importedSignature !== rebuiltSignature ||
-          missingBlueprintPaths.length > 0;
+          !options?.skipDiscrepancyCheck &&
+          (importedSignature !== rebuiltSignature ||
+            missingBlueprintPaths.length > 0);
 
         const signatureKey = [
           importedSignature.length,

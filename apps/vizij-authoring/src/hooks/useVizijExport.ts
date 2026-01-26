@@ -211,6 +211,7 @@ export function useVizijExport(
         return;
       }
 
+      const primaryBody = bodies[0] as Parameters<typeof exportScene>[0];
       const traversableBodies = bodies as TraversableBody[];
       applyDefaultsToRobotData(
         traversableBodies,
@@ -234,7 +235,6 @@ export function useVizijExport(
         inputMetadata: standardInputMetadataById,
       });
 
-      const primaryBody = bodies[0] as Parameters<typeof exportScene>[0];
       exportScene(
         primaryBody,
         bundle
