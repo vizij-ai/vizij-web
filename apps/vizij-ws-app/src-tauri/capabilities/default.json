@@ -12,9 +12,7 @@
     "fs:allow-read-file",
     {
       "identifier": "fs:scope",
-      "allow": [
-        { "path": "**" }
-      ]
+      "allow": [{ "path": "**" }]
     }
   ]
 }

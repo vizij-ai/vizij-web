@@ -34,22 +34,22 @@ vizij-ws <COMMAND>
 
 ### Subcommands
 
-| Command | Description |
-|---------|-------------|
+| Command         | Description                               |
+| --------------- | ----------------------------------------- |
 | `list-displays` | List available displays/monitors and exit |
 
 ### Options
 
-| Option | Short | Description | Default |
-|--------|-------|-------------|---------|
-| `--glb <PATH>` | `-g` | Path or URL to GLB/GLTF avatar file | None (shows file picker) |
-| `--port <PORT>` | `-p` | WebSocket server port | 9000 |
-| `--fullscreen` | `-f` | Launch in fullscreen mode | false |
-| `--display <INDEX>` | `-d` | Monitor index (0 = primary) | Primary monitor |
-| `--width <PIXELS>` | `-W` | Window width | 800 |
-| `--height <PIXELS>` | `-H` | Window height | 600 |
-| `--no-decorations` | | Remove window title bar and borders | false |
-| `--always-on-top` | | Keep window above other windows | false |
+| Option              | Short | Description                         | Default                  |
+| ------------------- | ----- | ----------------------------------- | ------------------------ |
+| `--glb <PATH>`      | `-g`  | Path or URL to GLB/GLTF avatar file | None (shows file picker) |
+| `--port <PORT>`     | `-p`  | WebSocket server port               | 9000                     |
+| `--fullscreen`      | `-f`  | Launch in fullscreen mode           | false                    |
+| `--display <INDEX>` | `-d`  | Monitor index (0 = primary)         | Primary monitor          |
+| `--width <PIXELS>`  | `-W`  | Window width                        | 800                      |
+| `--height <PIXELS>` | `-H`  | Window height                       | 600                      |
+| `--no-decorations`  |       | Remove window title bar and borders | false                    |
+| `--always-on-top`   |       | Keep window above other windows     | false                    |
 
 ---
 
@@ -58,16 +58,19 @@ vizij-ws <COMMAND>
 ### Node.js (v18 or later)
 
 **Windows:**
+
 ```bash
 winget install OpenJS.NodeJS.LTS
 ```
 
 **macOS:**
+
 ```bash
 brew install node
 ```
 
 **Linux (Ubuntu/Debian):**
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
@@ -124,6 +127,7 @@ pnpm tauri build
 ```
 
 Output locations:
+
 - **Windows:** `src-tauri/target/release/vizij-ws.exe`
 - **macOS:** `src-tauri/target/release/bundle/macos/Vizij WS.app`
 - **Linux:** `src-tauri/target/release/vizij-ws`
@@ -189,12 +193,12 @@ Paths follow the Vizij rig convention. The app automatically prefixes paths with
 
 **Common eye gaze paths:**
 
-| Path | Description | Range |
-|------|-------------|-------|
-| `standard/left_eye/pos/x` | Left eye horizontal | -1 (left) to 1 (right) |
-| `standard/left_eye/pos/y` | Left eye vertical | -1 (down) to 1 (up) |
+| Path                       | Description          | Range                  |
+| -------------------------- | -------------------- | ---------------------- |
+| `standard/left_eye/pos/x`  | Left eye horizontal  | -1 (left) to 1 (right) |
+| `standard/left_eye/pos/y`  | Left eye vertical    | -1 (down) to 1 (up)    |
 | `standard/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
-| `standard/right_eye/pos/y` | Right eye vertical | -1 (down) to 1 (up) |
+| `standard/right_eye/pos/y` | Right eye vertical   | -1 (down) to 1 (up)    |
 
 Click the **Debug** button in the app to see all available paths for your loaded avatar.
 
@@ -220,6 +224,7 @@ Click the **Debug** button in the app to see all available paths for your loaded
 **Windows:** Install Visual Studio Build Tools with "Desktop development with C++"
 
 **Linux:**
+
 ```bash
 sudo apt-get install -y \
   libwebkit2gtk-4.1-dev \

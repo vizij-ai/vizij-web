@@ -20,8 +20,13 @@ type NodeInfo = {
  * No step() call needed - driveOrchestrator={true} handles evaluation.
  */
 export function useWebSocketSync() {
-  const { ready, setInput, inputConstraints, namespace, faceId: runtimeFaceId } =
-    useVizijRuntime();
+  const {
+    ready,
+    setInput,
+    inputConstraints,
+    namespace,
+    faceId: runtimeFaceId,
+  } = useVizijRuntime();
 
   // Get faceId like useMouseGaze does
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
@@ -71,7 +76,7 @@ export function useWebSocketSync() {
       setInput(fullPath, { float: value });
       // No step() needed - driveOrchestrator handles the animation loop
     },
-    [ready, setInput, faceId]
+    [ready, setInput, faceId],
   );
 
   // Sync nodes to backend
@@ -126,7 +131,7 @@ export function useWebSocketSync() {
           // Use setRigValue which builds: rig/${faceId}/${cleanPath}
           setRigValue(cleanPath, value);
         });
-      }
+      },
     );
 
     const unlistenReset = listen("reset", () => {
