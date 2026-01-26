@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
-import { AssetLoaderPanel } from "./AssetLoaderPanel";
 import { SidebarSection } from "../common/SidebarSection";
 import { Tabs } from "../ui";
-import { StdFeatureSpacesControls } from "./StdFeatureSpacesControls";
-import { StdFeatureSpacesChannelsPanel } from "./StdFeatureSpacesChannelsPanel";
 import {
   useAuthoringUiActions,
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
+import { AssetLoaderPanel } from "./AssetLoaderPanel";
+import { StdFeatureSpacesControls } from "./StdFeatureSpacesControls";
+import { StdFeatureSpacesChannelsPanel } from "./StdFeatureSpacesChannelsPanel";
 
 type StdFeatureSpacesTab = "setup" | "channels" | "mapping";
 

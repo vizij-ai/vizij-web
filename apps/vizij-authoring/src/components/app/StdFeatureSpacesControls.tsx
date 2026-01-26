@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
+import type { StandardRigInput } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { SidebarSection } from "../common/SidebarSection";
 import { Button, RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import type { StandardRigInput } from "@vizij/utils";
-import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { GroupMappingEditor } from "./StdFeatureSpacesMappingEditor";
 
 /**

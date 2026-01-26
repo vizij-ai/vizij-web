@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Button } from "../ui";
 import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type { AnimatableBinding } from "@vizij/node-graph-authoring";
+import { Button } from "../ui";
 
 // ============================================================================
 // Group-Centric Mapping Editor
@@ -38,7 +38,7 @@ export interface GroupMappingEditorProps {
 export function GroupMappingEditor({
   inputs,
   refIsLoaded,
-  mainFaceStandardInputsById,
+  mainFaceStandardInputsById: _mainFaceStandardInputsById,
   mainFaceInputIdsWithBindings,
   mainFaceAnimatableComponents,
   mainFaceBindings,

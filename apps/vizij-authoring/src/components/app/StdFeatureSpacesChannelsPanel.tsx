@@ -1,10 +1,10 @@
 import { type JSX, useCallback, useMemo, useState } from "react";
+import type { StandardRigInput } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { SidebarSection } from "../common/SidebarSection";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
-import type { StandardRigInput } from "@vizij/utils";
-import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { Button } from "../ui";
 
 /**
