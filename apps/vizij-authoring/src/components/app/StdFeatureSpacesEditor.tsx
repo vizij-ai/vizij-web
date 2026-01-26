@@ -99,7 +99,8 @@ function SetupTabContent({
         description="Load a GLB with a Vizij bundle containing a face rigged to the Standard Feature Space to use as reference."
         instructions={{
           label: "Reference GLB loader",
-          summary: "Load a GLB with a Vizij bundle containing a face rigged to a Standard Feature Space",
+          summary:
+            "Load a GLB with a Vizij bundle containing a face rigged to a Standard Feature Space",
           size: "compact",
           content: (
             <ol>
@@ -107,7 +108,8 @@ function SetupTabContent({
                 Click "Choose File" to load a GLB file from your computer.
               </li>
               <li>
-                The loader will displayed the loaded reference face side by side to your own loaded model.
+                The loader will displayed the loaded reference face side by side
+                to your own loaded model.
               </li>
             </ol>
           ),
@@ -135,17 +137,18 @@ function SetupTabContent({
           content: (
             <ul>
               <li>
-                Currently Standard Feature Spaces configurations are exported as part of the main Vizij bundle export.
+                Currently Standard Feature Spaces configurations are exported as
+                part of the main Vizij bundle export.
               </li>
               <li>
-                Please use the main Import / Export tool to save your feature space configuration to a Vizij bundle.
+                Please use the main Import / Export tool to save your feature
+                space configuration to a Vizij bundle.
               </li>
             </ul>
           ),
         }}
       >
-        <div className="sidebar__stack">
-        </div>
+        <div className="sidebar__stack"></div>
       </SidebarSection>
     </div>
   );

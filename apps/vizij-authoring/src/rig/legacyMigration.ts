@@ -60,7 +60,8 @@ export function normalizePersistedStandardInputs(
     const normalizedSourcePath = normalizeStandardRigInputPath(
       rawSourcePath ?? "/custom/input",
     );
-    const canonicalSourcePath = stripStandardInputPathPrefix(normalizedSourcePath);
+    const canonicalSourcePath =
+      stripStandardInputPathPrefix(normalizedSourcePath);
     const rawPath = descriptor.path ?? descriptor.sourcePath ?? "/custom/input";
     const normalizedPath = normalizeStandardRigInputPath(rawPath);
     const canonicalPath = stripStandardInputPathPrefix(normalizedPath);

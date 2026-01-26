@@ -83,13 +83,13 @@ Standard Feature Spaces provide a unified naming convention for rig inputs, enab
 
 The `semio` namespace is the primary standard feature space for Vizij facial rigs. It defines channels for:
 
-| Channel | Description | Common Tracks |
-|---------|-------------|---------------|
-| `left_eye` / `right_eye` | Eye gaze and lid control | `pos` (x, y), `rotation` |
-| `left_eyebrow` / `right_eyebrow` | Eyebrow movement | `pos`, `morph` |
-| `mouth` | Lip shapes and jaw movement | `morph` (visemes, expressions), `pos` |
-| `head` | Head orientation | `pos`, `rotation` |
-| `jaw` | Jaw articulation | `pos`, `rotation` |
+| Channel                          | Description                 | Common Tracks                         |
+| -------------------------------- | --------------------------- | ------------------------------------- |
+| `left_eye` / `right_eye`         | Eye gaze and lid control    | `pos` (x, y), `rotation`              |
+| `left_eyebrow` / `right_eyebrow` | Eyebrow movement            | `pos`, `morph`                        |
+| `mouth`                          | Lip shapes and jaw movement | `morph` (visemes, expressions), `pos` |
+| `head`                           | Head orientation            | `pos`, `rotation`                     |
+| `jaw`                            | Jaw articulation            | `pos`, `rotation`                     |
 
 The actual channels available depend on the loaded reference face GLB. Use the Standard Feature Spaces Editor in `vizij-authoring` to explore and configure channels for your specific rig.
 
