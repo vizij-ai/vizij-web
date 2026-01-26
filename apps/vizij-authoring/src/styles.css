@@ -1037,7 +1037,9 @@ body {
   color: var(--color-slate-400);
   font-size: 1rem;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .viewer-split__toggle:hover {
@@ -1181,7 +1183,10 @@ body {
   color: var(--text-muted, #94a3b8);
   font-size: 0.65rem;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .ref-face-viewer__idle-btn:hover {
@@ -1207,7 +1212,10 @@ body {
   color: var(--text-muted, #94a3b8);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .ref-face-viewer__split-btn:hover {
@@ -1794,7 +1802,11 @@ body {
 /* Blue: exists but unbound - half-filled */
 .status-indicator--blue .status-indicator__dot {
   border-color: var(--color-blue-500);
-  background: linear-gradient(to right, var(--color-blue-500) 50%, transparent 50%);
+  background: linear-gradient(
+    to right,
+    var(--color-blue-500) 50%,
+    transparent 50%
+  );
 }
 
 /* Green: bound - fully filled */

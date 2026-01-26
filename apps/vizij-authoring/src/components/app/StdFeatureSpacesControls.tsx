@@ -585,7 +585,9 @@ function MatchingInputGroup({
                 key={normalizedPath}
                 className="reference-input-row reference-input-row--no-binding"
               >
-                <span className="reference-input-row__label">{input.label}</span>
+                <span className="reference-input-row__label">
+                  {input.label}
+                </span>
                 <div className="reference-input-row__status-columns">
                   <span
                     className={`status-indicator ${getFaceStatusClass(mainStatus)}`}

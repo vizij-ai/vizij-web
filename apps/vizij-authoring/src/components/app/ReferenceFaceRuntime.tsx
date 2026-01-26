@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { VizijAssetBundle, VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
+import {
+  VizijAssetBundle,
+  VizijRuntimeProvider,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
@@ -20,11 +24,16 @@ type ReferenceFaceRuntimeProps = {
   visible?: boolean;
   hiddenStepHz?: number;
   /** Called when standard inputs are detected from the loaded face */
-  onStandardInputsReady?: (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => void;
+  onStandardInputsReady?: (
+    inputs: StandardRigInput[],
+    byId: Map<string, StandardRigInput>,
+  ) => void;
   /** Called when loading state changes */
   onLoadingStateChange?: (isLoading: boolean, isLoaded: boolean) => void;
   /** Called to get the animateValue function for controlling the face */
-  onAnimateValueReady?: (animateValue: ReferenceFaceRuntimeProps["_animateValueFn"]) => void;
+  onAnimateValueReady?: (
+    animateValue: ReferenceFaceRuntimeProps["_animateValueFn"],
+  ) => void;
   /** Internal type for the animate function */
   _animateValueFn?: (path: string, value: number) => void;
   /** Called when any standard input value changes on the reference face (from any source) */
@@ -73,13 +82,10 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
-  const bundle = useMemo(
-    () => {
-      if (!file) return null;
-      return createBundleConfig(file);
-    },
-    [file],
-  );
+  const bundle = useMemo(() => {
+    if (!file) return null;
+    return createBundleConfig(file);
+  }, [file]);
 
   if (!active) {
     return <>{fallback}</>;
@@ -177,9 +183,14 @@ function RuntimeDebugBeacon(props: {
 }
 
 type ReferenceFaceBridgeProps = {
-  onStandardInputsReady?: (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => void;
+  onStandardInputsReady?: (
+    inputs: StandardRigInput[],
+    byId: Map<string, StandardRigInput>,
+  ) => void;
   onLoadingStateChange?: (isLoading: boolean, isLoaded: boolean) => void;
-  onAnimateValueReady?: (animateValue: ((path: string, value: number) => void) | undefined) => void;
+  onAnimateValueReady?: (
+    animateValue: ((path: string, value: number) => void) | undefined,
+  ) => void;
   /** Called when any standard input value changes on the reference face */
   onStandardInputChange?: (inputId: string, value: number) => void;
   /** Called when the bundle extension is extracted from the loaded face */
@@ -204,7 +215,17 @@ function ReferenceFaceBridge({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const { ready, loading, animateValue, setInput, step, inputConstraints, faceId, stepHz, assetBundle } = useVizijRuntime();
+  const {
+    ready,
+    loading,
+    animateValue,
+    setInput,
+    step,
+    inputConstraints,
+    faceId,
+    stepHz,
+    assetBundle,
+  } = useVizijRuntime();
   const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(false);
   const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
@@ -222,70 +243,75 @@ function ReferenceFaceBridge({
   }, [animateValue, setInput, step, faceId, onStandardInputChange]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
-  const { standardInputs, standardInputsById, standardInputsByPath } = useMemo(() => {
-    if (!ready || !inputConstraints) {
-      return {
-        standardInputs: [],
-        standardInputsById: new Map<string, StandardRigInput>(),
-        standardInputsByPath: new Map<string, StandardRigInput>(),
-      };
-    }
-
-    const available: StandardRigInput[] = [];
-    const byId = new Map<string, StandardRigInput>();
-    const byPath = new Map<string, StandardRigInput>();
-    const seenPaths = new Set<string>();
-
-    // Iterate over all input constraint paths and find those with /standard/
-    for (const [fullPath, constraint] of Object.entries(inputConstraints)) {
-      // Check if this path contains /standard/
-      if (!fullPath.includes("/standard/")) {
-        continue;
-      }
-
-      // Extract the /standard/... portion from the path (strips namespace prefix like "refface/")
-      const standardMatch = fullPath.match(/(\/standard\/.+)$/);
-      if (!standardMatch) {
-        continue;
-      }
-
-      // Normalize the extracted standard path
-      const normalizedPath = normalizeStandardRigInputPath(standardMatch[1]);
-
-      // Skip if we've already processed this normalized path
-      if (seenPaths.has(normalizedPath)) {
-        continue;
-      }
-      seenPaths.add(normalizedPath);
-
-      // Create a StandardRigInput from the path
-      const input = createStandardRigInputFromPath(normalizedPath);
-
-      // Override with constraint metadata if available
-      if (constraint.min !== undefined || constraint.max !== undefined) {
-        input.range = {
-          min: constraint.min ?? input.range.min,
-          max: constraint.max ?? input.range.max,
+  const { standardInputs, standardInputsById, standardInputsByPath } =
+    useMemo(() => {
+      if (!ready || !inputConstraints) {
+        return {
+          standardInputs: [],
+          standardInputsById: new Map<string, StandardRigInput>(),
+          standardInputsByPath: new Map<string, StandardRigInput>(),
         };
       }
-      if (constraint.defaultValue !== undefined) {
-        input.defaultValue = constraint.defaultValue;
+
+      const available: StandardRigInput[] = [];
+      const byId = new Map<string, StandardRigInput>();
+      const byPath = new Map<string, StandardRigInput>();
+      const seenPaths = new Set<string>();
+
+      // Iterate over all input constraint paths and find those with /standard/
+      for (const [fullPath, constraint] of Object.entries(inputConstraints)) {
+        // Check if this path contains /standard/
+        if (!fullPath.includes("/standard/")) {
+          continue;
+        }
+
+        // Extract the /standard/... portion from the path (strips namespace prefix like "refface/")
+        const standardMatch = fullPath.match(/(\/standard\/.+)$/);
+        if (!standardMatch) {
+          continue;
+        }
+
+        // Normalize the extracted standard path
+        const normalizedPath = normalizeStandardRigInputPath(standardMatch[1]);
+
+        // Skip if we've already processed this normalized path
+        if (seenPaths.has(normalizedPath)) {
+          continue;
+        }
+        seenPaths.add(normalizedPath);
+
+        // Create a StandardRigInput from the path
+        const input = createStandardRigInputFromPath(normalizedPath);
+
+        // Override with constraint metadata if available
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+          input.range = {
+            min: constraint.min ?? input.range.min,
+            max: constraint.max ?? input.range.max,
+          };
+        }
+        if (constraint.defaultValue !== undefined) {
+          input.defaultValue = constraint.defaultValue;
+        }
+
+        available.push(input);
+        byId.set(input.id, input);
+        byPath.set(input.path, input);
       }
 
-      available.push(input);
-      byId.set(input.id, input);
-      byPath.set(input.path, input);
-    }
+      // Sort by group then by label for consistent ordering
+      available.sort((a, b) => {
+        const groupCompare = a.group.localeCompare(b.group);
+        if (groupCompare !== 0) return groupCompare;
+        return a.label.localeCompare(b.label);
+      });
 
-    // Sort by group then by label for consistent ordering
-    available.sort((a, b) => {
-      const groupCompare = a.group.localeCompare(b.group);
-      if (groupCompare !== 0) return groupCompare;
-      return a.label.localeCompare(b.label);
-    });
-
-    return { standardInputs: available, standardInputsById: byId, standardInputsByPath: byPath };
-  }, [ready, inputConstraints]);
+      return {
+        standardInputs: available,
+        standardInputsById: byId,
+        standardInputsByPath: byPath,
+      };
+    }, [ready, inputConstraints]);
 
   // Keep a ref of standardInputsByPath for use in callbacks
   const standardInputsByPathRef = useRef(standardInputsByPath);
@@ -299,7 +325,9 @@ function ReferenceFaceBridge({
   }, [loading, ready, onLoadingStateChange]);
 
   // Report bundle when ready (only once per bundle)
-  const lastReportedBundleRef = useRef<typeof assetBundle.bundle | undefined>(undefined);
+  const lastReportedBundleRef = useRef<typeof assetBundle.bundle | undefined>(
+    undefined,
+  );
   useEffect(() => {
     if (ready && assetBundle.bundle !== lastReportedBundleRef.current) {
       lastReportedBundleRef.current = assetBundle.bundle;
@@ -324,7 +352,9 @@ function ReferenceFaceBridge({
     const animateFn = (inputPath: string, value: number) => {
       // Build the full rig path
       const currentFaceId = faceIdRef.current;
-      const rigPath = currentFaceId ? `rig/${currentFaceId}${inputPath}` : `rig/face${inputPath}`;
+      const rigPath = currentFaceId
+        ? `rig/${currentFaceId}${inputPath}`
+        : `rig/face${inputPath}`;
 
       // Just set the input - the runtime's animation loop will pick it up
       setInputRef.current(rigPath, { float: value });
@@ -339,7 +369,8 @@ function ReferenceFaceBridge({
     onAnimateValueReady?.(animateFn);
   }, [ready, onAnimateValueReady]);
 
-  const formattedFps = stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+  const formattedFps =
+    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
   return (
     <div className="ref-face-viewer">
@@ -356,7 +387,11 @@ function ReferenceFaceBridge({
             type="button"
             className={`ref-face-viewer__idle-btn ${idleBehaviorEnabled ? "ref-face-viewer__idle-btn--active" : ""}`}
             onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
-            title={idleBehaviorEnabled ? "Disable idle behaviors" : "Enable idle behaviors"}
+            title={
+              idleBehaviorEnabled
+                ? "Disable idle behaviors"
+                : "Enable idle behaviors"
+            }
           >
             {idleBehaviorEnabled ? "Idle: ON" : "Idle: OFF"}
           </button>
@@ -364,7 +399,11 @@ function ReferenceFaceBridge({
             <button
               type="button"
               className="ref-face-viewer__split-btn"
-              title={splitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
+              title={
+                splitVertical
+                  ? "Switch to horizontal split"
+                  : "Switch to vertical split"
+              }
               onClick={onToggleSplit}
             >
               {splitVertical ? "⬌" : "⬍"}
@@ -405,7 +444,11 @@ function ReferenceFacePlaceholder({
             <button
               type="button"
               className="ref-face-viewer__split-btn"
-              title={splitVertical ? "Switch to horizontal split" : "Switch to vertical split"}
+              title={
+                splitVertical
+                  ? "Switch to horizontal split"
+                  : "Switch to vertical split"
+              }
               onClick={onToggleSplit}
             >
               {splitVertical ? "⬌" : "⬍"}

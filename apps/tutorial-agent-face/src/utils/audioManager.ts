@@ -79,9 +79,8 @@ export class AudioManager {
         },
       });
 
-      this.inputContext = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )({
+      this.inputContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)({
         sampleRate: INPUT_SAMPLE_RATE,
       });
 
@@ -118,9 +117,8 @@ export class AudioManager {
       await this.outputContext.close();
     }
 
-    this.outputContext = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )({
+    this.outputContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)({
       sampleRate: OUTPUT_SAMPLE_RATE,
     });
 

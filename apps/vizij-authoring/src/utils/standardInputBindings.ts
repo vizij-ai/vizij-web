@@ -1,5 +1,8 @@
 import type { VizijBundleExtension } from "@vizij/render";
-import { deriveStandardRigInputIdFromPath, normalizeStandardRigInputPath } from "@vizij/utils";
+import {
+  deriveStandardRigInputIdFromPath,
+  normalizeStandardRigInputPath,
+} from "@vizij/utils";
 
 /**
  * Represents a standard input's binding status in a rig graph.
