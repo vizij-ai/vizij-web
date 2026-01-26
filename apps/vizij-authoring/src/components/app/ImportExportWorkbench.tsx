@@ -142,8 +142,11 @@ export function ImportExportWorkbench({
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
-  const { includeVizijBundle, includeImportedAnimations, skipDiscrepancyCheck } =
-    uiState;
+  const {
+    includeVizijBundle,
+    includeImportedAnimations,
+    skipDiscrepancyCheck,
+  } = uiState;
 
   const {
     alert: showAlert,

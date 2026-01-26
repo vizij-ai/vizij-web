@@ -277,4 +277,3 @@ export function createStandardRigInputFromPath(path: string): StandardRigInput {
     },
   });
 }
-

@@ -1,5 +1,9 @@
 /** Shared definition of the authoring workbench tabs. */
-export type WorkbenchView = "scene-composer" | "import-export" | "pose-rig" | "std-feature-spaces";
+export type WorkbenchView =
+  | "scene-composer"
+  | "import-export"
+  | "pose-rig"
+  | "std-feature-spaces";
 
 export interface WorkbenchOption {
   id: WorkbenchView;

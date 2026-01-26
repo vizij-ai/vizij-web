@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, useId, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useId,
+  useRef,
+} from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
 import { Viewer } from "./components/app/Viewer";
@@ -37,7 +44,10 @@ import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor"
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import type { VizijBundleExtension } from "@vizij/render";
-import { ReferenceFaceProvider, type ReferenceFaceState } from "./state/ReferenceFaceContext";
+import {
+  ReferenceFaceProvider,
+  type ReferenceFaceState,
+} from "./state/ReferenceFaceContext";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   extractBindingsFromBundle,
@@ -123,51 +133,82 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
     content: (
       <div>
         <p>
-        The Standard Feature Spaces Editor allows you to align your face to predefined
-        feature spaces. This enables consistent facial rigging and animation
-        across different models by providing a common reference frame.
+          The Standard Feature Spaces Editor allows you to align your face to
+          predefined feature spaces. This enables consistent facial rigging and
+          animation across different models by providing a common reference
+          frame.
         </p>
         <p>
-          There is no single Standard Feature Space. Instead we refer to a Standard,
-          which may be developed by the community or specific entities.
-          By mapping your face to a given Standard, your face complies with its feature space,
-          and thus supports being controlled by rigs and animations built for that Standard.
+          There is no single Standard Feature Space. Instead we refer to a
+          Standard, which may be developed by the community or specific
+          entities. By mapping your face to a given Standard, your face complies
+          with its feature space, and thus supports being controlled by rigs and
+          animations built for that Standard.
         </p>
         <ol>
           <li>
-            Load your face model and a Standard model which you will use as reference.
+            Load your face model and a Standard model which you will use as
+            reference.
           </li>
           <li>
-            Your face model should already be rigged with the Vizij rigging system.
+            Your face model should already be rigged with the Vizij rigging
+            system.
           </li>
           <li>
-            The reference model can be any face that is already rigged to the Standard feature space.
+            The reference model can be any face that is already rigged to the
+            Standard feature space.
           </li>
           <li>
             Use the reference controls to set features on the reference model.
           </li>
           <li>
-            By viewing them side by side, adjust the mapping controls to align your face model so that it matches the reference model's features as close as as possible.
+            By viewing them side by side, adjust the mapping controls to align
+            your face model so that it matches the reference model's features as
+            close as as possible.
           </li>
           <li>
-            Once you are satisfied with the mapping, save the mapping configuration into your Vizij bundle for future use.
+            Once you are satisfied with the mapping, save the mapping
+            configuration into your Vizij bundle for future use.
           </li>
         </ol>
         <p style={{ marginTop: "1rem" }}>
           <strong>Mapping Editor Status Indicators:</strong>
         </p>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+          <li
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.25rem",
+            }}
+          >
             <span style={{ color: "#22c55e" }}>●</span>
-            <span><strong>Green</strong> — Track exists and has a binding configured. Ready to use.</span>
+            <span>
+              <strong>Green</strong> — Track exists and has a binding
+              configured. Ready to use.
+            </span>
           </li>
-          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+          <li
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.25rem",
+            }}
+          >
             <span style={{ color: "#3b82f6" }}>●</span>
-            <span><strong>Blue</strong> — Track exists but has no binding. Configure a binding to drive features.</span>
+            <span>
+              <strong>Blue</strong> — Track exists but has no binding. Configure
+              a binding to drive features.
+            </span>
           </li>
           <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <span style={{ color: "#64748b" }}>●</span>
-            <span><strong>Gray</strong> — Track is missing in the main face. Create it first.</span>
+            <span>
+              <strong>Gray</strong> — Track is missing in the main face. Create
+              it first.
+            </span>
           </li>
         </ul>
       </div>
@@ -209,17 +250,30 @@ function AppContent({ loader }: AppContentProps) {
     updateBundle,
   } = loader;
 
-  const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(null);
+  const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(
+    null,
+  );
 
   // Reference face state management
   const [refFaceIsLoading, setRefFaceIsLoading] = useState(false);
   const [refFaceIsLoaded, setRefFaceIsLoaded] = useState(false);
-  const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<StandardRigInput[]>([]);
-  const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<Map<string, StandardRigInput>>(new Map());
-  const [refFaceInputIdsWithBindings, setRefFaceInputIdsWithBindings] = useState<Set<string>>(new Set());
-  const [refFaceInputValues, setRefFaceInputValues] = useState<Record<string, number>>({});
-  const refFaceAnimateValueRef = useRef<((path: string, value: number) => void) | undefined>(undefined);
-  const mainFaceInputChangeRef = useRef<((inputId: string, value: number) => void) | undefined>(undefined);
+  const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<
+    StandardRigInput[]
+  >([]);
+  const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<
+    Map<string, StandardRigInput>
+  >(new Map());
+  const [refFaceInputIdsWithBindings, setRefFaceInputIdsWithBindings] =
+    useState<Set<string>>(new Set());
+  const [refFaceInputValues, setRefFaceInputValues] = useState<
+    Record<string, number>
+  >({});
+  const refFaceAnimateValueRef = useRef<
+    ((path: string, value: number) => void) | undefined
+  >(undefined);
+  const mainFaceInputChangeRef = useRef<
+    ((inputId: string, value: number) => void) | undefined
+  >(undefined);
 
   // Reset binding info when file is cleared
   useEffect(() => {
@@ -567,7 +621,9 @@ function AppContent({ loader }: AppContentProps) {
           )}
         </div>
 
-        <aside className={`sidebar sidebar--right${activeWorkbench === "std-feature-spaces" ? " sidebar--narrow" : ""}`}>
+        <aside
+          className={`sidebar sidebar--right${activeWorkbench === "std-feature-spaces" ? " sidebar--narrow" : ""}`}
+        >
           <div className="workbench-panel__content">
             <div className="workbench-panel__body">
               {activeOption && (

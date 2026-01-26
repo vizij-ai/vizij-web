@@ -52,10 +52,7 @@ export default defineConfig(async () => ({
     },
   },
   optimizeDeps: {
-    exclude: [
-      "@vizij/orchestrator-wasm",
-      "@vizij/node-graph-wasm",
-    ],
+    exclude: ["@vizij/orchestrator-wasm", "@vizij/node-graph-wasm"],
     include: [
       "@vizij/orchestrator-react",
       "@vizij/node-graph-react",

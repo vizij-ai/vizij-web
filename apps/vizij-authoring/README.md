@@ -23,20 +23,24 @@ a GLB.
 The Standard Feature Spaces Editor enables you to define and configure standard input channels for facial rigs. This provides a unified naming convention that enables interoperability between different face rigs and animation systems.
 
 **Workflow:**
+
 1. Load a **main face** GLB that needs standard input configuration
 2. Optionally load a **reference face** GLB with complete bindings as a visual guide
 3. Use the **Channels tab** to view/edit the standard input hierarchy
 4. Use the **Mapping tab** to configure bindings by comparing faces side-by-side
 
 **Tab Overview:**
+
 - **Setup Tab**: Load reference faces, export configurations
 - **Channels Tab**: Hierarchical tree editor for managing namespace → channel → track → attribute structure
 - **Mapping Tab**: Group-centric binding editor with synchronized sliders for both faces
 
 **Path Structure:**
+
 ```
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
+
 Example: `/standard/semio/left_eye/pos/x`
 
 See [STD_FACE_MAPPING_SPEC.md](src/components/app/STD_FACE_MAPPING_SPEC.md) for detailed technical documentation.

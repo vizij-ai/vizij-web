@@ -97,7 +97,9 @@ function App() {
           } else {
             const fileContents = await readFile(source);
             const fileName =
-              source.split("/").pop() || source.split("\\").pop() || "model.glb";
+              source.split("/").pop() ||
+              source.split("\\").pop() ||
+              "model.glb";
             const mimeType = fileName.toLowerCase().endsWith(".glb")
               ? "model/gltf-binary"
               : "model/gltf+json";
@@ -197,7 +199,9 @@ function App() {
           <p>WebSocket server: ws://localhost:{port}</p>
           <p>
             Status:{" "}
-            <span className={wsConnected ? "text-green-400" : "text-yellow-400"}>
+            <span
+              className={wsConnected ? "text-green-400" : "text-yellow-400"}
+            >
               {wsConnected ? "Running" : "Starting..."}
             </span>
           </p>
@@ -236,7 +240,13 @@ interface AppContentProps {
   onBack: () => void;
 }
 
-function AppContent({ bgColor, setBgColor, wsConnected, port, onBack }: AppContentProps) {
+function AppContent({
+  bgColor,
+  setBgColor,
+  wsConnected,
+  port,
+  onBack,
+}: AppContentProps) {
   const runtime = useVizijRuntime();
 
   // Hook that syncs WebSocket updates using same pattern as useMouseGaze:
@@ -246,7 +256,10 @@ function AppContent({ bgColor, setBgColor, wsConnected, port, onBack }: AppConte
   const constraintCount = Object.keys(inputConstraints).length;
 
   return (
-    <div className="h-screen w-full relative" style={{ backgroundColor: bgColor }}>
+    <div
+      className="h-screen w-full relative"
+      style={{ backgroundColor: bgColor }}
+    >
       <VizijRuntimeFace />
 
       {/* Back button */}
@@ -260,7 +273,9 @@ function AppContent({ bgColor, setBgColor, wsConnected, port, onBack }: AppConte
       {/* Settings panel */}
       <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
         <div className="mb-2">
-          <label className="block text-xs text-neutral-400 mb-1">Background</label>
+          <label className="block text-xs text-neutral-400 mb-1">
+            Background
+          </label>
           <input
             type="color"
             value={bgColor}
@@ -275,7 +290,15 @@ function AppContent({ bgColor, setBgColor, wsConnected, port, onBack }: AppConte
           </p>
           <p className="mt-1">
             Runtime:{" "}
-            <span className={runtime.ready ? "text-green-400" : runtime.loading ? "text-yellow-400" : "text-red-400"}>
+            <span
+              className={
+                runtime.ready
+                  ? "text-green-400"
+                  : runtime.loading
+                    ? "text-yellow-400"
+                    : "text-red-400"
+              }
+            >
               {runtime.ready ? "ready" : runtime.loading ? "loading" : "error"}
             </span>
           </p>
@@ -299,8 +322,14 @@ function AppContent({ bgColor, setBgColor, wsConnected, port, onBack }: AppConte
           console.log("[vizij-ws] Runtime:", runtime);
           console.log("[vizij-ws] Namespace:", namespace);
           console.log("[vizij-ws] Constraint count:", constraintCount);
-          console.log("[vizij-ws] Sample constraints:", Object.keys(inputConstraints).slice(0, 20));
-          console.log("[vizij-ws] Output paths:", runtime.outputPaths.slice(0, 20));
+          console.log(
+            "[vizij-ws] Sample constraints:",
+            Object.keys(inputConstraints).slice(0, 20),
+          );
+          console.log(
+            "[vizij-ws] Output paths:",
+            runtime.outputPaths.slice(0, 20),
+          );
         }}
         className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
       >
