@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { type JSX, useCallback, useMemo, useState } from "react";
 import { SidebarSection } from "../common/SidebarSection";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
