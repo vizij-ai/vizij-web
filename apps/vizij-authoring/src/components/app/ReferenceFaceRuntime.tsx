@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  VizijAssetBundle,
+  type VizijAssetBundle,
   VizijRuntimeProvider,
   useVizijRuntime,
 } from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
-import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
-import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
-import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 import {
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
+import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
+import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
   namespace?: string;
