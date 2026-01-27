@@ -6,7 +6,6 @@
   "scripts": {
     "vite": "vite",
     "dev": "pnpm tauri dev",
-    "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
