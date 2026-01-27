@@ -1,4 +1,5 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 
 const STANDARD_PATHS = {
@@ -12,7 +13,9 @@ function clamp(value: number, min = -1, max = 1) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function useMouseGaze(enabled: boolean): RefObject<HTMLDivElement> {
+export function useMouseGaze(
+  enabled: boolean,
+): RefObject<HTMLDivElement | null> {
   const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
   const ref = useRef<HTMLDivElement>(null);

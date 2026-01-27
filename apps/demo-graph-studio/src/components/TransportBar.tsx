@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { useGraphPlayback } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
 import { useEditorStore } from "../store/useEditorStore";
 
 /**

@@ -1,4 +1,4 @@
-import { ChangeEvent } from "react";
+import type { ChangeEvent } from "react";
 import { Button, Card, CardBody, Input } from "../ui";
 
 interface AssetLoaderPanelProps {

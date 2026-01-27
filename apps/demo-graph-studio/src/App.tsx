@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { RegistryProvider } from "./contexts/RegistryProvider";
 import { GraphProvider } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
+import { RegistryProvider } from "./contexts/RegistryProvider";
 import { useEditorStore } from "./store/useEditorStore";
 import EditorCanvas from "./components/EditorCanvas";
 import NodePalette from "./components/NodePalette";

@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import type { ChangeEvent } from "react";
 import {
   GraphProvider,
   useGraphRuntime,
@@ -16,13 +17,13 @@ import {
   samples as graphSamples,
 } from "@vizij/node-graph-react";
 import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
-import { readFileAsText, parseGraphSpecJSON } from "./utils/file";
 import {
   MinimalDemoChrome,
   MinimalDemoSection,
   minimalDemoTheme,
 } from "@vizij/minimal-demo-ui";
 import { cloneDeepSafe } from "@vizij/utils";
+import { readFileAsText, parseGraphSpecJSON } from "./utils/file";
 
 const cloneGraphSpec = (spec: GraphSpec): GraphSpec => {
   return cloneDeepSafe(spec);
@@ -500,7 +501,7 @@ function Controls({
   const [fileError, setFileError] = useState<string | null>(null);
   const selectValue = selectedSample ?? "__custom__";
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
     const f = e.target.files?.[0];
     if (!f) return;

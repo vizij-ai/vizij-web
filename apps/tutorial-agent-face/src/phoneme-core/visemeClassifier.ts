@@ -1,7 +1,9 @@
-import { VISEMES, VisemeType } from "./constants";
+import type { VisemeType } from "./constants";
+import { VISEMES } from "./constants";
 import { wordToVisemes } from "./wordToViseme";
 import { POLLY_VISEME_TO_LOCAL } from "./pollyToLocalVisemes";
-import { POLLY_LABELS, PollyMouthShapeId } from "./mouthShapes";
+import type { PollyMouthShapeId } from "./mouthShapes";
+import { POLLY_LABELS } from "./mouthShapes";
 import type { AudioFeatures } from "./types";
 
 // Include silence by using PollyMouthShapeId instead of the narrower PollyVisemeId.

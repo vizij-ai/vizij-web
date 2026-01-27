@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
+import type {
   FunctionCall,
   FunctionDeclaration,
   FunctionResponse,
-  Type,
-  type Tool,
 } from "@google/genai";
+import { Type, type Tool } from "@google/genai";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import type { PoseHotkeyBinding } from "./usePoseHotkeys";
 import {
   canonicalEmotionName,
   isEmotionBinding,
   scoreEmotionBinding,
 } from "../utils/emotions";
+import type { PoseHotkeyBinding } from "./usePoseHotkeys";
 
 type AgentFaceToolsOptions = {
   enabled: boolean;

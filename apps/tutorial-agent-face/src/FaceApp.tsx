@@ -17,7 +17,6 @@ import { useAgentFaceTools } from "./hooks/useAgentFaceTools";
 import { AudioManager } from "./utils/audioManager";
 import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
-
 import "./styles.css";
 
 const faceAssetUrl = "/assets/Quori_Live.glb";

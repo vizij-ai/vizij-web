@@ -1,16 +1,8 @@
-import {
-  ReactNode,
-  memo,
-  RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-} from "react";
+import { memo, useCallback, useEffect, useRef, useMemo } from "react";
+import type { ReactNode, RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { RawValue, AnimatableValue } from "@vizij/utils";
 import {
-  RawValue,
-  AnimatableValue,
   instanceOfRawNumber,
   instanceOfRawVector2,
   instanceOfRawVector3,
@@ -19,13 +11,14 @@ import {
   instanceOfRawHSL,
 } from "@vizij/utils";
 import { Plane, Line } from "@react-three/drei";
-import { Mesh, MeshStandardMaterial } from "three";
-import { Line2 } from "three-stdlib";
-import { ThreeEvent } from "@react-three/fiber";
+import type { Mesh, MeshStandardMaterial } from "three";
+import type { Line2 } from "three-stdlib";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useFeatures } from "../hooks/use-features";
 import { useVizijStore } from "../hooks/use-vizij-store";
-import { VizijActions } from "../store-types";
-import { Rectangle } from "../types/rectangle";
+import type { VizijActions } from "../store-types";
+import type { Rectangle } from "../types/rectangle";
 import { createStoredRenderable } from "../functions/create-stored-data";
 
 export interface RenderedRectangleProps {
@@ -39,10 +32,11 @@ function InnerRenderedRectangle({
   namespace,
   chain,
 }: RenderedRectangleProps): ReactNode {
-  const rectangleRef = useRef<Mesh>() as RefObject<Mesh>;
-  const materialRef =
-    useRef<MeshStandardMaterial>() as RefObject<MeshStandardMaterial>;
-  const lineRef = useRef<Mesh>() as RefObject<Line2>;
+  const rectangleRef = useRef<Mesh>(null) as RefObject<Mesh>;
+  const materialRef = useRef<MeshStandardMaterial>(
+    null,
+  ) as RefObject<MeshStandardMaterial>;
+  const lineRef = useRef<Mesh>(null) as RefObject<Line2>;
   const strokeOffsetRef = useRef<number>(0);
   const strokeWidthRef = useRef<number>(0);
   const onElementClick = useVizijStore(
@@ -309,7 +303,7 @@ function InnerRenderedRectangle({
         args={[1, 1]}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<ReactMouseEvent>) => {
           onElementClick(
             { id, type: "rectangle", namespace },
             [...chain, id],

@@ -1,9 +1,9 @@
 import type { AnimationClip, KeyframeTrack } from "three";
+import { cloneDeepSafe } from "@vizij/utils";
 import type {
   VizijAnimationClipData,
   VizijAnimationTrackData,
 } from "../../types/animations";
-import { cloneDeepSafe } from "@vizij/utils";
 
 type PlainObject = Record<string, unknown>;
 
@@ -34,9 +34,9 @@ const CHANNEL_PATH_TO_TRACK_PROPERTY: Record<string, string> = {
 function isPlainObject(value: unknown): value is PlainObject {
   return Boolean(
     value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      Object.prototype.toString.call(value) === "[object Object]",
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.prototype.toString.call(value) === "[object Object]",
   );
 }
 

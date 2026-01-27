@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useOrchestrator } from "@vizij/orchestrator-react";
-
 import { AssetLoaderPanel } from "./components/AssetLoaderPanel";
 import { RigControlsPanel } from "./components/RigControlsPanel";
 import { AnimationPanel } from "./components/AnimationPanel";

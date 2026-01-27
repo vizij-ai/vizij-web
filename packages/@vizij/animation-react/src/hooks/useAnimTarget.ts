@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { useAnimation } from "./useAnimation";
 import type { Value } from "../types";
+import { useAnimation } from "./useAnimation";
 
 export function useAnimTarget(key?: string): Value | undefined {
   const { subscribeToKey, getKeySnapshot } = useAnimation();

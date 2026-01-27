@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { Badge } from "../ui";
 
 interface ObjectHeaderProps {
@@ -33,7 +34,7 @@ export function ObjectHeader({
   }, [draftName, name, onNameChange]);
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
+    (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === "Enter") {
         event.preventDefault();
         commitName();

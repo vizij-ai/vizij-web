@@ -1,7 +1,6 @@
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { render, screen, waitFor, cleanup, act } from "@testing-library/react";
-import { GraphProvider, useGraphRuntime } from "../index";
+import { render, waitFor, cleanup, act } from "@testing-library/react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
@@ -52,10 +51,15 @@ vi.mock("@vizij/node-graph-wasm", () => {
 });
 
 describe("Input staging and teardown", () => {
-  beforeEach(() => {
+  let GraphProvider: typeof import("../index").GraphProvider;
+  let useGraphRuntime: typeof import("../index").useGraphRuntime;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     graphInstances.length = 0;
     cleanup();
+    vi.resetModules();
+    ({ GraphProvider, useGraphRuntime } = await import("../index"));
   });
 
   const spec: GraphSpec = {
@@ -74,13 +78,13 @@ describe("Input staging and teardown", () => {
   it("staging with immediateEval triggers evalAll on graph", async () => {
     let runtimeRef: any = null;
 
-    const Consumer: React.FC = () => {
+    const Consumer: FC = () => {
       const rt = useGraphRuntime();
       runtimeRef = rt;
       return <div data-testid="ready">{String(rt.ready)}</div>;
     };
 
-    render(
+    const { getByTestId } = render(
       <GraphProvider spec={specJson} autoStart={false}>
         <Consumer />
       </GraphProvider>,
@@ -88,7 +92,7 @@ describe("Input staging and teardown", () => {
 
     // Wait for provider to initialize and load the graph
     await waitFor(() => {
-      expect(screen.getByTestId("ready").textContent).toBe("true");
+      expect(getByTestId("ready").textContent).toBe("true");
     });
 
     // Wait for the provider to construct the graph instance
@@ -119,19 +123,19 @@ describe("Input staging and teardown", () => {
   });
 
   it("teardown frees the graph on unmount", async () => {
-    const Consumer: React.FC = () => {
+    const Consumer: FC = () => {
       const rt = useGraphRuntime();
       return <div data-testid="ready">{String(rt.ready)}</div>;
     };
 
-    const { unmount } = render(
+    const { unmount, getByTestId } = render(
       <GraphProvider spec={specJson} autoStart={false}>
         <Consumer />
       </GraphProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("ready").textContent).toBe("true");
+      expect(getByTestId("ready").textContent).toBe("true");
     });
 
     await waitFor(() => {

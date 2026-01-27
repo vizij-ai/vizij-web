@@ -1,6 +1,6 @@
-import { BufferGeometry, Mesh } from "three";
-import { AnimatableValue, AnimatableNumber } from "@vizij/utils";
-import { Feature } from "../../types";
+import type { BufferGeometry, Mesh } from "three";
+import type { AnimatableValue, AnimatableNumber } from "@vizij/utils";
+import type { Feature } from "../../types";
 
 function sanitizeMorphKey(
   name: string,

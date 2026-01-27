@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import { Input } from "./Input";
 
 export interface RowSliderProps {
@@ -28,7 +29,7 @@ export function RowSlider({
     setInputValue(String(value));
   }, [value]);
 
-  const handleRangeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRangeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const newValue = parseFloat(event.target.value);
     if (Number.isFinite(newValue)) {
       onChange(newValue);
@@ -36,7 +37,7 @@ export function RowSlider({
     }
   };
 
-  const handleNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNumberChange = (event: ChangeEvent<HTMLInputElement>) => {
     const rawValue = event.target.value;
     setInputValue(rawValue);
     const newValue = parseFloat(rawValue);

@@ -1,5 +1,21 @@
 # vizij-node-graph-editor
 
+## 0.1.0
+
+### Minor Changes
+
+- a53152b: React 19 support and dependency refresh
+  - React 19 compatibility across Vizij React packages.
+  - Update wasm wrapper dependencies to the latest published `@vizij/*-wasm` versions.
+  - CI/release workflow updates (Node 24; npm publish via OIDC).
+
+### Patch Changes
+
+- Updated dependencies [a53152b]
+  - @vizij/node-graph-authoring@0.1.0
+  - @vizij/node-graph-react@0.1.0
+  - @vizij/utils@0.1.0
+
 ## Unreleased
 
 ### Added

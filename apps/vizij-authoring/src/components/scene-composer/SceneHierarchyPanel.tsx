@@ -1,12 +1,13 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { useHierarchyTreeState } from "./useHierarchyTreeState";
-import { filterHierarchyNodes } from "./hierarchyFilters";
 import { Panel } from "../ui";
 import { Button } from "../ui";
+import { useHierarchyTreeState } from "./useHierarchyTreeState";
+import { filterHierarchyNodes } from "./hierarchyFilters";
 
 interface SceneHierarchyPanelProps {
   allowEditActions?: boolean;

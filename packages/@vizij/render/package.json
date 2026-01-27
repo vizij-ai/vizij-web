@@ -1,7 +1,7 @@
 {
   "name": "@vizij/render",
   "description": "Higher-level visualization and interaction components for robot and ai faces.",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -48,8 +48,8 @@
     "three-stdlib": "^2.35.13"
   },
   "peerDependencies": {
-    "@react-three/drei": "^9.115.0",
-    "@react-three/fiber": "^8.17.10",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "react": ">=18",
     "react-dom": ">=18",
     "tailwindcss": "^4.1.3",
@@ -57,15 +57,15 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
-    "@react-three/drei": "^9.115.0",
-    "@react-three/fiber": "^8.17.10",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@types/deep-equal": "^1.0.4",
     "@types/lodash": "^4.17.4",
-    "@types/react": "^18.3.1",
+    "@types/react": "^19.2.7",
     "@types/three": "^0.170.0",
     "@size-limit/file": "^11.2.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "size-limit": "^11.1.7",
     "three": "^0.170.0",
     "zustand": "^5.0.2",

@@ -124,7 +124,7 @@ export function DiscrepancyWizard({
   ]);
 
   const handleKeydown = useCallback(
-    (event: KeyboardEvent) => {
+    (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         logDebug("escape pressed – cancel import");
         onResolve({ accepted: false });

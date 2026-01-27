@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
-
 import { buildRigGraphSpec } from "../graphBuilder";
 import {
   addBindingSlot,

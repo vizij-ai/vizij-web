@@ -1,4 +1,5 @@
-import React, { useCallback } from "react";
+import { useCallback } from "react";
+import type { FC } from "react";
 import { GraphProvider } from "./GraphProvider";
 import { useGraphContext } from "./GraphContext";
 import { useGraphOutputs } from "./useGraphOutputs";
@@ -13,7 +14,7 @@ import { valueAsNumber } from "./valueHelpers";
  */
 
 /** Alias provider to old name (accepts legacy `autostart` prop) */
-export const NodeGraphProvider: React.FC<any> = ({
+export const NodeGraphProvider: FC<any> = ({
   autostart,
   autoStart,
   spec,

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
-
+import { SELF_BINDING_ID } from "@vizij/utils";
 import { buildRigGraphSpec } from "../graphBuilder";
 import {
   createDefaultBinding,
@@ -17,7 +16,6 @@ import {
   updateBindingExpression,
   buildCanonicalBindingExpression,
 } from "../state";
-import { SELF_BINDING_ID } from "@vizij/utils";
 
 const COMPONENT: AnimatableComponent = {
   id: "component_1",

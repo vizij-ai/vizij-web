@@ -4,12 +4,13 @@ import React, {
   useMemo,
   useRef,
   useState,
-  ChangeEvent,
 } from "react";
-import { useEditorStore } from "../store/useEditorStore";
+import type { ChangeEvent } from "react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
-import { useRegistry } from "../contexts/RegistryProvider";
 import { valueAsNumber } from "@vizij/value-json";
+import type { JSX } from "react/jsx-runtime";
+import { useRegistry } from "../contexts/RegistryProvider";
+import { useEditorStore } from "../store/useEditorStore";
 
 type SupportedKind = "float" | "bool";
 

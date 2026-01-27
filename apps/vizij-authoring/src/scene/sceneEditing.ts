@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { createRef, type RefObject } from "react";
+import { createRef } from "react";
+import type { RefObject } from "react";
 import { Euler, Matrix4, Quaternion, Vector3 } from "three";
 import type { BindingMap } from "@vizij/node-graph-authoring";
 import type {

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import { computeBundleKey } from "./storage";
 import type { GlbAsset, GraphAsset } from "./types";
 

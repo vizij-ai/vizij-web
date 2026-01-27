@@ -1,9 +1,10 @@
-import { type RefObject } from "react";
-import * as THREE from "three";
-import { Group, Mesh } from "three";
-import { ThreeEvent } from "@react-three/fiber";
-import { RawValue, AnimatableValue } from "@vizij/utils";
-import { World, Selection, RenderableFeature } from "./types";
+import type { RefObject } from "react";
+import type * as THREE from "three";
+import type { Group, Mesh } from "three";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import type { RawValue, AnimatableValue } from "@vizij/utils";
+import type { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {
   world: World;
@@ -57,7 +58,7 @@ export interface VizijActions {
   onElementClick: (
     selection: Selection,
     chain: string[],
-    event: ThreeEvent<MouseEvent>,
+    event: ThreeEvent<ReactMouseEvent>,
   ) => void;
   clearSelection: () => void;
   setOrigin: (

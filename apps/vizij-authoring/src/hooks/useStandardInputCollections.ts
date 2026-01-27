@@ -1,4 +1,5 @@
-import { useEffect, useMemo, type MutableRefObject } from "react";
+import { useEffect, useMemo } from "react";
+import type { MutableRefObject } from "react";
 import {
   normalizeStandardRigInputPath,
   stripStandardInputPathPrefix,

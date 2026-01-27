@@ -15,6 +15,7 @@ import {
   useSafeEval,
 } from "@vizij/node-graph-react";
 import { toValueJSON } from "@vizij/value-json";
+import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import {
   UrdfIkPanel,
@@ -30,7 +31,6 @@ import {
 } from "../data/ikAnimation";
 import { ikGraphSpec } from "../data/ikGraph";
 import { sampleUrdf } from "../data/urdf-samples/sampleUrdf";
-import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
 
 type FkPositionKey = "x" | "y" | "z";
 type FkRotationKey = "qx" | "qy" | "qz" | "qw";

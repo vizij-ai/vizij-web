@@ -1,51 +1,21 @@
 import React, { useEffect } from "react";
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { render, waitFor } from "@testing-library/react";
-import { GraphProvider } from "../GraphProvider";
-import { useGraphRuntime } from "../useGraphRuntime";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
+import { render, waitFor, cleanup } from "@testing-library/react";
 
 // Mock @vizij/node-graph-wasm with a configurable createGraph
 let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
-vi.mock("@vizij/node-graph-wasm", () => {
-  const init = vi.fn(async () => {});
-  // passthrough normalizer used by normalizeSpec()
-  const normalizeGraphSpec = vi.fn(async (spec: any) => spec);
-  const createGraph = vi.fn(async (_spec: any) => {
-    if (mode === "fail") {
-      throw new Error("mock createGraph error");
-    }
-    const graph = {
-      setParam: vi.fn((_nodeId: string, _key: string, _value: any) => {}),
-      stageInput: vi.fn((_path: string, _value: any, _shape?: any) => {}),
-      evalAll: vi.fn(() => {
-        return {
-          toValueJSON: () => ({
-            nodes: { test_node: { out: { value: { float: 1.0 } } } },
-            writes: [],
-          }),
-        };
-      }),
-      step: vi.fn((_dt: number) => {}),
-      setTime: vi.fn((_t: number) => {}),
-      free: vi.fn(() => {}),
-    };
-    lastGraph = graph;
-    return graph;
-  });
-  const toValueJSON = vi.fn((value: any) => value);
-  return {
-    init,
-    normalizeGraphSpec,
-    createGraph,
-    toValueJSON,
-    __setMode: (m: "ok" | "fail") => {
-      mode = m;
-    },
-    __getLastGraph: () => lastGraph,
-  };
-});
+let GraphProvider: typeof import("../GraphProvider").GraphProvider;
+let useGraphRuntime: typeof import("../useGraphRuntime").useGraphRuntime;
 
 function Probe({ onReady }: { onReady: (rt: any) => void }) {
   const rt = useGraphRuntime();
@@ -72,6 +42,56 @@ beforeAll(() => {
 afterAll(() => {
   process.off("unhandledRejection", suppressUnhandled as any);
   restoreConsoleError?.();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  mode = "ok";
+  lastGraph = null;
+});
+
+beforeEach(async () => {
+  vi.resetModules();
+  vi.doMock("@vizij/node-graph-wasm", () => {
+    const init = vi.fn(async () => {});
+    const normalizeGraphSpec = vi.fn(async (spec: any) => spec);
+    const createGraph = vi.fn(async (_spec: any) => {
+      if (mode === "fail") {
+        throw new Error("mock createGraph error");
+      }
+      const graph = {
+        setParam: vi.fn((_nodeId: string, _key: string, _value: any) => {}),
+        stageInput: vi.fn((_path: string, _value: any, _shape?: any) => {}),
+        evalAll: vi.fn(() => {
+          return {
+            toValueJSON: () => ({
+              nodes: { test_node: { out: { value: { float: 1.0 } } } },
+              writes: [],
+            }),
+          };
+        }),
+        step: vi.fn((_dt: number) => {}),
+        setTime: vi.fn((_t: number) => {}),
+        free: vi.fn(() => {}),
+      };
+      lastGraph = graph;
+      return graph;
+    });
+    const toValueJSON = vi.fn((value: any) => value);
+    return {
+      init,
+      normalizeGraphSpec,
+      createGraph,
+      toValueJSON,
+      __setMode: (m: "ok" | "fail") => {
+        mode = m;
+      },
+      __getLastGraph: () => lastGraph,
+    };
+  });
+  ({ GraphProvider } = await import("../GraphProvider"));
+  ({ useGraphRuntime } = await import("../useGraphRuntime"));
 });
 
 describe("GraphProvider readiness", () => {
@@ -145,5 +165,49 @@ describe("GraphProvider readiness", () => {
     );
 
     wasm.__setMode?.("ok");
+  });
+
+  it("does not resolve readiness after unmount", async () => {
+    let resolveCreate: ((graph: any) => void) | null = null;
+    const wasm: any = await import("@vizij/node-graph-wasm");
+    wasm.createGraph.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    let runtimeRef: any = null;
+    const { unmount } = render(
+      React.createElement(
+        GraphProvider as any,
+        { spec: { nodes: [], edges: [] }, waitForGraph: true },
+        React.createElement(Probe, { onReady: (rt: any) => (runtimeRef = rt) }),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(runtimeRef).toBeTruthy();
+    });
+
+    const readyPromise = runtimeRef.waitForGraphReady?.();
+    unmount();
+
+    resolveCreate?.({
+      setParam: vi.fn(),
+      stageInput: vi.fn(),
+      evalAll: vi.fn(() => ({
+        toValueJSON: () => ({ nodes: {}, writes: [] }),
+      })),
+      step: vi.fn(),
+      setTime: vi.fn(),
+      free: vi.fn(),
+    });
+
+    if (readyPromise) {
+      await expect(
+        Promise.race([readyPromise, Promise.resolve("unmounted")]),
+      ).resolves.toBe("unmounted");
+    }
   });
 });

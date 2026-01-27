@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode, type RefObject } from "react";
+import { useEffect } from "react";
+import type { ReactNode, RefObject } from "react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import {
   VizijRuntimeFace,
@@ -12,7 +13,7 @@ export type RuntimeFaceFrameProps = {
   subtitle?: string;
   variant?: "sm" | "md" | "lg";
   className?: string;
-  pointerTargetRef?: RefObject<HTMLDivElement>;
+  pointerTargetRef?: RefObject<HTMLDivElement | null>;
   onCanvasClick?: () => void;
   overlay?: ReactNode;
   footer?: ReactNode;

@@ -1,12 +1,7 @@
 import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import {
-  NodeGraphProvider,
-  useNodeGraph,
-  useGraphWrites,
-  valueAsNumber,
-} from "../index";
 import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
 
 type MockGraphInstance = {
@@ -71,7 +66,11 @@ vi.mock("@vizij/node-graph-wasm", () => {
   };
 });
 
-const TestConsumer: React.FC = () => {
+const TestConsumer: FC<{
+  useNodeGraph: typeof import("../index").useNodeGraph;
+  useGraphWrites: typeof import("../index").useGraphWrites;
+  valueAsNumber: typeof import("../index").valueAsNumber;
+}> = ({ useNodeGraph, useGraphWrites, valueAsNumber }) => {
   const { ready, getNodeOutputSnapshot, setParam, clearWrites } =
     useNodeGraph();
   const writes = useGraphWrites();
@@ -96,9 +95,17 @@ const TestConsumer: React.FC = () => {
 };
 
 describe("NodeGraphProvider", () => {
-  beforeEach(() => {
+  let NodeGraphProvider: typeof import("../index").NodeGraphProvider;
+  let useNodeGraph: typeof import("../index").useNodeGraph;
+  let useGraphWrites: typeof import("../index").useGraphWrites;
+  let valueAsNumber: typeof import("../index").valueAsNumber;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     graphInstances.length = 0;
+    vi.resetModules();
+    ({ NodeGraphProvider, useNodeGraph, useGraphWrites, valueAsNumber } =
+      await import("../index"));
   });
 
   const spec: GraphSpec = {
@@ -125,7 +132,11 @@ describe("NodeGraphProvider", () => {
   it("should expose evaluated outputs once initialization completes", async () => {
     render(
       <NodeGraphProvider spec={specJson} autostart={false}>
-        <TestConsumer />
+        <TestConsumer
+          useNodeGraph={useNodeGraph}
+          useGraphWrites={useGraphWrites}
+          valueAsNumber={valueAsNumber}
+        />
       </NodeGraphProvider>,
     );
 
@@ -141,11 +152,18 @@ describe("NodeGraphProvider", () => {
   it("should forward path updates through setParam", async () => {
     render(
       <NodeGraphProvider spec={specJson} autostart={false}>
-        <TestConsumer />
+        <TestConsumer
+          useNodeGraph={useNodeGraph}
+          useGraphWrites={useGraphWrites}
+          valueAsNumber={valueAsNumber}
+        />
       </NodeGraphProvider>,
     );
 
-    await waitFor(() => screen.getByTestId("set-path"));
+    await waitFor(() => {
+      expect(screen.getByTestId("set-path")).toBeTruthy();
+      expect(graphInstances.length).toBeGreaterThan(0);
+    });
     fireEvent.click(screen.getByTestId("set-path"));
 
     const instance = graphInstances[0];

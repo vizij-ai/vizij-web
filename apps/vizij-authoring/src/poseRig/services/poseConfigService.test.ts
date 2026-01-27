@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PoseConfigService } from "./poseConfigService";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
+import { PoseConfigService } from "./poseConfigService";
 
 describe("PoseConfigService", () => {
   it("normalizes a valid config", () => {

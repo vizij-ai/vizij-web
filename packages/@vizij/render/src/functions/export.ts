@@ -1,5 +1,5 @@
 import { GLTFExporter } from "three-stdlib";
-import { AnimationClip, Group } from "three";
+import type { AnimationClip, Group } from "three";
 import * as THREE from "three";
 import type { VizijBundleExtension } from "../types";
 import { applyVizijBundle } from "./vizij-bundle";

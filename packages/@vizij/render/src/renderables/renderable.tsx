@@ -1,5 +1,6 @@
 /* eslint-disable import/no-cycle -- circular import will be fixed later*/
-import { ReactNode, memo, useMemo } from "react";
+import { memo, useMemo } from "react";
+import type { ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { RenderedGroup } from "./group";

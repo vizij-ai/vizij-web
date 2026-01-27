@@ -5,7 +5,6 @@ import {
   useVizijStoreSetter,
 } from "@vizij/render";
 import type { Group, World } from "@vizij/render";
-
 import type { GlbAsset } from "../state/types";
 
 const INITIAL_STATUS = {

@@ -5,9 +5,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type PropsWithChildren,
-  type ReactNode,
 } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import {
   VizijContext,
   createVizijStore,
@@ -822,7 +821,7 @@ export function VizijRuntimeProvider({
   onStatusChange,
   orchestratorScope = "auto",
 }: ProviderProps) {
-  const storeRef = useRef<VizijStore>();
+  const storeRef = useRef<VizijStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createVizijStore();
   }

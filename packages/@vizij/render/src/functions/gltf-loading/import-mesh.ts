@@ -1,5 +1,4 @@
-import {
-  Object3D,
+import type {
   Mesh,
   MeshStandardMaterial,
   MeshPhongMaterial,
@@ -8,14 +7,16 @@ import {
   MeshLambertMaterial,
   MeshPhysicalMaterial,
 } from "three";
-import {
+import { Object3D } from "three";
+import type {
   AnimatableEuler,
   AnimatableValue,
   AnimatableVector3,
   AnimatableColor,
   AnimatableNumber,
 } from "@vizij/utils";
-import { World, Shape, ShapeMaterial } from "../../types";
+import type { World, Shape } from "../../types";
+import { ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";
 

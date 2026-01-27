@@ -1,16 +1,13 @@
-import React, {
-  CSSProperties,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { useEditorStore } from "../store/useEditorStore";
-import { ParamSpec, PortSpec, useRegistry } from "../contexts/RegistryProvider";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useGraphRuntime, useNodeOutputs } from "@vizij/node-graph-react";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { parseVariadicPortId } from "../store/useEditorStore";
 import { cloneDeepSafe } from "@vizij/utils";
+import type { JSX } from "react/jsx-runtime";
+import { parseVariadicPortId } from "../store/useEditorStore";
+import type { ParamSpec, PortSpec } from "../contexts/RegistryProvider";
+import { useRegistry } from "../contexts/RegistryProvider";
+import { useEditorStore } from "../store/useEditorStore";
 
 const VARIADIC_DELIM = "_";
 
@@ -1271,7 +1268,7 @@ export default function InspectorPanel(): JSX.Element {
         ) : (
           paramsSpec.map((p) => {
             const current = (node.data?.params ?? {})[p.id];
-            let editor: React.ReactNode;
+            let editor: ReactNode;
             if (p.id === "value") {
               editor = (
                 <ValueParamEditor

@@ -1,38 +1,35 @@
 import type {
   ComponentPropsWithoutRef,
-  ElementType,
   PropsWithChildren,
   ReactNode,
+  ElementType,
 } from "react";
+import type { JSX } from "react/jsx-runtime";
 import { Badge } from "./Badge";
 import "./panel.css";
 
-type ElementTag = keyof Pick<
-  JSX.IntrinsicElements,
-  "div" | "section" | "article"
->;
-
-type BaseProps<TTag extends ElementTag> = {
-  as?: TTag;
+type BaseProps = {
+  as?: ElementType;
   title?: ReactNode;
   description?: ReactNode;
   badge?: ReactNode;
   actions?: ReactNode;
 };
 
-export type PanelProps<TTag extends ElementTag = "section"> = PropsWithChildren<
-  BaseProps<TTag> &
-    Omit<
-      ComponentPropsWithoutRef<TTag>,
-      "as" | "children" | "title" | "description" | "badge" | "actions"
-    >
->;
+export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
+  PropsWithChildren<
+    BaseProps &
+      Omit<
+        ComponentPropsWithoutRef<TTag>,
+        "as" | "children" | "title" | "description" | "badge" | "actions"
+      >
+  >;
 
 /**
  * Standard panel wrapper that applies the shared sidebar panel styling and
  * handles a consistent header layout (title + description + badge/actions).
  */
-export function Panel<TTag extends ElementTag = "section">({
+export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   as,
   title,
   description,
@@ -42,7 +39,7 @@ export function Panel<TTag extends ElementTag = "section">({
   children,
   ...rest
 }: PanelProps<TTag>) {
-  const Component = (as ?? "section") as ElementType;
+  const Component = (as ?? "section") as keyof JSX.IntrinsicElements;
   const hasHeader = Boolean(title || description || badge || actions);
 
   const renderBadge = () => {
@@ -54,8 +51,14 @@ export function Panel<TTag extends ElementTag = "section">({
     );
   };
 
+  if (Component !== "section") {
+    console.warn(
+      "[Panel] custom `as` tags are temporarily disabled; falling back to <section>.",
+    );
+  }
+
   return (
-    <Component
+    <section
       className={["sidebar__panel", className].filter(Boolean).join(" ")}
       {...rest}
     >
@@ -76,7 +79,7 @@ export function Panel<TTag extends ElementTag = "section">({
         </header>
       )}
       {children}
-    </Component>
+    </section>
   );
 }
 

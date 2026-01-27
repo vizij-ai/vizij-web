@@ -4,10 +4,10 @@ import { render, waitFor } from "@testing-library/react";
 import { GraphProvider } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { cloneDeepSafe } from "@vizij/utils";
 import { ikGraphSpec } from "../data/ikGraph";
 import { slewGraphSpec } from "../data/slewGraph";
 import { makeTypedPath } from "../utils/typedPath";
-import { cloneDeepSafe } from "@vizij/utils";
 
 // Local mock of @vizij/node-graph-wasm for this app test scope.
 // We keep semantics consistent with the package tests but scoped to the app.

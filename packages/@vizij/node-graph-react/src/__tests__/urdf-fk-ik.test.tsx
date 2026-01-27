@@ -1,10 +1,12 @@
 /* @vitest-environment node */
-
-import React, { useEffect } from "react";
+import { resolve as resolvePath } from "node:path";
+import { readFile } from "node:fs/promises";
+import { useEffect } from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-
+import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
 import {
   NodeGraphProvider,
   useGraphRuntime,
@@ -12,9 +14,6 @@ import {
   init as initGraphWasm,
 } from "../index";
 import type { GraphRuntimeContextValue } from "../types";
-import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
-import { resolve as resolvePath } from "node:path";
-import { readFile } from "node:fs/promises";
 
 const urdfXml = `
 <robot name="planar_arm">
@@ -160,7 +159,7 @@ const runtimeRef: { current: GraphRuntimeContextValue | null } = {
   current: null,
 };
 
-const RuntimeTap: React.FC = () => {
+const RuntimeTap: FC = () => {
   const runtime = useGraphRuntime();
   useEffect(() => {
     runtimeRef.current = runtime;
@@ -179,6 +178,11 @@ describe("URDF FK/IK integration", () => {
         userAgent: "node.js",
       },
     });
+    (globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(Date.now()), 0) as unknown as number;
+    (globalThis as any).cancelAnimationFrame = (id: number) => {
+      clearTimeout(id as unknown as NodeJS.Timeout);
+    };
 
     const candidatePaths = [
       "node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
@@ -215,9 +219,8 @@ describe("URDF FK/IK integration", () => {
 
   afterAll(() => {
     cleanup();
-    delete (globalThis as any).window;
-    delete (globalThis as any).document;
-    delete (globalThis as any).navigator;
+    // Keep the JSDOM globals to avoid late scheduler callbacks throwing
+    // when React flushes work after this test completes.
   });
 
   it("solves IK results that replay through FK via the React provider", async () => {

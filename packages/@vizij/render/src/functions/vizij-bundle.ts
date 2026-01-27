@@ -1,6 +1,6 @@
-import { Object3D } from "three";
-import type { VizijBundleExtension } from "../types";
+import type { Object3D } from "three";
 import { cloneDeepSafe } from "@vizij/utils";
+import type { VizijBundleExtension } from "../types";
 
 const BUNDLE_KEYS = ["VIZIJ_bundle"];
 

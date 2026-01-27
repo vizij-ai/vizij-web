@@ -1,8 +1,8 @@
 import { createRef } from "react";
 import * as THREE from "three";
-import { Group, Mesh, Material, Object3D } from "three";
-import { AnimatableValue, RawVector2 } from "@vizij/utils";
-import {
+import type { Group, Mesh, Material, Object3D } from "three";
+import type { AnimatableValue, RawVector2 } from "@vizij/utils";
+import type {
   World,
   RenderableBase,
   StoredRenderable,

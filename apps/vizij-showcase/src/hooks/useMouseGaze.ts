@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 
 const STANDARD_PATHS = {
@@ -15,7 +16,7 @@ function clamp(value: number, min = -1, max = 1) {
 }
 
 export type MouseGazeHandle = {
-  ref: RefObject<HTMLDivElement>;
+  ref: RefObject<HTMLDivElement | null>;
   isPointerActive: boolean;
 };
 

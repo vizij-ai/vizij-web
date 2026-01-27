@@ -1,11 +1,12 @@
-import { Object3D, Group, Mesh } from "three";
-import {
+import type { Group, Mesh } from "three";
+import { Object3D } from "three";
+import type {
   AnimatableEuler,
   AnimatableValue,
   AnimatableVector3,
   RawVector2,
 } from "@vizij/utils";
-import { World, Group as VizijGroup } from "../../types";
+import type { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
 

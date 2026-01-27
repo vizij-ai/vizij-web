@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { AnimatableValue } from "@vizij/utils";
-
 import { buildFeatureEntries } from "./featureEntries";
 
 describe("buildFeatureEntries", () => {

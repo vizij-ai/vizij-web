@@ -1,10 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useRef,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useRef, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import type { Selection } from "@vizij/render";
 
 type SelectionStoreUpdate =
@@ -96,7 +91,7 @@ export function useSelectionStoreValue<T>(
   equalityFn: (a: T, b: T) => boolean = Object.is,
 ): T {
   const store = useSelectionStoreApi();
-  const lastValueRef = useRef<T>();
+  const lastValueRef = useRef<T | undefined>(undefined);
   const subscribe = store.subscribe;
   const getSnapshot = () => selector(store.getState());
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

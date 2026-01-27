@@ -1,7 +1,7 @@
 {
   "name": "@vizij/node-graph-authoring",
   "description": "Authoring-time graph builder utilities for Vizij node graphs.",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -47,7 +47,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/node-graph-wasm": "^0.4.9",
+    "@vizij/node-graph-wasm": "^0.5.0",
     "@vizij/utils": "workspace:*"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
-import { type StaticFeature, StoredAnimatedFeature } from "./feature";
-import { RenderableBase } from "./renderable-base";
+import type { StoredAnimatedFeature } from "./feature";
+import { type StaticFeature } from "./feature";
+import type { RenderableBase } from "./renderable-base";
 
 export type StoredFeatures<T extends RenderableBase["features"]> = {
   [key in keyof T]: StaticFeature | StoredAnimatedFeature;

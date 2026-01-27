@@ -1,14 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimationProvider, useAnimation } from "@vizij/animation-react";
-import presets from "./presets";
-import AnimationsPanel from "./components/AnimationsPanel";
-import type { InstanceSpec } from "./components/PlayersPanel";
-import EventsLog from "./components/EventsLog";
-import PlayerCard from "./components/PlayerCard";
-import ConfigPanel from "./components/ConfigPanel";
-import { PrebindRule, makeResolver } from "./components/PrebindPanel";
-import SessionPanel, { SessionState } from "./components/SessionPanel";
-import AnimationEditor from "./components/AnimationEditor";
 import type {
   StoredAnimation,
   Config,
@@ -17,6 +8,17 @@ import type {
 } from "@vizij/animation-wasm";
 import type { Value } from "@vizij/animation-react";
 import { init, abi_version } from "@vizij/animation-wasm";
+import presets from "./presets";
+import AnimationsPanel from "./components/AnimationsPanel";
+import type { InstanceSpec } from "./components/PlayersPanel";
+import EventsLog from "./components/EventsLog";
+import PlayerCard from "./components/PlayerCard";
+import ConfigPanel from "./components/ConfigPanel";
+import type { PrebindRule } from "./components/PrebindPanel";
+import { makeResolver } from "./components/PrebindPanel";
+import type { SessionState } from "./components/SessionPanel";
+import SessionPanel from "./components/SessionPanel";
+import AnimationEditor from "./components/AnimationEditor";
 import "./styles/app.css";
 
 type Sample = { t: number; v: Value };

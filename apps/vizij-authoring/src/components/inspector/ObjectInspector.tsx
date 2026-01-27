@@ -4,15 +4,15 @@ import {
   useSelectionStore,
   useBindingAuthoring,
 } from "../../state/RigControllerProvider";
+import { InstructionCallout } from "../common/InstructionCallout";
+import { Panel, Tabs } from "../ui";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
+import { Button } from "../ui/Button";
 import { ObjectHeader } from "./ObjectHeader";
 import { FeatureList } from "./FeatureList";
 import { DriverPanel } from "./DriverPanel";
 import { DriverBindingSection } from "./DriverBindingSection";
-import { InstructionCallout } from "../common/InstructionCallout";
 import { MaterialEditor } from "./MaterialEditor";
-import { Panel, Tabs } from "../ui";
-import type { SceneObjectNode } from "../../scene/sceneGraph";
-import { Button } from "../ui/Button";
 
 type InspectorTab = "drivers" | "features" | "bindings";
 

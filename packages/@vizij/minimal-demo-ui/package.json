@@ -1,6 +1,6 @@
 {
   "name": "@vizij/minimal-demo-ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Shared chrome + theme helpers for Vizij minimal demo apps.",
   "type": "module",
@@ -36,9 +36,10 @@
     "react-dom": ">=18"
   },
   "devDependencies": {
-    "@types/react": "^18.3.26",
+    "@types/react": "^19.2.7",
     "prettier": "^3.4.2",
     "tsup": "^8.0.1",
     "typescript": "^5.5.0"
-  }
+  },
+  "dependencies": {}
 }

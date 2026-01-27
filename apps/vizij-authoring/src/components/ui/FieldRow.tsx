@@ -1,4 +1,5 @@
-import { cloneElement, isValidElement, type ReactNode } from "react";
+import { cloneElement, isValidElement } from "react";
+import type { ReactNode, ReactElement } from "react";
 import "./fieldrow.css";
 
 interface FieldRowProps {
@@ -19,10 +20,13 @@ export function FieldRow({
   const shouldInlineLabel = renderLabelInControl && isValidElement(control);
 
   const controlWithLabel = shouldInlineLabel
-    ? cloneElement(control, {
-        label: (control.props as { label?: ReactNode }).label ?? label,
-        hint: (control.props as { hint?: ReactNode }).hint ?? hint,
-      })
+    ? cloneElement(
+        control as ReactElement<{ label?: ReactNode; hint?: ReactNode }>,
+        {
+          label: (control.props as { label?: ReactNode }).label ?? label,
+          hint: (control.props as { hint?: ReactNode }).hint ?? hint,
+        },
+      )
     : control;
 
   return (

@@ -1,20 +1,21 @@
+import type { ReactNode } from "react";
 import "./tabs.css";
 
 export type TabId = string;
 
 export interface TabItem {
   id: TabId;
-  label: React.ReactNode;
-  description?: React.ReactNode;
+  label: ReactNode;
+  description?: ReactNode;
   disabled?: boolean;
-  badge?: React.ReactNode;
+  badge?: ReactNode;
 }
 
 export interface TabsProps {
   items: readonly TabItem[];
   value: TabId;
   onValueChange: (next: TabId) => void;
-  renderPanel: (id: TabId) => React.ReactNode;
+  renderPanel: (id: TabId) => ReactNode;
   className?: string;
   listClassName?: string;
   panelClassName?: string;

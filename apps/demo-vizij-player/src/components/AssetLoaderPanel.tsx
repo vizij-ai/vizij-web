@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-
 import { useAppState } from "../state/AppStateContext";
 
 const GLB_ACCEPT = ".glb";

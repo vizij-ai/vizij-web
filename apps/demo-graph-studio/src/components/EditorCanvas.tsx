@@ -1,4 +1,13 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import type { ComponentType, DragEvent, FC, MouseEvent } from "react";
+import type {
+  Connection,
+  Edge,
+  EdgeChange,
+  Node,
+  NodeChange,
+  ReactFlowInstance,
+} from "reactflow";
 import ReactFlow, {
   addEdge,
   Background,
@@ -7,18 +16,12 @@ import ReactFlow, {
   ReactFlowProvider,
   applyEdgeChanges,
   applyNodeChanges,
-  Connection,
-  Edge,
-  EdgeChange,
   Handle,
-  Node,
-  NodeChange,
   Position,
-  ReactFlowInstance,
   useUpdateNodeInternals,
 } from "reactflow";
 import "reactflow/dist/style.css";
-
+import type { JSX } from "react/jsx-runtime";
 import { useEditorStore, parseVariadicPortId } from "../store/useEditorStore";
 import {
   isConnectionCompatible,
@@ -26,7 +29,7 @@ import {
 } from "../utils/connectionUtils";
 import { useRegistry } from "../contexts/RegistryProvider";
 
-const simpleNodeCache: Record<string, React.FC<{ id: string; data: any }>> = {};
+const simpleNodeCache: Record<string, FC<{ id: string; data: any }>> = {};
 
 const formatVariadicHandleId = (groupId: string, index: number): string =>
   `${groupId}_${index}`;
@@ -147,7 +150,7 @@ const createNodeRenderer = (
           variadicOutputs: schema.variadicOutputs ?? null,
         };
 
-  const SimpleNode: React.FC<{ id: string; data: any }> = ({ id, data }) => {
+  const SimpleNode: FC<{ id: string; data: any }> = ({ id, data }) => {
     const updateNodeInternals = useUpdateNodeInternals();
     const defaults = (data?.input_defaults as Record<string, any>) ?? {};
     const inputMappings: any[] = Array.isArray(data?.inputs) ? data.inputs : [];
@@ -408,7 +411,7 @@ export default function EditorCanvas(): JSX.Element {
   );
 
   const nodeTypes = useMemo(() => {
-    const types: Record<string, React.ComponentType<any>> = {};
+    const types: Record<string, ComponentType<any>> = {};
     for (const [typeId, schema] of registryEntries) {
       if (!typeId) continue;
       types[typeId] = createNodeRenderer(typeId, schema, getPortsForType);
@@ -534,7 +537,7 @@ export default function EditorCanvas(): JSX.Element {
   const setSelected = useEditorStore((s) => s.setSelected);
 
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
+    (_event: MouseEvent, node: Node) => {
       setSelected(node.id);
     },
     [setSelected],
@@ -559,13 +562,13 @@ export default function EditorCanvas(): JSX.Element {
     setRfInstance(instance);
   }, []);
 
-  const onDragOver = useCallback((event: React.DragEvent) => {
+  const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
 
   const onDrop = useCallback(
-    (event: React.DragEvent) => {
+    (event: DragEvent) => {
       event.preventDefault();
       if (!rfInstance || !reactFlowWrapper.current) return;
 

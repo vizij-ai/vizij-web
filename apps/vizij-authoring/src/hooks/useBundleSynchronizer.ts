@@ -4,8 +4,8 @@ import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import { waitForNextFrame } from "../utils/frame";
 import { prepareSpecForImport } from "../utils/graphImport";
-import { useLatestRef } from "./useLatestRef";
 import type { BundleGraphWithIr } from "../types/bundle";
+import { useLatestRef } from "./useLatestRef";
 
 export interface ImportGraphSpecOptions {
   skipDiscrepancyCheck?: boolean;

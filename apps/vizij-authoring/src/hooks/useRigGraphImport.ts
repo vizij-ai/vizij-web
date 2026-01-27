@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useRef,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
-
+import { useCallback, useRef } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   buildRigGraphSpec,
   type BindingMap,
@@ -20,7 +14,6 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import type { VizijData, World } from "@vizij/render";
-
 import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
 import { rehydrateRigDataFromGraph } from "../rig/importer";
 import type { PersistedAutoStandardInput } from "../rig/persistence";

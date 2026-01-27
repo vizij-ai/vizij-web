@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import type { RigDriverGraph } from "./drivers";
 import { buildGraphFromDrivers } from "./graph-builder";
 

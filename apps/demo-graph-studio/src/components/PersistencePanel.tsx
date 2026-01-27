@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useEditorStore } from "../store/useEditorStore";
+import type { ChangeEvent } from "react";
 import {
   listNodeGraphFixtures,
   loadNodeGraphSpec,
   normalizeGraphSpec,
 } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
 import {
   downloadJsonFile,
   readJsonFile,
   useDialogQueue,
 } from "@vizij/authoring-shared";
+import { useEditorStore } from "../store/useEditorStore";
 
 /**
  * PersistencePanel
@@ -88,7 +90,7 @@ export default function PersistencePanel(): JSX.Element {
   );
 
   const importFromInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
       void onFile(f);
       e.currentTarget.value = "";

@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
+import type { MouseEvent } from "react";
 
 export type InstanceSpan = {
   id: number;
@@ -57,7 +58,7 @@ export default function Timeline({
   );
 
   const onClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: MouseEvent) => {
       if (!onSeek || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = clamp(e.clientX - rect.left, 0, rect.width);

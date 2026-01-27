@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useNodeOutput } from "@vizij/node-graph-react";
+import type { JSX } from "react/jsx-runtime";
 
 /**
  * OutputsChart

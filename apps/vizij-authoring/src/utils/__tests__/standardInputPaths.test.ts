@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-
+import type { StandardRigInput } from "@vizij/utils";
 import {
   ensureStandardPathInput,
   inferStandardSuggestion,
 } from "../standardInputPaths";
-import type { StandardRigInput } from "@vizij/utils";
 
 describe("standardInputPaths", () => {
   const standardInputs: StandardRigInput[] = [

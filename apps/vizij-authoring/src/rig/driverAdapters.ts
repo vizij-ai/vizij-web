@@ -7,7 +7,6 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
-
 import {
   ensureBindingStructure,
   type AnimatableBinding,

@@ -1,4 +1,4 @@
-import { Object3D } from "three";
+import type { Object3D } from "three";
 import * as THREE from "three";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);

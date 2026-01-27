@@ -1,28 +1,20 @@
-import {
-  ReactNode,
-  memo,
-  RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useMemo,
-} from "react";
+import { memo, useCallback, useEffect, useRef, useMemo } from "react";
+import type { ReactNode, RefObject } from "react";
 import * as THREE from "three";
 import { useShallow } from "zustand/react/shallow";
-import { ThreeEvent } from "@react-three/fiber";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { RawValue, AnimatableValue } from "@vizij/utils";
 import {
-  RawValue,
-  AnimatableValue,
   instanceOfRawEuler,
   instanceOfRawNumber,
   instanceOfRawVector2,
   instanceOfRawVector3,
 } from "@vizij/utils";
 import { useFeatures } from "../hooks/use-features";
-import { Group } from "../types/group";
+import type { Group } from "../types/group";
 import { useVizijStore } from "../hooks/use-vizij-store";
 import { createStoredRenderable } from "../functions/create-stored-data";
-import { VizijActions } from "../store-types";
+import type { VizijActions } from "../store-types";
 // eslint-disable-next-line import/no-cycle -- circular import will be fixed later
 import { Renderable } from "./renderable";
 
@@ -39,7 +31,7 @@ function InnerRenderedGroup({
   namespace,
   chain,
 }: RenderedGroupProps): ReactNode {
-  const ref = useRef<THREE.Group>() as RefObject<THREE.Group>;
+  const ref = useRef<THREE.Group>(null) as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
   const refIsNull = !group.refs[namespace]?.current;
 

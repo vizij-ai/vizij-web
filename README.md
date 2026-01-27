@@ -237,7 +237,14 @@ If the check fails, run `./scripts/install-git-hooks.sh` to fix it.
 
 ## Publishing & Versioning
 
-Publishing is coordinated through Changesets, a lightweight local script, and the tag-triggered workflow at [`.github/workflows/release-tag.yml`](.github/workflows/release-tag.yml). Pushing a `release-*` tag runs package-only verification and `changeset publish`, so only the packages that were bumped actually ship.
+Publishing is coordinated through Changesets and a tag-triggered GitHub Actions workflow.
+
+- Primary workflow: [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml)
+- Trigger: push an annotated tag matching `npm-pub-*` (or run the workflow manually via `workflow_dispatch`).
+
+This workflow versions packages (via `changeset version`), commits the release artifacts back to the branch that contains the tagged commit, runs package-only verification, and then publishes only the changed `@vizij/*` packages to npm.
+
+Legacy workflow (kept as a break-glass option): [`.github/workflows/release-tag_legacy.yml`](.github/workflows/release-tag_legacy.yml). It is now `workflow_dispatch` only.
 
 ### Prerequisites
 
@@ -250,20 +257,23 @@ Publishing is coordinated through Changesets, a lightweight local script, and th
 1. **Capture changes**
    - Run `pnpm changeset` for every feature PR that requires a release.
    - Merge the feature branch into `main`. The changeset files stay unversioned until the release cut.
-2. **Version & tag**
-   - From a clean local checkout of `main`, execute:
+2. **Tag a release commit**
+   - From a clean local checkout of the branch you want to release (usually `main`):
      ```bash
-     ./scripts/release-tag.sh
+     git tag -a "npm-pub-$(date -u '+%Y%m%d-%H%M%S')" -m "Trigger npm publish"
+     git push origin --follow-tags
      ```
-   - The script installs with a frozen lockfile, applies `changeset version`, re-installs, stages the generated changelog + package bumps, commits `chore: release`, and pushes an annotated tag named `release-YYYYMMDD-HHMMSS`.
-3. **CI publish**
-   - The `Release on Tag` workflow installs dependencies, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm run publish:packages` (`changeset publish` under the hood).
-   - Only packages with pending changesets are published, and their internal dependency ranges are synchronized automatically.
+   - CI will determine the branch containing the tag commit and check it out.
+3. **CI versions and publishes**
+   - The `publish-npm` workflow installs dependencies, runs `pnpm ci:version` (Changesets versioning), commits the generated changes, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm ci:publish`.
+   - `pnpm ci:publish` runs `scripts/ci-publish.mjs`, which temporarily rewrites `workspace:*` dependency ranges to real versions during the publish step and restores manifests afterward.
+   - Only packages with pending changesets are published.
 
 ### Tips & recovery
 
-- Need a semantic tag instead of the timestamp? Edit `scripts/release-tag.sh` to calculate `TAG` via `changeset status --output` before tagging.
-- If CI fails before the publish step, fix the issue on `main` and re-run `scripts/release-tag.sh` to generate a fresh tag. The previous tag can be deleted with `git push origin :<tag>` if needed.
+- Need a semantic tag instead of the timestamp? Use any `npm-pub-*` string that fits your conventions.
+- If CI fails before the publish step, fix the issue on the release branch and push a new `npm-pub-*` tag.
+- The legacy local-tag script is now `scripts/release-tag_legacy.sh` and is intended only for emergency use.
 - If a publish succeeds but you spot a problem, deprecate the broken version on npm and release a follow-up changeset as normal—no manual republishing required.
 
 The workflow logs the npm publish output for each changed package. After a successful run, your `main` branch already contains the release commit, so downstream work starts from the latest version state.

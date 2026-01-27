@@ -1,6 +1,7 @@
-import { Object3D, Group } from "three";
-import { AnimatableValue, RawVector2 } from "@vizij/utils";
-import { World } from "../../types";
+import type { Group } from "three";
+import { Object3D } from "three";
+import type { AnimatableValue, RawVector2 } from "@vizij/utils";
+import type { World } from "../../types";
 import { importGroup } from "./import-group";
 
 Object3D.DEFAULT_UP.set(0, 0, 1);

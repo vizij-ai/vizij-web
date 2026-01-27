@@ -22,19 +22,20 @@
     "@vizij/minimal-demo-ui": "workspace:*",
     "@vizij/value-json": "^0.1.2",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph-wasm": "^0.4.9",
+    "@vizij/node-graph-wasm": "^0.5.0",
     "@vizij/utils": "workspace:*",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
-    "@testing-library/react": "^14.3.1",
-    "@types/react": "^18.3.26",
-    "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react-swc": "^3.7.0",
+    "@testing-library/react": "^16.3.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.2.2",
     "typescript": "^5.5.0",
     "vite": "^6.3.6",
     "vitest": "^3.2.4",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "@testing-library/dom": "^10.4.1"
   }
 }

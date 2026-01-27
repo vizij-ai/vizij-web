@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import * as wasm from "@vizij/node-graph-wasm";
+import type { Registry } from "@vizij/node-graph-wasm";
 import { GraphContext } from "./GraphContext";
 import type {
   GraphRuntimeContextValue,
@@ -7,8 +9,6 @@ import type {
 } from "./types";
 import { createGraphStore } from "./utils/createGraphStore";
 import { normalizeSpec } from "./utils/normalizeSpec";
-import * as wasm from "@vizij/node-graph-wasm";
-import type { Registry } from "@vizij/node-graph-wasm";
 import { GraphReadyController } from "./runtime/graphReady";
 
 type Graph = any;

@@ -7,13 +7,13 @@ import type {
 } from "@vizij/utils";
 import type { BindingMap, BindingValueType } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
+import type { VectorDescriptorType } from "@vizij/utils";
 import {
   buildFeatureEntries,
   type FeatureEntry,
   type VectorComponent,
   type RenderableLike,
 } from "./featureEntries";
-import type { VectorDescriptorType } from "@vizij/utils";
 
 type BindingSlot = BindingMap[keyof BindingMap]["slots"][number];
 

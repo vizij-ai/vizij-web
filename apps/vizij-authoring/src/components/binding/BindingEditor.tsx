@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { requireNodeSignature } from "@vizij/node-graph-wasm/metadata";
 import {
   SELF_BINDING_ID,
@@ -25,9 +26,9 @@ import {
   type FilterableSelectOption,
 } from "../common/FilterableSelect";
 import { Button, CollapsibleRow } from "../ui";
+import { formatRigPathLabel } from "../../utils/rigPaths";
 import { createSlotKey, getSlotIdentifier } from "./slotKeys";
 import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
-import { formatRigPathLabel } from "../../utils/rigPaths";
 import "./binding-editor.css";
 
 type BindingFeatureFlags = {
@@ -384,8 +385,8 @@ interface BindingEditorProps {
     suggestedPath?: string,
   ) => StandardRigInput | null;
   onResetBinding?: (targetId: string) => void;
-  headerActions?: React.ReactNode;
-  children?: React.ReactNode;
+  headerActions?: ReactNode;
+  children?: ReactNode;
   expandable?: boolean;
   defaultExpanded?: boolean;
   expanded?: boolean;

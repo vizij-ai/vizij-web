@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import type { ChangeEvent, KeyboardEvent, SyntheticEvent } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   EXPRESSION_FUNCTION_VOCABULARY,
@@ -16,6 +17,7 @@ import {
   type ScalarFunctionDefinition,
   type ScalarFunctionVocabularyEntry,
 } from "@vizij/node-graph-authoring";
+import type { JSX } from "react/jsx-runtime";
 import {
   buildExpressionGraph,
   type ExpressionGraphResult,
@@ -206,7 +208,7 @@ export default function ExpressionAuthoringPanel(): JSX.Element {
   }, []);
 
   const handleExpressionChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
       setExpression(event.target.value);
       syncSelectionFromTarget(event.target);
       setIsHintSuppressed(false);
@@ -215,7 +217,7 @@ export default function ExpressionAuthoringPanel(): JSX.Element {
   );
 
   const handleExpressionPointer = useCallback(
-    (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    (event: SyntheticEvent<HTMLTextAreaElement>) => {
       syncSelectionFromTarget(event.currentTarget);
     },
     [syncSelectionFromTarget],
@@ -251,7 +253,7 @@ export default function ExpressionAuthoringPanel(): JSX.Element {
   );
 
   const handleExpressionKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (!showFunctionHints || !functionSuggestions.length) {
         return;
       }

@@ -1,4 +1,5 @@
-import { KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, StandardInputId } from "../types";
 import { FilterableSelect } from "../../components/common/FilterableSelect";
@@ -6,9 +7,9 @@ import { formatRigPathLabel } from "../../utils/rigPaths";
 import { slugifyLabel } from "../utils";
 import {
   Button,
-  Input,
-  CollapsibleRow,
   CollapsibleGroup,
+  CollapsibleRow,
+  Input,
 } from "../../components/ui";
 
 interface PoseEditorProps {

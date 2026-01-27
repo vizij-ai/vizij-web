@@ -1,6 +1,14 @@
-import React from "react";
+import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+  cleanup,
+} from "@testing-library/react";
+import { createOrchestrator } from "@vizij/orchestrator-wasm";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -104,7 +112,7 @@ vi.mock("@vizij/orchestrator-wasm", async () => {
   };
 });
 
-const Harness: React.FC = () => {
+const Harness: FC = () => {
   const ctx = useOrchestrator();
   const frame = useOrchFrame();
   const latest = useOrchTarget("demo/output/value");
@@ -137,6 +145,10 @@ describe("OrchestratorProvider", () => {
     orchestratorInstances.length = 0;
     stepResultRef.current = null;
     vi.clearAllMocks();
+    cleanup();
+    vi.mocked(createOrchestrator).mockImplementation(async () =>
+      makeInstance(),
+    );
   });
 
   const renderHarness = () =>
@@ -198,5 +210,63 @@ describe("OrchestratorProvider", () => {
 
     const instance = orchestratorInstances[0];
     expect(instance.step).toHaveBeenCalledWith(1 / 60);
+  });
+
+  it("does not set state after unmount when create resolves late", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    let resolveCreate: ((value: OrchestratorMock) => void) | null = null;
+    vi.mocked(createOrchestrator).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    const { unmount } = render(
+      <OrchestratorProvider autostart={false}>
+        <Harness />
+      </OrchestratorProvider>,
+    );
+
+    // Unmount before the async create resolves.
+    unmount();
+
+    await act(async () => {
+      resolveCreate?.(makeInstance());
+      await Promise.resolve();
+    });
+
+    expect(consoleError).not.toHaveBeenCalled();
+    vi.mocked(createOrchestrator).mockImplementation(async () =>
+      makeInstance(),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("handles mount/unmount/remount without leaving ready false", async () => {
+    const first = render(
+      <OrchestratorProvider autostart={false}>
+        <Harness />
+      </OrchestratorProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("ready").textContent).toBe("ready"),
+    );
+    first.unmount();
+
+    const second = render(
+      <OrchestratorProvider autostart={false}>
+        <Harness />
+      </OrchestratorProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("ready").textContent).toBe("ready"),
+    );
+    second.unmount();
+
+    expect(vi.mocked(createOrchestrator)).toHaveBeenCalledTimes(2);
   });
 });

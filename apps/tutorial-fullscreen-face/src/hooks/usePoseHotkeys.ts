@@ -115,7 +115,7 @@ export function usePoseHotkeys(
       animateValue(binding.path, { float: weight }, { duration: 2 });
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       const binding = bindings.get(event.code);
       if (!binding) {
         return;
@@ -127,7 +127,7 @@ export function usePoseHotkeys(
       applyWeight(binding, 1);
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
+    const handleKeyUp = (event: globalThis.KeyboardEvent) => {
       const binding = bindings.get(event.code);
       if (!binding) {
         return;
