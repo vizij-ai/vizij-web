@@ -9,6 +9,9 @@ import {
 import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
+import { OrchestratorProvider } from "@vizij/orchestrator-react";
+import type { VizijBundleExtension } from "@vizij/render";
+import type { StandardRigInput } from "@vizij/utils";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
 import { Viewer } from "./components/app/Viewer";
 import { WorkbenchNav } from "./components/app/WorkbenchNav";
@@ -42,13 +45,10 @@ import { RiggingTabs } from "./components/app/RiggingTabs";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
 import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
-import { OrchestratorProvider } from "@vizij/orchestrator-react";
-import type { VizijBundleExtension } from "@vizij/render";
 import {
   ReferenceFaceProvider,
   type ReferenceFaceState,
 } from "./state/ReferenceFaceContext";
-import type { StandardRigInput } from "@vizij/utils";
 import {
   extractBindingsFromBundle,
   getInputIdsWithBindings,
