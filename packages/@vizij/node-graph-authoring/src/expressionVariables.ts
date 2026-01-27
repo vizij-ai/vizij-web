@@ -31,7 +31,8 @@ export interface RegisterSlotVariableOptions extends SlotVariableMetadata {
   nodeId: string;
 }
 
-export interface RegisterReservedVariableOptions extends ReservedVariableMetadata {
+export interface RegisterReservedVariableOptions
+  extends ReservedVariableMetadata {
   name: string;
   nodeId: string | null;
   description?: string;

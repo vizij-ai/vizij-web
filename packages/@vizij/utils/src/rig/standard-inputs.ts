@@ -152,10 +152,8 @@ export function deriveStandardRigInputIdFromPath(path: string): string {
   return path.replace(/\//g, "_").replace(/^_+/, "");
 }
 
-export interface StandardRigInputInit extends Omit<
-  StandardRigInput,
-  "id" | "path"
-> {
+export interface StandardRigInputInit
+  extends Omit<StandardRigInput, "id" | "path"> {
   path: string;
   id?: string;
 }
