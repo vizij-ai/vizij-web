@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import type { JSX } from "react/jsx-runtime";
 import type { StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { SidebarSection } from "../common/SidebarSection";
