@@ -30,7 +30,7 @@ describe("resolvePersistedAutoKey", () => {
 });
 
 describe("normalizePersistedStandardInputs", () => {
-  it("retains preset auto entries and preserves metadata", () => {
+  it("strips standard prefix and preserves metadata for auto entries", () => {
     const canonical = createStandardRigInputFromPath("/standard/mouth/pos/x");
     const descriptor: PersistedAutoStandardInput = {
       id: canonical.id,
