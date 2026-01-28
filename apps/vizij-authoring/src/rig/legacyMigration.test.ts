@@ -30,7 +30,7 @@ describe("resolvePersistedAutoKey", () => {
 });
 
 describe("normalizePersistedStandardInputs", () => {
-  it("retains preset auto entries and preserves metadata", () => {
+  it("strips standard prefix and preserves metadata for auto entries", () => {
     const canonical = createStandardRigInputFromPath("/standard/mouth/pos/x");
     const descriptor: PersistedAutoStandardInput = {
       id: canonical.id,
@@ -53,10 +53,10 @@ describe("normalizePersistedStandardInputs", () => {
     const normalized = autoEntries.get("auto-mouth-pos-x");
     expect(normalized).toMatchObject({
       id: canonical.id,
-      path: canonical.path,
+      path: "/mouth/pos/x",
       sourceId: descriptor.sourceId,
-      sourcePath: canonical.path,
-      group: "standard",
+      sourcePath: "/mouth/pos/x",
+      group: "mouth",
       label: descriptor.label,
       defaultValue: descriptor.defaultValue,
     });
