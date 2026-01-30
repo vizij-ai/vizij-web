@@ -123,6 +123,7 @@ pnpm dev:vizij-ws-app -- -- --glb /path/to/avatar.glb --fullscreen
 
 ```bash
 cd apps/vizij-ws-app
+pnpm install
 pnpm tauri build
 ```
 
@@ -163,7 +164,7 @@ On Linux/macOS:
 
 ## WebSocket Protocol
 
-Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
+Connect to `ws://localhost:9000` (or your configured port) and send JSON messages using e.g. https://websocketking.com/
 
 ### Update Values
 
