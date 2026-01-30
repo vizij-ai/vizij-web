@@ -252,7 +252,23 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
             let port = cli.port;
-            let glb_source = cli.glb.clone();
+            // Resolve relative paths to absolute paths (URLs are passed through unchanged)
+            let glb_source = cli.glb.clone().map(|src| {
+                if src.starts_with("http://") || src.starts_with("https://") {
+                    src
+                } else {
+                    // Fix over-escaped backslashes from npm/pnpm on Windows
+                    // Each layer doubles backslashes: \ -> \\ -> \\\\ -> \\\\\\\\
+                    let mut normalized = src;
+                    while normalized.contains("\\\\") {
+                        normalized = normalized.replace("\\\\", "\\");
+                    }
+                    // Try to canonicalize the path to an absolute path
+                    std::fs::canonicalize(&normalized)
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or(normalized)
+                }
+            });
 
             // Set up the application state
             app.manage(AppState {
