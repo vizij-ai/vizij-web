@@ -112,7 +112,7 @@ pnpm install
 pnpm dev:vizij-ws-app
 
 # Pass CLI arguments
-pnpm dev:vizij-ws-app -- -- --glb /path/to/avatar.glb --fullscreen
+pnpm dev:vizij-ws-app -- -- -- --glb /path/to/avatar.glb --fullscreen
 ```
 
 ---
