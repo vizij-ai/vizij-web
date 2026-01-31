@@ -42,8 +42,8 @@ export function RiggingMorphTargetsSection({ node }: RiggingMorphTargetsSectionP
     }
 
     return (
-        <div className="flex flex-col gap-1 p-2 bg-slate-900/40 rounded-lg border border-slate-800/50 mt-1">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">
+        <div className="flex flex-col gap-0.5 p-1.5 bg-slate-900/40 rounded-lg border border-slate-800/50 mt-0.5">
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 px-0.5">
                 Morph Targets
             </div>
 
@@ -114,10 +114,10 @@ function RiggingScalarRow({
         const val = isDefault ? defaultValue : currentValue;
         const canEdit = isBound;
         return (
-            <div className={`flex items-center bg-slate-950/50 rounded border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0`}>
+            <div className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5`}>
                 <input
                     type="number"
-                    className="w-full bg-transparent border-0 text-xs p-1 h-6 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners"
+                    className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none pl-1"
                     value={typeof val === 'number' ? Math.round(val * 100) / 100 : 0}
                     step={0.1}
                     disabled={!canEdit}

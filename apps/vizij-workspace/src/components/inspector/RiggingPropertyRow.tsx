@@ -44,7 +44,7 @@ export function RiggingPropertyRow({
                 className
             )}
         >
-            <div className="flex items-center gap-2 p-1 pl-2 min-h-[32px]">
+            <div className="flex items-center gap-1.5 p-0.5 pl-1.5 min-h-[24px]">
                 {/* Expand Toggle or Icon */}
                 {renderDefaultInput ? (
                     <button
@@ -52,9 +52,9 @@ export function RiggingPropertyRow({
                         className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 focus:outline-none"
                     >
                         {isExpanded ? (
-                            <ChevronDown size={14} />
+                            <ChevronDown size={12} />
                         ) : (
-                            <ChevronRight size={14} />
+                            <ChevronRight size={12} />
                         )}
                     </button>
                 ) : (
@@ -62,7 +62,7 @@ export function RiggingPropertyRow({
                 )}
 
                 {/* Label */}
-                <span className="text-[11px] font-medium text-slate-300 select-none w-20 flex-shrink-0 truncate cursor-default" title={label}>
+                <span className="text-[10px] font-medium text-slate-300 select-none w-14 flex-shrink-0 truncate cursor-default" title={label}>
                     {label}
                 </span>
 

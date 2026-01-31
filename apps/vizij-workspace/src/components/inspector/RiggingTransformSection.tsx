@@ -32,8 +32,8 @@ export function RiggingTransformSection({ node }: RiggingTransformSectionProps) 
     }
 
     return (
-        <div className="flex flex-col gap-1 p-2 bg-slate-900/40 rounded-lg border border-slate-800/50">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">
+        <div className="flex flex-col gap-0.5 p-1.5 bg-slate-900/40 rounded-lg border border-slate-800/50">
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 px-0.5">
                 Transform
             </div>
 
@@ -162,14 +162,14 @@ function RiggingVectorRow({
     };
 
     const renderInputs = (isDefault: boolean) => (
-        <div className="flex gap-1 flex-1">
+        <div className="flex gap-0.5 flex-1">
             {components.map((c, i) => {
                 const val = isDefault ? c.defaultValue : c.currentValue;
-                const canEdit = c.isBound; // Limits editing to bound values for now
+                const canEdit = c.isBound;
 
                 return (
-                    <div key={i} className={`flex items-center bg-slate-950/50 rounded border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0`}>
-                        <span className={`text-[10px] font-bold px-1.5 select-none ${c.componentLabel === 'X' ? 'text-red-500' :
+                    <div key={i} className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5`}>
+                        <span className={`text-[9px] font-bold px-1 select-none ${c.componentLabel === 'X' ? 'text-red-500' :
                             c.componentLabel === 'Y' ? 'text-green-500' :
                                 c.componentLabel === 'Z' ? 'text-blue-500' : 'text-slate-500'
                             }`}>
@@ -177,7 +177,7 @@ function RiggingVectorRow({
                         </span>
                         <input
                             type="number"
-                            className="w-full bg-transparent border-0 text-xs p-1 h-6 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners"
+                            className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
                             value={typeof val === 'number' ? Math.round(val * 100) / 100 : 0}
                             step={0.1}
                             disabled={!canEdit}

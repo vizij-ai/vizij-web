@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { Box, Folder } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -206,9 +207,19 @@ export function HierarchyPanel({
                             </span>
 
                             <span className="flex items-center gap-1.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-[9px] font-bold uppercase tracking-tighter bg-slate-800 px-1 rounded text-slate-500">
-                                    {node.type.slice(0, 3)}
-                                </span>
+                                {(() => {
+                                    const isShape = node.type.toLowerCase() === 'shape';
+                                    const Icon = isShape ? Box : Folder;
+                                    const typeLabel = isShape ? "Shape" : "Group";
+                                    return (
+                                        <span
+                                            className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
+                                            title={typeLabel}
+                                        >
+                                            <Icon size={10} strokeWidth={2.5} />
+                                        </span>
+                                    );
+                                })()}
                                 {node.features.length > 0 && (
                                     <span className="text-[9px] text-slate-500 font-mono">
                                         {node.features.length}

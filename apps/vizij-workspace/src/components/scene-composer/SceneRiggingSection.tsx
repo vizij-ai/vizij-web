@@ -32,15 +32,16 @@ export function SceneRiggingSection({
   const activeResult = useActiveNode();
 
   if (!activeResult?.node) {
-    return <div className="p-4 text-xs text-slate-500">Select an object</div>;
+    return <div className="p-1 text-xs text-slate-500">Select an object</div>;
   }
 
   return (
     <div className="scene-rigging-section">
       {/* Hierarchy moved to main sidebar */}
-      {showCoverage ? (
+      {/* Standard Input Coverage Panel hidden as requested */}
+      {/* {showCoverage ? (
         <StandardInputCoveragePanel showMissingList={showMissingList} />
-      ) : null}
+      ) : null} */}
       <RiggingInspector node={activeResult?.node} />
     </div>
   );

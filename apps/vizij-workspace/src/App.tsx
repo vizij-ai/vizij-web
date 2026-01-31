@@ -727,7 +727,7 @@ function AppContent({ loader }: AppContentProps) {
     switch (id) {
       case "scene-composer":
         return (
-          <div className="flex flex-col gap-4 p-4 h-full">
+          <div className="flex flex-col gap-2 p-2 h-full">
             {showRiggingTabs && (
               <RiggingTabs
                 activeTab={activeRiggingTab}
@@ -753,14 +753,14 @@ function AppContent({ loader }: AppContentProps) {
         );
       case "pose-rig":
         return (
-          <div className="sidebar__panel--pose p-4 h-full">
+          <div className="sidebar__panel--pose p-1 h-full">
             <PoseRigWorkbench onImportPoseGraph={handleImportPoseGraphFile} />
           </div>
         );
       case "std-feature-spaces":
         return (
           <ReferenceFaceProvider value={referenceFaceContextValue}>
-            <div className="p-4 h-full">
+            <div className="p-1 h-full">
               <StdFeatureSpacesEditor onSelectFile={setSecondFaceFileToLoad} />
             </div>
           </ReferenceFaceProvider>
