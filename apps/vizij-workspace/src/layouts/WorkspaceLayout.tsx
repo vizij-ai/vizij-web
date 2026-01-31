@@ -76,7 +76,7 @@ export function WorkspaceLayout({
                                         </Panel>
                                     )}
 
-                                    {leftTopVisible && leftBottomVisible && <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />}
+                                    {leftTopVisible && leftBottomVisible && <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />}
 
                                     {leftBottomVisible && (
                                         <Panel defaultSize={leftTopVisible ? 50 : 100} minSize={5} id="left-bottom">
@@ -87,7 +87,7 @@ export function WorkspaceLayout({
                                     )}
                                 </Group>
                             </Panel>
-                            <Separator className="w-1 bg-background hover:bg-blue-600 transition-colors" />
+                            <Separator className="w-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
                         </>
                     )}
 
@@ -111,7 +111,7 @@ export function WorkspaceLayout({
 
                             {bottomVisible && (
                                 <>
-                                    <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />
+                                    <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
                                     {/* Bottom Timeline */}
                                     <Panel defaultSize={30} minSize={5} collapsible id="bottom-panel">
                                         <div className="h-full border-t border-border bg-slate-900 overflow-auto">
@@ -127,7 +127,7 @@ export function WorkspaceLayout({
                     {/* Right Sidebar */}
                     {rightSidebarVisible && (
                         <>
-                            <Separator className="w-1 bg-background hover:bg-blue-600 transition-colors" />
+                            <Separator className="w-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
                             <Panel defaultSize={20} minSize={5} collapsible id="right-sidebar">
                                 <Group orientation="vertical">
                                     {rightTopVisible && (
@@ -138,7 +138,7 @@ export function WorkspaceLayout({
                                         </Panel>
                                     )}
 
-                                    {rightTopVisible && rightBottomVisible && <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />}
+                                    {rightTopVisible && rightBottomVisible && <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />}
 
                                     {rightBottomVisible && (
                                         <Panel defaultSize={rightTopVisible ? 40 : 100} minSize={5} id="right-bottom">

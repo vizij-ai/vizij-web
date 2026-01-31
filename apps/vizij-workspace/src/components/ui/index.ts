@@ -24,3 +24,4 @@ export { ListRow } from "./ListRow";
 export { Modal, type ModalProps } from "./Modal";
 export { Select, type SelectProps, type SelectOption } from "./Select";
 export { Combobox, type ComboboxProps, type ComboboxOption } from "./Combobox";
+export { Tooltip } from "./Tooltip";

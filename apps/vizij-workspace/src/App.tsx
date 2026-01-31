@@ -6,6 +6,11 @@ import {
   useId,
   useRef,
 } from "react";
+import {
+  Panel as ResizablePanel,
+  Group as PanelGroup,
+  Separator as PanelResizeHandle
+} from "react-resizable-panels";
 import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
@@ -17,7 +22,7 @@ import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
 
 import { useWorkspaceStore } from "./state/workspaceStore";
-import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem } from "./components/ui/MenuBar";
+import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem, MenuLabel } from "./components/ui/MenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { TreePanel } from "./components/panels/TreePanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
@@ -262,7 +267,7 @@ function AppContent({ loader }: AppContentProps) {
   const handleLoadAssetFromUrl = useCallback(async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch ${url}`);
+      if (!response.ok) throw new Error(`Failed to fetch ${url} `);
       const blob = await response.blob();
       const file = new File([blob], filename, { type: 'model/gltf-binary' });
 
@@ -357,7 +362,7 @@ function AppContent({ loader }: AppContentProps) {
     (inputId: string, value: number) => {
       const input = refFaceStandardInputsById.get(inputId);
       if (!input) {
-        console.warn(`[App] Unknown reference face input ID: ${inputId}`);
+        console.warn(`[App] Unknown reference face input ID: ${inputId} `);
         return;
       }
       setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
@@ -557,10 +562,10 @@ function AppContent({ loader }: AppContentProps) {
       return "Loading Vizij…";
     }
     if (error) {
-      return `Failed to load Vizij: ${error}`;
+      return `Failed to load Vizij: ${error} `;
     }
     if (rootId) {
-      return `Loaded ${sourceName ?? "Vizij"}`;
+      return `Loaded ${sourceName ?? "Vizij"} `;
     }
     return "Load a Vizij GLB to begin.";
   }, [error, isLoading, rootId, sourceName]);
@@ -623,24 +628,30 @@ function AppContent({ loader }: AppContentProps) {
         <MenuItem>Redo</MenuItem>
       </Menu>
       <Menu label="View">
+        <MenuLabel>Left Panel</MenuLabel>
         <MenuCheckboxItem checked={panels.tree.isVisible} onCheckedChange={() => togglePanel("tree")}>
-          Explorer Panel
+          Explorer
         </MenuCheckboxItem>
         <MenuCheckboxItem checked={panels.hierarchy.isVisible} onCheckedChange={() => togglePanel("hierarchy")}>
-          Hierarchy Panel
+          Hierarchy
         </MenuCheckboxItem>
         <MenuCheckboxItem checked={panels.variables.isVisible} onCheckedChange={() => togglePanel("variables")}>
-          Variables Panel
+          Variables
         </MenuCheckboxItem>
+
         <MenuSeparator />
+        <MenuLabel>Center Panel</MenuLabel>
+        <MenuCheckboxItem checked={panels.animation.isVisible} onCheckedChange={() => togglePanel("animation")}>
+          Timeline
+        </MenuCheckboxItem>
+
+        <MenuSeparator />
+        <MenuLabel>Right Panel</MenuLabel>
         <MenuCheckboxItem checked={panels.inspector.isVisible} onCheckedChange={() => togglePanel("inspector")}>
           Inspector
         </MenuCheckboxItem>
         <MenuCheckboxItem checked={panels.debug.isVisible} onCheckedChange={() => togglePanel("debug")}>
-          Debug Panel
-        </MenuCheckboxItem>
-        <MenuCheckboxItem checked={panels.animation.isVisible} onCheckedChange={() => togglePanel("animation")}>
-          Timeline
+          Debug
         </MenuCheckboxItem>
       </Menu>
     </MenuBar>
@@ -705,21 +716,27 @@ function AppContent({ loader }: AppContentProps) {
         }
         leftBottomVisible={panels.hierarchy.isVisible || panels.variables.isVisible}
         leftBottomPanel={
-          <div className="flex flex-col h-full w-full">
+          <PanelGroup orientation="vertical" className="h-full w-full">
             {panels.hierarchy.isVisible && (
-              <div className={`flex-1 min-h-0 ${panels.variables.isVisible ? "border-b border-[#334155]" : ""}`}>
-                <HierarchyPanel
-                  showSelectionGlow={showSelectionGlow}
-                  onToggleSelectionGlow={setShowSelectionGlow}
-                />
-              </div>
+              <>
+                <ResizablePanel defaultSize={50} minSize={10} className="flex flex-col min-h-0">
+                  <HierarchyPanel
+                    showSelectionGlow={showSelectionGlow}
+                    onToggleSelectionGlow={setShowSelectionGlow}
+                  />
+                </ResizablePanel>
+                {panels.variables.isVisible && (
+                  <PanelResizeHandle className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors shrink-0" />
+                )}
+              </>
             )}
+
             {panels.variables.isVisible && (
-              <div className="flex-1 min-h-0">
+              <ResizablePanel defaultSize={50} minSize={10} className="flex flex-col min-h-0">
                 <VariablesPanel />
-              </div>
+              </ResizablePanel>
             )}
-          </div>
+          </PanelGroup>
         }
 
         // Center

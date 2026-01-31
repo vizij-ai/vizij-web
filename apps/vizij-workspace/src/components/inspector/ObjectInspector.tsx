@@ -65,82 +65,77 @@ export function ObjectInspector({
 
   if (!node) {
     return (
-      <Panel className="object-inspector">
-        <p className="sidebar__empty">
-          Select an object to view its properties.
-        </p>
+      <Panel className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0">
+        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
+          <p className="font-medium text-slate-400">Select an object to view properties</p>
+        </div>
       </Panel>
     );
   }
 
   return (
-    <Panel className="object-inspector">
-      <ObjectHeader
-        name={node.name || node.id}
-        typeLabel={node.type}
-        id={node.id}
-        onNameChange={(name) => handleRenameShape(node.id, name)}
-      />
-      {allowNodeActions ? (
-        <SelectionActions
-          node={node}
-          objects={objects}
-          onDuplicate={duplicateNode}
-          onDelete={deleteNode}
-          onReparent={reparentNode}
+    <Panel className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0">
+      <div className="flex flex-col gap-3 p-1">
+        <ObjectHeader
+          name={node.name || node.id}
+          typeLabel={node.type}
+          id={node.id}
+          onNameChange={(name) => handleRenameShape(node.id, name)}
         />
-      ) : null}
-      {showMaterialEditor ? <MaterialEditor node={node} /> : null}
-      <InstructionCallout
-        label="Inspector tabs overview"
-        summary="Switch between drivers, bindings, and default animatable props"
-        size="compact"
-      >
-        <ul>
-          <li>
-            Drivers expose the live controls feeding this object—great for quick
-            pose tweaks.
-          </li>
-          <li>
-            Bindings list every slot wired into the rig graph plus their target
-            metadata.
-          </li>
-          <li>
-            Default Animatable Props shows the untouched feature values for fast
-            resets.
-          </li>
-        </ul>
-      </InstructionCallout>
+        {allowNodeActions ? (
+          <SelectionActions
+            node={node}
+            objects={objects}
+            onDuplicate={duplicateNode}
+            onDelete={deleteNode}
+            onReparent={reparentNode}
+          />
+        ) : null}
+        {showMaterialEditor ? <MaterialEditor node={node} /> : null}
+        <InstructionCallout
+          label="Inspector tabs"
+          summary="Switch between drivers, bindings, and default props"
+          size="compact"
+        >
+          <ul className="list-disc pl-4 space-y-1 text-slate-300">
+            <li>Drivers expose live controls (pose tweaks).</li>
+            <li>Bindings list wired slots & target metadata.</li>
+            <li>Default Props show untouched values for resets.</li>
+          </ul>
+        </InstructionCallout>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(id) => setActiveTab(id as InspectorTab)}
-        items={tabs}
-        renderPanel={(tabId) => {
-          if (tabId === "drivers")
-            return (
-              <DriverPanel
-                node={node}
-                hiddenMode={hiddenMode}
-                showHideControls={showHideControls}
-                allowCreate={allowCreateDrivers}
-              />
-            );
-          if (tabId === "bindings")
-            return (
-              <>
-                <DriverBindingSection node={node} />
-                <FeatureList
+        <Tabs
+          value={activeTab}
+          onValueChange={(id) => setActiveTab(id as InspectorTab)}
+          items={tabs}
+          size="sm"
+          variant="underline"
+          renderPanel={(tabId) => {
+            if (tabId === "drivers")
+              return (
+                <DriverPanel
                   node={node}
-                  mode="bindings"
                   hiddenMode={hiddenMode}
                   showHideControls={showHideControls}
+                  allowCreate={allowCreateDrivers}
                 />
-              </>
-            );
-          return <FeatureList node={node} mode="features" hiddenMode="none" />;
-        }}
-      />
+              );
+            if (tabId === "bindings")
+              return (
+                <>
+                  <DriverBindingSection node={node} />
+                  <FeatureList
+                    node={node}
+                    mode="bindings"
+                    hiddenMode={hiddenMode}
+                    showHideControls={showHideControls}
+                  />
+                </>
+              );
+            return <FeatureList node={node} mode="features" hiddenMode="none" />;
+          }}
+        />
+      </div>
     </Panel>
   );
 }
@@ -188,11 +183,12 @@ function SelectionActions({
   );
 
   return (
-    <div className="object-inspector__actions">
-      <div className="object-inspector__actions-buttons">
+    <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 mx-1">
+      <div className="flex gap-2">
         <Button
           variant="secondary"
           size="sm"
+          className="flex-1 h-8 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
           onClick={() =>
             onDuplicate(node.id, {
               includeChildren: true,
@@ -205,14 +201,16 @@ function SelectionActions({
         <Button
           variant="danger"
           size="sm"
+          className="flex-1 h-8 text-[11px] font-semibold"
           onClick={() => onDelete(node.id, { includeChildren: true })}
         >
           Delete
         </Button>
       </div>
-      <div className="object-inspector__reparent">
-        <label htmlFor="inspector-reparent-select">Parent</label>
+      <div className="flex items-center gap-2 pt-1">
+        <span className="text-[10px] font-bold text-slate-500 uppercase">Parent</span>
         <Select
+          className="flex-1"
           value={parentId}
           options={[
             { value: "", label: "Scene root" },
@@ -227,6 +225,7 @@ function SelectionActions({
         <Button
           variant="secondary"
           size="sm"
+          className="h-8 px-3 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
           onClick={() => onReparent(node.id, parentId === "" ? null : parentId)}
           disabled={parentOptions.length === 0}
         >

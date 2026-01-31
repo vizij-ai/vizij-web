@@ -5,7 +5,9 @@ import type {
   ElementType,
 } from "react";
 import type { JSX } from "react/jsx-runtime";
+import { Info } from "lucide-react";
 import { Badge } from "./Badge";
+import { Tooltip } from "./Tooltip";
 import { cn } from "../../utils/cn";
 
 type BaseProps = {
@@ -66,17 +68,17 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
       {...rest}
     >
       {hasHeader && (
-        <header className="flex justify-between items-start gap-4">
-          <div className="flex flex-col gap-1">
+        <header className="flex justify-between items-center gap-4 min-h-[24px]">
+          <div className="flex items-center gap-2 pl-1">
             {title ? (
-              <p className="text-sm font-semibold text-slate-200 m-0 leading-tight">
+              <p className="text-sm font-semibold text-slate-200 m-0 leading-tight pl-2">
                 {title}
               </p>
             ) : null}
             {description ? (
-              <p className="text-xs text-slate-400 m-0 leading-snug">
-                {description}
-              </p>
+              <Tooltip content={description} side="right">
+                <Info className="w-3.5 h-3.5 text-slate-500 hover:text-blue-400 transition-colors cursor-help" />
+              </Tooltip>
             ) : null}
           </div>
           {(badge || actions) && (

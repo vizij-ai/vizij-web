@@ -238,55 +238,59 @@ export function HierarchyPanel({
 
     return (
         <Panel
-            className="flex-1 min-h-0"
-            title="Scene Hierarchy"
+            className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+            title="Face Hierarchy"
             description="Select objects via the tree or viewport to drive the inspector."
-            badge={`${objects.length} ${objects.length === 1 ? "node" : "nodes"}`}
+            badge={`${objects.length} node${objects.length === 1 ? "" : "s"}`}
         >
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
+            <div className="flex flex-col h-full gap-3 p-1">
+                <div className="flex items-center gap-2 px-1">
+                    <div className="relative flex-1 group">
+                        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                        </div>
                         <input
                             type="search"
-                            className="w-full h-8 rounded-md bg-slate-950/50 border border-slate-800 px-3 py-1 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
+                            className="w-full h-9 rounded-xl bg-slate-900/50 border border-slate-800/80 pl-8 pr-3 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all font-medium"
                             placeholder="Filter hierarchy..."
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800/30 border border-slate-800/50">
-                        <span className="text-[10px] uppercase font-bold text-slate-500">Glow</span>
-                        <Switch
-                            checked={showSelectionGlow}
-                            onChange={onToggleSelectionGlow}
-                        />
-                    </div>
                 </div>
 
-                {allowEditActions && (
-                    <div className="flex flex-col gap-2 p-2 rounded-lg bg-slate-800/20 border border-slate-800/40">
+                {allowEditActions && selectedId && (
+                    <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 mx-1">
+                        <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-1">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Actions</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] tracking-tight font-medium text-slate-500">Glow</span>
+                                <Switch
+                                    checked={showSelectionGlow}
+                                    onChange={onToggleSelectionGlow}
+                                />
+                            </div>
+                        </div>
                         <div className="flex gap-2">
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="flex-1 h-7 text-[11px]"
+                                className="flex-1 h-8 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
                                 onClick={handleDuplicateSelection}
-                                disabled={!selectedId}
                             >
                                 Duplicate
                             </Button>
                             <Button
                                 variant="danger"
                                 size="sm"
-                                className="flex-1 h-7 text-[11px]"
+                                className="flex-1 h-8 text-[11px] font-semibold"
                                 onClick={handleDeleteSelection}
-                                disabled={!selectedId}
                             >
                                 Delete
                             </Button>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 pt-1">
                             <Select
                                 size="sm"
                                 className="flex-1"
@@ -304,7 +308,7 @@ export function HierarchyPanel({
                             <Button
                                 variant="secondary"
                                 size="sm"
-                                className="h-7 px-3 text-[11px]"
+                                className="h-8 px-3 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
                                 onClick={handleReparentSelection}
                                 disabled={!selectedId || parentOptions.length === 0}
                             >
@@ -314,20 +318,20 @@ export function HierarchyPanel({
                     </div>
                 )}
 
-                <div className="flex-1 min-h-[200px] max-h-[400px] overflow-y-auto rounded border border-slate-800/60 bg-slate-950/30 p-1 custom-scrollbar">
+                <div className="flex-1 min-h-[200px] overflow-y-auto px-1 custom-scrollbar">
                     {!hasVisibleNodes && (
-                        <div className="flex flex-col items-center justify-center h-32 text-slate-500 text-xs italic gap-2">
+                        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
                             {search.trim().length > 0 ? (
                                 <>
-                                    <span>No results for "{search}"</span>
-                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-6 text-[10px]">Clear Filter</Button>
+                                    <span className="font-medium text-slate-400">No results for "{search}"</span>
+                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-7 text-[10px] text-blue-400 hover:text-blue-300">Clear Filter</Button>
                                 </>
                             ) : (
-                                <span>Hierarchy is empty</span>
+                                <span className="font-medium text-slate-400">Hierarchy is empty</span>
                             )}
                         </div>
                     )}
-                    <div className="flex flex-col">
+                    <div className="flex flex-col pb-4">
                         {rootNodes.map((node) => renderSubtree(node, 0))}
                     </div>
                 </div>

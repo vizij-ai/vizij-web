@@ -13,6 +13,7 @@ interface InstructionCalloutProps {
   trigger?: "self" | "external";
   contentId?: string;
   onToggle?: (nextOpen: boolean) => void;
+  icon?: ReactNode;
 }
 
 export function InstructionCallout({
@@ -25,6 +26,7 @@ export function InstructionCallout({
   trigger = "self",
   contentId,
   onToggle,
+  icon,
 }: InstructionCalloutProps) {
   const generatedId = useId();
   const resolvedContentId = contentId ?? generatedId;
@@ -58,7 +60,10 @@ export function InstructionCallout({
         data-open={open ? "true" : undefined}
       >
         <div className="flex flex-col items-start gap-1">
-          <span className="text-xs font-bold text-blue-100 uppercase tracking-wide">{label}</span>
+          <div className="flex items-center gap-2">
+            {icon && <span className="text-blue-400">{icon}</span>}
+            <span className="text-xs font-bold text-blue-100 uppercase tracking-wide">{label}</span>
+          </div>
           {summary ? (
             <span className="text-[11px] text-blue-200/60 leading-tight">{summary}</span>
           ) : null}
@@ -90,18 +95,25 @@ export function InstructionCallout({
               onClick={isControlled ? handleToggle : undefined}
               className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-slate-800/50 group"
             >
-              <div className="flex flex-col gap-0.5">
-                <span className={cn(
-                  "text-[11px] font-bold uppercase tracking-wider transition-colors",
-                  isOpenState ? "text-slate-200" : "text-slate-400 group-hover:text-slate-300"
-                )}>
-                  {label}
-                </span>
-                {summary ? (
-                  <span className="text-[10px] text-slate-500 font-medium">
-                    {summary}
+              <div className="flex items-center gap-3">
+                {icon && (
+                  <div className={cn("text-slate-500 transition-colors", isOpenState && "text-blue-400")}>
+                    {icon}
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  <span className={cn(
+                    "text-[11px] font-bold uppercase tracking-wider transition-colors",
+                    isOpenState ? "text-slate-200" : "text-slate-400 group-hover:text-slate-300"
+                  )}>
+                    {label}
                   </span>
-                ) : null}
+                  {summary ? (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {summary}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <ChevronRight
                 className={cn(

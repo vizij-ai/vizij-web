@@ -80,6 +80,14 @@ export function MenuSeparator() {
     return <div className="my-1 h-px bg-slate-800/60 mx-1" />;
 }
 
+export function MenuLabel({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-bold text-slate-500 select-none">
+            {children}
+        </div>
+    );
+}
+
 export function MenuCheckboxItem({
     children,
     checked,
