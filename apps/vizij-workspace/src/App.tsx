@@ -33,7 +33,6 @@ import { Chip, Switch, Button } from "./components/ui"; // Importing UI componen
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ExportDialog } from "./components/app/ExportDialog";
-import { SceneComposerWorkbench } from "./components/scene-composer";
 import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
@@ -59,7 +58,7 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { Panel } from "./components/ui";
-import { RiggingTabs } from "./components/app/RiggingTabs";
+import { Panel } from "./components/ui";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
 import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
@@ -467,8 +466,7 @@ function AppContent({ loader }: AppContentProps) {
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
-  const { activeWorkbench, activeRiggingTab, skipDiscrepancyCheck } = uiState;
-  const { setRiggingTab } = uiActions;
+  const { activeWorkbench, skipDiscrepancyCheck } = uiState;
 
   const poseRig = usePoseRig();
 
@@ -517,11 +515,7 @@ function AppContent({ loader }: AppContentProps) {
     },
     [uiActions],
   );
-  const handleRiggingTabChange = useCallback(
-    (tab: RiggingTab) => setRiggingTab(tab),
-    [setRiggingTab],
-  );
-  const showRiggingTabs = activeWorkbench === "scene-composer";
+
 
   const guideIdBase = useId();
   const workbenchGuideIds = useMemo(
@@ -728,27 +722,7 @@ function AppContent({ loader }: AppContentProps) {
       case "scene-composer":
         return (
           <div className="flex flex-col gap-2 p-2 h-full">
-            {showRiggingTabs && (
-              <RiggingTabs
-                activeTab={activeRiggingTab}
-                onSelect={handleRiggingTabChange}
-              />
-            )}
-            {activeRiggingTab === "rigging" && <SceneComposerWorkbench />}
-            {activeRiggingTab === "face" && (
-              <SceneRiggingSection
-                showCoverage={false}
-                showMissingList={false}
-                allowEditActions={false}
-                allowNodeActions
-                showMaterials
-                showDrivers={false}
-                showBindings={false}
-                showFeatures
-                hiddenMode="none"
-                showHideControls={false}
-              />
-            )}
+            <SceneRiggingSection />
           </div>
         );
       case "pose-rig":
@@ -768,7 +742,7 @@ function AppContent({ loader }: AppContentProps) {
       default:
         return null;
     }
-  }, [showRiggingTabs, activeRiggingTab, handleRiggingTabChange, handleImportPoseGraphFile, referenceFaceContextValue, setSecondFaceFileToLoad]);
+  }, [activeWorkbench, handleImportPoseGraphFile, referenceFaceContextValue, setSecondFaceFileToLoad]);
 
   return (
     <>
