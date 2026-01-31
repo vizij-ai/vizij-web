@@ -34,12 +34,16 @@
     height: 100%;
     border-right: 1px solid var(--border-default);
     background-color: var(--bg-panel);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .workspace-sidebar-right {
     height: 100%;
     border-left: 1px solid var(--border-default);
     background-color: var(--bg-panel);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .workspace-viewport {
@@ -54,7 +58,7 @@
     height: 100%;
     border-top: 1px solid var(--border-default);
     background-color: var(--bg-panel);
-    overflow: hidden;
+    overflow: auto;
 }
 
 .resize-handle-vertical {

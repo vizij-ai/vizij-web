@@ -31,7 +31,7 @@ export function SceneRiggingSection({
 }: SceneRiggingSectionProps) {
   return (
     <div className="scene-rigging-section">
-      <SceneHierarchyPanel allowEditActions={allowEditActions} />
+      {/* Hierarchy moved to main sidebar */}
       {showCoverage ? (
         <StandardInputCoveragePanel showMissingList={showMissingList} />
       ) : null}

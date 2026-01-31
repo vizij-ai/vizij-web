@@ -26,6 +26,7 @@ import { StudioPanel } from "./components/ui/StudioPanel";
 import { Chip, Switch, Button } from "./components/ui"; // Importing UI components for Inspector
 
 import { Viewer } from "./components/app/Viewer";
+import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { WorkbenchNav } from "./components/app/WorkbenchNav";
 import { SceneComposerWorkbench } from "./components/scene-composer";
 import { PoseRigWorkbench } from "./poseRig/components";
@@ -619,6 +620,9 @@ function AppContent({ loader }: AppContentProps) {
         <MenuCheckboxItem checked={panels.tree.isVisible} onCheckedChange={() => togglePanel("tree")}>
           Explorer Panel
         </MenuCheckboxItem>
+        <MenuCheckboxItem checked={panels.hierarchy.isVisible} onCheckedChange={() => togglePanel("hierarchy")}>
+          Hierarchy Panel
+        </MenuCheckboxItem>
         <MenuCheckboxItem checked={panels.variables.isVisible} onCheckedChange={() => togglePanel("variables")}>
           Variables Panel
         </MenuCheckboxItem>
@@ -693,8 +697,21 @@ function AppContent({ loader }: AppContentProps) {
             </div>
           </TreePanel>
         }
-        leftBottomVisible={panels.variables.isVisible}
-        leftBottomPanel={<VariablesPanel />}
+        leftBottomVisible={panels.hierarchy.isVisible || panels.variables.isVisible}
+        leftBottomPanel={
+          <div className="flex flex-col h-full w-full">
+            {panels.hierarchy.isVisible && (
+              <div className={`flex-1 min-h-0 ${panels.variables.isVisible ? "border-b border-[#334155]" : ""}`}>
+                <HierarchyPanel />
+              </div>
+            )}
+            {panels.variables.isVisible && (
+              <div className="flex-1 min-h-0">
+                <VariablesPanel />
+              </div>
+            )}
+          </div>
+        }
 
         // Center
         topPanel={
