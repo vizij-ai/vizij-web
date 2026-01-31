@@ -44,6 +44,7 @@ export interface GraphRuntimeState {
     options?: { skipDiscrepancyCheck?: boolean },
   ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
   setStoreState: VizijStoreSetter;
+  setGraphPlaybackState: (state: GraphPlaybackState) => void;
 }
 
 type GraphRuntimeStoreUpdate =
@@ -86,6 +87,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
     importedFaceId: null,
   }),
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
+  setGraphPlaybackState: noop,
 };
 
 export function createGraphRuntimeStore(

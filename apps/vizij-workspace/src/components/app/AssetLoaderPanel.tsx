@@ -1,5 +1,5 @@
 import type { ChangeEvent } from "react";
-import { Button, Card, CardBody, Input } from "../ui";
+import { Button, Panel, Input, Switch } from "../ui";
 
 interface AssetLoaderPanelProps {
   isLoading: boolean;
@@ -28,43 +28,62 @@ export function AssetLoaderPanel({
   };
 
   return (
-    <Card>
-      <CardBody className="asset-card__body--compact">
-        <div className="asset-card__group">
-          <label className="sidebar__label" htmlFor="vizij-file">
-            Load a GLB
-          </label>
-          <Input
-            id="vizij-file"
-            type="file"
-            accept=".glb,.gltf"
-            onChange={handleFileChange}
-            disabled={isLoading}
-          />
-        </div>
-
-        <p className="asset-card__hint asset-card__hint--muted">
-          Supports high-poly GLBs exported from Vizij or other DCC tools.
-        </p>
-
-        <label className="asset-card__checkbox-row">
-          <input
-            type="checkbox"
-            checked={skipDiscrepancyCheck}
-            onChange={(e) => onSkipDiscrepancyCheckChange(e.target.checked)}
-          />
-          <span>Skip discrepancy check (regenerate rig from GLB)</span>
+    <Panel
+      title="Asset Loader"
+      description="Supports high-poly GLBs exported from Vizij or other DCC tools."
+      className="flex flex-col gap-4"
+    >
+      <div className="flex flex-col gap-2">
+        <label
+          className="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+          htmlFor="vizij-file"
+        >
+          Load a GLB
         </label>
+        <Input
+          id="vizij-file"
+          type="file"
+          accept=".glb,.gltf"
+          onChange={handleFileChange}
+          disabled={isLoading}
+          className="bg-slate-950/50 border-slate-800"
+        />
+      </div>
 
-        {error && (
-          <div className="asset-card__alert" role="alert">
-            <p>{error}</p>
-            <Button variant="subtle" onClick={onClearError}>
+      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-800/50">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-slate-200">
+            Skip Discrepancy Check
+          </span>
+          <span className="text-[10px] text-slate-500">
+            Regenerate rig directly from GLB
+          </span>
+        </div>
+        <Switch
+          checked={skipDiscrepancyCheck}
+          onChange={onSkipDiscrepancyCheckChange}
+          disabled={isLoading}
+        />
+      </div>
+
+      {error && (
+        <div
+          className="flex flex-col gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 text-xs"
+          role="alert"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="flex-1">{error}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] hover:bg-red-500/20 text-red-300"
+              onClick={onClearError}
+            >
               Dismiss
             </Button>
           </div>
-        )}
-      </CardBody>
-    </Card>
+        </div>
+      )}
+    </Panel>
   );
 }

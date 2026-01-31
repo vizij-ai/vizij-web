@@ -1,6 +1,8 @@
-import { useState, useCallback } from "react";
-import type { ReactNode, KeyboardEvent, MouseEvent } from "react";
+import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import type { ReactNode } from "react";
 import { RowSlider } from "./RowSlider";
+import { cn } from "../../utils/cn";
+import { ChevronRight, ChevronDown } from "lucide-react";
 
 export interface CollapsibleRowProps {
   id: string;
@@ -35,91 +37,85 @@ export function CollapsibleRow({
   className = "",
   showSlider = true,
 }: CollapsibleRowProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-
-  const handleToggle = useCallback(() => {
-    if (!expandedContent || disabled) return;
-    setIsExpanded((prev) => !prev);
-  }, [expandedContent, disabled]);
-
-  const shouldIgnoreInteraction = useCallback((target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) return false;
-    // Only block clicks on action buttons/areas; allow empty control strip to toggle.
-    return Boolean(target.closest(".collapsible-row__actions"));
-  }, []);
-
-  const handleHeaderClick = useCallback(
-    (event: MouseEvent) => {
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      handleToggle();
-    },
-    [handleToggle, shouldIgnoreInteraction],
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (!expandedContent || disabled) return;
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        handleToggle();
-      }
-    },
-    [expandedContent, disabled, handleToggle, shouldIgnoreInteraction],
-  );
-
   const hasExpandableContent = Boolean(expandedContent);
 
   return (
-    <div
-      className={`collapsible-row ${isExpanded ? "collapsible-row--expanded" : ""} ${disabled ? "collapsible-row--disabled" : ""} ${className}`}
-      data-row-id={id}
-    >
-      <div
-        className={`collapsible-row__compact ${hasExpandableContent ? "collapsible-row__compact--clickable" : ""}`}
-        onClick={hasExpandableContent ? handleHeaderClick : undefined}
-        onKeyDown={hasExpandableContent ? handleKeyDown : undefined}
-        role={hasExpandableContent ? "button" : undefined}
-        tabIndex={hasExpandableContent && !disabled ? 0 : undefined}
-        aria-expanded={hasExpandableContent ? isExpanded : undefined}
-      >
-        <div className="collapsible-row__header">
-          {hasExpandableContent && (
-            <span className="collapsible-row__toggle-icon">
-              {isExpanded ? "▼" : "▶"}
-            </span>
+    <Disclosure defaultOpen={defaultExpanded}>
+      {({ open }) => (
+        <div
+          className={cn(
+            "bg-slate-900/40 border border-slate-800/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
+            open && hasExpandableContent && "border-blue-600/50 shadow-[0_0_0_1px_rgba(37,99,235,0.2)]",
+            disabled && "opacity-50 pointer-events-none",
+            className,
           )}
-          <div className="collapsible-row__text">
-            <span className="collapsible-row__title">{title}</span>
-            {subtitle && (
-              <span className="collapsible-row__subtitle">{subtitle}</span>
-            )}
+          data-row-id={id}
+        >
+          <div className="flex items-center gap-3">
+            <DisclosureButton
+              disabled={!hasExpandableContent || disabled}
+              className={cn(
+                "flex-1 px-2.5 py-1.5 flex items-center gap-3 text-left focus:outline-none focus:bg-slate-800/20",
+                hasExpandableContent && !disabled && "cursor-pointer hover:bg-slate-800/30",
+              )}
+            >
+              <div className="flex items-start gap-2.5 flex-grow min-w-0">
+                {hasExpandableContent && (
+                  <div className="w-3 h-3 mt-1 flex items-center justify-center shrink-0">
+                    {open ? (
+                      <ChevronDown className="w-3 h-3 text-blue-400" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3 text-slate-500" />
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span
+                    className={cn(
+                      "text-[13px] font-bold leading-tight truncate",
+                      open && hasExpandableContent ? "text-slate-100" : "text-slate-300",
+                    )}
+                  >
+                    {title}
+                  </span>
+                  {subtitle && (
+                    <span className="text-[10px] text-slate-500 truncate leading-tight font-medium">
+                      {subtitle}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </DisclosureButton>
+
+            <div className="flex items-center justify-end gap-3 shrink-0 pr-2.5 py-1.5">
+              {showSlider && value !== undefined && onValueChange && (
+                <div className="w-48">
+                  <RowSlider
+                    value={value}
+                    min={min}
+                    max={max}
+                    step={step}
+                    onChange={onValueChange}
+                    disabled={disabled}
+                  />
+                </div>
+              )}
+              {actions && (
+                <div
+                  className="flex items-center gap-1.5 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {actions}
+                </div>
+              )}
+            </div>
           </div>
+          <DisclosurePanel className="animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="h-px bg-slate-800/60 mx-3" />
+            <div className="p-4 bg-slate-950/20">{expandedContent}</div>
+          </DisclosurePanel>
         </div>
-        <div className="collapsible-row__controls">
-          {showSlider && value !== undefined && onValueChange && (
-            <RowSlider
-              value={value}
-              min={min}
-              max={max}
-              step={step}
-              onChange={onValueChange}
-              disabled={disabled}
-            />
-          )}
-          {actions && <div className="collapsible-row__actions">{actions}</div>}
-        </div>
-      </div>
-      {isExpanded && expandedContent && (
-        <>
-          <div className="collapsible-row__divider" />
-          <div className="collapsible-row__expanded">{expandedContent}</div>
-        </>
       )}
-    </div>
+    </Disclosure>
   );
 }

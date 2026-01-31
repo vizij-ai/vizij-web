@@ -21,3 +21,6 @@ export { FieldRow } from "./FieldRow";
 export { Badge, type BadgeProps } from "./Badge";
 export { Chip, type ChipProps } from "./Chip";
 export { ListRow } from "./ListRow";
+export { Modal, type ModalProps } from "./Modal";
+export { Select, type SelectProps, type SelectOption } from "./Select";
+export { Combobox, type ComboboxProps, type ComboboxOption } from "./Combobox";

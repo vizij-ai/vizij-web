@@ -22,8 +22,8 @@ export function Viewer({
   onLoadHugo,
 }: ViewerProps) {
   return (
-    <main className="viewer h-full w-full relative">
-      <div className="viewer__canvas h-full w-full">
+    <main className="h-full w-full relative bg-slate-950 overflow-hidden">
+      <div className="h-full w-full">
         {rootId ? (
           <Vizij
             rootId={rootId}
@@ -37,12 +37,15 @@ export function Viewer({
             }}
           />
         ) : (
-          <div className="viewer__placeholder flex flex-col items-center justify-center h-full text-slate-500 gap-4">
-            <p className="mb-2 text-center">Load a Vizij asset to begin.</p>
-            <div className="flex gap-4">
-              <Button onClick={onImportClick}>Import File</Button>
-              <Button variant="secondary" onClick={onLoadQuori}>Load Quori</Button>
-              <Button variant="secondary" onClick={onLoadHugo}>Load Hugo</Button>
+          <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-6 p-8 text-center animate-in fade-in duration-700">
+            <div className="flex flex-col gap-2">
+              <p className="text-slate-300 font-medium text-lg">Empty Scene</p>
+              <p className="text-sm max-w-xs mx-auto text-slate-500">Load a Vizij asset (.glb) to begin rigging and composing your scene.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={onImportClick} size="md">Import File</Button>
+              <Button variant="secondary" onClick={onLoadQuori} size="md">Load Quori</Button>
+              <Button variant="secondary" onClick={onLoadHugo} size="md">Load Hugo</Button>
             </div>
           </div>
         )}

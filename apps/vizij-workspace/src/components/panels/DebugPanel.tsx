@@ -10,6 +10,7 @@ import { GraphDiagnosticsPanel } from "../app/GraphDiagnosticsPanel";
 import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
+import { cn } from "../../utils/cn";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { cloneSerializable } from "../../utils/serialization";
@@ -243,236 +244,238 @@ export function DebugPanel({
         }
     };
 
-    const renderTabContent = () => {
-        switch (activeTab) {
-            case "playback":
-                return (
-                    <div className="flex flex-col gap-4 text-xs font-mono p-1">
-                        {/* Status Section */}
-                        <div className="space-y-2">
-                            <div className="flex justify-between">
-                                <span className="text-slate-500">Status</span>
-                                <span className={graphStatus === "ready" ? "text-green-400" : "text-yellow-400"}>
-                                    {graphStatus}
-                                </span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Face ID</span>
-                                    <input
-                                        className="bg-[var(--bg-input)] border border-[var(--border-input)] rounded px-2 py-1 text-sm w-32"
-                                        value={faceId}
-                                        onChange={(e) => handleFaceIdChange(e.target.value)}
-                                    />
-                                </div>
-                                {faceSegment && (
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-500">Segment</span>
-                                        <Chip tone="info">{faceSegment}</Chip>
-                                    </div>
-                                )}
-                                <Button
-                                    variant="secondary"
-                                    onClick={handleResetAllInputs}
-                                    className="w-full mt-1 h-6"
-                                    size="sm"
-                                >
-                                    Reset Inputs
-                                </Button>
-                            </div>
-                        </div>
-
-                        {/* Playback Controls */}
-                        <div className="pt-4 border-t border-[var(--border-default)] space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-slate-400">Graph Time</span>
-                                <span className="text-slate-200 font-bold">{formattedGraphTime}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-slate-400">FPS</span>
-                                <span>{formattedFrameRate}</span>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2 mt-2">
-                                <button
-                                    onClick={handleTogglePlayback}
-                                    className="px-2 py-1 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded text-center border border-[var(--border-element)] text-[var(--color-slate-100)]"
-                                    disabled={graphStatus !== "ready"}
-                                >
-                                    {graphPlaybackState === "playing" ? "Pause" : "Play"}
-                                </button>
-                                <button
-                                    onClick={stopGraph}
-                                    className="px-2 py-1 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded text-center border border-[var(--border-element)] text-[var(--color-slate-100)]"
-                                    disabled={graphStatus !== "ready"}
-                                >
-                                    Stop
-                                </button>
-                                <button
-                                    onClick={stepGraph}
-                                    className="px-2 py-1 bg-[var(--bg-element)] hover:bg-[var(--bg-element-hover)] rounded text-center border border-[var(--border-element)] text-[var(--color-slate-100)]"
-                                    disabled={graphStatus !== "ready"}
-                                >
-                                    Step
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            case "robot-audit":
-                return (
-                    <div className="flex flex-col gap-4">
-                        <InstructionCallout
-                            label="RobotData audit tips"
-                            summary="Catch node drift after edits or merges"
-                            size="compact"
-                        >
-                            <ul>
-                                <li>
-                                    Run the audit whenever meshes, skeletons, or RobotData sources
-                                    are edited outside Vizij.
-                                </li>
-                                <li>
-                                    Results become stale after a new GLB load—rerun before
-                                    exporting so you compare current data.
-                                </li>
-                                <li>
-                                    Use the per-node errors to jump directly to problem objects in
-                                    the scene composer.
-                                </li>
-                            </ul>
-                        </InstructionCallout>
-                        <RobotDataAuditPanel
-                            result={robotAudit.result}
-                            status={robotAudit.status}
-                            progress={robotAudit.progress}
-                            isStale={robotAudit.isResultStale}
-                            error={robotAudit.error}
-                            canRun={canRunRobotDataAudit}
-                            onRun={robotAudit.runAudit}
-                            onCancel={robotAudit.cancelAudit}
-                        />
-                    </div>
-                );
-            case "bundle-audit":
-                return (
-                    <div className="flex flex-col gap-4">
-                        <InstructionCallout
-                            label="Bundle graph checklist"
-                            summary="Keep GraphSpecs + IR aligned"
-                            size="compact"
-                        >
-                            <ol>
-                                <li>Click Refresh to rebuild graphs and record diffs.</li>
-                                <li>
-                                    Use Overwrite to push compiled specs back into the bundle so
-                                    future loads stay clean.
-                                </li>
-                                <li>
-                                    Rename outputs inline to keep downstream rig paths predictable
-                                    before exporting.
-                                </li>
-                            </ol>
-                        </InstructionCallout>
-                        <VizijBundleAuditPanel
-                            audits={bundleAudit}
-                            status={bundleAuditPanelStatus}
-                            error={bundleAuditError}
-                            onRefresh={refreshBundleAudit}
-                            onOverwrite={handleOverwriteBundleGraph}
-                            onRenameOutput={handleRenameBundleOutput}
-                        />
-                    </div>
-                );
-            case "diagnostics":
-                return (
-                    <div className="flex flex-col gap-4">
-                        <InstructionCallout
-                            label="Graph diagnostics primer"
-                            summary="Capture machine reports + IR snapshots"
-                            size="compact"
-                        >
-                            <ol>
-                                <li>
-                                    Generate a machine report after large binding changes to
-                                    capture slot metadata.
-                                </li>
-                                <li>
-                                    Download IR snapshots to diff builds or attach to bug reports.
-                                </li>
-                                <li>
-                                    Use quick links to copy CLI commands for Vizij IR diffs.
-                                </li>
-                            </ol>
-                        </InstructionCallout>
-                        <GraphDiagnosticsPanel />
-                    </div>
-                );
-            case "maintenance":
-                return (
-                    <div className="flex flex-col gap-4">
-                        <InstructionCallout
-                            label="Rig cache maintenance"
-                            summary="Clear overrides when authoring feels stale"
-                            size="compact"
-                        >
-                            <ul>
-                                <li>
-                                    Clear cached data if bindings or driver states stop matching
-                                    what the bundle reports after a reload.
-                                </li>
-                                <li>
-                                    The action wipes stored inputs, bindings, and overrides for
-                                    the current asset only.
-                                </li>
-                                <li>
-                                    Re-run audits and exports afterward to repopulate the cache
-                                    with up-to-date data.
-                                </li>
-                            </ul>
-                        </InstructionCallout>
-                        <div className="asset-card">
-                            <div className="asset-card__body asset-card__body--compact">
-                                <p className="asset-card__hint">
-                                    Clears stored overrides for the currently loaded Vizij asset.
-                                </p>
-                                <button
-                                    type="button"
-                                    className="button danger"
-                                    onClick={() => {
-                                        void handleClearCachedRig();
-                                    }}
-                                >
-                                    Clear cached rig data
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
-
     return (
         <StudioPanel title="Debug Panel">
             <div className="flex flex-col h-full overflow-hidden">
-                <div className="p-2 border-b border-[var(--border-default)] bg-[var(--bg-panel-header)]">
-                    <Tabs
-                        value={activeTab}
-                        onValueChange={(id) => setActiveTab(id as HealthTabId)}
-                        items={HEALTH_TABS}
-                        className="health-tabs"
-                        listClassName="health-tabs__button-row w-full grid grid-cols-5 gap-1"
-                        panelClassName="health-tabs__panel mt-0"
-                        renderPanel={() => null}
-                        size="sm"
-                        variant="pill"
-                    />
-                </div>
-                <div className="flex-1 overflow-y-auto p-4">
-                    {renderTabContent()}
-                </div>
+                <Tabs
+                    value={activeTab}
+                    onValueChange={(id) => setActiveTab(id as HealthTabId)}
+                    items={HEALTH_TABS}
+                    className="flex flex-col h-full overflow-hidden gap-0"
+                    listClassName="flex-none px-3"
+                    panelClassName="flex-1 overflow-y-auto p-4 custom-scrollbar"
+                    size="sm"
+                    variant="default"
+                    renderPanel={(tabId) => {
+                        switch (tabId) {
+                            case "playback":
+                                return (
+                                    <div className="flex flex-col gap-4 text-xs font-mono">
+                                        {/* Status Section */}
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center py-1 border-b border-slate-800/50">
+                                                <span className="text-slate-500">Status</span>
+                                                <span className={cn(
+                                                    "font-semibold",
+                                                    graphStatus === "ready" ? "text-green-400" : "text-yellow-400"
+                                                )}>
+                                                    {graphStatus}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col gap-3 pt-1">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-slate-500">Face ID</span>
+                                                    <input
+                                                        className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs w-32 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                        value={faceId}
+                                                        onChange={(e) => handleFaceIdChange(e.target.value)}
+                                                    />
+                                                </div>
+                                                {faceSegment && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-slate-500">Segment</span>
+                                                        <Chip tone="info">{faceSegment}</Chip>
+                                                    </div>
+                                                )}
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={handleResetAllInputs}
+                                                    className="w-full h-8 text-xs"
+                                                    size="sm"
+                                                >
+                                                    Reset All Inputs
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Playback Controls */}
+                                        <div className="pt-4 border-t border-slate-800 space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-400">Graph Time</span>
+                                                <span className="text-slate-100 font-bold text-sm">{formattedGraphTime}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-400">FPS</span>
+                                                <span className="text-slate-300">{formattedFrameRate}</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-1.5 mt-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={handleTogglePlayback}
+                                                    disabled={graphStatus !== "ready"}
+                                                    size="sm"
+                                                    className="h-8"
+                                                >
+                                                    {graphPlaybackState === "playing" ? "Pause" : "Play"}
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={stopGraph}
+                                                    disabled={graphStatus !== "ready"}
+                                                    size="sm"
+                                                    className="h-8"
+                                                >
+                                                    Stop
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={stepGraph}
+                                                    disabled={graphStatus !== "ready"}
+                                                    size="sm"
+                                                    className="h-8"
+                                                >
+                                                    Step
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            case "robot-audit":
+                                return (
+                                    <div className="flex flex-col gap-4">
+                                        <InstructionCallout
+                                            label="RobotData audit tips"
+                                            summary="Catch node drift after edits or merges"
+                                            size="compact"
+                                        >
+                                            <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                                                <li>
+                                                    Run the audit whenever meshes, skeletons, or RobotData sources
+                                                    are edited outside Vizij.
+                                                </li>
+                                                <li>
+                                                    Results become stale after a new GLB load—rerun before
+                                                    exporting so you compare current data.
+                                                </li>
+                                                <li>
+                                                    Use the per-node errors to jump directly to problem objects in
+                                                    the scene composer.
+                                                </li>
+                                            </ul>
+                                        </InstructionCallout>
+                                        <RobotDataAuditPanel
+                                            result={robotAudit.result}
+                                            status={robotAudit.status}
+                                            progress={robotAudit.progress}
+                                            isStale={robotAudit.isResultStale}
+                                            error={robotAudit.error}
+                                            canRun={canRunRobotDataAudit}
+                                            onRun={robotAudit.runAudit}
+                                            onCancel={robotAudit.cancelAudit}
+                                        />
+                                    </div>
+                                );
+                            case "bundle-audit":
+                                return (
+                                    <div className="flex flex-col gap-4">
+                                        <InstructionCallout
+                                            label="Bundle graph checklist"
+                                            summary="Keep GraphSpecs + IR aligned"
+                                            size="compact"
+                                        >
+                                            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+                                                <li>Click Refresh to rebuild graphs and record diffs.</li>
+                                                <li>
+                                                    Use Overwrite to push compiled specs back into the bundle so
+                                                    future loads stay clean.
+                                                </li>
+                                                <li>
+                                                    Rename outputs inline to keep downstream rig paths predictable
+                                                    before exporting.
+                                                </li>
+                                            </ol>
+                                        </InstructionCallout>
+                                        <VizijBundleAuditPanel
+                                            audits={bundleAudit}
+                                            status={bundleAuditPanelStatus}
+                                            error={bundleAuditError}
+                                            onRefresh={refreshBundleAudit}
+                                            onOverwrite={handleOverwriteBundleGraph}
+                                            onRenameOutput={handleRenameBundleOutput}
+                                        />
+                                    </div>
+                                );
+                            case "diagnostics":
+                                return (
+                                    <div className="flex flex-col gap-4">
+                                        <InstructionCallout
+                                            label="Graph diagnostics primer"
+                                            summary="Capture machine reports + IR snapshots"
+                                            size="compact"
+                                        >
+                                            <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+                                                <li>
+                                                    Generate a machine report after large binding changes to
+                                                    capture slot metadata.
+                                                </li>
+                                                <li>
+                                                    Download IR snapshots to diff builds or attach to bug reports.
+                                                </li>
+                                                <li>
+                                                    Use quick links to copy CLI commands for Vizij IR diffs.
+                                                </li>
+                                            </ol>
+                                        </InstructionCallout>
+                                        <GraphDiagnosticsPanel />
+                                    </div>
+                                );
+                            case "maintenance":
+                                return (
+                                    <div className="flex flex-col gap-4">
+                                        <InstructionCallout
+                                            label="Rig cache maintenance"
+                                            summary="Clear overrides when authoring feels stale"
+                                            size="compact"
+                                        >
+                                            <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                                                <li>
+                                                    Clear cached data if bindings or driver states stop matching
+                                                    what the bundle reports after a reload.
+                                                </li>
+                                                <li>
+                                                    The action wipes stored inputs, bindings, and overrides for
+                                                    the current asset only.
+                                                </li>
+                                                <li>
+                                                    Re-run audits and exports afterward to repopulate the cache
+                                                    with up-to-date data.
+                                                </li>
+                                            </ul>
+                                        </InstructionCallout>
+                                        <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                                            <p className="text-xs text-slate-400 leading-relaxed">
+                                                Clears stored overrides for the currently loaded Vizij asset.
+                                                This is useful if authoring states become desynced.
+                                            </p>
+                                            <Button
+                                                variant="danger"
+                                                className="w-full"
+                                                size="sm"
+                                                onClick={() => {
+                                                    void handleClearCachedRig();
+                                                }}
+                                            >
+                                                Clear cached rig data
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            default:
+                                return null;
+                        }
+                    }}
+                />
             </div>
         </StudioPanel>
     );

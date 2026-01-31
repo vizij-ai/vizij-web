@@ -72,9 +72,7 @@ export function ExportPanel({
             <Switch
               id="vizij-export-bundle-toggle"
               checked={includeBundle}
-              onChange={(event) =>
-                onIncludeBundleChange(event.currentTarget.checked)
-              }
+              onChange={onIncludeBundleChange}
               disabled={!canExport}
               size="sm"
             />
@@ -118,9 +116,7 @@ export function ExportPanel({
               checked={
                 includeBundle && includeAnimations && animationsAvailable
               }
-              onChange={(event) =>
-                onIncludeAnimationsChange(event.currentTarget.checked)
-              }
+              onChange={onIncludeAnimationsChange}
               disabled={!canExport || !includeBundle || !animationsAvailable}
               size="sm"
             />

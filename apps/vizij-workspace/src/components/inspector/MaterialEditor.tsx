@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { FieldRow, Button } from "../ui";
+import { FieldRow, Button, Select } from "../ui";
 
 interface MaterialEditorProps {
   node: {
@@ -37,22 +37,17 @@ export function MaterialEditor({ node }: MaterialEditorProps) {
         hint="Shared color/opacity and surfacing values"
         renderLabelInControl
         control={
-          <select
+          <Select
             value={currentMaterial?.id ?? ""}
-            onChange={(event) => assignMaterial(node.id, event.target.value)}
-          >
-            {materials.length === 0 ? (
-              <option value="" disabled>
-                No materials detected
-              </option>
-            ) : (
-              materials.map((material) => (
-                <option key={material.id} value={material.id}>
-                  {material.label} ({material.memberShapeIds.length})
-                </option>
-              ))
-            )}
-          </select>
+            onChange={(value) => assignMaterial(node.id, value)}
+            options={materials.length === 0 ? [
+              { value: "", label: "No materials detected", disabled: true }
+            ] : materials.map((material) => ({
+              value: material.id,
+              label: `${material.label} (${material.memberShapeIds.length})`,
+            }))}
+            size="sm"
+          />
         }
       />
 

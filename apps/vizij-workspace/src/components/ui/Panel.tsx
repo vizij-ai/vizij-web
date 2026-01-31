@@ -6,7 +6,7 @@ import type {
 } from "react";
 import type { JSX } from "react/jsx-runtime";
 import { Badge } from "./Badge";
-import "./panel.css";
+import { cn } from "../../utils/cn";
 
 type BaseProps = {
   as?: ElementType;
@@ -19,10 +19,10 @@ type BaseProps = {
 export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
   PropsWithChildren<
     BaseProps &
-      Omit<
-        ComponentPropsWithoutRef<TTag>,
-        "as" | "children" | "title" | "description" | "badge" | "actions"
-      >
+    Omit<
+      ComponentPropsWithoutRef<TTag>,
+      "as" | "children" | "title" | "description" | "badge" | "actions"
+    >
   >;
 
 /**
@@ -59,19 +59,28 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
 
   return (
     <section
-      className={["sidebar__panel", className].filter(Boolean).join(" ")}
+      className={cn(
+        "flex flex-col gap-3 p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200",
+        className,
+      )}
       {...rest}
     >
       {hasHeader && (
-        <header className="sidebar__panel-header">
-          <div>
-            {title ? <p className="sidebar__panel-title">{title}</p> : null}
+        <header className="flex justify-between items-start gap-4">
+          <div className="flex flex-col gap-1">
+            {title ? (
+              <p className="text-sm font-semibold text-slate-200 m-0 leading-tight">
+                {title}
+              </p>
+            ) : null}
             {description ? (
-              <p className="sidebar__panel-description">{description}</p>
+              <p className="text-xs text-slate-400 m-0 leading-snug">
+                {description}
+              </p>
             ) : null}
           </div>
           {(badge || actions) && (
-            <div className="sidebar__panel-meta">
+            <div className="flex items-center gap-2 shrink-0">
               {actions}
               {renderBadge()}
             </div>

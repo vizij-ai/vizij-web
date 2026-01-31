@@ -5,7 +5,7 @@ import { formatRigPathLabel } from "../../utils/rigPaths";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { Button, Tabs, Input } from "../../components/ui";
-import "./pose-rig-kind.css";
+import { cn } from "../../utils/cn";
 import { SceneRiggingSection } from "../../components/scene-composer/SceneRiggingSection";
 import { PoseGroupExportPanel } from "./PoseGroupExportPanel";
 import { PoseList } from "./PoseList";
@@ -81,11 +81,11 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
 
   if (!state.ready) {
     return (
-      <section className="pose-rig-workbench pose-rig-workbench--disabled">
-        <header className="pose-rig-workbench__header">
-          <div>
-            <h2>Pose Rig Workbench</h2>
-            <p>
+      <section className="flex flex-col h-full bg-slate-900/20">
+        <header className="p-6 border-b border-white/5 bg-slate-900/40">
+          <div className="max-w-2xl">
+            <h2 className="text-lg font-bold text-slate-100 tracking-tight">Pose Rig Workbench</h2>
+            <p className="text-sm text-slate-400 mt-1 leading-relaxed">
               Load a Vizij asset and configure standard inputs to enable pose
               authoring.
             </p>
@@ -176,11 +176,11 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
   };
 
   return (
-    <section className="pose-rig-workbench">
-      <header className="pose-rig-workbench__header">
+    <section className="flex flex-col h-full bg-slate-900/20">
+      <header className="px-6 py-4 border-b border-white/5 bg-slate-900/40 shrink-0">
         <div>
-          <h2>Pose Rig Workbench</h2>
-          <p>Overwrite values, build poses, and tweak graph contributions.</p>
+          <h2 className="text-lg font-bold text-slate-100 tracking-tight">Pose Rig Workbench</h2>
+          <p className="text-xs text-slate-500 mt-0.5 font-medium">Overwrite values, build poses, and tweak graph contributions.</p>
         </div>
       </header>
       <Tabs
@@ -194,7 +194,7 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
         renderPanel={(tabId) => {
           if (tabId === "edit") {
             return (
-              <div className="pose-rig-workbench__body">
+              <div className="flex-1 flex flex-col min-h-0 bg-slate-950/20">
                 <PoseList
                   poses={state.poses}
                   selectedPoseId={state.selectedPoseId}
@@ -209,37 +209,39 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
                   batchSelectedIds={batchSelection}
                   onSelectPose={handleSelectPose}
                 />
-                {isNeutralSelected ? (
-                  <NeutralEditor
-                    inputs={sortedInputs}
-                    values={currentValues}
-                    onValueChange={handleUpdateCurrentValue}
-                  />
-                ) : (
-                  <PoseEditor
-                    pose={selectedPose}
-                    inputs={sortedInputs}
-                    faceId={faceId}
-                    neutralValues={neutralValues}
-                    currentValues={currentValues}
-                    onRename={handlePoseRename}
-                    onGroupChange={handleUpdatePoseGroup}
-                    onCapture={handlePoseCapture}
-                    onApply={() => state.applyPose(selectedPose?.id ?? "")}
-                    onClear={handlePoseClear}
-                    onLiveValueChange={handleUpdateCurrentValue}
-                    onRemoveInput={handlePoseRemoveInput}
-                    onAddInput={handlePoseAddInput}
-                    hasLiveAdjustments={hasLiveAdjustments}
-                  />
-                )}
+                <div className="flex-1 overflow-y-auto p-4">
+                  {isNeutralSelected ? (
+                    <NeutralEditor
+                      inputs={sortedInputs}
+                      values={currentValues}
+                      onValueChange={handleUpdateCurrentValue}
+                    />
+                  ) : (
+                    <PoseEditor
+                      pose={selectedPose}
+                      inputs={sortedInputs}
+                      faceId={faceId}
+                      neutralValues={neutralValues}
+                      currentValues={currentValues}
+                      onRename={handlePoseRename}
+                      onGroupChange={handleUpdatePoseGroup}
+                      onCapture={handlePoseCapture}
+                      onApply={() => state.applyPose(selectedPose?.id ?? "")}
+                      onClear={handlePoseClear}
+                      onLiveValueChange={handleUpdateCurrentValue}
+                      onRemoveInput={handlePoseRemoveInput}
+                      onAddInput={handlePoseAddInput}
+                      hasLiveAdjustments={hasLiveAdjustments}
+                    />
+                  )}
+                </div>
               </div>
             );
           }
 
           if (tabId === "import") {
             return (
-              <div className="pose-rig-workbench__body">
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-950/20">
                 <PoseGroupExportPanel
                   poses={state.poses}
                   faceId={faceId}
@@ -258,17 +260,18 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
           }
 
           return (
-            <div className="pose-rig-workbench__body">
-              <div className="pose-rig-create">
-                <div className="pose-rig-create__save">
-                  <label className="field-label" htmlFor="pose-capture-name">
+            <div className="flex-1 flex flex-col min-h-0 bg-slate-950/20">
+              <div className="p-6 border-b border-white/5 bg-slate-900/30">
+                <div className="max-w-md">
+                  <label className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3 block" htmlFor="pose-capture-name">
                     Save current pose as
                   </label>
-                  <div className="pose-rig-create__row">
+                  <div className="flex gap-2">
                     <Input
                       id="pose-capture-name"
                       type="text"
-                      placeholder="Pose name"
+                      className="flex-1 h-9"
+                      placeholder="e.g. Smile Broad"
                       value={captureName}
                       onChange={(event) => setCaptureName(event.target.value)}
                       onKeyDown={(event) => {
@@ -278,24 +281,26 @@ export function PoseRigWorkbench({ onImportPoseGraph }: PoseRigWorkbenchProps) {
                         }
                       }}
                     />
-                    <Button variant="primary" onClick={handleCaptureNewPose}>
+                    <Button variant="primary" size="sm" onClick={handleCaptureNewPose} className="px-5">
                       Save Pose
                     </Button>
                   </div>
                 </div>
               </div>
 
-              <SceneRiggingSection
-                showCoverage={false}
-                allowEditActions={false}
-                showMaterials={false}
-                showDrivers
-                showBindings={false}
-                showFeatures={false}
-                hiddenMode="omit"
-                showHideControls={false}
-                allowCreateDrivers={false}
-              />
+              <div className="flex-1 overflow-y-auto">
+                <SceneRiggingSection
+                  showCoverage={false}
+                  allowEditActions={false}
+                  showMaterials={false}
+                  showDrivers
+                  showBindings={false}
+                  showFeatures={false}
+                  hiddenMode="omit"
+                  showHideControls={false}
+                  allowCreateDrivers={false}
+                />
+              </div>
             </div>
           );
         }}

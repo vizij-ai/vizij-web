@@ -12,8 +12,9 @@ import {
 } from "../../state/RigControllerProvider";
 import { BindingEditor } from "../binding";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
-import { Button, Card, CardHeader, CardBody } from "../ui";
+import { Button, Card, CardHeader, CardBody, Input, Select } from "../ui";
 import { collectDriversForNode } from "./DriverPanel";
+import { cn } from "../../utils/cn";
 
 interface DriverBindingSectionProps {
   node: SceneObjectNode;
@@ -162,24 +163,26 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
   }, [boundDriverId, handleCreateParentDriverBinding, upstreamDriverId]);
 
   const handleBoundDriverChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      setBoundDriverId(event.target.value);
+    (value: string) => {
+      setBoundDriverId(value);
     },
     [],
   );
 
   const handleUpstreamDriverChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      setUpstreamDriverId(event.target.value);
+    (value: string) => {
+      setUpstreamDriverId(value);
     },
     [],
   );
 
   if (activeDrivers.length === 0) {
     return (
-      <section className="driver-bindings">
-        <h3>Driver bindings</h3>
-        <p className="sidebar__empty">
+      <section className="flex flex-col gap-4">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 px-1">
+          Driver bindings
+        </h3>
+        <p className="text-[11px] text-slate-500 italic px-1">
           Select an object with animatable properties driven by standard inputs
           to author upstream driver bindings.
         </p>
@@ -190,59 +193,66 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
   const canCreateBinding = Boolean(boundDriverId && upstreamDriverId);
 
   return (
-    <section className="driver-bindings">
-      <div>
-        <h3>Driver bindings</h3>
-        <p className="sidebar__description">
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 px-1">
+          Driver bindings
+        </h3>
+        <p className="text-[11px] text-slate-500 px-1 leading-relaxed">
           Bind any upstream driver to the drivers controlling this object and
           author the expression using the familiar editor.
         </p>
       </div>
 
-      <div className="driver-bindings__form">
-        <label>
-          <span>Bound driver</span>
-          <select
-            value={boundDriverId}
-            onChange={handleBoundDriverChange}
-            disabled={activeDrivers.length === 0}
-          >
-            {activeDrivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>
-                {driver.path}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Upstream driver</span>
-          <select
-            value={upstreamDriverId}
-            onChange={handleUpstreamDriverChange}
-            disabled={standardInputs.length === 0}
-          >
-            {standardInputs.map((input) => (
-              <option key={input.id} value={input.id}>
-                {input.path}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-col gap-3 p-4 rounded-xl bg-slate-800/20 border border-slate-800/40 shadow-inner">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-0.5">
+              Bound driver
+            </label>
+            <Select
+              value={boundDriverId}
+              onChange={handleBoundDriverChange}
+              disabled={activeDrivers.length === 0}
+              options={activeDrivers.map((driver) => ({
+                value: driver.id,
+                label: driver.path,
+              }))}
+              size="sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-0.5">
+              Upstream driver
+            </label>
+            <Select
+              value={upstreamDriverId}
+              onChange={handleUpstreamDriverChange}
+              disabled={standardInputs.length === 0}
+              options={standardInputs.map((input) => ({
+                value: input.id,
+                label: input.path,
+              }))}
+              size="sm"
+            />
+          </div>
+        </div>
         <Button
           variant="primary"
+          className="w-full mt-1"
           onClick={handleCreateBinding}
           disabled={!canCreateBinding}
         >
-          Create binding
+          Create Binding
         </Button>
       </div>
 
       {existingBindingDrivers.length === 0 ? (
-        <p className="sidebar__hint">
+        <p className="text-[11px] text-slate-500 italic text-center py-6 bg-slate-800/10 rounded-lg border border-dashed border-slate-800/40 mx-1">
           No driver bindings yet. Create one to start editing expressions.
         </p>
       ) : (
-        <div className="driver-bindings__cards">
+        <div className="flex flex-col gap-4">
           {existingBindingDrivers.map((driver) => (
             <DriverBindingCard
               key={driver.id}
@@ -351,14 +361,23 @@ function DriverBindingCard({
       : driver.path;
 
   return (
-    <Card className="driver-binding-card">
-      <CardHeader className="driver-binding-card__header">
-        <div>
-          <strong>{displayName}</strong>
-          <span>{driver.path}</span>
+    <Card className="border-slate-800/60 bg-slate-950/20 shadow-sm overflow-hidden border-l-2 border-l-blue-500/30">
+      <CardHeader className="flex flex-row items-center justify-between px-4 py-3 bg-slate-800/20 border-b border-slate-800/40">
+        <div className="flex flex-col gap-0.5">
+          <strong className="text-[11px] font-bold text-slate-200 tracking-tight">
+            {displayName}
+          </strong>
+          <code className="text-[9px] text-blue-400 bg-blue-900/10 px-1 py-0.5 rounded w-fit">
+            {driver.path}
+          </code>
         </div>
-        <Button variant="subtle" onClick={() => onToggleExpanded(!expanded)}>
-          {expanded ? "Hide binding" : "Edit binding"}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-[10px] text-slate-400 hover:text-slate-100"
+          onClick={() => onToggleExpanded(!expanded)}
+        >
+          {expanded ? "Hide Binding" : "Edit Binding"}
         </Button>
       </CardHeader>
 

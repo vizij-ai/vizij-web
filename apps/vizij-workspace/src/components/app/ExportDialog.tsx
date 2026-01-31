@@ -9,13 +9,15 @@ import {
 import { useAuthoringFileNames } from "../../hooks/useAuthoringFileNames";
 import { useVizijExport } from "../../hooks/useVizijExport";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import { Dialog } from "../ui/Dialog";
+import { Modal } from "../ui/Modal";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel } from "./PoseRigPanels";
 import { InstructionCallout } from "../common/InstructionCallout";
 import { useAuthoringUiActions, useAuthoringUiState } from "../../state/AuthoringUiProvider";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
+import { cn } from "../../utils/cn";
+import { ChevronRight } from "lucide-react";
 
 interface ExportDialogProps {
     open: boolean;
@@ -159,18 +161,18 @@ export function ExportDialog({
 
 
     return (
-        <Dialog open={open} onClose={onClose} title="Export">
-            <div className="flex flex-col gap-6">
-                <div className="flex flex-col gap-4">
+        <Modal open={open} onClose={onClose} title="Export Settings" maxWidth="2xl">
+            <div className="space-y-6">
+                <div className="space-y-4">
                     <InstructionCallout
                         label="Export best practices"
                         summary="Name files clearly and trim payloads as needed"
                         size="compact"
                     >
-                        <ul className="list-disc pl-4 text-xs text-[var(--color-slate-400)] space-y-1">
+                        <ul className="list-disc pl-4 text-[11px] text-slate-400 space-y-1 font-medium">
                             <li>
                                 Name exports after milestones (e.g.{" "}
-                                <code>robot_v2_audit.glb</code>).
+                                <code className="text-blue-400">robot_v2_audit.glb</code>).
                             </li>
                             <li>
                                 Disable Vizij bundle or animation payloads when you only need
@@ -181,6 +183,7 @@ export function ExportDialog({
                             </li>
                         </ul>
                     </InstructionCallout>
+
                     <ExportPanel
                         exportFileName={exportFileName}
                         onExportFileNameChange={handleExportFileNameChange}
@@ -198,26 +201,44 @@ export function ExportDialog({
                     />
                 </div>
 
-                <div className="border-t border-[var(--border-subtle)] pt-4">
+                <div className="pt-2 border-t border-white/5">
                     <button
                         type="button"
-                        className="text-xs text-[var(--color-slate-500)] hover:text-[var(--color-slate-300)] flex items-center gap-2 mb-4"
+                        className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950/50 hover:bg-slate-950 border border-white/5 transition-all group"
                         onClick={() => setIsAdvancedOpen((current) => !current)}
                     >
-                        {isAdvancedOpen ? "▼" : "▶"} {isAdvancedOpen ? "Hide Advanced Options" : "Show Advanced Options"}
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "w-6 h-6 rounded-lg flex items-center justify-center bg-slate-800 text-slate-400 transition-transform duration-200",
+                                isAdvancedOpen && "rotate-90"
+                            )}>
+                                <ChevronRight className="w-4 h-4" />
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 uppercase tracking-wider">
+                                Advanced Export Options
+                            </span>
+                        </div>
+                        {isAdvancedOpen && <span className="text-[10px] font-medium text-slate-500">Legacy formats</span>}
                     </button>
 
                     {isAdvancedOpen && (
-                        <div className="flex flex-col gap-4">
-                            <p className="text-xs text-[var(--color-slate-500)] mb-2">
-                                Legacy rig graph and pose rig files remain available when required.
-                            </p>
+                        <div className="mt-4 p-4 rounded-xl bg-slate-950/30 border border-white/5 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-1 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                                <p className="text-[11px] leading-relaxed text-slate-500 font-medium">
+                                    Legacy rig graph and pose rig files remain available when required for backward compatibility or specialized pipelines.
+                                </p>
+                            </div>
+
                             <RigGraphExportPanel
                                 graphFileName={graphFileName}
                                 onGraphFileNameChange={handleGraphFileNameChange}
                                 canExport={canExport}
                                 onExportGraph={exportGraph}
                             />
+
+                            <div className="h-px bg-white/5" />
+
                             <PoseRigExportPanel
                                 rigName={poseRig.rigName}
                                 onRigNameChange={poseRig.setRigName}
@@ -237,6 +258,6 @@ export function ExportDialog({
                     )}
                 </div>
             </div>
-        </Dialog>
+        </Modal>
     );
 }

@@ -6,6 +6,7 @@ import {
   type RootBounds,
 } from "@vizij/runtime-react";
 import { FACE_ROOT_BOUNDS } from "../config/runtimeFace";
+import { cn } from "../../utils/cn";
 
 export type RuntimeFaceFrameProps = {
   label?: string;
@@ -44,24 +45,46 @@ export function RuntimeFaceFrame({
     .join(" ");
 
   return (
-    <div className={frameClassName}>
+    <div
+      className={cn(
+        "relative flex flex-col gap-2",
+        variant === "fill" && "w-full h-full",
+        variant === "sm" && "w-32 h-32",
+        variant === "md" && "w-48 h-48",
+        variant === "lg" && "w-64 h-64",
+        className,
+      )}
+    >
       {(label || subtitle) && (
-        <div className="face-frame__meta">
-          {label && <p className="face-frame__label">{label}</p>}
-          {subtitle && <p className="face-frame__subtitle">{subtitle}</p>}
+        <div className="flex flex-col gap-1 px-2">
+          {label && (
+            <p className="m-0 uppercase tracking-[0.15em] text-[10px] text-slate-500 font-bold">
+              {label}
+            </p>
+          )}
+          {subtitle && (
+            <p className="m-0 text-sm font-semibold text-slate-200">
+              {subtitle}
+            </p>
+          )}
         </div>
       )}
       <div
         ref={pointerTargetRef ?? undefined}
-        className="face-frame__canvas"
+        className={cn(
+          "relative flex-1 w-full min-h-0 overflow-hidden rounded-xl border border-slate-800/60 bg-[radial-gradient(circle_at_50%_30%,theme(colors.slate.800)_0%,theme(colors.slate.950)_100%)]",
+          onCanvasClick && "cursor-pointer",
+        )}
         onClick={onCanvasClick}
       >
         {!skipBounds && <FaceCameraBounds />}
-        <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
+        <VizijRuntimeFace className="w-full h-full" showSafeArea={false} />
         <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
         {overlay}
       </div>
-      {footer && <div className="face-frame__footer">{footer}</div>}
+      {footer && (
+        <div className="text-[11px] text-slate-500 px-2 italic">{footer}</div>
+      )}
     </div>
   );
 }
@@ -81,16 +104,30 @@ function RuntimeStatusBadge({
 }: RuntimeStatusBadgeProps) {
   if (error) {
     return (
-      <div className="face-frame__status face-frame__status--error">
+      <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm font-medium text-red-400 bg-slate-950/85 backdrop-blur-sm">
         {error.message}
       </div>
     );
   }
   if (!ready) {
-    return <div className="face-frame__status">Initialising Vizij…</div>;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-300 bg-slate-950/85 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <span>Initialising Vizij…</span>
+        </div>
+      </div>
+    );
   }
   if (loading) {
-    return <div className="face-frame__status">Loading face…</div>;
+    return (
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-400 bg-slate-950/85 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+          <span>Loading face…</span>
+        </div>
+      </div>
+    );
   }
   return null;
 }

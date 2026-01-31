@@ -1,19 +1,21 @@
 import { forwardRef } from "react";
 import type { InputHTMLAttributes } from "react";
+import { cn } from "../../utils/cn";
 
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, ...props }, ref) => {
-    // In styles.css, inputs are styled via element selectors like .sidebar input[type="text"]
-    // We should probably add a utility class to styles.css or just rely on the context.
-    // However, to be modular, we should probably add a specific class for inputs.
-    // But for now, let's just pass through.
-    // Wait, the goal is to standardize.
-    // Let's assume we will add a .input class to styles.css later or use existing ones.
-    // Currently, inputs are styled contextually (e.g. .sidebar input, .asset-card input).
-
-    return <input ref={ref} className={className} {...props} />;
+    return (
+      <input
+        ref={ref}
+        className={cn(
+          "flex h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-50 text-slate-200",
+          className,
+        )}
+        {...props}
+      />
+    );
   },
 );
 

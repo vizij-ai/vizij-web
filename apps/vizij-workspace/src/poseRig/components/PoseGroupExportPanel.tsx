@@ -8,7 +8,7 @@ import { alertDialog, promptDialog } from "../../utils/dialogs";
 import { downloadBlob } from "../../utils/download";
 import { InstructionCallout } from "../../components/common/InstructionCallout";
 import { Button, Switch, FieldRow, Tabs } from "../../components/ui";
-import "./pose-group-export.css";
+import { cn } from "../../utils/cn";
 
 interface PoseGroupExportPanelProps {
   poses: PoseDefinition[];
@@ -184,29 +184,33 @@ export function PoseGroupExportPanel({
   };
 
   return (
-    <div className="pose-rig-panel pose-group-export">
-      <div className="pose-group-export__summary">
-        <div>
-          <p className="pose-group-export__eyebrow">Export target</p>
-          <strong>
-            {rigKind === "generic" ? "Generic rig" : "Face-specific rig"}
-          </strong>
-          <div className="pose-group-export__path-hint">
-            Paths:{" "}
-            <code>
-              rig/{faceSegmentLabel}/&lt;group&gt;/&lt;pose&gt;.weight
-            </code>
+    <div className="flex flex-col gap-6">
+      <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Export target</p>
+            <strong className="text-sm text-slate-200">
+              {rigKind === "generic" ? "Generic rig" : "Face-specific rig"}
+            </strong>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-medium">Path prefix:</span>
+              <code className="text-[10px] bg-slate-950/40 px-1.5 py-0.5 rounded border border-white/5 text-blue-400">
+                rig/{faceSegmentLabel}/[group]/[pose].weight
+              </code>
+            </div>
           </div>
         </div>
+        <div className="h-px bg-white/5" />
         <FieldRow
           label="Blend mode"
           hint="Average keeps non-participating poses from diluting channels; additive sums weighted deltas."
           control={
-            <div className="button-group button-group--segmented">
+            <div className="inline-flex bg-slate-950/40 p-1 rounded-lg border border-white/5">
               <Button
                 size="sm"
                 variant={blendMode === "average" ? "primary" : "subtle"}
                 onClick={() => setBlendMode("average")}
+                className="h-7 px-3 text-[11px]"
               >
                 Average
               </Button>
@@ -214,6 +218,7 @@ export function PoseGroupExportPanel({
                 size="sm"
                 variant={blendMode === "additive" ? "primary" : "subtle"}
                 onClick={() => setBlendMode("additive")}
+                className="h-7 px-3 text-[11px]"
               >
                 Additive
               </Button>
@@ -221,7 +226,7 @@ export function PoseGroupExportPanel({
           }
         />
       </div>
-      <div className="pose-group-export__group-actions">
+      <div className="flex justify-end">
         <input
           ref={importInputRef}
           type="file"
@@ -232,8 +237,9 @@ export function PoseGroupExportPanel({
         <Button
           onClick={triggerImport}
           disabled={importDisabled || isImportingGraph}
-          pill
+          variant="secondary"
           size="sm"
+          className="h-8"
         >
           {isImportingGraph ? "Importing…" : "Import Pose Graph"}
         </Button>
@@ -251,29 +257,31 @@ export function PoseGroupExportPanel({
         </ol>
       </InstructionCallout>
 
-      <FieldRow
-        label="Rig kind"
-        hint="Generic exports without a face segment; face-specific uses the current faceId."
-        control={
-          <span className="pose-group-export__badge">
-            {rigKind === "generic" ? "Generic (standard)" : "Face-specific"}
-          </span>
-        }
-      />
-      {standardInputSchema ? (
+      <div className="space-y-3">
         <FieldRow
-          label="Standard input schema"
-          hint="Version used for coverage and exports"
+          label="Rig kind"
+          hint="Generic exports without a face segment; face-specific uses the current faceId."
           control={
-            <span className="pose-group-export__schema">
-              {standardInputSchema.id} · {standardInputSchema.version}
+            <span className="bg-slate-900 px-2 py-1 rounded-md text-[11px] font-bold text-slate-300 border border-white/5">
+              {rigKind === "generic" ? "Generic (standard)" : "Face-specific"}
             </span>
           }
         />
-      ) : null}
+        {standardInputSchema ? (
+          <FieldRow
+            label="Standard input schema"
+            hint="Version used for coverage and exports"
+            control={
+              <span className="bg-slate-900 px-2 py-1 rounded-md text-[11px] font-bold text-slate-400 border border-white/5 opacity-80">
+                {standardInputSchema.id} · {standardInputSchema.version}
+              </span>
+            }
+          />
+        ) : null}
+      </div>
 
       {poseGroups.length === 0 ? (
-        <p className="pose-group-export__empty">
+        <p className="text-center py-12 text-slate-500 text-sm italic bg-slate-900/20 rounded-xl border border-dashed border-white/5">
           Capture or tag a pose to enable group exports.
         </p>
       ) : (
@@ -303,11 +311,12 @@ export function PoseGroupExportPanel({
               </>
             );
             const actions = (
-              <div className="pose-group-export__group-actions">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="subtle"
                   onClick={() => handleRenameGroup(group)}
                   size="sm"
+                  className="h-8"
                 >
                   Rename
                 </Button>
@@ -315,42 +324,44 @@ export function PoseGroupExportPanel({
                   variant="primary"
                   onClick={() => handleExportGroup(group)}
                   size="sm"
+                  className="h-8"
                 >
                   Export Group
                 </Button>
               </div>
             );
             return (
-              <div className="pose-group-export__group-tab">
-                <header className="pose-group-export__group-header">
+              <div className="mt-4 flex flex-col gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                <header className="flex justify-between items-start p-4 bg-slate-900/40 rounded-xl border border-white/5 mb-1">
                   <div>
-                    <h4>{group.label}</h4>
-                    <p className="pose-group-export__subtitle">{subtitle}</p>
+                    <h4 className="text-sm font-bold text-slate-200">{group.label}</h4>
+                    <p className="text-[11px] text-slate-500 mt-1 font-medium">{subtitle}</p>
                   </div>
                   {actions}
                 </header>
-                <div className="pose-group-export__group-body">
-                  <ul className="pose-group-export__poses">
+                <div className="p-4 bg-slate-900/20 rounded-xl border border-white/5">
+                  <ul className="flex flex-wrap gap-2 mb-4">
                     {group.poses.map((pose) => (
-                      <li key={pose.id}>
-                        <strong>{pose.name}</strong>
+                      <li key={pose.id} className="text-[10px] font-bold text-slate-300 bg-slate-950/40 px-2 py-1 rounded border border-white/5">
+                        {pose.name}
                       </li>
                     ))}
                   </ul>
                   {preview.length > 0 ? (
-                    <div className="pose-group-export__preview">
-                      <span className="pose-group-export__preview-label">
+                    <div className="bg-slate-950/40 p-3 rounded-lg border border-white/5">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
                         Sample paths ({preview.length} of {group.poses.length})
                       </span>
-                      <ul>
+                      <ul className="space-y-1.5">
                         {preview.map((entry) => (
-                          <li key={entry.id}>
-                            <strong>{entry.name}</strong> →
-                            <code>{entry.path || "rig/..."}</code>
+                          <li key={entry.id} className="text-[11px] flex items-center gap-2 overflow-hidden">
+                            <span className="font-bold text-slate-300 shrink-0">{entry.name}</span>
+                            <span className="text-slate-600 shrink-0">→</span>
+                            <code className="text-blue-400 bg-blue-500/5 px-1 rounded truncate">{entry.path || "rig/..."}</code>
                           </li>
                         ))}
                         {group.poses.length > preview.length ? (
-                          <li className="pose-group-export__preview-more">
+                          <li className="text-[10px] text-slate-600 italic mt-2">
                             ...{group.poses.length - preview.length} additional
                             poses
                           </li>
@@ -359,17 +370,17 @@ export function PoseGroupExportPanel({
                     </div>
                   ) : null}
                 </div>
-                <div className="pose-group-export__group-actions">
+                <div className="p-4 bg-slate-900/40 rounded-xl border border-white/5">
                   <FieldRow
                     label="Include in export"
                     control={
                       <Switch
                         size="sm"
                         checked={group.label !== "Ungrouped"}
-                        onChange={(event) =>
+                        onChange={(checked) =>
                           onUpdatePoseGroupBatch(
                             group.poses.map((pose) => pose.id),
-                            event.target.checked ? group.label : null,
+                            checked ? group.label : null,
                           )
                         }
                       />

@@ -185,42 +185,28 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
             configuration into your Vizij bundle for future use.
           </li>
         </ol>
-        <p style={{ marginTop: "1rem" }}>
-          <strong>Mapping Editor Status Indicators:</strong>
+        <p className="mt-4 font-bold text-slate-200">
+          Mapping Editor Status Indicators:
         </p>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "0.25rem",
-            }}
-          >
-            <span style={{ color: "#22c55e" }}>&#9679;</span>
-            <span>
-              <strong>Green</strong> — Track exists and has a binding
+        <ul className="mt-2 space-y-1">
+          <li className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-slate-300">
+              <strong className="text-slate-200">Green</strong> — Track exists and has a binding
               configured. Ready to use.
             </span>
           </li>
-          <li
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "0.25rem",
-            }}
-          >
-            <span style={{ color: "#3b82f6" }}>&#9679;</span>
-            <span>
-              <strong>Blue</strong> — Track exists but has no binding. Configure
+          <li className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-slate-300">
+              <strong className="text-slate-200">Blue</strong> — Track exists but has no binding. Configure
               a binding to drive features.
             </span>
           </li>
-          <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ color: "#64748b" }}>&#9679;</span>
-            <span>
-              <strong>Gray</strong> — Track is missing in the main face. Create
+          <li className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-slate-500" />
+            <span className="text-slate-300">
+              <strong className="text-slate-200">Gray</strong> — Track is missing in the main face. Create
               it first.
             </span>
           </li>
@@ -738,14 +724,14 @@ function AppContent({ loader }: AppContentProps) {
 
         // Center
         topPanel={
-          <div className="h-full flex items-center px-4 gap-4 text-xs select-none">
-            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Select</button>
-            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Move</button>
-            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Rotate</button>
-            <div className="ml-auto flex gap-2 text-slate-500">
-              <span>Grid: On</span>
-              <span className="mx-2">|</span>
-              <span>Snap: Off</span>
+          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50">
+            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Select</Button>
+            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Move</Button>
+            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Rotate</Button>
+            <div className="ml-auto flex items-center gap-4 text-slate-500 font-medium tracking-wide uppercase text-[10px]">
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500/50" />Grid: On</span>
+              <span className="w-px h-3 bg-slate-800" />
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500/50" />Snap: Off</span>
             </div>
           </div>
         }

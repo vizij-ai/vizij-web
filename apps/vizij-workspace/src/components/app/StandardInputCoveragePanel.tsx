@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { Panel, Chip, ListRow } from "../ui";
-import "./standard-input-coverage.css";
+import { cn } from "../../utils/cn";
 
 function isMapped(binding: any): boolean {
   if (!binding) return false;
@@ -61,9 +61,11 @@ export function StandardInputCoveragePanel({
 
   if (summary.total === 0) {
     return (
-      <Panel className="coverage-panel">
-        <h2 className="coverage-panel__title">Standard Input Coverage</h2>
-        <p className="coverage-panel__empty">
+      <Panel className="flex flex-col gap-3">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-100">
+          Standard Input Coverage
+        </h2>
+        <p className="text-xs text-slate-500 italic bg-slate-900/20 p-4 rounded-lg border border-dashed border-white/5">
           Load a rig and generate standard inputs to see coverage.
         </p>
       </Panel>
@@ -71,16 +73,20 @@ export function StandardInputCoveragePanel({
   }
 
   return (
-    <Panel className="coverage-panel">
-      <div className="coverage-panel__header">
-        <h2 className="coverage-panel__title">Standard Input Coverage</h2>
-        {standardInputSchema ? (
-          <span className="coverage-panel__schema">
-            {standardInputSchema.id} · {standardInputSchema.version}
-          </span>
-        ) : null}
-        <div className="coverage-panel__chips">
-          <Chip tone="success">Mapped {summary.mapped}</Chip>
+    <Panel className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-100">
+            Standard Input Coverage
+          </h2>
+          {standardInputSchema ? (
+            <span className="text-[10px] font-bold text-slate-500 px-1.5 py-0.5 bg-slate-950/40 rounded border border-white/5 opacity-80">
+              {standardInputSchema.id} · {standardInputSchema.version}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Chip tone="info">Mapped {summary.mapped}</Chip>
           <Chip tone="muted">Unmapped {summary.unmapped}</Chip>
           {summary.disabled > 0 ? (
             <Chip tone="warning">Disabled {summary.disabled}</Chip>
@@ -91,18 +97,18 @@ export function StandardInputCoveragePanel({
         </div>
       </div>
       {showMissingList && summary.missing.length > 0 ? (
-        <div className="coverage-panel__list">
-          <p className="coverage-panel__subtitle">
+        <div className="flex flex-col gap-3">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">
             Inputs needing mappings (top {summary.missing.length}):
           </p>
-          <ul>
+          <ul className="space-y-2">
             {summary.missing.map((item) => (
               <ListRow key={item.id} title={item.label} description={item.id} />
             ))}
           </ul>
         </div>
       ) : (
-        <p className="coverage-panel__empty">
+        <p className="text-center py-6 text-slate-500 text-xs italic bg-slate-900/20 rounded-lg border border-dashed border-white/5">
           All inputs are mapped or disabled.
         </p>
       )}

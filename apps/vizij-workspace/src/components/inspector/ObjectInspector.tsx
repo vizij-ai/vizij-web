@@ -5,7 +5,7 @@ import {
   useBindingAuthoring,
 } from "../../state/RigControllerProvider";
 import { InstructionCallout } from "../common/InstructionCallout";
-import { Panel, Tabs } from "../ui";
+import { Panel, Tabs, Select } from "../ui";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { Button } from "../ui/Button";
 import { ObjectHeader } from "./ObjectHeader";
@@ -212,18 +212,18 @@ function SelectionActions({
       </div>
       <div className="object-inspector__reparent">
         <label htmlFor="inspector-reparent-select">Parent</label>
-        <select
-          id="inspector-reparent-select"
+        <Select
           value={parentId}
-          onChange={(event) => setParentId(event.target.value)}
-        >
-          <option value="">Scene root</option>
-          {parentOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name || option.id}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "Scene root" },
+            ...parentOptions.map((option) => ({
+              value: option.id,
+              label: option.name || option.id,
+            })),
+          ]}
+          onChange={setParentId}
+          size="sm"
+        />
         <Button
           variant="secondary"
           size="sm"

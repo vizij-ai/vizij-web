@@ -12,8 +12,9 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import { Button, Input, ListRow, Chip } from "../ui";
-import "./graph-diagnostics.css";
+import { Button, Input, ListRow, Chip, Card, CardHeader, CardBody, CardTitle, CardDescription } from "../ui";
+import { cn } from "../../utils/cn";
+import { Download, Search } from "lucide-react";
 
 const REVEAL_EVENT = "vizij-authoring:reveal-binding-target";
 
@@ -152,62 +153,74 @@ export function GraphDiagnosticsPanel() {
   }, []);
 
   return (
-    <div className="graph-diagnostics">
-      <div className="graph-diagnostics__actions graph-card">
-        <Button variant="secondary" size="sm" onClick={handleDownloadIr}>
-          Download IR graph
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleDownloadMachineReport}
-          disabled={!graphReport}
-        >
-          Download machine report
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setInspectorOpen((previous) => !previous)}
-          disabled={!graphReport}
-          data-active={inspectorOpen ? "true" : undefined}
-        >
-          {inspectorOpen ? "Hide IR inspector" : "Open IR inspector"}
-        </Button>
-      </div>
-
-      {issueEntries.length > 0 ? (
-        <div className="graph-card graph-diagnostics__summary">
-          <div>
-            <strong>{totalIssueCount}</strong> issue
-            {totalIssueCount === 1 ? "" : "s"} across {issueEntries.length}{" "}
-            binding{issueEntries.length === 1 ? "" : "s"}
-          </div>
+    <Card className="bg-slate-900 border border-slate-800 shadow-md">
+      <CardHeader className="flex flex-row items-start justify-between pb-4 border-b border-slate-800">
+        <div className="space-y-1">
+          <CardTitle className="text-sm font-bold text-slate-100">
+            Graph Diagnostics
+          </CardTitle>
+          <CardDescription className="text-xs text-slate-500">
+            Analyze compiled graph status and debug configuration issues.
+          </CardDescription>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={handleDownloadIr} title="Download IR Graph">
+            <Download className="h-4 w-4 text-slate-400" />
+          </Button>
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => setIssuePanelOpen((previous) => !previous)}
-            data-active={issuePanelOpen ? "true" : undefined}
+            size="icon"
+            onClick={() => setInspectorOpen((prev) => !prev)}
+            disabled={!graphReport}
+            title="Open Inspector"
+            className={cn(inspectorOpen && "bg-blue-500/10 text-blue-400")}
           >
-            {issueToggleLabel}
+            <Search className="h-4 w-4" />
           </Button>
         </div>
-      ) : (
-        <p className="sidebar__hint">
-          Build the rig to capture a machine report and populate diagnostics.
-        </p>
-      )}
+      </CardHeader>
 
-      {issuePanelOpen && issueEntries.length > 0 ? (
-        <IssueListPanel
-          entries={filteredIssueEntries}
-          totalTargets={issueEntries.length}
-          totalIssues={totalIssueCount}
-          filter={issueFilter}
-          onFilterChange={setIssueFilter}
-          onReveal={handleRevealIssueTarget}
-        />
-      ) : null}
+      <CardBody className="pt-4 space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={handleDownloadMachineReport} disabled={!graphReport} className="flex-1">
+            Download Report
+          </Button>
+        </div>
+
+        {issueEntries.length > 0 ? (
+          <div className="flex items-center justify-between gap-4 p-4 bg-slate-900/40 border border-white/5 rounded-xl">
+            <div className="text-sm text-slate-200">
+              <strong className="text-blue-400">{totalIssueCount}</strong> issue
+              {totalIssueCount === 1 ? "" : "s"} across {issueEntries.length}{" "}
+              binding{issueEntries.length === 1 ? "" : "s"}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIssuePanelOpen((previous) => !previous)}
+              className={cn("h-8 text-xs font-bold uppercase tracking-wider", issuePanelOpen && "text-blue-400")}
+            >
+              {issueToggleLabel}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 italic px-4">
+            Build the rig to capture a machine report and populate diagnostics.
+          </p>
+        )}
+
+        {issuePanelOpen && issueEntries.length > 0 ? (
+          <IssueListPanel
+            entries={filteredIssueEntries}
+            totalTargets={issueEntries.length}
+            totalIssues={totalIssueCount}
+            filter={issueFilter}
+            onFilterChange={setIssueFilter}
+            onReveal={handleRevealIssueTarget}
+          />
+        ) : null}
+
+      </CardBody>
 
       <IrInspectorDrawer
         open={inspectorOpen}
@@ -216,7 +229,7 @@ export function GraphDiagnosticsPanel() {
         onDownloadIr={handleDownloadIr}
         onDownloadReport={handleDownloadMachineReport}
       />
-    </div>
+    </Card>
   );
 }
 
@@ -245,42 +258,43 @@ function IssueListPanel({
   );
 
   return (
-    <div className="graph-card">
-      <div className="graph-diagnostics__filter">
-        <label className="graph-diagnostics__filter-label">
-          <span>Filter binding issues</span>
+    <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-6">
+      <div className="flex flex-wrap gap-4 justify-between items-end">
+        <div className="flex flex-col gap-2 flex-1 min-w-[240px]">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Filter binding issues</span>
           <Input
             value={filter}
             onChange={handleFilterChange}
             placeholder="Search by id or message"
+            className="h-9"
           />
-        </label>
-        <span className="graph-diagnostics__filter-summary">
+        </div>
+        <span className="text-[10px] font-bold text-slate-500 mb-2">
           Showing {entries.length} of {totalTargets} targets ({totalIssues}{" "}
           issues)
         </span>
       </div>
       {entries.length === 0 ? (
-        <p className="graph-diagnostics__empty">
+        <p className="text-center py-12 text-slate-500 text-sm italic bg-slate-950/20 rounded-lg border border-dashed border-white/5">
           No bindings match the current filter.
         </p>
       ) : (
-        <div className="graph-diagnostics__issue-list">
+        <div className="flex flex-col gap-3">
           {entries.map((entry) => (
             <ListRow
               key={entry.targetId}
               title={entry.label}
               description={
-                <span className="graph-diagnostics__code-group">
-                  <code className="graph-diagnostics__code">
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  <code className="text-[10px] bg-slate-950/60 px-1.5 py-0.5 rounded border border-white/5 text-blue-400 font-mono">
                     {entry.targetId}
                   </code>
                   {entry.rootKey ? (
-                    <span className="graph-diagnostics__root">
+                    <span className="text-[10px] text-slate-500 font-medium tracking-tight">
                       · {entry.rootKey}
                     </span>
                   ) : null}
-                </span>
+                </div>
               }
               meta={
                 entry.isStandardInput ? (
@@ -295,6 +309,7 @@ function IssueListPanel({
                   size="sm"
                   onClick={() => onReveal(entry.targetId)}
                   disabled={!entry.isStandardInput}
+                  className="h-7 text-[10px] px-3 font-bold"
                   title={
                     entry.isStandardInput
                       ? "Reveal this input card"
@@ -305,9 +320,12 @@ function IssueListPanel({
                 </Button>
               }
             >
-              <ul className="graph-diagnostics__issue-messages">
+              <ul className="mt-2 space-y-1.5 list-none">
                 {entry.issues.map((issue, index) => (
-                  <li key={`${entry.targetId}-${index}`}>{issue}</li>
+                  <li key={`${entry.targetId}-${index}`} className="text-[11px] text-slate-400 flex gap-2">
+                    <span className="text-red-500 shrink-0 mt-0.5">●</span>
+                    {issue}
+                  </li>
                 ))}
               </ul>
             </ListRow>
@@ -467,101 +485,98 @@ function IrInspectorDrawer({
 
   return (
     <div
-      className="graph-diagnostics__drawer graph-card"
-      data-open={open ? "true" : undefined}
+      className={cn(
+        "bg-slate-900 shadow-2xl border-t border-white/5 overflow-y-auto flex-col gap-6 p-6 transition-all duration-300",
+        open ? "flex h-[80vh] opacity-100" : "h-0 opacity-0 overflow-hidden"
+      )}
       aria-hidden={!open}
     >
-      <div className="graph-diagnostics__drawer-header">
-        <div>
-          <h3>IR inspector</h3>
-          <p>
+      <div className="flex justify-between items-start">
+        <div className="max-w-xl">
+          <h3 className="text-lg font-bold text-slate-100 tracking-tight">IR Inspector</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed font-medium">
             Review machine report metadata, diff against saved snapshots, and
             generate bug report templates.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose} className="h-8">
           Close
         </Button>
       </div>
+
       {!report ? (
-        <p className="graph-diagnostics__empty">
+        <p className="text-center py-12 text-slate-500 text-sm italic bg-slate-950/20 rounded-xl border border-dashed border-white/5">
           Build the rig to capture an IR snapshot before using the inspector.
         </p>
       ) : (
-        <>
-          <dl className="graph-diagnostics__grid">
-            <div>
-              <dt>Bindings</dt>
-              <dd>{bindingCount}</dd>
-            </div>
-            <div>
-              <dt>Fatal issues</dt>
-              <dd>{fatalCount}</dd>
-            </div>
-            <div>
-              <dt>Issue targets</dt>
-              <dd>{issueTargetCount}</dd>
-            </div>
-            <div>
-              <dt>Nodes</dt>
-              <dd>{nodeCount}</dd>
-            </div>
-            <div>
-              <dt>Edges</dt>
-              <dd>{edgeCount}</dd>
-            </div>
-            <div>
-              <dt>Constants</dt>
-              <dd>{constantCount}</dd>
-            </div>
-            <div>
-              <dt>Registry</dt>
-              <dd>{registryVersion}</dd>
-            </div>
+        <div className="flex flex-col gap-8">
+          <dl className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4">
+            {[
+              { label: "Bindings", value: bindingCount },
+              { label: "Fatal Issues", value: fatalCount },
+              { label: "Issue Targets", value: issueTargetCount },
+              { label: "Nodes", value: nodeCount },
+              { label: "Edges", value: edgeCount },
+              { label: "Constants", value: constantCount },
+              { label: "Registry", value: registryVersion },
+            ].map((item) => (
+              <div key={item.label} className="flex flex-col gap-1">
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  {item.label}
+                </dt>
+                <dd className="text-sm font-bold text-slate-100">{item.value}</dd>
+              </div>
+            ))}
           </dl>
 
-          <div className="graph-diagnostics__drawer-actions">
-            <Button variant="secondary" size="sm" onClick={onDownloadIr}>
+          <div className="flex flex-wrap gap-2.5">
+            <Button variant="secondary" size="sm" onClick={onDownloadIr} className="h-8 text-[11px]">
               Download IR JSON
             </Button>
-            <Button variant="secondary" size="sm" onClick={onDownloadReport}>
+            <Button variant="secondary" size="sm" onClick={onDownloadReport} className="h-8 text-[11px]">
               Download machine report
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleCopyReport}>
+            <Button variant="secondary" size="sm" onClick={handleCopyReport} className="h-8 text-[11px]">
               {copyFeedback === "copied" ? "Copied!" : "Copy report JSON"}
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleCliCommand}>
+            <Button variant="secondary" size="sm" onClick={handleCliCommand} className="h-8 text-[11px]">
               {cliFeedback === "copied"
                 ? "Command copied!"
                 : "Copy diff CLI command"}
             </Button>
           </div>
 
-          <div className="graph-diagnostics__section">
-            <h4>Compare against saved machine report</h4>
-            <p>
-              Paste or upload a previous machine report JSON to diff it against
-              the current snapshot. Limit {IR_DIFF_LIMIT} differences.
-            </p>
+          <div className="bg-slate-950/20 rounded-xl border border-white/5 p-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h4 className="text-xs font-bold text-slate-200">Compare against saved machine report</h4>
+              <p className="text-[11px] text-slate-500">
+                Paste or upload a previous machine report JSON to diff it against
+                the current snapshot. Limit {IR_DIFF_LIMIT} differences.
+              </p>
+            </div>
+
             <textarea
-              className="graph-diagnostics__textarea"
+              className="w-full h-32 bg-slate-950/40 border border-white/10 rounded-lg p-3 text-[12px] font-mono text-slate-300 focus:outline-none focus:border-blue-500/50 transition-colors"
               placeholder="Paste saved machine report JSON..."
               value={diffText}
               onChange={(event) => setDiffText(event.target.value)}
             />
-            <div className="graph-diagnostics__upload">
+
+            <div className="flex items-center gap-4 flex-wrap">
               <input
                 type="file"
                 accept="application/json"
                 ref={fileInputRef}
                 onChange={handleDiffFile}
+                className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 transition-all"
               />
-              <Button variant="secondary" size="sm" onClick={handleDiffCompare}>
+              <Button variant="primary" size="sm" onClick={handleDiffCompare} className="h-8 px-6">
                 Compare reports
               </Button>
             </div>
+
             {diffError ? (
-              <p className="graph-diagnostics__error">{diffError}</p>
+              <p className="text-xs text-red-400 font-medium px-1 italic">{diffError}</p>
             ) : (
               <DiffResultList
                 entries={diffResult?.differences ?? []}
@@ -570,35 +585,41 @@ function IrInspectorDrawer({
             )}
           </div>
 
-          <div className="graph-diagnostics__section">
-            <h4>Saved IR payload</h4>
+          <div className="flex flex-col gap-3">
+            <h4 className="text-xs font-bold text-slate-200 px-1">Saved IR payload</h4>
             {graphJson ? (
-              <pre className="graph-diagnostics__pre" aria-live="polite">
+              <pre className="bg-slate-950/60 border border-white/5 rounded-xl p-4 max-h-80 overflow-auto text-[11px] font-mono text-slate-400 leading-relaxed scrollbar-thin scrollbar-thumb-slate-800">
                 {graphJson}
               </pre>
             ) : (
-              <p className="graph-diagnostics__empty">
+              <p className="text-center py-8 text-slate-500 text-xs italic bg-slate-950/20 rounded-xl border border-dashed border-white/5">
                 Build the graph to capture IR JSON for inspection.
               </p>
             )}
           </div>
 
           {bugReportTemplate ? (
-            <div className="graph-diagnostics__section">
-              <h4>Bug report template</h4>
-              <p>
-                Copy a filled template containing registry metadata and trimmed
-                diff output.
-              </p>
+            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-5 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="text-xs font-bold text-blue-400">Bug report template</h4>
+                <p className="text-[11px] text-blue-300/60 font-medium">
+                  Copy a filled template containing registry metadata and trimmed
+                  diff output.
+                </p>
+              </div>
+
               <textarea
-                className="graph-diagnostics__textarea"
+                className="w-full h-32 bg-slate-950/60 border border-blue-500/20 rounded-lg p-3 text-[11px] font-mono text-slate-400 focus:outline-none"
                 readOnly
                 value={bugReportTemplate}
               />
+
               <Button
-                variant="secondary"
+                variant="primary"
                 size="sm"
+                className="h-9 px-6 self-start bg-blue-600 hover:bg-blue-500"
                 onClick={async () => {
+                  if (!bugReportTemplate) return;
                   try {
                     await navigator.clipboard?.writeText(bugReportTemplate);
                     setBugTemplateFeedback("copied");
@@ -621,7 +642,7 @@ function IrInspectorDrawer({
               </Button>
             </div>
           ) : null}
-        </>
+        </div>
       )}
     </div>
   );
@@ -634,24 +655,28 @@ interface DiffResultListProps {
 
 function DiffResultList({ entries, limitReached }: DiffResultListProps) {
   if (!entries.length) {
-    return <p className="graph-diagnostics__note">No differences detected.</p>;
+    return <p className="text-xs text-slate-500 italic mt-2">No differences detected.</p>;
   }
   return (
-    <div className="graph-diagnostics__diff-results">
-      <p>
+    <div className="bg-slate-900 border border-white/5 rounded-lg p-4 flex flex-col gap-3">
+      <p className="text-[11px] font-bold text-slate-400">
         {entries.length} difference{entries.length === 1 ? "" : "s"}
         {limitReached ? " (diff limit reached)" : null}
       </p>
-      <ul>
+      <ul className="space-y-1.5 list-none">
         {entries.map((entry, index) => (
-          <li key={`${entry.path}-${index}`}>
-            <code>{entry.path}</code> – {entry.kind}
-            {entry.kind === "mismatch" && (
-              <>
-                : expected {formatDiffValue(entry.expected)}, actual{" "}
-                {formatDiffValue(entry.actual)}
-              </>
-            )}
+          <li key={`${entry.path}-${index}`} className="text-[11px] text-slate-400 flex gap-2 overflow-hidden">
+            <code className="text-blue-400 shrink-0">{entry.path}</code>
+            <span className="text-slate-600 shrink-0">–</span>
+            <span className="truncate">
+              {entry.kind}
+              {entry.kind === "mismatch" && (
+                <>
+                  : expected {formatDiffValue(entry.expected)}, actual{" "}
+                  {formatDiffValue(entry.actual)}
+                </>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -722,24 +747,24 @@ function buildBugReportTemplate(
 
   return `### IR dual-run divergence report
 
-- Face: ${faceLabel}
-- Registry: ${registry}
-- Bindings captured: ${report.summary.bindings.length}
-- Fatal issues: ${report.issues.fatal.length}
-- Diff limit reached: ${diff.limitReached ? "yes" : "no"}
+            - Face: ${faceLabel}
+            - Registry: ${registry}
+            - Bindings captured: ${report.summary.bindings.length}
+            - Fatal issues: ${report.issues.fatal.length}
+            - Diff limit reached: ${diff.limitReached ? "yes" : "no"}
 
-#### Diff summary (${previewEntries.length}${remaining > 0 ? "+" : ""})
-${diffSummary}${remainderLine}
+            #### Diff summary (${previewEntries.length}${remaining > 0 ? "+" : ""})
+            ${diffSummary}${remainderLine}
 
-#### Suggested reproduction steps
-1. Export the current machine report (Graph Diagnostics ▸ Download machine report).
-2. Run \`${diffCommand}\`.
-3. Attach the exported IR JSON, baseline report, and diff output.
+            #### Suggested reproduction steps
+            1. Export the current machine report (Graph Diagnostics ▸ Download machine report).
+            2. Run \`${diffCommand}\`.
+            3. Attach the exported IR JSON, baseline report, and diff output.
 
-#### Notes
-- Observed at ${timestamp}
-- Add expectations / extra context here.
-`;
+            #### Notes
+            - Observed at ${timestamp}
+            - Add expectations / extra context here.
+            `;
 }
 
 function formatDiffEntrySummary(entry: MachineDiffEntry): string {

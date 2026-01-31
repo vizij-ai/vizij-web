@@ -4,7 +4,8 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { Panel, Button, Switch } from "../ui";
+import { Panel, Button, Switch, Select } from "../ui";
+import { cn } from "../../utils/cn";
 // Adjust imports to point to scene-composer utilities
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
@@ -163,42 +164,60 @@ export function HierarchyPanel({
             const matchesQuery = search.trim().length > 0 && matchingIds.has(node.id);
 
             return (
-                <div key={node.id} className="hierarchy-tree__item">
+                <div key={node.id} className="flex flex-col">
                     <div
-                        className="hierarchy-tree__row"
-                        data-selected={isSelected ? "true" : undefined}
-                        style={{ paddingLeft: `${depth * 0.9}rem` }}
+                        className={cn(
+                            "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
+                            isSelected
+                                ? "bg-blue-600/20 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
+                                : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                        )}
+                        style={{ marginLeft: `${depth * 12}px` }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            selectObject(node.id);
+                        }}
                     >
                         <button
                             type="button"
-                            className="hierarchy-tree__toggle"
-                            aria-label={expanded ? "Collapse children" : "Expand children"}
-                            disabled={!hasChildren}
-                            onClick={() => toggleNode(node.id)}
+                            className={cn(
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
+                                !hasChildren && "opacity-0 pointer-events-none",
+                                expanded && "rotate-90"
+                            )}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleNode(node.id);
+                            }}
                         >
-                            {expanded ? "▾" : "▸"}
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                         </button>
-                        <button
-                            type="button"
-                            className="hierarchy-tree__label hierarchy-tree__label--dense"
-                            onClick={() => selectObject(node.id)}
-                        >
+
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                             <span
-                                className="hierarchy-tree__name"
-                                data-match={matchesQuery ? "true" : undefined}
+                                className={cn(
+                                    "text-[11px] font-medium truncate",
+                                    matchesQuery && "text-yellow-400 underline decoration-yellow-400/50 underline-offset-2",
+                                    isSelected && "text-blue-200"
+                                )}
                             >
                                 {node.name || node.id}
                             </span>
-                            <span className="hierarchy-tree__meta-group">
-                                <span className="hierarchy-tree__meta">{node.type}</span>
-                                <span className="hierarchy-tree__count">
-                                    {node.features.length}
+
+                            <span className="flex items-center gap-1.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-[9px] font-bold uppercase tracking-tighter bg-slate-800 px-1 rounded text-slate-500">
+                                    {node.type.slice(0, 3)}
                                 </span>
+                                {node.features.length > 0 && (
+                                    <span className="text-[9px] text-slate-500 font-mono">
+                                        {node.features.length}
+                                    </span>
+                                )}
                             </span>
-                        </button>
+                        </div>
                     </div>
                     {hasChildren && expanded && (
-                        <div className="hierarchy-tree__children">
+                        <div className="flex flex-col">
                             {childNodes.map((child) => renderSubtree(child, depth + 1))}
                         </div>
                     )}
@@ -219,102 +238,99 @@ export function HierarchyPanel({
 
     return (
         <Panel
-            className="scene-hierarchy"
+            className="flex-1 min-h-0"
             title="Scene Hierarchy"
             description="Select objects via the tree or viewport to drive the inspector."
-            badge={`${objects.length} ${objects.length === 1 ? "object" : "objects"}`}
+            badge={`${objects.length} ${objects.length === 1 ? "node" : "nodes"}`}
         >
-            <div className="scene-hierarchy__toolbar">
-                <input
-                    type="search"
-                    className="scene-hierarchy__search"
-                    placeholder="Search objects"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                />
-                <div className="flex items-center gap-2 ml-2">
-                    <label className="text-xs text-slate-400 whitespace-nowrap">Highlights</label>
-                    <Switch
-                        checked={showSelectionGlow}
-                        onChange={(e) => onToggleSelectionGlow(e.currentTarget.checked)}
-                    />
-                </div>
-            </div>
-            {search.trim().length > 0 && (
-                <div className="px-2 pb-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-center h-6 text-xs"
-                        onClick={() => setSearch("")}
-                    >
-                        Clear Search
-                    </Button>
-                </div>
-            )}
-
-            {allowEditActions ? (
-                <>
-                    <div className="scene-hierarchy__actions">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleDuplicateSelection}
-                            disabled={!selectedId}
-                        >
-                            Duplicate
-                        </Button>
-                        <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={handleDeleteSelection}
-                            disabled={!selectedId}
-                        >
-                            Delete
-                        </Button>
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <input
+                            type="search"
+                            className="w-full h-8 rounded-md bg-slate-950/50 border border-slate-800 px-3 py-1 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
+                            placeholder="Filter hierarchy..."
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                        />
                     </div>
-
-                    <div className="scene-hierarchy__reparent">
-                        <label htmlFor="scene-reparent-select">Parent</label>
-                        <select
-                            id="scene-reparent-select"
-                            value={reparentTarget}
-                            onChange={(event) => setReparentTarget(event.target.value)}
-                            disabled={!selectedId}
-                        >
-                            <option value="">Scene root</option>
-                            {parentOptions.map((node) => (
-                                <option key={node.id} value={node.id}>
-                                    {node.name || node.id}
-                                </option>
-                            ))}
-                        </select>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleReparentSelection}
-                            disabled={!selectedId || parentOptions.length === 0}
-                        >
-                            Move
-                        </Button>
+                    <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800/30 border border-slate-800/50">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">Glow</span>
+                        <Switch
+                            checked={showSelectionGlow}
+                            onChange={onToggleSelectionGlow}
+                        />
                     </div>
-                </>
-            ) : null}
+                </div>
 
-            <div className="scene-hierarchy__tree">
-                {!hasVisibleNodes && search.trim().length > 0 && (
-                    <p className="scene-hierarchy__empty">
-                        No results found for “{search.trim()}”.
-                    </p>
+                {allowEditActions && (
+                    <div className="flex flex-col gap-2 p-2 rounded-lg bg-slate-800/20 border border-slate-800/40">
+                        <div className="flex gap-2">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="flex-1 h-7 text-[11px]"
+                                onClick={handleDuplicateSelection}
+                                disabled={!selectedId}
+                            >
+                                Duplicate
+                            </Button>
+                            <Button
+                                variant="danger"
+                                size="sm"
+                                className="flex-1 h-7 text-[11px]"
+                                onClick={handleDeleteSelection}
+                                disabled={!selectedId}
+                            >
+                                Delete
+                            </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Select
+                                size="sm"
+                                className="flex-1"
+                                value={reparentTarget}
+                                onChange={setReparentTarget}
+                                disabled={!selectedId}
+                                options={[
+                                    { value: "", label: "Scene Root" },
+                                    ...parentOptions.map((node) => ({
+                                        value: node.id,
+                                        label: node.name || node.id,
+                                    })),
+                                ]}
+                            />
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-7 px-3 text-[11px]"
+                                onClick={handleReparentSelection}
+                                disabled={!selectedId || parentOptions.length === 0}
+                            >
+                                Move
+                            </Button>
+                        </div>
+                    </div>
                 )}
-                {!hasVisibleNodes && search.trim().length === 0 && (
-                    <p className="scene-hierarchy__empty">
-                        {objects.length === 0
-                            ? "Load a Vizij scene to populate the hierarchy."
-                            : "All objects are hidden. Expand a parent node to continue."}
-                    </p>
-                )}
-                {rootNodes.map((node) => renderSubtree(node, 0))}
+
+                <div className="flex-1 min-h-[200px] max-h-[400px] overflow-y-auto rounded border border-slate-800/60 bg-slate-950/30 p-1 custom-scrollbar">
+                    {!hasVisibleNodes && (
+                        <div className="flex flex-col items-center justify-center h-32 text-slate-500 text-xs italic gap-2">
+                            {search.trim().length > 0 ? (
+                                <>
+                                    <span>No results for "{search}"</span>
+                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-6 text-[10px]">Clear Filter</Button>
+                                </>
+                            ) : (
+                                <span>Hierarchy is empty</span>
+                            )}
+                        </div>
+                    )}
+                    <div className="flex flex-col">
+                        {rootNodes.map((node) => renderSubtree(node, 0))}
+                    </div>
+                </div>
             </div>
         </Panel>
     );

@@ -1,5 +1,5 @@
 import type { ChangeEvent } from "react";
-import { Card, CardBody, Input, Chip } from "../ui";
+import { Panel, Input, Chip } from "../ui";
 
 interface GraphImportPanelProps {
   onSelectGraphFile: (file: File) => void;
@@ -19,26 +19,28 @@ export function GraphImportPanel({
   };
 
   return (
-    <Card>
-      <CardBody className="asset-card__body--compact">
-        <div className="asset-card__group">
-          <label className="sidebar__label" htmlFor="rig-graph-file">
-            Load a rig graph <Chip tone="muted">Optional</Chip>
-          </label>
-          <Input
-            id="rig-graph-file"
-            type="file"
-            accept=".json,.graph.json"
-            disabled={disabled}
-            onChange={handleSelect}
-          />
-        </div>
-
-        <p className="asset-card__hint asset-card__hint--muted">
-          Expect a <code>.graph.json</code> file exported alongside the Vizij
-          GLB.
-        </p>
-      </CardBody>
-    </Card>
+    <Panel
+      title="Rig Graph"
+      description="Expect a .graph.json file exported alongside the Vizij GLB."
+      badge={<Chip tone="muted">Optional</Chip>}
+      className="flex flex-col gap-4"
+    >
+      <div className="flex flex-col gap-2">
+        <label
+          className="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+          htmlFor="rig-graph-file"
+        >
+          Load a rig graph
+        </label>
+        <Input
+          id="rig-graph-file"
+          type="file"
+          accept=".json,.graph.json"
+          disabled={disabled}
+          onChange={handleSelect}
+          className="bg-slate-950/50 border-slate-800"
+        />
+      </div>
+    </Panel>
   );
 }

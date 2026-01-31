@@ -26,10 +26,10 @@ interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     panels: {
         tree: { isVisible: true, order: 0 },
-        hierarchy: { isVisible: false, order: 2 },
+        hierarchy: { isVisible: true, order: 2 },
         variables: { isVisible: true, order: 1 },
         inspector: { isVisible: true, order: 0 },
-        debug: { isVisible: false, order: 1 },
+        debug: { isVisible: true, order: 1 },
         animation: { isVisible: true, order: 0 },
         toolbar: { isVisible: true, order: 0 },
     },

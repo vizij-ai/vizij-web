@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import "./tabs.css";
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
+import { cn } from "../../utils/cn";
 
 export type TabId = string;
 
@@ -34,62 +35,77 @@ export function Tabs({
   size = "md",
   variant = "default",
 }: TabsProps) {
+  const selectedIndex = items.findIndex((item) => item.id === value);
+  const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
+
+  const handleChange = (index: number) => {
+    onValueChange(items[index].id);
+  };
+
   return (
-    <div
-      className={["tabs", `tabs--${size}`, `tabs--${variant}`, className]
-        .filter(Boolean)
-        .join(" ")}
+    <TabGroup
+      selectedIndex={safeSelectedIndex}
+      onChange={handleChange}
+      className={cn("flex w-full flex-col gap-4", className)}
     >
-      <div
-        role="tablist"
-        className={["tabs__list", listClassName].filter(Boolean).join(" ")}
-        aria-orientation="horizontal"
+      <TabList
+        className={cn(
+          "flex w-full overflow-x-auto custom-scrollbar",
+          {
+            "gap-1 border-b border-slate-800": variant === "default",
+            "gap-1 rounded-xl border border-slate-900 bg-slate-950 p-1":
+              variant === "pill",
+          },
+          listClassName,
+        )}
       >
-        {items.map((item) => {
-          const active = item.id === value;
-          const disabled = item.disabled ?? false;
-          const badgeContent = item.badge;
-          const tabId = `tab-${item.id}`;
-          const panelId = `panel-${item.id}`;
-          return (
-            <button
-              key={item.id}
-              id={tabId}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={panelId}
-              disabled={disabled}
-              className={[
-                "tabs__trigger",
-                active ? "is-active" : "",
-                disabled ? "is-disabled" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={() => {
-                if (!disabled) onValueChange(item.id);
-              }}
-            >
-              <span className="tabs__label">{item.label}</span>
-              {item.description ? (
-                <span className="tabs__description">{item.description}</span>
-              ) : null}
-              {badgeContent ? (
-                <span className="tabs__badge">{badgeContent}</span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-      <div
-        role="tabpanel"
-        id={`panel-${value}`}
-        aria-labelledby={`tab-${value}`}
-        className={["tabs__panel", panelClassName].filter(Boolean).join(" ")}
-      >
-        {renderPanel(value)}
-      </div>
-    </div>
+        {items.map((item) => (
+          <Tab
+            key={item.id}
+            disabled={item.disabled}
+            className={({ selected }) =>
+              cn(
+                "inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50",
+                {
+                  // Default variant
+                  "border-b-2 border-transparent px-3 py-2 text-[13px] font-bold text-slate-500 hover:text-slate-300":
+                    variant === "default" && !selected,
+                  "border-b-2 border-blue-500 px-3 py-2 text-[13px] font-bold text-blue-400":
+                    variant === "default" && selected,
+
+                  // Pill variant
+                  "rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-900 hover:text-slate-300":
+                    variant === "pill" && !selected,
+                  "rounded-lg border-0 bg-slate-800 px-3 py-1.5 text-[11px] font-bold text-slate-100 shadow-sm":
+                    variant === "pill" && selected,
+
+                  // Sizes (overrides if needed)
+                  "text-[11px]": size === "sm",
+                },
+              )
+            }
+          >
+            <span>{item.label}</span>
+            {item.description && (
+              <span className="ml-2 text-[10px] opacity-70 font-medium tracking-tight">
+                {item.description}
+              </span>
+            )}
+            {item.badge && (
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-slate-800/50 px-1.5 py-0.5 text-[9px] font-black text-slate-400 border border-white/5 uppercase tracking-tighter">
+                {item.badge}
+              </span>
+            )}
+          </Tab>
+        ))}
+      </TabList>
+      <TabPanels className={cn("mt-1 focus:outline-none", panelClassName)}>
+        {items.map((item) => (
+          <TabPanel key={item.id} className="focus:outline-none">
+            {renderPanel(item.id)}
+          </TabPanel>
+        ))}
+      </TabPanels>
+    </TabGroup>
   );
 }

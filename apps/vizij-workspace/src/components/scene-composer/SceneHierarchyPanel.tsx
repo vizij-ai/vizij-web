@@ -4,8 +4,7 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { Panel } from "../ui";
-import { Button } from "../ui";
+import { Panel, Button, Select } from "../ui";
 import { useHierarchyTreeState } from "./useHierarchyTreeState";
 import { filterHierarchyNodes } from "./hierarchyFilters";
 
@@ -262,19 +261,18 @@ export function SceneHierarchyPanel({
 
           <div className="scene-hierarchy__reparent">
             <label htmlFor="scene-reparent-select">Parent</label>
-            <select
-              id="scene-reparent-select"
+            <Select
               value={reparentTarget}
-              onChange={(event) => setReparentTarget(event.target.value)}
-              disabled={!selectedId}
-            >
-              <option value="">Scene root</option>
-              {parentOptions.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.name || node.id}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Scene root" },
+                ...parentOptions.map((node) => ({
+                  value: node.id,
+                  label: node.name || node.id,
+                })),
+              ]}
+              onChange={setReparentTarget}
+              size="sm"
+            />
             <Button
               variant="secondary"
               size="sm"

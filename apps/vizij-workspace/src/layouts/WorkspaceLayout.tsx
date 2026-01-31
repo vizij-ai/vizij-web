@@ -4,8 +4,8 @@ import {
     Group,
     Separator
 } from "react-resizable-panels";
-import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem } from "../components/ui/MenuBar";
-import "./WorkspaceLayout.css";
+import { cn } from "../utils/cn";
+
 // We'll pass the store logic from App.tsx via props or composition
 // For this layout, we'll keep it flexible
 
@@ -52,15 +52,15 @@ export function WorkspaceLayout({
     const rightSidebarVisible = rightTopVisible || rightBottomVisible;
 
     return (
-        <div className="workspace-layout">
+        <div className="h-screen w-screen flex flex-col overflow-hidden bg-background text-slate-200">
             {/* MenuBar */}
             {menuBar && (
-                <div className="workspace-menubar-area">
+                <div className="h-10 border-b border-border flex items-center px-4 bg-slate-900 shrink-0">
                     {menuBar}
                 </div>
             )}
 
-            <div className="workspace-body">
+            <div className="flex-1 flex min-h-0">
                 <Group orientation="horizontal">
 
                     {/* Left Sidebar */}
@@ -70,24 +70,24 @@ export function WorkspaceLayout({
                                 <Group orientation="vertical">
                                     {leftTopVisible && (
                                         <Panel defaultSize={leftBottomVisible ? 50 : 100} minSize={5} id="left-top">
-                                            <div className="workspace-sidebar-left border-b border-[var(--border-subtle)]">
+                                            <div className="h-full border-r border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
                                                 {leftTopPanel}
                                             </div>
                                         </Panel>
                                     )}
 
-                                    {leftTopVisible && leftBottomVisible && <Separator className="resize-handle-horizontal" />}
+                                    {leftTopVisible && leftBottomVisible && <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />}
 
                                     {leftBottomVisible && (
                                         <Panel defaultSize={leftTopVisible ? 50 : 100} minSize={5} id="left-bottom">
-                                            <div className="workspace-sidebar-left">
+                                            <div className="h-full border-r border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
                                                 {leftBottomPanel}
                                             </div>
                                         </Panel>
                                     )}
                                 </Group>
                             </Panel>
-                            <Separator className="resize-handle-vertical" />
+                            <Separator className="w-1 bg-background hover:bg-blue-600 transition-colors" />
                         </>
                     )}
 
@@ -97,24 +97,24 @@ export function WorkspaceLayout({
 
                             {/* Top Toolbar Area */}
                             {topPanel && (
-                                <div className="workspace-toolbar-area bg-[var(--bg-app)] border-b border-[var(--border-default)]">
+                                <div className="bg-background border-b border-border">
                                     {topPanel}
                                 </div>
                             )}
 
                             {/* Main Viewport */}
                             <Panel defaultSize={bottomVisible ? 55 : 100} minSize={5} id="viewport">
-                                <div className="workspace-viewport">
+                                <div className="h-full bg-background relative w-full">
                                     {viewport}
                                 </div>
                             </Panel>
 
                             {bottomVisible && (
                                 <>
-                                    <Separator className="resize-handle-horizontal" />
+                                    <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />
                                     {/* Bottom Timeline */}
                                     <Panel defaultSize={30} minSize={5} collapsible id="bottom-panel">
-                                        <div className="workspace-bottom-panel">
+                                        <div className="h-full border-t border-border bg-slate-900 overflow-auto">
                                             {bottomPanel}
                                         </div>
                                     </Panel>
@@ -127,22 +127,22 @@ export function WorkspaceLayout({
                     {/* Right Sidebar */}
                     {rightSidebarVisible && (
                         <>
-                            <Separator className="resize-handle-vertical" />
+                            <Separator className="w-1 bg-background hover:bg-blue-600 transition-colors" />
                             <Panel defaultSize={20} minSize={5} collapsible id="right-sidebar">
                                 <Group orientation="vertical">
                                     {rightTopVisible && (
                                         <Panel defaultSize={rightBottomVisible ? 60 : 100} minSize={5} id="right-top">
-                                            <div className="workspace-sidebar-right border-b border-[var(--border-subtle)]">
+                                            <div className="h-full border-l border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
                                                 {rightTopPanel}
                                             </div>
                                         </Panel>
                                     )}
 
-                                    {rightTopVisible && rightBottomVisible && <Separator className="resize-handle-horizontal" />}
+                                    {rightTopVisible && rightBottomVisible && <Separator className="h-1 bg-background hover:bg-blue-600 transition-colors" />}
 
                                     {rightBottomVisible && (
                                         <Panel defaultSize={rightTopVisible ? 40 : 100} minSize={5} id="right-bottom">
-                                            <div className="workspace-sidebar-right">
+                                            <div className="h-full border-l border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
                                                 {rightBottomPanel}
                                             </div>
                                         </Panel>
