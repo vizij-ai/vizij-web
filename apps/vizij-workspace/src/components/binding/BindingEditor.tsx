@@ -1,0 +1,1619 @@
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import type { ReactNode } from "react";
+import { requireNodeSignature } from "@vizij/node-graph-wasm/metadata";
+import {
+  SELF_BINDING_ID,
+  type StandardRigInput,
+  type RigBindingMetadata,
+  type RigBindingOperandMetadata,
+} from "@vizij/utils";
+import type {
+  AnimatableBinding,
+  BindingValueType,
+} from "@vizij/node-graph-authoring";
+import {
+  EXPRESSION_FUNCTION_VOCABULARY,
+  RESERVED_EXPRESSION_VARIABLES,
+  SCALAR_FUNCTIONS,
+  parseControlExpression,
+} from "@vizij/node-graph-authoring";
+import type {
+  ControlExpressionNode,
+  ScalarFunctionDefinition,
+} from "@vizij/node-graph-authoring";
+import {
+  FilterableSelect,
+  type FilterableSelectOption,
+} from "../common/FilterableSelect";
+import { Button, CollapsibleRow } from "../ui";
+import { formatRigPathLabel } from "../../utils/rigPaths";
+import { createSlotKey, getSlotIdentifier } from "./slotKeys";
+import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
+import "./binding-editor.css";
+
+type BindingFeatureFlags = {
+  vectorAuthoringBeta?: boolean;
+  conditionalAuthoringBeta?: boolean;
+};
+
+type CaseExpressionConfig = {
+  selector: string;
+  defaultBranch: string;
+  branches: string[];
+};
+
+type NodeSignature = ReturnType<typeof requireNodeSignature>;
+
+const FUNCTION_CATEGORY_LABELS: Record<string, string> = {
+  math: "Math",
+  logic: "Logic",
+  time: "Time",
+  utility: "Utility",
+  vector: "Vector",
+};
+
+const FUNCTION_CATEGORY_ORDER = [
+  "math",
+  "logic",
+  "time",
+  "utility",
+  "vector",
+] as const;
+
+type ExpressionFunctionEntry = (typeof EXPRESSION_FUNCTION_VOCABULARY)[number];
+
+type FunctionParameterDetail = {
+  id: string;
+  label: string;
+  doc?: string;
+  optional: boolean;
+  typeLabel: string;
+  kind: "ordered" | "variadic" | "param";
+  repeatRange?: {
+    min: number;
+    max: number | null;
+  };
+};
+
+type ExpressionFunctionDetail = ExpressionFunctionEntry & {
+  signature: NodeSignature | null;
+  signatureDoc?: string;
+  parameters: FunctionParameterDetail[];
+  argumentRange: {
+    min: number;
+    max: number | null;
+  };
+  returnTypeLabel: string;
+};
+
+type CaseMetadata = NonNullable<
+  NonNullable<RigBindingMetadata["expression"]>["case"]
+>;
+
+function formatPortTypeLabel(type?: string | null): string {
+  if (!type) {
+    return "Value";
+  }
+  const normalized = type.toLowerCase();
+  switch (normalized) {
+    case "float":
+      return "Scalar";
+    case "bool":
+    case "boolean":
+      return "Boolean";
+    case "vec2":
+    case "vec3":
+    case "vec4":
+      return normalized.toUpperCase();
+    case "quat":
+      return "Quaternion";
+    case "transform":
+      return "Transform";
+    case "vector":
+      return "Vector";
+    case "any":
+      return "Any";
+    default:
+      return normalized.replace(/^\w/, (char) => char.toUpperCase());
+  }
+}
+
+function formatExpressionValueTypeLabel(valueType: string): string {
+  switch (valueType) {
+    case "vector":
+      return "Vector";
+    case "boolean":
+      return "Boolean";
+    case "any":
+      return "Any";
+    default:
+      return "Scalar";
+  }
+}
+
+function buildParameterDetails(
+  signature: NodeSignature | null,
+  definition?: ScalarFunctionDefinition | null,
+): FunctionParameterDetail[] {
+  if (!signature) {
+    return [];
+  }
+  const ordered = signature.inputs.map(
+    (input: NodeSignature["inputs"][number]) => ({
+      id: input.id,
+      label: input.label ?? input.id,
+      doc: input.doc,
+      optional: Boolean(input.optional),
+      typeLabel: formatPortTypeLabel(input.ty),
+      kind: "ordered" as const,
+    }),
+  );
+  const variadic = signature.variadic_inputs
+    ? [
+        {
+          id: signature.variadic_inputs.id,
+          label:
+            signature.variadic_inputs.label ?? signature.variadic_inputs.id,
+          doc: signature.variadic_inputs.doc,
+          optional: false,
+          typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
+          kind: "variadic" as const,
+          repeatRange: {
+            min: signature.variadic_inputs.min ?? 0,
+            max:
+              typeof signature.variadic_inputs.max === "number"
+                ? signature.variadic_inputs.max
+                : null,
+          },
+        },
+      ]
+    : [];
+  const params: FunctionParameterDetail[] =
+    definition?.params?.map(
+      (param: ScalarFunctionDefinition["params"][number]) => ({
+        id: param.id,
+        label: param.label,
+        doc: param.doc,
+        optional: param.optional,
+        typeLabel: formatExpressionValueTypeLabel(param.valueType),
+        kind: "param" as const,
+      }),
+    ) ?? [];
+  return [...ordered, ...variadic, ...params];
+}
+
+function deriveArgumentRange(signature: NodeSignature | null): {
+  min: number;
+  max: number | null;
+} {
+  if (!signature) {
+    return { min: 0, max: null };
+  }
+  const requiredOrdered = signature.inputs.filter(
+    (input: NodeSignature["inputs"][number]) => !input.optional,
+  ).length;
+  const totalOrdered = signature.inputs.length;
+  if (!signature.variadic_inputs) {
+    return {
+      min: requiredOrdered,
+      max: totalOrdered,
+    };
+  }
+  const variadicMin = signature.variadic_inputs.min ?? 0;
+  const variadicMax =
+    typeof signature.variadic_inputs.max === "number"
+      ? signature.variadic_inputs.max
+      : null;
+  const min = requiredOrdered + variadicMin;
+  const max = variadicMax === null ? null : totalOrdered + variadicMax;
+  return { min, max };
+}
+
+function describeArgumentRange(range: { min: number; max: number | null }) {
+  if (range.min === 0 && (range.max === 0 || range.max === null)) {
+    return "No arguments";
+  }
+  if (range.max === null) {
+    return `${range.min}+ argument${range.min === 1 ? "" : "s"}`;
+  }
+  if (range.min === range.max) {
+    return `${range.min} argument${range.min === 1 ? "" : "s"}`;
+  }
+  return `${range.min}–${range.max} arguments`;
+}
+
+function describeVariadicRange(range?: { min: number; max: number | null }) {
+  if (!range) {
+    return "";
+  }
+  if (range.min === 0 && (range.max === null || range.max > 0)) {
+    return "Accepts any number of values.";
+  }
+  if (range.max === null) {
+    return `Provide at least ${range.min} value${range.min === 1 ? "" : "s"}.`;
+  }
+  if (range.min === range.max) {
+    return `Provide exactly ${range.min} value${range.min === 1 ? "" : "s"}.`;
+  }
+  return `Provide between ${range.min} and ${range.max} values.`;
+}
+
+function buildFunctionDetail(
+  entry: ExpressionFunctionEntry,
+): ExpressionFunctionDetail {
+  let signature: NodeSignature | null = null;
+  try {
+    signature = requireNodeSignature(entry.nodeType);
+  } catch (error) {
+    console.warn(
+      `[BindingEditor] Unable to load signature for '${entry.name}':`,
+      error,
+    );
+  }
+  const definition =
+    SCALAR_FUNCTIONS.get(entry.nodeType) ??
+    SCALAR_FUNCTIONS.get(entry.name.toLowerCase()) ??
+    null;
+  const argumentRange = definition
+    ? {
+        min: definition.minArgs,
+        max: definition.maxArgs ?? null,
+      }
+    : deriveArgumentRange(signature);
+  return {
+    ...entry,
+    signature,
+    signatureDoc: signature?.doc,
+    parameters: buildParameterDetails(signature, definition),
+    argumentRange,
+    returnTypeLabel: formatPortTypeLabel(signature?.outputs?.[0]?.ty),
+  };
+}
+
+function buildSignaturePreview(detail: ExpressionFunctionDetail): string {
+  if (!detail.parameters.length) {
+    return `${detail.name}()`;
+  }
+  const args = detail.parameters.map((param) => {
+    if (param.kind === "variadic") {
+      if (
+        param.repeatRange?.max &&
+        param.repeatRange.max === param.repeatRange.min
+      ) {
+        return `${param.id}×${param.repeatRange.min}`;
+      }
+      if (param.repeatRange?.min && param.repeatRange.min > 1) {
+        return `${param.id}×${param.repeatRange.min}+`;
+      }
+      return `${param.id}…`;
+    }
+    return param.optional ? `${param.id}?` : param.id;
+  });
+  return `${detail.name}(${args.join(", ")})`;
+}
+
+function ensureDistinctDescriptions(values: Array<string | undefined>) {
+  const seen = new Set<string>();
+  return values
+    .filter((value): value is string => Boolean(value && value.trim().length))
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+}
+
+function stringifyExpressionNode(node: ControlExpressionNode): string {
+  switch (node.type) {
+    case "Literal":
+      return Number.isFinite(node.value) ? `${node.value}` : "0";
+    case "Reference":
+      return node.name;
+    case "Unary":
+      return `${node.operator}${stringifyExpressionNode(node.operand)}`;
+    case "Binary":
+      return `${stringifyExpressionNode(node.left)} ${node.operator} ${stringifyExpressionNode(node.right)}`;
+    case "Function":
+      return `${node.name}(${node.args.map(stringifyExpressionNode).join(", ")})`;
+    default:
+      return "";
+  }
+}
+
+function extractCaseExpressionConfig(
+  expression: string,
+): CaseExpressionConfig | null {
+  const trimmed = expression.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const parsed = parseControlExpression(trimmed);
+  if (!parsed.node || parsed.errors.length > 0) {
+    return null;
+  }
+  const root = parsed.node;
+  if (root.type !== "Function" || root.name?.toLowerCase() !== "case") {
+    return null;
+  }
+  if (!Array.isArray(root.args) || root.args.length < 3) {
+    return null;
+  }
+  const [selectorNode, defaultNode, ...branches] = root.args;
+  const toToken = (node: ControlExpressionNode) => {
+    if (node.type === "Reference") {
+      return node.name;
+    }
+    return stringifyExpressionNode(node);
+  };
+  return {
+    selector: toToken(selectorNode),
+    defaultBranch: toToken(defaultNode),
+    branches: branches.map(toToken).filter((token) => token.length > 0),
+  };
+}
+
+interface BindingEditorProps {
+  binding: AnimatableBinding;
+  targetId: string;
+  label: string;
+  standardInputs: StandardRigInput[];
+  standardInputLookup: Map<string, StandardRigInput>;
+  faceId?: string | null;
+  issues?: readonly string[];
+  onBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
+  onAddBindingSlot: (targetId: string) => void;
+  onRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onBindingExpressionChange: (targetId: string, expression: string) => void;
+  onBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
+  onBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
+  onNormalizeBindingSlot?: (targetId: string, slotId: string) => void;
+  onRequestCreateStandardInput?: (
+    suggestedPath?: string,
+  ) => StandardRigInput | null;
+  onResetBinding?: (targetId: string) => void;
+  headerActions?: ReactNode;
+  children?: ReactNode;
+  expandable?: boolean;
+  defaultExpanded?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  featureFlags: BindingFeatureFlags;
+  currentValues?: Record<string, number>;
+  onInputValueChange?: (inputId: string, value: number) => void;
+  hiddenDriverIds?: ReadonlySet<string> | Set<string>;
+  onHideDriver?: (inputId: string) => void;
+  onShowDriver?: (inputId: string) => void;
+}
+
+export function BindingEditor({
+  binding,
+  targetId,
+  label,
+  standardInputs,
+  standardInputLookup,
+  faceId,
+  issues,
+  onBindingInputChange,
+  onAddBindingSlot,
+  onRemoveBindingSlot,
+  onBindingExpressionChange,
+  onBindingSlotAliasChange,
+  onBindingSlotValueTypeChange,
+  onNormalizeBindingSlot,
+  onRequestCreateStandardInput: _onRequestCreateStandardInput,
+  onResetBinding,
+  headerActions,
+  children,
+  expandable = true,
+  defaultExpanded = false,
+  expanded,
+  onExpandedChange,
+  featureFlags,
+  currentValues,
+  onInputValueChange,
+  hiddenDriverIds,
+  onHideDriver,
+  onShowDriver: _onShowDriver,
+}: BindingEditorProps) {
+  const vectorAuthoringEnabled = featureFlags.vectorAuthoringBeta !== false;
+  const conditionalAuthoringEnabled =
+    featureFlags.conditionalAuthoringBeta !== false;
+  const isControlled = typeof expanded === "boolean";
+  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const isExpanded = isControlled ? (expanded as boolean) : internalExpanded;
+
+  const slots = binding.slots ?? [];
+  const resolveSlotDiagnostics = useSlotDiagnosticsResolver();
+
+  const [expandedSlotDiagnostics, setExpandedSlotDiagnostics] = useState<
+    Set<string>
+  >(() => new Set());
+  const expressionInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [functionReferenceExpanded, setFunctionReferenceExpanded] =
+    useState(false);
+  const [caseBuilderExpanded, setCaseBuilderExpanded] = useState(false);
+  useEffect(() => {
+    const activeKeys = new Set(
+      slots.map((slot, index) =>
+        createSlotKey(targetId, getSlotIdentifier(slot, index)),
+      ),
+    );
+    setExpandedSlotDiagnostics((previous) => {
+      if (previous.size === 0) {
+        return previous;
+      }
+      let changed = false;
+      const next = new Set<string>();
+      previous.forEach((key) => {
+        if (activeKeys.has(key)) {
+          next.add(key);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [slots, targetId]);
+
+  const toggleExpanded = useCallback(() => {
+    if (!expandable) {
+      return;
+    }
+    const next = !isExpanded;
+    if (!isControlled) {
+      setInternalExpanded(next);
+    }
+    onExpandedChange?.(next);
+  }, [expandable, isExpanded, isControlled, onExpandedChange]);
+
+  const expressionValue = binding.expression ?? slots[0]?.alias ?? "";
+  const [expressionDraft, setExpressionDraft] = useState(expressionValue);
+  const [expressionDirty, setExpressionDirty] = useState(false);
+  const [expressionFocused, setExpressionFocused] = useState(false);
+
+  useEffect(() => {
+    if (!expressionFocused) {
+      setExpressionDraft(expressionValue);
+      setExpressionDirty(false);
+    }
+  }, [expressionFocused, expressionValue]);
+
+  const commitExpressionDraft = useCallback(() => {
+    if (!expressionDirty) {
+      return;
+    }
+    onBindingExpressionChange(targetId, expressionDraft);
+    setExpressionDirty(false);
+  }, [expressionDirty, expressionDraft, onBindingExpressionChange, targetId]);
+
+  const handleExpressionDraftChange = useCallback((nextValue: string) => {
+    setExpressionDraft(nextValue);
+    setExpressionDirty(true);
+  }, []);
+
+  const aliasHints = useMemo(() => {
+    return slots
+      .map((slot) => {
+        if (slot.inputId === SELF_BINDING_ID) {
+          return `${slot.alias} → Slider`;
+        }
+        const inputMeta =
+          slot.inputId !== null ? standardInputLookup.get(slot.inputId) : null;
+        if (inputMeta) {
+          return `${slot.alias} → ${inputMeta.path}`;
+        }
+        return slot.alias;
+      })
+      .filter(Boolean)
+      .join(", ");
+  }, [slots, standardInputLookup]);
+
+  const reservedHints = useMemo(() => {
+    const available = RESERVED_EXPRESSION_VARIABLES.filter(
+      (variable) => variable.available !== false,
+    )
+      .map((variable) => variable.name)
+      .join(", ");
+    return available ? `Reserved: ${available}` : "";
+  }, []);
+
+  const reservedVariableNames = useMemo(
+    () =>
+      RESERVED_EXPRESSION_VARIABLES.filter(
+        (variable) => variable.available !== false,
+      ).map((variable) => variable.name),
+    [],
+  );
+
+  const expressionFunctionGroups = useMemo(() => {
+    const map = new Map<string, ExpressionFunctionEntry[]>();
+    EXPRESSION_FUNCTION_VOCABULARY.forEach((entry) => {
+      const current = map.get(entry.category) ?? [];
+      current.push(entry);
+      map.set(entry.category, current);
+    });
+    const baseOrder: string[] = Array.from(FUNCTION_CATEGORY_ORDER);
+    const orderedCategories = [
+      ...baseOrder,
+      ...Array.from(map.keys()).filter(
+        (category) => !baseOrder.includes(category),
+      ),
+    ];
+    return orderedCategories
+      .map((category) => ({
+        category,
+        entries: (map.get(category) ?? [])
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .filter(({ entries }) => entries.length > 0);
+  }, []);
+
+  const expressionFunctionDetails = useMemo<ExpressionFunctionDetail[]>(() => {
+    return EXPRESSION_FUNCTION_VOCABULARY.map((entry) =>
+      buildFunctionDetail(entry),
+    );
+  }, []);
+
+  const functionDetailLookup = useMemo(() => {
+    const lookup = new Map<string, ExpressionFunctionDetail>();
+    expressionFunctionDetails.forEach((detail) => {
+      lookup.set(detail.nodeType, detail);
+    });
+    return lookup;
+  }, [expressionFunctionDetails]);
+
+  const [selectedFunctionId, setSelectedFunctionId] = useState<string | null>(
+    () => expressionFunctionDetails[0]?.nodeType ?? null,
+  );
+
+  useEffect(() => {
+    if (!expressionFunctionDetails.length) {
+      return;
+    }
+    if (selectedFunctionId && functionDetailLookup.has(selectedFunctionId)) {
+      return;
+    }
+    setSelectedFunctionId(expressionFunctionDetails[0].nodeType);
+  }, [expressionFunctionDetails, functionDetailLookup, selectedFunctionId]);
+
+  const selectedFunctionDetail =
+    (selectedFunctionId
+      ? functionDetailLookup.get(selectedFunctionId)
+      : null) ??
+    expressionFunctionDetails[0] ??
+    null;
+
+  const functionSelectOptions = useMemo<FilterableSelectOption[]>(() => {
+    return expressionFunctionGroups.flatMap(({ category, entries }) => {
+      const categoryLabel = FUNCTION_CATEGORY_LABELS[category] ?? category;
+      return entries.map((entry) => {
+        const detail = functionDetailLookup.get(entry.nodeType);
+        const descriptionSources = ensureDistinctDescriptions([
+          detail?.signatureDoc,
+          entry.description,
+        ]);
+        const parameterKeywords =
+          detail?.parameters.flatMap((param) => [param.label, param.id]) ?? [];
+        return {
+          value: entry.nodeType,
+          label: `${entry.name}() · ${categoryLabel}`,
+          keywords: [
+            entry.name,
+            categoryLabel,
+            ...entry.aliases,
+            ...parameterKeywords,
+            ...descriptionSources,
+          ],
+        };
+      });
+    });
+  }, [expressionFunctionGroups, functionDetailLookup]);
+
+  const selectedFunctionCategoryLabel = selectedFunctionDetail
+    ? (FUNCTION_CATEGORY_LABELS[selectedFunctionDetail.category] ??
+      selectedFunctionDetail.category)
+    : null;
+
+  const functionSelectCurrentLabel = selectedFunctionDetail ? (
+    <div className="feature-tree__function-select-label">
+      <span className="feature-tree__function-select-name">
+        {selectedFunctionDetail.name}()
+      </span>
+      {selectedFunctionCategoryLabel && (
+        <span className="feature-tree__pill feature-tree__function-category-pill">
+          {selectedFunctionCategoryLabel}
+        </span>
+      )}
+    </div>
+  ) : undefined;
+
+  const functionSignaturePreview = selectedFunctionDetail
+    ? buildSignaturePreview(selectedFunctionDetail)
+    : null;
+
+  const selectedFunctionDescriptions = selectedFunctionDetail
+    ? ensureDistinctDescriptions([
+        selectedFunctionDetail.signatureDoc,
+        selectedFunctionDetail.description,
+      ])
+    : [];
+
+  const selectedFunctionArgumentSummary = selectedFunctionDetail
+    ? describeArgumentRange(selectedFunctionDetail.argumentRange)
+    : null;
+
+  const selectedFunctionReturnType =
+    selectedFunctionDetail?.returnTypeLabel ?? "Value";
+
+  const selectedFunctionParameters = selectedFunctionDetail?.parameters ?? [];
+
+  const selectedFunctionAliases = selectedFunctionDetail
+    ? Array.from(new Set(selectedFunctionDetail.aliases))
+    : [];
+
+  const selectedFunctionHasParameters = selectedFunctionParameters.length > 0;
+
+  const selectedFunctionParameterSummary = selectedFunctionHasParameters
+    ? `${selectedFunctionParameters.length} parameter${selectedFunctionParameters.length === 1 ? "" : "s"}`
+    : "No parameters";
+
+  const slotAliasOptions = useMemo(
+    () =>
+      slots
+        .map((slot) => {
+          const trimmedAlias = slot.alias?.trim();
+          if (trimmedAlias && trimmedAlias.length > 0) {
+            return trimmedAlias;
+          }
+          return slot.id?.trim() ?? null;
+        })
+        .filter((alias): alias is string => Boolean(alias)),
+    [slots],
+  );
+
+  const slotAliasOrder = useMemo(() => {
+    const order = new Map<string, number>();
+    slotAliasOptions.forEach((alias, index) => order.set(alias, index));
+    return order;
+  }, [slotAliasOptions]);
+
+  const parsedCaseConfig = useMemo(
+    () => extractCaseExpressionConfig(expressionValue),
+    [expressionValue],
+  );
+
+  const [caseSelector, setCaseSelector] = useState<string>(
+    parsedCaseConfig?.selector ??
+      slotAliasOptions[0] ??
+      reservedVariableNames[0] ??
+      "self",
+  );
+  const [caseDefault, setCaseDefault] = useState<string>(
+    parsedCaseConfig?.defaultBranch ?? "self",
+  );
+  const [caseBranches, setCaseBranches] = useState<string[]>(
+    parsedCaseConfig?.branches?.filter((alias) => slotAliasOrder.has(alias)) ??
+      slotAliasOptions.slice(0),
+  );
+
+  useEffect(() => {
+    if (!conditionalAuthoringEnabled) {
+      return;
+    }
+    if (parsedCaseConfig) {
+      setCaseSelector(parsedCaseConfig.selector);
+      setCaseDefault(parsedCaseConfig.defaultBranch);
+      const normalized = parsedCaseConfig.branches.filter((alias) =>
+        slotAliasOrder.has(alias),
+      );
+      setCaseBranches(
+        normalized.length > 0 ? normalized : slotAliasOptions.slice(0),
+      );
+      return;
+    }
+    setCaseSelector(
+      (current) =>
+        current || slotAliasOptions[0] || reservedVariableNames[0] || "self",
+    );
+    setCaseDefault((current) => current || "self");
+    setCaseBranches((current) =>
+      current.length > 0 ? current : slotAliasOptions.slice(0),
+    );
+  }, [
+    conditionalAuthoringEnabled,
+    parsedCaseConfig,
+    reservedVariableNames,
+    slotAliasOptions,
+    slotAliasOrder,
+  ]);
+
+  const handleCaseBranchToggle = useCallback(
+    (alias: string, enabled: boolean) => {
+      setCaseBranches((previous) => {
+        if (enabled) {
+          if (previous.includes(alias)) {
+            return previous;
+          }
+          const next = [...previous, alias];
+          next.sort(
+            (a, b) =>
+              (slotAliasOrder.get(a) ?? 0) - (slotAliasOrder.get(b) ?? 0),
+          );
+          return next;
+        }
+        if (!previous.includes(alias)) {
+          return previous;
+        }
+        return previous.filter((entry) => entry !== alias);
+      });
+    },
+    [slotAliasOrder],
+  );
+
+  const handleApplyCaseExpression = useCallback(() => {
+    if (!conditionalAuthoringEnabled) {
+      return;
+    }
+    const filteredBranches = caseBranches.filter((alias) =>
+      slotAliasOrder.has(alias),
+    );
+    if (filteredBranches.length === 0) {
+      return;
+    }
+    const selectorToken =
+      caseSelector && caseSelector.length > 0
+        ? caseSelector
+        : (slotAliasOptions[0] ?? filteredBranches[0]);
+    const defaultToken =
+      caseDefault && caseDefault.length > 0 ? caseDefault : "self";
+    const tokens = [selectorToken, defaultToken, ...filteredBranches];
+    const expressionText = `case(${tokens.join(", ")})`;
+    setExpressionDraft(expressionText);
+    setExpressionDirty(false);
+    onBindingExpressionChange(targetId, expressionText);
+  }, [
+    caseBranches,
+    caseDefault,
+    caseSelector,
+    conditionalAuthoringEnabled,
+    onBindingExpressionChange,
+    setExpressionDraft,
+    setExpressionDirty,
+    slotAliasOptions,
+    slotAliasOrder,
+    targetId,
+  ]);
+
+  // const insertExpressionToken = useCallback(
+  //   (token: string) => {
+  //     const trimmedToken = token.trim();
+  //     if (trimmedToken.length === 0) {
+  //       return;
+  //     }
+  //     const input = expressionInputRef.current;
+  //     const currentValue = expressionDraft;
+  //     const needsSpace = (value: string) =>
+  //       value.length > 0 && !/\s$/.test(value);
+  //     if (!input) {
+  //       const nextValue =
+  //         currentValue.trim().length > 0
+  //           ? `${currentValue}${needsSpace(currentValue) ? " " : ""}${trimmedToken}`
+  //           : trimmedToken;
+  //       handleExpressionDraftChange(nextValue);
+  //       return;
+  //     }
+  //     const start = input.selectionStart ?? currentValue.length;
+  //     const end = input.selectionEnd ?? start;
+  //     const prefix = currentValue.slice(0, start);
+  //     const suffix = currentValue.slice(end);
+  //     const insertion = `${needsSpace(prefix) ? " " : ""}${trimmedToken}`;
+  //     const nextValue = `${prefix}${insertion}${suffix}`;
+  //     handleExpressionDraftChange(nextValue);
+  //     requestAnimationFrame(() => {
+  //       if (expressionInputRef.current) {
+  //         const cursor = start + insertion.length;
+  //         expressionInputRef.current.focus();
+  //         expressionInputRef.current.setSelectionRange(cursor, cursor);
+  //       }
+  //     });
+  //   },
+  //   [expressionDraft, handleExpressionDraftChange],
+  // );
+
+  const issueList = useMemo(
+    () => (issues ? [...new Set(issues)] : []),
+    [issues],
+  );
+
+  const caseMetadata = useMemo(() => {
+    if (!resolveSlotDiagnostics || slots.length === 0) {
+      return null;
+    }
+    const slotId = getSlotIdentifier(slots[0], 0);
+    return (
+      resolveSlotDiagnostics(targetId, slotId)?.metadata?.expression?.case ??
+      null
+    );
+  }, [resolveSlotDiagnostics, slots, targetId]);
+
+  const header = (
+    <div className="feature-tree__property-main binding-editor__header">
+      {expandable && (
+        <button
+          type="button"
+          className="feature-tree__disclosure-btn"
+          onClick={toggleExpanded}
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
+        />
+      )}
+      <span className="feature-tree__property-label">
+        {label} Drivers Config
+      </span>
+      {headerActions}
+      {onResetBinding && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="feature-tree__unbind-btn"
+          onClick={() => onResetBinding(targetId)}
+        >
+          Reset
+        </Button>
+      )}
+    </div>
+  );
+
+  const handleAddSlot = useCallback(() => {
+    onAddBindingSlot(targetId);
+  }, [onAddBindingSlot, targetId]);
+
+  const handleSlotDiagnosticsToggle = useCallback((slotKey: string) => {
+    setExpandedSlotDiagnostics((previous) => {
+      const next = new Set(previous);
+      if (next.has(slotKey)) {
+        next.delete(slotKey);
+      } else {
+        next.add(slotKey);
+      }
+      return next;
+    });
+  }, []);
+
+  if (expandable && !isExpanded) {
+    return (
+      <div className="feature-tree__property-row" style={{ width: "100%" }}>
+        {header}
+        {issueList.length > 0 && (
+          <ul className="feature-tree__expression-errors">
+            {issueList.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="feature-tree__property-row feature-tree__property-row--binding"
+      style={{ width: "100%" }}
+    >
+      {header}
+      <div className="feature-tree__binding-editor">
+        <div className="feature-tree__binding-slots">
+          {slots.map((slot, index) => {
+            const rawSlotInputId = slot.inputId ?? "";
+            const normalizedSlotInputId =
+              rawSlotInputId === "" ? null : rawSlotInputId;
+            const slotInputId =
+              normalizedSlotInputId && normalizedSlotInputId !== SELF_BINDING_ID
+                ? normalizedSlotInputId
+                : null;
+            const slotIdentifier = getSlotIdentifier(slot, index);
+            const slotKey = createSlotKey(targetId, slotIdentifier);
+            const slotDiagnostics = resolveSlotDiagnostics?.(
+              targetId,
+              slotIdentifier,
+            );
+            const upstreamNodes = slotDiagnostics?.upstreamNodes ?? [];
+            const diagnosticsExpanded = expandedSlotDiagnostics.has(slotKey);
+
+            let selectedInput =
+              normalizedSlotInputId && normalizedSlotInputId !== SELF_BINDING_ID
+                ? standardInputLookup.get(normalizedSlotInputId)
+                : null;
+
+            if (
+              !selectedInput &&
+              normalizedSlotInputId &&
+              normalizedSlotInputId !== SELF_BINDING_ID
+            ) {
+              selectedInput = standardInputs.find((input) => {
+                const sanitized = input.id
+                  .replace(/^\//, "")
+                  .replace(/\//g, "_");
+                return sanitized === normalizedSlotInputId;
+              });
+            }
+
+            const formattedSelectedInputLabel =
+              selectedInput?.path &&
+              formatRigPathLabel(selectedInput.path, faceId);
+
+            const resolvedInputId = selectedInput?.id ?? slotInputId;
+
+            const currentLabel =
+              normalizedSlotInputId === null
+                ? "Unbound"
+                : normalizedSlotInputId === SELF_BINDING_ID
+                  ? "Slider (self)"
+                  : (formattedSelectedInputLabel ??
+                    selectedInput?.label ??
+                    normalizedSlotInputId);
+
+            const baseOptions: FilterableSelectOption[] = [
+              {
+                value: null,
+                label: "Unbound",
+                keywords: ["unbound", "none", "null"],
+              },
+              {
+                value: SELF_BINDING_ID,
+                label: "Slider (self)",
+                keywords: ["self", "slider", "manual"],
+              },
+              ...standardInputs.map((input) => ({
+                value: input.id,
+                label: formatRigPathLabel(input.path, faceId),
+                keywords: [input.path, input.id, input.label ?? ""].filter(
+                  (entry) => entry.length > 0,
+                ),
+              })),
+            ];
+
+            const selectOptions =
+              normalizedSlotInputId &&
+              !baseOptions.some(
+                (option) => option.value === normalizedSlotInputId,
+              )
+                ? [
+                    ...baseOptions,
+                    {
+                      value: normalizedSlotInputId,
+                      label: currentLabel,
+                      keywords: [currentLabel],
+                    },
+                  ]
+                : baseOptions;
+
+            const slotValueType = slot.valueType ?? "scalar";
+
+            if (resolvedInputId && hiddenDriverIds?.has(resolvedInputId)) {
+              return null;
+            }
+
+            return (
+              <div key={slot.id} className="feature-tree__binding-slot">
+                <div className="feature-tree__binding-slot-header">
+                  <div className="feature-tree__binding-slot-variable">
+                    <span className="feature-tree__binding-slot-variable-label">
+                      Expression variable
+                    </span>
+                    <code className="feature-tree__binding-slot-variable-code">
+                      {slotIdentifier}
+                    </code>
+                  </div>
+                  <label className="feature-tree__binding-slot-alias">
+                    <span>Alias</span>
+                    <input
+                      className="feature-tree__binding-slot-alias-input"
+                      value={slot.alias}
+                      placeholder={slot.id}
+                      onChange={(event) =>
+                        onBindingSlotAliasChange(
+                          targetId,
+                          slot.id,
+                          event.target.value,
+                        )
+                      }
+                      aria-label={`Alias for ${label} slot ${index + 1}`}
+                      spellCheck={false}
+                    />
+                  </label>
+
+                  {index > 0 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      className="feature-tree__binding-slot-remove"
+                      onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                {vectorAuthoringEnabled && (
+                  <div
+                    className="feature-tree__binding-slot-type-toggle"
+                    role="group"
+                    aria-label={`Value type for ${label} slot ${index + 1}`}
+                  >
+                    <span>Value type</span>
+                    <div className="feature-tree__binding-slot-type-options">
+                      <button
+                        type="button"
+                        className="feature-tree__binding-slot-type-button"
+                        data-active={slotValueType === "scalar"}
+                        onClick={() => {
+                          if (slotValueType !== "scalar") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "scalar",
+                            );
+                          }
+                        }}
+                      >
+                        Scalar
+                      </button>
+                      <button
+                        type="button"
+                        className="feature-tree__binding-slot-type-button"
+                        data-active={slotValueType === "vector"}
+                        onClick={() => {
+                          if (slotValueType !== "vector") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "vector",
+                            );
+                          }
+                        }}
+                      >
+                        Vector
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="feature-tree__binding-slot-controls">
+                  <span className="feature-tree__property-label">
+                    Driver Binding:
+                  </span>
+                  <FilterableSelect
+                    value={normalizedSlotInputId}
+                    onChange={(nextValue) =>
+                      onBindingInputChange(targetId, nextValue, slot.id)
+                    }
+                    options={selectOptions}
+                    placeholder="Select binding input"
+                    currentLabelOverride={currentLabel}
+                    className="feature-tree__binding-slot-combobox"
+                    triggerClassName="feature-tree__property-select"
+                    menuClassName="feature-tree__binding-slot-menu"
+                    listClassName="feature-tree__binding-slot-option-list"
+                    filterInputClassName="feature-tree__binding-slot-filter"
+                    optionClassName="feature-tree__binding-slot-option"
+                    optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
+                    emptyClassName="feature-tree__binding-slot-option feature-tree__binding-slot-option--empty"
+                    dataOptionAttribute="data-option"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      onBindingInputChange(targetId, null, slot.id)
+                    }
+                    disabled={!normalizedSlotInputId}
+                  >
+                    Unbind
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onNormalizeBindingSlot?.(targetId, slot.id)}
+                    disabled={
+                      !onNormalizeBindingSlot ||
+                      !normalizedSlotInputId ||
+                      normalizedSlotInputId === SELF_BINDING_ID
+                    }
+                  >
+                    Normalize input
+                  </Button>
+                  {selectedInput &&
+                    (() => {
+                      const driverMin = selectedInput.range?.min ?? -1;
+                      const driverMax = selectedInput.range?.max ?? 1;
+                      const driverDefault = selectedInput.defaultValue ?? 0;
+                      const sliderValue =
+                        currentValues?.[selectedInput.id] ?? driverDefault;
+                      const sliderEnabled =
+                        Boolean(onInputValueChange) &&
+                        currentValues !== undefined;
+
+                      const actions =
+                        resolvedInputId && onHideDriver ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onHideDriver(resolvedInputId)}
+                          >
+                            Hide driver
+                          </Button>
+                        ) : undefined;
+
+                      return (
+                        <div
+                          className="feature-tree__binding-slot-driver-info"
+                          style={{ width: "100%", marginTop: "0.5rem" }}
+                        >
+                          <CollapsibleRow
+                            id={`${targetId}-${slot.id}-driver`}
+                            title={
+                              selectedInput.label ?? resolvedInputId ?? "Driver"
+                            }
+                            subtitle={selectedInput.path}
+                            value={sliderEnabled ? sliderValue : undefined}
+                            min={driverMin}
+                            max={driverMax}
+                            step={0.01}
+                            onValueChange={
+                              sliderEnabled && onInputValueChange
+                                ? (val) =>
+                                    onInputValueChange(selectedInput.id, val)
+                                : undefined
+                            }
+                            showSlider={sliderEnabled}
+                            actions={actions}
+                            className="binding-editor__driver-row"
+                            expandedContent={
+                              <div className="binding-editor__driver-constraints">
+                                <span>Min: {driverMin}</span>
+                                <span>Default: {driverDefault}</span>
+                                <span>Max: {driverMax}</span>
+                              </div>
+                            }
+                            defaultExpanded={false}
+                          />
+                        </div>
+                      );
+                    })()}
+                </div>
+                {upstreamNodes.length > 0 && (
+                  <div className="feature-tree__binding-slot-diagnostics">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleSlotDiagnosticsToggle(slotKey)}
+                    >
+                      {diagnosticsExpanded
+                        ? "Hide upstream nodes"
+                        : "Show upstream nodes"}
+                    </Button>
+                    {diagnosticsExpanded && (
+                      <ul className="feature-tree__binding-slot-upstream">
+                        {upstreamNodes.map((node) => (
+                          <li key={`${slotKey}-${node.id}`}>
+                            <span className="feature-tree__binding-slot-upstream-name">
+                              {node.label}
+                            </span>
+                            <span className="feature-tree__binding-slot-upstream-type">
+                              {node.type}
+                            </span>
+                            {node.category && (
+                              <span className="feature-tree__binding-slot-upstream-category">
+                                {node.category}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            className="feature-tree__slot-add"
+            onClick={handleAddSlot}
+          >
+            Add control
+          </Button>
+        </div>
+        <div className="feature-tree__expression-editor">
+          <label htmlFor={`binding-expression-${targetId}`}>
+            Expression: {label} =
+          </label>
+          <textarea
+            id={`binding-expression-${targetId}`}
+            ref={expressionInputRef}
+            value={expressionDraft}
+            onChange={(event) =>
+              handleExpressionDraftChange(event.target.value)
+            }
+            onFocus={() => setExpressionFocused(true)}
+            onBlur={() => {
+              setExpressionFocused(false);
+              commitExpressionDraft();
+            }}
+            aria-invalid={issueList.length > 0}
+            spellCheck={false}
+          />
+          {aliasHints && (
+            <p className="feature-tree__expression-hints">
+              Aliases: {aliasHints}
+            </p>
+          )}
+          {reservedHints && (
+            <p className="feature-tree__expression-hints">{reservedHints}</p>
+          )}
+          {issueList.length > 0 && (
+            <ul className="feature-tree__expression-errors">
+              {issueList.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          )}
+          {caseMetadata && <CaseMetadataSummary metadata={caseMetadata} />}
+          {expressionFunctionGroups.length > 0 && (
+            <div className="feature-tree__collapsible">
+              <button
+                type="button"
+                className="feature-tree__collapsible-toggle"
+                data-state={functionReferenceExpanded ? "open" : "closed"}
+                onClick={() =>
+                  setFunctionReferenceExpanded((previous) => !previous)
+                }
+              >
+                {functionReferenceExpanded
+                  ? "Hide function reference"
+                  : `Show function reference (${EXPRESSION_FUNCTION_VOCABULARY.length})`}
+              </button>
+              {functionReferenceExpanded && (
+                <div className="feature-tree__function-reference">
+                  <div className="feature-tree__function-list-header">
+                    <h4 className="feature-tree__section-title">
+                      Function Reference
+                    </h4>
+                    <span>
+                      {EXPRESSION_FUNCTION_VOCABULARY.length} available
+                    </span>
+                  </div>
+                  <FilterableSelect
+                    className="feature-tree__binding-slot-combobox feature-tree__function-select"
+                    triggerClassName="feature-tree__property-select feature-tree__function-select-trigger"
+                    menuClassName="feature-tree__binding-slot-menu feature-tree__function-select-menu"
+                    listClassName="feature-tree__binding-slot-option-list feature-tree__function-select-options"
+                    filterInputClassName="feature-tree__binding-slot-filter"
+                    optionClassName="feature-tree__binding-slot-option"
+                    optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
+                    emptyClassName="feature-tree__binding-slot-option--empty"
+                    value={selectedFunctionId}
+                    options={functionSelectOptions}
+                    onChange={setSelectedFunctionId}
+                    placeholder="Browse functions…"
+                    searchPlaceholder="Search functions or aliases"
+                    noResultsLabel="No matching functions"
+                    currentLabelOverride={functionSelectCurrentLabel}
+                  />
+                  {selectedFunctionDetail ? (
+                    <div className="feature-tree__function-details">
+                      <div className="feature-tree__function-details-header">
+                        <div className="feature-tree__function-name-block">
+                          <div className="feature-tree__function-name-row">
+                            <span className="feature-tree__function-name">
+                              {selectedFunctionDetail.name}()
+                            </span>
+                            {selectedFunctionCategoryLabel && (
+                              <span className="feature-tree__pill feature-tree__function-category-pill">
+                                {selectedFunctionCategoryLabel}
+                              </span>
+                            )}
+                          </div>
+                          {functionSignaturePreview && (
+                            <p className="feature-tree__function-signature">
+                              {functionSignaturePreview}
+                            </p>
+                          )}
+                        </div>
+                        <dl className="feature-tree__function-meta">
+                          {selectedFunctionArgumentSummary && (
+                            <div className="feature-tree__function-meta-pair">
+                              <dt>Arguments</dt>
+                              <dd>{selectedFunctionArgumentSummary}</dd>
+                            </div>
+                          )}
+                          <div className="feature-tree__function-meta-pair">
+                            <dt>Returns</dt>
+                            <dd>{selectedFunctionReturnType}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                      {selectedFunctionDescriptions.length > 0 ? (
+                        selectedFunctionDescriptions.map((paragraph) => (
+                          <p
+                            key={paragraph}
+                            className="feature-tree__function-description"
+                          >
+                            {paragraph}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="feature-tree__function-description">
+                          This function does not include documentation yet.
+                        </p>
+                      )}
+                      {selectedFunctionAliases.length > 0 && (
+                        <div className="feature-tree__function-aliases">
+                          <span>Aliases</span>
+                          <div className="feature-tree__function-alias-list">
+                            {selectedFunctionAliases.map((alias) => (
+                              <span
+                                key={alias}
+                                className="feature-tree__pill feature-tree__function-alias-pill"
+                              >
+                                {alias}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="feature-tree__function-parameters">
+                        <div className="feature-tree__function-parameters-header">
+                          <span>Parameters</span>
+                          <span>{selectedFunctionParameterSummary}</span>
+                        </div>
+                        {selectedFunctionHasParameters ? (
+                          <ul className="feature-tree__function-parameter-list">
+                            {selectedFunctionParameters.map((param) => {
+                              const variadicNote =
+                                param.kind === "variadic"
+                                  ? describeVariadicRange(param.repeatRange)
+                                  : "";
+                              return (
+                                <li
+                                  key={param.id}
+                                  className="feature-tree__function-parameter"
+                                >
+                                  <div className="feature-tree__function-parameter-header">
+                                    <div className="feature-tree__function-parameter-title">
+                                      <span className="feature-tree__function-parameter-name">
+                                        {param.label}
+                                      </span>
+                                      <span className="feature-tree__function-parameter-id">
+                                        {param.id}
+                                        {param.kind === "variadic" ? "…" : ""}
+                                      </span>
+                                    </div>
+                                    <div className="feature-tree__function-parameter-flags">
+                                      <span className="feature-tree__pill feature-tree__function-type-pill">
+                                        {param.typeLabel}
+                                      </span>
+                                      {param.kind === "variadic" && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Variadic
+                                        </span>
+                                      )}
+                                      {param.kind === "param" && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Config
+                                        </span>
+                                      )}
+                                      {param.optional && (
+                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                          Optional
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <p className="feature-tree__function-parameter-doc">
+                                    {param.doc ??
+                                      `Provide a ${param.typeLabel.toLowerCase()} value.`}
+                                    {variadicNote && (
+                                      <span className="feature-tree__function-parameter-extra">
+                                        {variadicNote}
+                                      </span>
+                                    )}
+                                  </p>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="feature-tree__function-parameter-empty">
+                            This function does not take any inputs.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="feature-tree__function-details feature-tree__function-details--empty">
+                      <p>
+                        Select a function to see its description and inputs.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {conditionalAuthoringEnabled && slotAliasOptions.length > 0 && (
+            <div className="feature-tree__collapsible">
+              <button
+                type="button"
+                className="feature-tree__collapsible-toggle"
+                data-state={caseBuilderExpanded ? "open" : "closed"}
+                onClick={() => setCaseBuilderExpanded((previous) => !previous)}
+              >
+                {caseBuilderExpanded
+                  ? "Hide case builder"
+                  : "Show case builder"}
+              </button>
+              {caseBuilderExpanded && (
+                <div className="feature-tree__case-builder">
+                  <h4 className="feature-tree__section-title">
+                    Case Expression Builder
+                  </h4>
+                  <div className="feature-tree__case-row">
+                    <label>
+                      Selector
+                      <select
+                        value={caseSelector}
+                        onChange={(event) =>
+                          setCaseSelector(event.target.value)
+                        }
+                      >
+                        {[...slotAliasOptions, ...reservedVariableNames]
+                          .filter(
+                            (token, index, array) =>
+                              token && array.indexOf(token) === index,
+                          )
+                          .map((token) => (
+                            <option key={token} value={token}>
+                              {token}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label>
+                      Default
+                      <select
+                        value={caseDefault}
+                        onChange={(event) => setCaseDefault(event.target.value)}
+                      >
+                        {["self", ...slotAliasOptions, ...reservedVariableNames]
+                          .filter(
+                            (token, index, array) =>
+                              token && array.indexOf(token) === index,
+                          )
+                          .map((token) => (
+                            <option key={token} value={token}>
+                              {token}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="feature-tree__case-branches">
+                    <span>Branches</span>
+                    {slotAliasOptions.map((alias) => {
+                      const checked = caseBranches.includes(alias);
+                      return (
+                        <label
+                          key={alias}
+                          className="feature-tree__case-branch"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) =>
+                              handleCaseBranchToggle(
+                                alias,
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <span>{alias}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleApplyCaseExpression}
+                    disabled={caseBranches.length === 0}
+                  >
+                    Apply case expression
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function formatOperandMetadata(operand?: RigBindingOperandMetadata): string {
+  if (!operand) {
+    return "—";
+  }
+  switch (operand.kind) {
+    case "slot":
+      return operand.alias ?? operand.slotId ?? operand.ref ?? "slot";
+    case "reserved":
+      return operand.ref ?? operand.alias ?? operand.kind;
+    case "literal":
+      return operand.literalValue !== undefined
+        ? String(operand.literalValue)
+        : "literal";
+    case "expression":
+      return operand.expression ?? "expression";
+    default:
+      return operand.kind ?? "operand";
+  }
+}
+
+interface CaseMetadataSummaryProps {
+  metadata: CaseMetadata;
+}
+
+function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
+  return (
+    <div className="feature-tree__case-metadata">
+      <h4 className="feature-tree__section-title">CASE metadata</h4>
+      <dl className="feature-tree__case-fields">
+        <div>
+          <dt>Selector</dt>
+          <dd>{formatOperandMetadata(metadata.selector)}</dd>
+        </div>
+        <div>
+          <dt>Default</dt>
+          <dd>{formatOperandMetadata(metadata.defaultBranch)}</dd>
+        </div>
+      </dl>
+      {metadata.branches.length > 0 && (
+        <div className="feature-tree__case-branches-summary">
+          <span>Branches</span>
+          <ul>
+            {metadata.branches.map((branch, index) => (
+              <li key={branch.alias ?? branch.ref ?? index}>
+                {formatOperandMetadata(branch)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,1 @@
+export { SceneComposerWorkbench } from "./SceneComposerWorkbench";
