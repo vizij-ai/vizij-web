@@ -1,4 +1,5 @@
-import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, type ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../../utils/cn";
 
 interface TooltipProps {
@@ -17,9 +18,44 @@ export function Tooltip({
     delay = 200,
 }: TooltipProps) {
     const [isVisible, setIsVisible] = useState(false);
-    const timeoutRef = useRef<number | null>(null); // Change type to number | null
+    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const timeoutRef = useRef<number | null>(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
+
+    const updatePosition = () => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+
+        let top = 0;
+        let left = 0;
+
+        // Simple positioning logic (adjust as needed for more robustness)
+        switch (side) {
+            case "top":
+                top = rect.top + scrollY - 8; // 8px gap
+                left = rect.left + scrollX + rect.width / 2;
+                break;
+            case "bottom":
+                top = rect.bottom + scrollY + 8;
+                left = rect.left + scrollX + rect.width / 2;
+                break;
+            case "left":
+                top = rect.top + scrollY + rect.height / 2;
+                left = rect.left + scrollX - 8;
+                break;
+            case "right":
+                top = rect.top + scrollY + rect.height / 2;
+                left = rect.right + scrollX + 8;
+                break;
+        }
+
+        setPosition({ top, left });
+    };
 
     const handleMouseEnter = () => {
+        updatePosition();
         timeoutRef.current = window.setTimeout(() => {
             setIsVisible(true);
         }, delay);
@@ -33,28 +69,44 @@ export function Tooltip({
         setIsVisible(false);
     };
 
+    // Update position on scroll/resize when visible
+    useEffect(() => {
+        if (!isVisible) return;
+        const handleUpdate = () => requestAnimationFrame(updatePosition);
+        window.addEventListener("scroll", handleUpdate, true);
+        window.addEventListener("resize", handleUpdate);
+        return () => {
+            window.removeEventListener("scroll", handleUpdate, true);
+            window.removeEventListener("resize", handleUpdate);
+        }
+    }, [isVisible]);
+
     return (
         <div
+            ref={triggerRef}
             className="relative flex items-center"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
             {children}
-            {isVisible && (
+            {isVisible && createPortal(
                 <div
                     className={cn(
-                        "absolute z-50 min-w-[max-content] max-w-xs rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl animate-in fade-in zoom-in-95 duration-100",
-                        {
-                            "bottom-full left-1/2 -translate-x-1/2 mb-2": side === "top",
-                            "top-full left-1/2 -translate-x-1/2 mt-2": side === "bottom",
-                            "right-full top-1/2 -translate-y-1/2 mr-2": side === "left",
-                            "left-full top-1/2 -translate-y-1/2 ml-2": side === "right",
-                        },
+                        "fixed z-[100] min-w-[max-content] max-w-xs rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl animate-in fade-in zoom-in-95 duration-100 pointer-events-none",
                         className
                     )}
+                    style={{
+                        top: position.top,
+                        left: position.left,
+                        transform: side === "top" ? "translate(-50%, -100%)" :
+                            side === "bottom" ? "translate(-50%, 0)" :
+                                side === "left" ? "translate(-100%, -50%)" :
+                                    "translate(0, -50%)"
+                    }}
                 >
                     {content}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

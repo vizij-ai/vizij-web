@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { Panel, Button, Switch, Select } from "../ui";
+import { Panel, Button, Select } from "../ui";
 import { cn } from "../../utils/cn";
 // Adjust imports to point to scene-composer utilities
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
@@ -241,93 +242,145 @@ export function HierarchyPanel({
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
             title="Face Hierarchy"
             description="Select objects via the tree or viewport to drive the inspector."
-            badge={`${objects.length} node${objects.length === 1 ? "" : "s"}`}
+            badge={null}
+            actions={null}
         >
-            <div className="flex flex-col h-full gap-3 p-1">
-                <div className="flex items-center gap-2 px-1">
-                    <div className="relative flex-1 group">
-                        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
+            <div className="flex flex-col h-full gap-1 p-1">
+
+
+                {/* Compact Actions Toolbar */}
+                {allowEditActions && selectedId && (
+                    <div className="flex items-center gap-1 p-1 rounded bg-blue-900/10 border border-blue-500/20 mb-1 mx-1">
+                        <button
+                            type="button"
+                            onClick={() => onToggleSelectionGlow(!showSelectionGlow)}
+                            className={cn(
+                                "flex items-center justify-center h-6 w-6 rounded hover:bg-white/5 transition-colors",
+                                showSelectionGlow ? "text-yellow-400" : "text-slate-400 hover:text-slate-300"
+                            )}
+                            title="Toggle Selection Glow"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="5" />
+                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                            </svg>
+                        </button>
+
+                        <div className="w-px h-4 bg-blue-500/20 mx-1" />
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20"
+                            onClick={handleDuplicateSelection}
+                            title="Duplicate Selection"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-slate-400 hover:text-red-300 hover:bg-red-500/20"
+                            onClick={handleDeleteSelection}
+                            title="Delete Selection"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                        </Button>
+
+
+                        <div className="w-px h-4 bg-blue-500/20 mx-1" />
+
+                        <Popover className="relative">
+                            <PopoverButton
+                                as={Button}
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20 data-[open]:text-blue-300 data-[open]:bg-blue-500/20"
+                                title="Move Selection"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 9-3 3 3 3" /><path d="M9 5l3-3 3 3" /><path d="m19 9 3 3-3 3" /><path d="M9 19l3 3 3-3" /><path d="M2 12h20" /><path d="M12 2v20" /></svg>
+                            </PopoverButton>
+
+                            <PopoverPanel
+                                anchor="right start"
+                                className="w-64 p-3 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0"
+                            >
+                                {({ close }) => (
+                                    <>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-medium text-slate-400">
+                                                Move <span className="text-blue-300 truncate inline-block max-w-[120px] align-bottom">{selectedNode?.name || selectedNode?.id}</span> to under:
+                                            </span>
+                                            <Select
+                                                size="sm"
+                                                className="w-full text-xs"
+                                                value={reparentTarget}
+                                                onChange={setReparentTarget}
+                                                options={[
+                                                    { value: "", label: "Scene Root" },
+                                                    ...parentOptions.map((node) => ({
+                                                        value: node.id,
+                                                        label: node.name || node.id,
+                                                    })),
+                                                ]}
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 text-xs"
+                                                onClick={() => close()}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                className="h-7 text-xs px-4"
+                                                onClick={() => {
+                                                    handleReparentSelection();
+                                                    close();
+                                                }}
+                                                disabled={!selectedId}
+                                            >
+                                                Move
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
+                            </PopoverPanel>
+                        </Popover>
+                    </div>
+                )}
+
+                {/* Search Bar */}
+                <div className="flex items-center gap-2 px-1 mb-1">
+                    <div className="relative flex-1 group h-7">
+                        <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                         </div>
                         <input
                             type="search"
-                            className="w-full h-9 rounded-xl bg-slate-900/50 border border-slate-800/80 pl-8 pr-3 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all font-medium"
-                            placeholder="Filter hierarchy..."
+                            className="w-full h-full rounded bg-slate-900/50 border border-slate-800 hover:border-slate-700 focus:border-blue-500/50 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/20 transition-all font-medium"
+                            placeholder="Filter..."
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                         />
                     </div>
+                    <span className="text-[10px] font-mono text-slate-500 shrink-0 pr-1">{objects.length}</span>
                 </div>
-
-                {allowEditActions && selectedId && (
-                    <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 mx-1">
-                        <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-1">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Actions</span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] tracking-tight font-medium text-slate-500">Glow</span>
-                                <Switch
-                                    checked={showSelectionGlow}
-                                    onChange={onToggleSelectionGlow}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                className="flex-1 h-8 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
-                                onClick={handleDuplicateSelection}
-                            >
-                                Duplicate
-                            </Button>
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                className="flex-1 h-8 text-[11px] font-semibold"
-                                onClick={handleDeleteSelection}
-                            >
-                                Delete
-                            </Button>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-1">
-                            <Select
-                                size="sm"
-                                className="flex-1"
-                                value={reparentTarget}
-                                onChange={setReparentTarget}
-                                disabled={!selectedId}
-                                options={[
-                                    { value: "", label: "Scene Root" },
-                                    ...parentOptions.map((node) => ({
-                                        value: node.id,
-                                        label: node.name || node.id,
-                                    })),
-                                ]}
-                            />
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                className="h-8 px-3 text-[11px] font-semibold bg-white/5 border-white/5 hover:bg-white/10"
-                                onClick={handleReparentSelection}
-                                disabled={!selectedId || parentOptions.length === 0}
-                            >
-                                Move
-                            </Button>
-                        </div>
-                    </div>
-                )}
 
                 <div className="flex-1 min-h-[200px] overflow-y-auto px-1 custom-scrollbar">
                     {!hasVisibleNodes && (
                         <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
                             {search.trim().length > 0 ? (
                                 <>
-                                    <span className="font-medium text-slate-400">No results for "{search}"</span>
-                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-7 text-[10px] text-blue-400 hover:text-blue-300">Clear Filter</Button>
+                                    <span className="font-medium text-slate-400">No results</span>
+                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-6 text-[10px] text-blue-400 hover:text-blue-300">Clear</Button>
                                 </>
                             ) : (
-                                <span className="font-medium text-slate-400">Hierarchy is empty</span>
+                                <span className="font-medium text-slate-400">Empty</span>
                             )}
                         </div>
                     )}
