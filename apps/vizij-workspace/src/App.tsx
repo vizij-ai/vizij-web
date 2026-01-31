@@ -11,9 +11,19 @@ import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import type { VizijBundleExtension } from "@vizij/render";
+import { loadGLTFFromBlobWithBundle } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
+
+import { useWorkspaceStore } from "./state/workspaceStore";
+import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem } from "./components/ui/MenuBar";
+import { DebugPanel } from "./components/panels/DebugPanel";
+import { TreePanel } from "./components/panels/TreePanel";
+import { VariablesPanel } from "./components/panels/VariablesPanel";
+import { AnimationPanel } from "./components/panels/AnimationPanel";
+import { StudioPanel } from "./components/ui/StudioPanel";
+import { Chip, Switch, Button } from "./components/ui"; // Importing UI components for Inspector
 
 import { Viewer } from "./components/app/Viewer";
 import { WorkbenchNav } from "./components/app/WorkbenchNav";
@@ -185,7 +195,7 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
               marginBottom: "0.25rem",
             }}
           >
-            <span style={{ color: "#22c55e" }}>●</span>
+            <span style={{ color: "#22c55e" }}>&#9679;</span>
             <span>
               <strong>Green</strong> — Track exists and has a binding
               configured. Ready to use.
@@ -199,14 +209,14 @@ const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
               marginBottom: "0.25rem",
             }}
           >
-            <span style={{ color: "#3b82f6" }}>●</span>
+            <span style={{ color: "#3b82f6" }}>&#9679;</span>
             <span>
               <strong>Blue</strong> — Track exists but has no binding. Configure
               a binding to drive features.
             </span>
           </li>
           <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ color: "#64748b" }}>●</span>
+            <span style={{ color: "#64748b" }}>&#9679;</span>
             <span>
               <strong>Gray</strong> — Track is missing in the main face. Create
               it first.
@@ -255,6 +265,32 @@ function AppContent({ loader }: AppContentProps) {
   const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(
     null,
   );
+
+  // Highlighting State (moved from Viewer)
+  const [showSelectionGlow, setShowSelectionGlow] = useState(true);
+
+  const handleLoadAssetFromUrl = useCallback(async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch ${url}`);
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: 'model/gltf-binary' });
+
+      await loadFromFile(file, () =>
+        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
+      );
+    } catch (err) {
+      console.error("Failed to load asset from URL:", err);
+    }
+  }, [loadFromFile]);
+
+  const handleLoadQuori = useCallback(() => {
+    handleLoadAssetFromUrl("/assets/Quori_Latest_Rigged.glb", "Quori_Latest_Rigged.glb");
+  }, [handleLoadAssetFromUrl]);
+
+  const handleLoadHugo = useCallback(() => {
+    handleLoadAssetFromUrl("/assets/Hugo_Latest_Rigged.glb", "Hugo_Latest_Rigged.glb");
+  }, [handleLoadAssetFromUrl]);
 
   // Reference face state management
   const [refFaceIsLoading, setRefFaceIsLoading] = useState(false);
@@ -371,6 +407,7 @@ function AppContent({ loader }: AppContentProps) {
     () => ({
       isLoaded: refFaceIsLoaded,
       isLoading: refFaceIsLoading,
+      isPlaying: false,
       standardInputs: refFaceStandardInputs,
       standardInputsById: refFaceStandardInputsById,
       inputIdsWithBindings: refFaceInputIdsWithBindings,
@@ -390,6 +427,7 @@ function AppContent({ loader }: AppContentProps) {
     ],
   );
 
+  // Graph Runtime Hook
   const faceId = useGraphRuntime((state) => state.faceId);
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
   const graphTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
@@ -402,6 +440,7 @@ function AppContent({ loader }: AppContentProps) {
   const pauseGraph = useGraphRuntime((state) => state.pauseGraph);
   const stopGraph = useGraphRuntime((state) => state.stopGraph);
   const stepGraph = useGraphRuntime((state) => state.stepGraph);
+  const setFaceId = useGraphRuntime((state) => state.handleFaceIdChange);
   const discrepancyReview = useGraphRuntime((state) => state.discrepancyReview);
   const resolveDiscrepancyReview = useGraphRuntime(
     (state) => state.resolveDiscrepancyReview,
@@ -412,6 +451,7 @@ function AppContent({ loader }: AppContentProps) {
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
+
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
@@ -427,7 +467,6 @@ function AppContent({ loader }: AppContentProps) {
     (state) => state.handleInputValueChange,
   );
 
-  // Keep the ref updated so handleRefFaceInputValueChange can access it
   useEffect(() => {
     mainFaceInputChangeRef.current = mainFaceHandleInputValueChange;
   }, [mainFaceHandleInputValueChange]);
@@ -493,10 +532,10 @@ function AppContent({ loader }: AppContentProps) {
   const guideIdBase = useId();
   const workbenchGuideIds = useMemo(
     () => ({
-      "import-export": `${guideIdBase}-import-export`,
-      "scene-composer": `${guideIdBase}-scene-composer`,
-      "pose-rig": `${guideIdBase}-pose-rig`,
-      "std-feature-spaces": `${guideIdBase}-std-feature-spaces`,
+      "import-export": `${guideIdBase} -import -export `,
+      "scene-composer": `${guideIdBase} - scene - composer`,
+      "pose-rig": `${guideIdBase} - pose - rig`,
+      "std-feature-spaces": `${guideIdBase} - std - feature - spaces`,
     }),
     [guideIdBase],
   );
@@ -539,7 +578,7 @@ function AppContent({ loader }: AppContentProps) {
   const activeOption = WORKBENCH_OPTIONS.find(
     (option) => option.id === activeWorkbench,
   );
-  const activeGuide = WORKBENCH_GUIDES[activeWorkbench];
+  const activeGuide = activeOption ? WORKBENCH_GUIDES[activeOption.id] : null;
   const activeGuideIsOpen = workbenchGuideOpen[activeWorkbench] ?? false;
   const activeGuideContentId = workbenchGuideIds[activeWorkbench];
   const toggleActiveGuide = () => {
@@ -552,102 +591,173 @@ function AppContent({ loader }: AppContentProps) {
     }));
   };
 
-  const viewerElement = (
-    <Viewer
-      rootId={rootId}
-      statusMessage={statusMessage}
-      namespace={DEFAULT_NAMESPACE}
-      onClearSelection={handleClearSelection}
-      graphTimeSeconds={graphTimeSeconds}
-      graphFrameRate={graphFrameRate}
-      graphPlaybackState={graphPlaybackState}
-      graphStatus={graphStatus}
-      onPlayGraph={playGraph}
-      onPauseGraph={pauseGraph}
-      onStopGraph={stopGraph}
-      onStepGraph={stepGraph}
-      faceId={faceId}
-      faceSegment={faceSegment}
-      onFaceIdChange={handleFaceIdChange}
-      onResetAllInputs={handleResetAllInputs}
-    />
+  const {
+    panels,
+    togglePanel,
+    setPanelVisibility
+  } = useWorkspaceStore();
+
+  const handleImportClick = useCallback(() => {
+    uiActions.setWorkbench("import-export");
+  }, [uiActions]);
+
+  const menuBar = (
+    <MenuBar>
+      <Menu label="File">
+        <MenuItem onSelect={handleImportClick}>Import...</MenuItem>
+        <MenuSeparator />
+        <MenuItem onSelect={() => { }} disabled>Save</MenuItem>
+        <MenuItem onSelect={() => { }} disabled>Save As...</MenuItem>
+        <MenuSeparator />
+        <MenuItem onSelect={() => { }}>Exit</MenuItem>
+      </Menu>
+      <Menu label="Edit">
+        <MenuItem>Undo</MenuItem>
+        <MenuItem>Redo</MenuItem>
+      </Menu>
+      <Menu label="View">
+        <MenuCheckboxItem checked={panels.tree.isVisible} onCheckedChange={() => togglePanel("tree")}>
+          Explorer Panel
+        </MenuCheckboxItem>
+        <MenuCheckboxItem checked={panels.variables.isVisible} onCheckedChange={() => togglePanel("variables")}>
+          Variables Panel
+        </MenuCheckboxItem>
+        <MenuSeparator />
+        <MenuCheckboxItem checked={panels.inspector.isVisible} onCheckedChange={() => togglePanel("inspector")}>
+          Inspector
+        </MenuCheckboxItem>
+        <MenuCheckboxItem checked={panels.debug.isVisible} onCheckedChange={() => togglePanel("debug")}>
+          Debug Panel
+        </MenuCheckboxItem>
+        <MenuCheckboxItem checked={panels.animation.isVisible} onCheckedChange={() => togglePanel("animation")}>
+          Timeline
+        </MenuCheckboxItem>
+      </Menu>
+    </MenuBar>
+  );
+
+  const viewerContent = (
+    <div
+      className={
+        activeWorkbench === "std-feature-spaces"
+          ? `viewer - split ${viewerSplitVertical ? "viewer-split--vertical" : ""} `
+          : "viewer-wrapper"
+      }
+      style={{ height: '100%', width: '100%' }}
+    >
+      <Viewer
+        rootId={rootId}
+        namespace={DEFAULT_NAMESPACE}
+        onClearSelection={handleClearSelection}
+        showSelectionGlow={showSelectionGlow} // Updated Prop
+        onImportClick={handleImportClick}
+        onLoadQuori={handleLoadQuori}
+        onLoadHugo={handleLoadHugo}
+      />
+      {activeWorkbench === "std-feature-spaces" && (
+        <div className="viewer-split__placeholder">
+          <OrchestratorProvider autostart={false}>
+            <ReferenceFaceRuntime
+              file={secondFaceFileToLoad}
+              active={true}
+              visible={true}
+              driveOrchestrator={true}
+              onStandardInputsReady={handleRefFaceStandardInputsReady}
+              onLoadingStateChange={handleRefFaceLoadingStateChange}
+              onAnimateValueReady={handleRefFaceAnimateValueReady}
+              onStandardInputChange={handleRefFaceStandardInputChange}
+              onBundleReady={handleRefFaceBundleReady}
+              splitVertical={viewerSplitVertical}
+              onToggleSplit={() => setViewerSplitVertical((v) => !v)}
+            />
+          </OrchestratorProvider>
+        </div>
+      )}
+    </div>
   );
 
   return (
     <>
-
       <WorkspaceLayout
-        leftSidebar={
-          <div className="h-full bg-[var(--bg-panel)] flex flex-col">
-            <header className="px-4 py-3 border-b border-[var(--border-default)]">
-              <h1 className="text-sm font-semibold text-[var(--color-slate-100)]">Mode</h1>
-            </header>
-            <WorkbenchNav
-              options={WORKBENCH_OPTIONS}
-              activeWorkbench={activeWorkbench}
-              onSelect={handleWorkbenchChange}
-            />
+        menuBar={menuBar}
+        // Left
+        leftTopVisible={panels.tree.isVisible}
+        leftTopPanel={
+          <TreePanel>
+            <div className="flex flex-col gap-2">
+              <WorkbenchNav
+                options={WORKBENCH_OPTIONS}
+                activeWorkbench={activeWorkbench}
+                onSelect={handleWorkbenchChange}
+              />
+            </div>
+          </TreePanel>
+        }
+        leftBottomVisible={panels.variables.isVisible}
+        leftBottomPanel={<VariablesPanel />}
+
+        // Center
+        topPanel={
+          <div className="h-full flex items-center px-4 gap-4 text-xs select-none">
+            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Select</button>
+            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Move</button>
+            <button className="hover:text-white px-2 py-1 rounded hover:bg-white/10">Rotate</button>
+            <div className="ml-auto flex gap-2 text-slate-500">
+              <span>Grid: On</span>
+              <span className="mx-2">|</span>
+              <span>Snap: Off</span>
+            </div>
           </div>
         }
-        rightSidebar={
-          <div className="h-full overflow-y-auto bg-[var(--bg-panel)] p-3">
-            <div className="workbench-panel__content">
-              <div className="workbench-panel__body">
-                {activeOption && (
-                  <header className="workbench-panel__header">
-                    {activeGuide ? (
-                      <>
-                        <button
-                          type="button"
-                          className="workbench-panel__header-trigger"
-                          onClick={toggleActiveGuide}
-                          aria-expanded={activeGuideIsOpen}
-                          aria-controls={activeGuideContentId}
-                        >
-                          <div className="workbench-panel__title-group">
-                            <h1 className="sidebar__title">
-                              {activeOption.label}
-                            </h1>
-                            <p className="workbench-panel__description">
-                              {activeOption.description}
-                            </p>
-                          </div>
-                          <span
-                            className="workbench-panel__chevron"
-                            aria-hidden="true"
-                          >
-                            {activeGuideIsOpen ? "▾" : "▸"}
-                          </span>
-                        </button>
-                        <div
-                          id={activeGuideContentId}
-                          className="workbench-panel__instructions"
-                          aria-hidden={!activeGuideIsOpen}
-                          style={{ display: activeGuideIsOpen ? "flex" : "none" }}
-                          data-open={activeGuideIsOpen ? "true" : undefined}
-                        >
-                          <p className="workbench-panel__instructions-label">
-                            {activeGuide.label}
-                          </p>
-                          <p className="workbench-panel__instructions-summary">
-                            {activeGuide.summary}
-                          </p>
-                          <div className="workbench-panel__instructions-body">
-                            {activeGuide.content}
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="workbench-panel__title-group">
-                        <h1 className="sidebar__title">{activeOption.label}</h1>
-                        <p className="workbench-panel__description">
-                          {activeOption.description}
-                        </p>
-                      </div>
-                    )}
-                  </header>
-                )}
+        viewport={viewerContent}
+        bottomVisible={panels.animation.isVisible}
+        bottomPanel={<AnimationPanel />}
 
+        // Right
+        rightTopVisible={panels.inspector.isVisible}
+        rightTopPanel={
+          <StudioPanel title={activeOption?.label || "Inspector"}>
+            <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
+              {/* GLOBAL INSPECTOR CONTROLS: Active Face & Highlights */}
+              <div className="border-b border-[var(--border-default)] pb-4 space-y-4">
+                {/* Active Face */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-400">Active Face</label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">ID</span>
+                    <input
+                      className="bg-[var(--bg-input)] border border-[var(--border-input)] rounded px-2 py-1 text-sm w-32"
+                      value={faceId}
+                      onChange={(e) => handleFaceIdChange(e.target.value)}
+                    />
+                  </div>
+                  {faceSegment && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">Segment</span>
+                      <Chip tone="info">{faceSegment}</Chip>
+                    </div>
+                  )}
+                </div>
+
+                {/* Highlights */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-400">Highlights</label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Selection Glow</span>
+                    <Switch
+                      checked={showSelectionGlow}
+                      onChange={(e) => setShowSelectionGlow(e.currentTarget.checked)}
+                    />
+                  </div>
+                  <Button variant="secondary" onClick={handleResetAllInputs} className="w-full mt-2">
+                    Reset Inputs
+                  </Button>
+                </div>
+              </div>
+
+
+              {/* Context Specific Workbench Content */}
+              <div className="flex-1">
                 {activeWorkbench === "import-export" && (
                   <ImportExportWorkbench
                     isLoading={isLoading}
@@ -691,11 +801,11 @@ function AppContent({ loader }: AppContentProps) {
                   )}
 
                 {activeWorkbench === "pose-rig" && (
-                  <Panel className="sidebar__panel--pose">
+                  <div className="sidebar__panel--pose">
                     <PoseRigWorkbench
                       onImportPoseGraph={handleImportPoseGraphFile}
                     />
-                  </Panel>
+                  </div>
                 )}
 
                 {activeWorkbench === "std-feature-spaces" && (
@@ -707,45 +817,12 @@ function AppContent({ loader }: AppContentProps) {
                 )}
               </div>
             </div>
-          </div>
+          </StudioPanel>
         }
-        bottomPanel={
-          <div className="h-full flex items-center justify-center text-[var(--color-slate-400)]">
-            Animation / Behavior Timeline (Coming Soon)
-          </div>
-        }
-      >
-        <div
-          className={
-            activeWorkbench === "std-feature-spaces"
-              ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
-              : "viewer-wrapper"
-          }
-          style={{ height: '100%', width: '100%' }}
-        >
-          {viewerElement}
-          {activeWorkbench === "std-feature-spaces" && (
-            <div className="viewer-split__placeholder">
-              <OrchestratorProvider autostart={false}>
-                <ReferenceFaceRuntime
-                  file={secondFaceFileToLoad}
-                  active={true}
-                  visible={true}
-                  driveOrchestrator={true}
-                  onStandardInputsReady={handleRefFaceStandardInputsReady}
-                  onLoadingStateChange={handleRefFaceLoadingStateChange}
-                  onAnimateValueReady={handleRefFaceAnimateValueReady}
-                  onStandardInputChange={handleRefFaceStandardInputChange}
-                  onBundleReady={handleRefFaceBundleReady}
-                  splitVertical={viewerSplitVertical}
-                  onToggleSplit={() => setViewerSplitVertical((v) => !v)}
-                />
-              </OrchestratorProvider>
-            </div>
-          )}
-        </div>
-      </WorkspaceLayout>
+        rightBottomVisible={panels.debug.isVisible}
+        rightBottomPanel={<DebugPanel />}
 
+      />
 
       {discrepancyReview ? (
         <DiscrepancyWizard
