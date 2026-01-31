@@ -27,6 +27,7 @@ import { Chip, Switch, Button } from "./components/ui"; // Importing UI componen
 
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
+import { ExportDialog } from "./components/app/ExportDialog";
 import { WorkbenchNav } from "./components/app/WorkbenchNav";
 import { SceneComposerWorkbench } from "./components/scene-composer";
 import { PoseRigWorkbench } from "./poseRig/components";
@@ -269,6 +270,8 @@ function AppContent({ loader }: AppContentProps) {
 
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
+
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const handleLoadAssetFromUrl = useCallback(async (url: string, filename: string) => {
     try {
@@ -598,14 +601,31 @@ function AppContent({ loader }: AppContentProps) {
     setPanelVisibility
   } = useWorkspaceStore();
 
+  // File Import Logic
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await loadFromFile(file, () =>
+      loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
+    );
+    // Switch to scene-composer after load to view it? Or stick to current view.
+    // If not in a useful view, maybe switch.
+    // Let's reset the input value so the same file handles change event again if needed.
+    event.target.value = '';
+  }, [loadFromFile]);
+
   const handleImportClick = useCallback(() => {
-    uiActions.setWorkbench("import-export");
-  }, [uiActions]);
+    fileInputRef.current?.click();
+  }, []);
 
   const menuBar = (
     <MenuBar>
       <Menu label="File">
         <MenuItem onSelect={handleImportClick}>Import...</MenuItem>
+        <MenuItem onSelect={() => setShowExportDialog(true)}>Export...</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => { }} disabled>Save</MenuItem>
         <MenuItem onSelect={() => { }} disabled>Save As...</MenuItem>
@@ -857,6 +877,24 @@ function AppContent({ loader }: AppContentProps) {
           onCancel={handlePoseGraphRemapCancel}
         />
       ) : null}
+      <ExportDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        rootId={rootId}
+        sourceName={sourceName}
+        loadedBundle={loadedBundle}
+        canExport={canExport}
+        onImportPoseGraph={handleImportPoseGraphFile}
+      />
+
+      {/* Hidden File Input for Import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept=".glb,.gltf"
+        onChange={(e) => void handleFileChange(e)}
+      />
     </>
   );
 }

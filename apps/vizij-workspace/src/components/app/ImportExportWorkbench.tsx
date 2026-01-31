@@ -61,8 +61,8 @@ interface ImportExportWorkbenchProps {
       | VizijBundleExtension
       | null
       | ((
-          previous: VizijBundleExtension | null,
-        ) => VizijBundleExtension | null),
+        previous: VizijBundleExtension | null,
+      ) => VizijBundleExtension | null),
   ) => void;
 }
 
@@ -193,8 +193,7 @@ export function ImportExportWorkbench({
         await handleImportGraphSpec(normalised);
       } catch (error) {
         await showAlert(
-          `Failed to import rig graph: ${
-            error instanceof Error ? error.message : String(error)
+          `Failed to import rig graph: ${error instanceof Error ? error.message : String(error)
           }`,
         );
       }
@@ -603,116 +602,7 @@ export function ImportExportWorkbench({
         </div>
       </SidebarSection>
 
-      <SidebarSection
-        title="Exporting"
-        description="Package Vizij outputs for tooling or runtime hand-off."
-        instructions={{
-          label: "Export best practices",
-          summary: "Name files clearly and trim payloads as needed",
-          size: "compact",
-          content: (
-            <ul>
-              <li>
-                Name exports after milestones (e.g.{" "}
-                <code>robot_v2_audit.glb</code>) so downstream teams know what
-                changed.
-              </li>
-              <li>
-                Disable Vizij bundle or animation payloads when you only need
-                the base GLB mesh for DCC review.
-              </li>
-              <li>
-                Exports always reflect the current in-memory bundle, so re-run
-                audits if anything upstream changed.
-              </li>
-            </ul>
-          ),
-        }}
-      >
-        <div className="sidebar__stack">
-          <ExportPanel
-            exportFileName={exportFileName}
-            onExportFileNameChange={handleExportFileNameChange}
-            canExport={canExport}
-            onExportGlb={() => {
-              void exportGlb();
-            }}
-            animationCount={bundleSummary.animationCount}
-            includeBundle={includeVizijBundle}
-            onIncludeBundleChange={handleIncludeBundleChange}
-            includeAnimations={includeImportedAnimations}
-            onIncludeAnimationsChange={handleIncludeAnimationsChange}
-            blendMode={poseRig.blendMode}
-            onBlendModeChange={poseRig.setBlendMode}
-          />
-          <div className="sidebar__stack">
-            <div className="asset-card">
-              <div className="asset-card__body asset-card__body--compact">
-                <button
-                  type="button"
-                  className="button subtle"
-                  onClick={() => setIsAdvancedOpen((current) => !current)}
-                  aria-expanded={isAdvancedOpen}
-                  aria-controls="vizij-advanced-import-export"
-                >
-                  {isAdvancedOpen
-                    ? "Hide optional imports & exports"
-                    : "Show optional imports & exports"}
-                </button>
-                <p className="asset-card__hint asset-card__hint--muted">
-                  Legacy rig graph and pose rig files remain available when
-                  required.
-                </p>
-              </div>
-            </div>
-
-            {isAdvancedOpen ? (
-              <div
-                id="vizij-advanced-import-export"
-                className="sidebar__stack"
-                style={{ marginTop: "0.75rem" }}
-              >
-                <GraphImportPanel
-                  onSelectGraphFile={(file) => {
-                    void handleImportGraphFile(file);
-                  }}
-                  disabled={!canImportGraph}
-                />
-
-                <RigGraphExportPanel
-                  graphFileName={graphFileName}
-                  onGraphFileNameChange={handleGraphFileNameChange}
-                  canExport={canExport}
-                  onExportGraph={exportGraph}
-                />
-
-                <PoseRigImportPanel
-                  onImportPoseConfig={importPoseConfigFile}
-                  onImportPoseGraph={onImportPoseGraph}
-                  poseConfigWarnings={poseRig.poseConfigWarnings}
-                  disabled={!poseRig.ready}
-                />
-
-                <PoseRigExportPanel
-                  rigName={poseRig.rigName}
-                  onRigNameChange={poseRig.setRigName}
-                  poseGraphFileName={poseRig.poseGraphFileName}
-                  onPoseGraphFileNameChange={(name) =>
-                    poseRig.setPoseGraphFileName(name)
-                  }
-                  poseConfigFileName={poseRig.poseConfigFileName}
-                  onPoseConfigFileNameChange={(name) =>
-                    poseRig.setPoseConfigFileName(name)
-                  }
-                  onExportPoseGraph={exportPoseGraphFile}
-                  onExportPoseConfig={exportPoseConfigFile}
-                  disabled={!poseRig.ready}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </SidebarSection>
+      {/* Exporting section moved to dialog */}
 
       {hasLoadedAsset ? (
         <SidebarSection
