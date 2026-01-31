@@ -4,18 +4,21 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { Panel } from "../ui";
-import { Button } from "../ui";
+import { Panel, Button, Switch } from "../ui";
 // Adjust imports to point to scene-composer utilities
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
 
 interface HierarchyPanelProps {
     allowEditActions?: boolean;
+    showSelectionGlow: boolean;
+    onToggleSelectionGlow: (enabled: boolean) => void;
 }
 
 export function HierarchyPanel({
     allowEditActions = true,
+    showSelectionGlow,
+    onToggleSelectionGlow,
 }: HierarchyPanelProps) {
     const {
         objects,
@@ -229,17 +232,26 @@ export function HierarchyPanel({
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
-                {search.trim().length > 0 && (
+                <div className="flex items-center gap-2 ml-2">
+                    <label className="text-xs text-slate-400 whitespace-nowrap">Highlights</label>
+                    <Switch
+                        checked={showSelectionGlow}
+                        onChange={(e) => onToggleSelectionGlow(e.currentTarget.checked)}
+                    />
+                </div>
+            </div>
+            {search.trim().length > 0 && (
+                <div className="px-2 pb-2">
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="scene-hierarchy__clear"
+                        className="w-full justify-center h-6 text-xs"
                         onClick={() => setSearch("")}
                     >
-                        Clear
+                        Clear Search
                     </Button>
-                )}
-            </div>
+                </div>
+            )}
 
             {allowEditActions ? (
                 <>

@@ -722,7 +722,10 @@ function AppContent({ loader }: AppContentProps) {
           <div className="flex flex-col h-full w-full">
             {panels.hierarchy.isVisible && (
               <div className={`flex-1 min-h-0 ${panels.variables.isVisible ? "border-b border-[#334155]" : ""}`}>
-                <HierarchyPanel />
+                <HierarchyPanel
+                  showSelectionGlow={showSelectionGlow}
+                  onToggleSelectionGlow={setShowSelectionGlow}
+                />
               </div>
             )}
             {panels.variables.isVisible && (
@@ -755,42 +758,7 @@ function AppContent({ loader }: AppContentProps) {
         rightTopPanel={
           <StudioPanel title={activeOption?.label || "Inspector"}>
             <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
-              {/* GLOBAL INSPECTOR CONTROLS: Active Face & Highlights */}
-              <div className="border-b border-[var(--border-default)] pb-4 space-y-4">
-                {/* Active Face */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-semibold text-slate-400">Active Face</label>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">ID</span>
-                    <input
-                      className="bg-[var(--bg-input)] border border-[var(--border-input)] rounded px-2 py-1 text-sm w-32"
-                      value={faceId}
-                      onChange={(e) => handleFaceIdChange(e.target.value)}
-                    />
-                  </div>
-                  {faceSegment && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">Segment</span>
-                      <Chip tone="info">{faceSegment}</Chip>
-                    </div>
-                  )}
-                </div>
 
-                {/* Highlights */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-semibold text-slate-400">Highlights</label>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Selection Glow</span>
-                    <Switch
-                      checked={showSelectionGlow}
-                      onChange={(e) => setShowSelectionGlow(e.currentTarget.checked)}
-                    />
-                  </div>
-                  <Button variant="secondary" onClick={handleResetAllInputs} className="w-full mt-2">
-                    Reset Inputs
-                  </Button>
-                </div>
-              </div>
 
 
               {/* Context Specific Workbench Content */}
@@ -857,7 +825,14 @@ function AppContent({ loader }: AppContentProps) {
           </StudioPanel>
         }
         rightBottomVisible={panels.debug.isVisible}
-        rightBottomPanel={<DebugPanel />}
+        rightBottomPanel={<DebugPanel
+          rootId={loader.rootId}
+          sourceName={loader.sourceName}
+          loadedBundle={loader.bundle}
+          updateBundle={loader.updateBundle}
+          isLoading={loader.isLoading}
+          error={loader.error}
+        />}
 
       />
 

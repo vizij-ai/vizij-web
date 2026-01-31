@@ -1,16 +1,14 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   loadGLTFFromBlobWithBundle,
   useVizijStore,
   type LoadedVizijAsset,
 } from "@vizij/render";
 import { useDialogQueue, readJsonFile } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import { type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
-import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
-import { useBundleAudit } from "../../hooks/useBundleAudit";
 import {
   useAuthoringUiActions,
   useAuthoringUiState,
@@ -20,7 +18,6 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { cloneSerializable } from "../../utils/serialization";
 import { useAuthoringFileNames } from "../../hooks/useAuthoringFileNames";
 import { useVizijExport } from "../../hooks/useVizijExport";
 import { usePoseRig } from "../../state/PoseRigProvider";
@@ -29,17 +26,7 @@ import {
   prepareSpecForImport,
   remapGraphSpecFace,
 } from "../../utils/graphImport";
-import { InstructionCallout } from "../common/InstructionCallout";
 import { SidebarSection } from "../common/SidebarSection";
-import { Tabs } from "../ui";
-import { GraphDiagnosticsPanel } from "./GraphDiagnosticsPanel";
-import { RobotDataAuditPanel } from "./RobotDataAuditPanel";
-import { VizijBundleAuditPanel } from "./VizijBundleAuditPanel";
-import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
-import { RigGraphExportPanel } from "./RigGraphExportPanel";
-import { ExportPanel } from "./ExportPanel";
-import { PoseRigImportPanel, PoseRigExportPanel } from "./PoseRigPanels";
-import { GraphImportPanel } from "./GraphImportPanel";
 import { AssetLoaderPanel } from "./AssetLoaderPanel";
 
 interface ImportExportWorkbenchProps {
@@ -70,19 +57,6 @@ interface ImportExportWorkbenchProps {
  * Houses the GLB / rig import-export workflows, keeping the main app shell
  * lean while still exposing every optional tool for power users.
  */
-type HealthTabId =
-  | "robot-audit"
-  | "bundle-audit"
-  | "diagnostics"
-  | "maintenance";
-
-const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
-  { id: "robot-audit", label: "RobotData" },
-  { id: "bundle-audit", label: "Bundle Graphs" },
-  { id: "diagnostics", label: "Graph Diagnostics" },
-  { id: "maintenance", label: "Rig Maintenance" },
-];
-
 export function ImportExportWorkbench({
   isLoading,
   error,
@@ -97,11 +71,8 @@ export function ImportExportWorkbench({
   updateBundle,
 }: ImportExportWorkbenchProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [activeHealthTab, setActiveHealthTab] =
-    useState<HealthTabId>("robot-audit");
 
   const faceId = useGraphRuntime((state) => state.faceId);
-  const world = useGraphRuntime((state) => state.world);
   const animatables = useGraphRuntime((state) => state.animatables);
   const values = useGraphRuntime((state) => state.values);
   const setStoreState = useGraphRuntime((state) => state.setStoreState);
@@ -116,9 +87,6 @@ export function ImportExportWorkbench({
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
-  );
-  const handleClearCachedState = useBindingAuthoring(
-    (state) => state.handleClearCachedState,
   );
   const featureLabelOverrides = useBindingAuthoring(
     (state) => state.featureLabelOverrides,
@@ -155,13 +123,6 @@ export function ImportExportWorkbench({
   } = useDialogQueue();
   const poseRig = usePoseRig();
 
-  const robotAudit = useRobotDataAuditRunner({
-    namespace: DEFAULT_NAMESPACE,
-    world,
-    animatables,
-    enabled: Boolean(rootId),
-  });
-  const canRunRobotDataAudit = Boolean(rootId) && !isLoading;
 
   const handleSelectFile = useCallback(
     async (file: File) => {
@@ -243,7 +204,7 @@ export function ImportExportWorkbench({
     },
   });
 
-  const bundleSummary = useMemo<VizijBundleSummary>(() => {
+  const bundleSummary = useMemo(() => {
     if (!loadedBundle) {
       return {
         present: false,
@@ -284,281 +245,7 @@ export function ImportExportWorkbench({
     [uiActions],
   );
 
-  const {
-    bundleAudit,
-    bundleAuditError,
-    bundleAuditStatus,
-    refreshBundleAudit,
-  } = useBundleAudit(loadedBundle, validOutputTargets);
-
-  const bundleAuditPanelStatus =
-    bundleAuditStatus === "running"
-      ? "running"
-      : bundleAuditError
-        ? "error"
-        : "idle";
-
-  const handleClearCachedRig = useCallback(async () => {
-    const confirmed = await showConfirm(
-      "Clear cached rig data for this asset? This removes saved inputs, bindings, and overrides.",
-    );
-    if (!confirmed) {
-      return;
-    }
-    handleClearCachedState();
-    await showAlert("Cached rig data cleared.");
-  }, [handleClearCachedState, showAlert, showConfirm]);
-
-  const handleOverwriteBundleGraph = useCallback(
-    async (graphId: string) => {
-      if (!bundleAudit) {
-        await showAlert(
-          "Unable to find audit data. Run the bundle audit again and retry.",
-        );
-        return;
-      }
-      const target = bundleAudit.find((entry) => entry.id === graphId);
-      if (!target) {
-        await showAlert(
-          "Unable to find audit entry for the selected graph. Run the audit again and retry.",
-        );
-        return;
-      }
-      if (!target.compiledSpec) {
-        await showAlert(
-          "This graph did not produce a compiled IR spec, so it cannot be overwritten automatically.",
-        );
-        return;
-      }
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(target.compiledSpec as GraphSpec) as Record<
-              string,
-              unknown
-            >,
-            metadata: {
-              ...(graph.metadata ?? {}),
-              reconciledAt: new Date().toISOString(),
-            },
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
-      });
-    },
-    [bundleAudit, showAlert, updateBundle],
-  );
-
-  const handleRenameBundleOutput = useCallback(
-    async (graphId: string, nodeId: string, currentPath: string | null) => {
-      const targetGraph = loadedBundle?.graphs?.find(
-        (graph) => graph.id === graphId,
-      );
-      if (!targetGraph) {
-        await showAlert("Unable to locate the selected graph in the bundle.");
-        return;
-      }
-      if (!targetGraph.ir) {
-        await showAlert("This graph has no IR payload to edit.");
-        return;
-      }
-      const nextPath = await showPrompt(
-        "Enter the new output path for this node (e.g., rig/face/eyes/blink)",
-        currentPath ?? "",
-      );
-      if (nextPath === null) {
-        return;
-      }
-      const trimmed = nextPath.trim();
-      if (!trimmed) {
-        await showAlert("Output path cannot be empty.");
-        return;
-      }
-      const nextIr = cloneSerializable(targetGraph.ir) as unknown as IrGraph;
-      const targetNode = nextIr.nodes.find((node) => node.id === nodeId);
-      if (!targetNode) {
-        await showAlert("Unable to find the output node inside the IR graph.");
-        return;
-      }
-      targetNode.params = { ...(targetNode.params ?? {}), path: trimmed };
-      const compiled = compileIrGraph(nextIr, { preferLegacySpec: false });
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(compiled.spec) as Record<string, unknown>,
-            ir: cloneSerializable(nextIr) as unknown as Record<string, unknown>,
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
-      });
-    },
-    [loadedBundle, showAlert, showPrompt, updateBundle],
-  );
-
   const hasLoadedAsset = Boolean(rootId || loadedBundle);
-
-  useEffect(() => {
-    if (!hasLoadedAsset) {
-      setActiveHealthTab("robot-audit");
-    }
-  }, [hasLoadedAsset]);
-
-  const renderHealthTab = () => {
-    switch (activeHealthTab) {
-      case "robot-audit":
-        return (
-          <div className="sidebar__stack">
-            <InstructionCallout
-              label="RobotData audit tips"
-              summary="Catch node drift after edits or merges"
-              size="compact"
-            >
-              <ul>
-                <li>
-                  Run the audit whenever meshes, skeletons, or RobotData sources
-                  are edited outside Vizij.
-                </li>
-                <li>
-                  Results become stale after a new GLB load—rerun before
-                  exporting so you compare current data.
-                </li>
-                <li>
-                  Use the per-node errors to jump directly to problem objects in
-                  the scene composer.
-                </li>
-              </ul>
-            </InstructionCallout>
-            <RobotDataAuditPanel
-              result={robotAudit.result}
-              status={robotAudit.status}
-              progress={robotAudit.progress}
-              isStale={robotAudit.isResultStale}
-              error={robotAudit.error}
-              canRun={canRunRobotDataAudit}
-              onRun={robotAudit.runAudit}
-              onCancel={robotAudit.cancelAudit}
-            />
-          </div>
-        );
-      case "bundle-audit":
-        return (
-          <div className="sidebar__stack">
-            <InstructionCallout
-              label="Bundle graph checklist"
-              summary="Keep GraphSpecs + IR aligned"
-              size="compact"
-            >
-              <ol>
-                <li>Click Refresh to rebuild graphs and record diffs.</li>
-                <li>
-                  Use Overwrite to push compiled specs back into the bundle so
-                  future loads stay clean.
-                </li>
-                <li>
-                  Rename outputs inline to keep downstream rig paths predictable
-                  before exporting.
-                </li>
-              </ol>
-            </InstructionCallout>
-            <VizijBundleAuditPanel
-              audits={bundleAudit}
-              status={bundleAuditPanelStatus}
-              error={bundleAuditError}
-              onRefresh={refreshBundleAudit}
-              onOverwrite={handleOverwriteBundleGraph}
-              onRenameOutput={handleRenameBundleOutput}
-            />
-          </div>
-        );
-      case "diagnostics":
-        return (
-          <div className="sidebar__stack">
-            <InstructionCallout
-              label="Graph diagnostics primer"
-              summary="Capture machine reports + IR snapshots"
-              size="compact"
-            >
-              <ol>
-                <li>
-                  Generate a machine report after large binding changes to
-                  capture slot metadata.
-                </li>
-                <li>
-                  Download IR snapshots to diff builds or attach to bug reports.
-                </li>
-                <li>
-                  Use quick links to copy CLI commands for Vizij IR diffs.
-                </li>
-              </ol>
-            </InstructionCallout>
-            <GraphDiagnosticsPanel />
-          </div>
-        );
-      case "maintenance":
-        return (
-          <div className="sidebar__stack">
-            <InstructionCallout
-              label="Rig cache maintenance"
-              summary="Clear overrides when authoring feels stale"
-              size="compact"
-            >
-              <ul>
-                <li>
-                  Clear cached data if bindings or driver states stop matching
-                  what the bundle reports after a reload.
-                </li>
-                <li>
-                  The action wipes stored inputs, bindings, and overrides for
-                  the current asset only.
-                </li>
-                <li>
-                  Re-run audits and exports afterward to repopulate the cache
-                  with up-to-date data.
-                </li>
-              </ul>
-            </InstructionCallout>
-            <div className="asset-card">
-              <div className="asset-card__body asset-card__body--compact">
-                <p className="asset-card__hint">
-                  Clears stored overrides for the currently loaded Vizij asset.
-                </p>
-                <button
-                  type="button"
-                  className="button danger"
-                  onClick={() => {
-                    void handleClearCachedRig();
-                  }}
-                >
-                  Clear cached rig data
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div className="workbench-panel__scroll">
@@ -603,25 +290,6 @@ export function ImportExportWorkbench({
       </SidebarSection>
 
       {/* Exporting section moved to dialog */}
-
-      {hasLoadedAsset ? (
-        <SidebarSection
-          title="Health & Diagnostics"
-          description="Audit RobotData, reconcile bundle graphs, inspect diagnostics, or clear cached rig data without leaving this workbench."
-        >
-          <Tabs
-            value={activeHealthTab}
-            onValueChange={(id) => setActiveHealthTab(id as HealthTabId)}
-            items={HEALTH_TABS}
-            renderPanel={() => renderHealthTab()}
-            className="health-tabs"
-            listClassName="health-tabs__button-row"
-            panelClassName="health-tabs__panel"
-            size="sm"
-            variant="pill"
-          />
-        </SidebarSection>
-      ) : null}
     </div>
   );
 }
