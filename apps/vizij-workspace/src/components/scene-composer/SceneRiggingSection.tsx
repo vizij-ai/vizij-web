@@ -29,22 +29,31 @@ export function SceneRiggingSection({
   showHideControls = true,
   allowCreateDrivers = true,
 }: SceneRiggingSectionProps) {
+  const activeResult = useActiveNode();
+
+  if (!activeResult?.node) {
+    return <div className="p-4 text-xs text-slate-500">Select an object</div>;
+  }
+
   return (
     <div className="scene-rigging-section">
       {/* Hierarchy moved to main sidebar */}
       {showCoverage ? (
         <StandardInputCoveragePanel showMissingList={showMissingList} />
       ) : null}
-      <ObjectInspector
-        showMaterialEditor={showMaterials}
-        showDrivers={showDrivers}
-        showBindings={showBindings}
-        showFeatures={showFeatures}
-        hiddenMode={hiddenMode}
-        showHideControls={showHideControls}
-        allowCreateDrivers={allowCreateDrivers}
-        allowNodeActions={allowNodeActions}
-      />
+      <RiggingInspector node={activeResult?.node} />
     </div>
   );
+}
+
+// Helper to get active node from selection (duplicating logic for now or we hoist it)
+import { useSelectionStore } from "../../state/RigControllerProvider";
+import { useSceneComposer } from "../../scene/useSceneComposer";
+import { RiggingInspector } from "../inspector/RiggingInspector"; // Import new component
+
+function useActiveNode() {
+  const { getNode } = useSceneComposer();
+  const selectionStack = useSelectionStore((state) => state.selectionStack);
+  const activeSelection = selectionStack[0] ?? null;
+  return activeSelection ? { node: getNode(activeSelection.id) } : null;
 }
