@@ -19,7 +19,7 @@ import type { VizijBundleExtension } from "@vizij/render";
 import { loadGLTFFromBlobWithBundle } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
-import { ImportExportWorkbench } from "./components/app/ImportExportWorkbench";
+import { Tabs, type TabItem } from "./components/ui/Tabs";
 
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem, MenuLabel } from "./components/ui/MenuBar";
@@ -33,7 +33,6 @@ import { Chip, Switch, Button } from "./components/ui"; // Importing UI componen
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ExportDialog } from "./components/app/ExportDialog";
-import { WorkbenchNav } from "./components/app/WorkbenchNav";
 import { SceneComposerWorkbench } from "./components/scene-composer";
 import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
@@ -594,10 +593,22 @@ function AppContent({ loader }: AppContentProps) {
 
   // File Import Logic
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const skipNextDiscrepancyCheck = useRef(false);
+
+  const handleNewClick = useCallback(() => {
+    loader.reset();
+  }, [loader]);
 
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    if (skipNextDiscrepancyCheck.current) {
+      uiActions.setSkipDiscrepancyCheck(true);
+      skipNextDiscrepancyCheck.current = false;
+    } else {
+      uiActions.setSkipDiscrepancyCheck(false);
+    }
 
     await loadFromFile(file, () =>
       loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
@@ -606,16 +617,25 @@ function AppContent({ loader }: AppContentProps) {
     // If not in a useful view, maybe switch.
     // Let's reset the input value so the same file handles change event again if needed.
     event.target.value = '';
-  }, [loadFromFile]);
+  }, [loadFromFile, uiActions]);
 
   const handleImportClick = useCallback(() => {
+    skipNextDiscrepancyCheck.current = false;
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleImportSkipChecksClick = useCallback(() => {
+    skipNextDiscrepancyCheck.current = true;
     fileInputRef.current?.click();
   }, []);
 
   const menuBar = (
     <MenuBar>
       <Menu label="File">
+        <MenuItem onSelect={handleNewClick}>New</MenuItem>
+        <MenuSeparator />
         <MenuItem onSelect={handleImportClick}>Import...</MenuItem>
+        <MenuItem onSelect={handleImportSkipChecksClick}>Import (Skip Checks)...</MenuItem>
         <MenuItem onSelect={() => setShowExportDialog(true)}>Export...</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => { }} disabled>Save</MenuItem>
@@ -697,46 +717,74 @@ function AppContent({ loader }: AppContentProps) {
     </div>
   );
 
+  const workbenchTabs: TabItem[] = useMemo(() => [
+    { id: "scene-composer", label: "Rigging" },
+    { id: "pose-rig", label: "Posing" },
+    { id: "std-feature-spaces", label: "Standards" },
+  ], []);
+
+  const renderWorkbenchTab = useCallback((id: string) => {
+    switch (id) {
+      case "scene-composer":
+        return (
+          <div className="flex flex-col gap-4 p-4 h-full">
+            {showRiggingTabs && (
+              <RiggingTabs
+                activeTab={activeRiggingTab}
+                onSelect={handleRiggingTabChange}
+              />
+            )}
+            {activeRiggingTab === "rigging" && <SceneComposerWorkbench />}
+            {activeRiggingTab === "face" && (
+              <SceneRiggingSection
+                showCoverage={false}
+                showMissingList={false}
+                allowEditActions={false}
+                allowNodeActions
+                showMaterials
+                showDrivers={false}
+                showBindings={false}
+                showFeatures
+                hiddenMode="none"
+                showHideControls={false}
+              />
+            )}
+          </div>
+        );
+      case "pose-rig":
+        return (
+          <div className="sidebar__panel--pose p-4 h-full">
+            <PoseRigWorkbench onImportPoseGraph={handleImportPoseGraphFile} />
+          </div>
+        );
+      case "std-feature-spaces":
+        return (
+          <ReferenceFaceProvider value={referenceFaceContextValue}>
+            <div className="p-4 h-full">
+              <StdFeatureSpacesEditor onSelectFile={setSecondFaceFileToLoad} />
+            </div>
+          </ReferenceFaceProvider>
+        );
+      default:
+        return null;
+    }
+  }, [showRiggingTabs, activeRiggingTab, handleRiggingTabChange, handleImportPoseGraphFile, referenceFaceContextValue, setSecondFaceFileToLoad]);
+
   return (
     <>
       <WorkspaceLayout
         menuBar={menuBar}
         // Left
-        leftTopVisible={panels.tree.isVisible}
+        leftTopVisible={panels.hierarchy.isVisible}
         leftTopPanel={
-          <TreePanel>
-            <div className="flex flex-col gap-2">
-              <WorkbenchNav
-                options={WORKBENCH_OPTIONS}
-                activeWorkbench={activeWorkbench}
-                onSelect={handleWorkbenchChange}
-              />
-            </div>
-          </TreePanel>
+          <HierarchyPanel
+            showSelectionGlow={showSelectionGlow}
+            onToggleSelectionGlow={setShowSelectionGlow}
+          />
         }
-        leftBottomVisible={panels.hierarchy.isVisible || panels.variables.isVisible}
+        leftBottomVisible={panels.variables.isVisible}
         leftBottomPanel={
-          <PanelGroup orientation="vertical" className="h-full w-full">
-            {panels.hierarchy.isVisible && (
-              <>
-                <ResizablePanel defaultSize={50} minSize={10} className="flex flex-col min-h-0">
-                  <HierarchyPanel
-                    showSelectionGlow={showSelectionGlow}
-                    onToggleSelectionGlow={setShowSelectionGlow}
-                  />
-                </ResizablePanel>
-                {panels.variables.isVisible && (
-                  <PanelResizeHandle className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors shrink-0" />
-                )}
-              </>
-            )}
-
-            {panels.variables.isVisible && (
-              <ResizablePanel defaultSize={50} minSize={10} className="flex flex-col min-h-0">
-                <VariablesPanel />
-              </ResizablePanel>
-            )}
-          </PanelGroup>
+          <VariablesPanel />
         }
 
         // Center
@@ -759,73 +807,15 @@ function AppContent({ loader }: AppContentProps) {
         // Right
         rightTopVisible={panels.inspector.isVisible}
         rightTopPanel={
-          <StudioPanel title={activeOption?.label || "Inspector"}>
-            <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
-
-
-
-              {/* Context Specific Workbench Content */}
-              <div className="flex-1">
-                {activeWorkbench === "import-export" && (
-                  <ImportExportWorkbench
-                    isLoading={isLoading}
-                    error={error}
-                    loadFromFile={loadFromFile}
-                    onClearError={clearError}
-                    canImportGraph={canImportGraph}
-                    canExport={canExport}
-                    onImportPoseGraph={handleImportPoseGraphFile}
-                    rootId={rootId}
-                    sourceName={sourceName}
-                    loadedBundle={loadedBundle}
-                    updateBundle={updateBundle}
-                  />
-                )}
-
-                {showRiggingTabs && (
-                  <RiggingTabs
-                    activeTab={activeRiggingTab}
-                    onSelect={handleRiggingTabChange}
-                  />
-                )}
-
-                {activeWorkbench === "scene-composer" &&
-                  activeRiggingTab === "rigging" && <SceneComposerWorkbench />}
-
-                {activeWorkbench === "scene-composer" &&
-                  activeRiggingTab === "face" && (
-                    <SceneRiggingSection
-                      showCoverage={false}
-                      showMissingList={false}
-                      allowEditActions={false}
-                      allowNodeActions
-                      showMaterials
-                      showDrivers={false}
-                      showBindings={false}
-                      showFeatures
-                      hiddenMode="none"
-                      showHideControls={false}
-                    />
-                  )}
-
-                {activeWorkbench === "pose-rig" && (
-                  <div className="sidebar__panel--pose">
-                    <PoseRigWorkbench
-                      onImportPoseGraph={handleImportPoseGraphFile}
-                    />
-                  </div>
-                )}
-
-                {activeWorkbench === "std-feature-spaces" && (
-                  <ReferenceFaceProvider value={referenceFaceContextValue}>
-                    <StdFeatureSpacesEditor
-                      onSelectFile={setSecondFaceFileToLoad}
-                    />
-                  </ReferenceFaceProvider>
-                )}
-              </div>
-            </div>
-          </StudioPanel>
+          <Tabs
+            items={workbenchTabs}
+            value={activeWorkbench}
+            onValueChange={(v) => handleWorkbenchChange(v as WorkbenchView)}
+            renderPanel={renderWorkbenchTab}
+            className="h-full flex flex-col"
+            panelClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
+            listClassName="px-4 pt-2"
+          />
         }
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={<DebugPanel
