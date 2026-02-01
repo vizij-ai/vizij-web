@@ -55,7 +55,7 @@ export function WorkspaceLayout({
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-background text-slate-200">
             {/* MenuBar */}
             {menuBar && (
-                <div className="h-10 border-b border-border flex items-center px-4 bg-slate-900 shrink-0">
+                <div className="h-10 border-b border-border flex items-center px-1 bg-slate-900 shrink-0">
                     {menuBar}
                 </div>
             )}
