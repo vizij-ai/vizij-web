@@ -297,7 +297,7 @@ export function HierarchyPanel({
     return (
         <Panel
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-            title="Face Hierarchy"
+            title="Face Elements"
             description="Select objects via the tree or viewport to drive the inspector."
         >
             <div className="flex flex-col h-full gap-1 p-1">
@@ -318,10 +318,6 @@ export function HierarchyPanel({
                         <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20" onClick={handleDuplicateSelection} title="Duplicate Selection">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-red-300 hover:bg-red-500/20" onClick={handleDeleteSelection} title="Delete Selection">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                        </Button>
-                        <div className="w-px h-4 bg-blue-500/20 mx-1" />
                         <Popover className="relative">
                             <PopoverButton as={Button} variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20 data-[open]:text-blue-300 data-[open]:bg-blue-500/20" title="Move Selection">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 9-3 3 3 3" /><path d="M9 5l3-3 3 3" /><path d="m19 9 3 3-3 3" /><path d="M9 19l3 3 3-3" /><path d="M2 12h20" /><path d="M12 2v20" /></svg>
@@ -341,6 +337,12 @@ export function HierarchyPanel({
                                 )}
                             </PopoverPanel>
                         </Popover>
+
+                        <div className="ml-auto" />
+
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500/70 hover:text-red-400 hover:bg-red-500/20" onClick={handleDeleteSelection} title="Delete Selection">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                        </Button>
                     </div>
                 )}
 
