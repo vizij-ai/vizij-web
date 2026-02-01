@@ -1,9 +1,7 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
-  useId,
   useRef,
 } from "react";
 import {
@@ -11,38 +9,28 @@ import {
   Group as PanelGroup,
   Separator as PanelResizeHandle
 } from "react-resizable-panels";
-import type { ReactNode } from "react";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import type { VizijBundleExtension } from "@vizij/render";
 import { loadGLTFFromBlobWithBundle } from "@vizij/render";
-import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
-import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem, MenuLabel } from "./components/ui/MenuBar";
+import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
-import { TreePanel } from "./components/panels/TreePanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { ExportDialog } from "./components/app/ExportDialog";
-import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
-import {
-  type WorkbenchView,
-} from "./components/app/workbenchConfig";
 import { DiscrepancyWizard } from "./components/discrepancy/DiscrepancyWizard";
 import { PoseGraphRemapWizard } from "./components/poseRig/PoseGraphRemapWizard";
 import {
   RigControllerProvider,
   useBindingAuthoring,
   useGraphRuntime,
-  useSelectionStore,
 } from "./state/RigControllerProvider";
 import {
   AuthoringUiProvider,
@@ -51,9 +39,9 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
-import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
+import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 
 
 
@@ -88,7 +76,6 @@ function AppContent({ loader }: AppContentProps) {
     rootId,
     sourceName,
     isLoading,
-    error,
     loadFromFile,
     bundle: loadedBundle,
   } = loader;
@@ -139,9 +126,6 @@ function AppContent({ loader }: AppContentProps) {
   const resolveDiscrepancyReview = useGraphRuntime(
     (state) => state.resolveDiscrepancyReview,
   );
-  const handleFaceIdChange = useGraphRuntime(
-    (state) => state.handleFaceIdChange,
-  );
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
@@ -154,9 +138,6 @@ function AppContent({ loader }: AppContentProps) {
     (state) => state.standardInputsByPath,
   );
   const rigOutputLookup = useBindingAuthoring((state) => state.rigOutputLookup);
-  const handleClearSelection = useSelectionStore(
-    (state) => state.handleClearSelection,
-  );
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
@@ -176,7 +157,7 @@ function AppContent({ loader }: AppContentProps) {
 
 
   const applyPoseGraphImport = useCallback(
-    async (graphSpec: GraphSpec, sourceNameHint: string) => {
+    async (graphSpec: any, sourceNameHint: string) => {
       const baseName = sourceNameHint.replace(/\.json$/i, "");
       const warnings = poseRig.importPoseGraphSpec(graphSpec, {
         rigName: baseName,
@@ -224,8 +205,6 @@ function AppContent({ loader }: AppContentProps) {
 
   const {
     panels,
-    togglePanel,
-    setPanelVisibility
   } = useWorkspaceStore();
 
   // Reference Face Import
@@ -267,9 +246,6 @@ function AppContent({ loader }: AppContentProps) {
     await loadFromFile(file, () =>
       loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
     );
-    // Switch to scene-composer after load to view it? Or stick to current view.
-    // If not in a useful view, maybe switch.
-    // Let's reset the input value so the same file handles change event again if needed.
     event.target.value = '';
   }, [loadFromFile, uiActions]);
 
@@ -283,56 +259,22 @@ function AppContent({ loader }: AppContentProps) {
     fileInputRef.current?.click();
   }, []);
 
+  const {
+    selectedRigId,
+    handleSelectObject,
+    handleSelectPose,
+    handleSelectRig,
+    handleClearSelection,
+  } = useUnifiedSelection();
+
   const menuBar = (
-    <MenuBar>
-      <Menu label="File">
-        <MenuItem onSelect={handleNewClick}>New</MenuItem>
-        <MenuSeparator />
-        <MenuItem onSelect={handleImportClick}>Import...</MenuItem>
-        <MenuItem onSelect={handleImportSkipChecksClick}>Import (Skip Checks)...</MenuItem>
-        <MenuItem onSelect={handleImportReferenceFaceClick}>Import Reference Face...</MenuItem>
-        <MenuItem onSelect={() => setShowExportDialog(true)}>Export...</MenuItem>
-        <MenuSeparator />
-        <MenuItem onSelect={() => { }} disabled>Save</MenuItem>
-        <MenuItem onSelect={() => { }} disabled>Save As...</MenuItem>
-        <MenuSeparator />
-        <MenuItem onSelect={() => { }}>Exit</MenuItem>
-      </Menu>
-      <Menu label="Edit">
-        <MenuItem>Undo</MenuItem>
-        <MenuItem>Redo</MenuItem>
-      </Menu>
-      <Menu label="View">
-        <MenuLabel>Left Panel</MenuLabel>
-        <MenuCheckboxItem checked={panels.tree.isVisible} onCheckedChange={() => togglePanel("tree")}>
-          Explorer
-        </MenuCheckboxItem>
-        <MenuCheckboxItem checked={panels.hierarchy.isVisible} onCheckedChange={() => togglePanel("hierarchy")}>
-          Hierarchy
-        </MenuCheckboxItem>
-        <MenuCheckboxItem checked={panels.variables.isVisible} onCheckedChange={() => togglePanel("variables")}>
-          Variables
-        </MenuCheckboxItem>
-
-        <MenuSeparator />
-        <MenuLabel>Center Panel</MenuLabel>
-        <MenuCheckboxItem checked={panels.animation.isVisible} onCheckedChange={() => togglePanel("animation")}>
-          Timeline
-        </MenuCheckboxItem>
-        <MenuCheckboxItem checked={panels.referenceFace.isVisible} onCheckedChange={() => togglePanel("referenceFace")}>
-          Reference Face
-        </MenuCheckboxItem>
-
-        <MenuSeparator />
-        <MenuLabel>Right Panel</MenuLabel>
-        <MenuCheckboxItem checked={panels.inspector.isVisible} onCheckedChange={() => togglePanel("inspector")}>
-          Inspector
-        </MenuCheckboxItem>
-        <MenuCheckboxItem checked={panels.debug.isVisible} onCheckedChange={() => togglePanel("debug")}>
-          Debug
-        </MenuCheckboxItem>
-      </Menu>
-    </MenuBar>
+    <AppMenuBar
+      onNew={handleNewClick}
+      onImport={handleImportClick}
+      onImportSkipChecks={handleImportSkipChecksClick}
+      onImportReferenceFace={handleImportReferenceFaceClick}
+      onExport={() => setShowExportDialog(true)}
+    />
   );
 
   const viewerContent = (
@@ -376,7 +318,6 @@ function AppContent({ loader }: AppContentProps) {
           onLoadHugo={handleLoadHugo}
         />
       )}
-      {/* activeWorkbench === "std-feature-spaces" logic replaced by ReferenceFacePanel */}
 
       {/* Hidden file input for Reference Face import */}
       <input
@@ -389,51 +330,6 @@ function AppContent({ loader }: AppContentProps) {
     </div>
   );
 
-
-
-  // Inspector Logic 
-  const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
-  const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
-  const selectedId = useSelectionStore((state) => state.selectionStack[0]?.id);
-  const { selectedPoseId, selectPose } = poseRig;
-
-  // Derived Inspector Mode
-  const inspectorMode = useMemo(() => {
-    if (selectedId) return "scene";
-    if (selectedPoseId) return "pose";
-    if (selectedRigId) return "rig";
-    return "default";
-  }, [selectedId, selectedPoseId, selectedRigId]);
-
-  // Unified Selection Handlers (Mutual Exclusivity)
-  // These ensure that only one type of item is selected at a time across different systems.
-  const handleSelectObject = useCallback((id: string) => {
-    // 1. Clear variables
-    if (selectedPoseId) selectPose("");
-    if (selectedRigId) handleSelectRig(null);
-    // 2. Select object (done via HierarchyPanel which uses selectObject)
-  }, [selectedPoseId, selectedRigId, selectPose, handleSelectRig]);
-
-  const handleSelectPose = useCallback((id: string) => {
-    // 1. Clear scene and rig
-    if (selectedId) handleClearSelection();
-    if (selectedRigId) handleSelectRig(null);
-    // 2. Select pose
-    selectPose(id);
-  }, [selectedId, selectedRigId, handleClearSelection, handleSelectRig, selectPose]);
-
-  const handleSelectRigAction = useCallback((id: string | null) => {
-    if (id) {
-      // 1. Clear scene and pose
-      if (selectedId) handleClearSelection();
-      if (selectedPoseId) selectPose("");
-    }
-    // 2. Select rig
-    handleSelectRig(id);
-  }, [selectedId, selectedPoseId, handleClearSelection, selectPose, handleSelectRig]);
-
-  // Variables Panel Props
-  // (already handled by handleSelectRigAction above)
 
 
   return (
@@ -453,7 +349,7 @@ function AppContent({ loader }: AppContentProps) {
         leftBottomPanel={
           <VariablesPanel
             selectedRigId={selectedRigId}
-            onSelectRig={handleSelectRigAction}
+            onSelectRig={handleSelectRig}
             onSelectPose={handleSelectPose}
           />
         }
@@ -461,14 +357,6 @@ function AppContent({ loader }: AppContentProps) {
         // Center
         topPanel={
           <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50">
-            {/* <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Select</Button>
-            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Move</Button>
-            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Rotate</Button>
-            <div className="ml-auto flex items-center gap-4 text-slate-500 font-medium tracking-wide uppercase text-[10px]">
-              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500/50" />Grid: On</span>
-              <span className="w-px h-3 bg-slate-800" />
-              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500/50" />Snap: Off</span>
-            </div> */}
           </div>
         }
         viewport={viewerContent}

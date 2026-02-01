@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, KeyboardEvent, ReactNode } from "react";
-import { Box, Folder, Zap, Activity, LucideIcon } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
+import { Box, Folder, Zap, Activity } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "../../utils/cn";
 
 interface InspectorHeaderProps {

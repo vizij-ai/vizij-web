@@ -1,9 +1,8 @@
 import React, { useMemo, useRef } from "react";
-import { cn } from "../../utils/cn";
 import type { StandardRigInput } from "@vizij/utils";
+import { cn } from "../../utils/cn";
 import type { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { Input } from "../ui";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 
 interface RiggingTransformSectionProps {

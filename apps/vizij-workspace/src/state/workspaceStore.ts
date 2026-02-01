@@ -8,7 +8,6 @@ interface PanelState {
 interface WorkspaceState {
     panels: {
         // Left Sidebar
-        tree: PanelState;
         hierarchy: PanelState;
         variables: PanelState;
         // Right Sidebar
@@ -26,7 +25,6 @@ interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     panels: {
-        tree: { isVisible: true, order: 0 },
         hierarchy: { isVisible: true, order: 2 },
         variables: { isVisible: true, order: 1 },
         inspector: { isVisible: true, order: 0 },

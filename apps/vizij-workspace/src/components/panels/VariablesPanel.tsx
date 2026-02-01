@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Folder, Zap, Activity, Play, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Folder, Zap, Activity, Play, ChevronRight } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";

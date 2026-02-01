@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useRef } from "react";
-import { Plus, Trash2, Sliders, Play, Box, Activity } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Plus, Trash2, Sliders, Play, Box } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import { Button } from "../ui/Button";
