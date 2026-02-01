@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Sliders, Play, Box } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
@@ -63,6 +63,7 @@ type PoseVariableItem =
 
 export function InspectorContent() {
     const [showSelector, setShowSelector] = useState(false);
+    const [blendAmount, setBlendAmount] = useState(0);
     const scrubValuesRef = useRef<Record<string, number>>({});
 
     // Hooks
@@ -73,6 +74,7 @@ export function InspectorContent() {
     const {
         managedStandardInputs,
         handleInputValueChange,
+        applyStandardInputBatch,
         inputValues,
         bindings,
         handleCreateCustomStandardInput,
@@ -81,6 +83,11 @@ export function InspectorContent() {
         handleRenameShape,
         selectedRigId
     } = useBindingAuthoring((state) => state);
+
+    // Reset blend amount when selected pose changes
+    useEffect(() => {
+        setBlendAmount(0);
+    }, [selectedPoseId]);
 
     // 1. Scene Object Mode
     if (activeSelection) {
@@ -197,6 +204,32 @@ export function InspectorContent() {
                 if (variableId) updatePoseValue(pose.id, variableId, 0);
             };
 
+            const captureStartValues = () => {
+                if (blendAmount === 0) {
+                    Object.keys(pose.values).forEach(varId => {
+                        scrubValuesRef.current[varId] = inputValues[varId] ?? 0;
+                    });
+                }
+            };
+
+            // Allow manual capture for Play button even if blendAmount > 0
+            const forceCaptureValues = () => {
+                Object.keys(pose.values).forEach(varId => {
+                    scrubValuesRef.current[varId] = inputValues[varId] ?? 0;
+                });
+            };
+
+            const handleBlend = (amount: number) => {
+                setBlendAmount(amount);
+                const updates: Record<string, number> = {};
+                Object.entries(pose.values).forEach(([varId, targetVal]) => {
+                    const startVal = scrubValuesRef.current[varId] ?? 0;
+                    const newVal = startVal + (targetVal - startVal) * amount;
+                    updates[varId] = newVal;
+                });
+                applyStandardInputBatch(updates);
+            };
+
             return (
                 <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
                     <InspectorHeader
@@ -206,17 +239,51 @@ export function InspectorContent() {
                         id={pose.id}
                         onNameChange={(name) => updatePoseName(pose.id, name)}
                         onPathChange={(group) => updatePoseGroup(pose.id, group)}
-                        actions={
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                className="h-6 w-6 p-0 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-                                title="Play Pose"
-                                onClick={() => applyPose(pose.id)}
-                            >
-                                <Play size={12} fill="currentColor" />
-                            </Button>
-                        }
+                    />
+                    <RiggingPropertyRow
+                        label="Current Value"
+                        defaultLabel="Pose"
+                        onScrubStart={captureStartValues}
+                        onScrub={(_, totalDelta) => {
+                            // Blend based on delta (assuming 100px = 100% blend)
+                            const newAmount = Math.max(0, Math.min(1, blendAmount + totalDelta / 100));
+                            handleBlend(newAmount);
+                        }}
+                        renderMainInput={() => (
+                            <div className="flex items-center gap-2 flex-1 group/row">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={1}
+                                    step={0.01}
+                                    value={blendAmount}
+                                    className="flex-1 h-1 bg-slate-700/50 rounded-lg appearance-none cursor-pointer accent-blue-500 min-w-0"
+                                    onMouseDown={captureStartValues}
+                                    onChange={(e) => handleBlend(parseFloat(e.target.value))}
+                                />
+                                <div className="w-12 flex-shrink-0">
+                                    <input
+                                        type="text"
+                                        value={(blendAmount * 100).toFixed(0) + "%"}
+                                        className="w-full bg-slate-950/80 border border-slate-800/80 rounded px-1 py-0.5 text-right font-mono text-[10px] text-slate-400 focus:outline-none"
+                                        readOnly
+                                    />
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-white"
+                                    title="Play Pose (100%)"
+                                    onClick={() => {
+                                        if (blendAmount === 0) forceCaptureValues();
+                                        applyPose(pose.id);
+                                        setBlendAmount(1);
+                                    }}
+                                >
+                                    <Play size={12} fill="currentColor" />
+                                </Button>
+                            </div>
+                        )}
                     />
                     <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
                         DRIVING {Object.keys(pose.values).length} VARIABLES
@@ -290,7 +357,9 @@ export function InspectorContent() {
                                                                 onScrub={(delta, totalDelta) => {
                                                                     const step = 0.01;
                                                                     const startVal = scrubValuesRef.current[varId] ?? 0;
-                                                                    updatePoseValue(pose.id, varId, startVal + totalDelta * step);
+                                                                    const newVal = startVal + totalDelta * step;
+                                                                    updatePoseValue(pose.id, varId, newVal);
+                                                                    handleInputValueChange(varId, newVal);
                                                                 }}
                                                                 onScrubStart={() => { scrubValuesRef.current[varId] = poseVal; }}
                                                                 className="h-full flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5 min-w-[60px]"
@@ -301,7 +370,10 @@ export function InspectorContent() {
                                                                     className="w-full bg-transparent border-none text-right font-mono text-[10px] text-slate-400 focus:outline-none cursor-ew-resize"
                                                                     onChange={(e) => {
                                                                         const v = parseFloat(e.target.value);
-                                                                        if (!isNaN(v)) updatePoseValue(pose.id, varId, v);
+                                                                        if (!isNaN(v)) {
+                                                                            updatePoseValue(pose.id, varId, v);
+                                                                            handleInputValueChange(varId, v);
+                                                                        }
                                                                     }}
                                                                 />
                                                             </ScrubbableLabel>
@@ -326,9 +398,9 @@ export function InspectorContent() {
 
                                             const handleBulkChange = (isPose: boolean, newR: number, newG: number, newB: number) => {
                                                 if (isPose) {
-                                                    if (r) updatePoseValue(pose.id, r.varId, newR);
-                                                    if (g) updatePoseValue(pose.id, g.varId, newG);
-                                                    if (b) updatePoseValue(pose.id, b.varId, newB);
+                                                    if (r) { updatePoseValue(pose.id, r.varId, newR); handleInputValueChange(r.varId, newR); }
+                                                    if (g) { updatePoseValue(pose.id, g.varId, newG); handleInputValueChange(g.varId, newG); }
+                                                    if (b) { updatePoseValue(pose.id, b.varId, newB); handleInputValueChange(b.varId, newB); }
                                                 } else {
                                                     if (r) handleInputValueChange(r.varId, newR);
                                                     if (g) handleInputValueChange(g.varId, newG);
@@ -362,7 +434,10 @@ export function InspectorContent() {
                                                                                 const step = 0.01;
                                                                                 const startVal = scrubValuesRef.current[c.varId] ?? 0;
                                                                                 const nextVal = startVal + totalDelta * step;
-                                                                                if (isPoseValue) updatePoseValue(pose.id, c.varId, nextVal);
+                                                                                if (isPoseValue) {
+                                                                                    updatePoseValue(pose.id, c.varId, nextVal);
+                                                                                    handleInputValueChange(c.varId, nextVal);
+                                                                                }
                                                                                 else handleInputValueChange(c.varId, nextVal);
                                                                             }
                                                                         }}
@@ -379,7 +454,10 @@ export function InspectorContent() {
                                                                         onChange={(e) => {
                                                                             const v = parseFloat(e.target.value);
                                                                             if (!isNaN(v) && c) {
-                                                                                if (isPoseValue) updatePoseValue(pose.id, c.varId, v);
+                                                                                if (isPoseValue) {
+                                                                                    updatePoseValue(pose.id, c.varId, v);
+                                                                                    handleInputValueChange(c.varId, v);
+                                                                                }
                                                                                 else handleInputValueChange(c.varId, v);
                                                                             }
                                                                         }}
