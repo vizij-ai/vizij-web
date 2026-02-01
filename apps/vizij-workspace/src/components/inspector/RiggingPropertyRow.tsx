@@ -9,6 +9,7 @@ export interface RiggingPropertyRowProps {
     onExpandedChange?: (expanded: boolean) => void;
     renderMainInput: () => React.ReactNode;
     renderDefaultInput?: () => React.ReactNode;
+    defaultLabel?: string;
     hasDifferentDefault?: boolean;
     onResetToDefault?: () => void;
     className?: string;
@@ -21,6 +22,7 @@ export function RiggingPropertyRow({
     onExpandedChange,
     renderMainInput,
     renderDefaultInput,
+    defaultLabel = "Def",
     hasDifferentDefault,
     onResetToDefault,
     className,
@@ -62,12 +64,12 @@ export function RiggingPropertyRow({
                 )}
 
                 {/* Label */}
-                <span className="text-[10px] font-medium text-slate-300 select-none w-14 flex-shrink-0 truncate cursor-default" title={label}>
+                <span className="text-[10px] font-medium text-slate-300 select-none w-20 flex-shrink-0 truncate cursor-default" title={label}>
                     {label}
                 </span>
 
                 {/* Main Input Area */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
                     {renderMainInput()}
 
                     {/* Quick Reset (visible if different and NOT expanded, or just always visible if compact design prefers) 
@@ -92,8 +94,8 @@ export function RiggingPropertyRow({
             {/* Expanded Default View */}
             {isExpanded && renderDefaultInput && (
                 <div className="flex items-center gap-2 px-2 pb-2 pt-1 bg-black/10 border-t border-white/5">
-                    <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wider w-[16px] text-center">
-                        Def
+                    <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wider w-[28px] text-center">
+                        {defaultLabel}
                     </span>
                     <div className="flex-1">
                         {renderDefaultInput()}

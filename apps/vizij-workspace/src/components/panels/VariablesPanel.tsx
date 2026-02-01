@@ -259,6 +259,7 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
         if (node.type === "pose") {
             const poseData = node.data as PoseDefinition;
             selectPose(poseData.id);
+            applyPose(poseData.id); // Auto-play on selection
             // When selecting logic, we might also want to clear rig selection?
             onSelectRig?.(null);
         } else if (node.type === "rig") {

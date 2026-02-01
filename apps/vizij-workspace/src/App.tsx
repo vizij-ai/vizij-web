@@ -716,7 +716,8 @@ function AppContent({ loader }: AppContentProps) {
 
 
   // Inspector Logic 
-  const [selectedRigId, setSelectedRigId] = useState<string | null>(null);
+  const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
+  const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
   const selectedId = useSelectionStore((state) => state.selectionStack[0]?.id);
   const { selectedPoseId, selectPose } = poseRig;
 
@@ -725,33 +726,35 @@ function AppContent({ loader }: AppContentProps) {
   // Selection Effects
   useEffect(() => {
     if (selectedId) {
-      setInspectorMode("scene");
-      // Clear others if needed?
-      selectPose(""); // Deselect pose
-      setSelectedRigId(null);
+      if (inspectorMode !== "scene") setInspectorMode("scene");
+      // Clear others
+      if (selectedPoseId) selectPose("");
+      if (selectedRigId !== null) handleSelectRig(null);
     }
-  }, [selectedId, selectPose]);
+  }, [selectedId, selectPose, selectedRigId, handleSelectRig, selectedPoseId, inspectorMode]);
 
   useEffect(() => {
     if (selectedPoseId) {
-      setInspectorMode("pose");
-      handleClearSelection(); // Deselect scene
-      setSelectedRigId(null);
+      if (inspectorMode !== "pose") setInspectorMode("pose");
+      // Clear others
+      if (selectedId) handleClearSelection();
+      if (selectedRigId !== null) handleSelectRig(null);
     }
-  }, [selectedPoseId, handleClearSelection]);
+  }, [selectedPoseId, handleClearSelection, selectedId, selectedRigId, handleSelectRig, inspectorMode]);
 
   useEffect(() => {
     if (selectedRigId) {
-      setInspectorMode("rig");
-      handleClearSelection(); // Deselect scene
-      selectPose(""); // Deselect pose
+      if (inspectorMode !== "rig") setInspectorMode("rig");
+      // Clear others
+      if (selectedId) handleClearSelection();
+      if (selectedPoseId) selectPose("");
     }
-  }, [selectedRigId, handleClearSelection, selectPose]);
+  }, [selectedRigId, handleClearSelection, selectPose, selectedId, selectedPoseId, inspectorMode]);
 
   // Variables Panel Props
-  const handleSelectRig = useCallback((id: string | null) => {
-    setSelectedRigId(id);
-  }, []);
+  const handleSelectRigAction = useCallback((id: string | null) => {
+    handleSelectRig(id);
+  }, [handleSelectRig]);
 
   // Render Inspector Content
   const renderInspector = () => {
@@ -789,7 +792,7 @@ function AppContent({ loader }: AppContentProps) {
         leftBottomPanel={
           <VariablesPanel
             selectedRigId={selectedRigId}
-            onSelectRig={handleSelectRig}
+            onSelectRig={handleSelectRigAction}
           />
         }
 
