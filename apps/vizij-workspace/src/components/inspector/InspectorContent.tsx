@@ -69,7 +69,7 @@ export function InspectorContent() {
     const selectionStack = useSelectionStore((state) => state.selectionStack);
     const activeSelection = selectionStack[0] ?? null;
     const { getNode, objects } = useSceneComposer();
-    const { poses, updatePoseValue, applyPose, removePoseInput, updatePoseName, selectedPoseId } = usePoseRig();
+    const { poses, updatePoseValue, applyPose, removePoseInput, updatePoseName, updatePoseGroup, selectedPoseId } = usePoseRig();
     const {
         managedStandardInputs,
         handleInputValueChange,
@@ -201,9 +201,11 @@ export function InspectorContent() {
                 <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
                     <InspectorHeader
                         name={pose.name}
+                        path={pose.group || ""}
                         typeLabel="Pose"
                         id={pose.id}
                         onNameChange={(name) => updatePoseName(pose.id, name)}
+                        onPathChange={(group) => updatePoseGroup(pose.id, group)}
                         actions={
                             <Button
                                 variant="primary"
@@ -462,9 +464,11 @@ export function InspectorContent() {
                 <div className="p-2 flex flex-col gap-4">
                     <InspectorHeader
                         name={input.label || input.id}
+                        path={input.path || ""}
                         typeLabel="Rig"
                         id={input.id}
                         onNameChange={(name) => handleUpdateStandardInput(input.id, { label: name })}
+                        onPathChange={(path) => handleUpdateStandardInput(input.id, { path })}
                     />
                     <RiggingPropertyRow
                         label="Current Value"

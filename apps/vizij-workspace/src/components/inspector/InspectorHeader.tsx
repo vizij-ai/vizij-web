@@ -6,19 +6,26 @@ import { cn } from "../../utils/cn";
 
 interface InspectorHeaderProps {
     name: string;
+    path?: string;
     typeLabel: string;
     id: string;
     onNameChange: (name: string) => void;
+    onPathChange?: (path: string) => void;
     icon?: LucideIcon;
     actions?: ReactNode;
 }
 
-export function InspectorHeader({ name, typeLabel, id, onNameChange, icon: CustomIcon, actions }: InspectorHeaderProps) {
+export function InspectorHeader({ name, path, typeLabel, id, onNameChange, onPathChange, icon: CustomIcon, actions }: InspectorHeaderProps) {
     const [draftName, setDraftName] = useState(name);
+    const [draftPath, setDraftPath] = useState(path ?? "");
 
     useEffect(() => {
         setDraftName(name);
     }, [name, id]);
+
+    useEffect(() => {
+        setDraftPath(path ?? "");
+    }, [path, id]);
 
     const commitName = useCallback(() => {
         const trimmed = draftName.trim();
@@ -32,7 +39,16 @@ export function InspectorHeader({ name, typeLabel, id, onNameChange, icon: Custo
         onNameChange(trimmed);
     }, [draftName, name, onNameChange]);
 
-    const handleKeyDown = useCallback(
+    const commitPath = useCallback(() => {
+        if (!onPathChange) return;
+        const trimmed = draftPath.trim();
+        if (trimmed === (path ?? "")) {
+            return;
+        }
+        onPathChange(trimmed);
+    }, [draftPath, path, onPathChange]);
+
+    const handleNameKeyDown = useCallback(
         (event: KeyboardEvent<HTMLInputElement>) => {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -45,6 +61,21 @@ export function InspectorHeader({ name, typeLabel, id, onNameChange, icon: Custo
             }
         },
         [commitName, name],
+    );
+
+    const handlePathKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                commitPath();
+                event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                setDraftPath(path ?? "");
+                event.currentTarget.blur();
+            }
+        },
+        [commitPath, path],
     );
 
     const typeLower = typeLabel.toLowerCase();
@@ -93,19 +124,37 @@ export function InspectorHeader({ name, typeLabel, id, onNameChange, icon: Custo
                     <Icon size={12} strokeWidth={2.5} />
                 </div>
 
-                {/* Name Input */}
-                <div className="relative flex-1 group min-w-0">
-                    <input
-                        type="text"
-                        value={draftName}
-                        onChange={(e) => setDraftName(e.target.value)}
-                        onBlur={commitName}
-                        onKeyDown={handleKeyDown}
-                        className="w-full bg-transparent border border-transparent hover:border-slate-700 focus:border-blue-500/50 rounded px-1 py-0 text-xs font-semibold text-slate-200 focus:outline-none focus:bg-slate-900/50 transition-all placeholder-slate-600 truncate"
-                        placeholder="Name"
-                    />
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-30 pointer-events-none">
-                        <span className="text-[8px] text-slate-400">✎</span>
+                {/* Name & Path Container */}
+                <div className="flex flex-col flex-1 min-w-0">
+                    {/* Path Input (if applicable) */}
+                    {onPathChange && (
+                        <div className="relative group/path min-w-0">
+                            <input
+                                type="text"
+                                value={draftPath}
+                                onChange={(e) => setDraftPath(e.target.value)}
+                                onBlur={commitPath}
+                                onKeyDown={handlePathKeyDown}
+                                className="w-full bg-transparent border border-transparent hover:border-slate-700/50 focus:border-blue-500/30 rounded px-1 py-0 text-[10px] font-medium text-slate-500 focus:text-slate-400 focus:outline-none focus:bg-slate-900/30 transition-all placeholder-slate-700 truncate"
+                                placeholder="Path/Group (optional)"
+                            />
+                        </div>
+                    )}
+
+                    {/* Name Input */}
+                    <div className="relative group/name min-w-0">
+                        <input
+                            type="text"
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            onBlur={commitName}
+                            onKeyDown={handleNameKeyDown}
+                            className="w-full bg-transparent border border-transparent hover:border-slate-700 focus:border-blue-500/50 rounded px-1 py-0 text-xs font-semibold text-slate-200 focus:outline-none focus:bg-slate-900/50 transition-all placeholder-slate-600 truncate"
+                            placeholder="Name"
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/name:opacity-30 pointer-events-none">
+                            <span className="text-[8px] text-slate-400">✎</span>
+                        </div>
                     </div>
                 </div>
 
