@@ -172,9 +172,10 @@ function TreeRow({ node, depth, expanded, onToggle, onAction, onSelect, selectio
 interface VariablesPanelProps {
     selectedRigId?: string | null;
     onSelectRig?: (id: string | null) => void;
+    onSelectPose?: (id: string) => void;
 }
 
-export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelProps) {
+export function VariablesPanel({ selectedRigId, onSelectRig, onSelectPose }: VariablesPanelProps) {
     const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
     const { managedStandardInputs } = useBindingAuthoring((state) => state);
     const referenceFace = useReferenceFace();
@@ -318,7 +319,11 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
     const handleSelect = (node: TreeNode) => {
         if (node.type === "pose") {
             const poseData = node.data as PoseDefinition;
-            selectPose(poseData.id);
+            if (onSelectPose) {
+                onSelectPose(poseData.id);
+            } else {
+                selectPose(poseData.id);
+            }
             applyPose(poseData.id); // Auto-play on selection
             // When selecting logic, we might also want to clear rig selection?
             onSelectRig?.(null);

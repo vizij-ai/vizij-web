@@ -405,36 +405,35 @@ function AppContent({ loader }: AppContentProps) {
     return "default";
   }, [selectedId, selectedPoseId, selectedRigId]);
 
-  // Unified Selection Clearing Effect (Mutual Exclusivity)
-  // This ensures that only one type of item is selected at a time across different systems.
-  useEffect(() => {
-    // If scene object is selected, clear variables
-    if (selectedId) {
-      if (selectedPoseId) selectPose("");
-      if (selectedRigId) handleSelectRig(null);
-    }
-  }, [selectedId, selectedPoseId, selectedRigId, selectPose, handleSelectRig]);
+  // Unified Selection Handlers (Mutual Exclusivity)
+  // These ensure that only one type of item is selected at a time across different systems.
+  const handleSelectObject = useCallback((id: string) => {
+    // 1. Clear variables
+    if (selectedPoseId) selectPose("");
+    if (selectedRigId) handleSelectRig(null);
+    // 2. Select object (done via HierarchyPanel which uses selectObject)
+  }, [selectedPoseId, selectedRigId, selectPose, handleSelectRig]);
 
-  useEffect(() => {
-    // If pose is selected, clear scene and rig
-    if (selectedPoseId) {
-      if (selectedId) handleClearSelection();
-      if (selectedRigId) handleSelectRig(null);
-    }
-  }, [selectedPoseId, selectedId, selectedRigId, handleClearSelection, handleSelectRig]);
+  const handleSelectPose = useCallback((id: string) => {
+    // 1. Clear scene and rig
+    if (selectedId) handleClearSelection();
+    if (selectedRigId) handleSelectRig(null);
+    // 2. Select pose
+    selectPose(id);
+  }, [selectedId, selectedRigId, handleClearSelection, handleSelectRig, selectPose]);
 
-  useEffect(() => {
-    // If rig is selected, clear scene and pose
-    if (selectedRigId) {
+  const handleSelectRigAction = useCallback((id: string | null) => {
+    if (id) {
+      // 1. Clear scene and pose
       if (selectedId) handleClearSelection();
       if (selectedPoseId) selectPose("");
     }
-  }, [selectedRigId, selectedId, selectedPoseId, handleClearSelection, selectPose]);
+    // 2. Select rig
+    handleSelectRig(id);
+  }, [selectedId, selectedPoseId, handleClearSelection, selectPose, handleSelectRig]);
 
   // Variables Panel Props
-  const handleSelectRigAction = useCallback((id: string | null) => {
-    handleSelectRig(id);
-  }, [handleSelectRig]);
+  // (already handled by handleSelectRigAction above)
 
 
   return (
@@ -447,6 +446,7 @@ function AppContent({ loader }: AppContentProps) {
           <HierarchyPanel
             showSelectionGlow={showSelectionGlow}
             onToggleSelectionGlow={setShowSelectionGlow}
+            onSelectObject={handleSelectObject}
           />
         }
         leftBottomVisible={panels.variables.isVisible}
@@ -454,6 +454,7 @@ function AppContent({ loader }: AppContentProps) {
           <VariablesPanel
             selectedRigId={selectedRigId}
             onSelectRig={handleSelectRigAction}
+            onSelectPose={handleSelectPose}
           />
         }
 
