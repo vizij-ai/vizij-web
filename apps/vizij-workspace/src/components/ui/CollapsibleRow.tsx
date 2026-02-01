@@ -1,8 +1,8 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
 import type { ReactNode } from "react";
-import { RowSlider } from "./RowSlider";
-import { cn } from "../../utils/cn";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { cn } from "../../utils/cn";
+import { RowSlider } from "./RowSlider";
 
 export interface CollapsibleRowProps {
   id: string;

@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { useAnimationStore } from "../../state/animationStore";
 import { TrackRow } from "./TrackRow";
-import { cn } from "../../utils/cn";
+
 
 export function TimelineEditor() {
     const {

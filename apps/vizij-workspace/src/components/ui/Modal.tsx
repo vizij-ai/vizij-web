@@ -1,8 +1,8 @@
 import { type ReactNode, Fragment } from "react";
 import { Dialog as HeadlessDialog, Transition } from "@headlessui/react";
-import { Button } from "./Button";
-import { cn } from "../../utils/cn";
 import { X } from "lucide-react";
+import { cn } from "../../utils/cn";
+import { Button } from "./Button";
 
 export interface ModalProps {
     open: boolean;

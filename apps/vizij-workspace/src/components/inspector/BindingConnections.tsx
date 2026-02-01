@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import { SceneObjectNode } from "../../scene/sceneGraph";
+import { Link as LinkIcon, Box, Sparkles } from "lucide-react";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useBindingAuthoring, useSelectionStore } from "../../state/RigControllerProvider";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button } from "../ui";
-import { Link as LinkIcon, Box, Sparkles } from "lucide-react";
 
 interface BindingConnectionsProps {
     node: SceneObjectNode;

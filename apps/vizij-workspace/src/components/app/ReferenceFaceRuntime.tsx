@@ -11,9 +11,9 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
+import { cn } from "../../utils/cn";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
-import { cn } from "../../utils/cn";
 
 type ReferenceFaceRuntimeProps = {
   namespace?: string;

@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
-import { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
+import type { StandardRigInput } from "@vizij/utils";
+import type { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
 import { Input } from "../ui"; // Using Input for now, could upgrade to draggable later
-import { StandardRigInput } from "@vizij/utils";
+import { RiggingPropertyRow } from "./RiggingPropertyRow";
 
 interface RiggingTransformSectionProps {
     node: SceneObjectNode;

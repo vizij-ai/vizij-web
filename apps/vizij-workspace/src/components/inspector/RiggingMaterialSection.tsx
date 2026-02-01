@@ -1,12 +1,12 @@
 import React from "react";
-import { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
-import { Select } from "../ui";
-import { useSceneComposer } from "../../scene/useSceneComposer";
-import { StandardRigInput } from "@vizij/utils";
+import type { StandardRigInput } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import type { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { Select } from "../ui";
+import { useSceneComposer } from "../../scene/useSceneComposer";
+import { RiggingPropertyRow } from "./RiggingPropertyRow";
 
 interface RiggingMaterialSectionProps {
     node: SceneObjectNode;

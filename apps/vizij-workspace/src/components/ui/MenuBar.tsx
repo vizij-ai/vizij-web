@@ -1,8 +1,8 @@
 import * as React from "react";
 import { Menu as HeadlessMenu, MenuButton, MenuItem as HeadlessMenuItem, MenuItems, Transition } from "@headlessui/react";
 import { Check } from "lucide-react";
-import { cn } from "../../utils/cn";
 import { Fragment } from "react";
+import { cn } from "../../utils/cn";
 import { Logo } from "./Logo";
 
 interface MenuBarProps {

@@ -13,8 +13,8 @@ import {
 import { BindingEditor } from "../binding";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { Button, Card, CardHeader, CardBody, Input, Select } from "../ui";
-import { collectDriversForNode } from "./DriverPanel";
 import { cn } from "../../utils/cn";
+import { collectDriversForNode } from "./DriverPanel";
 
 interface DriverBindingSectionProps {
   node: SceneObjectNode;

@@ -14,22 +14,16 @@ import {
 import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { loadGLTFFromBlobWithBundle } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
-import { Tabs, type TabItem } from "./components/ui/Tabs";
-
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { MenuBar, Menu, MenuItem, MenuSeparator, MenuCheckboxItem, MenuLabel } from "./components/ui/MenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { TreePanel } from "./components/panels/TreePanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
-import { StudioPanel } from "./components/ui/StudioPanel";
-import { Chip, Switch, Button } from "./components/ui"; // Importing UI components for Inspector
-
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
@@ -40,7 +34,6 @@ import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import {
-  WORKBENCH_OPTIONS,
   type WorkbenchView,
 } from "./components/app/workbenchConfig";
 import { DiscrepancyWizard } from "./components/discrepancy/DiscrepancyWizard";
@@ -55,170 +48,20 @@ import {
   AuthoringUiProvider,
   useAuthoringUiActions,
   useAuthoringUiState,
-  type RiggingTab,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { Panel } from "./components/ui";
-import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
 import { BaseController } from "./components/inspector/BaseController";
 import { VariableController } from "./components/inspector/VariableController";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
-import {
-  ReferenceFaceProvider,
-  type ReferenceFaceState,
-} from "./state/ReferenceFaceContext";
-import {
-  extractBindingsFromBundle,
-  getInputIdsWithBindings,
-} from "./utils/standardInputBindings";
+import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
+import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
+
+
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
-type WorkbenchGuide = {
-  label: string;
-  summary: string;
-  content: ReactNode;
-};
 
-const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
-  "import-export": {
-    label: "How the import/export sidebar flows",
-    summary: "Load GLBs → audit data → export clean assets",
-    content: (
-      <ol>
-        <li>
-          Drop in a Vizij GLB or use the loader below to populate the bundle
-          summary and runtime preview.
-        </li>
-        <li>
-          Run RobotData and bundle audits before exporting—green statuses
-          confirm GraphSpecs and IR are in sync.
-        </li>
-        <li>
-          Use the export + optional sections to save GLBs, rig graphs, and pose
-          configs once everything checks out.
-        </li>
-      </ol>
-    ),
-  },
-  "scene-composer": {
-    label: "Scene composer quickstart",
-    summary: "Select nodes, inspect drivers, edit bindings",
-    content: (
-      <ol>
-        <li>
-          Use the hierarchy tree to pick objects or search by name / type;
-          selections remain in sync with the viewport.
-        </li>
-        <li>
-          The inspector surfaces drivers, bindings, and metadata for the active
-          object—tweak values to preview changes live.
-        </li>
-        <li>
-          Clear or refocus selections anytime via the tree or directly clicking
-          in the viewer.
-        </li>
-        <li>
-          Pose the face by manipulating drivers and save the pose with the
-          viewport header.
-        </li>
-      </ol>
-    ),
-  },
-  "pose-rig": {
-    label: "Pose rig workflow",
-    summary: "Capture neutrals → sculpt poses → export grouped graphs",
-    content: (
-      <ol>
-        <li>
-          Capture/overwrite the neutral pose, then create pose entries to store
-          sculpted driver deltas.
-        </li>
-        <li>
-          Assign group labels to define rig path prefixes and batch apply names
-          to related poses.
-        </li>
-        <li>
-          Export grouped pose graphs or import an existing graph to reuse naming
-          + weights.
-        </li>
-      </ol>
-    ),
-  },
-  "std-feature-spaces": {
-    label: "Standard Feature Spaces workflow",
-    summary: "Map your face to a Standard Feature Space",
-    content: (
-      <div>
-        <p>
-          The Standard Feature Spaces Editor allows you to align your face to
-          predefined feature spaces. This enables consistent facial rigging and
-          animation across different models by providing a common reference
-          frame.
-        </p>
-        <p>
-          There is no single Standard Feature Space. Instead we refer to a
-          Standard, which may be developed by the community or specific
-          entities. By mapping your face to a given Standard, your face complies
-          with its feature space, and thus supports being controlled by rigs and
-          animations built for that Standard.
-        </p>
-        <ol>
-          <li>
-            Load your face model and a Standard model which you will use as
-            reference.
-          </li>
-          <li>
-            Your face model should already be rigged with the Vizij rigging
-            system.
-          </li>
-          <li>
-            The reference model can be any face that is already rigged to the
-            Standard feature space.
-          </li>
-          <li>
-            Use the reference controls to set features on the reference model.
-          </li>
-          <li>
-            By viewing them side by side, adjust the mapping controls to align
-            your face model so that it matches the reference model's features as
-            close as as possible.
-          </li>
-          <li>
-            Once you are satisfied with the mapping, save the mapping
-            configuration into your Vizij bundle for future use.
-          </li>
-        </ol>
-        <p className="mt-4 font-bold text-slate-200">
-          Mapping Editor Status Indicators:
-        </p>
-        <ul className="mt-2 space-y-1">
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-slate-300">
-              <strong className="text-slate-200">Green</strong> — Track exists and has a binding
-              configured. Ready to use.
-            </span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-slate-300">
-              <strong className="text-slate-200">Blue</strong> — Track exists but has no binding. Configure
-              a binding to drive features.
-            </span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-slate-500" />
-            <span className="text-slate-300">
-              <strong className="text-slate-200">Gray</strong> — Track is missing in the main face. Create
-              it first.
-            </span>
-          </li>
-        </ul>
-      </div>
-    ),
-  },
-};
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
@@ -248,15 +91,12 @@ function AppContent({ loader }: AppContentProps) {
     sourceName,
     isLoading,
     error,
-    clearError,
     loadFromFile,
     bundle: loadedBundle,
-    updateBundle,
   } = loader;
 
-  const [secondFaceFileToLoad, setSecondFaceFileToLoad] = useState<File | null>(
-    null,
-  );
+
+
 
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
@@ -286,178 +126,30 @@ function AppContent({ loader }: AppContentProps) {
     handleLoadAssetFromUrl("/assets/Hugo_Latest_Rigged.glb", "Hugo_Latest_Rigged.glb");
   }, [handleLoadAssetFromUrl]);
 
-  // Reference face state management
-  const [refFaceIsLoading, setRefFaceIsLoading] = useState(false);
-  const [refFaceIsLoaded, setRefFaceIsLoaded] = useState(false);
-  const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<
-    StandardRigInput[]
-  >([]);
-  const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<
-    Map<string, StandardRigInput>
-  >(new Map());
-  const [refFaceInputIdsWithBindings, setRefFaceInputIdsWithBindings] =
-    useState<Set<string>>(new Set());
-  const [refFaceInputValues, setRefFaceInputValues] = useState<
-    Record<string, number>
-  >({});
-  const refFaceAnimateValueRef = useRef<
-    ((path: string, value: number) => void) | undefined
-  >(undefined);
-  const mainFaceInputChangeRef = useRef<
-    ((inputId: string, value: number) => void) | undefined
-  >(undefined);
-
-  // Reset binding info when file is cleared
-  useEffect(() => {
-    if (!secondFaceFileToLoad) {
-      setRefFaceInputIdsWithBindings(new Set());
-    }
-  }, [secondFaceFileToLoad]);
-
-  // Handle bundle ready from ReferenceFaceRuntime - extract binding information
-  const handleRefFaceBundleReady = useCallback(
-    (bundle: VizijBundleExtension | null) => {
-      if (!bundle) {
-        setRefFaceInputIdsWithBindings(new Set());
-        return;
-      }
-      const bindingInfo = extractBindingsFromBundle(bundle);
-      const idsWithBindings = getInputIdsWithBindings(bindingInfo);
-      setRefFaceInputIdsWithBindings(idsWithBindings);
-    },
-    [],
+  const mainFaceHandleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
   );
 
-  const handleRefFaceStandardInputsReady = useCallback(
-    (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
-      setRefFaceStandardInputs(inputs);
-      setRefFaceStandardInputsById(byId);
-      // Initialize input values with defaults
-      const initialValues: Record<string, number> = {};
-      for (const input of inputs) {
-        initialValues[input.id] = input.defaultValue;
-      }
-      setRefFaceInputValues(initialValues);
-    },
-    [],
+  const referenceFaceContextValue = useReferenceFaceState(
+    mainFaceHandleInputValueChange,
   );
 
-  const handleRefFaceLoadingStateChange = useCallback(
-    (isLoading: boolean, isLoaded: boolean) => {
-      setRefFaceIsLoading(isLoading);
-      setRefFaceIsLoaded(isLoaded);
-    },
-    [],
-  );
-
-  const handleRefFaceAnimateValueReady = useCallback(
-    (animateFn: ((path: string, value: number) => void) | undefined) => {
-      refFaceAnimateValueRef.current = animateFn;
-    },
-    [],
-  );
-
-  const handleRefFaceInputValueChange = useCallback(
-    (inputId: string, value: number) => {
-      const input = refFaceStandardInputsById.get(inputId);
-      if (!input) {
-        console.warn(`[App] Unknown reference face input ID: ${inputId} `);
-        return;
-      }
-      setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
-
-      // Animate the reference face - this will also trigger onStandardInputChange
-      // which propagates to the main face
-      const animateFn = refFaceAnimateValueRef.current;
-      if (animateFn) {
-        animateFn(input.path, value);
-      }
-    },
-    [refFaceStandardInputsById],
-  );
-
-  const handleRefFaceResetAllInputValues = useCallback(() => {
-    const resetValues: Record<string, number> = {};
-    for (const input of refFaceStandardInputs) {
-      resetValues[input.id] = input.defaultValue;
-      // Animate the reference face - this will also trigger onStandardInputChange
-      // which propagates to the main face
-      refFaceAnimateValueRef.current?.(input.path, input.defaultValue);
-    }
-    setRefFaceInputValues(resetValues);
-  }, [refFaceStandardInputs]);
-
-  // Handler for when standard input values change on the reference face (from any source)
-  // This is called from ReferenceFaceRuntime whenever animateFn is invoked
-  const handleRefFaceStandardInputChange = useCallback(
-    (inputId: string, value: number) => {
-      // Propagate to the main face
-      mainFaceInputChangeRef.current?.(inputId, value);
-    },
-    [],
-  );
-
-  const referenceFaceContextValue: ReferenceFaceState = useMemo(
-    () => ({
-      isLoaded: refFaceIsLoaded,
-      isLoading: refFaceIsLoading,
-      isPlaying: false,
-      standardInputs: refFaceStandardInputs,
-      standardInputsById: refFaceStandardInputsById,
-      inputIdsWithBindings: refFaceInputIdsWithBindings,
-      inputValues: refFaceInputValues,
-      handleInputValueChange: handleRefFaceInputValueChange,
-      handleResetAllInputValues: handleRefFaceResetAllInputValues,
-      file: secondFaceFileToLoad,
-      setFile: setSecondFaceFileToLoad,
-      onStandardInputsReady: handleRefFaceStandardInputsReady,
-      onLoadingStateChange: handleRefFaceLoadingStateChange,
-      onAnimateValueReady: handleRefFaceAnimateValueReady,
-      onStandardInputChange: handleRefFaceStandardInputChange,
-      onBundleReady: handleRefFaceBundleReady,
-    }),
-    [
-      refFaceIsLoaded,
-      refFaceIsLoading,
-      refFaceStandardInputs,
-      refFaceStandardInputsById,
-      refFaceInputIdsWithBindings,
-      refFaceInputValues,
-      handleRefFaceInputValueChange,
-      handleRefFaceResetAllInputValues,
-      secondFaceFileToLoad,
-      handleRefFaceStandardInputsReady,
-      handleRefFaceLoadingStateChange,
-      handleRefFaceAnimateValueReady,
-      handleRefFaceStandardInputChange,
-      handleRefFaceBundleReady,
-    ],
-  );
 
   // Graph Runtime Hook
-  const faceId = useGraphRuntime((state) => state.faceId);
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
-  const graphTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
-  const graphFrameRate = useGraphRuntime((state) => state.graphFrameRate);
-  const graphPlaybackState = useGraphRuntime(
-    (state) => state.graphPlaybackState,
-  );
-  const graphStatus = useGraphRuntime((state) => state.graphStatus);
-  const playGraph = useGraphRuntime((state) => state.playGraph);
-  const pauseGraph = useGraphRuntime((state) => state.pauseGraph);
-  const stopGraph = useGraphRuntime((state) => state.stopGraph);
-  const stepGraph = useGraphRuntime((state) => state.stepGraph);
-  const setFaceId = useGraphRuntime((state) => state.handleFaceIdChange);
   const discrepancyReview = useGraphRuntime((state) => state.discrepancyReview);
   const resolveDiscrepancyReview = useGraphRuntime(
     (state) => state.resolveDiscrepancyReview,
   );
-  const handleImportGraphSpec = useGraphRuntime(
-    (state) => state.handleImportGraphSpec,
-  );
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
+
+  const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
+
+  const canExport = Boolean(rootId) && !isLoading;
+
+
 
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsByPath = useBindingAuthoring(
@@ -467,19 +159,10 @@ function AppContent({ loader }: AppContentProps) {
   const handleClearSelection = useSelectionStore(
     (state) => state.handleClearSelection,
   );
-  const handleResetAllInputs = useBindingAuthoring(
-    (state) => state.handleResetAllInputValues,
-  );
-  const mainFaceHandleInputValueChange = useBindingAuthoring(
-    (state) => state.handleInputValueChange,
-  );
-
-  useEffect(() => {
-    mainFaceInputChangeRef.current = mainFaceHandleInputValueChange;
-  }, [mainFaceHandleInputValueChange]);
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
+
   const { activeWorkbench, skipDiscrepancyCheck } = uiState;
 
   const poseRig = usePoseRig();
@@ -525,75 +208,21 @@ function AppContent({ loader }: AppContentProps) {
 
   const standardInputCount = poseRig.standardInputs.length;
 
-  const handleWorkbenchChange = useCallback(
-    (view: WorkbenchView) => {
-      uiActions.setWorkbench(view);
-    },
-    [uiActions],
+  const faceId = useGraphRuntime((state) => state.faceId);
+  const handleImportGraphSpec = useGraphRuntime(
+    (state) => state.handleImportGraphSpec,
   );
-
-
-  const guideIdBase = useId();
-  const workbenchGuideIds = useMemo(
-    () => ({
-      "import-export": `${guideIdBase} -import -export `,
-      "scene-composer": `${guideIdBase} - scene - composer`,
-      "pose-rig": `${guideIdBase} - pose - rig`,
-      "std-feature-spaces": `${guideIdBase} - std - feature - spaces`,
-    }),
-    [guideIdBase],
-  );
-  const [workbenchGuideOpen, setWorkbenchGuideOpen] = useState<
-    Record<WorkbenchView, boolean>
-  >({
-    "import-export": false,
-    "scene-composer": false,
-    "pose-rig": false,
-    "std-feature-spaces": false,
-  });
-  const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
   useBundleSynchronizer({
     faceId,
-    rootId,
-    loadedBundle,
+    rootId: loader.rootId,
+    loadedBundle: loader.bundle,
     standardInputCount,
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
   });
 
-  const canImportGraph = Boolean(rootId) && !isLoading;
-  const canExport = canImportGraph;
-
-  const statusMessage = useMemo(() => {
-    if (isLoading) {
-      return "Loading Vizij…";
-    }
-    if (error) {
-      return `Failed to load Vizij: ${error} `;
-    }
-    if (rootId) {
-      return `Loaded ${sourceName ?? "Vizij"} `;
-    }
-    return "Load a Vizij GLB to begin.";
-  }, [error, isLoading, rootId, sourceName]);
-
-  const activeOption = WORKBENCH_OPTIONS.find(
-    (option) => option.id === activeWorkbench,
-  );
-  const activeGuide = activeOption ? WORKBENCH_GUIDES[activeOption.id] : null;
-  const activeGuideIsOpen = workbenchGuideOpen[activeWorkbench] ?? false;
-  const activeGuideContentId = workbenchGuideIds[activeWorkbench];
-  const toggleActiveGuide = () => {
-    if (!activeGuide) {
-      return;
-    }
-    setWorkbenchGuideOpen((current) => ({
-      ...current,
-      [activeWorkbench]: !current[activeWorkbench],
-    }));
-  };
 
   const {
     panels,
@@ -607,11 +236,12 @@ function AppContent({ loader }: AppContentProps) {
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      setSecondFaceFileToLoad(file);
+      referenceFaceContextValue.setFile(file);
       event.target.value = "";
     },
-    [setSecondFaceFileToLoad]
+    [referenceFaceContextValue]
   );
+
 
   const handleImportReferenceFaceClick = useCallback(() => {
     refFaceFileInputRef.current?.click();
@@ -867,12 +497,11 @@ function AppContent({ loader }: AppContentProps) {
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={<DebugPanel
           rootId={loader.rootId}
-          sourceName={loader.sourceName}
           loadedBundle={loader.bundle}
           updateBundle={loader.updateBundle}
           isLoading={loader.isLoading}
-          error={loader.error}
         />}
+
 
       />
 

@@ -1,6 +1,5 @@
-import { useCallback, useId, useMemo, useState } from "react";
 import { Vizij } from "@vizij/render";
-import { Button, Switch, Chip } from "../ui";
+import { Button } from "../ui";
 
 export interface ViewerProps {
   rootId: string | null;
@@ -54,15 +53,3 @@ export function Viewer({
   );
 }
 
-
-function formatGraphClock(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "00:00.00";
-  }
-  const seconds = Math.max(value, 0);
-  const minutes = Math.floor(seconds / 60);
-  const remaining = seconds - minutes * 60;
-  return `${minutes.toString().padStart(2, "0")}:${remaining
-    .toFixed(2)
-    .padStart(5, "0")}`;
-}

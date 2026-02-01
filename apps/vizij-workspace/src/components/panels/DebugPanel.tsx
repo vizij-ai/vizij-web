@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { VizijBundleExtension } from "@vizij/render";
+import { useDialogQueue } from "@vizij/authoring-shared";
+import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { Activity, Play, Pause, Square, Bug, FileCheck, Stethoscope, Wrench } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { useGraphRuntime, useBindingAuthoring } from "../../state/RigControllerProvider";
 import { Tabs, Chip, Button } from "../ui";
-import type { VizijBundleExtension, LoadedVizijAsset } from "@vizij/render";
 import { InstructionCallout } from "../common/InstructionCallout";
 import { RobotDataAuditPanel } from "../app/RobotDataAuditPanel";
 import { VizijBundleAuditPanel } from "../app/VizijBundleAuditPanel";
@@ -11,11 +15,7 @@ import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
-import { useDialogQueue } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { cloneSerializable } from "../../utils/serialization";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
-import { Activity, Play, Pause, Square, Bug, FileCheck, Stethoscope, Wrench } from "lucide-react";
 
 type HealthTabId =
     | "playback"
@@ -34,7 +34,6 @@ const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
 
 interface DebugPanelProps {
     rootId: string | null;
-    sourceName: string | null;
     loadedBundle: VizijBundleExtension | null;
     updateBundle: (
         updater:
@@ -45,18 +44,16 @@ interface DebugPanelProps {
             ) => VizijBundleExtension | null),
     ) => void;
     isLoading: boolean;
-    error: string | null;
 }
 
 export function DebugPanel({
     rootId,
-    sourceName,
     loadedBundle,
     updateBundle,
     isLoading,
-    error
 }: DebugPanelProps) {
     const [activeTab, setActiveTab] = useState<HealthTabId>("playback");
+
 
     // Graph Runtime Hook
     const graphStatus = useGraphRuntime((state) => state.graphStatus);

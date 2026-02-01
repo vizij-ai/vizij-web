@@ -1,12 +1,12 @@
 import React from "react";
-import { SceneObjectNode } from "../../scene/sceneGraph";
+import { Box, Folder } from "lucide-react";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
+import { Panel } from "../ui";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
 import { RiggingMaterialSection } from "./RiggingMaterialSection";
-import { Panel } from "../ui";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { Box, Folder } from "lucide-react";
 
 interface RiggingInspectorProps {
     node: SceneObjectNode;

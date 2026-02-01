@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Panel } from "./Panel";
 import { cn } from "../../utils/cn";
+import { Panel } from "./Panel";
 
 interface StudioPanelProps {
     title: string;

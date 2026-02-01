@@ -1,7 +1,7 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
 import type { ReactNode } from "react";
-import { cn } from "../../utils/cn";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { cn } from "../../utils/cn";
 
 export interface CollapsibleGroupProps {
   title: string;

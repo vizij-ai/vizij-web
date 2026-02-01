@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { ChevronRight, ChevronDown, RotateCcw } from "lucide-react";
 import { Button } from "../ui";
 import { cn } from "../../utils/cn";
-import { ChevronRight, ChevronDown, RotateCcw } from "lucide-react";
 
 export interface RiggingPropertyRowProps {
     label: string;

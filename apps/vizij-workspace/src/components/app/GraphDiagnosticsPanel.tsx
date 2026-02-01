@@ -6,6 +6,7 @@ import {
   type MachineDiffResult,
   type MachineReport,
 } from "@vizij/node-graph-authoring";
+import { Download, Search } from "lucide-react";
 import { downloadBlob } from "../../utils/download";
 import { alertDialog } from "../../utils/dialogs";
 import {
@@ -14,7 +15,6 @@ import {
 } from "../../state/RigControllerProvider";
 import { Button, Input, ListRow, Chip, Card, CardHeader, CardBody, CardTitle, CardDescription } from "../ui";
 import { cn } from "../../utils/cn";
-import { Download, Search } from "lucide-react";
 
 const REVEAL_EVENT = "vizij-authoring:reveal-binding-target";
 

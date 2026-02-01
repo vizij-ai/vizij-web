@@ -6,9 +6,9 @@ import type {
 } from "react";
 import type { JSX } from "react/jsx-runtime";
 import { Info } from "lucide-react";
+import { cn } from "../../utils/cn";
 import { Badge } from "./Badge";
 import { Tooltip } from "./Tooltip";
-import { cn } from "../../utils/cn";
 
 type BaseProps = {
   as?: ElementType;

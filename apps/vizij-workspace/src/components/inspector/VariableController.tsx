@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Sliders, Play, Save, RotateCcw, Box, Folder, Zap } from "lucide-react";
+import { HexColorPicker } from "react-colorful";
+import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
-import { HexColorPicker } from "react-colorful";
-import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
-import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { cn } from "../../utils/cn";
 import type { ManagedStandardInput } from "../../types/standardInputs";
+import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { VariableSelector, type VariableSelection } from "./VariableSelector";
 
 interface VariableControllerProps {
     type: "pose" | "rig";

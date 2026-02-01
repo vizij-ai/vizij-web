@@ -29,9 +29,9 @@ import {
   Select,
 } from "../ui";
 import { formatRigPathLabel } from "../../utils/rigPaths";
+import { cn } from "../../utils/cn";
 import { createSlotKey, getSlotIdentifier } from "./slotKeys";
 import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
-import { cn } from "../../utils/cn";
 
 type BindingFeatureFlags = {
   vectorAuthoringBeta?: boolean;

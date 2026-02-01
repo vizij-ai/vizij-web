@@ -1,11 +1,7 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, type ChangeEvent } from "react";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
-import { useWorkspaceStore } from "../../state/workspaceStore";
-import { useVizijAssetLoader } from "../../hooks/useVizijAssetLoader";
-import { loadGLTFFromBlobWithBundle } from "@vizij/render";
-import { DEFAULT_NAMESPACE } from "../../utils/constants";
 
 export interface ReferenceFacePanelProps {
     splitVertical: boolean;
@@ -23,7 +19,7 @@ export function ReferenceFacePanel({ splitVertical, onToggleSplit }: ReferenceFa
     }, []);
 
     const handleFileChange = useCallback(
-        (event: React.ChangeEvent<HTMLInputElement>) => {
+        (event: ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
             if (!file) return;
             referenceFace.setFile(file);

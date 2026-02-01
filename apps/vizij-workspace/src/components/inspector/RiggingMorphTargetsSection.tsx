@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
-import { SceneObjectNode } from "../../scene/sceneGraph";
+import type { StandardRigInput } from "@vizij/utils";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useBindingAuthoring, useGraphRuntime } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow } from "./RiggingPropertyRow";
-import { StandardRigInput } from "@vizij/utils";
 
 interface RiggingMorphTargetsSectionProps {
     node: SceneObjectNode;

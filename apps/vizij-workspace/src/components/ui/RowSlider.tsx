@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import { Input } from "./Input";
 import { cn } from "../../utils/cn";
+import { Input } from "./Input";
 
 export interface RowSliderProps {
   value: number;

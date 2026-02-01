@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useVizijStore } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import type { VizijBundleExtension } from "@vizij/render";
+import { ChevronRight } from "lucide-react";
 import {
     useBindingAuthoring,
     useGraphRuntime,
@@ -10,14 +11,13 @@ import { useAuthoringFileNames } from "../../hooks/useAuthoringFileNames";
 import { useVizijExport } from "../../hooks/useVizijExport";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { Modal } from "../ui/Modal";
+import { InstructionCallout } from "../common/InstructionCallout";
+import { useAuthoringUiActions, useAuthoringUiState } from "../../state/AuthoringUiProvider";
+import { cn } from "../../utils/cn";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel } from "./PoseRigPanels";
-import { InstructionCallout } from "../common/InstructionCallout";
-import { useAuthoringUiActions, useAuthoringUiState } from "../../state/AuthoringUiProvider";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
-import { cn } from "../../utils/cn";
-import { ChevronRight } from "lucide-react";
 
 interface ExportDialogProps {
     open: boolean;
