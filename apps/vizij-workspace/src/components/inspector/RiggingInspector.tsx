@@ -64,7 +64,12 @@ export function RiggingInspector({ node }: RiggingInspectorProps) {
     const { handleRenameShape } = useBindingAuthoring((state) => state);
 
     return (
-        <Panel className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0">
+        <Panel
+            title="Inspector"
+            description="View and edit selected object properties."
+            className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+        >
+
             <div className="flex flex-col gap-1 p-1">
                 <ObjectHeader
                     name={node.name || node.id}

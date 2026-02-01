@@ -126,10 +126,12 @@ export function AnimationPanel() {
     return (
         <Panel
             title="Timeline"
+            description="Create and edit animations with keyframes."
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
             actions={actions}
             badge={formatTime(currentTime)}
         >
+
             <div className="flex flex-col h-full gap-2 p-1">
                 <div className="flex items-center gap-2 px-1">
                     <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800 shadow-sm">

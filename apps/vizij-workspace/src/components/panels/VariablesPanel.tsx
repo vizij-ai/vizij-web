@@ -346,10 +346,12 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
     return (
         <Panel
             title="Variables"
+            description="Manage poses and rig variables."
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
             actions={actions}
             badge={`${totalCount}`}
         >
+
             <div className="flex flex-col h-full gap-0.5 p-1 overflow-y-auto custom-scrollbar">
                 {rootNode.children.size === 0 ? (
                     <div className="flex flex-col items-center justify-center h-24 text-slate-500 text-xs gap-2 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">

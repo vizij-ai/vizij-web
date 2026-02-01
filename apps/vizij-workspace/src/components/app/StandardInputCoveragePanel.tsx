@@ -61,25 +61,30 @@ export function StandardInputCoveragePanel({
 
   if (summary.total === 0) {
     return (
-      <Panel className="flex flex-col gap-3">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-100">
-          Standard Input Coverage
-        </h2>
+      <Panel
+        title="Standard Input Coverage"
+        description="Track which standard inputs are currently mapped to scene properties."
+        className="flex flex-col gap-3"
+      >
         <p className="text-xs text-slate-500 italic bg-slate-900/20 p-4 rounded-lg border border-dashed border-white/5">
           Load a rig and generate standard inputs to see coverage.
         </p>
       </Panel>
     );
+
   }
 
   return (
-    <Panel className="flex flex-col gap-4">
+    <Panel
+      title="Standard Input Coverage"
+      description="Track which standard inputs are currently mapped to scene properties."
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col gap-3">
         <div className="flex justify-between items-center">
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-100">
-            Standard Input Coverage
-          </h2>
+          <div /> {/* Spacer since title is in Panel header now */}
           {standardInputSchema ? (
+
             <span className="text-[10px] font-bold text-slate-500 px-1.5 py-0.5 bg-slate-950/40 rounded border border-white/5 opacity-80">
               {standardInputSchema.id} · {standardInputSchema.version}
             </span>

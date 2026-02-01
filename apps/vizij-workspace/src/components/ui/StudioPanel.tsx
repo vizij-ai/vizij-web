@@ -4,14 +4,17 @@ import { Panel } from "./Panel";
 
 interface StudioPanelProps {
     title: string;
+    description?: React.ReactNode;
     actions?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
     scrollable?: boolean;
 }
 
+
 export function StudioPanel({
     title,
+    description,
     actions,
     children,
     className,
@@ -20,9 +23,11 @@ export function StudioPanel({
     return (
         <Panel
             title={title}
+            description={description}
             actions={actions}
             className={cn("flex-1 min-h-0 border-none bg-transparent shadow-none p-0", className)}
         >
+
             <div
                 className={cn(
                     "flex-1 min-h-0",

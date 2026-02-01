@@ -65,7 +65,11 @@ export function ObjectInspector({
 
   if (!node) {
     return (
-      <Panel className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0">
+      <Panel
+        title="Inspector"
+        description="View and edit selected object properties."
+        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+      >
         <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
           <p className="font-medium text-slate-400">Select an object to view properties</p>
         </div>
@@ -74,7 +78,11 @@ export function ObjectInspector({
   }
 
   return (
-    <Panel className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0">
+    <Panel
+      title="Inspector"
+      description="View and edit selected object properties."
+      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+    >
       <div className="flex flex-col gap-3 p-1">
         <ObjectHeader
           name={node.name || node.id}

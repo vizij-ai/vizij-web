@@ -10,8 +10,13 @@ interface TreePanelProps {
 
 export function TreePanel({ children }: TreePanelProps) {
     return (
-        <StudioPanel title="Explorer">
+        <StudioPanel
+            title="Explorer"
+            description="Navigate the workspace and manage assets."
+        >
             {children}
         </StudioPanel>
+
+
     );
 }

@@ -445,7 +445,11 @@ function AppContent({ loader }: AppContentProps) {
         return selectedRigId ? <VariableController type="rig" id={selectedRigId} /> : null;
       default:
         return (
-          <Panel title="Inspector">
+          <Panel
+            title="Inspector"
+            description="View and edit the properties of the selected element."
+          >
+
             <div className="p-4 text-xs text-slate-500 text-center">
               Select an item to inspect details.
             </div>

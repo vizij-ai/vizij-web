@@ -262,8 +262,10 @@ export function VariableController({ type, id }: VariableControllerProps) {
             <div className="flex flex-col gap-2 p-2 h-full flex-1 min-h-0">
                 <Panel
                     title={pose.name}
+                    description="Tweak and apply values to the selected variable."
                     badge="Pose"
                     actions={
+
                         <Button
                             variant="primary"
                             size="sm"
@@ -515,7 +517,12 @@ export function VariableController({ type, id }: VariableControllerProps) {
 
         return (
             <div className="flex flex-col gap-2 p-2 h-full">
-                <Panel title={input.label || input.id} badge="Rig">
+                <Panel
+                    title={input.label || input.id}
+                    description="Tweak and apply values to the selected variable."
+                    badge="Rig"
+                >
+
                     <div className="p-2 flex flex-col gap-4">
                         {/* Value Control */}
                         <div>
@@ -575,8 +582,15 @@ export function VariableController({ type, id }: VariableControllerProps) {
     }
 
     return (
-        <div className="p-4 text-slate-500 text-center text-xs">
-            Select a variable to inspect.
-        </div>
+        <Panel
+            title="Inspector"
+            description="View and edit the properties of the selected element."
+            className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+        >
+            <div className="p-4 text-slate-500 text-center text-xs">
+                Select a variable to inspect.
+            </div>
+        </Panel>
     );
+
 }
