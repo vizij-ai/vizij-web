@@ -1,20 +1,126 @@
-import { ChevronLeft, ChevronRight, Pause, Play, Settings2 } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Pause, Play, Plus, Settings2, Trash2 } from "lucide-react";
 import { Panel } from "../ui/Panel";
-import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { Button } from "../ui/Button";
+import { Modal } from "../ui/Modal";
+import { useAnimationStore, evaluateTrack } from "../../state/animationStore";
+import { TimelineEditor } from "../animation/TimelineEditor";
+import { VariableSelector, type VariableSelection } from "../inspector/VariableSelector";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
 
 export function AnimationPanel() {
-    const playbackState = useGraphRuntime((state) => state.graphPlaybackState);
-    const setGraphPlaybackState = useGraphRuntime((state) => state.setGraphPlaybackState);
+    const {
+        isPlaying,
+        play,
+        pause,
+        currentTime,
+        duration,
+        tick,
+        tracks,
+        addTrack,
+        removeTrack,
+        selectedTrackId,
+        selectedKeyframeId,
+        updateKeyframe
+    } = useAnimationStore();
 
-    const togglePlayback = () => {
-        setGraphPlaybackState(playbackState === "playing" ? "paused" : "playing");
+    const { handleInputValueChange } = useBindingAuthoring(s => s);
+    const [showVariableSelector, setShowVariableSelector] = useState(false);
+
+    // Playback Loop
+    const lastTimeRef = useRef<number>(0);
+
+    useEffect(() => {
+        let handle: number;
+        const loop = (time: number) => {
+            if (lastTimeRef.current !== 0) {
+                const delta = (time - lastTimeRef.current) / 1000;
+                tick(delta);
+            }
+            lastTimeRef.current = time;
+            if (isPlaying) {
+                handle = requestAnimationFrame(loop);
+            }
+        };
+
+        if (isPlaying) {
+            lastTimeRef.current = 0;
+            handle = requestAnimationFrame(loop);
+        } else {
+            lastTimeRef.current = 0;
+        }
+
+        return () => cancelAnimationFrame(handle);
+    }, [isPlaying, tick]);
+
+    // Apply values to scene
+    useEffect(() => {
+        // We run this effect whenever currentTime or tracks change
+        // In a real app we might want to do this inside the tick function or a subscriber 
+        // to avoid React render overhead, but for now this is fine.
+        tracks.forEach(track => {
+            const val = evaluateTrack(track, currentTime);
+            handleInputValueChange(track.variableId, val);
+        });
+    }, [currentTime, tracks, handleInputValueChange]);
+
+    const formatTime = (t: number) => {
+        const mins = Math.floor(t / 60);
+        const secs = Math.floor(t % 60);
+        const ms = Math.floor((t % 1) * 100);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
+    };
+
+    const handleAddVariable = (selection: VariableSelection) => {
+        setShowVariableSelector(false);
+        if (selection.type === "variable") {
+            addTrack(selection.id);
+        } else if (selection.type === "property") {
+            // For properties we might need to find the underlying input ID or create one?
+            // The variable selector usually returns IDs that are already inputs for "variable" type.
+            // For "property", it gives objectId/featureId.
+            // For this MVP, let's assume we can map it or just support variables.
+            // Actually `VariableController` handles creation of custom inputs for properties.
+            // We'll skip complex property creation for this step and focus on existing inputs.
+            // Or better, we can assume the user selecting a property expects us to create an input?
+            // Let's just alert for now if it's complex, or try to use the raw ID if it matches an input.
+
+            // Simple fallback:
+            console.warn("Direct property animation not fully implemented yet, select an existing variable.");
+        }
+    };
+
+    const handleDeleteTrack = () => {
+        if (selectedTrackId) {
+            removeTrack(selectedTrackId);
+        }
     };
 
     const actions = (
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-slate-200">
-            <Settings2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1">
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-slate-500 hover:text-red-400"
+                onClick={handleDeleteTrack}
+                disabled={!selectedTrackId}
+                title="Delete Selected Track"
+            >
+                <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-slate-500 hover:text-slate-200"
+                onClick={() => setShowVariableSelector(true)}
+                title="Add Track"
+            >
+                <Plus className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-slate-200">
+                <Settings2 className="h-3.5 w-3.5" />
+            </Button>
+        </div>
     );
 
     return (
@@ -22,7 +128,7 @@ export function AnimationPanel() {
             title="Timeline"
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
             actions={actions}
-            badge="00:00:00"
+            badge={formatTime(currentTime)}
         >
             <div className="flex flex-col h-full gap-2 p-1">
                 <div className="flex items-center gap-2 px-1">
@@ -34,9 +140,9 @@ export function AnimationPanel() {
                             variant="primary"
                             size="sm"
                             className="h-6 px-4 rounded-md mx-0.5 text-[10px] uppercase font-bold tracking-wider shadow-sm"
-                            onClick={togglePlayback}
+                            onClick={isPlaying ? pause : play}
                         >
-                            {playbackState === "playing" ? (
+                            {isPlaying ? (
                                 <Pause className="h-3 w-3 fill-current" />
                             ) : (
                                 <Play className="h-3 w-3 fill-current ml-0.5" />
@@ -51,61 +157,59 @@ export function AnimationPanel() {
 
                     <div className="flex items-center gap-2 bg-slate-900/50 px-3 py-1 rounded-lg border border-slate-800/50">
                         <div className="flex items-baseline gap-1 font-mono text-slate-300">
-                            <span className="text-sm font-bold tracking-tight">00</span>
-                            <span className="text-[10px] text-slate-600 font-bold">:</span>
-                            <span className="text-sm font-bold tracking-tight">00</span>
-                            <span className="text-[10px] text-slate-600 font-bold">:</span>
-                            <span className="text-sm font-bold tracking-tight text-blue-400">00</span>
+                            <span className="text-sm font-bold tracking-tight">{formatTime(currentTime)}</span>
+                            <span className="text-[10px] text-slate-600 font-bold mx-1">/</span>
+                            <span className="text-xs text-slate-500">{formatTime(duration)}</span>
                         </div>
-                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest ml-1">SMPTE</span>
                     </div>
                 </div>
 
-                <div className="flex-1 bg-slate-950/40 rounded-xl border border-slate-800/60 relative overflow-hidden shadow-inner">
-                    {/* Time Ruler */}
-                    <div className="absolute top-0 left-0 w-full h-7 border-b border-slate-800/80 bg-slate-900/80 flex items-end px-2 backdrop-blur-sm z-10">
-                        {Array.from({ length: 40 }).map((_, i) => (
-                            <div key={i} className="flex-1 h-2 border-l border-slate-700/30 group relative">
-                                {i % 5 === 0 && (
-                                    <span className="absolute -top-4 -left-1 text-[9px] font-mono font-medium text-slate-500 select-none">
-                                        {i * 10}
-                                    </span>
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                <TimelineEditor />
 
-                    {/* Tracks */}
-                    <div className="absolute top-7 left-0 w-full p-2 space-y-1 overflow-y-auto custom-scrollbar h-[calc(100%-28px)]">
-                        <div className="relative h-9 bg-slate-900/40 rounded-lg border border-slate-800/50 overflow-hidden hover:bg-slate-800/40 hover:border-slate-700/50 transition-colors group">
-                            <div className="absolute inset-y-0 left-0 w-48 bg-slate-900/80 border-r border-slate-800/80 z-10 flex items-center px-3">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-                                <span className="text-[10px] font-bold text-slate-300 font-mono tracking-tight group-hover:text-white transition-colors">Head_Rotate</span>
-                            </div>
-                            <div className="absolute inset-y-2 left-[30%] right-[20%] bg-blue-500/20 rounded border border-blue-500/30 backdrop-blur-[1px]"></div>
-                            {/* Keyframes */}
-                            <div className="absolute top-1/2 left-[30%] w-2 h-2 -ml-1 -mt-1 bg-blue-400 rotate-45 border border-slate-950 shadow-sm z-0"></div>
-                            <div className="absolute top-1/2 right-[20%] w-2 h-2 -mr-1 -mt-1 bg-blue-400 rotate-45 border border-slate-950 shadow-sm z-0"></div>
+                <Modal
+                    open={showVariableSelector}
+                    onClose={() => setShowVariableSelector(false)}
+                    title="Add Track"
+                    maxWidth="md"
+                >
+                    <VariableSelector
+                        onSelect={handleAddVariable}
+                        onCancel={() => setShowVariableSelector(false)}
+                    />
+                </Modal>
+
+                {/* Selected Keyframe Inspector */}
+                {selectedTrackId && selectedKeyframeId && (() => {
+                    const track = tracks.find(t => t.id === selectedTrackId);
+                    const keyframe = track?.keyframes.find(k => k.id === selectedKeyframeId);
+
+                    if (!track || !keyframe) return null;
+
+                    return (
+                        <div className="bg-slate-900/80 border-t border-slate-800 p-2 grid grid-cols-2 gap-4 backdrop-blur-sm">
+                            <label className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 w-12">Time</span>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:border-blue-500 outline-none"
+                                    value={keyframe.time}
+                                    onChange={(e) => updateKeyframe(track.id, keyframe.id, { time: parseFloat(e.target.value) })}
+                                />
+                            </label>
+                            <label className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 w-12">Value</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:border-blue-500 outline-none"
+                                    value={keyframe.value}
+                                    onChange={(e) => updateKeyframe(track.id, keyframe.id, { value: parseFloat(e.target.value) })}
+                                />
+                            </label>
                         </div>
-
-                        <div className="relative h-9 bg-slate-900/40 rounded-lg border border-slate-800/50 overflow-hidden hover:bg-slate-800/40 hover:border-slate-700/50 transition-colors group">
-                            <div className="absolute inset-y-0 left-0 w-48 bg-slate-900/80 border-r border-slate-800/80 z-10 flex items-center px-3">
-                                <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2 shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
-                                <span className="text-[10px] font-bold text-slate-300 font-mono tracking-tight group-hover:text-white transition-colors">Eye_Blink</span>
-                            </div>
-                            <div className="absolute inset-y-2 left-[10%] right-[60%] bg-purple-500/20 rounded border border-purple-500/30 backdrop-blur-[1px]"></div>
-                            {/* Keyframes */}
-                            <div className="absolute top-1/2 left-[10%] w-2 h-2 -ml-1 -mt-1 bg-purple-400 rotate-45 border border-slate-950 shadow-sm z-0"></div>
-                            <div className="absolute top-1/2 right-[60%] w-2 h-2 -mr-1 -mt-1 bg-purple-400 rotate-45 border border-slate-950 shadow-sm z-0"></div>
-                        </div>
-                    </div>
-
-                    {/* Playhead */}
-                    <div className="absolute top-0 left-[30%] w-px h-full bg-red-500/80 z-20 pointer-events-none">
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-2 bg-red-500 rounded-b-sm shadow-[0_2px_4px_rgba(239,68,68,0.4)]"></div>
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-gradient-to-b from-red-500 to-transparent opacity-50"></div>
-                    </div>
-                </div>
+                    );
+                })()}
             </div>
         </Panel>
     );

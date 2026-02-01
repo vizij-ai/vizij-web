@@ -799,14 +799,14 @@ function AppContent({ loader }: AppContentProps) {
         // Center
         topPanel={
           <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50">
-            <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Select</Button>
+            {/* <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Select</Button>
             <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Move</Button>
             <Button variant="ghost" size="sm" className="h-7 px-2 font-normal">Rotate</Button>
             <div className="ml-auto flex items-center gap-4 text-slate-500 font-medium tracking-wide uppercase text-[10px]">
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500/50" />Grid: On</span>
               <span className="w-px h-3 bg-slate-800" />
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500/50" />Snap: Off</span>
-            </div>
+            </div> */}
           </div>
         }
         viewport={viewerContent}
