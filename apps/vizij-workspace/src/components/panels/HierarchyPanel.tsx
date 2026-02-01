@@ -170,11 +170,12 @@ export function HierarchyPanel({
                 <div key={node.id} className="flex flex-col">
                     <div
                         className={cn(
-                            "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
+                            "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-pointer select-none active:bg-slate-800/60",
                             isSelected
                                 ? "bg-blue-600/20 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
                                 : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                         )}
+
                         style={{ marginLeft: `${depth * 12}px` }}
                         onClick={(e) => {
                             e.stopPropagation();

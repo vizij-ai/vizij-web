@@ -22,9 +22,10 @@ export function ListRow({
   return (
     <div
       className={cn(
-        "border border-slate-800/60 rounded-xl bg-slate-900/40 p-4 shrink-0 flex flex-col gap-2 transition-all hover:bg-slate-900/60 hover:border-slate-800 shadow-sm",
+        "border border-slate-800/60 rounded-xl bg-slate-900/40 p-4 shrink-0 flex flex-col gap-2 transition-all hover:bg-slate-900/60 hover:border-slate-800 shadow-sm cursor-pointer active:bg-slate-800/80 active:scale-[0.99]",
         className,
       )}
+
       {...rest}
     >
       <div className="flex justify-between gap-3 items-start">

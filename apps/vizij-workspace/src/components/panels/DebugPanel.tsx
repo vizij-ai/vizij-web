@@ -245,7 +245,7 @@ export function DebugPanel({
     return (
         <Panel
             title="Debug Panel"
-            description="Monitor engine status, playback, and rig health."
+            description="Monitor status, playback, and rig health."
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
             badge={graphStatus === "ready" ? <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full"><Activity className="w-3 h-3" /> READY</span> : undefined}
         >

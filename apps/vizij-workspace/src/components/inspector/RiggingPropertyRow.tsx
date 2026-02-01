@@ -51,7 +51,7 @@ export function RiggingPropertyRow({
                 {renderDefaultInput ? (
                     <button
                         onClick={handleToggle}
-                        className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 focus:outline-none"
+                        className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 focus:outline-none cursor-pointer active:scale-90 active:bg-white/10"
                     >
                         {isExpanded ? (
                             <ChevronDown size={12} />
@@ -59,6 +59,7 @@ export function RiggingPropertyRow({
                             <ChevronRight size={12} />
                         )}
                     </button>
+
                 ) : (
                     icon && <span className="text-slate-500">{icon}</span>
                 )}
@@ -82,7 +83,7 @@ export function RiggingPropertyRow({
                                 e.stopPropagation(); // Prevent row toggle
                                 onResetToDefault();
                             }}
-                            className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
+                            className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded cursor-pointer active:scale-90 active:bg-white/20"
                             title="Reset to default"
                         >
                             <RotateCcw size={10} />
@@ -103,7 +104,7 @@ export function RiggingPropertyRow({
                     {hasDifferentDefault && onResetToDefault && (
                         <button
                             onClick={onResetToDefault}
-                            className="h-6 w-6 flex items-center justify-center text-slate-500 hover:text-white rounded hover:bg-white/10 transition-colors"
+                            className="h-6 w-6 flex items-center justify-center text-slate-500 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer active:scale-90 active:bg-white/20"
                             title="Reset to default"
                         >
                             <RotateCcw size={12} />

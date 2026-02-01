@@ -1,6 +1,7 @@
 import { useRef, useCallback, type ChangeEvent } from "react";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import { Button } from "../ui";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
 
 export interface ReferenceFacePanelProps {
@@ -60,15 +61,17 @@ export function ReferenceFacePanel({ splitVertical, onToggleSplit }: ReferenceFa
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         {/* We use pointer-events-none on container and auto on button so it floats above the placeholder */}
                         <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3">
-                            <button
-                                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors shadow-lg"
+                            <Button
+                                variant="primary"
                                 onClick={handleLoadClick}
+                                className="shadow-lg"
                             >
                                 Load Custom Reference Face
-                            </button>
+                            </Button>
                             <div className="flex gap-2">
-                                <button
-                                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg"
+                                <Button
+                                    size="sm"
+                                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg cursor-pointer"
                                     onClick={async () => {
                                         try {
                                             const res = await fetch("/assets/Hugo_Latest_Rigged.glb");
@@ -83,9 +86,10 @@ export function ReferenceFacePanel({ splitVertical, onToggleSplit }: ReferenceFa
                                     }}
                                 >
                                     Load Hugo
-                                </button>
-                                <button
-                                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg"
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg cursor-pointer"
                                     onClick={async () => {
                                         try {
                                             const res = await fetch("/assets/Quori_Latest_Rigged.glb");
@@ -100,7 +104,7 @@ export function ReferenceFacePanel({ splitVertical, onToggleSplit }: ReferenceFa
                                     }}
                                 >
                                     Load Quori
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>

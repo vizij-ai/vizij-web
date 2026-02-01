@@ -66,7 +66,8 @@ export function Tabs({
             disabled={item.disabled}
             className={({ selected }) =>
               cn(
-                "inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative",
+                "inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
+
                 {
                   // Default variant
                   "border-b-2 border-transparent px-3 py-2 text-[13px] font-bold text-slate-500 hover:text-slate-300":

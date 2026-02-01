@@ -29,7 +29,7 @@ export function Menu({ label, children }: MenuProps) {
     return (
         <HeadlessMenu as="div" className="relative inline-block text-left">
             <div>
-                <MenuButton className="inline-flex w-full justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 data-[open]:bg-slate-800/80 data-[open]:text-slate-100">
+                <MenuButton className="inline-flex w-full justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 data-[open]:bg-slate-800/80 data-[open]:text-slate-100 cursor-pointer active:scale-95">
                     {label}
                 </MenuButton>
             </div>
@@ -67,9 +67,9 @@ export function MenuItem({
                     onClick={onSelect}
                     disabled={itemDisabled}
                     className={cn(
-                        "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors",
+                        "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all",
                         focus ? "bg-blue-600 text-white" : "text-slate-300",
-                        itemDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                        itemDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-[0.98]"
                     )}
                 >
                     {children}
@@ -106,7 +106,7 @@ export function MenuCheckboxItem({
                 <button
                     onClick={() => onCheckedChange(!checked)}
                     className={cn(
-                        "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-colors",
+                        "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all cursor-pointer active:scale-[0.98]",
                         focus ? "bg-blue-600 text-white" : "text-slate-300"
                     )}
                 >

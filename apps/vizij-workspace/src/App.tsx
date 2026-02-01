@@ -447,7 +447,7 @@ function AppContent({ loader }: AppContentProps) {
         return (
           <Panel
             title="Inspector"
-            description="View and edit the properties of the selected element."
+            description="View and edit properties of the selected element."
           >
 
             <div className="p-4 text-xs text-slate-500 text-center">

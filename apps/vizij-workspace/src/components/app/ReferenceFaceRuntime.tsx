@@ -399,7 +399,7 @@ function ReferenceFaceBridge({
           <button
             type="button"
             className={cn(
-              "px-2 py-0.5 border rounded text-[10px] font-bold transition-all",
+              "px-2 py-0.5 border rounded text-[10px] font-bold transition-all cursor-pointer active:scale-95",
               idleBehaviorEnabled
                 ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
                 : "bg-slate-800/20 border-slate-700/50 text-slate-500 hover:bg-slate-800 hover:text-slate-300",
@@ -416,7 +416,7 @@ function ReferenceFaceBridge({
           {onToggleSplit && (
             <button
               type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs"
+              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
               title={
                 splitVertical
                   ? "Switch to horizontal split"
@@ -465,7 +465,7 @@ function ReferenceFacePlaceholder({
           {onToggleSplit && (
             <button
               type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs"
+              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
               title={
                 splitVertical
                   ? "Switch to horizontal split"

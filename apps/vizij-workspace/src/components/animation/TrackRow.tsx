@@ -27,7 +27,7 @@ export function TrackRow({ track, duration }: TrackRowProps) {
     return (
         <div
             className={cn(
-                "relative h-9 bg-slate-900/40 rounded-lg border overflow-hidden hover:bg-slate-800/40 transition-colors group select-none",
+                "relative h-9 bg-slate-900/40 rounded-lg border overflow-hidden hover:bg-slate-800/40 transition-all group select-none cursor-pointer active:scale-[0.998] active:brightness-95",
                 isSelected ? "border-blue-500/50 bg-slate-800/30" : "border-slate-800/50"
             )}
             onClick={handleTrackClick}

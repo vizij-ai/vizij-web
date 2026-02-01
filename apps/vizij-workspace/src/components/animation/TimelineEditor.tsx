@@ -73,7 +73,7 @@ export function TimelineEditor() {
             onDoubleClick={handleDoubleClick}
         >
             {/* Time Ruler */}
-            <div className="h-7 border-b border-slate-800/80 bg-slate-900/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none">
+            <div className="h-7 border-b border-slate-800/80 bg-slate-900/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-pointer hover:bg-slate-900 transition-colors">
                 {/* Header spacer */}
                 <div className="w-48 shrink-0 border-r border-slate-800/30 h-full flex items-center px-3">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tracks</span>

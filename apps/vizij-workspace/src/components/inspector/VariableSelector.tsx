@@ -160,7 +160,7 @@ function VariablesList({ search, onSelect }: { search: string, onSelect: (s: Var
                         {group.vars.map(item => (
                             <div
                                 key={item.input.id}
-                                className="flex items-center gap-2.5 p-2.5 hover:bg-blue-600/10 hover:text-blue-100 rounded-lg cursor-pointer group transition-all"
+                                className="flex items-center gap-2.5 p-2.5 hover:bg-blue-600/10 hover:text-blue-100 rounded-lg cursor-pointer group transition-all active:bg-blue-600/20 active:scale-[0.99]"
                                 onClick={() => onSelect({ type: "variable", id: item.input.id })}
                             >
                                 <Zap size={14} className="text-yellow-400/70 group-hover:text-yellow-400" />
@@ -275,7 +275,7 @@ function SceneObjectRow({
         <div className="flex flex-col">
             <div
                 className={cn(
-                    "group flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-default select-none",
+                    "group flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer select-none active:bg-slate-800/60",
                     "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                 )}
                 style={{ marginLeft: `${depth * 12}px` }}
