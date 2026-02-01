@@ -2,7 +2,6 @@
     "hosting": [
         {
             "site": "vizij-workspace",
-            "target": "vizij-workspace",
             "public": "dist",
             "ignore": [
                 "firebase.json",
