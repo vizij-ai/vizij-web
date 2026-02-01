@@ -58,7 +58,6 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { Panel } from "./components/ui";
-import { Panel } from "./components/ui";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
 import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
@@ -781,15 +780,20 @@ function AppContent({ loader }: AppContentProps) {
         // Right
         rightTopVisible={panels.inspector.isVisible}
         rightTopPanel={
-          <Tabs
-            items={workbenchTabs}
-            value={activeWorkbench}
-            onValueChange={(v) => handleWorkbenchChange(v as WorkbenchView)}
-            renderPanel={renderWorkbenchTab}
-            className="h-full flex flex-col"
-            panelClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
-            listClassName="px-4 pt-2"
-          />
+          <Panel
+            title="Inspector"
+            className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+          >
+            <Tabs
+              items={workbenchTabs}
+              value={activeWorkbench}
+              onValueChange={(v) => handleWorkbenchChange(v as WorkbenchView)}
+              renderPanel={renderWorkbenchTab}
+              className="h-full flex flex-col"
+              panelClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
+              listClassName="px-4 pt-2"
+            />
+          </Panel>
         }
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={<DebugPanel
