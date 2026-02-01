@@ -50,9 +50,7 @@ import {
   useAuthoringUiState,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
-import { Panel } from "./components/ui";
-import { BaseController } from "./components/inspector/BaseController";
-import { VariableController } from "./components/inspector/VariableController";
+import { InspectorPanel } from "./components/inspector/InspectorPanel";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
@@ -399,64 +397,45 @@ function AppContent({ loader }: AppContentProps) {
   const selectedId = useSelectionStore((state) => state.selectionStack[0]?.id);
   const { selectedPoseId, selectPose } = poseRig;
 
-  const [inspectorMode, setInspectorMode] = useState<"scene" | "pose" | "rig" | "default">("default");
+  // Derived Inspector Mode
+  const inspectorMode = useMemo(() => {
+    if (selectedId) return "scene";
+    if (selectedPoseId) return "pose";
+    if (selectedRigId) return "rig";
+    return "default";
+  }, [selectedId, selectedPoseId, selectedRigId]);
 
-  // Selection Effects
+  // Unified Selection Clearing Effect (Mutual Exclusivity)
+  // This ensures that only one type of item is selected at a time across different systems.
   useEffect(() => {
+    // If scene object is selected, clear variables
     if (selectedId) {
-      if (inspectorMode !== "scene") setInspectorMode("scene");
-      // Clear others
       if (selectedPoseId) selectPose("");
-      if (selectedRigId !== null) handleSelectRig(null);
+      if (selectedRigId) handleSelectRig(null);
     }
-  }, [selectedId, selectPose, selectedRigId, handleSelectRig, selectedPoseId, inspectorMode]);
+  }, [selectedId, selectedPoseId, selectedRigId, selectPose, handleSelectRig]);
 
   useEffect(() => {
+    // If pose is selected, clear scene and rig
     if (selectedPoseId) {
-      if (inspectorMode !== "pose") setInspectorMode("pose");
-      // Clear others
       if (selectedId) handleClearSelection();
-      if (selectedRigId !== null) handleSelectRig(null);
+      if (selectedRigId) handleSelectRig(null);
     }
-  }, [selectedPoseId, handleClearSelection, selectedId, selectedRigId, handleSelectRig, inspectorMode]);
+  }, [selectedPoseId, selectedId, selectedRigId, handleClearSelection, handleSelectRig]);
 
   useEffect(() => {
+    // If rig is selected, clear scene and pose
     if (selectedRigId) {
-      if (inspectorMode !== "rig") setInspectorMode("rig");
-      // Clear others
       if (selectedId) handleClearSelection();
       if (selectedPoseId) selectPose("");
     }
-  }, [selectedRigId, handleClearSelection, selectPose, selectedId, selectedPoseId, inspectorMode]);
+  }, [selectedRigId, selectedId, selectedPoseId, handleClearSelection, selectPose]);
 
   // Variables Panel Props
   const handleSelectRigAction = useCallback((id: string | null) => {
     handleSelectRig(id);
   }, [handleSelectRig]);
 
-  // Render Inspector Content
-  const renderInspector = () => {
-    switch (inspectorMode) {
-      case "scene":
-        return <BaseController />;
-      case "pose":
-        return selectedPoseId ? <VariableController type="pose" id={selectedPoseId} /> : null;
-      case "rig":
-        return selectedRigId ? <VariableController type="rig" id={selectedRigId} /> : null;
-      default:
-        return (
-          <Panel
-            title="Inspector"
-            description="View and edit properties of the selected element."
-          >
-
-            <div className="p-4 text-xs text-slate-500 text-center">
-              Select an item to inspect details.
-            </div>
-          </Panel>
-        );
-    }
-  };
 
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
@@ -497,7 +476,7 @@ function AppContent({ loader }: AppContentProps) {
 
         // Right
         rightTopVisible={panels.inspector.isVisible}
-        rightTopPanel={renderInspector()}
+        rightTopPanel={<InspectorPanel />}
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={<DebugPanel
           rootId={loader.rootId}
