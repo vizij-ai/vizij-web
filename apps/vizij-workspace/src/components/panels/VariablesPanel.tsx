@@ -40,17 +40,28 @@ function getOrCreateChild(parent: TreeNode, key: string, label: string): TreeNod
 // Components
 // ----------------------------------------------------------------------------
 
+// ----------------------------------------------------------------------------
+// Components
+// ----------------------------------------------------------------------------
+
 interface TreeRowProps {
     node: TreeNode;
     depth: number;
     expanded: Set<string>;
     onToggle: (id: string) => void;
     onAction?: (node: TreeNode, action: string) => void;
+    onSelect?: (node: TreeNode) => void;
+    selection?: { type: "pose" | "rig"; id: string } | null;
 }
 
-function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
+function TreeRow({ node, depth, expanded, onToggle, onAction, onSelect, selection }: TreeRowProps) {
     const isExpanded = expanded.has(node.id);
     const hasChildren = node.children.size > 0;
+
+    // Check selection
+    const isSelected = selection &&
+        ((node.type === "pose" && selection.type === "pose" && (node.data as PoseDefinition)?.id === selection.id) ||
+            (node.type === "rig" && selection.type === "rig" && (node.data as ManagedStandardInput)?.input?.id === selection.id));
 
     // Determine Icon
     let Icon = Folder;
@@ -62,12 +73,16 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
             <div
                 className={cn(
                     "group flex items-center gap-1.5 rounded-sm px-1 min-h-[22px] transition-all cursor-pointer",
-                    "hover:bg-slate-800/40 text-slate-400 hover:text-slate-200"
+                    isSelected ? "bg-slate-700 text-slate-100" : "hover:bg-slate-800/40 text-slate-400 hover:text-slate-200"
                 )}
                 style={{ paddingLeft: `${depth * 12 + 4}px` }}
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (hasChildren) onToggle(node.id);
+                    if (hasChildren) {
+                        onToggle(node.id);
+                    } else {
+                        onSelect?.(node);
+                    }
                 }}
             >
                 {/* Expander Arrow */}
@@ -77,6 +92,11 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
                         !hasChildren && "opacity-0",
                         isExpanded && "rotate-90"
                     )}
+                    onClick={(e) => {
+                        // Allow toggling folder even if selecting it (though folders aren't selectable here)
+                        e.stopPropagation();
+                        onToggle(node.id);
+                    }}
                 >
                     <ChevronRight size={10} strokeWidth={2.5} />
                 </span>
@@ -96,7 +116,7 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
                 </span>
 
                 {/* Actions (Hover) */}
-                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
                     {node.type === "pose" && (
                         <Button
                             variant="ghost"
@@ -114,7 +134,6 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
 
                     {node.type === "rig" && node.data && (
                         <span className="text-[9px] font-mono bg-slate-950/50 px-1 rounded text-slate-500">
-                            {/* Value placeholder - could connect to actual value later */}
                             Rig
                         </span>
                     )}
@@ -139,6 +158,8 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
                                 expanded={expanded}
                                 onToggle={onToggle}
                                 onAction={onAction}
+                                onSelect={onSelect}
+                                selection={selection}
                             />
                         ))}
                 </div>
@@ -147,8 +168,13 @@ function TreeRow({ node, depth, expanded, onToggle, onAction }: TreeRowProps) {
     );
 }
 
-export function VariablesPanel() {
-    const { poses, applyPose } = usePoseRig();
+interface VariablesPanelProps {
+    selectedRigId?: string | null;
+    onSelectRig?: (id: string | null) => void;
+}
+
+export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelProps) {
+    const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
     const { managedStandardInputs } = useBindingAuthoring((state) => state);
 
     // State for tree expansion
@@ -190,11 +216,7 @@ export function VariablesPanel() {
         const customRigs = managedStandardInputs.filter(m => m.source === "custom");
         customRigs.forEach((managed) => {
             const input = managed.input;
-            // Use path if available, or just put at root
             const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
-            // Remove the last part of path if it matches the label to avoid redundancy, 
-            // or assume path is full hierarchy including name? 
-            // Usually path is category/group. Let's treat it as folders.
 
             let current = root;
             for (const part of pathParts) {
@@ -215,7 +237,6 @@ export function VariablesPanel() {
         return root;
     }, [poses, managedStandardInputs]);
 
-    // Initialize expansion for root children if needed (optional)
 
     const handleToggle = (id: string) => {
         const newExpanded = new Set(expandedIds);
@@ -234,6 +255,18 @@ export function VariablesPanel() {
         }
     };
 
+    const handleSelect = (node: TreeNode) => {
+        if (node.type === "pose") {
+            const poseData = node.data as PoseDefinition;
+            selectPose(poseData.id);
+            // When selecting logic, we might also want to clear rig selection?
+            onSelectRig?.(null);
+        } else if (node.type === "rig") {
+            const rigData = node.data as ManagedStandardInput;
+            onSelectRig?.(rigData.input.id);
+        }
+    };
+
     // Calculate total count
     const totalCount = poses.length + managedStandardInputs.filter(m => m.source === "custom").length;
 
@@ -243,6 +276,12 @@ export function VariablesPanel() {
         </Button>
     );
 
+    const activeSelection = useMemo(() => {
+        if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
+        if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
+        return null;
+    }, [selectedPoseId, selectedRigId]);
+
     return (
         <Panel
             title="Variables"
@@ -251,15 +290,9 @@ export function VariablesPanel() {
             badge={`${totalCount}`}
         >
             <div className="flex flex-col h-full gap-0.5 p-1 overflow-y-auto custom-scrollbar">
-                {/* 
-                   We render children of root directly to avoid showing a "Variables" folder 
-                   if the panel title is already "Variables".
-                   Or we can show the root's children.
-                */}
                 {rootNode.children.size === 0 ? (
                     <div className="flex flex-col items-center justify-center h-24 text-slate-500 text-xs gap-2 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
                         <span>No variables defined</span>
-                        {/* <Button variant="secondary" size="sm" className="h-6 text-[10px]">Create Variable</Button> */}
                     </div>
                 ) : (
                     Array.from(rootNode.children.values())
@@ -276,6 +309,8 @@ export function VariablesPanel() {
                                 expanded={expandedIds}
                                 onToggle={handleToggle}
                                 onAction={handleAction}
+                                onSelect={handleSelect}
+                                selection={activeSelection}
                             />
                         ))
                 )}

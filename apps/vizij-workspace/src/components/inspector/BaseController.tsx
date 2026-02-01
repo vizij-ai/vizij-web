@@ -1,6 +1,6 @@
 import { ObjectInspector } from "../inspector/ObjectInspector";
 import { StandardInputCoveragePanel } from "../app/StandardInputCoveragePanel";
-import { SceneHierarchyPanel } from "./SceneHierarchyPanel";
+
 
 interface SceneRiggingSectionProps {
   showCoverage?: boolean;
@@ -16,7 +16,15 @@ interface SceneRiggingSectionProps {
   allowCreateDrivers?: boolean;
 }
 
-export function SceneRiggingSection({
+export function BaseController() {
+  return (
+    <div className="flex flex-col gap-2 p-2 h-full">
+      <SceneRiggingSectionContent />
+    </div>
+  );
+}
+
+function SceneRiggingSectionContent({
   showCoverage = false,
   showMissingList = false,
   allowEditActions = true,

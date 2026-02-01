@@ -59,7 +59,8 @@ import {
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { Panel } from "./components/ui";
 import { SceneRiggingSection } from "./components/scene-composer/SceneRiggingSection";
-import { StdFeatureSpacesEditor } from "./components/app/StdFeatureSpacesEditor";
+import { BaseController } from "./components/inspector/BaseController";
+import { VariableController } from "./components/inspector/VariableController";
 import { ReferenceFaceRuntime } from "./components/app/ReferenceFaceRuntime";
 import {
   ReferenceFaceProvider,
@@ -477,6 +478,8 @@ function AppContent({ loader }: AppContentProps) {
     uiActions.setIncludeImportedAnimations(animationCount > 0);
   }, [loadedBundle, uiActions]);
 
+
+
   const applyPoseGraphImport = useCallback(
     async (graphSpec: GraphSpec, sourceNameHint: string) => {
       const baseName = sourceNameHint.replace(/\.json$/i, "");
@@ -710,38 +713,65 @@ function AppContent({ loader }: AppContentProps) {
     </div>
   );
 
-  const workbenchTabs: TabItem[] = useMemo(() => [
-    { id: "scene-composer", label: "Rigging" },
-    { id: "pose-rig", label: "Posing" },
-    { id: "std-feature-spaces", label: "Standards" },
-  ], []);
 
-  const renderWorkbenchTab = useCallback((id: string) => {
-    switch (id) {
-      case "scene-composer":
-        return (
-          <div className="flex flex-col gap-2 p-2 h-full">
-            <SceneRiggingSection />
-          </div>
-        );
-      case "pose-rig":
-        return (
-          <div className="sidebar__panel--pose p-1 h-full">
-            <PoseRigWorkbench onImportPoseGraph={handleImportPoseGraphFile} />
-          </div>
-        );
-      case "std-feature-spaces":
-        return (
-          <ReferenceFaceProvider value={referenceFaceContextValue}>
-            <div className="p-1 h-full">
-              <StdFeatureSpacesEditor onSelectFile={setSecondFaceFileToLoad} />
-            </div>
-          </ReferenceFaceProvider>
-        );
-      default:
-        return null;
+
+  // Inspector Logic 
+  const [selectedRigId, setSelectedRigId] = useState<string | null>(null);
+  const selectedId = useSelectionStore((state) => state.selectionStack[0]?.id);
+  const { selectedPoseId, selectPose } = poseRig;
+
+  const [inspectorMode, setInspectorMode] = useState<"scene" | "pose" | "rig" | "default">("default");
+
+  // Selection Effects
+  useEffect(() => {
+    if (selectedId) {
+      setInspectorMode("scene");
+      // Clear others if needed?
+      selectPose(""); // Deselect pose
+      setSelectedRigId(null);
     }
-  }, [activeWorkbench, handleImportPoseGraphFile, referenceFaceContextValue, setSecondFaceFileToLoad]);
+  }, [selectedId, selectPose]);
+
+  useEffect(() => {
+    if (selectedPoseId) {
+      setInspectorMode("pose");
+      handleClearSelection(); // Deselect scene
+      setSelectedRigId(null);
+    }
+  }, [selectedPoseId, handleClearSelection]);
+
+  useEffect(() => {
+    if (selectedRigId) {
+      setInspectorMode("rig");
+      handleClearSelection(); // Deselect scene
+      selectPose(""); // Deselect pose
+    }
+  }, [selectedRigId, handleClearSelection, selectPose]);
+
+  // Variables Panel Props
+  const handleSelectRig = useCallback((id: string | null) => {
+    setSelectedRigId(id);
+  }, []);
+
+  // Render Inspector Content
+  const renderInspector = () => {
+    switch (inspectorMode) {
+      case "scene":
+        return <BaseController />;
+      case "pose":
+        return selectedPoseId ? <VariableController type="pose" id={selectedPoseId} /> : null;
+      case "rig":
+        return selectedRigId ? <VariableController type="rig" id={selectedRigId} /> : null;
+      default:
+        return (
+          <Panel title="Inspector">
+            <div className="p-4 text-xs text-slate-500 text-center">
+              Select an item to inspect details.
+            </div>
+          </Panel>
+        );
+    }
+  };
 
   return (
     <>
@@ -757,7 +787,10 @@ function AppContent({ loader }: AppContentProps) {
         }
         leftBottomVisible={panels.variables.isVisible}
         leftBottomPanel={
-          <VariablesPanel />
+          <VariablesPanel
+            selectedRigId={selectedRigId}
+            onSelectRig={handleSelectRig}
+          />
         }
 
         // Center
@@ -779,22 +812,7 @@ function AppContent({ loader }: AppContentProps) {
 
         // Right
         rightTopVisible={panels.inspector.isVisible}
-        rightTopPanel={
-          <Panel
-            title="Inspector"
-            className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-          >
-            <Tabs
-              items={workbenchTabs}
-              value={activeWorkbench}
-              onValueChange={(v) => handleWorkbenchChange(v as WorkbenchView)}
-              renderPanel={renderWorkbenchTab}
-              className="h-full flex flex-col"
-              panelClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
-              listClassName="px-4 pt-2"
-            />
-          </Panel>
-        }
+        rightTopPanel={renderInspector()}
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={<DebugPanel
           rootId={loader.rootId}
