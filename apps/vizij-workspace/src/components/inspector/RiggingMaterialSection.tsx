@@ -1,12 +1,13 @@
-import React from "react";
+import React, { useRef } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import type { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { Select } from "../ui";
+import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 
 interface RiggingMaterialSectionProps {
     node: SceneObjectNode;
@@ -109,6 +110,7 @@ function RiggingScalarRow({
     onValueChange,
     onDefaultChange,
 }: RiggingScalarRowProps) {
+    const scrubValuesRef = useRef<Record<string, number>>({});
     const component = feature.components[0];
     if (!component) return null;
 
@@ -136,6 +138,10 @@ function RiggingScalarRow({
 
     const handleReset = () => {
         if (isBound && inputId) onValueChange(inputId, defaultValue as number);
+    };
+
+    const handleSaveToDefault = () => {
+        if (isBound && inputId) onDefaultChange(inputId, currentValue as number);
     };
 
     const renderInput = (isDefault: boolean) => {
@@ -169,9 +175,10 @@ function RiggingScalarRow({
         <RiggingPropertyRow
             label={label}
             hasDifferentDefault={hasDifferentDefault}
-            onResetToDefault={hasDifferentDefault ? handleReset : undefined}
+            onResetToDefault={handleReset}
+            onSaveToDefault={handleSaveToDefault}
             renderMainInput={() => renderInput(false)}
-            renderDefaultInput={hasDifferentDefault ? () => renderInput(true) : undefined}
+            renderDefaultInput={() => renderInput(true)}
         />
     );
 }
@@ -186,6 +193,7 @@ function RiggingColorRow({
     onValueChange,
     onDefaultChange,
 }: RiggingScalarRowProps) {
+    const scrubValuesRef = useRef<Record<string, number>>({});
 
     // Helper to extract component data
     const getCompData = (key: string, fallbackIndex: number) => {
@@ -238,10 +246,16 @@ function RiggingColorRow({
         })
     };
 
+    const handleSaveToDefault = () => {
+        components.forEach((c) => {
+            if (c.isBound && c.inputId) onDefaultChange(c.inputId, c.currentValue as number);
+        })
+    };
+
     // Conversion Helpers
     const rgbToHex = (r: number, g: number, b: number) => {
         const toHex = (c: number) => {
-            const hex = Math.round(c * 255).toString(16);
+            const hex = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
             return hex.length === 1 ? "0" + hex : hex;
         };
         return "#" + toHex(r) + toHex(g) + toHex(b);
@@ -290,7 +304,10 @@ function RiggingColorRow({
                 {/* Color Swatch / Picker */}
                 <Popover className="relative flex items-center">
                     <PopoverButton
-                        className={`w-6 h-5 rounded-sm border border-slate-700 shadow-sm ${canEditAny ? 'cursor-pointer hover:border-blue-500/50' : 'cursor-not-allowed opacity-50'}`}
+                        className={cn(
+                            "w-6 h-5 rounded-sm border border-slate-700 shadow-sm",
+                            canEditAny ? 'cursor-pointer hover:border-blue-500/50' : 'cursor-not-allowed opacity-50'
+                        )}
                         style={{ backgroundColor: hexColor }}
                         disabled={!canEditAny}
                         title="Pick Color"
@@ -317,10 +334,32 @@ function RiggingColorRow({
                         const labelColor = c === rComp ? 'text-red-500' : c === gComp ? 'text-green-500' : 'text-blue-500';
 
                         return (
-                            <div key={i} className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5`}>
-                                <span className={`text-[9px] font-bold px-1 select-none ${labelColor}`}>
-                                    {label}
-                                </span>
+                            <div key={i} className={cn(
+                                "flex items-center bg-slate-950/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
+                                canEdit ? "focus-within:border-blue-500/50" : "opacity-70"
+                            )}>
+                                <ScrubbableLabel
+                                    label={label}
+                                    onScrub={(_, totalDelta) => {
+                                        if (c.inputId) {
+                                            const step = 0.01;
+                                            const startVal = scrubValuesRef.current[c.inputId] ?? 0;
+                                            const nextVal = startVal + totalDelta * step;
+                                            if (isDefault) onDefaultChange(c.inputId, nextVal);
+                                            else onValueChange(c.inputId, nextVal);
+                                        }
+                                    }}
+                                    onScrubStart={() => {
+                                        if (c.inputId) {
+                                            const baseline = isDefault ? c.defaultValue : c.currentValue;
+                                            scrubValuesRef.current[c.inputId] = (baseline as number) ?? 0;
+                                        }
+                                    }}
+                                    className={cn(
+                                        "text-[9px] font-bold px-1 select-none transition-colors",
+                                        labelColor
+                                    )}
+                                />
                                 <input
                                     type="number"
                                     className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
@@ -349,9 +388,10 @@ function RiggingColorRow({
         <RiggingPropertyRow
             label={label}
             hasDifferentDefault={hasDifferentDefault}
-            onResetToDefault={hasDifferentDefault ? handleReset : undefined}
+            onResetToDefault={handleReset}
+            onSaveToDefault={handleSaveToDefault}
             renderMainInput={() => renderInputs(false)}
-            renderDefaultInput={hasDifferentDefault ? () => renderInputs(true) : undefined}
+            renderDefaultInput={() => renderInputs(true)}
         />
     );
 }

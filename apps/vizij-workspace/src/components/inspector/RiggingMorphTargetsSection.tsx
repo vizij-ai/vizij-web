@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useBindingAuthoring, useGraphRuntime } from "../../state/RigControllerProvider";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 
 interface RiggingMorphTargetsSectionProps {
     node: SceneObjectNode;
@@ -83,6 +83,7 @@ function RiggingScalarRow({
     onValueChange,
     onDefaultChange,
 }: RiggingScalarRowProps) {
+    const scrubValuesRef = useRef<Record<string, number>>({});
     const component = feature.components[0];
     if (!component) return null;
 
@@ -106,15 +107,39 @@ function RiggingScalarRow({
     const defaultValue = isBound ? (standardInput!.defaultValue ?? 0) : (component.staticValue ?? 0);
 
     const hasDifferentDefault = isBound && Math.abs((currentValue as number) - (defaultValue as number)) > 0.0001;
+
     const handleReset = () => {
         if (isBound && inputId) onValueChange(inputId, defaultValue as number);
+    };
+
+    const handleSaveToDefault = () => {
+        if (isBound && inputId) onDefaultChange(inputId, currentValue as number);
     };
 
     const renderInput = (isDefault: boolean) => {
         const val = isDefault ? defaultValue : currentValue;
         const canEdit = isBound;
         return (
-            <div className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5`}>
+            <div className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5 group/row`}>
+                <ScrubbableLabel
+                    label={label}
+                    onScrub={(delta: number, totalDelta: number) => {
+                        if (inputId) {
+                            const step = 0.01;
+                            const startVal = scrubValuesRef.current[inputId] ?? 0;
+                            const nextVal = startVal + totalDelta * step;
+                            if (isDefault) onDefaultChange(inputId, nextVal);
+                            else onValueChange(inputId, nextVal);
+                        }
+                    }}
+                    onScrubStart={() => {
+                        if (inputId) {
+                            const baseline = isDefault ? defaultValue : currentValue;
+                            scrubValuesRef.current[inputId] = baseline as number ?? 0;
+                        }
+                    }}
+                    className="text-[9px] font-bold px-1 select-none transition-colors text-slate-500"
+                />
                 <input
                     type="number"
                     className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none pl-1"
@@ -139,9 +164,10 @@ function RiggingScalarRow({
         <RiggingPropertyRow
             label={label}
             hasDifferentDefault={hasDifferentDefault}
-            onResetToDefault={hasDifferentDefault ? handleReset : undefined}
+            onResetToDefault={handleReset}
+            onSaveToDefault={handleSaveToDefault}
             renderMainInput={() => renderInput(false)}
-            renderDefaultInput={hasDifferentDefault ? () => renderInput(true) : undefined}
+            renderDefaultInput={() => renderInput(true)}
         />
     );
 }

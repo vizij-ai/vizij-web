@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Plus, Trash2, Sliders, Play, Save, RotateCcw, Box, Folder, Zap } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
@@ -10,7 +10,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { cn } from "../../utils/cn";
 import type { ManagedStandardInput } from "../../types/standardInputs";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { RiggingPropertyRow, useScrub, ScrubbableLabel } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 
 interface VariableControllerProps {
@@ -257,6 +257,8 @@ export function VariableController({ type, id }: VariableControllerProps) {
     }, [pose, managedStandardInputs, bindings, objects]);
 
 
+    const scrubValuesRef = useRef<Record<string, number>>({});
+
     if (type === "pose" && pose) {
         return (
             <div className="flex flex-col gap-2 p-2 h-full flex-1 min-h-0">
@@ -311,8 +313,17 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                         defaultLabel="Pose"
                                                         hasDifferentDefault={isDifferent}
                                                         onResetToDefault={() => handleInputValueChange(varId, poseVal)}
+                                                        onSaveToDefault={() => handleCaptureValue(varId)}
+                                                        onScrubStart={() => {
+                                                            scrubValuesRef.current[varId] = inputValues[varId] ?? 0;
+                                                        }}
+                                                        onScrub={(delta: number, totalDelta: number) => {
+                                                            const step = 0.01;
+                                                            const startVal = scrubValuesRef.current[varId] ?? 0;
+                                                            handleInputValueChange(varId, startVal + totalDelta * step);
+                                                        }}
                                                         renderMainInput={() => (
-                                                            <div className="flex items-center gap-2 flex-1">
+                                                            <div className="flex items-center gap-2 flex-1 group/row">
                                                                 <input
                                                                     type="range"
                                                                     min={min}
@@ -340,45 +351,36 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                         )}
                                                         renderDefaultInput={() => (
                                                             <div className="flex items-center gap-2 flex-1 group/row">
-                                                                <input
-                                                                    type="range"
-                                                                    min={min}
-                                                                    max={max}
-                                                                    step={0.01}
-                                                                    value={poseVal}
-                                                                    className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-slate-600"
-                                                                    onChange={(e) => handlePoseVariableChange(varId, parseFloat(e.target.value))}
-                                                                />
-                                                                <div className="w-12 flex-shrink-0">
+                                                                <ScrubbableLabel
+                                                                    onScrub={(delta: number, totalDelta: number) => {
+                                                                        const step = 0.01;
+                                                                        const startVal = scrubValuesRef.current[varId] ?? 0;
+                                                                        updatePoseValue(pose.id, varId, startVal + totalDelta * step);
+                                                                    }}
+                                                                    onScrubStart={() => {
+                                                                        scrubValuesRef.current[varId] = poseVal;
+                                                                    }}
+                                                                    className="h-full flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5 min-w-[60px]"
+                                                                >
                                                                     <input
                                                                         type="text"
                                                                         value={poseVal.toFixed(2)}
-                                                                        className="w-full bg-slate-950/20 border border-transparent rounded px-1.5 py-0.5 text-right font-mono text-[10px] text-slate-500 focus:outline-none focus:border-slate-700 focus:bg-slate-950/50"
+                                                                        className="w-full bg-transparent border-none text-right font-mono text-[10px] text-slate-400 focus:outline-none cursor-ew-resize"
                                                                         onChange={(e) => {
                                                                             const v = parseFloat(e.target.value);
-                                                                            if (!isNaN(v)) handlePoseVariableChange(varId, v);
+                                                                            if (!isNaN(v)) updatePoseValue(pose.id, varId, v);
                                                                         }}
                                                                     />
-                                                                </div>
-
-                                                                {isDifferent && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-6 w-6 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                                                                        title="Update Pose with current live value"
-                                                                        onClick={() => handleCaptureValue(varId)}
-                                                                    >
-                                                                        <Save size={12} />
-                                                                    </Button>
-                                                                )}
-
+                                                                </ScrubbableLabel>
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="sm"
                                                                     className="h-6 w-6 p-0 text-slate-600 hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
                                                                     title="Remove from Pose"
-                                                                    onClick={() => removePoseInput(pose.id, varId)}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        removePoseInput(pose.id, varId);
+                                                                    }}
                                                                 >
                                                                     <Trash2 size={12} />
                                                                 </Button>
@@ -420,7 +422,7 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                     const hex = rgbToHex(curR, curG, curB);
 
                                                     return (
-                                                        <div className="flex items-center gap-2 flex-1">
+                                                        <div className="flex items-center gap-2 flex-1 group/row">
                                                             <Popover className="relative flex items-center">
                                                                 <PopoverButton
                                                                     className="w-8 h-4 rounded border border-slate-700 shadow-sm transition-transform hover:scale-105"
@@ -437,9 +439,34 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                                 </PopoverPanel>
                                                             </Popover>
                                                             <div className="flex gap-1 flex-1 min-w-0">
-                                                                {[{ c: r, ch: 'R' }, { c: g, ch: 'G' }, { c: b, ch: 'B' }].map(({ c, ch }) => (
+                                                                {[
+                                                                    { c: r, ch: 'R' as const },
+                                                                    { c: g, ch: 'G' as const },
+                                                                    { c: b, ch: 'B' as const }
+                                                                ].map(({ c, ch }) => (
                                                                     <div key={ch} className="flex-1 flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5">
-                                                                        <span className={cn("text-[9px] font-bold mr-1 opacity-50", ch === 'R' ? 'text-red-500' : ch === 'G' ? 'text-green-500' : 'text-blue-500')}>{ch}</span>
+                                                                        <ScrubbableLabel
+                                                                            label={ch}
+                                                                            onScrub={(delta: number, totalDelta: number) => {
+                                                                                if (c?.varId) {
+                                                                                    const step = 0.01;
+                                                                                    const startVal = scrubValuesRef.current[c.varId] ?? 0;
+                                                                                    const nextVal = startVal + totalDelta * step;
+                                                                                    if (isPose) updatePoseValue(pose.id, c.varId, nextVal);
+                                                                                    else handleInputValueChange(c.varId, nextVal);
+                                                                                }
+                                                                            }}
+                                                                            onScrubStart={() => {
+                                                                                if (c?.varId) {
+                                                                                    const baseline = isPose ? c.poseVal : (inputValues[c.varId] ?? 0);
+                                                                                    scrubValuesRef.current[c.varId] = baseline;
+                                                                                }
+                                                                            }}
+                                                                            className={cn(
+                                                                                "text-[9px] font-bold mr-1",
+                                                                                ch === 'R' ? 'text-red-500' : ch === 'G' ? 'text-green-500' : 'text-blue-500'
+                                                                            )}
+                                                                        />
                                                                         <input
                                                                             type="text"
                                                                             value={(isPose ? (c?.poseVal ?? 0) : (inputValues[c?.varId ?? ''] ?? 0)).toFixed(2)}
@@ -457,12 +484,7 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                             </div>
                                                             {isPose && (
                                                                 <div className="flex gap-0.5 ml-1">
-                                                                    {isDifferent && (
-                                                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-blue-400" onClick={handleCaptureAll} title="Capture all channels">
-                                                                            <Save size={12} />
-                                                                        </Button>
-                                                                    )}
-                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-600 hover:text-red-400"
+                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-600 hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
                                                                         onClick={() => item.components.forEach(c => removePoseInput(pose.id, c.varId))}
                                                                         title="Remove all channels from Pose"
                                                                     >
@@ -481,6 +503,7 @@ export function VariableController({ type, id }: VariableControllerProps) {
                                                         defaultLabel="Pose"
                                                         hasDifferentDefault={isDifferent}
                                                         onResetToDefault={handleResetAll}
+                                                        onSaveToDefault={handleCaptureAll}
                                                         renderMainInput={() => renderColorInputs(false)}
                                                         renderDefaultInput={() => renderColorInputs(true)}
                                                     />
@@ -528,6 +551,14 @@ export function VariableController({ type, id }: VariableControllerProps) {
                         <div>
                             <RiggingPropertyRow
                                 label="Current Value"
+                                onScrubStart={() => {
+                                    scrubValuesRef.current[input.id] = value;
+                                }}
+                                onScrub={(_, totalDelta) => {
+                                    const step = (input.range.max - input.range.min) / 100;
+                                    const startVal = scrubValuesRef.current[input.id] ?? 0;
+                                    handleInputValueChange(input.id, startVal + totalDelta * step);
+                                }}
                                 renderMainInput={() => (
                                     <div className="flex items-center gap-2 flex-1">
                                         <input

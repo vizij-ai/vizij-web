@@ -1,9 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
+import { cn } from "../../utils/cn";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode, SceneObjectFeature } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { Input } from "../ui"; // Using Input for now, could upgrade to draggable later
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { Input } from "../ui";
+import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 
 interface RiggingTransformSectionProps {
     node: SceneObjectNode;
@@ -101,6 +102,7 @@ function RiggingVectorRow({
     onValueChange,
     onDefaultChange,
 }: RiggingVectorRowProps) {
+    const scrubValuesRef = useRef<Record<string, number>>({});
 
     // Extract inputs for x, y, z components
     const components = useMemo(() => {
@@ -131,13 +133,6 @@ function RiggingVectorRow({
                     isBound: true
                 };
             } else {
-                // Unbound/Static Case
-                // If it has a static value, use it. If it's an animatable without binding, use its value?
-                // For now, fall back to staticValue or 0.
-                // Note: To edit static values, we need a different handler than 'onValueChange' which expects inputId.
-                // But the props only provide onValueChange (for drivers).
-                // TODO: Support static editing. For now, valid display is better than hidden.
-                // We'll show 0 or static value, but mark as read-only or similar if we can't edit.
                 const val = comp.staticValue ?? 0;
                 return {
                     componentLabel: label,
@@ -161,6 +156,12 @@ function RiggingVectorRow({
         });
     };
 
+    const handleSaveToDefault = () => {
+        components.forEach((c) => {
+            if (c.isBound && c.inputId) onDefaultChange(c.inputId, c.currentValue as number);
+        });
+    };
+
     const renderInputs = (isDefault: boolean) => (
         <div className="flex gap-0.5 flex-1">
             {components.map((c, i) => {
@@ -168,13 +169,34 @@ function RiggingVectorRow({
                 const canEdit = c.isBound;
 
                 return (
-                    <div key={i} className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? 'focus-within:border-blue-500/50' : 'opacity-70'} relative flex-1 min-w-0 h-5`}>
-                        <span className={`text-[9px] font-bold px-1 select-none ${c.componentLabel === 'X' ? 'text-red-500' :
-                            c.componentLabel === 'Y' ? 'text-green-500' :
-                                c.componentLabel === 'Z' ? 'text-blue-500' : 'text-slate-500'
-                            }`}>
-                            {c.componentLabel}
-                        </span>
+                    <div key={i} className={cn(
+                        "flex items-center bg-slate-950/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
+                        canEdit ? "focus-within:border-blue-500/50" : "opacity-70"
+                    )}>
+                        <ScrubbableLabel
+                            label={c.componentLabel}
+                            onScrub={(_, totalDelta) => {
+                                if (c.inputId) {
+                                    const step = 0.05;
+                                    const startVal = scrubValuesRef.current[c.inputId] ?? 0;
+                                    const nextVal = startVal + totalDelta * step;
+                                    if (isDefault) onDefaultChange(c.inputId, nextVal);
+                                    else onValueChange(c.inputId, nextVal);
+                                }
+                            }}
+                            onScrubStart={() => {
+                                if (c.inputId) {
+                                    const baseline = isDefault ? c.defaultValue : c.currentValue;
+                                    scrubValuesRef.current[c.inputId] = (baseline as number) ?? 0;
+                                }
+                            }}
+                            className={cn(
+                                "text-[9px] font-bold px-1",
+                                c.componentLabel === 'X' ? 'text-red-500' :
+                                    c.componentLabel === 'Y' ? 'text-green-500' :
+                                        c.componentLabel === 'Z' ? 'text-blue-500' : 'text-slate-500'
+                            )}
+                        />
                         <input
                             type="number"
                             className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
@@ -201,9 +223,10 @@ function RiggingVectorRow({
         <RiggingPropertyRow
             label={label}
             hasDifferentDefault={hasDifferentDefault}
-            onResetToDefault={hasDifferentDefault ? handleReset : undefined}
+            onResetToDefault={handleReset}
+            onSaveToDefault={handleSaveToDefault}
             renderMainInput={() => renderInputs(false)}
-            renderDefaultInput={hasDifferentDefault ? () => renderInputs(true) : undefined}
+            renderDefaultInput={() => renderInputs(true)}
         />
     );
 }
