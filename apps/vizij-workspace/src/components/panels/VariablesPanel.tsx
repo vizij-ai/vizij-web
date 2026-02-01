@@ -37,6 +37,27 @@ function getOrCreateChild(parent: TreeNode, key: string, label: string): TreeNod
     return parent.children.get(key)!;
 }
 
+function simplifyNode(node: TreeNode): TreeNode {
+    const newChildren = new Map<string, TreeNode>();
+    for (const [key, child] of node.children) {
+        newChildren.set(key, simplifyNode(child));
+    }
+
+    const newNode = { ...node, children: newChildren };
+
+    if (newNode.type === "folder" && newNode.children.size === 1) {
+        const child = newNode.children.values().next().value!;
+        if (child.type === "folder") {
+            return {
+                ...child,
+                label: `${newNode.label} / ${child.label}`,
+            };
+        }
+    }
+
+    return newNode;
+}
+
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
@@ -294,6 +315,13 @@ export function VariablesPanel({ selectedRigId, onSelectRig, onSelectPose }: Var
                 });
             }
         }
+
+        // Simplify tree structure (combine intermediate folders)
+        const simplifiedChildren = new Map<string, TreeNode>();
+        for (const [key, child] of root.children) {
+            simplifiedChildren.set(key, simplifyNode(child));
+        }
+        root.children = simplifiedChildren;
 
         return root;
     }, [poses, managedStandardInputs, referenceFace.standardInputs, referenceFace.isLoaded, referenceFace.isLoading, referenceFace.file]);
