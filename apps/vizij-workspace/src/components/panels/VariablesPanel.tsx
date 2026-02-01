@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus, Folder, Zap, Activity, Play, ChevronRight, ChevronDown } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
+import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { cn } from "../../utils/cn";
@@ -176,6 +177,7 @@ interface VariablesPanelProps {
 export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelProps) {
     const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
     const { managedStandardInputs } = useBindingAuthoring((state) => state);
+    const referenceFace = useReferenceFace();
 
     // State for tree expansion
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(["root"]));
@@ -190,10 +192,26 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
             showChildren: true,
         };
 
-        // 1. Process Poses
+        const hasReferenceFace = !!referenceFace.file;
+
+        // Helper to get the target root for main face items
+        let targetRoot = root;
+        if (hasReferenceFace) {
+            const mainFaceRoot: TreeNode = {
+                id: "main_face",
+                label: "Main Face",
+                type: "folder",
+                children: new Map(),
+                showChildren: true
+            };
+            root.children.set("main_face", mainFaceRoot);
+            targetRoot = mainFaceRoot;
+        }
+
+        // 1. Process Poses (Main Face)
         poses.forEach((pose) => {
             const groupParts = pose.group ? pose.group.split("/").filter(Boolean) : [];
-            let current = root;
+            let current = targetRoot;
 
             // Traverse/Create groups
             for (const part of groupParts) {
@@ -212,13 +230,13 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
             });
         });
 
-        // 2. Process Custom Rigs
+        // 2. Process Custom Rigs (Main Face)
         const customRigs = managedStandardInputs.filter(m => m.source === "custom");
         customRigs.forEach((managed) => {
             const input = managed.input;
             const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
 
-            let current = root;
+            let current = targetRoot;
             for (const part of pathParts) {
                 current = getOrCreateChild(current, part, part);
             }
@@ -234,8 +252,50 @@ export function VariablesPanel({ selectedRigId, onSelectRig }: VariablesPanelPro
             });
         });
 
+
+        // --- Reference Face ---
+        if (hasReferenceFace) {
+            const refFaceRoot: TreeNode = {
+                id: "ref_face",
+                label: "Reference Face",
+                type: "folder",
+                children: new Map(),
+                showChildren: true
+            };
+            root.children.set("ref_face", refFaceRoot);
+
+            if (referenceFace.isLoaded) {
+                // Add standard inputs from Reference Face
+                referenceFace.standardInputs.forEach((input) => {
+                    const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
+                    let current = refFaceRoot;
+                    for (const part of pathParts) {
+                        current = getOrCreateChild(current, part, part);
+                    }
+
+                    const key = `ref_${input.id}`;
+                    current.children.set(key, {
+                        id: `${current.id}/${key}`,
+                        label: input.label || input.id,
+                        type: "rig",
+                        children: new Map(),
+                        showChildren: false,
+                        data: { input, source: 'reference' } as any
+                    });
+                });
+            } else {
+                refFaceRoot.children.set("placeholder", {
+                    id: "ref_placeholder",
+                    label: referenceFace.isLoading ? "Loading..." : "Waiting for file...",
+                    type: "folder",
+                    children: new Map(),
+                    showChildren: false,
+                });
+            }
+        }
+
         return root;
-    }, [poses, managedStandardInputs]);
+    }, [poses, managedStandardInputs, referenceFace.standardInputs, referenceFace.isLoaded, referenceFace.isLoading, referenceFace.file]);
 
 
     const handleToggle = (id: string) => {

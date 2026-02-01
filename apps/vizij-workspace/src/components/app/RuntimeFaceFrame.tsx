@@ -1,38 +1,43 @@
-import { useEffect, type ReactNode, type RefObject } from "react";
-import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
-import {
-  VizijRuntimeFace,
-  useVizijRuntime,
-  type RootBounds,
-} from "@vizij/runtime-react";
-import { FACE_ROOT_BOUNDS } from "../config/runtimeFace";
+import { useEffect } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import { Vizij, useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { cn } from "../../utils/cn";
 
+type RootBounds = {
+  center: { x: number; y: number };
+  size: { x: number; y: number };
+};
+
+// Define default bounds for checking if we need to reset
+const FACE_ROOT_BOUNDS = {
+  center: { x: 0, y: 0 },
+  size: { x: 1, y: 1 },
+};
+
 export type RuntimeFaceFrameProps = {
+  className?: string;
+  variant?: "fill" | "sm" | "md" | "lg";
   label?: string;
   subtitle?: string;
-  variant?: "sm" | "md" | "lg" | "fill";
-  className?: string;
-  pointerTargetRef?: RefObject<HTMLDivElement>;
+  footer?: React.ReactNode;
+  overlay?: React.ReactNode;
+  pointerTargetRef?: React.RefObject<HTMLDivElement>;
   onCanvasClick?: () => void;
-  overlay?: ReactNode;
-  footer?: ReactNode;
-  /** Skip forcing camera bounds - let the loaded face define its own bounds */
   skipBounds?: boolean;
 };
 
 export function RuntimeFaceFrame({
+  className,
+  variant = "fill",
   label,
   subtitle,
-  variant = "md",
-  className,
+  footer,
+  overlay,
   pointerTargetRef,
   onCanvasClick,
-  overlay,
-  footer,
   skipBounds = false,
 }: RuntimeFaceFrameProps) {
-  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
+  const { ready, loading, error, stagePoseNeutral, rootId } = useVizijRuntime();
 
   useEffect(() => {
     if (ready) {
@@ -78,7 +83,7 @@ export function RuntimeFaceFrame({
         onClick={onCanvasClick}
       >
         {!skipBounds && <FaceCameraBounds />}
-        <VizijRuntimeFace className="w-full h-full" showSafeArea={false} />
+        {rootId && <Vizij rootId={rootId} namespace="refface" className="w-full h-full" showSafeArea={false} />}
         <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
         {overlay}
       </div>

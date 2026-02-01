@@ -32,6 +32,7 @@ import { Chip, Switch, Button } from "./components/ui"; // Importing UI componen
 
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
+import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { ExportDialog } from "./components/app/ExportDialog";
 import { PoseRigWorkbench } from "./poseRig/components";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
@@ -407,6 +408,13 @@ function AppContent({ loader }: AppContentProps) {
       inputValues: refFaceInputValues,
       handleInputValueChange: handleRefFaceInputValueChange,
       handleResetAllInputValues: handleRefFaceResetAllInputValues,
+      file: secondFaceFileToLoad,
+      setFile: setSecondFaceFileToLoad,
+      onStandardInputsReady: handleRefFaceStandardInputsReady,
+      onLoadingStateChange: handleRefFaceLoadingStateChange,
+      onAnimateValueReady: handleRefFaceAnimateValueReady,
+      onStandardInputChange: handleRefFaceStandardInputChange,
+      onBundleReady: handleRefFaceBundleReady,
     }),
     [
       refFaceIsLoaded,
@@ -417,6 +425,12 @@ function AppContent({ loader }: AppContentProps) {
       refFaceInputValues,
       handleRefFaceInputValueChange,
       handleRefFaceResetAllInputValues,
+      secondFaceFileToLoad,
+      handleRefFaceStandardInputsReady,
+      handleRefFaceLoadingStateChange,
+      handleRefFaceAnimateValueReady,
+      handleRefFaceStandardInputChange,
+      handleRefFaceBundleReady,
     ],
   );
 
@@ -587,6 +601,22 @@ function AppContent({ loader }: AppContentProps) {
     setPanelVisibility
   } = useWorkspaceStore();
 
+  // Reference Face Import
+  const refFaceFileInputRef = useRef<HTMLInputElement>(null);
+  const handleRefFaceFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      setSecondFaceFileToLoad(file);
+      event.target.value = "";
+    },
+    [setSecondFaceFileToLoad]
+  );
+
+  const handleImportReferenceFaceClick = useCallback(() => {
+    refFaceFileInputRef.current?.click();
+  }, []);
+
   // File Import Logic
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextDiscrepancyCheck = useRef(false);
@@ -632,6 +662,7 @@ function AppContent({ loader }: AppContentProps) {
         <MenuSeparator />
         <MenuItem onSelect={handleImportClick}>Import...</MenuItem>
         <MenuItem onSelect={handleImportSkipChecksClick}>Import (Skip Checks)...</MenuItem>
+        <MenuItem onSelect={handleImportReferenceFaceClick}>Import Reference Face...</MenuItem>
         <MenuItem onSelect={() => setShowExportDialog(true)}>Export...</MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => { }} disabled>Save</MenuItem>
@@ -660,6 +691,9 @@ function AppContent({ loader }: AppContentProps) {
         <MenuCheckboxItem checked={panels.animation.isVisible} onCheckedChange={() => togglePanel("animation")}>
           Timeline
         </MenuCheckboxItem>
+        <MenuCheckboxItem checked={panels.referenceFace.isVisible} onCheckedChange={() => togglePanel("referenceFace")}>
+          Reference Face
+        </MenuCheckboxItem>
 
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
@@ -677,39 +711,53 @@ function AppContent({ loader }: AppContentProps) {
     <div
       className={
         activeWorkbench === "std-feature-spaces"
-          ? `viewer - split ${viewerSplitVertical ? "viewer-split--vertical" : ""} `
-          : "viewer-wrapper"
+          ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
+          : "viewer-wrapper relative w-full h-full"
       }
       style={{ height: '100%', width: '100%' }}
     >
-      <Viewer
-        rootId={rootId}
-        namespace={DEFAULT_NAMESPACE}
-        onClearSelection={handleClearSelection}
-        showSelectionGlow={showSelectionGlow} // Updated Prop
-        onImportClick={handleImportClick}
-        onLoadQuori={handleLoadQuori}
-        onLoadHugo={handleLoadHugo}
-      />
-      {activeWorkbench === "std-feature-spaces" && (
-        <div className="viewer-split__placeholder">
-          <OrchestratorProvider autostart={false}>
-            <ReferenceFaceRuntime
-              file={secondFaceFileToLoad}
-              active={true}
-              visible={true}
-              driveOrchestrator={true}
-              onStandardInputsReady={handleRefFaceStandardInputsReady}
-              onLoadingStateChange={handleRefFaceLoadingStateChange}
-              onAnimateValueReady={handleRefFaceAnimateValueReady}
-              onStandardInputChange={handleRefFaceStandardInputChange}
-              onBundleReady={handleRefFaceBundleReady}
-              splitVertical={viewerSplitVertical}
-              onToggleSplit={() => setViewerSplitVertical((v) => !v)}
+      {panels.referenceFace.isVisible ? (
+        <PanelGroup orientation={viewerSplitVertical ? "horizontal" : "vertical"}>
+          <ResizablePanel defaultSize={70} minSize={20}>
+            <Viewer
+              rootId={rootId}
+              namespace={DEFAULT_NAMESPACE}
+              onClearSelection={handleClearSelection}
+              showSelectionGlow={showSelectionGlow}
+              onImportClick={handleImportClick}
+              onLoadQuori={handleLoadQuori}
+              onLoadHugo={handleLoadHugo}
             />
-          </OrchestratorProvider>
-        </div>
+          </ResizablePanel>
+          <PanelResizeHandle className={viewerSplitVertical ? "w-1 bg-slate-800 hover:bg-blue-500 transition-colors" : "h-1 bg-slate-800 hover:bg-blue-500 transition-colors"} />
+          <ResizablePanel defaultSize={30} minSize={20}>
+            <ReferenceFacePanel
+              splitVertical={viewerSplitVertical}
+              onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
+            />
+          </ResizablePanel>
+        </PanelGroup>
+      ) : (
+        <Viewer
+          rootId={rootId}
+          namespace={DEFAULT_NAMESPACE}
+          onClearSelection={handleClearSelection}
+          showSelectionGlow={showSelectionGlow}
+          onImportClick={handleImportClick}
+          onLoadQuori={handleLoadQuori}
+          onLoadHugo={handleLoadHugo}
+        />
       )}
+      {/* activeWorkbench === "std-feature-spaces" logic replaced by ReferenceFacePanel */}
+
+      {/* Hidden file input for Reference Face import */}
+      <input
+        ref={refFaceFileInputRef}
+        type="file"
+        accept=".glb,.gltf"
+        className="hidden"
+        onChange={handleRefFaceFileChange}
+      />
     </div>
   );
 
@@ -777,7 +825,7 @@ function AppContent({ loader }: AppContentProps) {
   };
 
   return (
-    <>
+    <ReferenceFaceProvider value={referenceFaceContextValue}>
       <WorkspaceLayout
         menuBar={menuBar}
         // Left
@@ -862,6 +910,6 @@ function AppContent({ loader }: AppContentProps) {
         accept=".glb,.gltf"
         onChange={(e) => void handleFileChange(e)}
       />
-    </>
+    </ReferenceFaceProvider>
   );
 }

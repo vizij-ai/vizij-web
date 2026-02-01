@@ -11,6 +11,7 @@ import { cn } from "../../utils/cn";
 // Adjust imports to point to scene-composer utilities
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
+import { useReferenceFace } from "../../state/ReferenceFaceContext";
 
 interface HierarchyPanelProps {
     allowEditActions?: boolean;
@@ -248,6 +249,141 @@ export function HierarchyPanel({
         ],
     );
 
+    const referenceFace = useReferenceFace();
+
+    // --- Virtual Root Logic ---
+    // We create virtual "Folder" nodes for Main Face and Reference Face
+    // to separate the hierarchies.
+
+    const mainFaceVisible = hasVisibleNodes; // If search filters main face nodes
+    // For Reference Face, we don't have a search filter implementation yet (it's opaque),
+    // so we just show it if it matches search or search is empty.
+    // Actually, since we can't search inside it, we just show the root unless we want to hide it on search?
+    // Let's keep it simple: always show virtual roots if filter is empty, otherwise... logic is complex.
+    // If strict compliance: "Main Face" contains the `rootNodes`.
+
+    const renderMainFaceRoot = () => {
+        // If searching, we might just want to show the matching nodes directly?
+        // Or keep the "Main Face" grouping?
+        // Let's keep the grouping for consistency.
+
+        // Check if we should expand Main Face by default?
+        // Yes, probably.
+
+        const isMainExpanded = isExpanded("virtual_main_face");
+        // We need to manage this expansion state. `useHierarchyTreeState` manages real IDs.
+        // We can reuse it if we ensure "virtual_main_face" doesn't collide.
+
+        return (
+            <div className="flex flex-col">
+                <div
+                    className={cn(
+                        "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
+                        "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                    )}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // Select? Maybe not select virtual root.
+                        // toggle?
+                        toggleNode("virtual_main_face");
+                    }}
+                >
+                    <button
+                        type="button"
+                        className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
+                            isMainExpanded && "rotate-90"
+                        )}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleNode("virtual_main_face");
+                        }}
+                    >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                    </button>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Folder size={12} className="text-blue-400" />
+                        <span className="text-[11px] font-medium truncate text-blue-200">Main Face</span>
+                        <span className="text-[9px] text-slate-500 font-mono ml-auto">
+                            {objects.length}
+                        </span>
+                    </div>
+                </div>
+
+                {isMainExpanded && (
+                    <div className="flex flex-col border-l border-slate-800/50 ml-3 pl-1">
+                        {!hasVisibleNodes && (
+                            <div className="py-2 px-6 text-xs text-slate-500 italic">Empty or no match</div>
+                        )}
+                        {rootNodes.map((node) => renderSubtree(node, 0))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderReferenceFaceRoot = () => {
+        const isRefExpanded = isExpanded("virtual_ref_face");
+        const fileLabel = referenceFace.file ? referenceFace.file.name : "No file loaded";
+
+        return (
+            <div className="flex flex-col mt-1">
+                <div
+                    className={cn(
+                        "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
+                        "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                    )}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleNode("virtual_ref_face");
+                    }}
+                >
+                    <button
+                        type="button"
+                        className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
+                            isRefExpanded && "rotate-90"
+                        )}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleNode("virtual_ref_face");
+                        }}
+                    >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                    </button>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Folder size={12} className="text-purple-400" />
+                        <span className="text-[11px] font-medium truncate text-purple-200">Reference Face</span>
+                    </div>
+                </div>
+
+                {isRefExpanded && (
+                    <div className="flex flex-col border-l border-slate-800/50 ml-3 pl-1">
+                        <div className="py-1 px-2 flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500">File:</span>
+                            <span className={cn("text-[10px] font-mono", referenceFace.file ? "text-slate-300" : "text-slate-600 italic")}>
+                                {fileLabel}
+                            </span>
+                        </div>
+                        {/* We could list inputs here if we wanted, but VariablesPanel does that better */}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Ensure virtual roots are expanded by default once
+    useEffect(() => {
+        // We rely on useHierarchyTreeState init, but these keys aren't in `nodeIds`.
+        // So we manually set them visible if needed.
+        // Actually `useHierarchyTreeState` might reset them if we don't include them in the allowed set?
+        // `useHierarchyTreeState` implementation usually just tracks a Set.
+        // Let's assume it persists.
+        // Explicitly expand them on mount
+        setExpanded("virtual_main_face", true);
+        setExpanded("virtual_ref_face", true);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     return (
         <Panel
             className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
@@ -379,27 +515,38 @@ export function HierarchyPanel({
                             onChange={(event) => setSearch(event.target.value)}
                         />
                     </div>
-                    <span className="text-[10px] font-mono text-slate-500 shrink-0 pr-1">{objects.length}</span>
+                    {/* Count handled in headers now */}
                 </div>
 
                 <div className="flex-1 min-h-[200px] overflow-y-auto px-1 custom-scrollbar">
-                    {!hasVisibleNodes && (
-                        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
-                            {search.trim().length > 0 ? (
-                                <>
-                                    <span className="font-medium text-slate-400">No results</span>
-                                    <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-6 text-[10px] text-blue-400 hover:text-blue-300">Clear</Button>
-                                </>
-                            ) : (
-                                <span className="font-medium text-slate-400">Empty</span>
-                            )}
-                        </div>
-                    )}
                     <div className="flex flex-col pb-4">
-                        {rootNodes.map((node) => renderSubtree(node, 0))}
+                        {referenceFace.file ? (
+                            <>
+                                {renderMainFaceRoot()}
+                                {renderReferenceFaceRoot()}
+                            </>
+                        ) : (
+                            /* When no reference face is loaded, just show the scene hierarchy directly */
+                            <>
+                                {!hasVisibleNodes && (
+                                    <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
+                                        {search.trim().length > 0 ? (
+                                            <>
+                                                <span className="font-medium text-slate-400">No results</span>
+                                                <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-6 text-[10px] text-blue-400 hover:text-blue-300">Clear</Button>
+                                            </>
+                                        ) : (
+                                            <span className="font-medium text-slate-400">Empty</span>
+                                        )}
+                                    </div>
+                                )}
+                                {rootNodes.map((node) => renderSubtree(node, 0))}
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
         </Panel>
     );
 }
+
