@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Plus, Folder, Zap, Activity, Play, ChevronRight } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -187,7 +187,7 @@ export function VariablesPanel({
     onSelectPose,
 }: VariablesPanelProps) {
     const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
-    const { managedStandardInputs } = useBindingAuthoring((state) => state);
+    const { managedStandardInputs, handleCreateCustomStandardInput } = useBindingAuthoring((state) => state);
     const referenceFace = useReferenceFace();
 
     // State for search
@@ -438,26 +438,47 @@ export function VariablesPanel({
         }
     };
 
+    const handleCreate = () => {
+        const newInput = handleCreateCustomStandardInput(search);
+        if (newInput) {
+            onSelectRig?.(newInput.id);
+            setSearch(""); // clear search on create? or keep it? VariableSelector kept it but here maybe clear is better or select it.
+            // If we keep search, we see it.
+        }
+    };
+
+    const showCreateOption =
+        search.trim().length > 0 &&
+        !managedStandardInputs.some(
+            (m) => m.input.id.toLowerCase() === search.trim().toLowerCase()
+        );
+
     // Calculate total count
     const totalCount =
         poses.length +
         managedStandardInputs.filter((m) => m.source === "custom").length;
 
-    const actions = (
-        <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-slate-500 hover:text-slate-200"
-        >
-            <Plus className="h-4 w-4" />
-        </Button>
-    );
+    // Search input ref
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const activeSelection = useMemo(() => {
         if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
         if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
         return null;
     }, [selectedPoseId, selectedRigId]);
+
+    const actions = (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-slate-500 hover:text-slate-200"
+            onClick={() => {
+                searchInputRef.current?.focus();
+            }}
+        >
+            <Plus className="h-4 w-4" />
+        </Button>
+    );
 
     return (
         <Panel
@@ -471,14 +492,37 @@ export function VariablesPanel({
                 {/* Search Input */}
                 <div className="flex items-center gap-2 px-1 mb-1">
                     <PanelSearch
+                        ref={searchInputRef}
                         value={search}
                         onChange={setSearch}
-                        placeholder="Filter..."
+                        placeholder={
+                            search ? "Filter..." : "Search or create variable..."
+                        }
                     />
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {visibleRoot.children.size === 0 ? (
+                    {/* Create Option */}
+                    {showCreateOption && (
+                        <div
+                            className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-blue-500/10 text-slate-400 hover:text-blue-300 group border border-dashed border-slate-700 hover:border-blue-500/30 transition-all"
+                            onClick={handleCreate}
+                        >
+                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                                <Plus size={12} strokeWidth={2.5} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-xs font-medium truncate">
+                                    Create "<span className="text-blue-200">{search}</span>"
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                    Create and select new variable
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {visibleRoot.children.size === 0 && !showCreateOption ? (
                         <div className="flex flex-col items-center justify-center h-24 text-slate-500 text-xs gap-2 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
                             {search.trim().length > 0 ? (
                                 <>

@@ -19,6 +19,7 @@ export type VariableSelection =
 interface VariableSelectorProps {
   onSelect: (selection: VariableSelection) => void;
   onCancel?: () => void;
+  defaultTab?: "variables" | "scene";
 }
 
 // ----------------------------------------------------------------------------
@@ -28,9 +29,10 @@ interface VariableSelectorProps {
 export function VariableSelector({
   onSelect,
   onCancel,
+  defaultTab = "variables",
 }: VariableSelectorProps) {
   const [activeTab, setActiveTab] = useState<"variables" | "scene">(
-    "variables",
+    defaultTab,
   );
   const [search, setSearch] = useState("");
 
@@ -192,6 +194,7 @@ function VariablesList({
 
   return (
     <div className="flex flex-col p-2 gap-0.5">
+
       {groupedVariables.map((group) => {
         const isExpanded = expandedGroups.has(group.label) || !!search;
         return (
