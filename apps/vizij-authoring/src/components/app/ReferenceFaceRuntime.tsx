@@ -286,12 +286,14 @@ function ReferenceFaceBridge({
     }
   }, [ready, assetBundle.bundle, onBundleReady]);
 
-  // Report standard inputs when they change
+  // Report standard inputs when they change (and clear when none are available)
   useEffect(() => {
-    if (standardInputs.length > 0) {
-      onStandardInputsReady?.(standardInputs, standardInputsById);
+    if (!ready) {
+      onStandardInputsReady?.([], new Map());
+      return;
     }
-  }, [standardInputs, standardInputsById, onStandardInputsReady]);
+    onStandardInputsReady?.(standardInputs, standardInputsById);
+  }, [ready, standardInputs, standardInputsById, onStandardInputsReady]);
 
   // Create and report the animate function
   useEffect(() => {
