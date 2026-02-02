@@ -24,7 +24,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeVizijBundle: true,
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
-  skipDiscrepancyCheck: false,
+  skipDiscrepancyCheck: true,
 };
 
 export function authoringUiReducer(

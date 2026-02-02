@@ -10,16 +10,21 @@ const workspaceRoot = path.resolve(__dirname, "..", "..");
 const require = createRequire(import.meta.url);
 const threeEntry = require.resolve("three");
 const threePath = path.resolve(path.dirname(threeEntry), "..");
+const reactPath = path.resolve(__dirname, "node_modules/react");
+const reactDomPath = path.resolve(__dirname, "node_modules/react-dom");
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.glb"],
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: {
       "@vizij/node-graph-authoring": path.resolve(
         workspaceRoot,
         "packages/@vizij/node-graph-authoring/src",
       ),
       "@vizij/authoring-shared": path.resolve(__dirname, "src/shared/index.ts"),
+      react: reactPath,
+      "react-dom": reactDomPath,
       three: threePath,
     },
   },
