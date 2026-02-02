@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -10,8 +10,6 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
-import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -22,7 +20,6 @@ type ReferenceFaceRuntimeProps = {
   autostart?: boolean;
   driveOrchestrator?: boolean;
   visible?: boolean;
-  hiddenStepHz?: number;
   /** Called when standard inputs are detected from the loaded face */
   onStandardInputsReady?: (
     inputs: StandardRigInput[],
@@ -52,16 +49,23 @@ const FACE_ASSET_GLB_BASE = {
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
 
-function createBundleConfig(file: File): VizijAssetBundle {
+function createBundleConfig(file: File): {
+  bundle: VizijAssetBundle;
+  glbUrl: string;
+} {
+  const glbUrl = URL.createObjectURL(file);
   return {
-    namespace: "refface",
-    glb: {
-      ...FACE_ASSET_GLB_BASE,
-      src: URL.createObjectURL(file),
+    bundle: {
+      namespace: "refface",
+      glb: {
+        ...FACE_ASSET_GLB_BASE,
+        src: glbUrl,
+      },
+      pose: {
+        stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+      },
     },
-    pose: {
-      stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-    },
+    glbUrl,
   };
 }
 
@@ -73,7 +77,6 @@ export function ReferenceFaceRuntime({
   autostart = true,
   driveOrchestrator = false,
   visible = true,
-  hiddenStepHz = 1,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
@@ -82,17 +85,25 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
-  const bundle = useMemo(() => {
+  const bundleConfig = useMemo(() => {
     if (!file) return null;
     return createBundleConfig(file);
   }, [file]);
+
+  useEffect(() => {
+    return () => {
+      if (bundleConfig?.glbUrl) {
+        URL.revokeObjectURL(bundleConfig.glbUrl);
+      }
+    };
+  }, [bundleConfig]);
 
   if (!active) {
     return <>{fallback}</>;
   }
 
   // Show placeholder when no file is loaded
-  if (!bundle) {
+  if (!bundleConfig) {
     return (
       <ReferenceFacePlaceholder
         splitVertical={splitVertical}
@@ -103,23 +114,13 @@ export function ReferenceFaceRuntime({
 
   const shouldAutostart = autostart && visible;
   const shouldDriveVisible = driveOrchestrator && visible;
-  const shouldDriveHidden = driveOrchestrator && !visible && hiddenStepHz > 0;
-
   return (
     <VizijRuntimeProvider
-      assetBundle={bundle}
+      assetBundle={bundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
       orchestratorScope="shared"
     >
-      <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
-      <RuntimeDebugBeacon
-        namespace={namespace}
-        visible={visible}
-        driver={driveOrchestrator}
-        autostart={shouldAutostart}
-        hiddenStepHz={hiddenStepHz}
-      />
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
@@ -131,55 +132,6 @@ export function ReferenceFaceRuntime({
       />
     </VizijRuntimeProvider>
   );
-}
-
-function HiddenStepController({
-  enabled,
-  hz,
-}: {
-  enabled: boolean;
-  hz: number;
-}) {
-  const { step, ready } = useVizijRuntime();
-
-  useEffect(() => {
-    if (!enabled || !ready || hz <= 0) {
-      return;
-    }
-    const intervalMs = 1000 / hz;
-    const id = window.setInterval(() => {
-      step(1 / hz, { forceRuntime: true });
-    }, intervalMs);
-    return () => window.clearInterval(id);
-  }, [enabled, hz, ready, step]);
-
-  return null;
-}
-
-function RuntimeDebugBeacon(props: {
-  namespace: string;
-  visible: boolean;
-  driver: boolean;
-  autostart: boolean;
-  hiddenStepHz: number;
-}) {
-  const { namespace, visible, driver, autostart, hiddenStepHz } = props;
-  const { stepHz } = useVizijRuntime();
-
-  useEffect(() => {
-    broadcastRuntimeStatus({
-      namespace,
-      label: "Reference Face",
-      visible,
-      driver,
-      autostart,
-      hiddenStepHz,
-      stepHz,
-      timestamp: Date.now(),
-    });
-  }, [autostart, driver, hiddenStepHz, namespace, visible, stepHz]);
-
-  return null;
 }
 
 type ReferenceFaceBridgeProps = {
@@ -226,7 +178,6 @@ function ReferenceFaceBridge({
     stepHz,
     assetBundle,
   } = useVizijRuntime();
-  const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(false);
   const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
   const stepRef = useRef(step);
@@ -383,18 +334,6 @@ function ReferenceFaceBridge({
         </div>
         <div className="ref-face-viewer__controls">
           <span className="ref-face-viewer__fps">{formattedFps}</span>
-          <button
-            type="button"
-            className={`ref-face-viewer__idle-btn ${idleBehaviorEnabled ? "ref-face-viewer__idle-btn--active" : ""}`}
-            onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
-            title={
-              idleBehaviorEnabled
-                ? "Disable idle behaviors"
-                : "Enable idle behaviors"
-            }
-          >
-            {idleBehaviorEnabled ? "Idle: ON" : "Idle: OFF"}
-          </button>
           {onToggleSplit && (
             <button
               type="button"
@@ -412,12 +351,7 @@ function ReferenceFaceBridge({
         </div>
       </header>
       <div className="ref-face-viewer__canvas">
-        <HeroPassiveBehavior enabled={idleBehaviorEnabled} />
-        <RuntimeFaceFrame
-          variant="fill"
-          className="hero-face-card"
-          skipBounds={true}
-        />
+        <RuntimeFaceFrame variant="fill" className="hero-face-card" />
       </div>
     </div>
   );
