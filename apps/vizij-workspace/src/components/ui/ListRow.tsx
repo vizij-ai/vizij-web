@@ -25,7 +25,6 @@ export function ListRow({
         "border border-slate-800/60 rounded-xl bg-slate-900/40 p-4 shrink-0 flex flex-col gap-2 transition-all hover:bg-slate-900/60 hover:border-slate-800 shadow-sm cursor-pointer active:bg-slate-800/80 active:scale-[0.99]",
         className,
       )}
-
       {...rest}
     >
       <div className="flex justify-between gap-3 items-start">
@@ -40,8 +39,12 @@ export function ListRow({
           ) : null}
         </div>
         <div className="inline-flex items-center gap-2 shrink-0">
-          {meta ? <div className="text-[10px] text-slate-500 font-medium">{meta}</div> : null}
-          {actions ? <div className="flex items-center gap-1.5">{actions}</div> : null}
+          {meta ? (
+            <div className="text-[10px] text-slate-500 font-medium">{meta}</div>
+          ) : null}
+          {actions ? (
+            <div className="flex items-center gap-1.5">{actions}</div>
+          ) : null}
         </div>
       </div>
       {children ? <div className="mt-2">{children}</div> : null}

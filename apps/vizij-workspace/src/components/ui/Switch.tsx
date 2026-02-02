@@ -24,7 +24,12 @@ export function Switch({
   disabled = false,
 }: SwitchProps) {
   return (
-    <div className={cn("group inline-flex items-center gap-3 cursor-pointer select-none", className)}>
+    <div
+      className={cn(
+        "group inline-flex items-center gap-3 cursor-pointer select-none",
+        className,
+      )}
+    >
       <HeadlessSwitch
         id={id}
         checked={checked}
@@ -32,11 +37,13 @@ export function Switch({
         disabled={disabled}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer rounded-full border border-slate-700 bg-slate-800 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50",
-          checked ? "bg-blue-600 border-blue-600" : "group-hover:border-slate-600",
+          checked
+            ? "bg-blue-600 border-blue-600"
+            : "group-hover:border-slate-600",
           {
             "h-4.5 w-8": size === "sm",
             "h-5.5 w-10": size === "md",
-          }
+          },
         )}
       >
         <span className="sr-only">{label || "Toggle"}</span>
@@ -51,14 +58,25 @@ export function Switch({
               "translate-x-3.5": size === "sm" && checked,
               "translate-x-4.5": size === "md" && checked,
               "translate-x-1": !checked,
-            }
+            },
           )}
         />
       </HeadlessSwitch>
       {(label || hint) && (
-        <div className="flex flex-col" onClick={() => !disabled && onChange(!checked)}>
-          {label && <span className="text-[13px] font-bold text-slate-200 group-hover:text-slate-100 transition-colors">{label}</span>}
-          {hint && <span className="text-[10px] text-slate-500 leading-tight font-medium">{hint}</span>}
+        <div
+          className="flex flex-col"
+          onClick={() => !disabled && onChange(!checked)}
+        >
+          {label && (
+            <span className="text-[13px] font-bold text-slate-200 group-hover:text-slate-100 transition-colors">
+              {label}
+            </span>
+          )}
+          {hint && (
+            <span className="text-[10px] text-slate-500 leading-tight font-medium">
+              {hint}
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -384,7 +384,11 @@ function ReferenceFaceBridge({
             <div
               className={cn(
                 "w-1.5 h-1.5 rounded-full",
-                ready ? "bg-green-500" : loading ? "bg-blue-500 animate-pulse" : "bg-slate-600",
+                ready
+                  ? "bg-green-500"
+                  : loading
+                    ? "bg-blue-500 animate-pulse"
+                    : "bg-slate-600",
               )}
             />
             <p className="m-0 text-[10px] text-slate-400 font-bold">

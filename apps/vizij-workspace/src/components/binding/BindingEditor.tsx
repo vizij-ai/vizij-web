@@ -152,23 +152,23 @@ function buildParameterDetails(
   );
   const variadic = signature.variadic_inputs
     ? [
-      {
-        id: signature.variadic_inputs.id,
-        label:
-          signature.variadic_inputs.label ?? signature.variadic_inputs.id,
-        doc: signature.variadic_inputs.doc,
-        optional: false,
-        typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
-        kind: "variadic" as const,
-        repeatRange: {
-          min: signature.variadic_inputs.min ?? 0,
-          max:
-            typeof signature.variadic_inputs.max === "number"
-              ? signature.variadic_inputs.max
-              : null,
+        {
+          id: signature.variadic_inputs.id,
+          label:
+            signature.variadic_inputs.label ?? signature.variadic_inputs.id,
+          doc: signature.variadic_inputs.doc,
+          optional: false,
+          typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
+          kind: "variadic" as const,
+          repeatRange: {
+            min: signature.variadic_inputs.min ?? 0,
+            max:
+              typeof signature.variadic_inputs.max === "number"
+                ? signature.variadic_inputs.max
+                : null,
+          },
         },
-      },
-    ]
+      ]
     : [];
   const params: FunctionParameterDetail[] =
     definition?.params?.map(
@@ -258,9 +258,9 @@ function buildFunctionDetail(
     null;
   const argumentRange = definition
     ? {
-      min: definition.minArgs,
-      max: definition.maxArgs ?? null,
-    }
+        min: definition.minArgs,
+        max: definition.maxArgs ?? null,
+      }
     : deriveArgumentRange(signature);
   return {
     ...entry,
@@ -644,9 +644,9 @@ export function BindingEditor({
 
   const selectedFunctionDescriptions = selectedFunctionDetail
     ? ensureDistinctDescriptions([
-      selectedFunctionDetail.signatureDoc,
-      selectedFunctionDetail.description,
-    ])
+        selectedFunctionDetail.signatureDoc,
+        selectedFunctionDetail.description,
+      ])
     : [];
 
   const selectedFunctionArgumentSummary = selectedFunctionDetail
@@ -695,16 +695,16 @@ export function BindingEditor({
 
   const [caseSelector, setCaseSelector] = useState<string>(
     parsedCaseConfig?.selector ??
-    slotAliasOptions[0] ??
-    reservedVariableNames[0] ??
-    "self",
+      slotAliasOptions[0] ??
+      reservedVariableNames[0] ??
+      "self",
   );
   const [caseDefault, setCaseDefault] = useState<string>(
     parsedCaseConfig?.defaultBranch ?? "self",
   );
   const [caseBranches, setCaseBranches] = useState<string[]>(
     parsedCaseConfig?.branches?.filter((alias) => slotAliasOrder.has(alias)) ??
-    slotAliasOptions.slice(0),
+      slotAliasOptions.slice(0),
   );
 
   useEffect(() => {
@@ -854,13 +854,21 @@ export function BindingEditor({
           type="button"
           className={cn(
             "w-5 h-5 flex items-center justify-center rounded hover:bg-white/5 transition-transform duration-200",
-            isExpanded ? "rotate-90" : "rotate-0"
+            isExpanded ? "rotate-90" : "rotate-0",
           )}
           onClick={toggleExpanded}
           aria-expanded={isExpanded}
           aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
         >
-          <svg className="w-3 h-3 text-slate-500 group-hover:text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            className="w-3 h-3 text-slate-500 group-hover:text-slate-300"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
@@ -907,7 +915,10 @@ export function BindingEditor({
         {issueList.length > 0 && (
           <ul className="mt-2 space-y-1">
             {issueList.map((issue) => (
-              <li key={issue} className="text-[11px] text-red-400 flex gap-2 italic">
+              <li
+                key={issue}
+                className="text-[11px] text-red-400 flex gap-2 italic"
+              >
                 <span className="shrink-0">•</span> {issue}
               </li>
             ))}
@@ -987,17 +998,17 @@ export function BindingEditor({
 
             const selectOptions =
               normalizedSlotInputId &&
-                !baseOptions.some(
-                  (option) => option.value === normalizedSlotInputId,
-                )
+              !baseOptions.some(
+                (option) => option.value === normalizedSlotInputId,
+              )
                 ? [
-                  ...baseOptions,
-                  {
-                    value: normalizedSlotInputId,
-                    label: currentLabel,
-                    description: "Current value",
-                  },
-                ]
+                    ...baseOptions,
+                    {
+                      value: normalizedSlotInputId,
+                      label: currentLabel,
+                      description: "Current value",
+                    },
+                  ]
                 : baseOptions;
 
             const slotValueType = slot.valueType ?? "scalar";
@@ -1007,7 +1018,10 @@ export function BindingEditor({
             }
 
             return (
-              <div key={slot.id} className="bg-slate-950/40 border border-white/5 rounded-lg p-5 flex flex-col gap-6 group/slot hover:border-white/10 transition-colors">
+              <div
+                key={slot.id}
+                className="bg-slate-950/40 border border-white/5 rounded-lg p-5 flex flex-col gap-6 group/slot hover:border-white/10 transition-colors"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -1018,7 +1032,9 @@ export function BindingEditor({
                     </code>
                   </div>
                   <label className="flex flex-col gap-1.5 flex-1 min-w-[120px]">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Alias</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Alias
+                    </span>
                     <input
                       className="bg-slate-950 border border-white/5 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
                       value={slot.alias}
@@ -1053,7 +1069,9 @@ export function BindingEditor({
                     role="group"
                     aria-label={`Value type for ${label} slot ${index + 1}`}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Value type</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Value type
+                    </span>
                     <div className="flex bg-slate-950 border border-white/5 rounded-lg p-1 self-start">
                       <button
                         type="button"
@@ -1061,7 +1079,7 @@ export function BindingEditor({
                           "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
                           slotValueType === "scalar"
                             ? "bg-slate-800 text-slate-100 shadow-sm"
-                            : "text-slate-500 hover:text-slate-300"
+                            : "text-slate-500 hover:text-slate-300",
                         )}
                         onClick={() => {
                           if (slotValueType !== "scalar") {
@@ -1081,7 +1099,7 @@ export function BindingEditor({
                           "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
                           slotValueType === "vector"
                             ? "bg-slate-800 text-slate-100 shadow-sm"
-                            : "text-slate-500 hover:text-slate-300"
+                            : "text-slate-500 hover:text-slate-300",
                         )}
                         onClick={() => {
                           if (slotValueType !== "vector") {
@@ -1106,7 +1124,11 @@ export function BindingEditor({
                     <Combobox
                       value={normalizedSlotInputId ?? ""}
                       onChange={(nextValue) =>
-                        onBindingInputChange(targetId, nextValue || null, slot.id)
+                        onBindingInputChange(
+                          targetId,
+                          nextValue || null,
+                          slot.id,
+                        )
                       }
                       options={selectOptions}
                       placeholder="Select binding input"
@@ -1130,7 +1152,9 @@ export function BindingEditor({
                       variant="secondary"
                       size="sm"
                       className="h-9 px-3 text-[10px] font-bold"
-                      onClick={() => onNormalizeBindingSlot?.(targetId, slot.id)}
+                      onClick={() =>
+                        onNormalizeBindingSlot?.(targetId, slot.id)
+                      }
                       disabled={
                         !onNormalizeBindingSlot ||
                         !normalizedSlotInputId ||
@@ -1142,7 +1166,9 @@ export function BindingEditor({
                   </div>
                   {selectedInput &&
                     (() => {
-                      const input = selectedInput as NonNullable<typeof selectedInput>;
+                      const input = selectedInput as NonNullable<
+                        typeof selectedInput
+                      >;
                       const driverMin = input.range?.min ?? -1;
                       const driverMax = input.range?.max ?? 1;
                       const driverDefault = input.defaultValue ?? 0;
@@ -1165,14 +1191,10 @@ export function BindingEditor({
                         ) : undefined;
 
                       return (
-                        <div
-                          className="w-full mt-4 p-4 bg-slate-950 rounded-xl border border-white/5"
-                        >
+                        <div className="w-full mt-4 p-4 bg-slate-950 rounded-xl border border-white/5">
                           <CollapsibleRow
                             id={`${targetId}-${slot.id}-driver`}
-                            title={
-                              input.label ?? resolvedInputId ?? "Driver"
-                            }
+                            title={input.label ?? resolvedInputId ?? "Driver"}
                             subtitle={input.path}
                             value={sliderEnabled ? sliderValue : undefined}
                             min={driverMin}
@@ -1180,8 +1202,7 @@ export function BindingEditor({
                             step={0.01}
                             onValueChange={
                               sliderEnabled && onInputValueChange
-                                ? (val) =>
-                                  onInputValueChange(input.id, val)
+                                ? (val) => onInputValueChange(input.id, val)
                                 : undefined
                             }
                             showSlider={sliderEnabled}
@@ -1189,9 +1210,27 @@ export function BindingEditor({
                             className="bg-transparent border-none p-0"
                             expandedContent={
                               <div className="flex gap-4 p-3 bg-slate-900/60 rounded border border-white/5 text-[11px] text-slate-500 font-medium">
-                                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span> Min: <span className="text-slate-300 font-bold">{driverMin}</span></span>
-                                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span> Default: <span className="text-slate-300 font-bold">{driverDefault}</span></span>
-                                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span> Max: <span className="text-slate-300 font-bold">{driverMax}</span></span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  Min:{" "}
+                                  <span className="text-slate-300 font-bold">
+                                    {driverMin}
+                                  </span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  Default:{" "}
+                                  <span className="text-slate-300 font-bold">
+                                    {driverDefault}
+                                  </span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  Max:{" "}
+                                  <span className="text-slate-300 font-bold">
+                                    {driverMax}
+                                  </span>
+                                </span>
                               </div>
                             }
                             defaultExpanded={false}
@@ -1216,7 +1255,10 @@ export function BindingEditor({
                     {diagnosticsExpanded && (
                       <ul className="mt-4 space-y-2">
                         {upstreamNodes.map((node) => (
-                          <li key={`${slotKey}-${node.id}`} className="flex flex-col gap-1 p-3 bg-slate-950 rounded-lg border border-white/5">
+                          <li
+                            key={`${slotKey}-${node.id}`}
+                            className="flex flex-col gap-1 p-3 bg-slate-950 rounded-lg border border-white/5"
+                          >
                             <span className="text-[11px] font-bold text-slate-200">
                               {node.label}
                             </span>
@@ -1250,7 +1292,10 @@ export function BindingEditor({
           </Button>
         </div>
         <div className="flex flex-col gap-4">
-          <label htmlFor={`binding-expression-${targetId}`} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <label
+            htmlFor={`binding-expression-${targetId}`}
+            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+          >
             Expression: {label} =
           </label>
           <textarea
@@ -1259,7 +1304,7 @@ export function BindingEditor({
             value={expressionDraft}
             className={cn(
               "w-full h-24 bg-slate-950 border border-white/10 rounded-xl p-4 text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none shadow-inner",
-              issueList.length > 0 && "border-red-500/50 bg-red-500/5"
+              issueList.length > 0 && "border-red-500/50 bg-red-500/5",
             )}
             onChange={(event) =>
               handleExpressionDraftChange(event.target.value)
@@ -1276,12 +1321,14 @@ export function BindingEditor({
             <div className="flex flex-col gap-1.5 px-1">
               {aliasHints && (
                 <p className="text-[10px] text-slate-500 font-medium">
-                  <span className="text-slate-400 font-bold">Aliases:</span> {aliasHints}
+                  <span className="text-slate-400 font-bold">Aliases:</span>{" "}
+                  {aliasHints}
                 </p>
               )}
               {reservedHints && (
                 <p className="text-[10px] text-slate-500 font-medium">
-                  <span className="text-slate-400 font-bold">Reserved:</span> {reservedHints}
+                  <span className="text-slate-400 font-bold">Reserved:</span>{" "}
+                  {reservedHints}
                 </p>
               )}
             </div>
@@ -1289,7 +1336,10 @@ export function BindingEditor({
           {issueList.length > 0 && (
             <ul className="mt-2 space-y-1.5 p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
               {issueList.map((issue) => (
-                <li key={issue} className="text-[10px] text-red-400 flex gap-2 font-medium">
+                <li
+                  key={issue}
+                  className="text-[10px] text-red-400 flex gap-2 font-medium"
+                >
                   <span className="shrink-0">•</span> {issue}
                 </li>
               ))}
@@ -1307,7 +1357,15 @@ export function BindingEditor({
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-6 h-6 rounded flex items-center justify-center bg-blue-500/10 text-blue-400">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M12 2v20M2 12h20" />
                     </svg>
                   </div>
@@ -1319,7 +1377,18 @@ export function BindingEditor({
                   <span className="text-[10px] text-slate-500 font-bold group-hover:text-slate-400">
                     {EXPRESSION_FUNCTION_VOCABULARY.length} available
                   </span>
-                  <svg className={cn("w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform", functionReferenceExpanded && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    className={cn(
+                      "w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform",
+                      functionReferenceExpanded && "rotate-180",
+                    )}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </div>
@@ -1338,7 +1407,9 @@ export function BindingEditor({
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                           <div className="space-y-1">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Function</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                              Function
+                            </span>
                             <div className="flex items-center gap-2.5">
                               <h4 className="text-lg font-black text-slate-100 italic tracking-tight">
                                 {selectedFunctionDetail.name}()
@@ -1353,19 +1424,29 @@ export function BindingEditor({
                           <div className="flex gap-4">
                             {selectedFunctionArgumentSummary && (
                               <div className="space-y-1">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">Arguments</span>
-                                <span className="text-[11px] font-bold text-slate-300">{selectedFunctionArgumentSummary}</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">
+                                  Arguments
+                                </span>
+                                <span className="text-[11px] font-bold text-slate-300">
+                                  {selectedFunctionArgumentSummary}
+                                </span>
                               </div>
                             )}
                             <div className="space-y-1">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">Returns</span>
-                              <span className="text-[11px] font-bold text-slate-300 italic">{selectedFunctionReturnType}</span>
+                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">
+                                Returns
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-300 italic">
+                                {selectedFunctionReturnType}
+                              </span>
                             </div>
                           </div>
                         </div>
                         {functionSignaturePreview && (
                           <div className="p-3 bg-slate-900/60 rounded-lg border border-white/5">
-                            <code className="text-[11px] text-blue-400 font-mono font-bold">{functionSignaturePreview}</code>
+                            <code className="text-[11px] text-blue-400 font-mono font-bold">
+                              {functionSignaturePreview}
+                            </code>
                           </div>
                         )}
                       </div>
@@ -1389,7 +1470,9 @@ export function BindingEditor({
 
                       {selectedFunctionAliases.length > 0 && (
                         <div className="space-y-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Aliases</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            Aliases
+                          </span>
                           <div className="flex flex-wrap gap-2">
                             {selectedFunctionAliases.map((alias) => (
                               <span
@@ -1405,8 +1488,12 @@ export function BindingEditor({
 
                       <div className="space-y-4">
                         <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Parameters</span>
-                          <span className="text-[10px] font-bold text-slate-500">{selectedFunctionParameterSummary}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            Parameters
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {selectedFunctionParameterSummary}
+                          </span>
                         </div>
                         {selectedFunctionHasParameters ? (
                           <ul className="space-y-4">
@@ -1491,7 +1578,15 @@ export function BindingEditor({
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-6 h-6 rounded flex items-center justify-center bg-purple-500/10 text-purple-400">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                     </svg>
                   </div>
@@ -1499,7 +1594,18 @@ export function BindingEditor({
                     Case Expression Builder
                   </span>
                 </div>
-                <svg className={cn("w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform", caseBuilderExpanded && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  className={cn(
+                    "w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform",
+                    caseBuilderExpanded && "rotate-180",
+                  )}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
@@ -1507,7 +1613,9 @@ export function BindingEditor({
                 <div className="mt-4 bg-slate-950 rounded-xl border border-white/5 p-6 animate-in fade-in slide-in-from-top-2 duration-200 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Selector</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                        Selector
+                      </span>
                       <Select
                         size="sm"
                         value={caseSelector}
@@ -1524,11 +1632,17 @@ export function BindingEditor({
                       />
                     </div>
                     <div className="space-y-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Default Value</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                        Default Value
+                      </span>
                       <Select
                         size="sm"
                         value={caseDefault}
-                        options={["self", ...slotAliasOptions, ...reservedVariableNames]
+                        options={[
+                          "self",
+                          ...slotAliasOptions,
+                          ...reservedVariableNames,
+                        ]
                           .filter(
                             (token, index, array) =>
                               token && array.indexOf(token) === index,
@@ -1542,7 +1656,9 @@ export function BindingEditor({
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Branches</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                      Branches
+                    </span>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {slotAliasOptions.map((alias) => {
                         const checked = caseBranches.includes(alias);
@@ -1553,7 +1669,7 @@ export function BindingEditor({
                               "flex items-center gap-2.5 p-2 rounded border transition-all cursor-pointer",
                               checked
                                 ? "bg-blue-600/10 border-blue-600/30 text-blue-100"
-                                : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/10"
+                                : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/10",
                             )}
                           >
                             <input
@@ -1567,7 +1683,9 @@ export function BindingEditor({
                                 )
                               }
                             />
-                            <span className="text-[11px] font-bold">{alias}</span>
+                            <span className="text-[11px] font-bold">
+                              {alias}
+                            </span>
                           </label>
                         );
                       })}
@@ -1621,25 +1739,42 @@ interface CaseMetadataSummaryProps {
 function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
   return (
     <div className="bg-slate-900/60 rounded-xl border border-white/5 p-4 space-y-4">
-      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">CASE metadata</h4>
+      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+        CASE metadata
+      </h4>
       <dl className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">Selector</dt>
-          <dd className="text-[11px] font-bold text-blue-400 font-mono">{formatOperandMetadata(metadata.selector)}</dd>
+          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+            Selector
+          </dt>
+          <dd className="text-[11px] font-bold text-blue-400 font-mono">
+            {formatOperandMetadata(metadata.selector)}
+          </dd>
         </div>
         <div className="space-y-1">
-          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">Default</dt>
-          <dd className="text-[11px] font-bold text-slate-300 font-mono">{formatOperandMetadata(metadata.defaultBranch)}</dd>
+          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+            Default
+          </dt>
+          <dd className="text-[11px] font-bold text-slate-300 font-mono">
+            {formatOperandMetadata(metadata.defaultBranch)}
+          </dd>
         </div>
       </dl>
       {metadata.branches.length > 0 && (
         <div className="space-y-2">
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Branches</span>
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+            Branches
+          </span>
           <ul className="space-y-1.5">
             {metadata.branches.map((branch, index) => (
-              <li key={index} className="flex items-center gap-3 p-2 bg-slate-950 rounded border border-white/5 text-[10px]">
+              <li
+                key={index}
+                className="flex items-center gap-3 p-2 bg-slate-950 rounded border border-white/5 text-[10px]"
+              >
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                <span className="font-mono text-slate-300">{formatOperandMetadata(branch)}</span>
+                <span className="font-mono text-slate-300">
+                  {formatOperandMetadata(branch)}
+                </span>
               </li>
             ))}
           </ul>

@@ -83,7 +83,14 @@ export function RuntimeFaceFrame({
         onClick={onCanvasClick}
       >
         {!skipBounds && <FaceCameraBounds />}
-        {rootId && <Vizij rootId={rootId} namespace="refface" className="w-full h-full" showSafeArea={false} />}
+        {rootId && (
+          <Vizij
+            rootId={rootId}
+            namespace="refface"
+            className="w-full h-full"
+            showSafeArea={false}
+          />
+        )}
         <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
         {overlay}
       </div>

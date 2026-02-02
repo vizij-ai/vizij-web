@@ -1,37 +1,31 @@
 {
-    "hosting": [
+  "hosting": [
+    {
+      "site": "vizij-workspace",
+      "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
         {
-            "site": "vizij-workspace",
-            "public": "dist",
-            "ignore": [
-                "firebase.json",
-                "**/.*",
-                "**/node_modules/**"
-            ],
-            "headers": [
-                {
-                    "source": "**",
-                    "headers": [
-                        {
-                            "key": "Cross-Origin-Opener-Policy",
-                            "value": "same-origin"
-                        },
-                        {
-                            "key": "Cross-Origin-Embedder-Policy",
-                            "value": "require-corp"
-                        }
-                    ]
-                }
-            ],
-            "rewrites": [
-                {
-                    "source": "**",
-                    "destination": "/index.html"
-                }
-            ],
-            "predeploy": [
-                "pnpm --filter vizij-workspace build"
-            ]
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cross-Origin-Opener-Policy",
+              "value": "same-origin"
+            },
+            {
+              "key": "Cross-Origin-Embedder-Policy",
+              "value": "require-corp"
+            }
+          ]
         }
-    ]
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "predeploy": ["pnpm --filter vizij-workspace build"]
+    }
+  ]
 }

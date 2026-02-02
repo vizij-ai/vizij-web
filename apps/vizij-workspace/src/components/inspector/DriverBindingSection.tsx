@@ -162,19 +162,13 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
     });
   }, [boundDriverId, handleCreateParentDriverBinding, upstreamDriverId]);
 
-  const handleBoundDriverChange = useCallback(
-    (value: string) => {
-      setBoundDriverId(value);
-    },
-    [],
-  );
+  const handleBoundDriverChange = useCallback((value: string) => {
+    setBoundDriverId(value);
+  }, []);
 
-  const handleUpstreamDriverChange = useCallback(
-    (value: string) => {
-      setUpstreamDriverId(value);
-    },
-    [],
-  );
+  const handleUpstreamDriverChange = useCallback((value: string) => {
+    setUpstreamDriverId(value);
+  }, []);
 
   if (activeDrivers.length === 0) {
     return (

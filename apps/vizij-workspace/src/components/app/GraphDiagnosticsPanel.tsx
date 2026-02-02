@@ -13,7 +13,17 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import { Button, Input, ListRow, Chip, Card, CardHeader, CardBody, CardTitle, CardDescription } from "../ui";
+import {
+  Button,
+  Input,
+  ListRow,
+  Chip,
+  Card,
+  CardHeader,
+  CardBody,
+  CardTitle,
+  CardDescription,
+} from "../ui";
 import { cn } from "../../utils/cn";
 
 const REVEAL_EVENT = "vizij-authoring:reveal-binding-target";
@@ -164,7 +174,12 @@ export function GraphDiagnosticsPanel() {
           </CardDescription>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={handleDownloadIr} title="Download IR Graph">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDownloadIr}
+            title="Download IR Graph"
+          >
             <Download className="h-4 w-4 text-slate-400" />
           </Button>
           <Button
@@ -182,7 +197,13 @@ export function GraphDiagnosticsPanel() {
 
       <CardBody className="pt-4 space-y-4">
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={handleDownloadMachineReport} disabled={!graphReport} className="flex-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadMachineReport}
+            disabled={!graphReport}
+            className="flex-1"
+          >
             Download Report
           </Button>
         </div>
@@ -198,7 +219,10 @@ export function GraphDiagnosticsPanel() {
               variant="ghost"
               size="sm"
               onClick={() => setIssuePanelOpen((previous) => !previous)}
-              className={cn("h-8 text-xs font-bold uppercase tracking-wider", issuePanelOpen && "text-blue-400")}
+              className={cn(
+                "h-8 text-xs font-bold uppercase tracking-wider",
+                issuePanelOpen && "text-blue-400",
+              )}
             >
               {issueToggleLabel}
             </Button>
@@ -219,7 +243,6 @@ export function GraphDiagnosticsPanel() {
             onReveal={handleRevealIssueTarget}
           />
         ) : null}
-
       </CardBody>
 
       <IrInspectorDrawer
@@ -261,7 +284,9 @@ function IssueListPanel({
     <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-6">
       <div className="flex flex-wrap gap-4 justify-between items-end">
         <div className="flex flex-col gap-2 flex-1 min-w-[240px]">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Filter binding issues</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            Filter binding issues
+          </span>
           <Input
             value={filter}
             onChange={handleFilterChange}
@@ -322,7 +347,10 @@ function IssueListPanel({
             >
               <ul className="mt-2 space-y-1.5 list-none">
                 {entry.issues.map((issue, index) => (
-                  <li key={`${entry.targetId}-${index}`} className="text-[11px] text-slate-400 flex gap-2">
+                  <li
+                    key={`${entry.targetId}-${index}`}
+                    className="text-[11px] text-slate-400 flex gap-2"
+                  >
                     <span className="text-red-500 shrink-0 mt-0.5">●</span>
                     {issue}
                   </li>
@@ -487,13 +515,15 @@ function IrInspectorDrawer({
     <div
       className={cn(
         "bg-slate-900 shadow-2xl border-t border-white/5 overflow-y-auto flex-col gap-6 p-6 transition-all duration-300",
-        open ? "flex h-[80vh] opacity-100" : "h-0 opacity-0 overflow-hidden"
+        open ? "flex h-[80vh] opacity-100" : "h-0 opacity-0 overflow-hidden",
       )}
       aria-hidden={!open}
     >
       <div className="flex justify-between items-start">
         <div className="max-w-xl">
-          <h3 className="text-lg font-bold text-slate-100 tracking-tight">IR Inspector</h3>
+          <h3 className="text-lg font-bold text-slate-100 tracking-tight">
+            IR Inspector
+          </h3>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed font-medium">
             Review machine report metadata, diff against saved snapshots, and
             generate bug report templates.
@@ -524,22 +554,44 @@ function IrInspectorDrawer({
                 <dt className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   {item.label}
                 </dt>
-                <dd className="text-sm font-bold text-slate-100">{item.value}</dd>
+                <dd className="text-sm font-bold text-slate-100">
+                  {item.value}
+                </dd>
               </div>
             ))}
           </dl>
 
           <div className="flex flex-wrap gap-2.5">
-            <Button variant="secondary" size="sm" onClick={onDownloadIr} className="h-8 text-[11px]">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onDownloadIr}
+              className="h-8 text-[11px]"
+            >
               Download IR JSON
             </Button>
-            <Button variant="secondary" size="sm" onClick={onDownloadReport} className="h-8 text-[11px]">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onDownloadReport}
+              className="h-8 text-[11px]"
+            >
               Download machine report
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleCopyReport} className="h-8 text-[11px]">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCopyReport}
+              className="h-8 text-[11px]"
+            >
               {copyFeedback === "copied" ? "Copied!" : "Copy report JSON"}
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleCliCommand} className="h-8 text-[11px]">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCliCommand}
+              className="h-8 text-[11px]"
+            >
               {cliFeedback === "copied"
                 ? "Command copied!"
                 : "Copy diff CLI command"}
@@ -548,10 +600,12 @@ function IrInspectorDrawer({
 
           <div className="bg-slate-950/20 rounded-xl border border-white/5 p-5 flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <h4 className="text-xs font-bold text-slate-200">Compare against saved machine report</h4>
+              <h4 className="text-xs font-bold text-slate-200">
+                Compare against saved machine report
+              </h4>
               <p className="text-[11px] text-slate-500">
-                Paste or upload a previous machine report JSON to diff it against
-                the current snapshot. Limit {IR_DIFF_LIMIT} differences.
+                Paste or upload a previous machine report JSON to diff it
+                against the current snapshot. Limit {IR_DIFF_LIMIT} differences.
               </p>
             </div>
 
@@ -570,13 +624,20 @@ function IrInspectorDrawer({
                 onChange={handleDiffFile}
                 className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 transition-all"
               />
-              <Button variant="primary" size="sm" onClick={handleDiffCompare} className="h-8 px-6">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleDiffCompare}
+                className="h-8 px-6"
+              >
                 Compare reports
               </Button>
             </div>
 
             {diffError ? (
-              <p className="text-xs text-red-400 font-medium px-1 italic">{diffError}</p>
+              <p className="text-xs text-red-400 font-medium px-1 italic">
+                {diffError}
+              </p>
             ) : (
               <DiffResultList
                 entries={diffResult?.differences ?? []}
@@ -586,7 +647,9 @@ function IrInspectorDrawer({
           </div>
 
           <div className="flex flex-col gap-3">
-            <h4 className="text-xs font-bold text-slate-200 px-1">Saved IR payload</h4>
+            <h4 className="text-xs font-bold text-slate-200 px-1">
+              Saved IR payload
+            </h4>
             {graphJson ? (
               <pre className="bg-slate-950/60 border border-white/5 rounded-xl p-4 max-h-80 overflow-auto text-[11px] font-mono text-slate-400 leading-relaxed scrollbar-thin scrollbar-thumb-slate-800">
                 {graphJson}
@@ -601,10 +664,12 @@ function IrInspectorDrawer({
           {bugReportTemplate ? (
             <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <h4 className="text-xs font-bold text-blue-400">Bug report template</h4>
+                <h4 className="text-xs font-bold text-blue-400">
+                  Bug report template
+                </h4>
                 <p className="text-[11px] text-blue-300/60 font-medium">
-                  Copy a filled template containing registry metadata and trimmed
-                  diff output.
+                  Copy a filled template containing registry metadata and
+                  trimmed diff output.
                 </p>
               </div>
 
@@ -655,7 +720,11 @@ interface DiffResultListProps {
 
 function DiffResultList({ entries, limitReached }: DiffResultListProps) {
   if (!entries.length) {
-    return <p className="text-xs text-slate-500 italic mt-2">No differences detected.</p>;
+    return (
+      <p className="text-xs text-slate-500 italic mt-2">
+        No differences detected.
+      </p>
+    );
   }
   return (
     <div className="bg-slate-900 border border-white/5 rounded-lg p-4 flex flex-col gap-3">
@@ -665,7 +734,10 @@ function DiffResultList({ entries, limitReached }: DiffResultListProps) {
       </p>
       <ul className="space-y-1.5 list-none">
         {entries.map((entry, index) => (
-          <li key={`${entry.path}-${index}`} className="text-[11px] text-slate-400 flex gap-2 overflow-hidden">
+          <li
+            key={`${entry.path}-${index}`}
+            className="text-[11px] text-slate-400 flex gap-2 overflow-hidden"
+          >
             <code className="text-blue-400 shrink-0">{entry.path}</code>
             <span className="text-slate-600 shrink-0">–</span>
             <span className="truncate">

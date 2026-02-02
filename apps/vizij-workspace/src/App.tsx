@@ -1,13 +1,8 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  useRef,
-} from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
-  Separator as PanelResizeHandle
+  Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle } from "@vizij/render";
@@ -43,11 +38,7 @@ import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 
-
-
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
-
-
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
@@ -80,35 +71,41 @@ function AppContent({ loader }: AppContentProps) {
     bundle: loadedBundle,
   } = loader;
 
-
-
-
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  const handleLoadAssetFromUrl = useCallback(async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch ${url} `);
-      const blob = await response.blob();
-      const file = new File([blob], filename, { type: 'model/gltf-binary' });
+  const handleLoadAssetFromUrl = useCallback(
+    async (url: string, filename: string) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch ${url} `);
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type: "model/gltf-binary" });
 
-      await loadFromFile(file, () =>
-        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
-      );
-    } catch (err) {
-      console.error("Failed to load asset from URL:", err);
-    }
-  }, [loadFromFile]);
+        await loadFromFile(file, () =>
+          loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+        );
+      } catch (err) {
+        console.error("Failed to load asset from URL:", err);
+      }
+    },
+    [loadFromFile],
+  );
 
   const handleLoadQuori = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Quori_Latest_Rigged.glb", "Quori_Latest_Rigged.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Quori_Latest_Rigged.glb",
+      "Quori_Latest_Rigged.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Hugo_Latest_Rigged.glb", "Hugo_Latest_Rigged.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Hugo_Latest_Rigged.glb",
+      "Hugo_Latest_Rigged.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const mainFaceHandleInputValueChange = useBindingAuthoring(
@@ -118,7 +115,6 @@ function AppContent({ loader }: AppContentProps) {
   const referenceFaceContextValue = useReferenceFaceState(
     mainFaceHandleInputValueChange,
   );
-
 
   // Graph Runtime Hook
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
@@ -130,8 +126,6 @@ function AppContent({ loader }: AppContentProps) {
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
   const canExport = Boolean(rootId) && !isLoading;
-
-
 
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsByPath = useBindingAuthoring(
@@ -153,8 +147,6 @@ function AppContent({ loader }: AppContentProps) {
     const animationCount = loadedBundle?.animations?.length ?? 0;
     uiActions.setIncludeImportedAnimations(animationCount > 0);
   }, [loadedBundle, uiActions]);
-
-
 
   const applyPoseGraphImport = useCallback(
     async (graphSpec: any, sourceNameHint: string) => {
@@ -202,10 +194,7 @@ function AppContent({ loader }: AppContentProps) {
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
   });
 
-
-  const {
-    panels,
-  } = useWorkspaceStore();
+  const { panels } = useWorkspaceStore();
 
   // Reference Face Import
   const refFaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -216,9 +205,8 @@ function AppContent({ loader }: AppContentProps) {
       referenceFaceContextValue.setFile(file);
       event.target.value = "";
     },
-    [referenceFaceContextValue]
+    [referenceFaceContextValue],
   );
-
 
   const handleImportReferenceFaceClick = useCallback(() => {
     refFaceFileInputRef.current?.click();
@@ -232,22 +220,25 @@ function AppContent({ loader }: AppContentProps) {
     loader.reset();
   }, [loader]);
 
-  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-    if (skipNextDiscrepancyCheck.current) {
-      uiActions.setSkipDiscrepancyCheck(true);
-      skipNextDiscrepancyCheck.current = false;
-    } else {
-      uiActions.setSkipDiscrepancyCheck(false);
-    }
+      if (skipNextDiscrepancyCheck.current) {
+        uiActions.setSkipDiscrepancyCheck(true);
+        skipNextDiscrepancyCheck.current = false;
+      } else {
+        uiActions.setSkipDiscrepancyCheck(false);
+      }
 
-    await loadFromFile(file, () =>
-      loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true)
-    );
-    event.target.value = '';
-  }, [loadFromFile, uiActions]);
+      await loadFromFile(file, () =>
+        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+      );
+      event.target.value = "";
+    },
+    [loadFromFile, uiActions],
+  );
 
   const handleImportClick = useCallback(() => {
     skipNextDiscrepancyCheck.current = false;
@@ -284,10 +275,12 @@ function AppContent({ loader }: AppContentProps) {
           ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
           : "viewer-wrapper relative w-full h-full"
       }
-      style={{ height: '100%', width: '100%' }}
+      style={{ height: "100%", width: "100%" }}
     >
       {panels.referenceFace.isVisible ? (
-        <PanelGroup orientation={viewerSplitVertical ? "horizontal" : "vertical"}>
+        <PanelGroup
+          orientation={viewerSplitVertical ? "horizontal" : "vertical"}
+        >
           <ResizablePanel defaultSize={70} minSize={20}>
             <Viewer
               rootId={rootId}
@@ -299,7 +292,13 @@ function AppContent({ loader }: AppContentProps) {
               onLoadHugo={handleLoadHugo}
             />
           </ResizablePanel>
-          <PanelResizeHandle className={viewerSplitVertical ? "w-1 bg-slate-800 hover:bg-blue-500 transition-colors" : "h-1 bg-slate-800 hover:bg-blue-500 transition-colors"} />
+          <PanelResizeHandle
+            className={
+              viewerSplitVertical
+                ? "w-1 bg-slate-800 hover:bg-blue-500 transition-colors"
+                : "h-1 bg-slate-800 hover:bg-blue-500 transition-colors"
+            }
+          />
           <ResizablePanel defaultSize={30} minSize={20}>
             <ReferenceFacePanel
               splitVertical={viewerSplitVertical}
@@ -330,8 +329,6 @@ function AppContent({ loader }: AppContentProps) {
     </div>
   );
 
-
-
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
       <WorkspaceLayout
@@ -353,28 +350,25 @@ function AppContent({ loader }: AppContentProps) {
             onSelectPose={handleSelectPose}
           />
         }
-
         // Center
         topPanel={
-          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50">
-          </div>
+          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50"></div>
         }
         viewport={viewerContent}
         bottomVisible={panels.animation.isVisible}
         bottomPanel={<AnimationPanel />}
-
         // Right
         rightTopVisible={panels.inspector.isVisible}
         rightTopPanel={<InspectorPanel />}
         rightBottomVisible={panels.debug.isVisible}
-        rightBottomPanel={<DebugPanel
-          rootId={loader.rootId}
-          loadedBundle={loader.bundle}
-          updateBundle={loader.updateBundle}
-          isLoading={loader.isLoading}
-        />}
-
-
+        rightBottomPanel={
+          <DebugPanel
+            rootId={loader.rootId}
+            loadedBundle={loader.bundle}
+            updateBundle={loader.updateBundle}
+            isLoading={loader.isLoading}
+          />
+        }
       />
 
       {discrepancyReview ? (

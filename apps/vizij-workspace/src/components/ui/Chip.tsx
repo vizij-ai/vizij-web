@@ -23,8 +23,10 @@ export function Chip({
         {
           "bg-slate-800 border-slate-700 text-slate-300": tone === "default",
           "bg-blue-500/10 border-blue-500/20 text-blue-400": tone === "info",
-          "bg-green-500/10 border-green-500/20 text-green-400": tone === "success",
-          "bg-yellow-500/10 border-yellow-500/20 text-yellow-500": tone === "warning",
+          "bg-green-500/10 border-green-500/20 text-green-400":
+            tone === "success",
+          "bg-yellow-500/10 border-yellow-500/20 text-yellow-500":
+            tone === "warning",
           "bg-red-500/10 border-red-500/20 text-red-400": tone === "danger",
           "bg-slate-900 border-slate-800 text-slate-500": tone === "muted",
         },
@@ -41,7 +43,12 @@ export function Chip({
           onClick={onDismiss}
         >
           <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4 4l8 8m0-8l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path
+              d="M4 4l8 8m0-8l-8 8"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       )}

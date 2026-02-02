@@ -21,10 +21,10 @@ type BaseProps = {
 export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
   PropsWithChildren<
     BaseProps &
-    Omit<
-      ComponentPropsWithoutRef<TTag>,
-      "as" | "children" | "title" | "description" | "badge" | "actions"
-    >
+      Omit<
+        ComponentPropsWithoutRef<TTag>,
+        "as" | "children" | "title" | "description" | "badge" | "actions"
+      >
   >;
 
 /**

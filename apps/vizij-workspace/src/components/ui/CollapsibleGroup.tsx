@@ -1,4 +1,8 @@
-import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
 import type { ReactNode } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "../../utils/cn";

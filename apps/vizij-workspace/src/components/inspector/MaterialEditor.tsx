@@ -40,12 +40,20 @@ export function MaterialEditor({ node }: MaterialEditorProps) {
           <Select
             value={currentMaterial?.id ?? ""}
             onChange={(value) => assignMaterial(node.id, value)}
-            options={materials.length === 0 ? [
-              { value: "", label: "No materials detected", disabled: true }
-            ] : materials.map((material) => ({
-              value: material.id,
-              label: `${material.label} (${material.memberShapeIds.length})`,
-            }))}
+            options={
+              materials.length === 0
+                ? [
+                    {
+                      value: "",
+                      label: "No materials detected",
+                      disabled: true,
+                    },
+                  ]
+                : materials.map((material) => ({
+                    value: material.id,
+                    label: `${material.label} (${material.memberShapeIds.length})`,
+                  }))
+            }
             size="sm"
           />
         }

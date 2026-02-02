@@ -49,7 +49,10 @@ export function VizijBundleSummaryPanel({
           <dd className="text-slate-200 font-mono">{summary.version ?? "–"}</dd>
 
           <dt className="text-slate-500 font-medium">Exported</dt>
-          <dd className="text-slate-200 font-mono truncate" title={summary.exportedAt ?? ""}>
+          <dd
+            className="text-slate-200 font-mono truncate"
+            title={summary.exportedAt ?? ""}
+          >
             {summary.exportedAt ?? "unknown"}
           </dd>
 

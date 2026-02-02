@@ -71,7 +71,6 @@ export function StandardInputCoveragePanel({
         </p>
       </Panel>
     );
-
   }
 
   return (
@@ -84,7 +83,6 @@ export function StandardInputCoveragePanel({
         <div className="flex justify-between items-center">
           <div /> {/* Spacer since title is in Panel header now */}
           {standardInputSchema ? (
-
             <span className="text-[10px] font-bold text-slate-500 px-1.5 py-0.5 bg-slate-950/40 rounded border border-white/5 opacity-80">
               {standardInputSchema.id} · {standardInputSchema.version}
             </span>

@@ -347,8 +347,8 @@ export function useRigController(
         | { id: string; version: string }
         | null
         | ((
-          prev: { id: string; version: string } | null,
-        ) => { id: string; version: string } | null),
+            prev: { id: string; version: string } | null,
+          ) => { id: string; version: string } | null),
     ) => {
       setStandardInputSchema((prev) =>
         typeof schema === "function" ? schema(prev) : schema,
@@ -887,7 +887,7 @@ export function useRigController(
         const existingHasCustomPath =
           existingEntry &&
           normalizeStandardRigInputPath(existingEntry.input.path) !==
-          normalizeStandardRigInputPath(existingEntry.sourcePath);
+            normalizeStandardRigInputPath(existingEntry.sourcePath);
         const existingPathOverride = existingHasCustomPath
           ? existingEntry?.input.path
           : undefined;
@@ -914,12 +914,12 @@ export function useRigController(
           : true;
         const rangeMatchesGenerated = existingEntry
           ? existingEntry.input.range.min ===
-          existingEntry.generatedRange.min &&
-          existingEntry.input.range.max === existingEntry.generatedRange.max
+              existingEntry.generatedRange.min &&
+            existingEntry.input.range.max === existingEntry.generatedRange.max
           : true;
         const defaultMatchesGenerated = existingEntry
           ? existingEntry.input.defaultValue ===
-          existingEntry.generatedDefaultValue
+            existingEntry.generatedDefaultValue
           : true;
 
         const nextLabel = labelMatchesGenerated
@@ -997,11 +997,11 @@ export function useRigController(
                 : undefined,
             range:
               updatedInput.range.min !== generatedRange.min ||
-                updatedInput.range.max !== generatedRange.max
+              updatedInput.range.max !== generatedRange.max
                 ? {
-                  min: updatedInput.range.min,
-                  max: updatedInput.range.max,
-                }
+                    min: updatedInput.range.min,
+                    max: updatedInput.range.max,
+                  }
                 : undefined,
           });
         }
@@ -1328,10 +1328,10 @@ export function useRigController(
     () =>
       rigGraphBuild
         ? new Map(
-          Object.entries(rigGraphBuild.issues.byTarget).map(
-            ([targetId, issues]) => [targetId, [...issues]],
-          ),
-        )
+            Object.entries(rigGraphBuild.issues.byTarget).map(
+              ([targetId, issues]) => [targetId, [...issues]],
+            ),
+          )
         : new Map<string, readonly string[]>(),
     [rigGraphBuild],
   );
@@ -1584,9 +1584,9 @@ export function useRigController(
         const ensured =
           component !== undefined
             ? ensureBindingStructure(
-              binding,
-              bindingTargetFromComponent(component),
-            )
+                binding,
+                bindingTargetFromComponent(component),
+              )
             : binding;
         next[key] = ensured;
         if (ensured !== binding) {
@@ -1675,7 +1675,9 @@ export function useRigController(
         return;
       }
       // Relaxed check: allow all updates, similar to handleInputValueChange
-      const entries = Object.entries(updates) as Array<[StandardInputId, number]>;
+      const entries = Object.entries(updates) as Array<
+        [StandardInputId, number]
+      >;
 
       if (entries.length === 0) {
         return;
@@ -1851,9 +1853,9 @@ export function useRigController(
                   name: renamedName ?? descriptor.name,
                   pub: descriptor.pub
                     ? {
-                      ...descriptor.pub,
-                      output: renamedOutput ?? descriptor.pub.output,
-                    }
+                        ...descriptor.pub,
+                        output: renamedOutput ?? descriptor.pub.output,
+                      }
                     : descriptor.pub,
                 } as typeof descriptor;
                 animatableChanged = true;
@@ -2087,8 +2089,8 @@ export function useRigController(
     const facePrefix = `rig/${faceId}/`;
     const summaryInputPaths = Array.isArray(summary.inputs)
       ? summary.inputs
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.replace(/^\/+/, ""))
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.replace(/^\/+/, ""))
       : [];
 
     const sliderBindings: Array<{

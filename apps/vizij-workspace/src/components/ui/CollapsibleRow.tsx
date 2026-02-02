@@ -1,4 +1,8 @@
-import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/react";
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
 import type { ReactNode } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "../../utils/cn";
@@ -45,7 +49,9 @@ export function CollapsibleRow({
         <div
           className={cn(
             "bg-slate-900/40 border border-slate-800/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
-            open && hasExpandableContent && "border-blue-600/50 shadow-[0_0_0_1px_rgba(37,99,235,0.2)]",
+            open &&
+              hasExpandableContent &&
+              "border-blue-600/50 shadow-[0_0_0_1px_rgba(37,99,235,0.2)]",
             disabled && "opacity-50 pointer-events-none",
             className,
           )}
@@ -56,7 +62,9 @@ export function CollapsibleRow({
               disabled={!hasExpandableContent || disabled}
               className={cn(
                 "flex-1 px-2.5 py-1.5 flex items-center gap-3 text-left focus:outline-none focus:bg-slate-800/20",
-                hasExpandableContent && !disabled && "cursor-pointer hover:bg-slate-800/30",
+                hasExpandableContent &&
+                  !disabled &&
+                  "cursor-pointer hover:bg-slate-800/30",
               )}
             >
               <div className="flex items-start gap-2.5 flex-grow min-w-0">
@@ -73,7 +81,9 @@ export function CollapsibleRow({
                   <span
                     className={cn(
                       "text-[13px] font-bold leading-tight truncate",
-                      open && hasExpandableContent ? "text-slate-100" : "text-slate-300",
+                      open && hasExpandableContent
+                        ? "text-slate-100"
+                        : "text-slate-300",
                     )}
                   >
                     {title}

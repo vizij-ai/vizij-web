@@ -582,9 +582,9 @@ export function StdFeatureSpacesChannelsPanel() {
       const oldLabel = input.label || "";
       const newLabel = oldLabel.includes(formatSegmentName(oldSegment))
         ? oldLabel.replace(
-          formatSegmentName(oldSegment),
-          formatSegmentName(renameValue),
-        )
+            formatSegmentName(oldSegment),
+            formatSegmentName(renameValue),
+          )
         : undefined;
 
       handleUpdateStandardInput(inputId, {
@@ -768,7 +768,11 @@ export function StdFeatureSpacesChannelsPanel() {
   const renderNode = useCallback(
     (node: TreeNode, depth: number): JSX.Element | null => {
       if (!matchesSearch(node)) return null;
-      if (bothFacesLoaded && mainFilterMissingInRef && !nodeIsMissingInRef(node))
+      if (
+        bothFacesLoaded &&
+        mainFilterMissingInRef &&
+        !nodeIsMissingInRef(node)
+      )
         return null;
 
       const hasChildren = node.children.size > 0;
@@ -827,7 +831,18 @@ export function StdFeatureSpacesChannelsPanel() {
                 toggleNode(node.id);
               }}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </button>
 
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -848,7 +863,9 @@ export function StdFeatureSpacesChannelsPanel() {
                   <div
                     className={cn(
                       "w-1.5 h-1.5 rounded-full",
-                      (node.input as any)?.disabled ? "bg-slate-700" : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]",
+                      (node.input as any)?.disabled
+                        ? "bg-slate-700"
+                        : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]",
                     )}
                   />
                 )}
@@ -943,7 +960,18 @@ export function StdFeatureSpacesChannelsPanel() {
               )}
               onClick={() => toggleRefNode(node.id)}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </button>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-[11px] font-medium truncate italic">
@@ -1042,7 +1070,7 @@ export function StdFeatureSpacesChannelsPanel() {
                   strokeLinejoin="round"
                   className={cn(
                     (refFilterMissingInMain || mainFilterMissingInRef) &&
-                    "text-blue-400",
+                      "text-blue-400",
                   )}
                 >
                   <path d="M11 21H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h5l2 3h9a2 2 0 0 1 2 2v2" />

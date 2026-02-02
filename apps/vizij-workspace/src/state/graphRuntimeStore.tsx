@@ -110,7 +110,7 @@ export function createGraphRuntimeStore(
 
     // Check if any value actually changed
     const hasChanged = Object.keys(patch).some(
-      (key) => (state as any)[key] !== (nextState as any)[key]
+      (key) => (state as any)[key] !== (nextState as any)[key],
     );
 
     if (!hasChanged) {

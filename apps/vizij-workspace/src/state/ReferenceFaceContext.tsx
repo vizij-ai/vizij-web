@@ -39,20 +39,20 @@ export interface ReferenceFaceState {
 
 const defaultState: ReferenceFaceState = {
   file: null,
-  setFile: () => { },
+  setFile: () => {},
   isLoaded: false,
   isLoading: false,
   standardInputs: [],
   standardInputsById: new Map(),
   inputIdsWithBindings: new Set(),
   inputValues: {},
-  handleInputValueChange: () => { },
-  handleResetAllInputValues: () => { },
-  onStandardInputsReady: () => { },
-  onLoadingStateChange: () => { },
-  onAnimateValueReady: () => { },
-  onStandardInputChange: () => { },
-  onBundleReady: () => { },
+  handleInputValueChange: () => {},
+  handleResetAllInputValues: () => {},
+  onStandardInputsReady: () => {},
+  onLoadingStateChange: () => {},
+  onAnimateValueReady: () => {},
+  onStandardInputChange: () => {},
+  onBundleReady: () => {},
 };
 
 const ReferenceFaceContext = createContext<ReferenceFaceState>(defaultState);

@@ -21,12 +21,12 @@ export function FieldRow({
 
   const controlWithLabel = shouldInlineLabel
     ? cloneElement(
-      control as ReactElement<{ label?: ReactNode; hint?: ReactNode }>,
-      {
-        label: (control.props as { label?: ReactNode }).label ?? label,
-        hint: (control.props as { hint?: ReactNode }).hint ?? hint,
-      },
-    )
+        control as ReactElement<{ label?: ReactNode; hint?: ReactNode }>,
+        {
+          label: (control.props as { label?: ReactNode }).label ?? label,
+          hint: (control.props as { hint?: ReactNode }).hint ?? hint,
+        },
+      )
     : control;
 
   return (

@@ -20,7 +20,14 @@ import type {
   SceneObjectFeature,
   SceneFeatureComponent,
 } from "../../scene/sceneGraph";
-import { Button, CollapsibleGroup, CollapsibleRow, Input, Switch, Chip } from "../ui";
+import {
+  Button,
+  CollapsibleGroup,
+  CollapsibleRow,
+  Input,
+  Switch,
+  Chip,
+} from "../ui";
 import { cn } from "../../utils/cn";
 
 interface FeatureListProps {
@@ -469,7 +476,9 @@ function FeatureRow(props: FeatureRowProps) {
                       >
                         {row.label}
                       </th>
-                      <td className="px-3 py-1 text-right">{row.staticValue}</td>
+                      <td className="px-3 py-1 text-right">
+                        {row.staticValue}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,4 +1,9 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Transition } from "@headlessui/react";
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+  Transition,
+} from "@headlessui/react";
 import { ChevronRight } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { cn } from "../../utils/cn";
@@ -55,17 +60,21 @@ export function InstructionCallout({
         className={cn(
           "flex flex-col gap-2 rounded-xl border border-blue-500/20 bg-blue-500/5 mb-4",
           size === "compact" ? "p-3" : "p-4",
-          !open && "hidden"
+          !open && "hidden",
         )}
         data-open={open ? "true" : undefined}
       >
         <div className="flex flex-col items-start gap-1">
           <div className="flex items-center gap-2">
             {icon && <span className="text-blue-400">{icon}</span>}
-            <span className="text-xs font-bold text-blue-100 uppercase tracking-wide">{label}</span>
+            <span className="text-xs font-bold text-blue-100 uppercase tracking-wide">
+              {label}
+            </span>
           </div>
           {summary ? (
-            <span className="text-[11px] text-blue-200/60 leading-tight">{summary}</span>
+            <span className="text-[11px] text-blue-200/60 leading-tight">
+              {summary}
+            </span>
           ) : null}
         </div>
         <div
@@ -86,10 +95,12 @@ export function InstructionCallout({
         const isOpenState = isControlled ? open : disclosureOpen;
 
         return (
-          <div className={cn(
-            "rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden mb-4 transition-all duration-200",
-            isOpenState && "bg-slate-900 border-slate-700"
-          )}>
+          <div
+            className={cn(
+              "rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden mb-4 transition-all duration-200",
+              isOpenState && "bg-slate-900 border-slate-700",
+            )}
+          >
             <DisclosureButton
               as="button"
               onClick={isControlled ? handleToggle : undefined}
@@ -97,15 +108,24 @@ export function InstructionCallout({
             >
               <div className="flex items-center gap-3">
                 {icon && (
-                  <div className={cn("text-slate-500 transition-colors", isOpenState && "text-blue-400")}>
+                  <div
+                    className={cn(
+                      "text-slate-500 transition-colors",
+                      isOpenState && "text-blue-400",
+                    )}
+                  >
                     {icon}
                   </div>
                 )}
                 <div className="flex flex-col gap-0.5">
-                  <span className={cn(
-                    "text-[11px] font-bold uppercase tracking-wider transition-colors",
-                    isOpenState ? "text-slate-200" : "text-slate-400 group-hover:text-slate-300"
-                  )}>
+                  <span
+                    className={cn(
+                      "text-[11px] font-bold uppercase tracking-wider transition-colors",
+                      isOpenState
+                        ? "text-slate-200"
+                        : "text-slate-400 group-hover:text-slate-300",
+                    )}
+                  >
                     {label}
                   </span>
                   {summary ? (
@@ -118,7 +138,7 @@ export function InstructionCallout({
               <ChevronRight
                 className={cn(
                   "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                  isOpenState && "rotate-90 text-blue-400"
+                  isOpenState && "rotate-90 text-blue-400",
                 )}
               />
             </DisclosureButton>
@@ -134,7 +154,7 @@ export function InstructionCallout({
                 id={resolvedContentId}
                 className={cn(
                   "px-4 pb-4 pt-1 text-[11px] text-slate-400 leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none border-t border-slate-800/50 mt-1",
-                  !open && "hidden"
+                  !open && "hidden",
                 )}
               >
                 {children}
@@ -154,7 +174,7 @@ export function InstructionCallout({
               </Transition>
             )}
           </div>
-        )
+        );
       }}
     </Disclosure>
   );

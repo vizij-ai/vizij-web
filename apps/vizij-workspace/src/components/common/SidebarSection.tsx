@@ -1,4 +1,9 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Transition } from "@headlessui/react";
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+  Transition,
+} from "@headlessui/react";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "../../utils/cn";
@@ -58,7 +63,7 @@ export function SidebarSection({
                 <ChevronRight
                   className={cn(
                     "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                    open && "rotate-90 text-blue-400"
+                    open && "rotate-90 text-blue-400",
                   )}
                 />
               </DisclosureButton>

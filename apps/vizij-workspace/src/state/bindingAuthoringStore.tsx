@@ -137,8 +137,8 @@ export interface BindingAuthoringState {
       | { id: string; version: string }
       | null
       | ((
-        prev: BindingAuthoringState["standardInputSchema"],
-      ) => BindingAuthoringState["standardInputSchema"]),
+          prev: BindingAuthoringState["standardInputSchema"],
+        ) => BindingAuthoringState["standardInputSchema"]),
   ) => void;
   handleFeatureFlagChange: (
     flag: AuthoringFeatureFlag,
@@ -258,7 +258,7 @@ export function createBindingAuthoringStore(
 
     // Check if any value actually changed
     const hasChanged = Object.keys(patch).some(
-      (key) => (state as any)[key] !== (nextState as any)[key]
+      (key) => (state as any)[key] !== (nextState as any)[key],
     );
 
     if (!hasChanged) {
