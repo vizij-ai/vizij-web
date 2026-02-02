@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Plus, Folder, Zap, Activity, Play, ChevronRight } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
+import { PanelSearch, TreeRow } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
@@ -66,7 +67,7 @@ function simplifyNode(node: TreeNode): TreeNode {
 // Components
 // ----------------------------------------------------------------------------
 
-interface TreeRowProps {
+interface TreeRowWrapperProps {
     node: TreeNode;
     depth: number;
     expanded: Set<string>;
@@ -77,7 +78,7 @@ interface TreeRowProps {
     searchQuery: string;
 }
 
-function TreeRow({
+function TreeRowWrapper({
     node,
     depth,
     expanded,
@@ -86,7 +87,7 @@ function TreeRow({
     onSelect,
     selection,
     searchQuery,
-}: TreeRowProps) {
+}: TreeRowWrapperProps) {
     const isExpanded = expanded.has(node.id);
     const hasChildren = node.children.size > 0;
 
@@ -105,69 +106,24 @@ function TreeRow({
     if (node.type === "pose") Icon = Activity;
     else if (node.type === "rig") Icon = Zap;
 
-    const matchesQuery =
-        searchQuery.trim().length > 0 &&
-        node.label.toLowerCase().includes(searchQuery.toLowerCase());
+    // Determine Icon Color
+    let iconClass = "text-slate-400";
+    if (node.type === "pose") iconClass = "text-purple-400";
+    else if (node.type === "rig") iconClass = "text-yellow-400";
 
     return (
-        <div className="flex flex-col select-none">
-            <div
-                className={cn(
-                    "group flex items-center gap-1.5 rounded-sm px-1 min-h-[22px] transition-all cursor-pointer",
-                    isSelected
-                        ? "bg-slate-700 text-slate-100"
-                        : "hover:bg-slate-800/40 text-slate-400 hover:text-slate-200",
-                )}
-                style={{ paddingLeft: `${depth * 12 + 4}px` }}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (hasChildren) {
-                        onToggle(node.id);
-                    } else {
-                        onSelect?.(node);
-                    }
-                }}
-            >
-                {/* Expander Arrow */}
-                <span
-                    className={cn(
-                        "flex h-3 w-3 shrink-0 items-center justify-center transition-transform duration-200",
-                        !hasChildren && "opacity-0",
-                        isExpanded && "rotate-90",
-                    )}
-                    onClick={(e) => {
-                        // Allow toggling folder even if selecting it (though folders aren't selectable here)
-                        e.stopPropagation();
-                        onToggle(node.id);
-                    }}
-                >
-                    <ChevronRight size={10} strokeWidth={2.5} />
-                </span>
-
-                {/* Type Icon */}
-                <span
-                    className={cn(
-                        "flex items-center justify-center opacity-70",
-                        node.type === "pose" && "text-purple-400",
-                        node.type === "rig" && "text-yellow-400",
-                    )}
-                >
-                    <Icon size={12} strokeWidth={2} />
-                </span>
-
-                {/* Label */}
-                <span
-                    className={cn(
-                        "text-[11px] font-medium truncate flex-1 min-w-0",
-                        matchesQuery &&
-                        "text-yellow-400 underline decoration-yellow-400/50 underline-offset-2",
-                    )}
-                >
-                    {node.label}
-                </span>
-
-                {/* Actions (Hover) */}
-                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+        <TreeRow
+            depth={depth}
+            label={node.label}
+            hasChildren={hasChildren}
+            isExpanded={isExpanded}
+            isSelected={isSelected}
+            onToggle={() => onToggle(node.id)}
+            onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
+            highlightQuery={searchQuery}
+            icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
+            actions={
+                <>
                     {node.type === "pose" && (
                         <Button
                             variant="ghost"
@@ -188,10 +144,9 @@ function TreeRow({
                             Rig
                         </span>
                     )}
-                </div>
-            </div>
-
-            {/* Children */}
+                </>
+            }
+        >
             {hasChildren && isExpanded && (
                 <div className="flex flex-col">
                     {Array.from(node.children.values())
@@ -202,7 +157,7 @@ function TreeRow({
                             return a.label.localeCompare(b.label);
                         })
                         .map((child) => (
-                            <TreeRow
+                            <TreeRowWrapper
                                 key={child.id}
                                 node={child}
                                 depth={depth + 1}
@@ -216,7 +171,7 @@ function TreeRow({
                         ))}
                 </div>
             )}
-        </div>
+        </TreeRow>
     );
 }
 
@@ -515,29 +470,11 @@ export function VariablesPanel({
             <div className="flex flex-col h-full gap-0.5 p-1">
                 {/* Search Input */}
                 <div className="flex items-center gap-2 px-1 mb-1">
-                    <div className="relative flex-1 group h-7">
-                        <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                            <svg
-                                className="w-3.5 h-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <circle cx="11" cy="11" r="8" />
-                                <path d="m21 21-4.3-4.3" />
-                            </svg>
-                        </div>
-                        <input
-                            type="search"
-                            className="w-full h-full rounded bg-slate-900/50 border border-slate-800 hover:border-slate-700 focus:border-blue-500/50 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/20 transition-all font-medium"
-                            placeholder="Filter..."
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                        />
-                    </div>
+                    <PanelSearch
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Filter..."
+                    />
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -567,7 +504,7 @@ export function VariablesPanel({
                                 return a.label.localeCompare(b.label);
                             })
                             .map((child) => (
-                                <TreeRow
+                                <TreeRowWrapper
                                     key={child.id}
                                     node={child}
                                     depth={0}
