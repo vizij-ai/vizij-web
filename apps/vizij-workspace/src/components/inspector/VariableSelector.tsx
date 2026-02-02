@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from "react";
-import { Search, Folder, Box, Zap, ChevronRight, Activity } from "lucide-react";
+import { Folder, Box, Zap, Activity } from "lucide-react";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { Input, Button, Tabs } from "../ui";
+import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
 import { cn } from "../../utils/cn";
 import type {
   SceneObjectNode,
-  SceneObjectFeature,
 } from "../../scene/sceneGraph";
 
 // ----------------------------------------------------------------------------
@@ -54,20 +53,17 @@ export function VariableSelector({
           panelClassName="hidden"
           className="w-full"
         />
-        <div className="relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-          <Input
-            placeholder={
-              activeTab === "variables"
-                ? "Search variables..."
-                : "Search scene..."
-            }
-            className="pl-9 h-9 text-xs bg-slate-950/50 border-slate-800 focus:border-blue-500/50"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoFocus
-          />
-        </div>
+
+        <PanelSearch
+          value={search}
+          onChange={setSearch}
+          placeholder={
+            activeTab === "variables"
+              ? "Search variables..."
+              : "Search scene..."
+          }
+          className="h-9"
+        />
       </div>
 
       {/* Content Area */}
@@ -169,6 +165,23 @@ function VariablesList({
     });
   }, [managedStandardInputs, bindings, objects, search]);
 
+  // If we are searching, we probably want groups expanded by default
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Auto-expand on search
+  React.useEffect(() => {
+    if (search) {
+      setExpandedGroups(new Set(groupedVariables.map(g => g.label)));
+    }
+  }, [search, groupedVariables]);
+
+  const toggleGroup = (label: string) => {
+    const next = new Set(expandedGroups);
+    if (next.has(label)) next.delete(label);
+    else next.add(label);
+    setExpandedGroups(next);
+  };
+
   if (groupedVariables.length === 0) {
     return (
       <div className="p-8 text-center text-xs text-slate-500 italic">
@@ -178,41 +191,51 @@ function VariablesList({
   }
 
   return (
-    <div className="flex flex-col gap-4 p-2 pb-4">
-      {groupedVariables.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 px-2 py-1 border-b border-white/5 opacity-70">
-            <Box size={10} className="text-slate-500" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              {group.label}
-            </span>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            {group.vars.map((item) => (
-              <div
-                key={item.input.id}
-                className="flex items-center gap-2.5 p-2.5 hover:bg-blue-600/10 hover:text-blue-100 rounded-lg cursor-pointer group transition-all active:bg-blue-600/20 active:scale-[0.99]"
-                onClick={() =>
-                  onSelect({ type: "variable", id: item.input.id })
-                }
-              >
-                <Zap
-                  size={14}
-                  className="text-yellow-400/70 group-hover:text-yellow-400"
+    <div className="flex flex-col p-2 gap-0.5">
+      {groupedVariables.map((group) => {
+        const isExpanded = expandedGroups.has(group.label) || !!search;
+        return (
+          <TreeRow
+            key={group.label}
+            depth={0}
+            label={group.label}
+            hasChildren={true}
+            isExpanded={isExpanded}
+            onToggle={() => toggleGroup(group.label)}
+            icon={<Box size={10} className="text-slate-500" strokeWidth={2.5} />}
+            highlightQuery={search}
+            actions={
+              <span className="text-[9px] text-slate-500 font-mono">
+                {group.vars.length}
+              </span>
+            }
+          >
+            {/* 
+                   Custom rendering for children because TreeRow expects react nodes.
+                   We render these as leaf TreeRows.
+                */}
+            <div className="flex flex-col">
+              {group.vars.map(item => (
+                <TreeRow
+                  key={item.input.id}
+                  depth={1}
+                  label={item.input.label || item.input.id || ""}
+                  hasChildren={false}
+                  onToggle={() => { }} // No children
+                  onSelect={() => onSelect({ type: "variable", id: item.input.id })}
+                  icon={<Zap size={10} className="text-yellow-400/70" strokeWidth={2.5} />}
+                  highlightQuery={search}
+                  actions={
+                    <span className="text-[9px] text-slate-600 font-mono truncate max-w-[100px]">
+                      {item.input.id}
+                    </span>
+                  }
                 />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold truncate group-hover:text-blue-200">
-                    {item.input.label || item.input.id}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono truncate">
-                    {item.input.id}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+              ))}
+            </div>
+          </TreeRow>
+        )
+      })}
     </div>
   );
 }
@@ -243,11 +266,15 @@ function SceneTree({
     return matches;
   }, [objects, search]);
 
-  const toggle = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggle = (id: string, forceState?: boolean) => {
     const next = new Set(expandedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (forceState !== undefined) {
+      if (forceState) next.add(id);
+      else next.delete(id);
+    } else {
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+    }
     setExpandedIds(next);
   };
 
@@ -256,162 +283,94 @@ function SceneTree({
     if (!node) return null;
 
     const children = getChildren(nodeId);
-    const hasChildren = children.length > 0;
+    // Determine if it has "children" in the UI sense.
+    // It has children if there are sub-objects OR if there are features.
+    // But features are rendered inside the node's children block in my new design?
+    // Or as siblings?
+    // In `TreeRow`, `children` prop renders inside.
+    const hasSubObjects = children.length > 0;
+    const hasFeatures = node.features.length > 0;
+
+    // We treat features as children of the node for the tree view
+    const hasChildren = hasSubObjects || hasFeatures;
+
     const expanded = expandedIds.has(nodeId) || search.length > 0;
 
     // Show if search matches this node or any children
     const matchesSearch = !search || matchingIds.has(nodeId);
     const hasMatchingChild =
       !search ||
-      objects.some((o) => matchingIds.has(o.id) && o.parentId === nodeId);
+      objects.some((o) => matchingIds.has(o.id) && o.parentId === nodeId); // Approximate check.
 
+    // If searching, we should probably check if features match too, but for now stick to object matching logic
     if (search && !matchesSearch && !hasMatchingChild) return null;
 
-    return (
-      <div key={node.id} className="flex flex-col">
-        <SceneObjectRow
-          object={node}
-          depth={depth}
-          expanded={expanded}
-          hasChildren={hasChildren}
-          onToggle={toggle}
-          onSelect={onSelect}
-          isMatch={matchingIds.has(node.id)}
-        />
+    const isFace = node.type === "Face";
+    const Icon = isFace ? Activity : node.type === "Group" ? Folder : Box;
 
-        {expanded && hasChildren && (
+    return (
+      <TreeRow
+        key={node.id}
+        depth={depth}
+        label={node.name || node.id}
+        hasChildren={hasChildren}
+        isExpanded={expanded}
+        onToggle={() => toggle(node.id)}
+        highlightQuery={search}
+        icon={
+          <span
+            className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
+            title={node.type}
+          >
+            <Icon size={10} strokeWidth={2.5} />
+          </span>
+        }
+        actions={
+          hasFeatures && (
+            <span className="text-[9px] text-slate-500 font-mono">
+              {node.features.length} props
+            </span>
+          )
+        }
+      >
+        {expanded && (
           <div className="flex flex-col">
+            {/* Render Features first as "children" */}
+            {hasFeatures && (
+              <div className="flex flex-col border-l border-blue-500/10 ml-[5px] my-0.5">
+                {node.features.map(feature => (
+                  <div
+                    key={feature.id}
+                    className="flex items-center gap-2 py-1 px-2 ml-2 hover:bg-blue-600/10 hover:text-blue-100 rounded cursor-pointer text-slate-400 transition-all border border-transparent hover:border-blue-500/20 group/prop"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect({
+                        type: "property",
+                        objectId: node.id,
+                        featureId: feature.id,
+                        label: `${node.name} · ${feature.label}`,
+                      });
+                    }}
+                  >
+                    <span className="w-1 h-1 rounded-full bg-blue-500 group-hover/prop:scale-125 transition-transform" />
+                    <span className="text-[11px] font-medium truncate">
+                      {feature.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Render Object Children */}
             {children.map((child) => renderNode(child.id, depth + 1))}
           </div>
         )}
-      </div>
+      </TreeRow>
     );
   };
 
   return (
     <div className="flex flex-col p-2 pb-4">
       {rootIds.map((id) => renderNode(id, 0))}
-    </div>
-  );
-}
-
-function SceneObjectRow({
-  object,
-  depth,
-  expanded,
-  hasChildren,
-  onToggle,
-  onSelect,
-  isMatch,
-}: {
-  object: SceneObjectNode;
-  depth: number;
-  expanded: boolean;
-  hasChildren: boolean;
-  onToggle: (id: string, e: React.MouseEvent) => void;
-  onSelect: (s: VariableSelection) => void;
-  isMatch: boolean;
-}) {
-  const hasFeatures = object.features.length > 0;
-  const [showFeatures, setShowFeatures] = useState(false);
-
-  // Icon based on type
-  const isFace = object.type === "Face";
-  const Icon = isFace ? Activity : object.type === "Group" ? Folder : Box;
-
-  return (
-    <div className="flex flex-col">
-      <div
-        className={cn(
-          "group flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer select-none active:bg-slate-800/60",
-          "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200",
-        )}
-        style={{ marginLeft: `${depth * 12}px` }}
-        onClick={(e) => hasChildren && onToggle(object.id, e)}
-      >
-        <button
-          type="button"
-          className={cn(
-            "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
-            !hasChildren && "opacity-0 pointer-events-none",
-            expanded && "rotate-90",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(object.id, e);
-          }}
-        >
-          <ChevronRight size={10} />
-        </button>
-
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span
-            className={cn(
-              "text-[11px] font-medium truncate",
-              isMatch && "text-blue-300 font-bold",
-            )}
-          >
-            {object.name || object.id}
-          </span>
-
-          <span className="flex items-center gap-1.5 ml-auto opacity-70 group-hover:opacity-100 transition-opacity">
-            <span
-              className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
-              title={object.type}
-            >
-              <Icon size={10} />
-            </span>
-            {hasFeatures && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowFeatures(!showFeatures);
-                }}
-                className={cn(
-                  "px-1.5 h-4 flex items-center gap-1 rounded text-[9px] font-bold tracking-wider uppercase transition-colors",
-                  showFeatures
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-300",
-                )}
-              >
-                <Zap
-                  size={8}
-                  className={showFeatures ? "text-white" : "text-blue-500/70"}
-                />
-                Props
-              </button>
-            )}
-          </span>
-        </div>
-      </div>
-
-      {showFeatures && hasFeatures && (
-        <div
-          className="flex flex-col gap-1 py-1 pr-1 border-l border-blue-500/20 ml-2.5 my-1"
-          style={{ marginLeft: `${depth * 12 + 10}px` }}
-        >
-          {object.features.map((feature) => (
-            <div
-              key={feature.id}
-              className="flex items-center gap-2 p-1.5 pl-3 hover:bg-blue-600/10 hover:text-blue-100 rounded-lg cursor-pointer text-slate-400 transition-all border border-transparent hover:border-blue-500/20"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect({
-                  type: "property",
-                  objectId: object.id,
-                  featureId: feature.id,
-                  label: `${object.name} · ${feature.label}`,
-                });
-              }}
-            >
-              <span className="w-1 h-1 rounded-full bg-blue-500 group-hover:scale-125 transition-transform" />
-              <span className="text-[11px] font-medium truncate">
-                {feature.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
