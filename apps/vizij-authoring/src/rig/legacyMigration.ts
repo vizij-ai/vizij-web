@@ -1,5 +1,4 @@
 import {
-  STANDARD_RIG_INPUTS,
   createStandardRigInput,
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
@@ -8,10 +7,6 @@ import {
 } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PersistedAutoStandardInput } from "./persistence";
-
-const STANDARD_BLUEPRINT_PATHS = new Set(
-  STANDARD_RIG_INPUTS.map((input) => normalizeStandardRigInputPath(input.path)),
-);
 
 export function resolvePersistedAutoKey(
   sourceId?: string | null,
@@ -65,16 +60,11 @@ export function normalizePersistedStandardInputs(
     const normalizedSourcePath = normalizeStandardRigInputPath(
       rawSourcePath ?? "/custom/input",
     );
-    const isPresetBlueprint =
-      STANDARD_BLUEPRINT_PATHS.has(normalizedSourcePath);
-    const canonicalSourcePath = isPresetBlueprint
-      ? normalizedSourcePath
-      : stripStandardInputPathPrefix(normalizedSourcePath);
+    const canonicalSourcePath =
+      stripStandardInputPathPrefix(normalizedSourcePath);
     const rawPath = descriptor.path ?? descriptor.sourcePath ?? "/custom/input";
     const normalizedPath = normalizeStandardRigInputPath(rawPath);
-    const canonicalPath = isPresetBlueprint
-      ? normalizedPath
-      : stripStandardInputPathPrefix(normalizedPath);
+    const canonicalPath = stripStandardInputPathPrefix(normalizedPath);
     const canonicalId = createStandardRigInputFromPath(canonicalPath).id;
     const resolvedId = descriptor.id ?? canonicalId;
     if (descriptor.id && resolvedId && descriptor.id !== resolvedId) {
@@ -82,12 +72,7 @@ export function normalizePersistedStandardInputs(
     }
     const derivedGroup = deriveGroupFromNormalizedPath(canonicalPath);
     let resolvedGroup: string;
-    if (isPresetBlueprint) {
-      resolvedGroup =
-        descriptor.group && descriptor.group.length > 0
-          ? descriptor.group
-          : "standard";
-    } else if (descriptor.group && descriptor.group !== "standard") {
+    if (descriptor.group && descriptor.group !== "standard") {
       resolvedGroup = descriptor.group;
     } else if (derivedGroup && derivedGroup !== "standard") {
       resolvedGroup = derivedGroup;

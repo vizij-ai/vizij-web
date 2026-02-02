@@ -142,7 +142,11 @@ export function ImportExportWorkbench({
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
-  const { includeVizijBundle, includeImportedAnimations } = uiState;
+  const {
+    includeVizijBundle,
+    includeImportedAnimations,
+    skipDiscrepancyCheck,
+  } = uiState;
 
   const {
     alert: showAlert,
@@ -591,6 +595,8 @@ export function ImportExportWorkbench({
             error={error}
             onSelectFile={handleSelectFile}
             onClearError={onClearError}
+            skipDiscrepancyCheck={skipDiscrepancyCheck}
+            onSkipDiscrepancyCheckChange={uiActions.setSkipDiscrepancyCheck}
           />
 
           {/* <VizijBundleSummaryPanel summary={bundleSummary} /> */}

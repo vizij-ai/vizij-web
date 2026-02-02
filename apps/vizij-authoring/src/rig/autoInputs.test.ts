@@ -3,7 +3,7 @@ import type { AnimatableComponent, AnimatableValue } from "@vizij/utils";
 import { buildAutoRigInputBlueprints } from "./autoInputs";
 
 describe("buildAutoRigInputBlueprints", () => {
-  it("tags preset standard inputs under the standard root", () => {
+  it("returns no blueprints when called with empty inputs", () => {
     const result = buildAutoRigInputBlueprints(
       {},
       {} as Record<string, AnimatableValue>,
@@ -11,15 +11,8 @@ describe("buildAutoRigInputBlueprints", () => {
       {},
     );
 
-    const standardBlueprints = result.blueprints.filter(
-      (entry) => entry.metadata.elementType === "standard",
-    );
-    expect(standardBlueprints.length).toBeGreaterThan(0);
-    standardBlueprints.forEach((entry) => {
-      expect(entry.input.group).toBe("standard");
-      expect(entry.metadata.root).toBe("standard");
-    });
-    expect(result.roots).toContain("standard");
+    expect(result.blueprints).toHaveLength(0);
+    expect(result.roots).toHaveLength(0);
   });
 
   it("omits the standard prefix for generated metadata inputs", () => {

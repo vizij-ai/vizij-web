@@ -9,6 +9,7 @@ const baseState: AuthoringUiState = {
   includeVizijBundle: true,
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
+  skipDiscrepancyCheck: true,
 };
 
 describe("authoringUiReducer", () => {

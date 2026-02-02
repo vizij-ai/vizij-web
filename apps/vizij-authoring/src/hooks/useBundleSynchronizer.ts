@@ -7,12 +7,20 @@ import { prepareSpecForImport } from "../utils/graphImport";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";
 
+export interface ImportGraphSpecOptions {
+  skipDiscrepancyCheck?: boolean;
+}
+
 interface UseBundleSynchronizerOptions {
   faceId: string | null;
   rootId: string | null;
   loadedBundle: VizijBundleExtension | null;
   standardInputCount: number;
-  importGraphSpec: (spec: GraphSpec) => Promise<{
+  skipDiscrepancyCheck: boolean;
+  importGraphSpec: (
+    spec: GraphSpec,
+    options?: ImportGraphSpecOptions,
+  ) => Promise<{
     faceChanged: boolean;
     importedFaceId: string | null;
   } | void>;
@@ -31,6 +39,7 @@ export function useBundleSynchronizer({
   rootId,
   loadedBundle,
   standardInputCount,
+  skipDiscrepancyCheck,
   importGraphSpec,
   importPoseConfigFromData,
 }: UseBundleSynchronizerOptions) {
@@ -91,7 +100,9 @@ export function useBundleSynchronizer({
         try {
           const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
           const normalisedSpec = await normalizeGraphSpec(preparedSpec);
-          const result = await importGraphSpec(normalisedSpec);
+          const result = await importGraphSpec(normalisedSpec, {
+            skipDiscrepancyCheck,
+          });
           importedFaceIdFromRig = result?.importedFaceId ?? null;
           rigImportedRef.current = true;
         } catch (error) {
@@ -147,6 +158,7 @@ export function useBundleSynchronizer({
     importPoseConfigFromData,
     loadedBundle,
     rootId,
+    skipDiscrepancyCheck,
     standardInputCount,
   ]);
 }

@@ -53,10 +53,10 @@ describe("normalizePersistedStandardInputs", () => {
     const normalized = autoEntries.get("auto-mouth-pos-x");
     expect(normalized).toMatchObject({
       id: canonical.id,
-      path: canonical.path,
+      path: "/mouth/pos/x",
       sourceId: descriptor.sourceId,
-      sourcePath: canonical.path,
-      group: "standard",
+      sourcePath: "/mouth/pos/x",
+      group: "mouth",
       label: descriptor.label,
       defaultValue: descriptor.defaultValue,
     });
