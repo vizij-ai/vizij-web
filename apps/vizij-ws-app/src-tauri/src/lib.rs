@@ -113,6 +113,18 @@ fn list_displays() {
     }
 }
 
+fn warn_if_snap_env() {
+    let snap_name = std::env::var("SNAP_NAME").ok();
+    let snap = std::env::var("SNAP").ok();
+    let vscode_snap = std::env::var("VSCODE_SNAP_ORIG").ok();
+
+    if snap_name.is_some() || snap.is_some() || vscode_snap.is_some() {
+        log::warn!(
+            "Detected Snap environment. If the app fails to start with a libpthread/glibc error, run it from a non-snap terminal (e.g. apt-installed gnome-terminal)."
+        );
+    }
+}
+
 /// Start the WebSocket server
 #[tauri::command]
 async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
@@ -251,6 +263,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
+            warn_if_snap_env();
             let port = cli.port;
             // Resolve relative paths to absolute paths (URLs are passed through unchanged)
             let glb_source = cli.glb.clone().map(|src| {

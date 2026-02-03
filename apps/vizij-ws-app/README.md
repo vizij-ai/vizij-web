@@ -236,6 +236,22 @@ sudo apt-get install -y \
   libgtk-3-dev
 ```
 
+### Linux: libpthread / GLIBC_PRIVATE error when launching from VS Code
+
+If you see an error like:
+
+```
+symbol lookup error: /snap/core20/.../libpthread.so.0: undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
+```
+
+you are likely running the app from the Snap‑packaged VS Code terminal. The Snap runtime can override glibc resolution and break Tauri binaries.
+
+**Fix:** Run the app from a non‑snap terminal (for example, `gnome-terminal` installed via `apt`) or launch a non‑snap shell and run:
+
+```bash
+pnpm --filter "vizij-ws-app" run dev
+```
+
 ---
 
 ## License
