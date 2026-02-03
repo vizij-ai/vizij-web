@@ -50,7 +50,9 @@ export function Select({
             },
           )}
         >
-          <BaseSelect.Value placeholder={placeholder} className="block truncate text-slate-200 font-medium group-data-[placeholder]:text-slate-500" />
+          <BaseSelect.Value placeholder={placeholder} className="block truncate text-slate-200 font-medium group-data-[placeholder]:text-slate-500">
+            {options.find((o) => o.value === value)?.label}
+          </BaseSelect.Value>
           <BaseSelect.Icon className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
             <ChevronDown
               className="h-4 w-4 text-slate-500 transition-transform duration-200 group-data-[popup-open]:rotate-180"
