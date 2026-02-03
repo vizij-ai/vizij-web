@@ -369,8 +369,12 @@ export function InspectorContent() {
                             </div>
                         )}
                     />
-                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
-                        DRIVING {Object.keys(pose.values).length} VARIABLES
+                    <div className="flex items-center gap-2 px-1 mb-2">
+                        <div className="h-px bg-slate-800 flex-1" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            Driving {Object.keys(pose.values).length} Variables
+                        </span>
+                        <div className="h-px bg-slate-800 flex-1" />
                     </div>
 
                     <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
@@ -709,12 +713,13 @@ export function InspectorContent() {
                     </div>
 
                     <Button
-                        variant="secondary"
+                        variant="ghost"
                         size="sm"
-                        className="w-full mt-2 gap-2 border-slate-800 bg-slate-800/40 hover:bg-slate-800/60"
+                        className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group"
                         onClick={() => setShowSelector(true)}
                     >
-                        <Plus size={14} /> Add Variable
+                        <Plus size={14} className="group-hover:text-blue-400 transition-colors" />
+                        <span className="font-normal text-xs">Add Variable to Pose</span>
                     </Button>
                     <Modal
                         open={showSelector}
@@ -830,13 +835,18 @@ export function InspectorContent() {
                         )}
                     />
                     <div className="flex flex-col gap-2 flex-1 min-h-0">
-                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider flex items-center gap-2">
-                            <Sliders size={12} />
-                            Driving {dependents.length} properties
+                        <div className="flex items-center gap-2 px-1 py-1">
+                            <Sliders size={12} className="text-slate-500" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Driving {dependents.length} properties
+                            </span>
                         </div>
                         {dependents.length === 0 ? (
-                            <div className="text-xs text-slate-500 italic px-2">
-                                Not driving any scene properties
+                            <div className="flex flex-col items-center justify-center p-6 border border-dashed border-slate-800/50 rounded-lg bg-slate-900/20 gap-2">
+                                <Sliders size={24} className="text-slate-700" />
+                                <div className="text-xs text-slate-500 text-center">
+                                    Not driving any scene properties
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-slate-900/40 rounded p-1 border border-slate-800/50 flex-1">
@@ -862,12 +872,13 @@ export function InspectorContent() {
                         )}
 
                         <Button
-                            variant="secondary"
+                            variant="ghost"
                             size="sm"
-                            className="w-full mt-2 gap-2 border-slate-800 bg-slate-800/40 hover:bg-slate-800/60 shrink-0"
+                            className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
                             onClick={() => setShowSelector(true)}
                         >
-                            <Plus size={14} /> Add Driven Variable
+                            <Plus size={14} className="group-hover:text-blue-400 transition-colors" />
+                            <span className="font-normal text-xs">Add Driven Variable</span>
                         </Button>
                         <Modal
                             open={showSelector}

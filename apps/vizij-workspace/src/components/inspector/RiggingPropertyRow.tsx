@@ -46,8 +46,8 @@ export function ScrubbableLabel({
   return (
     <span
       className={cn(
-        "transition-colors",
-        onScrub ? "cursor-col-resize select-none" : "cursor-default",
+        "transition-colors box-border",
+        onScrub ? "cursor-ew-resize select-none" : "cursor-default",
         isScrubbing ? "text-blue-400" : "text-slate-300",
         onScrub && "hover:text-slate-100",
         className,
@@ -79,7 +79,7 @@ export function useScrub(
     onScrubStart?.();
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = "ew-resize";
   };
 
   const handleMouseMove = (e: MouseEvent) => {
@@ -115,7 +115,7 @@ export function RiggingPropertyRow({
   onExpandedChange,
   renderMainInput,
   renderDefaultInput,
-  defaultLabel = "Default",
+  defaultLabel = "Def",
   hasDifferentDefault,
   onResetToDefault,
   onSaveToDefault,
@@ -128,12 +128,6 @@ export function RiggingPropertyRow({
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = controlledExpanded ?? internalExpanded;
 
-  const { isScrubbing, handleMouseDown } = useScrub(
-    onScrub,
-    onScrubStart,
-    onScrubEnd,
-  );
-
   const handleToggle = () => {
     if (onExpandedChange) {
       onExpandedChange(!isExpanded);
@@ -145,50 +139,48 @@ export function RiggingPropertyRow({
   return (
     <div
       className={cn(
-        "flex flex-col border border-slate-800/40 bg-slate-900/20 rounded-lg overflow-hidden transition-colors hover:border-slate-800/60 @container",
+        "flex flex-col bg-slate-900/30 rounded border border-transparent hover:border-slate-800 transition-colors group/row @container",
+        isExpanded && "bg-slate-900/50 border-slate-800",
         className,
       )}
     >
-      <div className="flex flex-col @[250px]:flex-row @[250px]:items-center gap-1.5 p-1 @[250px]:p-0.5 @[250px]:pl-1.5 min-h-[24px]">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          {/* Expand Toggle or Icon */}
+      <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[32px]">
+        {/* Label Container */}
+        <div className="flex items-center gap-2 @[300px]:w-20 w-full flex-shrink-0 min-w-0">
           {renderDefaultInput ? (
             <BaseButton
               onClick={handleToggle}
-              className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 focus:outline-none cursor-pointer active:scale-90 active:bg-white/10"
-            >
-              {isExpanded ? (
-                <ChevronDown size={12} />
-              ) : (
-                <ChevronRight size={12} />
+              className={cn(
+                "p-0.5 -ml-1 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 cursor-pointer",
+                isExpanded && "text-slate-300"
               )}
+            >
+              {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </BaseButton>
           ) : (
-            icon && <span className="text-slate-500">{icon}</span>
+            <div className="w-3.5 flex justify-center text-slate-500">
+              {icon}
+            </div>
           )}
 
-          {/* Label Area with Scrubbing */}
-          <div className="flex items-center gap-1 transition-colors relative group/label">
-            {/* Modified Indicator */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {hasDifferentDefault && (
               <div className="w-1 h-1 rounded-full bg-blue-500 flex-shrink-0" />
             )}
-
             <ScrubbableLabel
               label={label}
               onScrub={onScrub}
               onScrubStart={onScrubStart}
               onScrubEnd={onScrubEnd}
-              className="text-[10px] font-medium truncate w-24"
+              className="text-xs font-medium truncate text-slate-400 select-none hover:text-white transition-colors"
             />
           </div>
         </div>
 
-        {/* Main Input Area */}
-        <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden px-1 @[250px]:px-0">
+        {/* Input Container */}
+        <div className="flex-1 min-w-0 flex items-center pr-1 w-full @[300px]:w-auto">
           {renderMainInput()}
 
-          {/* Quick Reset - Always visible if changed, even when expanded */}
           {hasDifferentDefault && onResetToDefault && (
             <BaseButton
               onClick={(e) => {
@@ -196,7 +188,7 @@ export function RiggingPropertyRow({
                 e.preventDefault();
                 onResetToDefault();
               }}
-              className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded cursor-pointer active:scale-90 active:bg-white/20"
+              className="ml-1 text-slate-500 hover:text-white p-1 hover:bg-white/10 rounded cursor-pointer transition-opacity"
               title="Reset to default"
             >
               <RotateCcw size={10} />
@@ -205,26 +197,33 @@ export function RiggingPropertyRow({
         </div>
       </div>
 
-      {/* Expanded Default View */}
       {isExpanded && renderDefaultInput && (
-        <div className="flex items-center gap-2 px-2 pb-2 pt-1 bg-black/10 border-t border-white/5">
-          <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wider w-[28px] text-center">
-            {defaultLabel}
-          </span>
-          <div className="flex-1">{renderDefaultInput()}</div>
-          {hasDifferentDefault && onSaveToDefault && (
-            <BaseButton
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onSaveToDefault();
-              }}
-              className="h-6 w-6 flex items-center justify-center text-blue-500 hover:text-blue-300 rounded hover:bg-blue-500/10 transition-colors cursor-pointer active:scale-90 active:bg-blue-500/20"
-              title="Save current value as default"
-            >
-              <Save size={12} />
-            </BaseButton>
-          )}
+        <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pb-2 pt-1 border-t border-white/5 mt-0.5 bg-black/20">
+          <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
+            <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider">
+              {defaultLabel}
+            </span>
+          </div>
+
+          <div className="flex-1 min-w-0 flex items-center gap-1 w-full @[300px]:w-auto">
+            <div className="flex-1 min-w-0">
+              {renderDefaultInput()}
+            </div>
+
+            {hasDifferentDefault && onSaveToDefault && (
+              <BaseButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onSaveToDefault();
+                }}
+                className="ml-1 p-1 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors flex-shrink-0"
+                title="Save to default"
+              >
+                <Save size={12} />
+              </BaseButton>
+            )}
+          </div>
         </div>
       )}
     </div>

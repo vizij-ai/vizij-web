@@ -161,7 +161,7 @@ function RiggingVectorRow({
     (c) =>
       c.isBound &&
       Math.abs((c.currentValue as number) - (c.defaultValue as number)) >
-        0.0001,
+      0.0001,
   );
 
   const handleReset = () => {
@@ -179,7 +179,7 @@ function RiggingVectorRow({
   };
 
   const renderInputs = (isDefault: boolean) => (
-    <div className="flex gap-0.5 flex-1">
+    <div className="flex gap-1.5 flex-1">
       {components.map((c, i) => {
         const val = isDefault ? c.defaultValue : c.currentValue;
         const canEdit = c.isBound;
@@ -223,8 +223,8 @@ function RiggingVectorRow({
             <input
               type="number"
               className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
-              value={typeof val === "number" ? Math.round(val * 100) / 100 : 0}
-              step={0.1}
+              value={typeof val === "number" ? parseFloat(val.toFixed(2)) : 0}
+              step={0.01}
               disabled={!canEdit}
               title={
                 !canEdit ? "Value is not driven by a rig input" : undefined

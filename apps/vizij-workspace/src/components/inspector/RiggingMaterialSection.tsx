@@ -172,7 +172,7 @@ function RiggingScalarRow({
         <input
           type="number"
           className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none pl-1"
-          value={typeof val === "number" ? Math.round(val * 100) / 100 : val}
+          value={typeof val === "number" ? parseFloat(val.toFixed(2)) : val}
           step={0.1}
           min={0}
           max={1} // Generally opacity is 0-1
@@ -378,7 +378,7 @@ function RiggingColorRow({
         </BasePopover.Root>
 
         {/* Individual Channels */}
-        <div className="flex gap-0.5 flex-1 min-w-0">
+        <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
             const val = isDefault ? c.defaultValue : c.currentValue;
             const canEdit = c.isBound;
@@ -427,7 +427,7 @@ function RiggingColorRow({
                   type="number"
                   className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
                   value={
-                    typeof val === "number" ? Math.round(val * 100) / 100 : 0
+                    typeof val === "number" ? parseFloat(val.toFixed(2)) : 0
                   }
                   step={0.01}
                   min={0}
