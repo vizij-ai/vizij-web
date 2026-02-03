@@ -94,7 +94,7 @@ export function TreeRow({
                         className={cn(
                             "text-[11px] font-medium truncate flex-1 min-w-0",
                             matchesQuery &&
-                            "text-yellow-500 dark:text-yellow-400 underline decoration-yellow-400/50 underline-offset-2",
+                            "bg-yellow-200/80 dark:bg-yellow-500/30 text-text-primary rounded-sm px-0.5 -mx-0.5",
                             isSelected && "text-accent",
                         )}
                         title={label}
