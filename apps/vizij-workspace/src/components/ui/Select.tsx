@@ -63,7 +63,10 @@ export function Select({
         <BaseSelect.Portal>
           <BaseSelect.Positioner sideOffset={4}>
             <BaseSelect.Popup
-              className="z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-slate-900 border border-slate-800 p-1 text-sm shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 origin-[var(--transform-origin)]"
+              className={cn(
+                "z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-slate-900 border border-slate-800 p-1 shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 origin-[var(--transform-origin)]",
+                size === "sm" ? "text-[11px]" : "text-sm",
+              )}
             >
               {options.map((option) => (
                 <BaseSelect.Item
@@ -71,7 +74,8 @@ export function Select({
                   value={option.value}
                   disabled={option.disabled}
                   className={cn(
-                    "group relative cursor-pointer select-none rounded-lg py-2 pl-10 pr-4 transition-colors outline-none",
+                    "group relative cursor-pointer select-none rounded-lg transition-colors outline-none",
+                    size === "sm" ? "py-1.5 pl-8 pr-3" : "py-2 pl-10 pr-4",
                     "data-[highlighted]:bg-blue-600/10 data-[highlighted]:text-blue-100",
                     "data-[selected]:bg-blue-600/20 data-[selected]:text-blue-100",
                     "text-slate-300",
@@ -91,9 +95,12 @@ export function Select({
                       </span>
                     )}
                   </div>
-                  <BaseSelect.ItemIndicator className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-400">
+                  <BaseSelect.ItemIndicator className={cn(
+                    "absolute inset-y-0 left-0 flex items-center text-blue-400",
+                    size === "sm" ? "pl-2.5" : "pl-3"
+                  )}>
                     <Check
-                      className="h-4 w-4"
+                      className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
                       aria-hidden="true"
                       strokeWidth={3}
                     />
