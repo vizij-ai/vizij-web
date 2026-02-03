@@ -1,7 +1,11 @@
 import fs from "fs";
 
-const snapEnv = Boolean(process.env.SNAP || process.env.SNAP_NAME || process.env.SNAP_VERSION);
-const vscodeSnapEnv = Boolean(process.env.VSCODE_SNAP_ORIG || process.env.SNAP_INSTANCE_NAME);
+const snapEnv = Boolean(
+  process.env.SNAP || process.env.SNAP_NAME || process.env.SNAP_VERSION,
+);
+const vscodeSnapEnv = Boolean(
+  process.env.VSCODE_SNAP_ORIG || process.env.SNAP_INSTANCE_NAME,
+);
 
 function readlinkSafe(p) {
   try {
@@ -45,9 +49,15 @@ for (let i = 0; i < 6; i += 1) {
 }
 
 const snapCorePresent = fs.existsSync("/snap/core20/current");
-const mountInfoShowsSnap = readFileSafe("/proc/self/mountinfo").includes("/snap/");
+const mountInfoShowsSnap = readFileSafe("/proc/self/mountinfo").includes(
+  "/snap/",
+);
 
-const likelySnap = snapEnv || vscodeSnapEnv || parentIsSnap || (snapCorePresent && mountInfoShowsSnap);
+const likelySnap =
+  snapEnv ||
+  vscodeSnapEnv ||
+  parentIsSnap ||
+  (snapCorePresent && mountInfoShowsSnap);
 
 if (likelySnap) {
   const lines = [

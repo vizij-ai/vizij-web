@@ -19,7 +19,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState("#737373");
   const [wsConnected, setWsConnected] = useState(false);
-  const [port] = useState(DEFAULT_PORT);
+  const [port, setPort] = useState(DEFAULT_PORT);
   const hasCheckedCliSource = useRef(false);
 
   // Load GLB from URL
@@ -124,6 +124,14 @@ function App() {
 
     const startServer = async () => {
       try {
+        invoke<number>("get_port")
+          .then((resolvedPort) => {
+            if (mounted) setPort(resolvedPort);
+          })
+          .catch(() => {
+            if (mounted) setPort(DEFAULT_PORT);
+          });
+
         const running = await invoke<boolean>("is_ws_running");
         if (mounted) setWsConnected(running);
 

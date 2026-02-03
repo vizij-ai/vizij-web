@@ -1,6 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{Parser, Subcommand};
 use log::{info, LevelFilter};
+use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
@@ -130,6 +131,7 @@ fn warn_if_snap_env() {
 async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     let port = state.port;
+    let addr = format!("127.0.0.1:{}", port);
 
     // Check if already running
     {
@@ -137,6 +139,10 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
         if cancel_token.is_some() {
             return Err("WebSocket server is already running".to_string());
         }
+    }
+
+    if TcpListener::bind(&addr).is_err() {
+        return Err(format!("Port {} is already in use", port));
     }
 
     let cancel_token = CancellationToken::new();

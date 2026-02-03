@@ -229,12 +229,12 @@ pub async fn run_server(
     state: Arc<Mutex<WsServerState>>,
     cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<(), String> {
-    let addr = format!("0.0.0.0:{}", port);
+    let addr = format!("127.0.0.1:{}", port);
     let listener = TcpListener::bind(&addr)
         .await
         .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
 
-    info!("WebSocket server listening on ws://{}", addr);
+    info!("WebSocket server listening on ws://localhost:{}", port);
 
     // Mark server as running
     {

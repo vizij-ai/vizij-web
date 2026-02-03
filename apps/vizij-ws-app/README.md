@@ -5,7 +5,7 @@ A standalone desktop application that renders Vizij avatars and accepts real-tim
 ## Features
 
 - Load any Vizij-compatible GLB avatar file
-- Real-time WebSocket server on configurable port (default `ws://localhost:9000`)
+- Real-time WebSocket server on configurable port (default `ws://localhost:9000`, localhost-only)
 - Control facial features, eye gaze, expressions via simple JSON messages
 - Cross-platform (Windows, macOS, Linux)
 - Fullscreen and multi-monitor support
@@ -173,6 +173,10 @@ npx wscat -c ws://localhost:9000
 ```
 
 Then paste one of the JSON payloads below and press Enter.
+
+### Test with Websocketking
+
+Send JSON messages using e.g. https://websocketking.com/. The server binds to `127.0.0.1`, so it only accepts localhost connections.
 
 Note: browser-based clients served over `https://` may fail to connect to `ws://` due to mixed-content rules.
 
