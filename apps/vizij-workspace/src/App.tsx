@@ -20,8 +20,7 @@ import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
-import { DiscrepancyWizard } from "./components/discrepancy/DiscrepancyWizard";
-import { PoseGraphRemapWizard } from "./components/poseRig/PoseGraphRemapWizard";
+import { AppWizards } from "./components/app/AppWizards";
 import {
   RigControllerProvider,
   useBindingAuthoring,
@@ -371,30 +370,17 @@ function AppContent({ loader }: AppContentProps) {
         }
       />
 
-      {discrepancyReview ? (
-        <DiscrepancyWizard
-          key={discrepancyReview.id}
-          state={discrepancyReview}
-          onResolve={resolveDiscrepancyReview}
-        />
-      ) : null}
-      {poseGraphRemap ? (
-        <PoseGraphRemapWizard
-          autoRows={poseGraphRemap.autoRows}
-          rows={poseGraphRemap.reviewRows}
-          standardInputs={standardInputs}
-          onApply={handlePoseGraphRemapApply}
-          onCancel={handlePoseGraphRemapCancel}
-        />
-      ) : null}
-      <ExportDialog
-        open={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
+      <AppWizards
+        showExportDialog={showExportDialog}
+        onCloseExportDialog={() => setShowExportDialog(false)}
         rootId={rootId}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
         canExport={canExport}
-        onImportPoseGraph={handleImportPoseGraphFile}
+        handleImportPoseGraphFile={handleImportPoseGraphFile}
+        poseGraphRemap={poseGraphRemap}
+        handlePoseGraphRemapApply={handlePoseGraphRemapApply}
+        handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
       />
 
       {/* Hidden File Input for Import */}

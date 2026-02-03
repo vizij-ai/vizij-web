@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { Plus, Folder, Zap, Activity, Play, ChevronRight } from "lucide-react";
+import { Plus, Folder, Zap, Activity, Play, ChevronRight, Search } from "lucide-react";
+import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { PanelSearch, TreeRow } from "../ui";
@@ -523,23 +524,23 @@ export function VariablesPanel({
                     )}
 
                     {visibleRoot.children.size === 0 && !showCreateOption ? (
-                        <div className="flex flex-col items-center justify-center h-24 text-text-muted text-xs gap-2 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
-                            {search.trim().length > 0 ? (
-                                <>
-                                    <span className="font-medium text-text-muted">No results</span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSearch("")}
-                                        className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                                    >
-                                        Clear
-                                    </Button>
-                                </>
-                            ) : (
-                                <span>No variables defined</span>
-                            )}
-                        </div>
+                        <EmptyState
+                            icon={Search}
+                            iconSize={18}
+                            title={search.trim().length > 0 ? "No results" : "No variables defined"}
+                            description={search.trim().length > 0 ? `No variables found matching "${search}"` : "Create new variables or import a model with poses."}
+                            action={search.trim().length > 0 ? (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSearch("")}
+                                    className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                                >
+                                    Clear Search
+                                </Button>
+                            ) : undefined}
+                            className="py-12"
+                        />
                     ) : (
                         Array.from(visibleRoot.children.values())
                             .sort((a, b) => {

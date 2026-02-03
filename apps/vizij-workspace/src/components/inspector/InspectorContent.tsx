@@ -22,51 +22,11 @@ import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
 import { RiggingMaterialSection } from "./RiggingMaterialSection";
+import { EmptyState } from "../ui/EmptyState";
+import { Info } from "lucide-react";
 
-// --- Conversion Helpers ---
-const rgbToHex = (r: number, g: number, b: number) => {
-    const toHex = (c: number) => {
-        const hex = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-    };
-    return "#" + toHex(r) + toHex(g) + toHex(b);
-};
-
-const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-        ? {
-            r: parseInt(result[1], 16) / 255,
-            g: parseInt(result[2], 16) / 255,
-            b: parseInt(result[3], 16) / 255,
-        }
-        : null;
-};
-
-// Helper to shorten labels when they repeat group context
-const cleanLabel = (label: string, groupLabel: string) => {
-    if (groupLabel === "Unassigned") return label;
-    const groupWords = groupLabel.toLowerCase().split(/[_\s]+/);
-    const labelWords = label.toLowerCase().split(/[_\s]+/);
-    let matchCount = 0;
-    for (let i = 0; i < Math.min(groupWords.length, labelWords.length); i++) {
-        if (
-            groupWords[i] === labelWords[i] ||
-            (groupWords[i].length > 2 && labelWords[i].startsWith(groupWords[i])) ||
-            (labelWords[i].length > 2 && groupWords[i].startsWith(labelWords[i]))
-        ) {
-            matchCount++;
-        } else {
-            break;
-        }
-    }
-    if (matchCount > 0) {
-        const originalWords = label.split(/[\s_]+/);
-        const remaining = originalWords.slice(matchCount);
-        if (remaining.length > 0) return remaining.join(" ");
-    }
-    return label;
-};
+import { rgbToHex, hexToRgb } from "../../utils/color";
+import { cleanLabel } from "../../utils/labels";
 
 type PoseVariableItem =
     | { type: "scalar"; varId: string; poseVal: number }
@@ -842,12 +802,13 @@ export function InspectorContent() {
                             </span>
                         </div>
                         {dependents.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 gap-2">
-                                <Sliders size={24} className="text-slate-700" />
-                                <div className="text-xs text-slate-500 text-center">
-                                    Not driving any scene properties
-                                </div>
-                            </div>
+                            <EmptyState
+                                icon={Sliders}
+                                iconSize={20}
+                                title="No Driven Properties"
+                                description="This variable isn't currently driving any scene properties."
+                                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                            />
                         ) : (
                             <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 flex-1">
                                 {dependents.map((d) => (
@@ -900,10 +861,12 @@ export function InspectorContent() {
 
     // Default: Empty State
     return (
-        <div className="flex flex-col items-center justify-center h-48 text-text-muted text-xs gap-3 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
-            <p className="font-medium text-slate-400">
-                Select an item to inspect details
-            </p>
-        </div>
+        <EmptyState
+            icon={Info}
+            iconSize={20}
+            title="No selection"
+            description="Select an object, pose, or rig to see its properties here."
+            className="h-full min-h-[300px]"
+        />
     );
 }

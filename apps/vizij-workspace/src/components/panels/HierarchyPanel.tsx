@@ -11,6 +11,8 @@ import { cn } from "../../utils/cn";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import { EmptyState } from "../ui/EmptyState";
+import { Search } from "lucide-react";
 
 interface HierarchyPanelProps {
     allowEditActions?: boolean;
@@ -500,25 +502,23 @@ export function HierarchyPanel({
                         ) : (
                             <>
                                 {!hasVisibleNodes && (
-                                    <div className="flex flex-col items-center justify-center h-48 text-text-muted text-xs gap-3 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
-                                        {search.trim().length > 0 ? (
-                                            <>
-                                                <span className="font-medium text-text-secondary">
-                                                    No results
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setSearch("")}
-                                                    className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                                                >
-                                                    Clear
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <span className="font-medium text-text-muted">Empty</span>
-                                        )}
-                                    </div>
+                                    <EmptyState
+                                        icon={Search}
+                                        iconSize={18}
+                                        title={search.trim().length > 0 ? "No results" : "Scene is empty"}
+                                        description={search.trim().length > 0 ? `No objects found matching "${search}"` : "Add objects to the scene to see them here."}
+                                        action={search.trim().length > 0 ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setSearch("")}
+                                                className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                                            >
+                                                Clear Search
+                                            </Button>
+                                        ) : undefined}
+                                        className="py-12"
+                                    />
                                 )}
                                 {rootNodes.map((node) => renderSubtree(node, 0))}
                             </>

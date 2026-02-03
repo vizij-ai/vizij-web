@@ -3,6 +3,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { Box, Folder, Zap, Activity } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "../../utils/cn";
+import { Tooltip } from "../ui/Tooltip";
 
 interface InspectorHeaderProps {
     name: string;
@@ -121,17 +122,17 @@ export function InspectorHeader({
     return (
         <div className="flex flex-col gap-0.5 mb-2 px-1">
             <div className="flex items-center gap-1.5">
-                {/* Type Badge / Icon */}
-                <div
-                    className={cn(
-                        "flex items-center justify-center w-5 h-5 rounded-sm select-none shrink-0 border",
-                        bgClass,
-                        iconClass,
-                    )}
-                    title={label}
-                >
-                    <Icon size={12} strokeWidth={2.5} />
-                </div>
+                <Tooltip content={label} side="right">
+                    <div
+                        className={cn(
+                            "flex items-center justify-center w-5 h-5 rounded-sm select-none shrink-0 border",
+                            bgClass,
+                            iconClass,
+                        )}
+                    >
+                        <Icon size={12} strokeWidth={2.5} />
+                    </div>
+                </Tooltip>
 
                 {/* Name & Path Container */}
                 <div className="flex flex-col flex-1 min-w-0">
