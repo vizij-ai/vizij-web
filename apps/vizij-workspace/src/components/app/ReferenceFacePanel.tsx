@@ -34,7 +34,7 @@ export function ReferenceFacePanel({
   );
 
   return (
-    <div className="w-full h-full bg-slate-900 border-slate-800 shadow-xl overflow-hidden flex flex-col pointer-events-auto relative">
+    <div className="w-full h-full bg-zinc-900 border-zinc-800 shadow-xl overflow-hidden flex flex-col pointer-events-auto relative">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -74,7 +74,7 @@ export function ReferenceFacePanel({
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg cursor-pointer"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
                   onClick={async () => {
                     try {
                       const res = await fetch("/assets/Hugo_Latest_Rigged.glb");
@@ -94,7 +94,7 @@ export function ReferenceFacePanel({
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-slate-600 shadow-lg cursor-pointer"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
                   onClick={async () => {
                     try {
                       const res = await fetch(

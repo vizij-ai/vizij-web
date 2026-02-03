@@ -43,8 +43,8 @@ export function TreeRow({
                 className={cn(
                     "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-pointer",
                     isSelected
-                        ? "bg-blue-600/20 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
-                        : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200",
+                        ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_var(--color-accent-subtle)]"
+                        : "text-text-muted hover:bg-bg-hover hover:text-text-primary",
                     className,
                 )}
                 style={{ paddingLeft: `${depth * 12 + 4}px`, ...style }}
@@ -62,7 +62,7 @@ export function TreeRow({
                 <button
                     type="button"
                     className={cn(
-                        "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-bg-active transition-transform duration-200",
                         !hasChildren && "opacity-0 pointer-events-none",
                         isExpanded && "rotate-90",
                     )}
@@ -94,8 +94,8 @@ export function TreeRow({
                         className={cn(
                             "text-[11px] font-medium truncate flex-1 min-w-0",
                             matchesQuery &&
-                            "text-yellow-400 underline decoration-yellow-400/50 underline-offset-2",
-                            isSelected && "text-blue-200",
+                            "text-yellow-500 dark:text-yellow-400 underline decoration-yellow-400/50 underline-offset-2",
+                            isSelected && "text-accent",
                         )}
                         title={label}
                     >

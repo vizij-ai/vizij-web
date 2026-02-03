@@ -28,9 +28,9 @@ export function Checkbox({
                 onCheckedChange={(val) => onChange(val === true)}
                 disabled={disabled}
                 className={cn(
-                    "flex h-4 w-4 appearance-none items-center justify-center rounded border bg-slate-900 outline-none transition-all",
-                    "border-slate-700 hover:border-slate-600 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-                    "data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white",
+                    "flex h-4 w-4 appearance-none items-center justify-center rounded border bg-zinc-900 outline-none transition-all",
+                    "border-border-default hover:border-border-hover focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app",
+                    "data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-accent-fg",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                 )}
             >
@@ -42,7 +42,7 @@ export function Checkbox({
                 <label
                     htmlFor={id}
                     className={cn(
-                        "text-xs font-medium text-slate-300",
+                        "text-xs font-medium text-zinc-300",
                         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer select-none",
                     )}
                     onClick={() => !disabled && onChange(!checked)}

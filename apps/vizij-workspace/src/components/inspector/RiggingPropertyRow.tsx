@@ -48,8 +48,8 @@ export function ScrubbableLabel({
       className={cn(
         "transition-colors box-border",
         onScrub ? "cursor-ew-resize select-none" : "cursor-default",
-        isScrubbing ? "text-blue-400" : "text-slate-300",
-        onScrub && "hover:text-slate-100",
+        isScrubbing ? "text-accent" : "text-text-muted",
+        onScrub && "hover:text-text-primary",
         className,
       )}
       onMouseDown={onScrub ? handleMouseDown : undefined}
@@ -139,8 +139,8 @@ export function RiggingPropertyRow({
   return (
     <div
       className={cn(
-        "flex flex-col bg-slate-900/30 rounded border border-transparent hover:border-slate-800 transition-colors group/row @container",
-        isExpanded && "bg-slate-900/50 border-slate-800",
+        "flex flex-col bg-bg-panel/30 rounded border border-transparent hover:border-border-hover transition-colors group/row @container",
+        isExpanded && "bg-bg-panel/50 border-border-default",
         className,
       )}
     >
@@ -151,28 +151,28 @@ export function RiggingPropertyRow({
             <BaseButton
               onClick={handleToggle}
               className={cn(
-                "p-0.5 -ml-1 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 cursor-pointer",
-                isExpanded && "text-slate-300"
+                "p-0.5 -ml-1 text-text-secondary hover:text-text-primary transition-colors rounded hover:bg-bg-hover cursor-pointer",
+                isExpanded && "text-text-primary"
               )}
             >
               {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </BaseButton>
           ) : (
-            <div className="w-3.5 flex justify-center text-slate-500">
+            <div className="w-3.5 flex justify-center text-zinc-500">
               {icon}
             </div>
           )}
 
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {hasDifferentDefault && (
-              <div className="w-1 h-1 rounded-full bg-blue-500 flex-shrink-0" />
+              <div className="w-1 h-1 rounded-full bg-accent flex-shrink-0" />
             )}
             <ScrubbableLabel
               label={label}
               onScrub={onScrub}
               onScrubStart={onScrubStart}
               onScrubEnd={onScrubEnd}
-              className="text-xs font-medium truncate text-slate-400 select-none hover:text-white transition-colors"
+              className="text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors"
             />
           </div>
         </div>
@@ -188,7 +188,7 @@ export function RiggingPropertyRow({
                 e.preventDefault();
                 onResetToDefault();
               }}
-              className="ml-1 text-slate-500 hover:text-white p-1 hover:bg-white/10 rounded cursor-pointer transition-opacity"
+              className="ml-1 text-zinc-500 hover:text-white p-1 hover:bg-white/10 rounded cursor-pointer transition-opacity"
               title="Reset to default"
             >
               <RotateCcw size={10} />
@@ -200,7 +200,7 @@ export function RiggingPropertyRow({
       {isExpanded && renderDefaultInput && (
         <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pb-2 pt-1 border-t border-white/5 mt-0.5 bg-black/20">
           <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
-            <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider">
+            <span className="text-[9px] uppercase font-bold text-text-secondary tracking-wider">
               {defaultLabel}
             </span>
           </div>
@@ -217,7 +217,7 @@ export function RiggingPropertyRow({
                   e.preventDefault();
                   onSaveToDefault();
                 }}
-                className="ml-1 p-1 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors flex-shrink-0"
+                className="ml-1 p-1 text-accent hover:text-accent-hover hover:bg-accent-subtle rounded transition-colors flex-shrink-0"
                 title="Save to default"
               >
                 <Save size={12} />

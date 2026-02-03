@@ -37,21 +37,21 @@ export function TrackRow({ track, duration }: TrackRowProps) {
   return (
     <div
       className={cn(
-        "relative h-9 bg-slate-900/40 rounded-lg border overflow-hidden hover:bg-slate-800/40 transition-all group select-none cursor-pointer active:scale-[0.998] active:brightness-95",
+        "relative h-9 bg-bg-panel/40 rounded-lg border overflow-hidden hover:bg-bg-secondary/40 transition-all group select-none cursor-pointer active:scale-[0.998] active:brightness-95",
         isSelected
-          ? "border-blue-500/50 bg-slate-800/30"
-          : "border-slate-800/50",
+          ? "border-accent/50 bg-bg-secondary/30"
+          : "border-border-default/50",
       )}
       onClick={handleTrackClick}
       ref={containerRef}
     >
       {/* Label / Header */}
-      <div className="absolute inset-y-0 left-0 w-48 bg-slate-900/80 border-r border-slate-800/80 z-10 flex items-center px-3">
+      <div className="absolute inset-y-0 left-0 w-48 bg-bg-panel/80 border-r border-border-default/80 z-10 flex items-center px-3">
         <div
           className="w-1.5 h-1.5 rounded-full mr-2 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
           style={{ backgroundColor: track.color }}
         />
-        <span className="text-[10px] font-bold text-slate-300 font-mono tracking-tight group-hover:text-white transition-colors truncate">
+        <span className="text-[10px] font-bold text-text-secondary font-mono tracking-tight group-hover:text-text-primary transition-colors truncate">
           {track.label}
         </span>
       </div>
@@ -66,12 +66,12 @@ export function TrackRow({ track, duration }: TrackRowProps) {
             <div
               key={kf.id}
               className={cn(
-                "absolute top-1/2 w-2 h-2 -ml-1 -mt-1 rotate-45 border border-slate-950 shadow-sm z-20 cursor-pointer hover:scale-125 transition-transform",
-                isKfSelected ? "bg-white border-blue-500 z-30" : "bg-slate-400",
+                "absolute top-1/2 w-2 h-2 -ml-1 -mt-1 rotate-45 border border-border-default shadow-sm z-20 cursor-pointer hover:scale-125 transition-transform",
+                isKfSelected ? "bg-text-primary border-accent z-30" : "bg-text-muted",
               )}
               style={{
                 left: `${leftPct}%`,
-                backgroundColor: isKfSelected ? "#fff" : track.color,
+                backgroundColor: isKfSelected ? "var(--bg-app)" : track.color,
               }}
               onClick={(e) => handleKeyframeClick(e, kf.id)}
               title={`Time: ${kf.time.toFixed(2)}s\nValue: ${kf.value.toFixed(2)}`}

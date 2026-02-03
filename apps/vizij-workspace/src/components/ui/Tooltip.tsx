@@ -93,7 +93,7 @@ export function Tooltip({
         createPortal(
           <div
             className={cn(
-              "fixed z-[100] min-w-[max-content] max-w-xs rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xl animate-in fade-in zoom-in-95 duration-100 pointer-events-none",
+              "fixed z-[100] min-w-[max-content] max-w-xs rounded-lg border border-border-default bg-bg-panel px-3 py-1.5 text-xs text-text-primary shadow-xl animate-in fade-in zoom-in-95 duration-100 pointer-events-none",
               className,
             )}
             style={{

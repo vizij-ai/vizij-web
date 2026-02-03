@@ -37,8 +37,8 @@ export function RiggingTransformSection({
   }
 
   return (
-    <div className="flex flex-col gap-0.5 p-1.5 bg-slate-900/40 rounded-lg border border-slate-800/50">
-      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 px-0.5">
+    <div className="flex flex-col gap-0.5 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50">
+      <div className="text-[9px] font-bold text-text-secondary uppercase tracking-wider mb-0.5 px-0.5">
         Transform
       </div>
 
@@ -188,8 +188,8 @@ function RiggingVectorRow({
           <div
             key={i}
             className={cn(
-              "flex items-center bg-slate-950/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
-              canEdit ? "focus-within:border-blue-500/50" : "opacity-70",
+              "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
+              canEdit ? "focus-within:border-accent/50" : "opacity-70",
             )}
           >
             <ScrubbableLabel
@@ -217,12 +217,12 @@ function RiggingVectorRow({
                     ? "text-green-500"
                     : c.componentLabel === "Z"
                       ? "text-blue-500"
-                      : "text-slate-500",
+                      : "text-text-secondary",
               )}
             />
             <input
               type="number"
-              className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
+              className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none"
               value={typeof val === "number" ? parseFloat(val.toFixed(2)) : 0}
               step={0.01}
               disabled={!canEdit}

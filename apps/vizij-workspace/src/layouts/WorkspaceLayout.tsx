@@ -47,10 +47,10 @@ export function WorkspaceLayout({
   const rightSidebarVisible = rightTopVisible || rightBottomVisible;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-background text-slate-200">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-bg-app text-text-primary">
       {/* MenuBar */}
       {menuBar && (
-        <div className="h-10 border-b border-border flex items-center px-1 bg-slate-900 shrink-0">
+        <div className="h-10 border-b border-border-default flex items-center px-1 bg-bg-panel shrink-0">
           {menuBar}
         </div>
       )}
@@ -68,14 +68,14 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="left-top"
                     >
-                      <div className="h-full border-r border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-r border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
                         {leftTopPanel}
                       </div>
                     </Panel>
                   )}
 
                   {leftTopVisible && leftBottomVisible && (
-                    <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
+                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
                   )}
 
                   {leftBottomVisible && (
@@ -84,14 +84,14 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="left-bottom"
                     >
-                      <div className="h-full border-r border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-r border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
                         {leftBottomPanel}
                       </div>
                     </Panel>
                   )}
                 </Group>
               </Panel>
-              <Separator className="w-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
+              <Separator className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
             </>
           )}
 
@@ -100,7 +100,7 @@ export function WorkspaceLayout({
             <Group orientation="vertical">
               {/* Top Toolbar Area */}
               {topPanel && (
-                <div className="bg-background border-b border-border">
+                <div className="bg-bg-app border-b border-border-default">
                   {topPanel}
                 </div>
               )}
@@ -111,14 +111,14 @@ export function WorkspaceLayout({
                 minSize={5}
                 id="viewport"
               >
-                <div className="h-full bg-background relative w-full">
+                <div className="h-full bg-bg-app relative w-full">
                   {viewport}
                 </div>
               </Panel>
 
               {bottomVisible && (
                 <>
-                  <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
+                  <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
                   {/* Bottom Timeline */}
                   <Panel
                     defaultSize={30}
@@ -126,7 +126,7 @@ export function WorkspaceLayout({
                     collapsible
                     id="bottom-panel"
                   >
-                    <div className="h-full border-t border-border bg-slate-900 overflow-auto">
+                    <div className="h-full border-t border-border-default bg-bg-panel overflow-auto">
                       {bottomPanel}
                     </div>
                   </Panel>
@@ -138,7 +138,7 @@ export function WorkspaceLayout({
           {/* Right Sidebar */}
           {rightSidebarVisible && (
             <>
-              <Separator className="w-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
+              <Separator className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
               <Panel
                 defaultSize={20}
                 minSize={5}
@@ -152,14 +152,14 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="right-top"
                     >
-                      <div className="h-full border-l border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-l border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
                         {rightTopPanel}
                       </div>
                     </Panel>
                   )}
 
                   {rightTopVisible && rightBottomVisible && (
-                    <Separator className="h-1 bg-slate-700 hover:bg-blue-600 transition-colors" />
+                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
                   )}
 
                   {rightBottomVisible && (
@@ -168,7 +168,7 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="right-bottom"
                     >
-                      <div className="h-full border-l border-border bg-slate-900 overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-l border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
                         {rightBottomPanel}
                       </div>
                     </Panel>

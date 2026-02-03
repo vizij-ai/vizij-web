@@ -349,14 +349,14 @@ export function InspectorContent() {
                                         size="sm"
                                         type="text"
                                         value={(blendAmount * 100).toFixed(0) + "%"}
-                                        className="bg-slate-950/80 border-slate-800/80 text-right font-mono text-slate-400"
+                                        className="bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
                                         readOnly
                                     />
                                 </div>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 w-6 p-0 text-slate-400 hover:text-white"
+                                    className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
                                     title="Play Pose (100%)"
                                     onClick={() => {
                                         if (blendAmount === 0) forceCaptureValues();
@@ -370,19 +370,19 @@ export function InspectorContent() {
                         )}
                     />
                     <div className="flex items-center gap-2 px-1 mb-2">
-                        <div className="h-px bg-slate-800 flex-1" />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                        <div className="h-px bg-border-default flex-1" />
+                        <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
                             Driving {Object.keys(pose.values).length} Variables
                         </span>
-                        <div className="h-px bg-slate-800 flex-1" />
+                        <div className="h-px bg-border-default flex-1" />
                     </div>
 
                     <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
                         {groupedVariables.map((group) => (
                             <div key={group.label} className="flex flex-col gap-2">
-                                <div className="flex items-center gap-2 px-1 py-1 border-b border-white/5">
-                                    <Box size={10} className="text-slate-500" />
-                                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                                <div className="flex items-center gap-2 px-1 py-1 border-b border-border-default/50">
+                                    <Box size={10} className="text-text-secondary" />
+                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">
                                         {group.label}
                                     </span>
                                 </div>
@@ -450,10 +450,10 @@ export function InspectorContent() {
                                                                     size="sm"
                                                                     value={liveVal} // Assuming liveVal is number, need check
                                                                     className={cn(
-                                                                        "w-full bg-slate-950/80 border-slate-800/80 text-right font-mono",
+                                                                        "w-full bg-bg-input/80 border-border-default/80 text-right font-mono",
                                                                         isDifferent
-                                                                            ? "text-blue-400 font-bold"
-                                                                            : "text-slate-400",
+                                                                            ? "text-accent font-bold"
+                                                                            : "text-text-muted",
                                                                     )}
                                                                     onChange={(val) => handleInputValueChange(varId, val)}
                                                                 />
@@ -474,13 +474,13 @@ export function InspectorContent() {
                                                                 onScrubStart={() => {
                                                                     scrubValuesRef.current[varId] = poseVal;
                                                                 }}
-                                                                className="h-full flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5 min-w-[60px]"
+                                                                className="h-full flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5 min-w-[60px]"
                                                             >
                                                                 <Input
                                                                     size="sm"
                                                                     type="text"
                                                                     value={poseVal.toFixed(2)}
-                                                                    className="border-none text-right font-mono text-[10px] text-slate-400 cursor-ew-resize bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
+                                                                    className="border-none text-right font-mono text-[10px] text-text-muted cursor-ew-resize bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                                                     onChange={(e) => {
                                                                         const v = parseFloat(e.target.value);
                                                                         if (!isNaN(v)) {
@@ -493,7 +493,7 @@ export function InspectorContent() {
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                className="h-6 w-6 p-0 text-slate-600 hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                                                className="h-6 w-6 p-0 text-text-secondary hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
                                                                 title="Remove from Pose"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -558,13 +558,13 @@ export function InspectorContent() {
                                                     <div className="flex items-center gap-2 flex-1 group/row">
                                                         <BasePopover.Root>
                                                             <BasePopover.Trigger
-                                                                className="w-8 h-4 rounded border border-slate-700 shadow-sm transition-transform hover:scale-105"
+                                                                className="w-8 h-4 rounded border border-border-default shadow-sm transition-transform hover:scale-105"
                                                                 style={{ backgroundColor: hex }}
                                                             />
                                                             <BasePopover.Portal>
                                                                 <BasePopover.Positioner side="bottom" align="end" sideOffset={5} className="z-[100]">
                                                                     <BasePopover.Popup
-                                                                        className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl mt-1"
+                                                                        className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl mt-1"
                                                                     >
                                                                         <HexColorPicker
                                                                             color={hex}
@@ -591,7 +591,7 @@ export function InspectorContent() {
                                                             ].map(({ c, ch }) => (
                                                                 <div
                                                                     key={ch}
-                                                                    className="flex-1 flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5"
+                                                                    className="flex-1 flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5"
                                                                 >
                                                                     <ScrubbableLabel
                                                                         label={ch}
@@ -644,7 +644,7 @@ export function InspectorContent() {
                                                                             ? (c?.poseVal ?? 0)
                                                                             : (inputValues[c?.varId ?? ""] ?? 0)
                                                                         ).toFixed(2)}
-                                                                        className="border-none text-right font-mono text-[9px] text-slate-300 bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
+                                                                        className="border-none text-right font-mono text-[9px] text-text-primary bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                                                         onChange={(e) => {
                                                                             const v = parseFloat(e.target.value);
                                                                             if (!isNaN(v) && c) {
@@ -664,7 +664,7 @@ export function InspectorContent() {
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="sm"
-                                                                    className="h-6 w-6 p-0 text-slate-600 hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                                                    className="h-6 w-6 p-0 text-text-secondary hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
                                                                     onClick={() =>
                                                                         item.components.forEach((c) =>
                                                                             removePoseInput(pose.id, c.varId),
@@ -715,10 +715,10 @@ export function InspectorContent() {
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group"
+                        className="w-full mt-2 gap-2 border border-dashed border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover hover:bg-bg-hover transition-all group"
                         onClick={() => setShowSelector(true)}
                     >
-                        <Plus size={14} className="group-hover:text-blue-400 transition-colors" />
+                        <Plus size={14} className="group-hover:text-accent transition-colors" />
                         <span className="font-normal text-xs">Add Variable to Pose</span>
                     </Button>
                     <Modal
@@ -842,14 +842,14 @@ export function InspectorContent() {
                             </span>
                         </div>
                         {dependents.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center p-6 border border-dashed border-slate-800/50 rounded-lg bg-slate-900/20 gap-2">
+                            <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 gap-2">
                                 <Sliders size={24} className="text-slate-700" />
                                 <div className="text-xs text-slate-500 text-center">
                                     Not driving any scene properties
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-slate-900/40 rounded p-1 border border-slate-800/50 flex-1">
+                            <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 flex-1">
                                 {dependents.map((d) => (
                                     <div
                                         key={d.targetId}
@@ -900,7 +900,7 @@ export function InspectorContent() {
 
     // Default: Empty State
     return (
-        <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
+        <div className="flex flex-col items-center justify-center h-48 text-text-muted text-xs gap-3 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
             <p className="font-medium text-slate-400">
                 Select an item to inspect details
             </p>

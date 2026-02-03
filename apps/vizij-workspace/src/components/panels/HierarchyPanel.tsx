@@ -170,7 +170,7 @@ export function HierarchyPanel({
 
             const icon = (
                 <span
-                    className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
+                    className="flex items-center justify-center w-4 h-4 bg-accent/10 text-accent rounded-sm select-none border border-accent/20"
                     title={typeLabel}
                 >
                     <Icon size={10} strokeWidth={2.5} />
@@ -201,13 +201,13 @@ export function HierarchyPanel({
                     actions={
                         <>
                             <span
-                                className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
+                                className="flex items-center justify-center w-4 h-4 bg-accent/10 text-accent rounded-sm select-none border border-accent/20"
                                 title={typeLabel}
                             >
                                 <Icon size={10} strokeWidth={2.5} />
                             </span>
                             {node.features.length > 0 && (
-                                <span className="text-[9px] text-slate-500 font-mono">
+                                <span className="text-[9px] text-text-muted font-mono">
                                     {node.features.length}
                                 </span>
                             )}
@@ -254,18 +254,18 @@ export function HierarchyPanel({
                 hasChildren={true}
                 isExpanded={isMainExpanded}
                 onToggle={() => toggleNode("virtual_main_face")}
-                icon={<Folder size={12} className="text-blue-400" />}
+                icon={<Folder size={12} className="text-accent" />}
                 actions={
-                    <span className="text-[9px] text-slate-500 font-mono ml-auto">
+                    <span className="text-[9px] text-text-muted font-mono ml-auto">
                         {objects.length}
                     </span>
                 }
-                className="text-blue-200"
+                className="text-text-secondary"
             >
                 {isMainExpanded && (
-                    <div className="flex flex-col border-l border-slate-800/50 ml-3 pl-1">
+                    <div className="flex flex-col border-l border-border-default/50 ml-3 pl-1">
                         {!hasVisibleNodes && (
-                            <div className="py-2 px-6 text-xs text-slate-500 italic">
+                            <div className="py-2 px-6 text-xs text-text-muted italic">
                                 Empty or no match
                             </div>
                         )}
@@ -294,15 +294,15 @@ export function HierarchyPanel({
                     className="text-purple-200"
                 >
                     {isRefExpanded && (
-                        <div className="flex flex-col border-l border-slate-800/50 ml-3 pl-1">
+                        <div className="flex flex-col border-l border-border-default/50 ml-3 pl-1">
                             <div className="py-1 px-2 flex items-center gap-2">
-                                <span className="text-[10px] text-slate-500">File:</span>
+                                <span className="text-[10px] text-text-muted">File:</span>
                                 <span
                                     className={cn(
                                         "text-[10px] font-mono",
                                         referenceFace.file
-                                            ? "text-slate-300"
-                                            : "text-slate-600 italic",
+                                            ? "text-text-primary"
+                                            : "text-text-muted italic",
                                     )}
                                 >
                                     {fileLabel}
@@ -328,7 +328,7 @@ export function HierarchyPanel({
         >
             <div className="flex flex-col h-full gap-1 p-1">
                 {allowEditActions && selectedId && (
-                    <div className="flex items-center gap-1 p-1 rounded bg-blue-900/10 border border-blue-500/20 mb-1 mx-1">
+                    <div className="flex items-center gap-1 p-1 rounded bg-accent/10 border border-accent/20 mb-1 mx-1">
                         <button
                             type="button"
                             onClick={() => onToggleSelectionGlow(!showSelectionGlow)}
@@ -336,7 +336,7 @@ export function HierarchyPanel({
                                 "flex items-center justify-center h-6 w-6 rounded hover:bg-white/5 transition-colors",
                                 showSelectionGlow
                                     ? "text-yellow-400"
-                                    : "text-slate-400 hover:text-slate-300",
+                                    : "text-text-muted hover:text-text-primary",
                             )}
                             title="Toggle Selection Glow"
                         >
@@ -354,11 +354,11 @@ export function HierarchyPanel({
                                 <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                             </svg>
                         </button>
-                        <div className="w-px h-4 bg-blue-500/20 mx-1" />
+                        <div className="w-px h-4 bg-accent/20 mx-1" />
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20"
+                            className="h-6 w-6 p-0 text-text-muted hover:text-accent hover:bg-accent/20"
                             onClick={handleDuplicateSelection}
                             title="Duplicate Selection"
                         >
@@ -379,7 +379,7 @@ export function HierarchyPanel({
                         <BasePopover.Root open={isMoveOpen} onOpenChange={setIsMoveOpen}>
                             <BasePopover.Trigger
                                 className={cn(
-                                    "h-6 w-6 p-0 flex items-center justify-center rounded text-slate-400 hover:text-blue-300 hover:bg-blue-500/20 data-[state=open]:text-blue-300 data-[state=open]:bg-blue-500/20 transition-colors",
+                                    "h-6 w-6 p-0 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/20 data-[state=open]:text-accent data-[state=open]:bg-accent/20 transition-colors",
                                 )}
                                 title="Move Selection"
                             >
@@ -404,12 +404,12 @@ export function HierarchyPanel({
                             <BasePopover.Portal>
                                 <BasePopover.Positioner side="right" align="start" sideOffset={5}>
                                     <BasePopover.Popup
-                                        className="w-64 p-3 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
+                                        className="w-64 p-3 bg-bg-panel border border-border-default rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
                                     >
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-medium text-slate-400">
+                                            <span className="text-[10px] font-medium text-text-muted">
                                                 Move{" "}
-                                                <span className="text-blue-300 truncate inline-block max-w-[120px] align-bottom">
+                                                <span className="text-accent truncate inline-block max-w-[120px] align-bottom">
                                                     {selectedNode?.name || selectedNode?.id}
                                                 </span>{" "}
                                                 to under:
@@ -500,23 +500,23 @@ export function HierarchyPanel({
                         ) : (
                             <>
                                 {!hasVisibleNodes && (
-                                    <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs gap-3 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
+                                    <div className="flex flex-col items-center justify-center h-48 text-text-muted text-xs gap-3 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
                                         {search.trim().length > 0 ? (
                                             <>
-                                                <span className="font-medium text-slate-400">
+                                                <span className="font-medium text-text-secondary">
                                                     No results
                                                 </span>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => setSearch("")}
-                                                    className="h-6 text-[10px] text-blue-400 hover:text-blue-300"
+                                                    className="h-6 text-[10px] text-accent hover:text-accent-hover"
                                                 >
                                                     Clear
                                                 </Button>
                                             </>
                                         ) : (
-                                            <span className="font-medium text-slate-400">Empty</span>
+                                            <span className="font-medium text-text-muted">Empty</span>
                                         )}
                                     </div>
                                 )}

@@ -114,7 +114,7 @@ export function AnimationPanel() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-slate-500 hover:text-red-400"
+        className="h-6 w-6 text-zinc-500 hover:text-red-400"
         onClick={handleDeleteTrack}
         disabled={!selectedTrackId}
         title="Delete Selected Track"
@@ -124,7 +124,7 @@ export function AnimationPanel() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-slate-500 hover:text-slate-200"
+        className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
         onClick={() => setShowVariableSelector(true)}
         title="Add Track"
       >
@@ -133,7 +133,7 @@ export function AnimationPanel() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-slate-500 hover:text-slate-200"
+        className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
       >
         <Settings2 className="h-3.5 w-3.5" />
       </Button>
@@ -150,11 +150,11 @@ export function AnimationPanel() {
     >
       <div className="flex flex-col h-full gap-2 p-1">
         <div className="flex items-center gap-2 px-1">
-          <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800 shadow-sm">
+          <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 shadow-sm">
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -173,23 +173,23 @@ export function AnimationPanel() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
-          <div className="h-6 w-px bg-slate-800/50 mx-2" />
+          <div className="h-6 w-px bg-zinc-800/50 mx-2" />
 
-          <div className="flex items-center gap-2 bg-slate-900/50 px-3 py-1 rounded-lg border border-slate-800/50">
-            <div className="flex items-baseline gap-1 font-mono text-slate-300">
+          <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800/50">
+            <div className="flex items-baseline gap-1 font-mono text-zinc-300">
               <span className="text-sm font-bold tracking-tight">
                 {formatTime(currentTime)}
               </span>
-              <span className="text-[10px] text-slate-600 font-bold mx-1">
+              <span className="text-[10px] text-zinc-600 font-bold mx-1">
                 /
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-zinc-500">
                 {formatTime(duration)}
               </span>
             </div>
@@ -222,15 +222,15 @@ export function AnimationPanel() {
             if (!track || !keyframe) return null;
 
             return (
-              <div className="bg-slate-900/80 border-t border-slate-800 p-2 grid grid-cols-2 gap-4 backdrop-blur-sm">
+              <div className="bg-zinc-900/80 border-t border-zinc-800 p-2 grid grid-cols-2 gap-4 backdrop-blur-sm">
                 <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 w-12">
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
                     Time
                   </span>
                   <input
                     type="number"
                     step="0.1"
-                    className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:border-blue-500 outline-none"
+                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
                     value={keyframe.time}
                     onChange={(e) =>
                       updateKeyframe(track.id, keyframe.id, {
@@ -240,13 +240,13 @@ export function AnimationPanel() {
                   />
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 w-12">
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
                     Value
                   </span>
                   <input
                     type="number"
                     step="0.01"
-                    className="flex-1 bg-slate-950/50 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:border-blue-500 outline-none"
+                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
                     value={keyframe.value}
                     onChange={(e) =>
                       updateKeyframe(track.id, keyframe.id, {

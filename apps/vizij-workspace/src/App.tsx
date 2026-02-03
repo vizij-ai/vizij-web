@@ -295,8 +295,8 @@ function AppContent({ loader }: AppContentProps) {
           <PanelResizeHandle
             className={
               viewerSplitVertical
-                ? "w-1 bg-slate-800 hover:bg-blue-500 transition-colors"
-                : "h-1 bg-slate-800 hover:bg-blue-500 transition-colors"
+                ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
+                : "h-1 bg-border-default hover:bg-border-hover transition-colors"
             }
           />
           <ResizablePanel defaultSize={30} minSize={20}>
@@ -352,7 +352,7 @@ function AppContent({ loader }: AppContentProps) {
         }
         // Center
         topPanel={
-          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-slate-900/50"></div>
+          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
         }
         viewport={viewerContent}
         bottomVisible={panels.animation.isVisible}

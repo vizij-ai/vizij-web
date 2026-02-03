@@ -36,10 +36,10 @@ export function Switch({
         onCheckedChange={onChange}
         disabled={disabled}
         className={cn(
-          "relative inline-flex shrink-0 cursor-pointer rounded-full border border-slate-700 bg-slate-800 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50",
+          "relative inline-flex shrink-0 cursor-pointer rounded-full border border-border-default bg-bg-input transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50",
           checked
-            ? "bg-blue-600 border-blue-600"
-            : "group-hover:border-slate-600",
+            ? "bg-accent border-accent"
+            : "group-hover:border-zinc-600",
           {
             "h-4.5 w-8": size === "sm",
             "h-5.5 w-10": size === "md",
@@ -48,7 +48,7 @@ export function Switch({
       >
         <BaseSwitch.Thumb
           className={cn(
-            "pointer-events-none inline-block transform rounded-full bg-slate-400 shadow ring-0 transition duration-200 ease-in-out",
+            "pointer-events-none inline-block transform rounded-full bg-zinc-400 shadow ring-0 transition duration-200 ease-in-out",
             checked ? "bg-white" : "translate-x-1",
             {
               "h-2.5 w-2.5 translate-y-[2px]": size === "sm",
@@ -66,12 +66,12 @@ export function Switch({
           onClick={() => !disabled && onChange(!checked)}
         >
           {label && (
-            <span className="text-[13px] font-bold text-slate-200 group-hover:text-slate-100 transition-colors">
+            <span className="text-[13px] font-bold text-zinc-200 group-hover:text-zinc-100 transition-colors">
               {label}
             </span>
           )}
           {hint && (
-            <span className="text-[10px] text-slate-500 leading-tight font-medium">
+            <span className="text-[10px] text-zinc-500 leading-tight font-medium">
               {hint}
             </span>
           )}

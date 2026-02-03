@@ -21,10 +21,10 @@ type BaseProps = {
 export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
   PropsWithChildren<
     BaseProps &
-      Omit<
-        ComponentPropsWithoutRef<TTag>,
-        "as" | "children" | "title" | "description" | "badge" | "actions"
-      >
+    Omit<
+      ComponentPropsWithoutRef<TTag>,
+      "as" | "children" | "title" | "description" | "badge" | "actions"
+    >
   >;
 
 /**
@@ -62,7 +62,7 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-200",
+        "flex flex-col gap-3 p-3 bg-bg-panel border border-border-default rounded-xl text-text-primary",
         className,
       )}
       {...rest}
@@ -71,13 +71,13 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
         <header className="flex justify-between items-center gap-4 min-h-[24px]">
           <div className="flex items-center gap-2 pl-1">
             {title ? (
-              <p className="text-sm font-semibold text-slate-200 m-0 leading-tight pl-2">
+              <p className="text-sm font-semibold text-text-primary m-0 leading-tight pl-2">
                 {title}
               </p>
             ) : null}
             {description ? (
               <Tooltip content={description} side="right">
-                <Info className="w-3.5 h-3.5 text-slate-500 hover:text-blue-400 transition-colors cursor-help" />
+                <Info className="w-3.5 h-3.5 text-text-secondary hover:text-accent transition-colors cursor-help" />
               </Tooltip>
             ) : null}
           </div>

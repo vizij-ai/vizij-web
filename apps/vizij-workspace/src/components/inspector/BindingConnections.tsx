@@ -103,8 +103,8 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     return null;
 
   return (
-    <div className="flex flex-col gap-3 p-2 mt-2 border-t border-slate-800/50">
-      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+    <div className="flex flex-col gap-3 p-2 mt-2 border-t border-border-default/50">
+      <label className="text-[10px] font-bold text-text-secondary uppercase flex items-center gap-1">
         <LinkIcon size={10} />
         Connected To
       </label>
@@ -145,7 +145,7 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
         {/* Rigs */}
         {connections.rigs.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className="text-[9px] text-slate-600 font-medium px-1">
+            <span className="text-[9px] text-text-muted font-medium px-1">
               RIGS
             </span>
             {connections.rigs.map((rig) => (
@@ -153,7 +153,7 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 key={rig.id}
                 variant="secondary"
                 size="sm"
-                className="h-auto py-1 text-[10px] px-2 bg-slate-800/30 hover:bg-blue-600/20 hover:text-blue-300 border-slate-700/50 hover:border-blue-500/30 transition-colors justify-start"
+                className="h-auto py-1 text-[10px] px-2 bg-bg-panel/30 hover:bg-accent-subtle hover:text-accent border-border-default/50 hover:border-accent/30 transition-colors justify-start"
                 onClick={() => {
                   handleSelectRig(rig.id);
                   handleClearSelection();
@@ -161,7 +161,7 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
               >
                 <div className="flex flex-col items-start gap-0.5">
                   <div className="flex items-center gap-1.5 font-semibold">
-                    <Box size={10} className="text-blue-400" />
+                    <Box size={10} className="text-accent" />
                     {rig.label}
                   </div>
                   <span className="text-[9px] opacity-50 truncate max-w-[160px]">

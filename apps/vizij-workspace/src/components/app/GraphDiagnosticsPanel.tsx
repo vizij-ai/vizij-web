@@ -163,13 +163,13 @@ export function GraphDiagnosticsPanel() {
   }, []);
 
   return (
-    <Card className="bg-slate-900 border border-slate-800 shadow-md">
-      <CardHeader className="flex flex-row items-start justify-between pb-4 border-b border-slate-800">
+    <Card className="bg-bg-panel border border-border-default shadow-md">
+      <CardHeader className="flex flex-row items-start justify-between pb-4 border-b border-border-default">
         <div className="space-y-1">
-          <CardTitle className="text-sm font-bold text-slate-100">
+          <CardTitle className="text-sm font-bold text-text-primary">
             Graph Diagnostics
           </CardTitle>
-          <CardDescription className="text-xs text-slate-500">
+          <CardDescription className="text-xs text-text-muted">
             Analyze compiled graph status and debug configuration issues.
           </CardDescription>
         </div>
@@ -180,7 +180,7 @@ export function GraphDiagnosticsPanel() {
             onClick={handleDownloadIr}
             title="Download IR Graph"
           >
-            <Download className="h-4 w-4 text-slate-400" />
+            <Download className="h-4 w-4 text-text-muted" />
           </Button>
           <Button
             variant="ghost"
@@ -188,7 +188,7 @@ export function GraphDiagnosticsPanel() {
             onClick={() => setInspectorOpen((prev) => !prev)}
             disabled={!graphReport}
             title="Open Inspector"
-            className={cn(inspectorOpen && "bg-blue-500/10 text-blue-400")}
+            className={cn(inspectorOpen && "bg-accent-subtle text-accent")}
           >
             <Search className="h-4 w-4" />
           </Button>
@@ -209,9 +209,9 @@ export function GraphDiagnosticsPanel() {
         </div>
 
         {issueEntries.length > 0 ? (
-          <div className="flex items-center justify-between gap-4 p-4 bg-slate-900/40 border border-white/5 rounded-xl">
-            <div className="text-sm text-slate-200">
-              <strong className="text-blue-400">{totalIssueCount}</strong> issue
+          <div className="flex items-center justify-between gap-4 p-4 bg-bg-secondary/40 border border-border-subtle rounded-xl">
+            <div className="text-sm text-text-secondary">
+              <strong className="text-accent">{totalIssueCount}</strong> issue
               {totalIssueCount === 1 ? "" : "s"} across {issueEntries.length}{" "}
               binding{issueEntries.length === 1 ? "" : "s"}
             </div>
@@ -221,14 +221,14 @@ export function GraphDiagnosticsPanel() {
               onClick={() => setIssuePanelOpen((previous) => !previous)}
               className={cn(
                 "h-8 text-xs font-bold uppercase tracking-wider",
-                issuePanelOpen && "text-blue-400",
+                issuePanelOpen && "text-accent",
               )}
             >
               {issueToggleLabel}
             </Button>
           </div>
         ) : (
-          <p className="text-xs text-slate-500 italic px-4">
+          <p className="text-xs text-text-muted italic px-4">
             Build the rig to capture a machine report and populate diagnostics.
           </p>
         )}
@@ -281,10 +281,10 @@ function IssueListPanel({
   );
 
   return (
-    <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-6">
+    <div className="bg-bg-secondary/40 border border-border-default rounded-xl p-5 flex flex-col gap-6">
       <div className="flex flex-wrap gap-4 justify-between items-end">
         <div className="flex flex-col gap-2 flex-1 min-w-[240px]">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
             Filter binding issues
           </span>
           <Input
@@ -294,13 +294,13 @@ function IssueListPanel({
             className="h-9"
           />
         </div>
-        <span className="text-[10px] font-bold text-slate-500 mb-2">
+        <span className="text-[10px] font-bold text-text-muted mb-2">
           Showing {entries.length} of {totalTargets} targets ({totalIssues}{" "}
           issues)
         </span>
       </div>
       {entries.length === 0 ? (
-        <p className="text-center py-12 text-slate-500 text-sm italic bg-slate-950/20 rounded-lg border border-dashed border-white/5">
+        <p className="text-center py-12 text-text-muted text-sm italic bg-bg-secondary/20 rounded-lg border border-dashed border-border-default">
           No bindings match the current filter.
         </p>
       ) : (
@@ -311,11 +311,11 @@ function IssueListPanel({
               title={entry.label}
               description={
                 <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                  <code className="text-[10px] bg-slate-950/60 px-1.5 py-0.5 rounded border border-white/5 text-blue-400 font-mono">
+                  <code className="text-[10px] bg-bg-panel/60 px-1.5 py-0.5 rounded border border-border-default text-accent font-mono">
                     {entry.targetId}
                   </code>
                   {entry.rootKey ? (
-                    <span className="text-[10px] text-slate-500 font-medium tracking-tight">
+                    <span className="text-[10px] text-text-muted font-medium tracking-tight">
                       · {entry.rootKey}
                     </span>
                   ) : null}
@@ -349,7 +349,7 @@ function IssueListPanel({
                 {entry.issues.map((issue, index) => (
                   <li
                     key={`${entry.targetId}-${index}`}
-                    className="text-[11px] text-slate-400 flex gap-2"
+                    className="text-[11px] text-text-secondary flex gap-2"
                   >
                     <span className="text-red-500 shrink-0 mt-0.5">●</span>
                     {issue}
@@ -514,17 +514,17 @@ function IrInspectorDrawer({
   return (
     <div
       className={cn(
-        "bg-slate-900 shadow-2xl border-t border-white/5 overflow-y-auto flex-col gap-6 p-6 transition-all duration-300",
+        "bg-bg-panel shadow-2xl border-t border-border-default overflow-y-auto flex-col gap-6 p-6 transition-all duration-300",
         open ? "flex h-[80vh] opacity-100" : "h-0 opacity-0 overflow-hidden",
       )}
       aria-hidden={!open}
     >
       <div className="flex justify-between items-start">
         <div className="max-w-xl">
-          <h3 className="text-lg font-bold text-slate-100 tracking-tight">
+          <h3 className="text-lg font-bold text-text-primary tracking-tight">
             IR Inspector
           </h3>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed font-medium">
+          <p className="text-xs text-text-muted mt-1 leading-relaxed font-medium">
             Review machine report metadata, diff against saved snapshots, and
             generate bug report templates.
           </p>
@@ -535,7 +535,7 @@ function IrInspectorDrawer({
       </div>
 
       {!report ? (
-        <p className="text-center py-12 text-slate-500 text-sm italic bg-slate-950/20 rounded-xl border border-dashed border-white/5">
+        <p className="text-center py-12 text-text-muted text-sm italic bg-bg-secondary/20 rounded-xl border border-dashed border-border-default">
           Build the rig to capture an IR snapshot before using the inspector.
         </p>
       ) : (
@@ -551,10 +551,10 @@ function IrInspectorDrawer({
               { label: "Registry", value: registryVersion },
             ].map((item) => (
               <div key={item.label} className="flex flex-col gap-1">
-                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <dt className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                   {item.label}
                 </dt>
-                <dd className="text-sm font-bold text-slate-100">
+                <dd className="text-sm font-bold text-text-primary">
                   {item.value}
                 </dd>
               </div>
@@ -598,19 +598,19 @@ function IrInspectorDrawer({
             </Button>
           </div>
 
-          <div className="bg-slate-950/20 rounded-xl border border-white/5 p-5 flex flex-col gap-4">
+          <div className="bg-bg-secondary/20 rounded-xl border border-border-default p-5 flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <h4 className="text-xs font-bold text-slate-200">
+              <h4 className="text-xs font-bold text-text-primary">
                 Compare against saved machine report
               </h4>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-text-muted">
                 Paste or upload a previous machine report JSON to diff it
                 against the current snapshot. Limit {IR_DIFF_LIMIT} differences.
               </p>
             </div>
 
             <textarea
-              className="w-full h-32 bg-slate-950/40 border border-white/10 rounded-lg p-3 text-[12px] font-mono text-slate-300 focus:outline-none focus:border-blue-500/50 transition-colors"
+              className="w-full h-32 bg-bg-input border border-border-default rounded-lg p-3 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent/50 transition-colors"
               placeholder="Paste saved machine report JSON..."
               value={diffText}
               onChange={(event) => setDiffText(event.target.value)}
@@ -622,7 +622,7 @@ function IrInspectorDrawer({
                 accept="application/json"
                 ref={fileInputRef}
                 onChange={handleDiffFile}
-                className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700 transition-all"
+                className="text-xs text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[11px] file:font-semibold file:bg-bg-secondary file:text-text-primary hover:file:bg-bg-secondary-hover transition-all"
               />
               <Button
                 variant="primary"
@@ -647,34 +647,34 @@ function IrInspectorDrawer({
           </div>
 
           <div className="flex flex-col gap-3">
-            <h4 className="text-xs font-bold text-slate-200 px-1">
+            <h4 className="text-xs font-bold text-text-primary px-1">
               Saved IR payload
             </h4>
             {graphJson ? (
-              <pre className="bg-slate-950/60 border border-white/5 rounded-xl p-4 max-h-80 overflow-auto text-[11px] font-mono text-slate-400 leading-relaxed scrollbar-thin scrollbar-thumb-slate-800">
+              <pre className="bg-bg-secondary/60 border border-border-default rounded-xl p-4 max-h-80 overflow-auto text-[11px] font-mono text-text-secondary leading-relaxed scrollbar-thin scrollbar-thumb-border-default">
                 {graphJson}
               </pre>
             ) : (
-              <p className="text-center py-8 text-slate-500 text-xs italic bg-slate-950/20 rounded-xl border border-dashed border-white/5">
+              <p className="text-center py-8 text-text-muted text-xs italic bg-bg-secondary/20 rounded-xl border border-dashed border-border-default">
                 Build the graph to capture IR JSON for inspection.
               </p>
             )}
           </div>
 
           {bugReportTemplate ? (
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-5 flex flex-col gap-4">
+            <div className="bg-accent-subtle border border-accent/10 rounded-xl p-5 flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <h4 className="text-xs font-bold text-blue-400">
+                <h4 className="text-xs font-bold text-accent">
                   Bug report template
                 </h4>
-                <p className="text-[11px] text-blue-300/60 font-medium">
+                <p className="text-[11px] text-accent-subtle font-medium">
                   Copy a filled template containing registry metadata and
                   trimmed diff output.
                 </p>
               </div>
 
               <textarea
-                className="w-full h-32 bg-slate-950/60 border border-blue-500/20 rounded-lg p-3 text-[11px] font-mono text-slate-400 focus:outline-none"
+                className="w-full h-32 bg-bg-input border border-accent/20 rounded-lg p-3 text-[11px] font-mono text-text-muted focus:outline-none"
                 readOnly
                 value={bugReportTemplate}
               />
@@ -682,7 +682,7 @@ function IrInspectorDrawer({
               <Button
                 variant="primary"
                 size="sm"
-                className="h-9 px-6 self-start bg-blue-600 hover:bg-blue-500"
+                className="h-9 px-6 self-start bg-accent hover:bg-accent-hover"
                 onClick={async () => {
                   if (!bugReportTemplate) return;
                   try {
@@ -721,14 +721,14 @@ interface DiffResultListProps {
 function DiffResultList({ entries, limitReached }: DiffResultListProps) {
   if (!entries.length) {
     return (
-      <p className="text-xs text-slate-500 italic mt-2">
+      <p className="text-xs text-text-muted italic mt-2">
         No differences detected.
       </p>
     );
   }
   return (
-    <div className="bg-slate-900 border border-white/5 rounded-lg p-4 flex flex-col gap-3">
-      <p className="text-[11px] font-bold text-slate-400">
+    <div className="bg-bg-panel border border-border-default rounded-lg p-4 flex flex-col gap-3">
+      <p className="text-[11px] font-bold text-text-muted">
         {entries.length} difference{entries.length === 1 ? "" : "s"}
         {limitReached ? " (diff limit reached)" : null}
       </p>
@@ -736,10 +736,10 @@ function DiffResultList({ entries, limitReached }: DiffResultListProps) {
         {entries.map((entry, index) => (
           <li
             key={`${entry.path}-${index}`}
-            className="text-[11px] text-slate-400 flex gap-2 overflow-hidden"
+            className="text-[11px] text-text-secondary flex gap-2 overflow-hidden"
           >
-            <code className="text-blue-400 shrink-0">{entry.path}</code>
-            <span className="text-slate-600 shrink-0">–</span>
+            <code className="text-accent shrink-0">{entry.path}</code>
+            <span className="text-text-muted shrink-0">–</span>
             <span className="truncate">
               {entry.kind}
               {entry.kind === "mismatch" && (

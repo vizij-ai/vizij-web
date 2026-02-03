@@ -52,8 +52,8 @@ interface DebugPanelProps {
       | VizijBundleExtension
       | null
       | ((
-          previous: VizijBundleExtension | null,
-        ) => VizijBundleExtension | null),
+        previous: VizijBundleExtension | null,
+      ) => VizijBundleExtension | null),
   ) => void;
   isLoading: boolean;
 }
@@ -281,8 +281,8 @@ export function DebugPanel({
           onValueChange={(id) => setActiveTab(id as HealthTabId)}
           items={HEALTH_TABS}
           className="flex flex-col h-full overflow-hidden gap-0"
-          listClassName="flex-none px-1 pb-2 border-b border-slate-800 bg-slate-900/50 pt-1"
-          panelClassName="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-900/20"
+          listClassName="flex-none px-1 pb-2 border-b border-border-default bg-bg-panel pt-1"
+          panelClassName="flex-1 overflow-y-auto p-4 custom-scrollbar bg-bg-secondary/20"
           size="sm"
           variant="underline"
           renderPanel={(tabId) => {
@@ -291,9 +291,9 @@ export function DebugPanel({
                 return (
                   <div className="flex flex-col gap-5 text-xs font-mono">
                     {/* Status Detail */}
-                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
-                      <div className="flex justify-between items-center pb-3 border-b border-slate-800/80">
-                        <span className="text-slate-400 font-medium">
+                    <div className="p-4 rounded-xl bg-bg-panel border border-border-default space-y-4">
+                      <div className="flex justify-between items-center pb-3 border-b border-border-default">
+                        <span className="text-text-muted font-medium">
                           Engine Status
                         </span>
                         <span
@@ -310,17 +310,17 @@ export function DebugPanel({
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <span className="text-[10px] uppercase text-slate-500 font-bold">
+                          <span className="text-[10px] uppercase text-text-muted font-bold">
                             Face ID
                           </span>
                           <input
-                            className="w-full bg-slate-950/50 border border-slate-800 rounded px-2 py-1.5 text-xs text-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-center"
+                            className="w-full bg-bg-input border border-border-default rounded px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent font-mono text-center"
                             value={faceId}
                             onChange={(e) => handleFaceIdChange(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">
-                          <span className="text-[10px] uppercase text-slate-500 font-bold">
+                          <span className="text-[10px] uppercase text-text-muted font-bold">
                             Segment
                           </span>
                           <div className="h-[29px] flex items-center">
@@ -332,7 +332,7 @@ export function DebugPanel({
                                 {faceSegment}
                               </Chip>
                             ) : (
-                              <span className="text-slate-600 italic px-2">
+                              <span className="text-text-muted italic px-2">
                                 —
                               </span>
                             )}
@@ -351,21 +351,21 @@ export function DebugPanel({
                     </div>
 
                     {/* Playback Controls */}
-                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="p-4 rounded-xl bg-bg-panel border border-border-default space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-slate-950/30 border border-slate-800/50">
-                          <span className="text-[10px] uppercase text-slate-500 font-bold">
+                        <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                          <span className="text-[10px] uppercase text-text-muted font-bold">
                             Runtime
                           </span>
-                          <span className="text-slate-100 font-bold text-lg font-mono tracking-tight">
+                          <span className="text-text-primary font-bold text-lg font-mono tracking-tight">
                             {formattedGraphTime}
                           </span>
                         </div>
-                        <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-slate-950/30 border border-slate-800/50">
-                          <span className="text-[10px] uppercase text-slate-500 font-bold">
+                        <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                          <span className="text-[10px] uppercase text-text-muted font-bold">
                             Performance
                           </span>
-                          <span className="text-slate-300 font-bold text-lg font-mono tracking-tight">
+                          <span className="text-text-secondary font-bold text-lg font-mono tracking-tight">
                             {formattedFrameRate}
                           </span>
                         </div>
@@ -429,7 +429,7 @@ export function DebugPanel({
                       size="compact"
                       icon={<Bug className="w-4 h-4 text-amber-500" />}
                     >
-                      <ul className="list-disc pl-4 space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                      <ul className="list-disc pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
                         <li>
                           Run the audit whenever meshes, skeletons, or RobotData
                           sources are edited outside Vizij.
@@ -459,9 +459,9 @@ export function DebugPanel({
                       label="Bundle Graphs"
                       summary="Keep GraphSpecs + IR aligned"
                       size="compact"
-                      icon={<FileCheck className="w-4 h-4 text-blue-500" />}
+                      icon={<FileCheck className="w-4 h-4 text-accent" />}
                     >
-                      <ol className="list-decimal pl-4 space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                      <ol className="list-decimal pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
                         <li>
                           Click Refresh to rebuild graphs and record diffs.
                         </li>
@@ -490,7 +490,7 @@ export function DebugPanel({
                       size="compact"
                       icon={<Stethoscope className="w-4 h-4 text-green-500" />}
                     >
-                      <ol className="list-decimal pl-4 space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                      <ol className="list-decimal pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
                         <li>
                           Generate a machine report after large binding changes
                           to capture slot metadata.
@@ -511,9 +511,9 @@ export function DebugPanel({
                       label="Rig Maintenance"
                       summary="Clear overrides and cache"
                       size="compact"
-                      icon={<Wrench className="w-4 h-4 text-slate-400" />}
+                      icon={<Wrench className="w-4 h-4 text-text-muted" />}
                     >
-                      <ul className="list-disc pl-4 space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                      <ul className="list-disc pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
                         <li>
                           Clear cached data if bindings or driver states stop
                           matching.
@@ -524,8 +524,8 @@ export function DebugPanel({
                         </li>
                       </ul>
                     </InstructionCallout>
-                    <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                    <div className="p-4 bg-bg-panel border border-border-default rounded-xl space-y-3">
+                      <p className="text-xs text-text-secondary leading-relaxed">
                         Clears stored overrides for the currently loaded Vizij
                         asset. This is useful if authoring states become
                         desynced.

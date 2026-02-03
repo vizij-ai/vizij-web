@@ -7,6 +7,7 @@ import {
   MenuCheckboxItem,
   MenuLabel,
 } from "../ui/MenuBar";
+import { ThemeToggle } from "../ui/ThemeToggle";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 
 interface AppMenuBarProps {
@@ -40,14 +41,14 @@ export function AppMenuBar({
         </MenuItem>
         <MenuItem onSelect={onExport}>Export...</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => {}} disabled>
+        <MenuItem onSelect={() => { }} disabled>
           Save
         </MenuItem>
-        <MenuItem onSelect={() => {}} disabled>
+        <MenuItem onSelect={() => { }} disabled>
           Save As...
         </MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => {}}>Exit</MenuItem>
+        <MenuItem onSelect={() => { }}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit">
         <MenuItem>Undo</MenuItem>
@@ -98,6 +99,9 @@ export function AppMenuBar({
           Debug
         </MenuCheckboxItem>
       </Menu>
+
+      <div className="flex-1" />
+      <ThemeToggle className="mr-2" />
     </MenuBar>
   );
 }

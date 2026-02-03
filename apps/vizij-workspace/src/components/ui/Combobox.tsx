@@ -153,7 +153,7 @@ export function Combobox({
       className={cn("w-full flex flex-col gap-1.5 relative", className)}
     >
       {label && (
-        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
+        <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-1">
           {label}
         </label>
       )}
@@ -162,7 +162,7 @@ export function Combobox({
           ref={inputRef}
           type="text"
           className={cn(
-            "relative w-full rounded-lg bg-slate-950/50 border border-slate-800 py-1.5 pl-9 pr-10 text-left transition-all hover:bg-slate-950 hover:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 text-slate-200 font-medium placeholder:text-slate-500",
+            "relative w-full rounded-lg bg-bg-input border border-border-default py-1.5 pl-9 pr-10 text-left transition-all hover:bg-bg-hover hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50 text-text-primary font-medium placeholder:text-text-muted",
             {
               "h-8 text-[11px]": size === "sm",
               "h-10 text-sm": size === "md",
@@ -177,7 +177,7 @@ export function Combobox({
           autoComplete="off"
         />
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-slate-500" aria-hidden="true" />
+          <Search className="h-4 w-4 text-text-muted" aria-hidden="true" />
         </div>
         <button
           type="button"
@@ -195,7 +195,7 @@ export function Combobox({
         >
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-slate-500 transition-transform duration-200",
+              "h-4 w-4 text-text-muted transition-transform duration-200",
               isOpen && "rotate-180"
             )}
             aria-hidden="true"
@@ -203,9 +203,9 @@ export function Combobox({
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl bg-slate-900 border border-slate-800 p-1 text-sm shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
+          <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl bg-bg-card border border-border-default p-1 text-sm shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
             {filteredOptions.length === 0 ? (
-              <div className="relative cursor-default select-none py-2 px-4 text-slate-500 italic">
+              <div className="relative cursor-default select-none py-2 px-4 text-text-muted italic">
                 Nothing found.
               </div>
             ) : (
@@ -218,9 +218,9 @@ export function Combobox({
                     className={cn(
                       "relative cursor-pointer select-none rounded-lg py-2 pl-10 pr-4 transition-colors",
                       isHighlighted
-                        ? "bg-blue-600/10 text-blue-100"
-                        : "text-slate-300",
-                      isSelected && "bg-blue-600/20 text-blue-100",
+                        ? "bg-accent-subtle text-text-primary"
+                        : "text-text-secondary",
+                      isSelected && "bg-accent-subtle text-accent font-bold",
                       option.disabled && "opacity-40 pointer-events-none",
                     )}
                     onClick={() => !option.disabled && handleSelect(option)}
@@ -236,13 +236,13 @@ export function Combobox({
                         {option.label}
                       </span>
                       {option.description && (
-                        <span className="block truncate text-[10px] text-slate-500">
+                        <span className="block truncate text-[10px] text-text-muted">
                           {option.description}
                         </span>
                       )}
                     </div>
                     {isSelected && (
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-400">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-accent">
                         <Check
                           className="h-4 w-4"
                           aria-hidden="true"

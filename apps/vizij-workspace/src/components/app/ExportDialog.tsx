@@ -171,10 +171,10 @@ export function ExportDialog({
             summary="Name files clearly and trim payloads as needed"
             size="compact"
           >
-            <ul className="list-disc pl-4 text-[11px] text-slate-400 space-y-1 font-medium">
+            <ul className="list-disc pl-4 text-[11px] text-text-muted space-y-1 font-medium">
               <li>
                 Name exports after milestones (e.g.{" "}
-                <code className="text-blue-400">robot_v2_audit.glb</code>).
+                <code className="text-accent">robot_v2_audit.glb</code>).
               </li>
               <li>
                 Disable Vizij bundle or animation payloads when you only need
@@ -201,37 +201,37 @@ export function ExportDialog({
           />
         </div>
 
-        <div className="pt-2 border-t border-white/5">
+        <div className="pt-2 border-t border-border-default/50">
           <button
             type="button"
-            className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950/50 hover:bg-slate-950 border border-white/5 transition-all group"
+            className="w-full flex items-center justify-between p-3 rounded-xl bg-bg-input/50 hover:bg-bg-input border border-border-default/50 transition-all group"
             onClick={() => setIsAdvancedOpen((current) => !current)}
           >
             <div className="flex items-center gap-3">
               <div
                 className={cn(
-                  "w-6 h-6 rounded-lg flex items-center justify-center bg-slate-800 text-slate-400 transition-transform duration-200",
+                  "w-6 h-6 rounded-lg flex items-center justify-center bg-bg-secondary text-text-muted transition-transform duration-200",
                   isAdvancedOpen && "rotate-90",
                 )}
               >
                 <ChevronRight className="w-4 h-4" />
               </div>
-              <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary uppercase tracking-wider">
                 Advanced Export Options
               </span>
             </div>
             {isAdvancedOpen && (
-              <span className="text-[10px] font-medium text-slate-500">
+              <span className="text-[10px] font-medium text-text-muted">
                 Legacy formats
               </span>
             )}
           </button>
 
           {isAdvancedOpen && (
-            <div className="mt-4 p-4 rounded-xl bg-slate-950/30 border border-white/5 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="mt-4 p-4 rounded-xl bg-bg-input/30 border border-border-default/50 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="flex items-start gap-3">
-                <div className="mt-1 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
-                <p className="text-[11px] leading-relaxed text-slate-500 font-medium">
+                <div className="mt-1 w-1 h-1 rounded-full bg-accent shrink-0" />
+                <p className="text-[11px] leading-relaxed text-text-muted font-medium">
                   Legacy rig graph and pose rig files remain available when
                   required for backward compatibility or specialized pipelines.
                 </p>
@@ -244,7 +244,7 @@ export function ExportDialog({
                 onExportGraph={exportGraph}
               />
 
-              <div className="h-px bg-white/5" />
+              <div className="h-px bg-border-default/50" />
 
               <PoseRigExportPanel
                 rigName={poseRig.rigName}

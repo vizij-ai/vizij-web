@@ -66,16 +66,16 @@ export function TimelineEditor() {
 
   return (
     <div
-      className="flex-1 bg-slate-950/40 rounded-xl border border-slate-800/60 relative overflow-hidden shadow-inner flex flex-col"
+      className="flex-1 bg-bg-secondary/40 rounded-xl border border-border-default/60 relative overflow-hidden shadow-inner flex flex-col"
       ref={timelineRef}
       onClick={handleTimelineClick}
       onDoubleClick={handleDoubleClick}
     >
       {/* Time Ruler */}
-      <div className="h-7 border-b border-slate-800/80 bg-slate-900/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-pointer hover:bg-slate-900 transition-colors">
+      <div className="h-7 border-b border-border-default/80 bg-bg-panel/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-pointer hover:bg-bg-panel transition-colors">
         {/* Header spacer */}
-        <div className="w-48 shrink-0 border-r border-slate-800/30 h-full flex items-center px-3">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+        <div className="w-48 shrink-0 border-r border-border-default/30 h-full flex items-center px-3">
+          <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">
             Tracks
           </span>
         </div>
@@ -87,10 +87,10 @@ export function TimelineEditor() {
             return (
               <div
                 key={i}
-                className="absolute bottom-0 h-2 border-l border-slate-700/50"
+                className="absolute bottom-0 h-2 border-l border-border-default/50"
                 style={{ left: `${pct}%` }}
               >
-                <span className="absolute -top-4 -left-1 text-[9px] font-mono font-medium text-slate-500">
+                <span className="absolute -top-4 -left-1 text-[9px] font-mono font-medium text-text-muted">
                   {(duration * (i / 10)).toFixed(1)}s
                 </span>
               </div>
@@ -108,7 +108,7 @@ export function TimelineEditor() {
         }}
       >
         {tracks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-text-muted gap-2">
             <span className="text-xs">No tracks added</span>
             <span className="text-[10px] italic">
               Add a variable to start animating

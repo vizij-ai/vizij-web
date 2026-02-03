@@ -36,26 +36,26 @@ export function Select({
   return (
     <div className={cn("w-full flex flex-col gap-1.5", className)}>
       {label && (
-        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
+        <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-1">
           {label}
         </label>
       )}
       <BaseSelect.Root value={value} onValueChange={(val) => onChange(val as string)} disabled={disabled}>
         <BaseSelect.Trigger
           className={cn(
-            "group relative w-full cursor-pointer rounded-lg bg-slate-950/50 border border-slate-800 py-1.5 pl-3 pr-10 text-left transition-all hover:bg-slate-950 hover:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 flex items-center",
+            "inline-flex items-center justify-between rounded px-[15px] text-[13px] leading-none h-[35px] gap-[5px] bg-bg-input text-text-primary shadow-[0_2px_10px] shadow-black/10 hover:bg-bg-hover focus:shadow-[0_0_0_2px] focus:shadow-black data-[placeholder]:text-text-muted outline-none w-full border border-border-default", "focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50 flex items-center",
             {
               "h-8 text-[11px]": size === "sm",
               "h-10 text-sm": size === "md",
             },
           )}
         >
-          <BaseSelect.Value placeholder={placeholder} className="block truncate text-slate-200 font-medium group-data-[placeholder]:text-slate-500">
+          <BaseSelect.Value placeholder={placeholder} className="block truncate text-text-primary font-medium group-data-[placeholder]:text-text-muted">
             {options.find((o) => o.value === value)?.label}
           </BaseSelect.Value>
           <BaseSelect.Icon className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
             <ChevronDown
-              className="h-4 w-4 text-slate-500 transition-transform duration-200 group-data-[popup-open]:rotate-180"
+              className="h-4 w-4 text-text-muted transition-transform duration-200 group-data-[popup-open]:rotate-180"
               aria-hidden="true"
             />
           </BaseSelect.Icon>
@@ -64,7 +64,7 @@ export function Select({
           <BaseSelect.Positioner sideOffset={4}>
             <BaseSelect.Popup
               className={cn(
-                "z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-slate-900 border border-slate-800 p-1 shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 origin-[var(--transform-origin)]",
+                "z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-bg-card border border-border-default p-1 shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 origin-[var(--transform-origin)]",
                 size === "sm" ? "text-[11px]" : "text-sm",
               )}
             >
@@ -74,11 +74,9 @@ export function Select({
                   value={option.value}
                   disabled={option.disabled}
                   className={cn(
-                    "group relative cursor-pointer select-none rounded-lg transition-colors outline-none",
-                    size === "sm" ? "py-1.5 pl-8 pr-3" : "py-2 pl-10 pr-4",
-                    "data-[highlighted]:bg-blue-600/10 data-[highlighted]:text-blue-100",
-                    "data-[selected]:bg-blue-600/20 data-[selected]:text-blue-100",
-                    "text-slate-300",
+                    "text-[13px] leading-none text-text-primary rounded-[3px] flex items-center h-[25px] pr-[35px] pl-[25px] relative select-none data-[disabled]:text-text-muted data-[disabled]:pointer-events-none data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
+                    "data-[selected]:bg-accent-subtle data-[selected]:text-accent data-[selected]:font-bold",
+                    "text-text-secondary",
                     option.disabled && "opacity-40 pointer-events-none",
                   )}
                 >
@@ -90,13 +88,13 @@ export function Select({
                       {option.label}
                     </BaseSelect.ItemText>
                     {option.description && (
-                      <span className="block truncate text-[10px] text-slate-500">
+                      <span className="block truncate text-[10px] text-text-muted">
                         {option.description}
                       </span>
                     )}
                   </div>
                   <BaseSelect.ItemIndicator className={cn(
-                    "absolute inset-y-0 left-0 flex items-center text-blue-400",
+                    "absolute inset-y-0 left-0 flex items-center text-accent",
                     size === "sm" ? "pl-2.5" : "pl-3"
                   )}>
                     <Check

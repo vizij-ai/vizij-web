@@ -173,10 +173,10 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
   if (activeDrivers.length === 0) {
     return (
       <section className="flex flex-col gap-4">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 px-1">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted px-1">
           Driver bindings
         </h3>
-        <p className="text-[11px] text-slate-500 italic px-1">
+        <p className="text-[11px] text-text-muted italic px-1">
           Select an object with animatable properties driven by standard inputs
           to author upstream driver bindings.
         </p>
@@ -189,19 +189,19 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 px-1">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted px-1">
           Driver bindings
         </h3>
-        <p className="text-[11px] text-slate-500 px-1 leading-relaxed">
+        <p className="text-[11px] text-text-muted px-1 leading-relaxed">
           Bind any upstream driver to the drivers controlling this object and
           author the expression using the familiar editor.
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 p-4 rounded-xl bg-slate-800/20 border border-slate-800/40 shadow-inner">
+      <div className="flex flex-col gap-3 p-4 rounded-xl bg-bg-secondary/20 border border-border-default/40 shadow-inner">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-0.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-0.5">
               Bound driver
             </label>
             <Select
@@ -216,7 +216,7 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-0.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted px-0.5">
               Upstream driver
             </label>
             <Select
@@ -242,7 +242,7 @@ export function DriverBindingSection({ node }: DriverBindingSectionProps) {
       </div>
 
       {existingBindingDrivers.length === 0 ? (
-        <p className="text-[11px] text-slate-500 italic text-center py-6 bg-slate-800/10 rounded-lg border border-dashed border-slate-800/40 mx-1">
+        <p className="text-[11px] text-text-muted italic text-center py-6 bg-bg-secondary/10 rounded-lg border border-dashed border-border-default/40 mx-1">
           No driver bindings yet. Create one to start editing expressions.
         </p>
       ) : (
@@ -355,20 +355,20 @@ function DriverBindingCard({
       : driver.path;
 
   return (
-    <Card className="border-slate-800/60 bg-slate-950/20 shadow-sm overflow-hidden border-l-2 border-l-blue-500/30">
-      <CardHeader className="flex flex-row items-center justify-between px-4 py-3 bg-slate-800/20 border-b border-slate-800/40">
+    <Card className="border-border-default/60 bg-bg-panel/20 shadow-sm overflow-hidden border-l-2 border-l-accent/30">
+      <CardHeader className="flex flex-row items-center justify-between px-4 py-3 bg-bg-secondary/20 border-b border-border-default/40">
         <div className="flex flex-col gap-0.5">
-          <strong className="text-[11px] font-bold text-slate-200 tracking-tight">
+          <strong className="text-[11px] font-bold text-text-primary tracking-tight">
             {displayName}
           </strong>
-          <code className="text-[9px] text-blue-400 bg-blue-900/10 px-1 py-0.5 rounded w-fit">
+          <code className="text-[9px] text-accent bg-accent/10 px-1 py-0.5 rounded w-fit">
             {driver.path}
           </code>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 text-[10px] text-slate-400 hover:text-slate-100"
+          className="h-7 text-[10px] text-text-muted hover:text-text-primary"
           onClick={() => onToggleExpanded(!expanded)}
         >
           {expanded ? "Hide Binding" : "Edit Binding"}

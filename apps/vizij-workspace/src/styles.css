@@ -3,20 +3,172 @@
 /* Base configuration is handled by tailwind.config.ts now */
 
 :root {
+  color-scheme: light dark;
+
+  /* Zinc Theme Palette */
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+  --color-zinc-950: #09090b;
+
+  /* Semantic Variables (Default / Light) */
+  --bg-app: #ffffff;
+  --bg-panel: #fdfdfd;
+  /* Subtle contrast from app bg */
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: var(--color-zinc-100);
+  --bg-active: var(--color-zinc-200);
+
+  --bg-secondary: var(--color-zinc-100);
+  --bg-secondary-hover: var(--color-zinc-200);
+
+  --text-primary: #18181b;
+  /* zinc-900 */
+  --text-secondary: #52525b;
+  /* zinc-600 */
+  --text-muted: #a1a1aa;
+  /* zinc-400 */
+
+  --border-default: #e4e4e7;
+  /* zinc-200 */
+  --border-subtle: #f4f4f5;
+  /* zinc-100 */
+  --border-hover: #d4d4d8;
+  /* zinc-300 */
+
+  /* Brand Accent - Vizij Blue */
+  --color-accent: #2563eb;
+  /* blue-600 */
+  --color-accent-fg: #ffffff;
+  --color-accent-hover: #1d4ed8;
+  /* blue-700 */
+  --color-accent-subtle: rgba(37, 99, 235, 0.1);
+  /* blue-600 alpha */
+
+  /* Functional Colors (Light) */
+  --color-warning: #f59e0b;
+  /* amber-500 */
+  --color-warning-fg: #ffffff;
+  --color-warning-subtle: rgba(245, 158, 11, 0.1);
+
+  --color-danger: #ef4444;
+  /* red-500 */
+  --color-danger-fg: #ffffff;
+  --color-danger-subtle: rgba(239, 68, 68, 0.1);
+
+  --color-success: #10b981;
+  /* emerald-500 */
+  --color-success-fg: #ffffff;
+  --color-success-subtle: rgba(16, 185, 129, 0.1);
+}
+
+/* Dark Theme Overrides */
+.dark {
   color-scheme: dark;
 
-  /* Expose semantic variables for code reference where Tailwind can't be used (e.g. canvas) */
-  --bg-app: var(--color-background);
-  --bg-panel: var(--color-panel);
-  --bg-card: var(--color-card);
-  --bg-input: var(--color-input);
+  /* Deep, technical dark mode */
+  --bg-app: #09090b;
+  /* zinc-950 */
+  --bg-panel: #121214;
+  /* Slightly lighter than app bg for separation */
+  --bg-card: #18181b;
+  /* zinc-900 */
+  --bg-input: #09090b;
+  /* Darkest for inputs to look "recessed" or flat */
+  --bg-hover: #27272a;
+  /* zinc-800 */
+  --bg-active: #27272a;
+  /* zinc-800 */
 
-  --border-subtle: var(--color-border-subtle);
-  --border-default: var(--color-border);
-  --border-hover: var(--color-border-hover);
+  --bg-secondary: #18181b;
+  /* zinc-900 */
+  --bg-secondary-hover: #27272a;
+  /* zinc-800 */
 
-  background-color: var(--bg-app);
-  color: var(--color-slate-200);
+  --text-primary: #f4f4f5;
+  /* zinc-100 */
+  --text-secondary: #a1a1aa;
+  /* zinc-400 */
+  --text-muted: #71717a;
+  /* zinc-500 - improved readability */
+  --text-dim: #52525b;
+  /* zinc-600 - for barely visible elements */
+
+  --border-default: #27272a;
+  /* zinc-800 */
+  --border-subtle: #27272a;
+  --border-hover: #3f3f46;
+  /* zinc-700 */
+
+  /* Dark Mode Accent */
+  --color-accent: #3b82f6;
+  /* blue-500 - brighter for dark mode */
+  --color-accent-fg: #ffffff;
+  --color-accent-hover: #60a5fa;
+  /* blue-400 */
+  --color-accent-subtle: rgba(59, 130, 246, 0.15);
+  /* blue-500 alpha */
+
+  /* Functional Colors (Dark) */
+  --color-warning: #fbbf24;
+  /* amber-400 */
+  --color-warning-subtle: rgba(251, 191, 36, 0.15);
+
+  --color-danger: #f87171;
+  /* red-400 */
+  --color-danger-subtle: rgba(248, 113, 113, 0.15);
+
+  --color-success: #34d399;
+  /* emerald-400 */
+  --color-success-subtle: rgba(52, 211, 153, 0.15);
+}
+
+@theme {
+  /* Map semantic variables */
+  --color-bg-app: var(--bg-app);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-card: var(--bg-card);
+  --color-bg-input: var(--bg-input);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-secondary-hover: var(--bg-secondary-hover);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-hover: var(--border-hover);
+
+  --color-accent: var(--color-accent);
+  --color-accent-fg: var(--color-accent-fg);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-subtle: var(--color-accent-subtle);
+
+  --color-warning: var(--color-warning);
+  --color-warning-fg: var(--color-warning-fg);
+  --color-warning-subtle: var(--color-warning-subtle);
+
+  --color-danger: var(--color-danger);
+  --color-danger-fg: var(--color-danger-fg);
+  --color-danger-subtle: var(--color-danger-subtle);
+
+  --color-success: var(--color-success);
+  --color-success-fg: var(--color-success-fg);
+  --color-success-subtle: var(--color-success-subtle);
 }
 
 * {

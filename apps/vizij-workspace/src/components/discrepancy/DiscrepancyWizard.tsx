@@ -272,7 +272,7 @@ export function DiscrepancyWizard({
       <div className="space-y-6">
         <header className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-500/10 text-blue-400">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-accent-subtle text-accent">
               <svg
                 className="w-5 h-5"
                 viewBox="0 0 24 24"
@@ -286,28 +286,28 @@ export function DiscrepancyWizard({
                 <path d="m9 12 2 2 4-4" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-slate-100 tracking-tight">
+            <h1 className="text-xl font-bold text-text-primary tracking-tight">
               Resolve Graph Discrepancies
             </h1>
           </div>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-text-muted font-medium">
             Loaded face:{" "}
-            <span className="text-slate-300 font-mono">
+            <span className="text-text-secondary font-mono">
               {state.faceId ?? "—"}
             </span>{" "}
             · Imported face:{" "}
-            <span className="text-slate-300 font-mono">
+            <span className="text-text-secondary font-mono">
               {state.importedFaceId ?? "unknown"}
             </span>{" "}
             · Captured at{" "}
-            <span className="text-slate-300">
+            <span className="text-text-secondary">
               {new Date(state.createdAt).toLocaleString()}
             </span>
           </p>
         </header>
 
         <nav
-          className="flex gap-1 p-1 bg-slate-950/50 rounded-xl border border-white/5"
+          className="flex gap-1 p-1 bg-bg-panel rounded-xl border border-border-default"
           aria-label="Wizard steps"
         >
           {(Object.keys(STEP_LABELS) as WizardStep[]).map((stepId) => (
@@ -317,8 +317,8 @@ export function DiscrepancyWizard({
               className={cn(
                 "flex-1 px-4 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all",
                 step === stepId
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-white/5",
+                  ? "bg-accent text-accent-fg shadow-lg shadow-accent/20"
+                  : "text-text-muted hover:text-text-primary hover:bg-bg-hover",
               )}
               onClick={() => setStep(stepId)}
             >
@@ -331,10 +331,10 @@ export function DiscrepancyWizard({
           {step === "overview" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="space-y-2">
-                <h2 className="text-sm font-bold text-slate-200">
+                <h2 className="text-sm font-bold text-text-primary">
                   What changed?
                 </h2>
-                <p className="text-[13px] text-slate-400 leading-relaxed">
+                <p className="text-[13px] text-text-secondary leading-relaxed">
                   Importing the rig graph produced a normalized IR that does not
                   perfectly match the source graph. Review the detected
                   differences, note any follow-ups, and choose how to handle
@@ -345,8 +345,8 @@ export function DiscrepancyWizard({
               {state.importedFaceId &&
                 state.faceId &&
                 state.importedFaceId !== state.faceId && (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 space-y-3">
-                    <p className="text-xs text-amber-200 font-bold flex items-center gap-2">
+                  <div className="bg-warning-subtle border border-warning-subtle rounded-xl p-4 space-y-3">
+                    <p className="text-xs text-warning font-bold flex items-center gap-2">
                       <svg
                         className="w-4 h-4"
                         viewBox="0 0 24 24"
@@ -360,7 +360,7 @@ export function DiscrepancyWizard({
                       </svg>
                       Face mismatch detected
                     </p>
-                    <p className="text-xs text-amber-400/80">
+                    <p className="text-xs text-warning/80">
                       Imported graph face is "{state.importedFaceId}", but
                       loaded asset face is "{state.faceId}".
                     </p>
@@ -368,7 +368,7 @@ export function DiscrepancyWizard({
                       <input
                         type="text"
                         value={faceRename}
-                        className="flex-1 h-9 bg-slate-950 border border-white/10 rounded-lg px-3 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50"
+                        className="flex-1 h-9 bg-bg-input border border-border-default rounded-lg px-3 text-xs text-text-primary focus:outline-none focus:border-warning"
                         onChange={(event) => setFaceRename(event.target.value)}
                         placeholder="New face ID"
                       />
@@ -388,27 +388,27 @@ export function DiscrepancyWizard({
                 )}
 
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-950 rounded-xl border border-white/5 p-4 text-center">
-                  <span className="block text-2xl font-bold text-slate-100">
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-2xl font-bold text-text-primary">
                     {state.diff.entries.length}
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Differences
                   </span>
                 </div>
-                <div className="bg-slate-950 rounded-xl border border-white/5 p-4 text-center">
-                  <span className="block text-[11px] font-bold text-slate-400 mt-2">
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-[11px] font-bold text-text-secondary mt-2">
                     {state.diff.limitReached ? "Capped" : "Complete"}
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Diff Status
                   </span>
                 </div>
-                <div className="bg-slate-950 rounded-xl border border-white/5 p-4 text-center">
-                  <span className="block text-2xl font-bold text-slate-100">
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-2xl font-bold text-text-primary">
                     {state.missingAutoInputs.length}
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Missing Inputs
                   </span>
                 </div>
@@ -430,17 +430,17 @@ export function DiscrepancyWizard({
               </ul>
 
               {state.mismatchReasons.length > 0 && (
-                <div className="bg-slate-950/50 rounded-xl border border-white/5 p-5 space-y-3">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <div className="bg-bg-secondary rounded-xl border border-border-default p-5 space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Likely causes
                   </h3>
                   <ul className="space-y-2">
                     {state.mismatchReasons.map((reason: string) => (
                       <li
                         key={reason}
-                        className="text-xs text-slate-400 flex items-start gap-2"
+                        className="text-xs text-text-secondary flex items-start gap-2"
                       >
-                        <span className="w-1 h-1 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                        <span className="w-1 h-1 rounded-full bg-accent mt-1.5 shrink-0" />
                         {reason}
                       </li>
                     ))}
@@ -449,11 +449,11 @@ export function DiscrepancyWizard({
               )}
 
               <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 ml-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">
                   Reviewer notes (optional)
                 </span>
                 <textarea
-                  className="w-full h-24 bg-slate-950 border border-white/10 rounded-xl p-4 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 resize-none transition-colors"
+                  className="w-full h-24 bg-bg-input border border-border-default rounded-xl p-4 text-xs text-text-primary focus:outline-none focus:border-accent/50 resize-none transition-colors"
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="Capture context or follow-up owners"
@@ -478,7 +478,7 @@ export function DiscrepancyWizard({
           {step === "differences" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="flex justify-between items-center">
-                <h2 className="text-sm font-bold text-slate-200">
+                <h2 className="text-sm font-bold text-text-primary">
                   Graph differences
                 </h2>
                 <Button
@@ -495,8 +495,8 @@ export function DiscrepancyWizard({
                   className={cn(
                     "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border",
                     activeCategory === "all"
-                      ? "bg-blue-600/10 border-blue-600/30 text-blue-100"
-                      : "bg-slate-950 border-white/5 text-slate-500 hover:border-white/10",
+                      ? "bg-accent-subtle border-accent/30 text-accent"
+                      : "bg-bg-card border-border-default text-text-muted hover:border-border-hover",
                   )}
                   onClick={() => setActiveCategory("all")}
                 >
@@ -510,8 +510,8 @@ export function DiscrepancyWizard({
                       className={cn(
                         "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border",
                         activeCategory === category
-                          ? "bg-blue-600/10 border-blue-600/30 text-blue-100"
-                          : "bg-slate-950 border-white/5 text-slate-500 hover:border-white/10",
+                          ? "bg-accent-subtle border-accent/30 text-accent"
+                          : "bg-bg-card border-border-default text-text-muted hover:border-border-hover",
                       )}
                       onClick={() => setActiveCategory(category)}
                     >
@@ -521,8 +521,8 @@ export function DiscrepancyWizard({
                 )}
               </div>
               {filteredDiffs.length === 0 ? (
-                <div className="h-48 flex items-center justify-center bg-slate-950/50 rounded-2xl border border-white/5 border-dashed">
-                  <p className="text-xs text-slate-500 italic">
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                  <p className="text-xs text-text-muted italic">
                     No differences for this category.
                   </p>
                 </div>
@@ -531,14 +531,14 @@ export function DiscrepancyWizard({
                   {filteredDiffs.map((entry) => (
                     <article
                       key={entry.id}
-                      className="bg-slate-950 rounded-xl border border-white/5 p-4 space-y-4 hover:border-white/10 transition-colors"
+                      className="bg-bg-card rounded-xl border border-border-default p-4 space-y-4 hover:border-border-hover transition-colors"
                     >
                       <header className="flex justify-between items-start">
                         <div className="space-y-1">
-                          <p className="text-[11px] font-mono font-bold text-slate-300 truncate max-w-md">
+                          <p className="text-[11px] font-mono font-bold text-text-primary truncate max-w-md">
                             {entry.path}
                           </p>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
                             {CATEGORY_LABELS[entry.category]}
                           </p>
                         </div>
@@ -555,29 +555,29 @@ export function DiscrepancyWizard({
                         </Chip>
                       </header>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
-                          <span className="block text-[9px] font-black uppercase tracking-widest text-slate-600 mb-2">
+                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
                             Imported Value
                           </span>
-                          <code className="text-[11px] text-slate-300 font-mono break-all">
+                          <code className="text-[11px] text-text-secondary font-mono break-all">
                             {formatDiffValue(entry.importedValue)}
                           </code>
                         </div>
-                        <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
-                          <span className="block text-[9px] font-black uppercase tracking-widest text-slate-600 mb-2">
+                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
                             Rebuilt Value
                           </span>
-                          <code className="text-[11px] text-blue-400 font-mono break-all">
+                          <code className="text-[11px] text-accent font-mono break-all">
                             {formatDiffValue(entry.rebuiltValue)}
                           </code>
                         </div>
                       </div>
-                      <div className="flex gap-4 pt-2 border-t border-white/5">
+                      <div className="flex gap-4 pt-2 border-t border-border-default">
                         <label className="flex items-center gap-2.5 cursor-pointer group">
                           <input
                             type="radio"
                             name={`diff-${entry.id}`}
-                            className="w-3.5 h-3.5 bg-slate-900 border-white/10 text-blue-600 focus:ring-blue-500/50"
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="use-rebuilt"
                             checked={
                               diffResolutions[entry.id] === "use-rebuilt"
@@ -589,7 +589,7 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
                             Use rebuilt value
                           </span>
                         </label>
@@ -597,7 +597,7 @@ export function DiscrepancyWizard({
                           <input
                             type="radio"
                             name={`diff-${entry.id}`}
-                            className="w-3.5 h-3.5 bg-slate-900 border-white/10 text-blue-600 focus:ring-blue-500/50"
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="needs-follow-up"
                             checked={
                               diffResolutions[entry.id] === "needs-follow-up"
@@ -609,7 +609,7 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
                             Flag for follow-up
                           </span>
                         </label>
@@ -624,18 +624,18 @@ export function DiscrepancyWizard({
           {step === "missing" && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="space-y-2">
-                <h2 className="text-sm font-bold text-slate-200">
+                <h2 className="text-sm font-bold text-text-primary">
                   Missing auto-generated inputs
                 </h2>
-                <p className="text-[13px] text-slate-400 leading-relaxed">
+                <p className="text-[13px] text-text-secondary leading-relaxed">
                   Decide whether to create a placeholder standard input or
                   ignore this discrepancy for now.
                 </p>
               </div>
 
               {state.missingAutoInputs.length === 0 ? (
-                <div className="h-48 flex items-center justify-center bg-slate-950/50 rounded-2xl border border-white/5 border-dashed">
-                  <p className="text-xs text-slate-500 italic">
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                  <p className="text-xs text-text-muted italic">
                     No missing inputs detected.
                   </p>
                 </div>
@@ -644,13 +644,13 @@ export function DiscrepancyWizard({
                   {state.missingAutoInputs.map((path: string) => (
                     <li
                       key={path}
-                      className="bg-slate-950 rounded-xl border border-white/5 p-4 flex justify-between items-center gap-6"
+                      className="bg-bg-card rounded-xl border border-border-default p-4 flex justify-between items-center gap-6"
                     >
                       <div className="space-y-1 min-w-0">
-                        <p className="text-[11px] font-mono font-bold text-slate-200 truncate">
+                        <p className="text-[11px] font-mono font-bold text-text-primary truncate">
                           {path}
                         </p>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-text-muted">
                           Auto-generated in source graph
                         </p>
                       </div>
@@ -659,7 +659,7 @@ export function DiscrepancyWizard({
                           <input
                             type="radio"
                             name={`missing-${path}`}
-                            className="w-3.5 h-3.5 bg-slate-900 border-white/10 text-blue-600 focus:ring-blue-500/50"
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="create-placeholder"
                             checked={
                               missingResolutions[path] === "create-placeholder"
@@ -671,7 +671,7 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
                             Create placeholder
                           </span>
                         </label>
@@ -679,14 +679,14 @@ export function DiscrepancyWizard({
                           <input
                             type="radio"
                             name={`missing-${path}`}
-                            className="w-3.5 h-3.5 bg-slate-900 border-white/10 text-blue-600 focus:ring-blue-500/50"
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="ignore"
                             checked={missingResolutions[path] === "ignore"}
                             onChange={() =>
                               handleMissingResolutionChange(path, "ignore")
                             }
                           />
-                          <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
                             Ignore
                           </span>
                         </label>
@@ -699,10 +699,10 @@ export function DiscrepancyWizard({
           )}
         </div>
 
-        <footer className="flex justify-between items-center pt-6 border-t border-white/5 mt-4">
+        <footer className="flex justify-between items-center pt-6 border-t border-border-default mt-4">
           <Button
             variant="ghost"
-            className="text-slate-500 hover:text-slate-300"
+            className="text-text-muted hover:text-text-primary"
             onClick={() => submitResult(false)}
           >
             Cancel import

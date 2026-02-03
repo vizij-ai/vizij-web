@@ -107,7 +107,7 @@ function TreeRowWrapper({
     else if (node.type === "rig") Icon = Zap;
 
     // Determine Icon Color
-    let iconClass = "text-slate-400";
+    let iconClass = "text-text-muted";
     if (node.type === "pose") iconClass = "text-purple-400";
     else if (node.type === "rig") iconClass = "text-yellow-400";
 
@@ -128,7 +128,7 @@ function TreeRowWrapper({
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-5 w-5 p-0 hover:text-green-400"
+                            className="h-5 w-5 p-0 hover:text-accent"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onAction?.(node, "play");
@@ -140,7 +140,7 @@ function TreeRowWrapper({
                     )}
 
                     {node.type === "rig" && node.data && (
-                        <span className="text-[9px] font-mono bg-slate-950/50 px-1 rounded text-slate-500">
+                        <span className="text-[9px] font-mono bg-bg-panel px-1 rounded text-text-muted">
                             Rig
                         </span>
                     )}
@@ -471,7 +471,7 @@ export function VariablesPanel({
         <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-slate-500 hover:text-slate-200"
+            className="h-6 w-6 text-text-secondary hover:text-text-primary"
             onClick={() => {
                 searchInputRef.current?.focus();
             }}
@@ -505,17 +505,17 @@ export function VariablesPanel({
                     {/* Create Option */}
                     {showCreateOption && (
                         <div
-                            className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-blue-500/10 text-slate-400 hover:text-blue-300 group border border-dashed border-slate-700 hover:border-blue-500/30 transition-all"
+                            className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
                             onClick={handleCreate}
                         >
-                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
                                 <Plus size={12} strokeWidth={2.5} />
                             </div>
                             <div className="flex flex-col min-w-0">
                                 <span className="text-xs font-medium truncate">
-                                    Create "<span className="text-blue-200">{search}</span>"
+                                    Create "<span className="text-accent">{search}</span>"
                                 </span>
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-[10px] text-text-muted">
                                     Create and select new variable
                                 </span>
                             </div>
@@ -523,15 +523,15 @@ export function VariablesPanel({
                     )}
 
                     {visibleRoot.children.size === 0 && !showCreateOption ? (
-                        <div className="flex flex-col items-center justify-center h-24 text-slate-500 text-xs gap-2 border border-dashed border-slate-800/50 rounded-xl bg-slate-900/20 m-1">
+                        <div className="flex flex-col items-center justify-center h-24 text-text-muted text-xs gap-2 border border-dashed border-border-default/50 rounded-xl bg-bg-secondary/20 m-1">
                             {search.trim().length > 0 ? (
                                 <>
-                                    <span className="font-medium text-slate-400">No results</span>
+                                    <span className="font-medium text-text-muted">No results</span>
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setSearch("")}
-                                        className="h-6 text-[10px] text-blue-400 hover:text-blue-300"
+                                        className="h-6 text-[10px] text-accent hover:text-accent-hover"
                                     >
                                         Clear
                                     </Button>

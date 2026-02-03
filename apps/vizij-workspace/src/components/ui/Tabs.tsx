@@ -45,10 +45,10 @@ export function Tabs({
         className={cn(
           "flex w-full overflow-x-auto custom-scrollbar",
           {
-            "gap-1 border-b border-slate-800": variant === "default",
-            "gap-1 rounded-xl border border-slate-900 bg-slate-950 p-1":
+            "gap-1 border-b border-border-default": variant === "default",
+            "gap-1 rounded-xl border border-border-default bg-bg-input p-1":
               variant === "pill",
-            "gap-4 border-b border-slate-800 px-2": variant === "underline",
+            "gap-4 border-b border-border-default px-2": variant === "underline",
           },
           listClassName,
         )}
@@ -64,21 +64,21 @@ export function Tabs({
 
                 {
                   // Default variant
-                  "border-b-2 border-transparent px-3 py-2 text-[13px] font-bold text-slate-500 hover:text-slate-300":
+                  "border-b-2 border-transparent px-3 py-2 text-[13px] font-bold text-text-secondary hover:text-text-primary":
                     variant === "default" && !selected,
-                  "border-b-2 border-blue-500 px-3 py-2 text-[13px] font-bold text-blue-400":
+                  "border-b-2 border-accent px-3 py-2 text-[13px] font-bold text-accent":
                     variant === "default" && selected,
 
                   // Pill variant
-                  "rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-900 hover:text-slate-300":
+                  "rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:bg-bg-hover hover:text-text-primary":
                     variant === "pill" && !selected,
-                  "rounded-lg border-0 bg-slate-800 px-3 py-1.5 text-[11px] font-bold text-slate-100 shadow-sm":
+                  "rounded-lg border-0 bg-bg-active px-3 py-1.5 text-[11px] font-bold text-text-primary shadow-sm":
                     variant === "pill" && selected,
 
                   // Underline variant (cleaner, premium)
-                  "py-2 text-[12px] font-medium text-slate-500 hover:text-slate-300":
+                  "py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary":
                     variant === "underline" && !selected,
-                  "py-2 text-[12px] font-bold text-blue-400":
+                  "py-2 text-[12px] font-bold text-accent":
                     variant === "underline" && selected,
 
                   // Sizes (overrides if needed)
@@ -94,12 +94,12 @@ export function Tabs({
               </span>
             )}
             {item.badge && (
-              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-slate-800/50 px-1.5 py-0.5 text-[9px] font-black text-slate-400 border border-white/5 uppercase tracking-tighter">
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-bg-active px-1.5 py-0.5 text-[9px] font-black text-text-muted border border-border-default/50 uppercase tracking-tighter">
                 {item.badge}
               </span>
             )}
             {variant === "underline" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t-full hidden group-data-[state=active]:block" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full hidden group-data-[state=active]:block" />
             )}
           </BaseTabs.Tab>
         ))}

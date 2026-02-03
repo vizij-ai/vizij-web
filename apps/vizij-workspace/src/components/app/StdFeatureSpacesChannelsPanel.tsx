@@ -582,9 +582,9 @@ export function StdFeatureSpacesChannelsPanel() {
       const oldLabel = input.label || "";
       const newLabel = oldLabel.includes(formatSegmentName(oldSegment))
         ? oldLabel.replace(
-            formatSegmentName(oldSegment),
-            formatSegmentName(renameValue),
-          )
+          formatSegmentName(oldSegment),
+          formatSegmentName(renameValue),
+        )
         : undefined;
 
       handleUpdateStandardInput(inputId, {
@@ -809,8 +809,8 @@ export function StdFeatureSpacesChannelsPanel() {
             className={cn(
               "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
               isSelected
-                ? "bg-blue-600/20 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
-                : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200",
+                ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_rgba(var(--color-accent-rgb),0.3)]"
+                : "text-text-muted hover:bg-bg-secondary/40 hover:text-text-secondary",
             )}
             style={{ marginLeft: `${depth * 12}px` }}
             onClick={(e) => {
@@ -822,7 +822,7 @@ export function StdFeatureSpacesChannelsPanel() {
             <button
               type="button"
               className={cn(
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200 text-slate-500 hover:text-slate-300",
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-bg-secondary-hover transition-transform duration-200 text-text-muted hover:text-text-secondary",
                 !hasChildren && "opacity-0 pointer-events-none",
                 expanded && "rotate-90",
               )}
@@ -849,14 +849,14 @@ export function StdFeatureSpacesChannelsPanel() {
               <span
                 className={cn(
                   "text-[11px] font-medium truncate",
-                  isSelected && "text-blue-200",
+                  isSelected && "text-accent",
                 )}
               >
                 {displayName}
               </span>
 
               <span className="flex items-center gap-1.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[9px] font-bold uppercase tracking-tighter bg-slate-800 px-1 rounded text-slate-500">
+                <span className="text-[9px] font-bold uppercase tracking-tighter bg-bg-secondary px-1 rounded text-text-muted">
                   {levelLabel}
                 </span>
                 {node.isLeaf && (
@@ -864,7 +864,7 @@ export function StdFeatureSpacesChannelsPanel() {
                     className={cn(
                       "w-1.5 h-1.5 rounded-full",
                       (node.input as any)?.disabled
-                        ? "bg-slate-700"
+                        ? "bg-bg-secondary"
                         : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]",
                     )}
                   />
@@ -948,13 +948,13 @@ export function StdFeatureSpacesChannelsPanel() {
       return (
         <div key={node.id} className="flex flex-col opacity-80">
           <div
-            className="group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none text-slate-500 hover:bg-slate-800/40 hover:text-slate-400"
+            className="group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none text-text-muted hover:bg-bg-secondary/40 hover:text-text-secondary"
             style={{ marginLeft: `${depth * 12}px` }}
           >
             <button
               type="button"
               className={cn(
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-700/50 transition-transform duration-200",
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-bg-secondary-hover transition-transform duration-200",
                 !hasChildren && "opacity-0 pointer-events-none",
                 expanded && "rotate-90",
               )}
@@ -977,7 +977,7 @@ export function StdFeatureSpacesChannelsPanel() {
               <span className="text-[11px] font-medium truncate italic">
                 {displayName}
               </span>
-              <span className="text-[9px] font-bold uppercase tracking-tighter bg-slate-800/50 px-1 rounded text-slate-600 ml-auto opacity-0 group-hover:opacity-100">
+              <span className="text-[9px] font-bold uppercase tracking-tighter bg-bg-secondary/50 px-1 rounded text-text-muted ml-auto opacity-0 group-hover:opacity-100">
                 {levelLabel}
               </span>
             </div>
@@ -1018,7 +1018,7 @@ export function StdFeatureSpacesChannelsPanel() {
       className="flex flex-col h-full overflow-hidden"
     >
       {!anyFaceLoaded ? (
-        <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-xs italic">
+        <div className="flex flex-col items-center justify-center py-12 text-text-muted text-xs italic">
           Load a face to view its standard channels.
         </div>
       ) : (
@@ -1027,7 +1027,7 @@ export function StdFeatureSpacesChannelsPanel() {
           <div className="flex items-center gap-2 px-1">
             <div className="relative flex-1">
               <svg
-                className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500"
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted"
                 width="12"
                 height="12"
                 viewBox="0 0 24 24"
@@ -1042,7 +1042,7 @@ export function StdFeatureSpacesChannelsPanel() {
               </svg>
               <input
                 type="search"
-                className="w-full h-8 rounded-md bg-slate-950/50 border border-slate-800 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
+                className="w-full h-8 rounded-md bg-bg-input border border-border-default pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/50 transition-all"
                 placeholder="Search channels..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1070,7 +1070,7 @@ export function StdFeatureSpacesChannelsPanel() {
                   strokeLinejoin="round"
                   className={cn(
                     (refFilterMissingInMain || mainFilterMissingInRef) &&
-                      "text-blue-400",
+                    "text-accent",
                   )}
                 >
                   <path d="M11 21H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h5l2 3h9a2 2 0 0 1 2 2v2" />
@@ -1086,7 +1086,7 @@ export function StdFeatureSpacesChannelsPanel() {
               {/* Dual Tree View */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                     Main Face
                   </span>
                   {mainFilterMissingInRef && (
@@ -1095,9 +1095,9 @@ export function StdFeatureSpacesChannelsPanel() {
                     </Chip>
                   )}
                 </div>
-                <div className="rounded-lg border border-slate-800/60 bg-slate-950/30 p-1.5 min-h-[150px]">
+                <div className="rounded-lg border border-border-default/60 bg-bg-secondary/30 p-1.5 min-h-[150px]">
                   {mainFaceStandardInputs.length === 0 ? (
-                    <p className="text-[11px] text-slate-600 italic text-center py-4">
+                    <p className="text-[11px] text-text-muted italic text-center py-4">
                       No channels found.
                     </p>
                   ) : (
@@ -1108,7 +1108,7 @@ export function StdFeatureSpacesChannelsPanel() {
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                     Reference Face
                   </span>
                   <div className="flex items-center gap-2">
@@ -1131,9 +1131,9 @@ export function StdFeatureSpacesChannelsPanel() {
                     </Button>
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-800/60 bg-slate-950/20 p-1.5 min-h-[150px]">
+                <div className="rounded-lg border border-border-default/60 bg-bg-secondary/20 p-1.5 min-h-[150px]">
                   {refFaceStandardInputs.length === 0 ? (
-                    <p className="text-[11px] text-slate-600 italic text-center py-4">
+                    <p className="text-[11px] text-text-muted italic text-center py-4">
                       No reference channels.
                     </p>
                   ) : (
@@ -1145,10 +1145,10 @@ export function StdFeatureSpacesChannelsPanel() {
           ) : (
             /* Single Tree View */
             <div className="flex flex-col gap-4 flex-1 min-h-0">
-              <div className="flex flex-col gap-3 p-3 rounded-lg bg-slate-800/20 border border-slate-800/40">
+              <div className="flex flex-col gap-3 p-3 rounded-lg bg-bg-secondary/20 border border-border-default/40">
                 <div className="flex items-center gap-2">
                   <Input
-                    className="flex-1 h-7 text-[11px] bg-slate-950/50 border-slate-800"
+                    className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
                     placeholder="Namespace name..."
                     value={!selectedNode ? newNodeName : ""}
                     onChange={(e) => {
@@ -1196,11 +1196,11 @@ export function StdFeatureSpacesChannelsPanel() {
               </div>
 
               <div
-                className="flex-1 rounded border border-slate-800/60 bg-slate-950/30 p-1.5 min-h-[200px]"
+                className="flex-1 rounded border border-border-default/60 bg-bg-secondary/30 p-1.5 min-h-[200px]"
                 onClick={handleTreeBackgroundClick}
               >
                 {combinedInputs.length === 0 ? (
-                  <div className="flex items-center justify-center py-12 text-slate-600 text-[11px] italic">
+                  <div className="flex items-center justify-center py-12 text-text-muted text-[11px] italic">
                     No channels. Add a namespace above to begin.
                   </div>
                 ) : (
@@ -1212,9 +1212,9 @@ export function StdFeatureSpacesChannelsPanel() {
 
           {/* Selection Editor */}
           {!bothFacesLoaded && selectedNode && (
-            <div className="flex flex-col gap-4 p-3 rounded-lg bg-slate-800/40 border border-slate-800/60 mt-auto">
+            <div className="flex flex-col gap-4 p-3 rounded-lg bg-bg-secondary/40 border border-border-default/60 mt-auto">
               <div className="flex items-center justify-between">
-                <code className="text-[10px] text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">
+                <code className="text-[10px] text-accent bg-accent/20 px-1.5 py-0.5 rounded">
                   /standard/{selectedNode.id}
                 </code>
                 <div className="flex gap-1.5">
@@ -1245,7 +1245,7 @@ export function StdFeatureSpacesChannelsPanel() {
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-2">
                     <Input
-                      className="flex-1 h-7 text-[11px] bg-slate-950/50 border-slate-800"
+                      className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
                       value={renameValue}
                       onChange={(e) =>
                         setRenameValue(e.target.value.toLowerCase())
@@ -1279,25 +1279,25 @@ export function StdFeatureSpacesChannelsPanel() {
               )}
 
               {selectedInput && (
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700/50">
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border-default/50">
                   <div className="col-span-2 flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
                       Label
                     </label>
                     <Input
-                      className="h-7 text-[11px] bg-slate-950/50 border-slate-800"
+                      className="h-7 text-[11px] bg-bg-input border-border-default"
                       value={selectedInput.label}
                       onChange={(e) => handleUpdateLabel(e.target.value)}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
                       Default
                     </label>
                     <Input
                       type="number"
                       step="0.01"
-                      className="h-7 text-[11px] bg-slate-950/50 border-slate-800"
+                      className="h-7 text-[11px] bg-bg-input border-border-default"
                       value={selectedInput.defaultValue}
                       onChange={(e) =>
                         handleUpdateDefaultValue(
@@ -1307,7 +1307,7 @@ export function StdFeatureSpacesChannelsPanel() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
                       Range
                     </label>
                     <div className="flex items-center gap-1.5">
@@ -1315,18 +1315,18 @@ export function StdFeatureSpacesChannelsPanel() {
                         type="number"
                         step="0.1"
                         placeholder="Min"
-                        className="h-7 text-[11px] bg-slate-950/50 border-slate-800 flex-1"
+                        className="h-7 text-[11px] bg-bg-input border-border-default flex-1"
                         value={selectedInput.range.min}
                         onChange={(e) =>
                           handleUpdateRangeMin(parseFloat(e.target.value) || 0)
                         }
                       />
-                      <span className="text-slate-600">→</span>
+                      <span className="text-text-muted">→</span>
                       <Input
                         type="number"
                         step="0.1"
                         placeholder="Max"
-                        className="h-7 text-[11px] bg-slate-950/50 border-slate-800 flex-1"
+                        className="h-7 text-[11px] bg-bg-input border-border-default flex-1"
                         value={selectedInput.range.max}
                         onChange={(e) =>
                           handleUpdateRangeMax(parseFloat(e.target.value) || 0)
@@ -1340,13 +1340,13 @@ export function StdFeatureSpacesChannelsPanel() {
               {selectedNode &&
                 addButtonLabel &&
                 addButtonLabel !== "Add Namespace" && (
-                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/50">
-                    <label className="text-[10px] font-bold uppercase text-slate-500">
+                  <div className="flex flex-col gap-2 pt-2 border-t border-border-default/50">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
                       {addButtonLabel}
                     </label>
                     <div className="flex gap-2">
                       <Input
-                        className="flex-1 h-7 text-[11px] bg-slate-950/50 border-slate-800"
+                        className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
                         placeholder={`${addButtonLabel.replace("Add ", "")} name...`}
                         value={newNodeName}
                         onChange={(e) =>

@@ -50,14 +50,14 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   }
 
   return (
-    <div className="flex flex-col gap-0.5 p-1.5 bg-slate-900/40 rounded-lg border border-slate-800/50 mt-0.5">
-      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 px-0.5">
+    <div className="flex flex-col gap-0.5 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50 mt-0.5">
+      <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-0.5 px-0.5">
         Appearance
       </div>
 
       {showMaterialSelector && (
-        <div className="flex items-center gap-2 p-1 pl-2 min-h-[32px] border border-slate-800/20 bg-slate-900/10 rounded-lg mb-1">
-          <span className="text-[11px] font-medium text-slate-400 select-none flex-1">
+        <div className="flex items-center gap-2 p-1 pl-2 min-h-[32px] border border-border-default/20 bg-bg-secondary/10 rounded-lg mb-1">
+          <span className="text-[11px] font-medium text-text-secondary select-none flex-1">
             Material
           </span>
           <div className="flex-1 min-w-[120px]">
@@ -167,11 +167,11 @@ function RiggingScalarRow({
 
     return (
       <div
-        className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? "focus-within:border-blue-500/50" : "opacity-70"} relative flex-1 min-w-0 h-5`}
+        className={`flex items-center bg-bg-input/50 rounded-sm border border-transparent ${canEdit ? "focus-within:border-accent/50" : "opacity-70"} relative flex-1 min-w-0 h-5`}
       >
         <input
           type="number"
-          className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none pl-1"
+          className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none pl-1"
           value={typeof val === "number" ? parseFloat(val.toFixed(2)) : val}
           step={0.1}
           min={0}
@@ -352,9 +352,9 @@ function RiggingColorRow({
         <BasePopover.Root>
           <BasePopover.Trigger
             className={cn(
-              "w-6 h-5 rounded-sm border border-slate-700 shadow-sm",
+              "w-6 h-5 rounded-sm border border-border-default shadow-sm",
               canEditAny
-                ? "cursor-pointer hover:border-blue-500/50"
+                ? "cursor-pointer hover:border-accent/50"
                 : "cursor-not-allowed opacity-50",
             )}
             style={{ backgroundColor: hexColor }}
@@ -364,11 +364,11 @@ function RiggingColorRow({
           <BasePopover.Portal>
             <BasePopover.Positioner side="bottom" align="start" sideOffset={5} className="z-[100]">
               <BasePopover.Popup
-                className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl"
+                className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl"
               >
                 <HexColorPicker color={hexColor} onChange={handleColorChange} />
                 <div className="flex gap-1">
-                  <div className="text-[10px] bg-slate-950 px-1 py-0.5 rounded text-slate-400 font-mono select-all uppercase">
+                  <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
                     {hexColor}
                   </div>
                 </div>
@@ -394,8 +394,8 @@ function RiggingColorRow({
               <div
                 key={i}
                 className={cn(
-                  "flex items-center bg-slate-950/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
-                  canEdit ? "focus-within:border-blue-500/50" : "opacity-70",
+                  "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
+                  canEdit ? "focus-within:border-accent/50" : "opacity-70",
                 )}
               >
                 <ScrubbableLabel
@@ -425,7 +425,7 @@ function RiggingColorRow({
                 />
                 <input
                   type="number"
-                  className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none"
+                  className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none"
                   value={
                     typeof val === "number" ? parseFloat(val.toFixed(2)) : 0
                   }

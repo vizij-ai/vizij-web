@@ -629,11 +629,11 @@ export function BindingEditor({
 
   const functionSelectCurrentLabel = selectedFunctionDetail ? (
     <div className="flex items-center gap-2">
-      <span className="font-bold text-slate-100">
+      <span className="font-bold text-text-primary">
         {selectedFunctionDetail.name}()
       </span>
       {selectedFunctionCategoryLabel && (
-        <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-400">
+        <span className="px-1.5 py-0.5 rounded-full bg-accent-subtle border border-accent/20 text-[9px] font-black uppercase tracking-widest text-accent">
           {selectedFunctionCategoryLabel}
         </span>
       )}
@@ -863,7 +863,7 @@ export function BindingEditor({
           aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
         >
           <svg
-            className="w-3 h-3 text-slate-500 group-hover:text-slate-300"
+            className="w-3 h-3 text-text-muted group-hover:text-text-primary"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -875,7 +875,7 @@ export function BindingEditor({
           </svg>
         </button>
       )}
-      <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+      <span className="text-[11px] font-black uppercase tracking-widest text-text-secondary">
         {label} Drivers Config
       </span>
       <div className="flex-1" />
@@ -931,7 +931,7 @@ export function BindingEditor({
   }
 
   return (
-    <div className="w-full bg-slate-900/40 border border-white/5 rounded-xl p-4">
+    <div className="w-full bg-bg-panel/40 border border-border-default/50 rounded-xl p-4">
       {header}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
@@ -1022,23 +1022,23 @@ export function BindingEditor({
             return (
               <div
                 key={slot.id}
-                className="bg-slate-950/40 border border-white/5 rounded-lg p-5 flex flex-col gap-6 group/slot hover:border-white/10 transition-colors"
+                className="bg-bg-input/40 border border-border-default/50 rounded-lg p-5 flex flex-col gap-6 group/slot hover:border-border-default transition-colors"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                       Expression variable
                     </span>
-                    <code className="text-[12px] bg-slate-950 px-2 py-0.5 rounded border border-white/10 text-blue-400 font-mono font-bold">
+                    <code className="text-[12px] bg-bg-input px-2 py-0.5 rounded border border-border-default text-accent font-mono font-bold">
                       {slotIdentifier}
                     </code>
                   </div>
                   <label className="flex flex-col gap-1.5 flex-1 min-w-[120px]">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                       Alias
                     </span>
                     <input
-                      className="bg-slate-950 border border-white/5 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-slate-700"
+                      className="bg-bg-input border border-border-default/50 rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent/50 transition-colors placeholder:text-text-muted"
                       value={slot.alias}
                       placeholder={slot.id}
                       onChange={(event) =>
@@ -1065,61 +1065,63 @@ export function BindingEditor({
                     </Button>
                   )}
                 </div>
-                {vectorAuthoringEnabled && (
-                  <div
-                    className="flex flex-col gap-2"
-                    role="group"
-                    aria-label={`Value type for ${label} slot ${index + 1}`}
-                  >
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      Value type
-                    </span>
-                    <div className="flex bg-slate-950 border border-white/5 rounded-lg p-1 self-start">
-                      <button
-                        type="button"
-                        className={cn(
-                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                          slotValueType === "scalar"
-                            ? "bg-slate-800 text-slate-100 shadow-sm"
-                            : "text-slate-500 hover:text-slate-300",
-                        )}
-                        onClick={() => {
-                          if (slotValueType !== "scalar") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "scalar",
-                            );
-                          }
-                        }}
-                      >
-                        Scalar
-                      </button>
-                      <button
-                        type="button"
-                        className={cn(
-                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                          slotValueType === "vector"
-                            ? "bg-slate-800 text-slate-100 shadow-sm"
-                            : "text-slate-500 hover:text-slate-300",
-                        )}
-                        onClick={() => {
-                          if (slotValueType !== "vector") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "vector",
-                            );
-                          }
-                        }}
-                      >
-                        Vector
-                      </button>
+                {
+                  vectorAuthoringEnabled && (
+                    <div
+                      className="flex flex-col gap-2"
+                      role="group"
+                      aria-label={`Value type for ${label} slot ${index + 1}`}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                        Value type
+                      </span>
+                      <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "scalar"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "scalar") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "scalar",
+                              );
+                            }
+                          }}
+                        >
+                          Scalar
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "vector"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "vector") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "vector",
+                              );
+                            }
+                          }}
+                        >
+                          Vector
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                }
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Driver Binding:
                   </span>
                   <div className="flex items-center gap-2">
@@ -1193,7 +1195,7 @@ export function BindingEditor({
                         ) : undefined;
 
                       return (
-                        <div className="w-full mt-4 p-4 bg-slate-950 rounded-xl border border-white/5">
+                        <div className="w-full mt-4 p-4 bg-bg-input rounded-xl border border-border-default/50">
                           <CollapsibleRow
                             id={`${targetId}-${slot.id}-driver`}
                             title={input.label ?? resolvedInputId ?? "Driver"}
@@ -1211,25 +1213,25 @@ export function BindingEditor({
                             actions={actions}
                             className="bg-transparent border-none p-0"
                             expandedContent={
-                              <div className="flex gap-4 p-3 bg-slate-900/60 rounded border border-white/5 text-[11px] text-slate-500 font-medium">
+                              <div className="flex gap-4 p-3 bg-bg-secondary/60 rounded border border-border-default/50 text-[11px] text-text-muted font-medium">
                                 <span className="flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
                                   Min:{" "}
-                                  <span className="text-slate-300 font-bold">
+                                  <span className="text-text-primary font-bold">
                                     {driverMin}
                                   </span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
                                   Default:{" "}
-                                  <span className="text-slate-300 font-bold">
+                                  <span className="text-text-primary font-bold">
                                     {driverDefault}
                                   </span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>{" "}
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
                                   Max:{" "}
-                                  <span className="text-slate-300 font-bold">
+                                  <span className="text-text-primary font-bold">
                                     {driverMax}
                                   </span>
                                 </span>
@@ -1241,45 +1243,47 @@ export function BindingEditor({
                       );
                     })()}
                 </div>
-                {upstreamNodes.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-white/5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSlotDiagnosticsToggle(slotKey)}
-                      className="h-8 text-[11px] font-bold text-slate-500 hover:text-slate-300"
-                    >
-                      {diagnosticsExpanded
-                        ? "Hide upstream nodes"
-                        : "Show upstream nodes"}
-                    </Button>
-                    {diagnosticsExpanded && (
-                      <ul className="mt-4 space-y-2">
-                        {upstreamNodes.map((node) => (
-                          <li
-                            key={`${slotKey}-${node.id}`}
-                            className="flex flex-col gap-1 p-3 bg-slate-950 rounded-lg border border-white/5"
-                          >
-                            <span className="text-[11px] font-bold text-slate-200">
-                              {node.label}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono text-blue-400">
-                                {node.type}
+                {
+                  upstreamNodes.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-border-default/50">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSlotDiagnosticsToggle(slotKey)}
+                        className="h-8 text-[11px] font-bold text-text-muted hover:text-text-primary"
+                      >
+                        {diagnosticsExpanded
+                          ? "Hide upstream nodes"
+                          : "Show upstream nodes"}
+                      </Button>
+                      {diagnosticsExpanded && (
+                        <ul className="mt-4 space-y-2">
+                          {upstreamNodes.map((node) => (
+                            <li
+                              key={`${slotKey}-${node.id}`}
+                              className="flex flex-col gap-1 p-3 bg-bg-input rounded-lg border border-border-default/50"
+                            >
+                              <span className="text-[11px] font-bold text-text-primary">
+                                {node.label}
                               </span>
-                              {node.category && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold uppercase tracking-wider">
-                                  {node.category}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono text-accent">
+                                  {node.type}
                                 </span>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
+                                {node.category && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-muted font-bold uppercase tracking-wider">
+                                    {node.category}
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                }
               </div>
             );
           })}
@@ -1296,7 +1300,7 @@ export function BindingEditor({
         <div className="flex flex-col gap-4">
           <label
             htmlFor={`binding-expression-${targetId}`}
-            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+            className="text-[10px] font-black uppercase tracking-widest text-text-muted"
           >
             Expression: {label} =
           </label>
@@ -1306,8 +1310,6 @@ export function BindingEditor({
             value={expressionDraft}
             className={cn(
               "w-full h-24", // TextArea has default styles, just overriding size/specifics if needed.
-              // Original classes: "w-full h-24 bg-slate-950 border border-white/10 rounded-xl p-4 text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none shadow-inner"
-              // My TextArea has most of these. I'll just keep w-full h-24 and maybe issue logic.
               issueList.length > 0 && "border-red-500/50 bg-red-500/5",
             )}
             onChange={(event) =>
@@ -1324,14 +1326,14 @@ export function BindingEditor({
           {(aliasHints || reservedHints) && (
             <div className="flex flex-col gap-1.5 px-1">
               {aliasHints && (
-                <p className="text-[10px] text-slate-500 font-medium">
-                  <span className="text-slate-400 font-bold">Aliases:</span>{" "}
+                <p className="text-[10px] text-text-muted font-medium">
+                  <span className="text-text-secondary font-bold">Aliases:</span>{" "}
                   {aliasHints}
                 </p>
               )}
               {reservedHints && (
-                <p className="text-[10px] text-slate-500 font-medium">
-                  <span className="text-slate-400 font-bold">Reserved:</span>{" "}
+                <p className="text-[10px] text-text-muted font-medium">
+                  <span className="text-text-secondary font-bold">Reserved:</span>{" "}
                   {reservedHints}
                 </p>
               )}
@@ -1360,7 +1362,7 @@ export function BindingEditor({
                 }
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded flex items-center justify-center bg-blue-500/10 text-blue-400">
+                  <div className="w-6 h-6 rounded flex items-center justify-center bg-accent/10 text-accent">
                     <svg
                       className="w-3.5 h-3.5"
                       viewBox="0 0 24 24"
@@ -1373,17 +1375,17 @@ export function BindingEditor({
                       <path d="M12 2v20M2 12h20" />
                     </svg>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-300">
+                  <span className="text-[11px] font-bold text-text-primary">
                     Function Reference
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-slate-500 font-bold group-hover:text-slate-400">
+                  <span className="text-[10px] text-text-muted font-bold group-hover:text-text-secondary">
                     {EXPRESSION_FUNCTION_VOCABULARY.length} available
                   </span>
                   <svg
                     className={cn(
-                      "w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform",
+                      "w-3 h-3 text-text-muted group-hover:text-text-primary transition-transform",
                       functionReferenceExpanded && "rotate-180",
                     )}
                     viewBox="0 0 24 24"
@@ -1407,19 +1409,19 @@ export function BindingEditor({
                     className="w-full"
                   />
                   {selectedFunctionDetail ? (
-                    <div className="bg-slate-950 rounded-xl border border-white/5 p-6 space-y-6">
+                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-6 space-y-6">
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                           <div className="space-y-1">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                               Function
                             </span>
                             <div className="flex items-center gap-2.5">
-                              <h4 className="text-lg font-black text-slate-100 italic tracking-tight">
+                              <h4 className="text-lg font-black text-text-primary italic tracking-tight">
                                 {selectedFunctionDetail.name}()
                               </h4>
                               {selectedFunctionCategoryLabel && (
-                                <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-400">
+                                <span className="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[9px] font-black uppercase tracking-widest text-accent">
                                   {selectedFunctionCategoryLabel}
                                 </span>
                               )}
@@ -1428,27 +1430,27 @@ export function BindingEditor({
                           <div className="flex gap-4">
                             {selectedFunctionArgumentSummary && (
                               <div className="space-y-1">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
                                   Arguments
                                 </span>
-                                <span className="text-[11px] font-bold text-slate-300">
+                                <span className="text-[11px] font-bold text-text-secondary">
                                   {selectedFunctionArgumentSummary}
                                 </span>
                               </div>
                             )}
                             <div className="space-y-1">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
                                 Returns
                               </span>
-                              <span className="text-[11px] font-bold text-slate-300 italic">
+                              <span className="text-[11px] font-bold text-text-secondary italic">
                                 {selectedFunctionReturnType}
                               </span>
                             </div>
                           </div>
                         </div>
                         {functionSignaturePreview && (
-                          <div className="p-3 bg-slate-900/60 rounded-lg border border-white/5">
-                            <code className="text-[11px] text-blue-400 font-mono font-bold">
+                          <div className="p-3 bg-bg-secondary/60 rounded-lg border border-border-default/50">
+                            <code className="text-[11px] text-accent font-mono font-bold">
                               {functionSignaturePreview}
                             </code>
                           </div>
@@ -1460,13 +1462,13 @@ export function BindingEditor({
                           selectedFunctionDescriptions.map((paragraph) => (
                             <p
                               key={paragraph}
-                              className="text-xs text-slate-400 leading-relaxed font-medium"
+                              className="text-xs text-text-muted leading-relaxed font-medium"
                             >
                               {paragraph}
                             </p>
                           ))
                         ) : (
-                          <p className="text-xs text-slate-500 italic">
+                          <p className="text-xs text-text-muted italic">
                             This function does not include documentation yet.
                           </p>
                         )}
@@ -1474,14 +1476,14 @@ export function BindingEditor({
 
                       {selectedFunctionAliases.length > 0 && (
                         <div className="space-y-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                             Aliases
                           </span>
                           <div className="flex flex-wrap gap-2">
                             {selectedFunctionAliases.map((alias) => (
                               <span
                                 key={alias}
-                                className="px-2 py-0.5 rounded bg-slate-800 text-slate-500 text-[10px] font-bold border border-white/5"
+                                className="px-2 py-0.5 rounded bg-bg-secondary text-text-muted text-[10px] font-bold border border-border-default/50"
                               >
                                 {alias}
                               </span>
@@ -1492,10 +1494,10 @@ export function BindingEditor({
 
                       <div className="space-y-4">
                         <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                             Parameters
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500">
+                          <span className="text-[10px] font-bold text-text-muted">
                             {selectedFunctionParameterSummary}
                           </span>
                         </div>
@@ -1513,16 +1515,16 @@ export function BindingEditor({
                                 >
                                   <div className="flex items-start justify-between">
                                     <div className="flex flex-col">
-                                      <span className="text-xs font-bold text-slate-200">
+                                      <span className="text-xs font-bold text-text-primary">
                                         {param.label}
                                       </span>
-                                      <span className="text-[10px] font-mono text-slate-600 group-hover/param:text-blue-500/50 transition-colors">
+                                      <span className="text-[10px] font-mono text-text-muted group-hover/param:text-accent/50 transition-colors">
                                         {param.id}
                                         {param.kind === "variadic" ? "…" : ""}
                                       </span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 justify-end">
-                                      <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-white/10 text-[9px] font-black text-slate-500 uppercase">
+                                      <span className="px-1.5 py-0.5 rounded bg-bg-panel border border-border-default/50 text-[9px] font-black text-text-muted uppercase">
                                         {param.typeLabel}
                                       </span>
                                       {param.kind === "variadic" && (
@@ -1536,17 +1538,17 @@ export function BindingEditor({
                                         </span>
                                       )}
                                       {param.optional && (
-                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 text-[9px] font-black text-slate-600 uppercase">
+                                        <span className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border-default/50 text-[9px] font-black text-text-muted uppercase">
                                           Optional
                                         </span>
                                       )}
                                     </div>
                                   </div>
-                                  <p className="text-[11px] text-slate-400 leading-relaxed font-medium bg-white/[0.02] p-2.5 rounded-lg border border-transparent group-hover/param:border-white/5 transition-all">
+                                  <p className="text-[11px] text-text-muted leading-relaxed font-medium bg-bg-panel/50 p-2.5 rounded-lg border border-transparent group-hover/param:border-border-default/50 transition-all">
                                     {param.doc ??
                                       `Provide a ${param.typeLabel.toLowerCase()} value.`}
                                     {variadicNote && (
-                                      <span className="block mt-1.5 text-blue-400 font-bold text-[10px]">
+                                      <span className="block mt-1.5 text-accent font-bold text-[10px]">
                                         {variadicNote}
                                       </span>
                                     )}
@@ -1556,15 +1558,15 @@ export function BindingEditor({
                             })}
                           </ul>
                         ) : (
-                          <p className="text-[11px] text-slate-500 italic">
+                          <p className="text-[11px] text-text-muted italic">
                             This function does not take any inputs.
                           </p>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-slate-950 rounded-xl border border-white/5 p-8 text-center">
-                      <p className="text-xs text-slate-500 italic">
+                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-8 text-center">
+                      <p className="text-xs text-text-muted italic">
                         Select a function to see its description and inputs.
                       </p>
                     </div>
@@ -1577,7 +1579,7 @@ export function BindingEditor({
             <div className="mt-4 border-t border-white/5 pt-6">
               <button
                 type="button"
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors group"
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-default/50 bg-bg-panel/50 hover:bg-bg-panel transition-colors group"
                 onClick={() => setCaseBuilderExpanded((previous) => !previous)}
               >
                 <div className="flex items-center gap-2.5">
@@ -1594,13 +1596,13 @@ export function BindingEditor({
                       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                     </svg>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-300">
+                  <span className="text-[11px] font-bold text-text-primary">
                     Case Expression Builder
                   </span>
                 </div>
                 <svg
                   className={cn(
-                    "w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-transform",
+                    "w-3 h-3 text-text-muted group-hover:text-text-secondary transition-transform",
                     caseBuilderExpanded && "rotate-180",
                   )}
                   viewBox="0 0 24 24"
@@ -1614,10 +1616,10 @@ export function BindingEditor({
                 </svg>
               </button>
               {caseBuilderExpanded && (
-                <div className="mt-4 bg-slate-950 rounded-xl border border-white/5 p-6 animate-in fade-in slide-in-from-top-2 duration-200 space-y-6">
+                <div className="mt-4 bg-bg-input rounded-xl border border-border-default/50 p-6 animate-in fade-in slide-in-from-top-2 duration-200 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
                         Selector
                       </span>
                       <Select
@@ -1636,7 +1638,7 @@ export function BindingEditor({
                       />
                     </div>
                     <div className="space-y-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
                         Default Value
                       </span>
                       <Select
@@ -1660,7 +1662,7 @@ export function BindingEditor({
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                       Branches
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1672,8 +1674,8 @@ export function BindingEditor({
                             className={cn(
                               "flex items-center gap-2.5 p-2 rounded border transition-all cursor-pointer",
                               checked
-                                ? "bg-blue-600/10 border-blue-600/30 text-blue-100"
-                                : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/10",
+                                ? "bg-accent/10 border-accent/20 text-accent"
+                                : "bg-bg-secondary border-border-default/50 text-text-muted hover:border-border-default",
                             )}
                             onClick={() => handleCaseBranchToggle(alias, !checked)}
                           >
@@ -1712,6 +1714,8 @@ export function BindingEditor({
         {children}
       </div>
     </div>
+
+
   );
 }
 
@@ -1741,41 +1745,41 @@ interface CaseMetadataSummaryProps {
 
 function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
   return (
-    <div className="bg-slate-900/60 rounded-xl border border-white/5 p-4 space-y-4">
-      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+    <div className="bg-bg-secondary/60 rounded-xl border border-border-default/50 p-4 space-y-4">
+      <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted">
         CASE metadata
       </h4>
       <dl className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
-          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+          <dt className="text-[9px] font-black uppercase tracking-widest text-text-muted">
             Selector
           </dt>
-          <dd className="text-[11px] font-bold text-blue-400 font-mono">
+          <dd className="text-[11px] font-bold text-accent font-mono">
             {formatOperandMetadata(metadata.selector)}
           </dd>
         </div>
         <div className="space-y-1">
-          <dt className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+          <dt className="text-[9px] font-black uppercase tracking-widest text-text-muted">
             Default
           </dt>
-          <dd className="text-[11px] font-bold text-slate-300 font-mono">
+          <dd className="text-[11px] font-bold text-text-primary font-mono">
             {formatOperandMetadata(metadata.defaultBranch)}
           </dd>
         </div>
       </dl>
       {metadata.branches.length > 0 && (
         <div className="space-y-2">
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+          <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
             Branches
           </span>
           <ul className="space-y-1.5">
             {metadata.branches.map((branch, index) => (
               <li
                 key={index}
-                className="flex items-center gap-3 p-2 bg-slate-950 rounded border border-white/5 text-[10px]"
+                className="flex items-center gap-3 p-2 bg-bg-input rounded border border-border-default/50 text-[10px]"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                <span className="font-mono text-slate-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
+                <span className="font-mono text-text-primary">
                   {formatOperandMetadata(branch)}
                 </span>
               </li>

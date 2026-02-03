@@ -39,8 +39,8 @@ export function Slider({
             )}
         >
             <BaseSlider.Control className="flex w-full items-center">
-                <BaseSlider.Track className="relative bg-slate-800 rounded-full flex-grow h-1">
-                    <BaseSlider.Indicator className="absolute bg-blue-600 rounded-full h-full" />
+                <BaseSlider.Track className="relative bg-zinc-800 rounded-full flex-grow h-1">
+                    <BaseSlider.Indicator className="absolute bg-accent rounded-full h-full" />
                     <BaseSlider.Thumb className="block w-3 h-3 bg-white rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-transform" />
                 </BaseSlider.Track>
             </BaseSlider.Control>

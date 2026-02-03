@@ -21,12 +21,12 @@ export function FieldRow({
 
   const controlWithLabel = shouldInlineLabel
     ? cloneElement(
-        control as ReactElement<{ label?: ReactNode; hint?: ReactNode }>,
-        {
-          label: (control.props as { label?: ReactNode }).label ?? label,
-          hint: (control.props as { hint?: ReactNode }).hint ?? hint,
-        },
-      )
+      control as ReactElement<{ label?: ReactNode; hint?: ReactNode }>,
+      {
+        label: (control.props as { label?: ReactNode }).label ?? label,
+        hint: (control.props as { hint?: ReactNode }).hint ?? hint,
+      },
+    )
     : control;
 
   return (
@@ -39,11 +39,11 @@ export function FieldRow({
     >
       {shouldInlineLabel ? null : (
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="font-semibold text-slate-200 text-[13px]">
+          <span className="font-semibold text-text-primary text-[13px]">
             {label}
           </span>
           {hint ? (
-            <span className="text-slate-500 text-[11px] leading-tight">
+            <span className="text-text-secondary text-[11px] leading-tight">
               {hint}
             </span>
           ) : null}

@@ -49,8 +49,8 @@ export function RiggingMorphTargetsSection({
   }
 
   return (
-    <div className="flex flex-col gap-0.5 p-1.5 bg-slate-900/40 rounded-lg border border-slate-800/50 mt-0.5">
-      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 px-0.5">
+    <div className="flex flex-col gap-0.5 p-1.5 bg-zinc-900/40 rounded-lg border border-zinc-800/50 mt-0.5">
+      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5 px-0.5">
         Morph Targets
       </div>
 
@@ -134,7 +134,7 @@ function RiggingScalarRow({
     const canEdit = isBound;
     return (
       <div
-        className={`flex items-center bg-slate-950/50 rounded-sm border border-transparent ${canEdit ? "focus-within:border-blue-500/50" : "opacity-70"} relative flex-1 min-w-0 h-5 group/row`}
+        className={`flex items-center bg-zinc-950/50 rounded-sm border border-transparent ${canEdit ? "focus-within:border-blue-500/50" : "opacity-70"} relative flex-1 min-w-0 h-5 group/row`}
       >
         <ScrubbableLabel
           label={label}
@@ -153,11 +153,11 @@ function RiggingScalarRow({
               scrubValuesRef.current[inputId] = (baseline as number) ?? 0;
             }
           }}
-          className="text-[9px] font-bold px-1 select-none transition-colors text-slate-500"
+          className="text-[9px] font-bold px-1 select-none transition-colors text-zinc-500"
         />
         <input
           type="number"
-          className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-slate-300 placeholder-slate-600 no-spinners font-mono leading-none pl-1"
+          className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-zinc-300 placeholder-zinc-600 no-spinners font-mono leading-none pl-1"
           value={typeof val === "number" ? parseFloat(val.toFixed(2)) : 0}
           step={0.1}
           disabled={!canEdit}

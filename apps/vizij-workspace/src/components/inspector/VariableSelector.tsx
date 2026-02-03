@@ -42,9 +42,9 @@ export function VariableSelector({
   ];
 
   return (
-    <div className="flex flex-col h-[500px] w-full bg-slate-900 text-slate-200 overflow-hidden rounded-xl border border-slate-800 shadow-2xl">
+    <div className="flex flex-col h-[500px] w-full bg-bg-app text-text-primary overflow-hidden rounded-xl border border-border-default shadow-2xl">
       {/* Search Header */}
-      <div className="p-3 border-b border-slate-800 flex flex-col gap-3 bg-slate-900/50 backdrop-blur-md">
+      <div className="p-3 border-b border-border-default flex flex-col gap-3 bg-bg-panel/50 backdrop-blur-md">
         <Tabs
           items={tabs}
           value={activeTab}
@@ -69,7 +69,7 @@ export function VariableSelector({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar bg-slate-950/20">
+      <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar bg-bg-input/20">
         {activeTab === "variables" ? (
           <VariablesList search={search} onSelect={onSelect} />
         ) : (
@@ -79,12 +79,12 @@ export function VariableSelector({
 
       {/* Footer */}
       {onCancel && (
-        <div className="p-3 border-t border-slate-800 flex justify-end bg-slate-900/50">
+        <div className="p-3 border-t border-border-default flex justify-end bg-bg-panel/50">
           <Button
             size="sm"
             variant="ghost"
             onClick={onCancel}
-            className="text-slate-400 hover:text-white"
+            className="text-text-muted hover:text-text-primary"
           >
             Cancel
           </Button>
@@ -186,7 +186,7 @@ function VariablesList({
 
   if (groupedVariables.length === 0) {
     return (
-      <div className="p-8 text-center text-xs text-slate-500 italic">
+      <div className="p-8 text-center text-xs text-text-muted italic">
         No variables found
       </div>
     );
@@ -205,10 +205,10 @@ function VariablesList({
             hasChildren={true}
             isExpanded={isExpanded}
             onToggle={() => toggleGroup(group.label)}
-            icon={<Box size={10} className="text-slate-500" strokeWidth={2.5} />}
+            icon={<Box size={10} className="text-text-muted" strokeWidth={2.5} />}
             highlightQuery={search}
             actions={
-              <span className="text-[9px] text-slate-500 font-mono">
+              <span className="text-[9px] text-text-muted font-mono">
                 {group.vars.length}
               </span>
             }
@@ -229,7 +229,7 @@ function VariablesList({
                   icon={<Zap size={10} className="text-yellow-400/70" strokeWidth={2.5} />}
                   highlightQuery={search}
                   actions={
-                    <span className="text-[9px] text-slate-600 font-mono truncate max-w-[100px]">
+                    <span className="text-[9px] text-text-secondary font-mono truncate max-w-[100px]">
                       {item.input.id}
                     </span>
                   }
@@ -322,7 +322,7 @@ function SceneTree({
         highlightQuery={search}
         icon={
           <span
-            className="flex items-center justify-center w-4 h-4 bg-blue-500/10 text-blue-400 rounded-sm select-none border border-blue-500/20"
+            className="flex items-center justify-center w-4 h-4 bg-accent-subtle text-accent rounded-sm select-none border border-accent/20"
             title={node.type}
           >
             <Icon size={10} strokeWidth={2.5} />
@@ -340,11 +340,11 @@ function SceneTree({
           <div className="flex flex-col">
             {/* Render Features first as "children" */}
             {hasFeatures && (
-              <div className="flex flex-col border-l border-blue-500/10 ml-[5px] my-0.5">
+              <div className="flex flex-col border-l border-accent/10 ml-[5px] my-0.5">
                 {node.features.map(feature => (
                   <div
                     key={feature.id}
-                    className="flex items-center gap-2 py-1 px-2 ml-2 hover:bg-blue-600/10 hover:text-blue-100 rounded cursor-pointer text-slate-400 transition-all border border-transparent hover:border-blue-500/20 group/prop"
+                    className="flex items-center gap-2 py-1 px-2 ml-2 hover:bg-accent-subtle hover:text-text-primary rounded cursor-pointer text-text-secondary transition-all border border-transparent hover:border-accent/20 group/prop"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelect({
@@ -355,7 +355,7 @@ function SceneTree({
                       });
                     }}
                   >
-                    <span className="w-1 h-1 rounded-full bg-blue-500 group-hover/prop:scale-125 transition-transform" />
+                    <span className="w-1 h-1 rounded-full bg-accent group-hover/prop:scale-125 transition-transform" />
                     <span className="text-[11px] font-medium truncate">
                       {feature.label}
                     </span>

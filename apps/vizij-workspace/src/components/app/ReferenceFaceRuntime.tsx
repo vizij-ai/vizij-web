@@ -374,10 +374,10 @@ function ReferenceFaceBridge({
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-slate-950/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-slate-800/60 bg-slate-900/40 backdrop-blur-md">
+    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
+      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-slate-500 font-black">
+          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
             Reference Face
           </p>
           <div className="flex items-center gap-1.5">
@@ -387,17 +387,17 @@ function ReferenceFaceBridge({
                 ready
                   ? "bg-green-500"
                   : loading
-                    ? "bg-blue-500 animate-pulse"
-                    : "bg-slate-600",
+                    ? "bg-accent animate-pulse"
+                    : "bg-text-muted",
               )}
             />
-            <p className="m-0 text-[10px] text-slate-400 font-bold">
+            <p className="m-0 text-[10px] text-text-secondary font-bold">
               {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] tabular-nums text-slate-500/80 font-medium">
+          <span className="text-[10px] tabular-nums text-text-muted/80 font-medium">
             {formattedFps}
           </span>
           <button
@@ -406,7 +406,7 @@ function ReferenceFaceBridge({
               "px-2 py-0.5 border rounded text-[10px] font-bold transition-all cursor-pointer active:scale-95",
               idleBehaviorEnabled
                 ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-                : "bg-slate-800/20 border-slate-700/50 text-slate-500 hover:bg-slate-800 hover:text-slate-300",
+                : "bg-bg-secondary/20 border-border-default/50 text-text-muted hover:bg-bg-secondary hover:text-text-secondary",
             )}
             onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
             title={
@@ -455,13 +455,13 @@ function ReferenceFacePlaceholder({
   onToggleSplit,
 }: ReferenceFacePlaceholderProps) {
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-slate-950/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-slate-800/60 bg-slate-900/40 backdrop-blur-md">
+    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
+      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-slate-500 font-black">
+          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
             Reference Face
           </p>
-          <p className="m-0 text-[10px] text-slate-500 italic font-medium">
+          <p className="m-0 text-[10px] text-text-muted italic font-medium">
             No file loaded
           </p>
         </div>
@@ -482,8 +482,8 @@ function ReferenceFacePlaceholder({
           )}
         </div>
       </header>
-      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-slate-950/40">
-        <p className="text-slate-500 text-[11px] text-center px-6 max-w-[240px] italic leading-relaxed">
+      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-bg-app/40">
+        <p className="text-text-muted text-[11px] text-center px-6 max-w-[240px] italic leading-relaxed">
           Load a reference face GLB using the sidebar to begin.
         </p>
       </div>
