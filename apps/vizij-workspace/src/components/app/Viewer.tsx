@@ -21,7 +21,7 @@ export function Viewer({
   onLoadHugo,
 }: ViewerProps) {
   return (
-    <main className="h-full w-full relative bg-slate-950 overflow-hidden">
+    <main className="h-full w-full relative bg-bg-panel overflow-hidden">
       <div className="h-full w-full">
         {rootId ? (
           <Vizij
@@ -36,10 +36,10 @@ export function Viewer({
             }}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-6 p-8 text-center animate-in fade-in duration-700">
+          <div className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700">
             <div className="flex flex-col gap-2">
-              <p className="text-slate-300 font-medium text-lg">Empty Scene</p>
-              <p className="text-sm max-w-xs mx-auto text-slate-500">
+              <p className="text-text-primary font-medium text-lg">Empty Scene</p>
+              <p className="text-sm max-w-xs mx-auto text-text-muted">
                 Load a Vizij asset (.glb) to begin rigging and composing your
                 scene.
               </p>
