@@ -19,3 +19,4 @@
 .vscode/
 .eslintcache
 .claude/settings.local.json
+.worktrees/
