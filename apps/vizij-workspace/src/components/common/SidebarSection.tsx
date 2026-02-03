@@ -1,9 +1,4 @@
-import {
-  Disclosure,
-  DisclosureButton,
-  DisclosurePanel,
-  Transition,
-} from "@headlessui/react";
+import { Collapsible as BaseCollapsible } from "@base-ui/react";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "../../utils/cn";
@@ -46,44 +41,33 @@ export function SidebarSection({
       </header>
 
       {hasInstructions && instructions && (
-        <Disclosure defaultOpen={defaultInstructionsOpen}>
-          {({ open }) => (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-              <DisclosureButton className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-slate-800/50">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                    {instructions.label}
+        <BaseCollapsible.Root defaultOpen={defaultInstructionsOpen} className="group">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-slate-800/50">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  {instructions.label}
+                </span>
+                {instructions.summary && (
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {instructions.summary}
                   </span>
-                  {instructions.summary && (
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {instructions.summary}
-                    </span>
-                  )}
-                </div>
-                <ChevronRight
-                  className={cn(
-                    "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                    open && "rotate-90 text-blue-400",
-                  )}
-                />
-              </DisclosureButton>
-              <Transition
-                enter="transition duration-100 ease-out"
-                enterFrom="transform scale-95 opacity-0"
-                enterTo="transform scale-100 opacity-100"
-                leave="transition duration-75 ease-out"
-                leaveFrom="transform scale-100 opacity-100"
-                leaveTo="transform scale-95 opacity-0"
-              >
-                <DisclosurePanel className="px-4 pb-4 pt-1">
-                  <div className="text-[11px] text-slate-400 leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none">
-                    {instructions.content}
-                  </div>
-                </DisclosurePanel>
-              </Transition>
-            </div>
-          )}
-        </Disclosure>
+                )}
+              </div>
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
+                  "group-data-[state=open]:rotate-90 group-data-[state=open]:text-blue-400",
+                )}
+              />
+            </BaseCollapsible.Trigger>
+            <BaseCollapsible.Panel className="px-4 pb-4 pt-1 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 duration-100">
+              <div className="text-[11px] text-slate-400 leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none">
+                {instructions.content}
+              </div>
+            </BaseCollapsible.Panel>
+          </div>
+        </BaseCollapsible.Root>
       )}
 
       <div className="flex flex-col gap-3">{children}</div>

@@ -117,7 +117,7 @@ function TreeRowWrapper({
             label={node.label}
             hasChildren={hasChildren}
             isExpanded={isExpanded}
-            isSelected={isSelected}
+            isSelected={!!isSelected}
             onToggle={() => onToggle(node.id)}
             onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
             highlightQuery={searchQuery}

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Sliders, Play, Box } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
-import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { Popover as BasePopover } from "@base-ui/react";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
@@ -552,30 +552,33 @@ export function InspectorContent() {
 
                                                 return (
                                                     <div className="flex items-center gap-2 flex-1 group/row">
-                                                        <Popover className="relative flex items-center">
-                                                            <PopoverButton
+                                                        <BasePopover.Root>
+                                                            <BasePopover.Trigger
                                                                 className="w-8 h-4 rounded border border-slate-700 shadow-sm transition-transform hover:scale-105"
                                                                 style={{ backgroundColor: hex }}
                                                             />
-                                                            <PopoverPanel
-                                                                anchor="bottom end"
-                                                                className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl z-[100] mt-1"
-                                                            >
-                                                                <HexColorPicker
-                                                                    color={hex}
-                                                                    onChange={(h) => {
-                                                                        const rgb = hexToRgb(h);
-                                                                        if (rgb)
-                                                                            handleBulkChange(
-                                                                                isPoseValue,
-                                                                                rgb.r,
-                                                                                rgb.g,
-                                                                                rgb.b,
-                                                                            );
-                                                                    }}
-                                                                />
-                                                            </PopoverPanel>
-                                                        </Popover>
+                                                            <BasePopover.Portal>
+                                                                <BasePopover.Positioner side="bottom" align="end" sideOffset={5} className="z-[100]">
+                                                                    <BasePopover.Popup
+                                                                        className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl mt-1"
+                                                                    >
+                                                                        <HexColorPicker
+                                                                            color={hex}
+                                                                            onChange={(h) => {
+                                                                                const rgb = hexToRgb(h);
+                                                                                if (rgb)
+                                                                                    handleBulkChange(
+                                                                                        isPoseValue,
+                                                                                        rgb.r,
+                                                                                        rgb.g,
+                                                                                        rgb.b,
+                                                                                    );
+                                                                            }}
+                                                                        />
+                                                                    </BasePopover.Popup>
+                                                                </BasePopover.Positioner>
+                                                            </BasePopover.Portal>
+                                                        </BasePopover.Root>
                                                         <div className="flex gap-1 flex-1 min-w-0">
                                                             {[
                                                                 { c: r, ch: "R" as const },

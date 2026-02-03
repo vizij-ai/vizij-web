@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
-import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { Popover as BasePopover } from "@base-ui/react";
 import type {
   SceneObjectNode,
   SceneObjectFeature,
@@ -270,7 +270,7 @@ function RiggingColorRow({
     (c) =>
       c.isBound &&
       Math.abs((c.currentValue as number) - (c.defaultValue as number)) >
-        0.0001,
+      0.0001,
   );
 
   const handleReset = () => {
@@ -300,10 +300,10 @@ function RiggingColorRow({
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result
       ? {
-          r: parseInt(result[1], 16) / 255,
-          g: parseInt(result[2], 16) / 255,
-          b: parseInt(result[3], 16) / 255,
-        }
+        r: parseInt(result[1], 16) / 255,
+        g: parseInt(result[2], 16) / 255,
+        b: parseInt(result[3], 16) / 255,
+      }
       : null;
   };
 
@@ -349,8 +349,8 @@ function RiggingColorRow({
     return (
       <div className="flex gap-1 flex-1 items-center min-w-0">
         {/* Color Swatch / Picker */}
-        <Popover className="relative flex items-center">
-          <PopoverButton
+        <BasePopover.Root>
+          <BasePopover.Trigger
             className={cn(
               "w-6 h-5 rounded-sm border border-slate-700 shadow-sm",
               canEditAny
@@ -361,18 +361,21 @@ function RiggingColorRow({
             disabled={!canEditAny}
             title="Pick Color"
           />
-          <PopoverPanel
-            anchor="bottom start"
-            className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl z-[100]"
-          >
-            <HexColorPicker color={hexColor} onChange={handleColorChange} />
-            <div className="flex gap-1">
-              <div className="text-[10px] bg-slate-950 px-1 py-0.5 rounded text-slate-400 font-mono select-all uppercase">
-                {hexColor}
-              </div>
-            </div>
-          </PopoverPanel>
-        </Popover>
+          <BasePopover.Portal>
+            <BasePopover.Positioner side="bottom" align="start" sideOffset={5} className="z-[100]">
+              <BasePopover.Popup
+                className="flex flex-col gap-2 p-2 bg-slate-900 border border-slate-800 rounded-lg shadow-xl"
+              >
+                <HexColorPicker color={hexColor} onChange={handleColorChange} />
+                <div className="flex gap-1">
+                  <div className="text-[10px] bg-slate-950 px-1 py-0.5 rounded text-slate-400 font-mono select-all uppercase">
+                    {hexColor}
+                  </div>
+                </div>
+              </BasePopover.Popup>
+            </BasePopover.Positioner>
+          </BasePopover.Portal>
+        </BasePopover.Root>
 
         {/* Individual Channels */}
         <div className="flex gap-0.5 flex-1 min-w-0">

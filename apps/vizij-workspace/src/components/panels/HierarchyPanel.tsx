@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { Popover as BasePopover } from "@base-ui/react";
 import { Box, Folder } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
@@ -119,6 +119,8 @@ export function HierarchyPanel({
     const [reparentTarget, setReparentTarget] = useState<string>(
         selectedNode?.parentId ?? "",
     );
+    // Add state for popover
+    const [isMoveOpen, setIsMoveOpen] = useState(false);
     useEffect(() => {
         setReparentTarget(selectedNode?.parentId ?? "");
     }, [selectedNode?.parentId]);
@@ -374,12 +376,11 @@ export function HierarchyPanel({
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                             </svg>
                         </Button>
-                        <Popover className="relative">
-                            <PopoverButton
-                                as={Button}
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-slate-400 hover:text-blue-300 hover:bg-blue-500/20 data-[open]:text-blue-300 data-[open]:bg-blue-500/20"
+                        <BasePopover.Root open={isMoveOpen} onOpenChange={setIsMoveOpen}>
+                            <BasePopover.Trigger
+                                className={cn(
+                                    "h-6 w-6 p-0 flex items-center justify-center rounded text-slate-400 hover:text-blue-300 hover:bg-blue-500/20 data-[state=open]:text-blue-300 data-[state=open]:bg-blue-500/20 transition-colors",
+                                )}
                                 title="Move Selection"
                             >
                                 <svg
@@ -399,13 +400,12 @@ export function HierarchyPanel({
                                     <path d="M2 12h20" />
                                     <path d="M12 2v20" />
                                 </svg>
-                            </PopoverButton>
-                            <PopoverPanel
-                                anchor="right start"
-                                className="w-64 p-3 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0"
-                            >
-                                {({ close }) => (
-                                    <>
+                            </BasePopover.Trigger>
+                            <BasePopover.Portal>
+                                <BasePopover.Positioner side="right" align="start" sideOffset={5}>
+                                    <BasePopover.Popup
+                                        className="w-64 p-3 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
+                                    >
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] font-medium text-slate-400">
                                                 Move{" "}
@@ -433,7 +433,7 @@ export function HierarchyPanel({
                                                 variant="ghost"
                                                 size="sm"
                                                 className="h-7 text-xs"
-                                                onClick={() => close()}
+                                                onClick={() => setIsMoveOpen(false)}
                                             >
                                                 Cancel
                                             </Button>
@@ -443,17 +443,17 @@ export function HierarchyPanel({
                                                 className="h-7 text-xs px-4"
                                                 onClick={() => {
                                                     handleReparentSelection();
-                                                    close();
+                                                    setIsMoveOpen(false);
                                                 }}
                                                 disabled={!selectedId}
                                             >
                                                 Move
                                             </Button>
                                         </div>
-                                    </>
-                                )}
-                            </PopoverPanel>
-                        </Popover>
+                                    </BasePopover.Popup>
+                                </BasePopover.Positioner>
+                            </BasePopover.Portal>
+                        </BasePopover.Root>
 
                         <div className="ml-auto" />
 

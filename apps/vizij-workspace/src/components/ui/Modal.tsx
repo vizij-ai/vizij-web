@@ -1,5 +1,5 @@
-import { type ReactNode, Fragment } from "react";
-import { Dialog as HeadlessDialog, Transition } from "@headlessui/react";
+import { type ReactNode } from "react";
+import { Dialog as BaseDialog } from "@base-ui/react";
 import { X } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Button } from "./Button";
@@ -33,63 +33,45 @@ export function Modal({
   maxWidth = "2xl",
 }: ModalProps) {
   return (
-    <Transition show={open} as={Fragment}>
-      <HeadlessDialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            >
-              <HeadlessDialog.Panel
-                className={cn(
-                  "relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all sm:my-8 w-full",
-                  maxWidthClasses[maxWidth],
-                  className,
-                )}
+    <BaseDialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md transition-all duration-300 data-[state=open]:opacity-100 data-[state=closed]:opacity-0"
+        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 overflow-y-auto" onClick={(e) => e.target === e.currentTarget && onClose()}>
+          <BaseDialog.Popup
+            className={cn(
+              "relative w-full transform rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all duration-300 data-[state=open]:opacity-100 data-[state=open]:scale-100 data-[state=open]:translate-y-0 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:translate-y-4 sm:my-8",
+              maxWidthClasses[maxWidth],
+              className,
+            )}
+          >
+            <header className="flex justify-between items-center px-6 py-4 bg-slate-800/20 border-b border-slate-700/50">
+              <BaseDialog.Title
+                className="m-0 text-lg font-bold text-slate-100 uppercase tracking-widest font-heading"
               >
-                <header className="flex justify-between items-center px-6 py-4 bg-slate-800/20 border-b border-slate-700/50">
-                  <HeadlessDialog.Title
-                    as="h2"
-                    className="m-0 text-lg font-bold text-slate-100 uppercase tracking-widest font-heading"
-                  >
-                    {title}
-                  </HeadlessDialog.Title>
+                {title}
+              </BaseDialog.Title>
+              <BaseDialog.Close
+                render={(props) => (
                   <Button
+                    {...props}
                     variant="ghost"
                     size="icon"
                     className="w-8 h-8 opacity-70 hover:opacity-100"
-                    onClick={onClose}
                     aria-label="Close"
                   >
                     <X className="w-5 h-5" />
                   </Button>
-                </header>
-                <div className="px-6 py-6 text-slate-300 max-h-[80vh] overflow-y-auto">
-                  {children}
-                </div>
-              </HeadlessDialog.Panel>
-            </Transition.Child>
-          </div>
+                )}
+              />
+            </header>
+            <div className="px-6 py-6 text-slate-300 max-h-[80vh] overflow-y-auto">
+              {children}
+            </div>
+          </BaseDialog.Popup>
         </div>
-      </HeadlessDialog>
-    </Transition>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }

@@ -13,6 +13,8 @@ export * from "./MenuBar";
 export * from "./Modal";
 export * from "./Panel";
 export * from "./PanelSearch";
+export * from "./Checkbox";
+export * from "./TextArea";
 export * from "./RowSlider";
 export * from "./Select";
 export * from "./StudioPanel";

@@ -1,4 +1,4 @@
-import { Switch as HeadlessSwitch } from "@headlessui/react";
+import { Switch as BaseSwitch } from "@base-ui/react";
 import type { ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
@@ -30,10 +30,10 @@ export function Switch({
         className,
       )}
     >
-      <HeadlessSwitch
+      <BaseSwitch.Root
         id={id}
         checked={checked}
-        onChange={onChange}
+        onCheckedChange={onChange}
         disabled={disabled}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer rounded-full border border-slate-700 bg-slate-800 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50",
@@ -46,9 +46,7 @@ export function Switch({
           },
         )}
       >
-        <span className="sr-only">{label || "Toggle"}</span>
-        <span
-          aria-hidden="true"
+        <BaseSwitch.Thumb
           className={cn(
             "pointer-events-none inline-block transform rounded-full bg-slate-400 shadow ring-0 transition duration-200 ease-in-out",
             checked ? "bg-white" : "translate-x-1",
@@ -61,7 +59,7 @@ export function Switch({
             },
           )}
         />
-      </HeadlessSwitch>
+      </BaseSwitch.Root>
       {(label || hint) && (
         <div
           className="flex flex-col"

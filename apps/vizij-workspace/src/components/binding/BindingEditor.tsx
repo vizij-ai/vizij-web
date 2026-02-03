@@ -27,6 +27,8 @@ import {
   Button,
   CollapsibleRow,
   Select,
+  TextArea,
+  Checkbox,
 } from "../ui";
 import { formatRigPathLabel } from "../../utils/rigPaths";
 import { cn } from "../../utils/cn";
@@ -152,23 +154,23 @@ function buildParameterDetails(
   );
   const variadic = signature.variadic_inputs
     ? [
-        {
-          id: signature.variadic_inputs.id,
-          label:
-            signature.variadic_inputs.label ?? signature.variadic_inputs.id,
-          doc: signature.variadic_inputs.doc,
-          optional: false,
-          typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
-          kind: "variadic" as const,
-          repeatRange: {
-            min: signature.variadic_inputs.min ?? 0,
-            max:
-              typeof signature.variadic_inputs.max === "number"
-                ? signature.variadic_inputs.max
-                : null,
-          },
+      {
+        id: signature.variadic_inputs.id,
+        label:
+          signature.variadic_inputs.label ?? signature.variadic_inputs.id,
+        doc: signature.variadic_inputs.doc,
+        optional: false,
+        typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
+        kind: "variadic" as const,
+        repeatRange: {
+          min: signature.variadic_inputs.min ?? 0,
+          max:
+            typeof signature.variadic_inputs.max === "number"
+              ? signature.variadic_inputs.max
+              : null,
         },
-      ]
+      },
+    ]
     : [];
   const params: FunctionParameterDetail[] =
     definition?.params?.map(
@@ -258,9 +260,9 @@ function buildFunctionDetail(
     null;
   const argumentRange = definition
     ? {
-        min: definition.minArgs,
-        max: definition.maxArgs ?? null,
-      }
+      min: definition.minArgs,
+      max: definition.maxArgs ?? null,
+    }
     : deriveArgumentRange(signature);
   return {
     ...entry,
@@ -644,9 +646,9 @@ export function BindingEditor({
 
   const selectedFunctionDescriptions = selectedFunctionDetail
     ? ensureDistinctDescriptions([
-        selectedFunctionDetail.signatureDoc,
-        selectedFunctionDetail.description,
-      ])
+      selectedFunctionDetail.signatureDoc,
+      selectedFunctionDetail.description,
+    ])
     : [];
 
   const selectedFunctionArgumentSummary = selectedFunctionDetail
@@ -695,16 +697,16 @@ export function BindingEditor({
 
   const [caseSelector, setCaseSelector] = useState<string>(
     parsedCaseConfig?.selector ??
-      slotAliasOptions[0] ??
-      reservedVariableNames[0] ??
-      "self",
+    slotAliasOptions[0] ??
+    reservedVariableNames[0] ??
+    "self",
   );
   const [caseDefault, setCaseDefault] = useState<string>(
     parsedCaseConfig?.defaultBranch ?? "self",
   );
   const [caseBranches, setCaseBranches] = useState<string[]>(
     parsedCaseConfig?.branches?.filter((alias) => slotAliasOrder.has(alias)) ??
-      slotAliasOptions.slice(0),
+    slotAliasOptions.slice(0),
   );
 
   useEffect(() => {
@@ -998,17 +1000,17 @@ export function BindingEditor({
 
             const selectOptions =
               normalizedSlotInputId &&
-              !baseOptions.some(
-                (option) => option.value === normalizedSlotInputId,
-              )
+                !baseOptions.some(
+                  (option) => option.value === normalizedSlotInputId,
+                )
                 ? [
-                    ...baseOptions,
-                    {
-                      value: normalizedSlotInputId,
-                      label: currentLabel,
-                      description: "Current value",
-                    },
-                  ]
+                  ...baseOptions,
+                  {
+                    value: normalizedSlotInputId,
+                    label: currentLabel,
+                    description: "Current value",
+                  },
+                ]
                 : baseOptions;
 
             const slotValueType = slot.valueType ?? "scalar";
@@ -1298,12 +1300,14 @@ export function BindingEditor({
           >
             Expression: {label} =
           </label>
-          <textarea
+          <TextArea
             id={`binding-expression-${targetId}`}
             ref={expressionInputRef}
             value={expressionDraft}
             className={cn(
-              "w-full h-24 bg-slate-950 border border-white/10 rounded-xl p-4 text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none shadow-inner",
+              "w-full h-24", // TextArea has default styles, just overriding size/specifics if needed.
+              // Original classes: "w-full h-24 bg-slate-950 border border-white/10 rounded-xl p-4 text-xs font-mono text-blue-300 focus:outline-none focus:border-blue-500/50 transition-all resize-none shadow-inner"
+              // My TextArea has most of these. I'll just keep w-full h-24 and maybe issue logic.
               issueList.length > 0 && "border-red-500/50 bg-red-500/5",
             )}
             onChange={(event) =>
@@ -1663,7 +1667,7 @@ export function BindingEditor({
                       {slotAliasOptions.map((alias) => {
                         const checked = caseBranches.includes(alias);
                         return (
-                          <label
+                          <div
                             key={alias}
                             className={cn(
                               "flex items-center gap-2.5 p-2 rounded border transition-all cursor-pointer",
@@ -1671,22 +1675,21 @@ export function BindingEditor({
                                 ? "bg-blue-600/10 border-blue-600/30 text-blue-100"
                                 : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/10",
                             )}
+                            onClick={() => handleCaseBranchToggle(alias, !checked)}
                           >
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={checked}
-                              className="w-3.5 h-3.5 rounded-sm border-white/20 bg-slate-950 text-blue-600 focus:ring-blue-500/50"
-                              onChange={(event) =>
+                              onChange={(val) =>
                                 handleCaseBranchToggle(
                                   alias,
-                                  event.target.checked,
+                                  val,
                                 )
                               }
                             />
                             <span className="text-[11px] font-bold">
                               {alias}
                             </span>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>

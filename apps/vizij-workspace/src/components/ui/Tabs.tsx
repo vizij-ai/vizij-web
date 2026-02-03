@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
+import { Tabs as BaseTabs } from "@base-ui/react";
 import { cn } from "../../utils/cn";
 
 export type TabId = string;
@@ -35,20 +35,13 @@ export function Tabs({
   size = "md",
   variant = "default",
 }: TabsProps) {
-  const selectedIndex = items.findIndex((item) => item.id === value);
-  const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
-
-  const handleChange = (index: number) => {
-    onValueChange(items[index].id);
-  };
-
   return (
-    <TabGroup
-      selectedIndex={safeSelectedIndex}
-      onChange={handleChange}
+    <BaseTabs.Root
+      value={value}
+      onValueChange={(val) => onValueChange(val as TabId)}
       className={cn("flex w-full flex-col gap-4", className)}
     >
-      <TabList
+      <BaseTabs.List
         className={cn(
           "flex w-full overflow-x-auto custom-scrollbar",
           {
@@ -61,12 +54,13 @@ export function Tabs({
         )}
       >
         {items.map((item) => (
-          <Tab
+          <BaseTabs.Tab
             key={item.id}
+            value={item.id}
             disabled={item.disabled}
-            className={({ selected }) =>
+            className={({ active: selected }: { active: boolean }) =>
               cn(
-                "inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
+                "group inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
 
                 {
                   // Default variant
@@ -93,34 +87,33 @@ export function Tabs({
               )
             }
           >
-            {({ selected }) => (
-              <>
-                <span>{item.label}</span>
-                {item.description && (
-                  <span className="ml-2 text-[10px] opacity-70 font-medium tracking-tight">
-                    {item.description}
-                  </span>
-                )}
-                {item.badge && (
-                  <span className="ml-2 inline-flex items-center justify-center rounded-full bg-slate-800/50 px-1.5 py-0.5 text-[9px] font-black text-slate-400 border border-white/5 uppercase tracking-tighter">
-                    {item.badge}
-                  </span>
-                )}
-                {variant === "underline" && selected && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t-full" />
-                )}
-              </>
+            <span>{item.label}</span>
+            {item.description && (
+              <span className="ml-2 text-[10px] opacity-70 font-medium tracking-tight">
+                {item.description}
+              </span>
             )}
-          </Tab>
+            {item.badge && (
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-slate-800/50 px-1.5 py-0.5 text-[9px] font-black text-slate-400 border border-white/5 uppercase tracking-tighter">
+                {item.badge}
+              </span>
+            )}
+            {variant === "underline" && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t-full hidden group-data-[state=active]:block" />
+            )}
+          </BaseTabs.Tab>
         ))}
-      </TabList>
-      <TabPanels className={cn("mt-1 focus:outline-none", panelClassName)}>
+      </BaseTabs.List>
+      <div className={cn("mt-1 focus:outline-none", panelClassName)}>
         {items.map((item) => (
-          <TabPanel key={item.id} className="focus:outline-none">
+          <BaseTabs.Panel key={item.id} value={item.id} className="focus:outline-none">
+            {/* Optimization: only render content if active to match typical tab behavior, OR rely on Tabs.Panel hidden prop.
+                 Base UI Tabs.Panel usually handles `hidden` or doesn't render children if not active if `keepMounted` is false.
+                 By default functionality, it should be fine. */}
             {renderPanel(item.id)}
-          </TabPanel>
+          </BaseTabs.Panel>
         ))}
-      </TabPanels>
-    </TabGroup>
+      </div>
+    </BaseTabs.Root>
   );
 }

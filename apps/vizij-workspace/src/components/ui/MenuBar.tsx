@@ -1,13 +1,6 @@
 import * as React from "react";
-import {
-  Menu as HeadlessMenu,
-  MenuButton,
-  MenuItem as HeadlessMenuItem,
-  MenuItems,
-  Transition,
-} from "@headlessui/react";
+import { Menu as BaseMenu } from "@base-ui/react";
 import { Check } from "lucide-react";
-import { Fragment } from "react";
 import { cn } from "../../utils/cn";
 import { Logo } from "./Logo";
 
@@ -33,27 +26,19 @@ interface MenuProps {
 
 export function Menu({ label, children }: MenuProps) {
   return (
-    <HeadlessMenu as="div" className="relative inline-block text-left">
-      <div>
-        <MenuButton className="inline-flex w-full justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 data-[open]:bg-slate-800/80 data-[open]:text-slate-100 cursor-pointer active:scale-95">
-          {label}
-        </MenuButton>
-      </div>
+    <BaseMenu.Root>
+      <BaseMenu.Trigger className="inline-flex justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 data-[popup-open]:bg-slate-800/80 data-[popup-open]:text-slate-100 cursor-pointer active:scale-95">
+        {label}
+      </BaseMenu.Trigger>
 
-      <Transition
-        as={Fragment}
-        enter="transition ease-out duration-100"
-        enterFrom="transform opacity-0 scale-95"
-        enterTo="transform opacity-100 scale-100"
-        leave="transition ease-in duration-75"
-        leaveFrom="transform opacity-100 scale-100"
-        leaveTo="transform opacity-0 scale-95"
-      >
-        <MenuItems className="absolute left-0 z-50 mt-1 min-w-[200px] origin-top-left rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95">
-          {children}
-        </MenuItems>
-      </Transition>
-    </HeadlessMenu>
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner sideOffset={4} align="start">
+          <BaseMenu.Popup className="z-50 min-w-[200px] rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]">
+            {children}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
   );
 }
 
@@ -67,23 +52,18 @@ export function MenuItem({
   disabled?: boolean;
 }) {
   return (
-    <HeadlessMenuItem disabled={disabled}>
-      {({ focus, disabled: itemDisabled }) => (
-        <button
-          onClick={onSelect}
-          disabled={itemDisabled}
-          className={cn(
-            "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all",
-            focus ? "bg-blue-600 text-white" : "text-slate-300",
-            itemDisabled
-              ? "opacity-50 cursor-not-allowed"
-              : "cursor-pointer active:scale-[0.98]",
-          )}
-        >
-          {children}
-        </button>
+    <BaseMenu.Item
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all outline-none select-none",
+        "data-[highlighted]:bg-blue-600 data-[highlighted]:text-white",
+        "text-slate-300",
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-[0.98]",
       )}
-    </HeadlessMenuItem>
+    >
+      {children}
+    </BaseMenu.Item>
   );
 }
 
@@ -109,21 +89,19 @@ export function MenuCheckboxItem({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <HeadlessMenuItem>
-      {({ focus }) => (
-        <button
-          onClick={() => onCheckedChange(!checked)}
-          className={cn(
-            "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all cursor-pointer active:scale-[0.98]",
-            focus ? "bg-blue-600 text-white" : "text-slate-300",
-          )}
-        >
-          <span className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">
-            {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-          </span>
-          {children}
-        </button>
+    <BaseMenu.CheckboxItem
+      checked={checked}
+      onCheckedChange={onCheckedChange}
+      className={cn(
+        "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all cursor-pointer active:scale-[0.98] outline-none select-none",
+        "data-[highlighted]:bg-blue-600 data-[highlighted]:text-white",
+        "text-slate-300"
       )}
-    </HeadlessMenuItem>
+    >
+      <BaseMenu.CheckboxItemIndicator className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">
+        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+      </BaseMenu.CheckboxItemIndicator>
+      {children}
+    </BaseMenu.CheckboxItem>
   );
 }
