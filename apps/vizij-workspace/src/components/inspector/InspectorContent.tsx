@@ -1,8 +1,12 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Sliders, Play, Box } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import { Button } from "../ui/Button";
+import { Slider } from "../ui/Slider";
+import { NumberField } from "../ui/NumberField";
+import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
@@ -105,6 +109,8 @@ export function InspectorContent() {
         handleAddBindingSlot,
         handleUpdateStandardInput,
         handleRenameShape,
+        handleBindingInputChange,
+        handleResetBinding,
         selectedRigId,
     } = useBindingAuthoring((state) => state);
 
@@ -200,7 +206,7 @@ export function InspectorContent() {
                         ) {
                             if (targetToFeature[targetId]) {
                                 featureInfo = targetToFeature[targetId];
-                                groupKey = `obj:${featureInfo.objectId}`;
+                                groupKey = `obj:${featureInfo.objectId} `;
                                 groupLabel = featureInfo.objectName;
                                 break;
                             }
@@ -208,12 +214,12 @@ export function InspectorContent() {
                     }
 
                     if (!featureInfo && inputDef?.group) {
-                        groupKey = `group:${inputDef.group}`;
+                        groupKey = `group:${inputDef.group} `;
                         groupLabel = inputDef.group;
                     }
 
                     if (featureInfo && featureInfo.featureKey.toLowerCase() === "color") {
-                        const colorKey = `${featureInfo.objectId}:${featureInfo.featureId}`;
+                        const colorKey = `${featureInfo.objectId}:${featureInfo.featureId} `;
                         if (!colorFeatures[colorKey]) {
                             colorFeatures[colorKey] = {
                                 label: "Color",
@@ -267,7 +273,7 @@ export function InspectorContent() {
                     variableId = selection.id;
                 } else if (selection.type === "property") {
                     const nameSafe = selection.label.replace(/[^a-zA-Z0-9]/g, "_");
-                    const newVar = handleCreateCustomStandardInput(`/${nameSafe}`);
+                    const newVar = handleCreateCustomStandardInput(`/ ${nameSafe} `);
                     if (!newVar) return;
                     variableId = newVar.id;
                     const obj = objects.find((o) => o.id === selection.objectId);
@@ -330,21 +336,20 @@ export function InspectorContent() {
                         }}
                         renderMainInput={() => (
                             <div className="flex items-center gap-2 flex-1 group/row">
-                                <input
-                                    type="range"
+                                <Slider
                                     min={0}
                                     max={1}
                                     step={0.01}
                                     value={blendAmount}
-                                    className="flex-1 h-1 bg-slate-700/50 rounded-lg appearance-none cursor-pointer accent-blue-500 min-w-0"
-                                    onMouseDown={captureStartValues}
-                                    onChange={(e) => handleBlend(parseFloat(e.target.value))}
+                                    className="flex-1"
+                                    onChange={(val) => handleBlend(val as number)}
                                 />
                                 <div className="w-12 flex-shrink-0">
-                                    <input
+                                    <Input
+                                        size="sm"
                                         type="text"
                                         value={(blendAmount * 100).toFixed(0) + "%"}
-                                        className="w-full bg-slate-950/80 border border-slate-800/80 rounded px-1 py-0.5 text-right font-mono text-[10px] text-slate-400 focus:outline-none"
+                                        className="bg-slate-950/80 border-slate-800/80 text-right font-mono text-slate-400"
                                         readOnly
                                     />
                                 </div>
@@ -423,35 +428,30 @@ export function InspectorContent() {
                                                     }}
                                                     renderMainInput={() => (
                                                         <div className="flex items-center gap-2 flex-1 group/row">
-                                                            <input
-                                                                type="range"
+                                                            <Slider
                                                                 min={min}
                                                                 max={max}
                                                                 step={0.01}
                                                                 value={liveVal}
-                                                                className="flex-1 h-1 bg-slate-700/50 rounded-lg appearance-none cursor-pointer accent-blue-500 min-w-0"
-                                                                onChange={(e) =>
+                                                                className="flex-1"
+                                                                onChange={(val) =>
                                                                     handleInputValueChange(
                                                                         varId,
-                                                                        parseFloat(e.target.value),
+                                                                        val as number,
                                                                     )
                                                                 }
                                                             />
                                                             <div className="w-12 flex-shrink-0">
-                                                                <input
-                                                                    type="text"
-                                                                    value={liveVal.toFixed(2)}
+                                                                <NumberField
+                                                                    size="sm"
+                                                                    value={liveVal} // Assuming liveVal is number, need check
                                                                     className={cn(
-                                                                        "w-full bg-slate-950/80 border border-slate-800/80 rounded px-1 py-0.5 text-right font-mono text-[10px] transition-colors focus:outline-none focus:border-blue-500/50",
+                                                                        "w-full bg-slate-950/80 border-slate-800/80 text-right font-mono",
                                                                         isDifferent
                                                                             ? "text-blue-400 font-bold"
                                                                             : "text-slate-400",
                                                                     )}
-                                                                    onChange={(e) => {
-                                                                        const v = parseFloat(e.target.value);
-                                                                        if (!isNaN(v))
-                                                                            handleInputValueChange(varId, v);
-                                                                    }}
+                                                                    onChange={(val) => handleInputValueChange(varId, val)}
                                                                 />
                                                             </div>
                                                         </div>
@@ -472,10 +472,11 @@ export function InspectorContent() {
                                                                 }}
                                                                 className="h-full flex items-center bg-slate-950/40 rounded border border-slate-800/50 px-1 py-0.5 min-w-[60px]"
                                                             >
-                                                                <input
+                                                                <Input
+                                                                    size="sm"
                                                                     type="text"
                                                                     value={poseVal.toFixed(2)}
-                                                                    className="w-full bg-transparent border-none text-right font-mono text-[10px] text-slate-400 focus:outline-none cursor-ew-resize"
+                                                                    className="border-none text-right font-mono text-[10px] text-slate-400 cursor-ew-resize bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                                                     onChange={(e) => {
                                                                         const v = parseFloat(e.target.value);
                                                                         if (!isNaN(v)) {
@@ -629,13 +630,14 @@ export function InspectorContent() {
                                                                                     : "text-blue-500",
                                                                         )}
                                                                     />
-                                                                    <input
+                                                                    <Input
+                                                                        size="sm"
                                                                         type="text"
                                                                         value={(isPoseValue
                                                                             ? (c?.poseVal ?? 0)
                                                                             : (inputValues[c?.varId ?? ""] ?? 0)
                                                                         ).toFixed(2)}
-                                                                        className="w-full bg-transparent border-none text-right font-mono text-[9px] text-slate-300 focus:outline-none"
+                                                                        className="border-none text-right font-mono text-[9px] text-slate-300 bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                                                         onChange={(e) => {
                                                                             const v = parseFloat(e.target.value);
                                                                             if (!isNaN(v) && c) {
@@ -673,7 +675,7 @@ export function InspectorContent() {
 
                                             return (
                                                 <RiggingPropertyRow
-                                                    key={`color-${item.featureId}-${idx}`}
+                                                    key={`color - ${item.featureId} -${idx} `}
                                                     label={item.label}
                                                     defaultLabel="Pose"
                                                     hasDifferentDefault={isDifferent}
@@ -748,7 +750,7 @@ export function InspectorContent() {
                             for (const feat of obj.features) {
                                 for (const comp of feat.components) {
                                     if (comp.targetId === targetId) {
-                                        label = `${obj.name} · ${feat.label} ${feat.components.length > 1 ? comp.label : ""}`;
+                                        label = `${obj.name} · ${feat.label} ${feat.components.length > 1 ? comp.label : ""} `;
                                         break;
                                     }
                                 }
@@ -803,26 +805,22 @@ export function InspectorContent() {
                         }}
                         renderMainInput={() => (
                             <div className="flex items-center gap-2 flex-1">
-                                <input
-                                    type="range"
+                                <Slider
                                     min={input.range.min ?? -1}
                                     max={input.range.max ?? 1}
                                     step={0.01}
                                     value={value}
-                                    className="flex-1 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                                    onChange={(e) =>
-                                        handleInputValueChange(input.id, parseFloat(e.target.value))
+                                    className="flex-1"
+                                    onChange={(val) =>
+                                        handleInputValueChange(input.id, val as number)
                                     }
                                 />
                                 <div className="w-12 flex-shrink-0">
-                                    <input
-                                        type="text"
-                                        value={value.toFixed(2)}
-                                        className="w-full bg-slate-950/50 border border-slate-800/50 rounded px-1.5 py-0.5 text-right font-mono text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                                        onChange={(e) => {
-                                            const v = parseFloat(e.target.value);
-                                            if (!isNaN(v)) handleInputValueChange(input.id, v);
-                                        }}
+                                    <NumberField
+                                        size="sm"
+                                        value={value}
+                                        className="bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
+                                        onChange={(val) => handleInputValueChange(input.id, val)}
                                     />
                                 </div>
                             </div>

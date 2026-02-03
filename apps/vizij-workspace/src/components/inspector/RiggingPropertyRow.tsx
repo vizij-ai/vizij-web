@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronRight, ChevronDown, RotateCcw, Save } from "lucide-react";
+import { Button as BaseButton } from "@base-ui/react";
 import { cn } from "../../utils/cn";
 
 export interface RiggingPropertyRowProps {
@@ -152,7 +153,7 @@ export function RiggingPropertyRow({
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {/* Expand Toggle or Icon */}
           {renderDefaultInput ? (
-            <button
+            <BaseButton
               onClick={handleToggle}
               className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded hover:bg-white/5 focus:outline-none cursor-pointer active:scale-90 active:bg-white/10"
             >
@@ -161,7 +162,7 @@ export function RiggingPropertyRow({
               ) : (
                 <ChevronRight size={12} />
               )}
-            </button>
+            </BaseButton>
           ) : (
             icon && <span className="text-slate-500">{icon}</span>
           )}
@@ -189,7 +190,7 @@ export function RiggingPropertyRow({
 
           {/* Quick Reset - Always visible if changed, even when expanded */}
           {hasDifferentDefault && onResetToDefault && (
-            <button
+            <BaseButton
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -199,7 +200,7 @@ export function RiggingPropertyRow({
               title="Reset to default"
             >
               <RotateCcw size={10} />
-            </button>
+            </BaseButton>
           )}
         </div>
       </div>
@@ -212,7 +213,7 @@ export function RiggingPropertyRow({
           </span>
           <div className="flex-1">{renderDefaultInput()}</div>
           {hasDifferentDefault && onSaveToDefault && (
-            <button
+            <BaseButton
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -222,7 +223,7 @@ export function RiggingPropertyRow({
               title="Save current value as default"
             >
               <Save size={12} />
-            </button>
+            </BaseButton>
           )}
         </div>
       )}
