@@ -1,6 +1,14 @@
-
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, Trash2, Sliders, Play, Box } from "lucide-react";
+import {
+    Trash2,
+    Plus,
+    Info,
+    ChevronRight,
+    Sliders,
+    Palette,
+    Box,
+    Play
+} from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
 import { Button } from "../ui/Button";
@@ -11,22 +19,25 @@ import { Modal } from "../ui/Modal";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
     useBindingAuthoring,
-    useSelectionStore,
 } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
+import { rgbToHex, hexToRgb } from "../../utils/color";
+import { cleanLabel } from "../../utils/labels";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
-import { RiggingMaterialSection } from "./RiggingMaterialSection";
+import {
+    RiggingMaterialSection,
+    RiggingScalarRow,
+    RiggingColorRow
+} from "./RiggingMaterialSection";
 import { EmptyState } from "../ui/EmptyState";
-import { Info } from "lucide-react";
 
-import { rgbToHex, hexToRgb } from "../../utils/color";
-import { cleanLabel } from "../../utils/labels";
 
 type PoseVariableItem =
     | { type: "scalar"; varId: string; poseVal: number }
@@ -47,9 +58,28 @@ export function InspectorContent() {
     const scrubValuesRef = useRef<Record<string, number>>({});
 
     // Hooks
-    const selectionStack = useSelectionStore((state) => state.selectionStack);
-    const activeSelection = selectionStack[0] ?? null;
-    const { getNode, objects } = useSceneComposer();
+    const {
+        selectedId,
+        selectedPoseId,
+        selectedRigId,
+        selectedMaterialId,
+        handleSelectObject,
+        handleSelectPose,
+        handleSelectRig,
+        handleSelectMaterial,
+        inspectorMode,
+        handleClearSelection,
+    } = useUnifiedSelection();
+
+    const {
+        getNode,
+        objects,
+        materials,
+        updateMaterialLabel,
+        assignMaterial,
+        setAnimatableValue,
+    } = useSceneComposer();
+
     const {
         poses,
         updatePoseValue,
@@ -57,8 +87,8 @@ export function InspectorContent() {
         removePoseInput,
         updatePoseName,
         updatePoseGroup,
-        selectedPoseId,
     } = usePoseRig();
+
     const {
         managedStandardInputs,
         handleInputValueChange,
@@ -71,7 +101,7 @@ export function InspectorContent() {
         handleRenameShape,
         handleBindingInputChange,
         handleResetBinding,
-        selectedRigId,
+        standardInputsById,
     } = useBindingAuthoring((state) => state);
 
     // Reset blend amount when selected pose changes
@@ -80,8 +110,8 @@ export function InspectorContent() {
     }, [selectedPoseId]);
 
     // 1. Scene Object Mode
-    if (activeSelection) {
-        const node = getNode(activeSelection.id);
+    if (inspectorMode === "scene" && selectedId) {
+        const node = getNode(selectedId);
         if (node) {
             return (
                 <div className="flex flex-col gap-1 p-1">
@@ -101,7 +131,7 @@ export function InspectorContent() {
     }
 
     // 2. Pose Mode
-    if (selectedPoseId) {
+    if (inspectorMode === "pose" && selectedPoseId) {
         const pose = poses.find((p) => p.id === selectedPoseId);
         if (pose) {
             // Grouping Logic for Pose
@@ -698,7 +728,7 @@ export function InspectorContent() {
     }
 
     // 3. Rig Mode
-    if (selectedRigId) {
+    if (inspectorMode === "rig" && selectedRigId) {
         const rigInput = managedStandardInputs.find(
             (m) => m.input.id === selectedRigId,
         );
@@ -853,6 +883,132 @@ export function InspectorContent() {
                                 defaultTab="scene"
                             />
                         </Modal>
+                    </div>
+                </div>
+            );
+        }
+    }
+
+    if (inspectorMode === "material" && selectedMaterialId) {
+        const material = materials.find(m => m.id === selectedMaterialId);
+        if (material) {
+            const affectedShapes = objects.filter(obj => material.memberShapeIds.includes(obj.id));
+
+            // We create a "dummy" node object that maps the material features to this UI
+            // so we can reuse RiggingColorRow and RiggingScalarRow
+            // But wait, RiggingColorRow needs a real node feature.
+            // Looking at RiggingMaterialSection, it expects a SceneObjectFeature.
+            // We can construct these from the material descriptor.
+
+            const colorFeature = material.animated.color || material.staticValues.color !== undefined ? {
+                id: `mat-color-${material.id}`,
+                key: "color",
+                label: "Color",
+                animated: !!material.animated.color,
+                value: material.animated.color || "",
+                staticValue: material.staticValues.color,
+                components: [
+                    { label: "R", targetId: material.animated.color ? `${material.animated.color}:r` : undefined, staticValue: (material.staticValues.color as any)?.r },
+                    { label: "G", targetId: material.animated.color ? `${material.animated.color}:g` : undefined, staticValue: (material.staticValues.color as any)?.g },
+                    { label: "B", targetId: material.animated.color ? `${material.animated.color}:b` : undefined, staticValue: (material.staticValues.color as any)?.b },
+                ]
+            } as any : null;
+
+            const opacityFeature = material.animated.opacity || material.staticValues.opacity !== undefined ? {
+                id: `mat-opacity-${material.id}`,
+                key: "opacity",
+                label: "Opacity",
+                animated: !!material.animated.opacity,
+                value: material.animated.opacity || "",
+                staticValue: material.staticValues.opacity,
+                components: [
+                    { label: "Opacity", targetId: material.animated.opacity || undefined, staticValue: material.staticValues.opacity },
+                ]
+            } as any : null;
+
+            const handleStaticValueChange = (targetId: string, value: number, channel?: string) => {
+                setAnimatableValue(targetId, value, { channel, saveToDefault: true });
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-bg-app animate-in fade-in duration-300">
+                    <InspectorHeader
+                        name={material.label}
+                        typeLabel="Material"
+                        id={material.id}
+                        icon={Palette}
+                        onNameChange={(newName) => updateMaterialLabel(material.id, newName)}
+                    />
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-4">
+                        <div className="flex flex-col gap-0.5 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50">
+                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-0.5 px-0.5">
+                                Properties
+                            </div>
+                            {colorFeature && (
+                                <RiggingColorRow
+                                    label="Color"
+                                    feature={colorFeature}
+                                    bindings={bindings}
+                                    standardInputsById={standardInputsById}
+                                    inputValues={inputValues}
+                                    onValueChange={handleInputValueChange}
+                                    onDefaultChange={(id, val) =>
+                                        handleUpdateStandardInput(id, { defaultValue: val })
+                                    }
+                                    onStaticValueChange={handleStaticValueChange}
+                                />
+                            )}
+                            {opacityFeature && (
+                                <RiggingScalarRow
+                                    label="Opacity"
+                                    feature={opacityFeature}
+                                    bindings={bindings}
+                                    standardInputsById={standardInputsById}
+                                    inputValues={inputValues}
+                                    onValueChange={handleInputValueChange}
+                                    onDefaultChange={(id, val) =>
+                                        handleUpdateStandardInput(id, { defaultValue: val })
+                                    }
+                                    onStaticValueChange={handleStaticValueChange}
+                                />
+                            )}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between px-1">
+                                <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                                    Affected Face Elements
+                                </h3>
+                                <span className="text-[10px] font-mono text-text-muted bg-bg-panel/60 px-1.5 py-0.5 rounded border border-border-default/30">
+                                    {affectedShapes.length}
+                                </span>
+                            </div>
+
+                            {affectedShapes.length === 0 ? (
+                                <EmptyState
+                                    icon={Box}
+                                    iconSize={20}
+                                    title="No Elements"
+                                    description="This material is not assigned to any face elements."
+                                    className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                                />
+                            ) : (
+                                <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 max-h-[300px]">
+                                    {affectedShapes.map((shape) => (
+                                        <div
+                                            key={shape.id}
+                                            className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 group cursor-pointer"
+                                            onClick={() => handleSelectObject(shape.id)}
+                                        >
+                                            <Box size={10} className="text-accent/60" />
+                                            <span className="flex-1 truncate">{shape.name || shape.id}</span>
+                                            <ChevronRight size={10} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             );

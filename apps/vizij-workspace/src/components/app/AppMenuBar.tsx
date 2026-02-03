@@ -68,6 +68,12 @@ export function AppMenuBar({
         >
           Variables
         </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={panels.materials.isVisible}
+          onCheckedChange={() => togglePanel("materials")}
+        >
+          Materials
+        </MenuCheckboxItem>
 
         <MenuSeparator />
         <MenuLabel>Center Panel</MenuLabel>

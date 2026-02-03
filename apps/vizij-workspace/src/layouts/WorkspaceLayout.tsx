@@ -10,8 +10,10 @@ interface WorkspaceLayoutProps {
 
   // Left Sidebar
   leftTopPanel?: React.ReactNode;
+  leftMiddlePanel?: React.ReactNode;
   leftBottomPanel?: React.ReactNode;
   leftTopVisible?: boolean;
+  leftMiddleVisible?: boolean;
   leftBottomVisible?: boolean;
 
   // Center
@@ -30,8 +32,10 @@ interface WorkspaceLayoutProps {
 export function WorkspaceLayout({
   menuBar,
   leftTopPanel,
+  leftMiddlePanel,
   leftBottomPanel,
   leftTopVisible = true,
+  leftMiddleVisible = false,
   leftBottomVisible = true,
   topPanel,
   viewport,
@@ -42,7 +46,7 @@ export function WorkspaceLayout({
   rightTopVisible = true,
   rightBottomVisible = false,
 }: WorkspaceLayoutProps) {
-  const leftSidebarVisible = leftTopVisible || leftBottomVisible;
+  const leftSidebarVisible = leftTopVisible || leftMiddleVisible || leftBottomVisible;
   const rightSidebarVisible = rightTopVisible || rightBottomVisible;
 
   return (
@@ -63,7 +67,7 @@ export function WorkspaceLayout({
                 <Group orientation="vertical">
                   {leftTopVisible && (
                     <Panel
-                      defaultSize={leftBottomVisible ? 50 : 100}
+                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
                       minSize={5}
                       id="left-top"
                     >
@@ -73,13 +77,29 @@ export function WorkspaceLayout({
                     </Panel>
                   )}
 
-                  {leftTopVisible && leftBottomVisible && (
+                  {leftTopVisible && (leftMiddleVisible || leftBottomVisible) && (
+                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                  )}
+
+                  {leftMiddleVisible && (
+                    <Panel
+                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
+                      minSize={5}
+                      id="left-middle"
+                    >
+                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
+                        {leftMiddlePanel}
+                      </div>
+                    </Panel>
+                  )}
+
+                  {leftMiddleVisible && leftBottomVisible && (
                     <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
                   )}
 
                   {leftBottomVisible && (
                     <Panel
-                      defaultSize={leftTopVisible ? 50 : 100}
+                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
                       minSize={5}
                       id="left-bottom"
                     >

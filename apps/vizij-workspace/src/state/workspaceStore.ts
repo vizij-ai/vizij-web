@@ -18,6 +18,7 @@ interface WorkspaceState {
     // Center Top
     toolbar: PanelState;
     referenceFace: PanelState;
+    materials: PanelState;
   };
   togglePanel: (panelId: keyof WorkspaceState["panels"]) => void;
   setPanelVisibility: (
@@ -35,6 +36,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     animation: { isVisible: false, order: 0 },
     toolbar: { isVisible: true, order: 0 },
     referenceFace: { isVisible: false, order: 0 },
+    materials: { isVisible: false, order: 3 },
   },
   togglePanel: (panelId) =>
     set((state) => ({

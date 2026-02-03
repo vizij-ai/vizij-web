@@ -4,12 +4,14 @@ import {
   useSelectionStore,
 } from "../state/RigControllerProvider";
 import { usePoseRig } from "../state/PoseRigProvider";
+import { useSceneComposer } from "../scene/useSceneComposer";
 
 /**
  * Custom hook to manage mutually exclusive selection across different state stores.
  * Ensures that selecting a scene object clears pose/rig selection, and vice-versa.
  */
 export function useUnifiedSelection() {
+  const { selectObject } = useSceneComposer();
   const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
 
@@ -18,6 +20,9 @@ export function useUnifiedSelection() {
     (state) => state.handleClearSelection,
   );
 
+  const selectedMaterialId = useBindingAuthoring((state) => state.selectedMaterialId);
+  const handleSelectMaterial = useBindingAuthoring((state) => state.handleSelectMaterial);
+
   const { selectedPoseId, selectPose } = usePoseRig();
 
   // Derived Inspector Mode
@@ -25,30 +30,35 @@ export function useUnifiedSelection() {
     if (selectedId) return "scene";
     if (selectedPoseId) return "pose";
     if (selectedRigId) return "rig";
+    if (selectedMaterialId) return "material";
     return "default";
-  }, [selectedId, selectedPoseId, selectedRigId]);
+  }, [selectedId, selectedPoseId, selectedRigId, selectedMaterialId]);
 
   const handleSelectObject = useCallback(
-    (_id: string) => {
-      // Note: The actual object selection is usually handled by the component using useSelectionStore.
-      // This wrapper ensures other systems are cleared.
+    (id: string) => {
+      // Note: We also perform the actual selection here now to make this a complete selection handler.
       if (selectedPoseId) selectPose("");
       if (selectedRigId) handleSelectRig(null);
+      if (selectedMaterialId) handleSelectMaterial(null);
+      selectObject(id);
     },
-    [selectedPoseId, selectedRigId, selectPose, handleSelectRig],
+    [selectedPoseId, selectedRigId, selectedMaterialId, selectPose, handleSelectRig, handleSelectMaterial, selectObject],
   );
 
   const handleSelectPose = useCallback(
     (id: string) => {
       if (selectedId) handleClearSelection();
       if (selectedRigId) handleSelectRig(null);
+      if (selectedMaterialId) handleSelectMaterial(null);
       selectPose(id);
     },
     [
       selectedId,
       selectedRigId,
+      selectedMaterialId,
       handleClearSelection,
       handleSelectRig,
+      handleSelectMaterial,
       selectPose,
     ],
   );
@@ -58,15 +68,18 @@ export function useUnifiedSelection() {
       if (id) {
         if (selectedId) handleClearSelection();
         if (selectedPoseId) selectPose("");
+        if (selectedMaterialId) handleSelectMaterial(null);
       }
       handleSelectRig(id);
     },
     [
       selectedId,
       selectedPoseId,
+      selectedMaterialId,
       handleClearSelection,
       selectPose,
       handleSelectRig,
+      handleSelectMaterial,
     ],
   );
 
@@ -78,6 +91,15 @@ export function useUnifiedSelection() {
     handleSelectObject,
     handleSelectPose,
     handleSelectRig: handleSelectRigAction,
+    selectedMaterialId,
+    handleSelectMaterial: (id: string | null) => {
+      if (id) {
+        if (selectedId) handleClearSelection();
+        if (selectedPoseId) selectPose("");
+        if (selectedRigId) handleSelectRig(null);
+      }
+      handleSelectMaterial(id);
+    },
     handleClearSelection,
   };
 }

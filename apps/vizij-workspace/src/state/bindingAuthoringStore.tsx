@@ -137,8 +137,8 @@ export interface BindingAuthoringState {
       | { id: string; version: string }
       | null
       | ((
-          prev: BindingAuthoringState["standardInputSchema"],
-        ) => BindingAuthoringState["standardInputSchema"]),
+        prev: BindingAuthoringState["standardInputSchema"],
+      ) => BindingAuthoringState["standardInputSchema"]),
   ) => void;
   handleFeatureFlagChange: (
     flag: AuthoringFeatureFlag,
@@ -159,6 +159,8 @@ export interface BindingAuthoringState {
   ) => void;
   selectedRigId: string | null;
   handleSelectRig: (id: string | null) => void;
+  selectedMaterialId: string | null;
+  handleSelectMaterial: (id: string | null) => void;
 }
 
 export interface BindingAuthoringStore {
@@ -238,6 +240,8 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleCreateParentDriverBinding: () => undefined,
   selectedRigId: null,
   handleSelectRig: () => undefined,
+  selectedMaterialId: null,
+  handleSelectMaterial: () => undefined,
 };
 
 export function createBindingAuthoringStore(
@@ -270,6 +274,9 @@ export function createBindingAuthoringStore(
 
   state.handleSelectRig = (id: string | null) => {
     setState({ selectedRigId: id });
+  };
+  state.handleSelectMaterial = (id: string | null) => {
+    setState({ selectedMaterialId: id });
   };
 
   return {

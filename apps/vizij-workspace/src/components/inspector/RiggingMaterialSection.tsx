@@ -7,7 +7,8 @@ import type {
   SceneObjectFeature,
 } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { Select } from "../ui";
+import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
+import { Select, Button } from "../ui";
 import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
@@ -25,7 +26,9 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
     handleUpdateStandardInput,
   } = useBindingAuthoring((state) => state);
 
-  const { materials, assignMaterial } = useSceneComposer();
+  const { handleSelectMaterial } = useUnifiedSelection();
+
+  const { materials, assignMaterial, duplicateMaterial, setAnimatableValue } = useSceneComposer();
 
   // Helper to find feature by key
   const findFeature = (key: string) =>
@@ -45,6 +48,10 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   // If node isn't a shape that supports material, skip material selector
   const showMaterialSelector = node.type === "shape";
 
+  const handleStaticValueChange = (targetId: string, value: number, channel?: string) => {
+    setAnimatableValue(targetId, value, { channel, saveToDefault: true });
+  };
+
   if (!showMaterialSelector && !colorFeature && !opacityFeature) {
     return null;
   }
@@ -56,19 +63,52 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
       </div>
 
       {showMaterialSelector && (
-        <div className="flex items-center gap-2 p-1 pl-2 min-h-[32px] border border-border-default/20 bg-bg-secondary/10 rounded-lg mb-1">
-          <span className="text-[11px] font-medium text-text-secondary select-none flex-1">
-            Material
-          </span>
-          <div className="flex-1 min-w-[120px]">
-            <Select
-              value={currentMaterial?.id ?? ""}
-              options={[{ value: "", label: "None" }, ...materialOptions]}
-              onChange={(val) => assignMaterial(node.id, val)}
-              size="sm"
-              className="h-6 text-[11px]"
-            />
+        <div className="flex flex-col gap-1.5 mb-1.5">
+          <div className="flex items-center gap-2 p-1 pl-2 min-h-[32px] border border-border-default/20 bg-bg-secondary/10 rounded-lg">
+            <span className="text-[11px] font-medium text-text-secondary select-none flex-1">
+              Material
+            </span>
+            <div className="flex-1 min-w-[120px]">
+              <Select
+                value={currentMaterial?.id ?? ""}
+                options={[{ value: "", label: "None" }, ...materialOptions]}
+                onChange={(val) => assignMaterial(node.id, val)}
+                size="sm"
+                className="h-6 text-[11px]"
+              />
+            </div>
           </div>
+
+          {currentMaterial && currentMaterial.memberShapeIds.length > 1 && (
+            <div className="flex flex-col gap-1.5 px-2 py-1.5 bg-accent/5 rounded-lg border border-accent/10">
+              <div className="text-[10px] text-text-muted leading-relaxed">
+                This edits{" "}
+                <span
+                  className="text-text-primary font-medium cursor-pointer hover:underline decoration-accent/50 underline-offset-2"
+                  onClick={() => handleSelectMaterial(currentMaterial.id)}
+                >
+                  {currentMaterial.label}
+                </span>{" "}
+                and will impact{" "}
+                <span className="text-text-primary font-bold">
+                  {currentMaterial.memberShapeIds.length}
+                </span>{" "}
+                shapes.
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] w-full justify-start px-0 text-accent hover:text-accent-hover hover:bg-transparent -ml-0.5"
+                onClick={() =>
+                  duplicateMaterial(node.id, {
+                    label: `${node.name || node.id} Color`,
+                  })
+                }
+              >
+                Create new material instead for this shape
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -83,6 +123,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           onDefaultChange={(id, val) =>
             handleUpdateStandardInput(id, { defaultValue: val })
           }
+          onStaticValueChange={handleStaticValueChange}
         />
       )}
 
@@ -97,13 +138,13 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           onDefaultChange={(id, val) =>
             handleUpdateStandardInput(id, { defaultValue: val })
           }
+          onStaticValueChange={handleStaticValueChange}
         />
       )}
     </div>
   );
 }
 
-// Reusing Scalar Row logic for opacity
 interface RiggingScalarRowProps {
   label: string;
   feature: SceneObjectFeature;
@@ -112,9 +153,10 @@ interface RiggingScalarRowProps {
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
+  onStaticValueChange?: (targetId: string, value: number, channel?: string) => void;
 }
 
-function RiggingScalarRow({
+export function RiggingScalarRow({
   label,
   feature,
   bindings,
@@ -122,6 +164,7 @@ function RiggingScalarRow({
   inputValues,
   onValueChange,
   onDefaultChange,
+  onStaticValueChange,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
   const component = feature.components[0];
@@ -140,6 +183,8 @@ function RiggingScalarRow({
   }
 
   const isBound = !!(inputId && standardInput);
+  const canEdit = isBound || (!!targetId && !!onStaticValueChange);
+
   const currentValue = isBound
     ? (inputValues[inputId!] ?? standardInput!.defaultValue ?? 0)
     : (component.staticValue ?? 0);
@@ -148,7 +193,6 @@ function RiggingScalarRow({
     ? (standardInput!.defaultValue ?? 0)
     : (component.staticValue ?? 0);
 
-  // Only difference meaningful if bound
   const hasDifferentDefault =
     isBound &&
     Math.abs((currentValue as number) - (defaultValue as number)) > 0.0001;
@@ -163,7 +207,6 @@ function RiggingScalarRow({
 
   const renderInput = (isDefault: boolean) => {
     const val = isDefault ? defaultValue : currentValue;
-    const canEdit = isBound;
 
     return (
       <div
@@ -175,15 +218,19 @@ function RiggingScalarRow({
           value={typeof val === "number" ? parseFloat(val.toFixed(2)) : val}
           step={0.1}
           min={0}
-          max={1} // Generally opacity is 0-1
+          max={1}
           disabled={!canEdit}
           title={!canEdit ? "Value is not driven by a rig input" : undefined}
           onChange={(e) => {
-            if (!canEdit || !inputId) return;
+            if (!canEdit) return;
             const num = parseFloat(e.target.value);
             if (!isNaN(num)) {
-              if (isDefault) onDefaultChange(inputId, num);
-              else onValueChange(inputId, num);
+              if (isBound && inputId) {
+                if (isDefault) onDefaultChange(inputId, num);
+                else onValueChange(inputId, num);
+              } else if (targetId && onStaticValueChange) {
+                onStaticValueChange(targetId, num);
+              }
             }
           }}
         />
@@ -203,8 +250,7 @@ function RiggingScalarRow({
   );
 }
 
-// Color Row (R, G, B) with Picker
-function RiggingColorRow({
+export function RiggingColorRow({
   label,
   feature,
   bindings,
@@ -212,10 +258,10 @@ function RiggingColorRow({
   inputValues,
   onValueChange,
   onDefaultChange,
+  onStaticValueChange,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
 
-  // Helper to extract component data
   const getCompData = (key: string, fallbackIndex: number) => {
     const comp =
       feature.components.find(
@@ -250,6 +296,7 @@ function RiggingColorRow({
     return {
       label: compLabel,
       inputId,
+      targetId,
       currentValue,
       defaultValue,
       isBound,
@@ -287,7 +334,6 @@ function RiggingColorRow({
     });
   };
 
-  // Conversion Helpers
   const rgbToHex = (r: number, g: number, b: number) => {
     const toHex = (c: number) => {
       const hex = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
@@ -308,7 +354,6 @@ function RiggingColorRow({
   };
 
   const renderInputs = (isDefault: boolean) => {
-    // Calculate combined hex for picker
     const currentR = isDefault
       ? (rComp?.defaultValue ?? 0)
       : (rComp?.currentValue ?? 0);
@@ -324,31 +369,28 @@ function RiggingColorRow({
       currentG as number,
       currentB as number,
     );
-    const canEditAny = components.some((c) => c.isBound);
+    const canEditAny = components.some((c) => c.isBound) || !!onStaticValueChange;
 
-    // Handler for Picker
     const handleColorChange = (newHex: string) => {
       const rgb = hexToRgb(newHex);
       if (!rgb) return;
 
-      // Batch update logic? We call onValueChange for each bound channel
-      if (rComp?.isBound && rComp.inputId) {
-        if (isDefault) onDefaultChange(rComp.inputId, rgb.r);
-        else onValueChange(rComp.inputId, rgb.r);
-      }
-      if (gComp?.isBound && gComp.inputId) {
-        if (isDefault) onDefaultChange(gComp.inputId, rgb.g);
-        else onValueChange(gComp.inputId, rgb.g);
-      }
-      if (bComp?.isBound && bComp.inputId) {
-        if (isDefault) onDefaultChange(bComp.inputId, rgb.b);
-        else onValueChange(bComp.inputId, rgb.b);
-      }
+      [
+        { comp: rComp, val: rgb.r },
+        { comp: gComp, val: rgb.g },
+        { comp: bComp, val: rgb.b },
+      ].forEach(({ comp, val }) => {
+        if (comp?.isBound && comp.inputId) {
+          if (isDefault) onDefaultChange(comp.inputId, val);
+          else onValueChange(comp.inputId, val);
+        } else if (comp?.targetId && onStaticValueChange) {
+          onStaticValueChange(comp.targetId, val, comp.label.toLowerCase());
+        }
+      });
     };
 
     return (
       <div className="flex gap-1 flex-1 items-center min-w-0">
-        {/* Color Swatch / Picker */}
         <BasePopover.Root>
           <BasePopover.Trigger
             className={cn(
@@ -377,11 +419,10 @@ function RiggingColorRow({
           </BasePopover.Portal>
         </BasePopover.Root>
 
-        {/* Individual Channels */}
         <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
             const val = isDefault ? c.defaultValue : c.currentValue;
-            const canEdit = c.isBound;
+            const canEdit = c.isBound || (!!c.targetId && !!onStaticValueChange);
             const label = c === rComp ? "R" : c === gComp ? "G" : "B";
             const labelColor =
               c === rComp
@@ -401,22 +442,29 @@ function RiggingColorRow({
                 <ScrubbableLabel
                   label={label}
                   onScrub={(_, totalDelta) => {
-                    if (c.inputId) {
-                      const step = 0.01;
-                      const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                      const nextVal = startVal + totalDelta * step;
+                    const step = 0.01;
+                    const startKey = c.inputId || c.targetId || "";
+                    if (!startKey) return;
+
+                    const startVal = scrubValuesRef.current[startKey] ?? 0;
+                    const nextVal = startVal + totalDelta * step;
+
+                    if (c.isBound && c.inputId) {
                       if (isDefault) onDefaultChange(c.inputId, nextVal);
                       else onValueChange(c.inputId, nextVal);
+                    } else if (c.targetId && onStaticValueChange) {
+                      onStaticValueChange(c.targetId, nextVal, c.label.toLowerCase());
                     }
                   }}
                   onScrubStart={() => {
-                    if (c.inputId) {
-                      const baseline = isDefault
-                        ? c.defaultValue
-                        : c.currentValue;
-                      scrubValuesRef.current[c.inputId] =
-                        (baseline as number) ?? 0;
-                    }
+                    const startKey = c.inputId || c.targetId || "";
+                    if (!startKey) return;
+
+                    const baseline = isDefault
+                      ? c.defaultValue
+                      : c.currentValue;
+                    scrubValuesRef.current[startKey] =
+                      (baseline as number) ?? 0;
                   }}
                   className={cn(
                     "text-[9px] font-bold px-1 select-none transition-colors",
@@ -434,11 +482,15 @@ function RiggingColorRow({
                   max={1}
                   disabled={!canEdit}
                   onChange={(e) => {
-                    if (!canEdit || !c.inputId) return;
+                    if (!canEdit) return;
                     const num = parseFloat(e.target.value);
                     if (!isNaN(num)) {
-                      if (isDefault) onDefaultChange(c.inputId, num);
-                      else onValueChange(c.inputId, num);
+                      if (c.isBound && c.inputId) {
+                        if (isDefault) onDefaultChange(c.inputId, num);
+                        else onValueChange(c.inputId, num);
+                      } else if (c.targetId && onStaticValueChange) {
+                        onStaticValueChange(c.targetId, num, c.label.toLowerCase());
+                      }
                     }
                   }}
                 />

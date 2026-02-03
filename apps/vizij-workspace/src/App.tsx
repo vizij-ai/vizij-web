@@ -14,6 +14,7 @@ import { VariablesPanel } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
+import { MaterialsPanel } from "./components/panels/MaterialsPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { ExportDialog } from "./components/app/ExportDialog";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
@@ -348,6 +349,10 @@ function AppContent({ loader }: AppContentProps) {
             onSelectRig={handleSelectRig}
             onSelectPose={handleSelectPose}
           />
+        }
+        leftMiddleVisible={panels.materials.isVisible}
+        leftMiddlePanel={
+          <MaterialsPanel />
         }
         // Center
         topPanel={
