@@ -26,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <BaseInput
           ref={ref}
           className={cn(
-            "flex h-8 w-full rounded-md border border-border-default bg-bg-input px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 text-text-primary",
+            "flex h-full w-full border-0 bg-transparent px-3 py-1 text-sm text-text-primary shadow-none transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
             {
               "text-xs": size === "sm",
               "text-sm": size === "md",
