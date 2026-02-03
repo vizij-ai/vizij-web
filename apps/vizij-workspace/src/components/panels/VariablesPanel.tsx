@@ -488,7 +488,7 @@ export function VariablesPanel({
             actions={actions}
             badge={`${totalCount}`}
         >
-            <div className="flex flex-col h-full gap-0.5 p-1">
+            <div className="flex flex-col h-full gap-1 p-2">
                 {/* Search Input */}
                 <div className="flex items-center gap-2 px-1 mb-1">
                     <PanelSearch

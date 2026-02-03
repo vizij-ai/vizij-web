@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
 interface TreeRowProps {
@@ -41,13 +41,13 @@ export function TreeRow({
         <div className="flex flex-col select-none">
             <div
                 className={cn(
-                    "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-pointer",
+                    "group relative flex items-center gap-1.5 rounded px-2 min-h-[30px] transition-all cursor-pointer overflow-hidden",
                     isSelected
-                        ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_var(--color-accent-subtle)]"
+                        ? "bg-accent/10 text-accent shadow-premium shadow-accent-glow border border-accent/20"
                         : "text-text-muted hover:bg-bg-hover hover:text-text-primary",
                     className,
                 )}
-                style={{ paddingLeft: `${depth * 12 + 4}px`, ...style }}
+                style={{ paddingLeft: `${depth * 12 + 12}px`, ...style }}
                 onClick={(e) => {
                     e.stopPropagation();
                     // If we have select handler, call it. Otherwise toggle if children exist.
@@ -58,6 +58,11 @@ export function TreeRow({
                     }
                 }}
             >
+                {/* Selection Accent Bar */}
+                {isSelected && (
+                    <div className="absolute left-0 top-1 bottom-1 w-1 rounded-r-full bg-accent-gradient shadow-accent-glow" />
+                )}
+
                 {/* Expander Arrow */}
                 <button
                     type="button"
@@ -92,7 +97,7 @@ export function TreeRow({
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span
                         className={cn(
-                            "text-[11px] font-medium truncate flex-1 min-w-0",
+                            "text-[12px] font-semibold truncate flex-1 min-w-0 tracking-tight",
                             matchesQuery &&
                             "bg-yellow-200/80 dark:bg-yellow-500/30 text-text-primary rounded-sm px-0.5 -mx-0.5",
                             isSelected && "text-accent",

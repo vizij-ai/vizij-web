@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
-import { cn } from "../utils/cn";
 
 // We'll pass the store logic from App.tsx via props or composition
 // For this layout, we'll keep it flexible
@@ -68,7 +67,7 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="left-top"
                     >
-                      <div className="h-full border-r border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
                         {leftTopPanel}
                       </div>
                     </Panel>
@@ -84,7 +83,7 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="left-bottom"
                     >
-                      <div className="h-full border-r border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
                         {leftBottomPanel}
                       </div>
                     </Panel>
@@ -152,7 +151,7 @@ export function WorkspaceLayout({
                       minSize={5}
                       id="right-top"
                     >
-                      <div className="h-full border-l border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
+                      <div className="h-full border-l border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
                         {rightTopPanel}
                       </div>
                     </Panel>

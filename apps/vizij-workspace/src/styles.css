@@ -53,6 +53,19 @@
   --color-accent-subtle: rgba(37, 99, 235, 0.1);
   /* blue-600 alpha */
 
+  /* Depth and Materiality */
+  --bg-glass: rgba(255, 255, 255, 0.7);
+  --bg-glass-hover: rgba(255, 255, 255, 0.8);
+  --glass-blur: blur(8px);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.2);
+
+  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+
+  /* Accent Effects */
+  --glow-accent: 0 0 12px 0 rgba(37, 99, 235, 0.25);
+  --accent-gradient: linear-gradient(135deg, #2563eb, #4f46e5);
+
   /* Functional Colors (Light) */
   --color-warning: #f59e0b;
   /* amber-500 */
@@ -117,6 +130,18 @@
   --color-accent-subtle: rgba(59, 130, 246, 0.15);
   /* blue-500 alpha */
 
+  /* Dark Mode Depth */
+  --bg-glass: rgba(18, 18, 20, 0.75);
+  --bg-glass-hover: rgba(24, 24, 27, 0.85);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.05);
+
+  --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+
+  /* Dark Mode Glows */
+  --glow-accent: 0 0 12px 0 rgba(59, 130, 246, 0.3);
+  --accent-gradient: linear-gradient(135deg, #3b82f6, #6366f1);
+
   /* Functional Colors (Dark) */
   --color-warning: #fbbf24;
   /* amber-400 */
@@ -166,9 +191,55 @@
   --color-danger-fg: var(--color-danger-fg);
   --color-danger-subtle: var(--color-danger-subtle);
 
-  --color-success: var(--color-success);
-  --color-success-fg: var(--color-success-fg);
   --color-success-subtle: var(--color-success-subtle);
+
+  --color-bg-glass: var(--bg-glass);
+  --color-bg-glass-hover: var(--bg-glass-hover);
+  --shadow-premium: var(--shadow-premium);
+  --shadow-inner: var(--shadow-inner);
+  --color-accent-glow: var(--glow-accent);
+  --background-accent-gradient: var(--accent-gradient);
+
+  /* Animation Utilities */
+  --animate-hover-lift: hover-lift 0.2s ease-out forwards;
+  --animate-pulse-glow: pulse-glow 2s infinite;
+  --animate-slide-in: slide-in 0.3s ease-out forwards;
+
+  @keyframes hover-lift {
+    from {
+      transform: translateY(0);
+    }
+
+    to {
+      transform: translateY(-2px);
+    }
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      opacity: 0.8;
+      filter: brightness(1);
+    }
+
+    50% {
+      opacity: 1;
+      filter: brightness(1.2);
+    }
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
 }
 
 * {

@@ -62,7 +62,7 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 p-3 bg-bg-panel border border-border-default rounded-xl text-text-primary",
+        "flex flex-col gap-3 p-3 bg-bg-panel/50 backdrop-blur-md border border-border-default/50 rounded-xl text-text-primary shadow-premium",
         className,
       )}
       {...rest}

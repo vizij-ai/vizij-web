@@ -14,10 +14,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div
         className={cn(
-          "group flex items-center w-full rounded-md border border-border-default bg-bg-input shadow-sm transition-colors focus-within:ring-2 focus-within:ring-accent focus-within:border-transparent",
+          "group flex items-center w-full rounded-lg border border-border-default bg-bg-input shadow-inner transition-all focus-within:ring-2 focus-within:ring-accent/40 focus-within:border-accent focus-within:shadow-premium",
           {
-            "h-7": size === "sm",
-            "h-9": size === "md",
+            "h-8": size === "sm",
+            "h-10": size === "md",
           },
           className,
         )}

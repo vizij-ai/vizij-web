@@ -22,15 +22,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
           {
             // Variants
-            "bg-accent text-accent-fg hover:bg-accent-hover shadow-sm shadow-accent/20 active:translate-y-px":
+            "bg-accent-gradient text-accent-fg shadow-premium hover:shadow-accent-glow hover:scale-[1.02] active:scale-[0.98]":
               variant === "primary",
-            "bg-bg-secondary text-text-primary border border-border-default hover:bg-bg-secondary-hover shadow-sm active:translate-y-px":
+            "bg-bg-secondary text-text-primary border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
               variant === "secondary",
-            "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white":
+            "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white active:scale-[0.98]":
               variant === "subtle",
-            "bg-red-500/10 text-red-200 border border-red-500/20 hover:bg-red-500/20 active:translate-y-px":
+            "bg-color-danger text-color-danger-fg shadow-sm hover:bg-color-danger/90 active:scale-[0.98]":
               variant === "danger",
-            "bg-transparent hover:bg-bg-hover text-text-muted hover:text-text-primary":
+            "bg-transparent hover:bg-bg-hover text-text-muted hover:text-text-primary active:scale-[0.98]":
               variant === "ghost",
 
             // Sizes
