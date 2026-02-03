@@ -43,7 +43,6 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 
 ## Design and UI
 
-The general aesthetic of the application is to be clean and polished yet technical and powerful. Use non-grayscale colors sparingly as they will bring a lot of attention to them. 
+The general aesthetic of the application is to be clean and polished yet technical and powerful. Use non-grayscale colors sparingly as they will bring a lot of attention to them.
 
-Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements use the application's UI library, are accessible, and are using semantic theme values where applicable (such as colors) so as to be consistent and work with application themes. 
-
+Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements use the application's UI library, are accessible, and are using semantic theme values where applicable (such as colors) so as to be consistent and work with application themes.

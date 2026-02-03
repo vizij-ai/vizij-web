@@ -59,7 +59,8 @@
   --glass-blur: blur(8px);
   --glass-border: 1px solid rgba(255, 255, 255, 0.2);
 
-  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-premium:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 
   /* Accent Effects */
@@ -135,7 +136,8 @@
   --bg-glass-hover: rgba(24, 24, 27, 0.85);
   --glass-border: 1px solid rgba(255, 255, 255, 0.05);
 
-  --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-premium:
+    0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
   --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
 
   /* Dark Mode Glows */
@@ -216,7 +218,6 @@
   }
 
   @keyframes pulse-glow {
-
     0%,
     100% {
       opacity: 0.8;

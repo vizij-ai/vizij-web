@@ -28,7 +28,8 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
 
   const { handleSelectMaterial } = useUnifiedSelection();
 
-  const { materials, assignMaterial, duplicateMaterial, setAnimatableValue } = useSceneComposer();
+  const { materials, assignMaterial, duplicateMaterial, setAnimatableValue } =
+    useSceneComposer();
 
   // Helper to find feature by key
   const findFeature = (key: string) =>
@@ -48,7 +49,11 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   // If node isn't a shape that supports material, skip material selector
   const showMaterialSelector = node.type === "shape";
 
-  const handleStaticValueChange = (targetId: string, value: number, channel?: string) => {
+  const handleStaticValueChange = (
+    targetId: string,
+    value: number,
+    channel?: string,
+  ) => {
     setAnimatableValue(targetId, value, { channel, saveToDefault: true });
   };
 
@@ -153,7 +158,11 @@ interface RiggingScalarRowProps {
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
-  onStaticValueChange?: (targetId: string, value: number, channel?: string) => void;
+  onStaticValueChange?: (
+    targetId: string,
+    value: number,
+    channel?: string,
+  ) => void;
 }
 
 export function RiggingScalarRow({
@@ -317,7 +326,7 @@ export function RiggingColorRow({
     (c) =>
       c.isBound &&
       Math.abs((c.currentValue as number) - (c.defaultValue as number)) >
-      0.0001,
+        0.0001,
   );
 
   const handleReset = () => {
@@ -346,10 +355,10 @@ export function RiggingColorRow({
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result
       ? {
-        r: parseInt(result[1], 16) / 255,
-        g: parseInt(result[2], 16) / 255,
-        b: parseInt(result[3], 16) / 255,
-      }
+          r: parseInt(result[1], 16) / 255,
+          g: parseInt(result[2], 16) / 255,
+          b: parseInt(result[3], 16) / 255,
+        }
       : null;
   };
 
@@ -369,7 +378,8 @@ export function RiggingColorRow({
       currentG as number,
       currentB as number,
     );
-    const canEditAny = components.some((c) => c.isBound) || !!onStaticValueChange;
+    const canEditAny =
+      components.some((c) => c.isBound) || !!onStaticValueChange;
 
     const handleColorChange = (newHex: string) => {
       const rgb = hexToRgb(newHex);
@@ -404,10 +414,13 @@ export function RiggingColorRow({
             title="Pick Color"
           />
           <BasePopover.Portal>
-            <BasePopover.Positioner side="bottom" align="start" sideOffset={5} className="z-[100]">
-              <BasePopover.Popup
-                className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl"
-              >
+            <BasePopover.Positioner
+              side="bottom"
+              align="start"
+              sideOffset={5}
+              className="z-[100]"
+            >
+              <BasePopover.Popup className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl">
                 <HexColorPicker color={hexColor} onChange={handleColorChange} />
                 <div className="flex gap-1">
                   <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
@@ -422,7 +435,8 @@ export function RiggingColorRow({
         <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
             const val = isDefault ? c.defaultValue : c.currentValue;
-            const canEdit = c.isBound || (!!c.targetId && !!onStaticValueChange);
+            const canEdit =
+              c.isBound || (!!c.targetId && !!onStaticValueChange);
             const label = c === rComp ? "R" : c === gComp ? "G" : "B";
             const labelColor =
               c === rComp
@@ -453,7 +467,11 @@ export function RiggingColorRow({
                       if (isDefault) onDefaultChange(c.inputId, nextVal);
                       else onValueChange(c.inputId, nextVal);
                     } else if (c.targetId && onStaticValueChange) {
-                      onStaticValueChange(c.targetId, nextVal, c.label.toLowerCase());
+                      onStaticValueChange(
+                        c.targetId,
+                        nextVal,
+                        c.label.toLowerCase(),
+                      );
                     }
                   }}
                   onScrubStart={() => {
@@ -489,7 +507,11 @@ export function RiggingColorRow({
                         if (isDefault) onDefaultChange(c.inputId, num);
                         else onValueChange(c.inputId, num);
                       } else if (c.targetId && onStaticValueChange) {
-                        onStaticValueChange(c.targetId, num, c.label.toLowerCase());
+                        onStaticValueChange(
+                          c.targetId,
+                          num,
+                          c.label.toLowerCase(),
+                        );
                       }
                     }
                   }}

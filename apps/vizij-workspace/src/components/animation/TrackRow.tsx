@@ -67,7 +67,9 @@ export function TrackRow({ track, duration }: TrackRowProps) {
               key={kf.id}
               className={cn(
                 "absolute top-1/2 w-2 h-2 -ml-1 -mt-1 rotate-45 border border-border-default shadow-sm z-20 cursor-pointer hover:scale-125 transition-transform",
-                isKfSelected ? "bg-text-primary border-accent z-30" : "bg-text-muted",
+                isKfSelected
+                  ? "bg-text-primary border-accent z-30"
+                  : "bg-text-muted",
               )}
               style={{
                 left: `${leftPct}%`,

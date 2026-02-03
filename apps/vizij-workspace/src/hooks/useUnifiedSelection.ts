@@ -20,8 +20,12 @@ export function useUnifiedSelection() {
     (state) => state.handleClearSelection,
   );
 
-  const selectedMaterialId = useBindingAuthoring((state) => state.selectedMaterialId);
-  const handleSelectMaterial = useBindingAuthoring((state) => state.handleSelectMaterial);
+  const selectedMaterialId = useBindingAuthoring(
+    (state) => state.selectedMaterialId,
+  );
+  const handleSelectMaterial = useBindingAuthoring(
+    (state) => state.handleSelectMaterial,
+  );
 
   const { selectedPoseId, selectPose } = usePoseRig();
 
@@ -42,7 +46,15 @@ export function useUnifiedSelection() {
       if (selectedMaterialId) handleSelectMaterial(null);
       selectObject(id);
     },
-    [selectedPoseId, selectedRigId, selectedMaterialId, selectPose, handleSelectRig, handleSelectMaterial, selectObject],
+    [
+      selectedPoseId,
+      selectedRigId,
+      selectedMaterialId,
+      selectPose,
+      handleSelectRig,
+      handleSelectMaterial,
+      selectObject,
+    ],
   );
 
   const handleSelectPose = useCallback(

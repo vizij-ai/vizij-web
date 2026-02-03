@@ -40,7 +40,9 @@ export function ListRow({
         </div>
         <div className="inline-flex items-center gap-2 shrink-0">
           {meta ? (
-            <div className="text-[10px] text-text-secondary font-medium">{meta}</div>
+            <div className="text-[10px] text-text-secondary font-medium">
+              {meta}
+            </div>
           ) : null}
           {actions ? (
             <div className="flex items-center gap-1.5">{actions}</div>

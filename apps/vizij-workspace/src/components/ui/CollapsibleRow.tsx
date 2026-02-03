@@ -40,12 +40,16 @@ export function CollapsibleRow({
   const hasExpandableContent = Boolean(expandedContent);
 
   return (
-    <BaseCollapsible.Root defaultOpen={defaultExpanded} className="group w-full">
+    <BaseCollapsible.Root
+      defaultOpen={defaultExpanded}
+      className="group w-full"
+    >
       <div
         className={cn(
           "bg-bg-secondary/40 border border-border-default/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
           "group-data-[state=open]:border-accent/50 group-data-[state=open]:shadow-[0_0_0_1px_var(--color-accent-subtle)]",
-          !hasExpandableContent && "group-data-[state=open]:border-zinc-800/60 group-data-[state=open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
+          !hasExpandableContent &&
+            "group-data-[state=open]:border-zinc-800/60 group-data-[state=open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
           disabled && "opacity-50 pointer-events-none",
           className,
         )}
@@ -57,8 +61,8 @@ export function CollapsibleRow({
             className={cn(
               "flex-1 px-2.5 py-1.5 flex items-center gap-3 text-left focus:outline-none focus:bg-zinc-800/20 w-full",
               hasExpandableContent &&
-              !disabled &&
-              "cursor-pointer hover:bg-zinc-800/30",
+                !disabled &&
+                "cursor-pointer hover:bg-zinc-800/30",
             )}
           >
             <div className="flex items-start gap-2.5 flex-grow min-w-0 pointer-events-none">
@@ -74,7 +78,7 @@ export function CollapsibleRow({
                   className={cn(
                     "text-[13px] font-bold leading-tight truncate transition-colors",
                     "group-data-[state=open]:text-text-primary",
-                    "group-data-[state=closed]:text-text-secondary"
+                    "group-data-[state=closed]:text-text-secondary",
                   )}
                 >
                   {title}

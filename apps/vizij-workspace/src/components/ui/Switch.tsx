@@ -37,9 +37,7 @@ export function Switch({
         disabled={disabled}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer rounded-full border border-border-default bg-bg-input transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50",
-          checked
-            ? "bg-accent border-accent"
-            : "group-hover:border-zinc-600",
+          checked ? "bg-accent border-accent" : "group-hover:border-zinc-600",
           {
             "h-4.5 w-8": size === "sm",
             "h-5.5 w-10": size === "md",

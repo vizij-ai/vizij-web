@@ -47,7 +47,7 @@ export function CollapsibleGroup({
                 className={cn(
                   "m-0 text-[11px] font-black uppercase tracking-widest transition-colors",
                   "group-data-[state=open]:text-zinc-100",
-                  "group-data-[state=closed]:text-zinc-400"
+                  "group-data-[state=closed]:text-zinc-400",
                 )}
               >
                 {title}

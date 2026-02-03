@@ -59,7 +59,9 @@ export function MenuItem({
         "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all outline-none select-none",
         "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
         "text-text-secondary",
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-[0.98]",
+        disabled
+          ? "opacity-50 cursor-not-allowed"
+          : "cursor-pointer active:scale-[0.98]",
       )}
     >
       {children}
@@ -95,7 +97,7 @@ export function MenuCheckboxItem({
       className={cn(
         "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all cursor-pointer active:scale-[0.98] outline-none select-none",
         "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
-        "text-text-secondary"
+        "text-text-secondary",
       )}
     >
       <BaseMenu.CheckboxItemIndicator className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">

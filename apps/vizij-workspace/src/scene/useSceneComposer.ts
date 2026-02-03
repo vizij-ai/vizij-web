@@ -209,7 +209,8 @@ export function useSceneComposer(): SceneComposer {
         // 1. Update Live Value
         const nextValues = new Map(state.values);
         if (channel) {
-          const current = state.values.get(lookup) ?? state.animatables[id]?.default ?? {};
+          const current =
+            state.values.get(lookup) ?? state.animatables[id]?.default ?? {};
           const next = {
             ...(typeof current === "object" ? current : {}),
             [channel]: value,

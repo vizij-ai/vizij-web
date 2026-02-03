@@ -4,9 +4,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
 import { cn } from "../../utils/cn";
-import type {
-  SceneObjectNode,
-} from "../../scene/sceneGraph";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -31,9 +29,7 @@ export function VariableSelector({
   onCancel,
   defaultTab = "variables",
 }: VariableSelectorProps) {
-  const [activeTab, setActiveTab] = useState<"variables" | "scene">(
-    defaultTab,
-  );
+  const [activeTab, setActiveTab] = useState<"variables" | "scene">(defaultTab);
   const [search, setSearch] = useState("");
 
   const tabs = [
@@ -173,7 +169,7 @@ function VariablesList({
   // Auto-expand on search
   React.useEffect(() => {
     if (search) {
-      setExpandedGroups(new Set(groupedVariables.map(g => g.label)));
+      setExpandedGroups(new Set(groupedVariables.map((g) => g.label)));
     }
   }, [search, groupedVariables]);
 
@@ -194,7 +190,6 @@ function VariablesList({
 
   return (
     <div className="flex flex-col p-2 gap-0.5">
-
       {groupedVariables.map((group) => {
         const isExpanded = expandedGroups.has(group.label) || !!search;
         return (
@@ -205,7 +200,9 @@ function VariablesList({
             hasChildren={true}
             isExpanded={isExpanded}
             onToggle={() => toggleGroup(group.label)}
-            icon={<Box size={10} className="text-text-muted" strokeWidth={2.5} />}
+            icon={
+              <Box size={10} className="text-text-muted" strokeWidth={2.5} />
+            }
             highlightQuery={search}
             actions={
               <span className="text-[9px] text-text-muted font-mono">
@@ -218,15 +215,23 @@ function VariablesList({
                    We render these as leaf TreeRows.
                 */}
             <div className="flex flex-col">
-              {group.vars.map(item => (
+              {group.vars.map((item) => (
                 <TreeRow
                   key={item.input.id}
                   depth={1}
                   label={item.input.label || item.input.id || ""}
                   hasChildren={false}
-                  onToggle={() => { }} // No children
-                  onSelect={() => onSelect({ type: "variable", id: item.input.id })}
-                  icon={<Zap size={10} className="text-yellow-400/70" strokeWidth={2.5} />}
+                  onToggle={() => {}} // No children
+                  onSelect={() =>
+                    onSelect({ type: "variable", id: item.input.id })
+                  }
+                  icon={
+                    <Zap
+                      size={10}
+                      className="text-yellow-400/70"
+                      strokeWidth={2.5}
+                    />
+                  }
                   highlightQuery={search}
                   actions={
                     <span className="text-[9px] text-text-secondary font-mono truncate max-w-[100px]">
@@ -237,7 +242,7 @@ function VariablesList({
               ))}
             </div>
           </TreeRow>
-        )
+        );
       })}
     </div>
   );
@@ -341,7 +346,7 @@ function SceneTree({
             {/* Render Features first as "children" */}
             {hasFeatures && (
               <div className="flex flex-col border-l border-accent/10 ml-[5px] my-0.5">
-                {node.features.map(feature => (
+                {node.features.map((feature) => (
                   <div
                     key={feature.id}
                     className="flex items-center gap-2 py-1 px-2 ml-2 hover:bg-accent-subtle hover:text-text-primary rounded cursor-pointer text-text-secondary transition-all border border-transparent hover:border-accent/20 group/prop"

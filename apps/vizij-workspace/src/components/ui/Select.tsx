@@ -30,7 +30,7 @@ export function Select({
   className,
   size = "md",
 }: SelectProps) {
-  // Base UI handles option lookup automatically via Select.Value, but we might need it for custom rendering if we didn't use Select.Value. 
+  // Base UI handles option lookup automatically via Select.Value, but we might need it for custom rendering if we didn't use Select.Value.
   // Select.Value is convenient.
 
   return (
@@ -40,17 +40,25 @@ export function Select({
           {label}
         </label>
       )}
-      <BaseSelect.Root value={value} onValueChange={(val) => onChange(val as string)} disabled={disabled}>
+      <BaseSelect.Root
+        value={value}
+        onValueChange={(val) => onChange(val as string)}
+        disabled={disabled}
+      >
         <BaseSelect.Trigger
           className={cn(
-            "inline-flex items-center justify-between rounded px-[15px] text-[13px] leading-none h-[35px] gap-[5px] bg-bg-input text-text-primary shadow-[0_2px_10px] shadow-black/10 hover:bg-bg-hover focus:shadow-[0_0_0_2px] focus:shadow-black data-[placeholder]:text-text-muted outline-none w-full border border-border-default", "focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50 flex items-center",
+            "inline-flex items-center justify-between rounded px-[15px] text-[13px] leading-none h-[35px] gap-[5px] bg-bg-input text-text-primary shadow-[0_2px_10px] shadow-black/10 hover:bg-bg-hover focus:shadow-[0_0_0_2px] focus:shadow-black data-[placeholder]:text-text-muted outline-none w-full border border-border-default",
+            "focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50 flex items-center",
             {
               "h-8 text-[11px]": size === "sm",
               "h-10 text-sm": size === "md",
             },
           )}
         >
-          <BaseSelect.Value placeholder={placeholder} className="block truncate text-text-primary font-medium group-data-[placeholder]:text-text-muted">
+          <BaseSelect.Value
+            placeholder={placeholder}
+            className="block truncate text-text-primary font-medium group-data-[placeholder]:text-text-muted"
+          >
             {options.find((o) => o.value === value)?.label}
           </BaseSelect.Value>
           <BaseSelect.Icon className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
@@ -81,10 +89,12 @@ export function Select({
                   )}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <BaseSelect.ItemText className={cn(
-                      "block truncate",
-                      "group-data-[selected]:font-bold font-medium"
-                    )}>
+                    <BaseSelect.ItemText
+                      className={cn(
+                        "block truncate",
+                        "group-data-[selected]:font-bold font-medium",
+                      )}
+                    >
                       {option.label}
                     </BaseSelect.ItemText>
                     {option.description && (
@@ -93,10 +103,12 @@ export function Select({
                       </span>
                     )}
                   </div>
-                  <BaseSelect.ItemIndicator className={cn(
-                    "absolute inset-y-0 left-0 flex items-center text-accent",
-                    size === "sm" ? "pl-2.5" : "pl-3"
-                  )}>
+                  <BaseSelect.ItemIndicator
+                    className={cn(
+                      "absolute inset-y-0 left-0 flex items-center text-accent",
+                      size === "sm" ? "pl-2.5" : "pl-3",
+                    )}
+                  >
                     <Check
                       className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
                       aria-hidden="true"

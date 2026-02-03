@@ -52,8 +52,8 @@ interface DebugPanelProps {
       | VizijBundleExtension
       | null
       | ((
-        previous: VizijBundleExtension | null,
-      ) => VizijBundleExtension | null),
+          previous: VizijBundleExtension | null,
+        ) => VizijBundleExtension | null),
   ) => void;
   isLoading: boolean;
 }

@@ -351,9 +351,7 @@ function AppContent({ loader }: AppContentProps) {
           />
         }
         leftMiddleVisible={panels.materials.isVisible}
-        leftMiddlePanel={
-          <MaterialsPanel />
-        }
+        leftMiddlePanel={<MaterialsPanel />}
         // Center
         topPanel={
           <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>

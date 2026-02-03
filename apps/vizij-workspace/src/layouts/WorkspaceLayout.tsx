@@ -46,7 +46,8 @@ export function WorkspaceLayout({
   rightTopVisible = true,
   rightBottomVisible = false,
 }: WorkspaceLayoutProps) {
-  const leftSidebarVisible = leftTopVisible || leftMiddleVisible || leftBottomVisible;
+  const leftSidebarVisible =
+    leftTopVisible || leftMiddleVisible || leftBottomVisible;
   const rightSidebarVisible = rightTopVisible || rightBottomVisible;
 
   return (
@@ -67,7 +68,12 @@ export function WorkspaceLayout({
                 <Group orientation="vertical">
                   {leftTopVisible && (
                     <Panel
-                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
+                      defaultSize={
+                        100 /
+                        ((leftTopVisible ? 1 : 0) +
+                          (leftMiddleVisible ? 1 : 0) +
+                          (leftBottomVisible ? 1 : 0))
+                      }
                       minSize={5}
                       id="left-top"
                     >
@@ -77,13 +83,19 @@ export function WorkspaceLayout({
                     </Panel>
                   )}
 
-                  {leftTopVisible && (leftMiddleVisible || leftBottomVisible) && (
-                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
-                  )}
+                  {leftTopVisible &&
+                    (leftMiddleVisible || leftBottomVisible) && (
+                      <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                    )}
 
                   {leftMiddleVisible && (
                     <Panel
-                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
+                      defaultSize={
+                        100 /
+                        ((leftTopVisible ? 1 : 0) +
+                          (leftMiddleVisible ? 1 : 0) +
+                          (leftBottomVisible ? 1 : 0))
+                      }
                       minSize={5}
                       id="left-middle"
                     >
@@ -99,7 +111,12 @@ export function WorkspaceLayout({
 
                   {leftBottomVisible && (
                     <Panel
-                      defaultSize={100 / ((leftTopVisible ? 1 : 0) + (leftMiddleVisible ? 1 : 0) + (leftBottomVisible ? 1 : 0))}
+                      defaultSize={
+                        100 /
+                        ((leftTopVisible ? 1 : 0) +
+                          (leftMiddleVisible ? 1 : 0) +
+                          (leftBottomVisible ? 1 : 0))
+                      }
                       minSize={5}
                       id="left-bottom"
                     >

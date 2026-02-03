@@ -582,9 +582,9 @@ export function StdFeatureSpacesChannelsPanel() {
       const oldLabel = input.label || "";
       const newLabel = oldLabel.includes(formatSegmentName(oldSegment))
         ? oldLabel.replace(
-          formatSegmentName(oldSegment),
-          formatSegmentName(renameValue),
-        )
+            formatSegmentName(oldSegment),
+            formatSegmentName(renameValue),
+          )
         : undefined;
 
       handleUpdateStandardInput(inputId, {
@@ -1070,7 +1070,7 @@ export function StdFeatureSpacesChannelsPanel() {
                   strokeLinejoin="round"
                   className={cn(
                     (refFilterMissingInMain || mainFilterMissingInRef) &&
-                    "text-accent",
+                      "text-accent",
                   )}
                 >
                   <path d="M11 21H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h5l2 3h9a2 2 0 0 1 2 2v2" />

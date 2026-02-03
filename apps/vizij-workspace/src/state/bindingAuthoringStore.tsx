@@ -137,8 +137,8 @@ export interface BindingAuthoringState {
       | { id: string; version: string }
       | null
       | ((
-        prev: BindingAuthoringState["standardInputSchema"],
-      ) => BindingAuthoringState["standardInputSchema"]),
+          prev: BindingAuthoringState["standardInputSchema"],
+        ) => BindingAuthoringState["standardInputSchema"]),
   ) => void;
   handleFeatureFlagChange: (
     flag: AuthoringFeatureFlag,

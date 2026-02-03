@@ -38,7 +38,9 @@ export function Viewer({
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700">
             <div className="flex flex-col gap-2">
-              <p className="text-text-primary font-medium text-lg">Empty Scene</p>
+              <p className="text-text-primary font-medium text-lg">
+                Empty Scene
+              </p>
               <p className="text-sm max-w-xs mx-auto text-text-muted">
                 Load a Vizij asset (.glb) to begin rigging and composing your
                 scene.

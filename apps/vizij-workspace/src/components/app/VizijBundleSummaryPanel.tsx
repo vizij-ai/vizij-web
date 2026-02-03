@@ -46,7 +46,9 @@ export function VizijBundleSummaryPanel({
           </dd>
 
           <dt className="text-text-muted font-medium">Version</dt>
-          <dd className="text-text-secondary font-mono">{summary.version ?? "–"}</dd>
+          <dd className="text-text-secondary font-mono">
+            {summary.version ?? "–"}
+          </dd>
 
           <dt className="text-text-muted font-medium">Exported</dt>
           <dd
@@ -57,13 +59,17 @@ export function VizijBundleSummaryPanel({
           </dd>
 
           <dt className="text-text-muted font-medium">Rig graphs</dt>
-          <dd className="text-text-secondary font-mono">{summary.graphCount}</dd>
+          <dd className="text-text-secondary font-mono">
+            {summary.graphCount}
+          </dd>
 
           <dt className="text-text-muted font-medium">Pose definitions</dt>
           <dd className="text-text-secondary font-mono">{summary.poseCount}</dd>
 
           <dt className="text-text-muted font-medium">Vizij clips</dt>
-          <dd className="text-text-secondary font-mono">{summary.animationCount}</dd>
+          <dd className="text-text-secondary font-mono">
+            {summary.animationCount}
+          </dd>
         </dl>
 
         {summary.metadataKeys.length > 0 ? (

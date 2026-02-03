@@ -455,11 +455,11 @@ function cloneAnimatable(
       nameReplacement ?? (source.name ? `${source.name} (Copy)` : source.name),
     pub: source.pub
       ? {
-        ...source.pub,
-        output:
-          pubName ??
-          (source.pub.output ? `${source.pub.output} Copy` : undefined),
-      }
+          ...source.pub,
+          output:
+            pubName ??
+            (source.pub.output ? `${source.pub.output} Copy` : undefined),
+        }
       : source.pub,
   } as AnimatableValue;
 }
@@ -637,9 +637,9 @@ export function reparentSceneNodeWithPreservedWorld(
       rotation: ROTATION_COMPENSATION
         ? nextEuler
         : toEuler(
-          readFeatureValue(entry, "rotation", animatables, values, namespace),
-          new Euler(0, 0, 0, "ZYX"),
-        ),
+            readFeatureValue(entry, "rotation", animatables, values, namespace),
+            new Euler(0, 0, 0, "ZYX"),
+          ),
       scale: nextScale,
     },
     animatables,
@@ -954,26 +954,26 @@ export function duplicateSceneNode(
   const nextBindings =
     clonedInputMap && clonedInputMap.size > 0
       ? (() => {
-        const remapped: BindingMap = { ...mergedBindings };
-        const animSet = new Set(animIdMap.values());
-        Object.entries(mergedBindings).forEach(([targetId, binding]) => {
-          const rootId = targetId.split(":")[0];
-          if (!animSet.has(rootId)) {
-            return;
-          }
-          const mapInput = (id?: string | null): string | null =>
-            id ? (clonedInputMap!.get(id) ?? id) : null;
-          remapped[targetId] = {
-            ...binding,
-            inputId: mapInput(binding.inputId),
-            slots: binding.slots.map((slot) => ({
-              ...slot,
-              inputId: mapInput(slot.inputId),
-            })),
-          };
-        });
-        return remapped;
-      })()
+          const remapped: BindingMap = { ...mergedBindings };
+          const animSet = new Set(animIdMap.values());
+          Object.entries(mergedBindings).forEach(([targetId, binding]) => {
+            const rootId = targetId.split(":")[0];
+            if (!animSet.has(rootId)) {
+              return;
+            }
+            const mapInput = (id?: string | null): string | null =>
+              id ? (clonedInputMap!.get(id) ?? id) : null;
+            remapped[targetId] = {
+              ...binding,
+              inputId: mapInput(binding.inputId),
+              slots: binding.slots.map((slot) => ({
+                ...slot,
+                inputId: mapInput(slot.inputId),
+              })),
+            };
+          });
+          return remapped;
+        })()
       : mergedBindings;
 
   return {
@@ -1277,11 +1277,11 @@ export function duplicateMaterialForShape(
 
   const nextBindings = options?.copyBindings
     ? (() => {
-      const additions = cloneBindingsForAnimatables(bindings, animIdMap);
-      return Object.keys(additions).length > 0
-        ? { ...bindings, ...additions }
-        : bindings;
-    })()
+        const additions = cloneBindingsForAnimatables(bindings, animIdMap);
+        return Object.keys(additions).length > 0
+          ? { ...bindings, ...additions }
+          : bindings;
+      })()
     : bindings;
 
   const updatedShape: Shape = {

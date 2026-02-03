@@ -161,7 +161,7 @@ function RiggingVectorRow({
     (c) =>
       c.isBound &&
       Math.abs((c.currentValue as number) - (c.defaultValue as number)) >
-      0.0001,
+        0.0001,
   );
 
   const handleReset = () => {

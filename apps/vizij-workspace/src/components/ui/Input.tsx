@@ -3,7 +3,8 @@ import type { InputHTMLAttributes } from "react";
 import { Input as BaseInput } from "@base-ui/react";
 import { cn } from "../../utils/cn";
 
-export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
+export interface InputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   size?: "sm" | "md";
   startContent?: ReactNode;
   endContent?: ReactNode;
@@ -22,7 +23,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className,
         )}
       >
-        {startContent && <div className="pl-2 flex items-center pointer-events-none text-text-muted">{startContent}</div>}
+        {startContent && (
+          <div className="pl-2 flex items-center pointer-events-none text-text-muted">
+            {startContent}
+          </div>
+        )}
         <BaseInput
           ref={ref}
           className={cn(
@@ -36,7 +41,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           {...props}
         />
-        {endContent && <div className="pr-2 flex items-center pointer-events-none text-text-muted">{endContent}</div>}
+        {endContent && (
+          <div className="pr-2 flex items-center pointer-events-none text-text-muted">
+            {endContent}
+          </div>
+        )}
       </div>
     );
   },

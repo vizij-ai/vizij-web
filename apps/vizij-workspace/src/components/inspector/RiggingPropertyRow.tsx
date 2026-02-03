@@ -152,10 +152,14 @@ export function RiggingPropertyRow({
               onClick={handleToggle}
               className={cn(
                 "p-0.5 -ml-1 text-text-secondary hover:text-text-primary transition-colors rounded hover:bg-bg-hover cursor-pointer",
-                isExpanded && "text-text-primary"
+                isExpanded && "text-text-primary",
               )}
             >
-              {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {isExpanded ? (
+                <ChevronDown size={12} />
+              ) : (
+                <ChevronRight size={12} />
+              )}
             </BaseButton>
           ) : (
             <div className="w-3.5 flex justify-center text-zinc-500">
@@ -206,9 +210,7 @@ export function RiggingPropertyRow({
           </div>
 
           <div className="flex-1 min-w-0 flex items-center gap-1 w-full @[300px]:w-auto">
-            <div className="flex-1 min-w-0">
-              {renderDefaultInput()}
-            </div>
+            <div className="flex-1 min-w-0">{renderDefaultInput()}</div>
 
             {hasDifferentDefault && onSaveToDefault && (
               <BaseButton

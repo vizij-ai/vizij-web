@@ -154,23 +154,23 @@ function buildParameterDetails(
   );
   const variadic = signature.variadic_inputs
     ? [
-      {
-        id: signature.variadic_inputs.id,
-        label:
-          signature.variadic_inputs.label ?? signature.variadic_inputs.id,
-        doc: signature.variadic_inputs.doc,
-        optional: false,
-        typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
-        kind: "variadic" as const,
-        repeatRange: {
-          min: signature.variadic_inputs.min ?? 0,
-          max:
-            typeof signature.variadic_inputs.max === "number"
-              ? signature.variadic_inputs.max
-              : null,
+        {
+          id: signature.variadic_inputs.id,
+          label:
+            signature.variadic_inputs.label ?? signature.variadic_inputs.id,
+          doc: signature.variadic_inputs.doc,
+          optional: false,
+          typeLabel: formatPortTypeLabel(signature.variadic_inputs.ty),
+          kind: "variadic" as const,
+          repeatRange: {
+            min: signature.variadic_inputs.min ?? 0,
+            max:
+              typeof signature.variadic_inputs.max === "number"
+                ? signature.variadic_inputs.max
+                : null,
+          },
         },
-      },
-    ]
+      ]
     : [];
   const params: FunctionParameterDetail[] =
     definition?.params?.map(
@@ -260,9 +260,9 @@ function buildFunctionDetail(
     null;
   const argumentRange = definition
     ? {
-      min: definition.minArgs,
-      max: definition.maxArgs ?? null,
-    }
+        min: definition.minArgs,
+        max: definition.maxArgs ?? null,
+      }
     : deriveArgumentRange(signature);
   return {
     ...entry,
@@ -646,9 +646,9 @@ export function BindingEditor({
 
   const selectedFunctionDescriptions = selectedFunctionDetail
     ? ensureDistinctDescriptions([
-      selectedFunctionDetail.signatureDoc,
-      selectedFunctionDetail.description,
-    ])
+        selectedFunctionDetail.signatureDoc,
+        selectedFunctionDetail.description,
+      ])
     : [];
 
   const selectedFunctionArgumentSummary = selectedFunctionDetail
@@ -697,16 +697,16 @@ export function BindingEditor({
 
   const [caseSelector, setCaseSelector] = useState<string>(
     parsedCaseConfig?.selector ??
-    slotAliasOptions[0] ??
-    reservedVariableNames[0] ??
-    "self",
+      slotAliasOptions[0] ??
+      reservedVariableNames[0] ??
+      "self",
   );
   const [caseDefault, setCaseDefault] = useState<string>(
     parsedCaseConfig?.defaultBranch ?? "self",
   );
   const [caseBranches, setCaseBranches] = useState<string[]>(
     parsedCaseConfig?.branches?.filter((alias) => slotAliasOrder.has(alias)) ??
-    slotAliasOptions.slice(0),
+      slotAliasOptions.slice(0),
   );
 
   useEffect(() => {
@@ -1000,17 +1000,17 @@ export function BindingEditor({
 
             const selectOptions =
               normalizedSlotInputId &&
-                !baseOptions.some(
-                  (option) => option.value === normalizedSlotInputId,
-                )
+              !baseOptions.some(
+                (option) => option.value === normalizedSlotInputId,
+              )
                 ? [
-                  ...baseOptions,
-                  {
-                    value: normalizedSlotInputId,
-                    label: currentLabel,
-                    description: "Current value",
-                  },
-                ]
+                    ...baseOptions,
+                    {
+                      value: normalizedSlotInputId,
+                      label: currentLabel,
+                      description: "Current value",
+                    },
+                  ]
                 : baseOptions;
 
             const slotValueType = slot.valueType ?? "scalar";
@@ -1065,61 +1065,59 @@ export function BindingEditor({
                     </Button>
                   )}
                 </div>
-                {
-                  vectorAuthoringEnabled && (
-                    <div
-                      className="flex flex-col gap-2"
-                      role="group"
-                      aria-label={`Value type for ${label} slot ${index + 1}`}
-                    >
-                      <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                        Value type
-                      </span>
-                      <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
-                        <button
-                          type="button"
-                          className={cn(
-                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                            slotValueType === "scalar"
-                              ? "bg-bg-secondary text-text-primary shadow-sm"
-                              : "text-text-muted hover:text-text-primary",
-                          )}
-                          onClick={() => {
-                            if (slotValueType !== "scalar") {
-                              onBindingSlotValueTypeChange(
-                                targetId,
-                                slot.id,
-                                "scalar",
-                              );
-                            }
-                          }}
-                        >
-                          Scalar
-                        </button>
-                        <button
-                          type="button"
-                          className={cn(
-                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                            slotValueType === "vector"
-                              ? "bg-bg-secondary text-text-primary shadow-sm"
-                              : "text-text-muted hover:text-text-primary",
-                          )}
-                          onClick={() => {
-                            if (slotValueType !== "vector") {
-                              onBindingSlotValueTypeChange(
-                                targetId,
-                                slot.id,
-                                "vector",
-                              );
-                            }
-                          }}
-                        >
-                          Vector
-                        </button>
-                      </div>
+                {vectorAuthoringEnabled && (
+                  <div
+                    className="flex flex-col gap-2"
+                    role="group"
+                    aria-label={`Value type for ${label} slot ${index + 1}`}
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                      Value type
+                    </span>
+                    <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
+                      <button
+                        type="button"
+                        className={cn(
+                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                          slotValueType === "scalar"
+                            ? "bg-bg-secondary text-text-primary shadow-sm"
+                            : "text-text-muted hover:text-text-primary",
+                        )}
+                        onClick={() => {
+                          if (slotValueType !== "scalar") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "scalar",
+                            );
+                          }
+                        }}
+                      >
+                        Scalar
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                          slotValueType === "vector"
+                            ? "bg-bg-secondary text-text-primary shadow-sm"
+                            : "text-text-muted hover:text-text-primary",
+                        )}
+                        onClick={() => {
+                          if (slotValueType !== "vector") {
+                            onBindingSlotValueTypeChange(
+                              targetId,
+                              slot.id,
+                              "vector",
+                            );
+                          }
+                        }}
+                      >
+                        Vector
+                      </button>
                     </div>
-                  )
-                }
+                  </div>
+                )}
                 <div className="flex flex-col gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                     Driver Binding:
@@ -1243,47 +1241,45 @@ export function BindingEditor({
                       );
                     })()}
                 </div>
-                {
-                  upstreamNodes.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-border-default/50">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSlotDiagnosticsToggle(slotKey)}
-                        className="h-8 text-[11px] font-bold text-text-muted hover:text-text-primary"
-                      >
-                        {diagnosticsExpanded
-                          ? "Hide upstream nodes"
-                          : "Show upstream nodes"}
-                      </Button>
-                      {diagnosticsExpanded && (
-                        <ul className="mt-4 space-y-2">
-                          {upstreamNodes.map((node) => (
-                            <li
-                              key={`${slotKey}-${node.id}`}
-                              className="flex flex-col gap-1 p-3 bg-bg-input rounded-lg border border-border-default/50"
-                            >
-                              <span className="text-[11px] font-bold text-text-primary">
-                                {node.label}
+                {upstreamNodes.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-border-default/50">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSlotDiagnosticsToggle(slotKey)}
+                      className="h-8 text-[11px] font-bold text-text-muted hover:text-text-primary"
+                    >
+                      {diagnosticsExpanded
+                        ? "Hide upstream nodes"
+                        : "Show upstream nodes"}
+                    </Button>
+                    {diagnosticsExpanded && (
+                      <ul className="mt-4 space-y-2">
+                        {upstreamNodes.map((node) => (
+                          <li
+                            key={`${slotKey}-${node.id}`}
+                            className="flex flex-col gap-1 p-3 bg-bg-input rounded-lg border border-border-default/50"
+                          >
+                            <span className="text-[11px] font-bold text-text-primary">
+                              {node.label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-accent">
+                                {node.type}
                               </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono text-accent">
-                                  {node.type}
+                              {node.category && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-muted font-bold uppercase tracking-wider">
+                                  {node.category}
                                 </span>
-                                {node.category && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-muted font-bold uppercase tracking-wider">
-                                    {node.category}
-                                  </span>
-                                )}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                }
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1327,13 +1323,17 @@ export function BindingEditor({
             <div className="flex flex-col gap-1.5 px-1">
               {aliasHints && (
                 <p className="text-[10px] text-text-muted font-medium">
-                  <span className="text-text-secondary font-bold">Aliases:</span>{" "}
+                  <span className="text-text-secondary font-bold">
+                    Aliases:
+                  </span>{" "}
                   {aliasHints}
                 </p>
               )}
               {reservedHints && (
                 <p className="text-[10px] text-text-muted font-medium">
-                  <span className="text-text-secondary font-bold">Reserved:</span>{" "}
+                  <span className="text-text-secondary font-bold">
+                    Reserved:
+                  </span>{" "}
                   {reservedHints}
                 </p>
               )}
@@ -1677,15 +1677,14 @@ export function BindingEditor({
                                 ? "bg-accent/10 border-accent/20 text-accent"
                                 : "bg-bg-secondary border-border-default/50 text-text-muted hover:border-border-default",
                             )}
-                            onClick={() => handleCaseBranchToggle(alias, !checked)}
+                            onClick={() =>
+                              handleCaseBranchToggle(alias, !checked)
+                            }
                           >
                             <Checkbox
                               checked={checked}
                               onChange={(val) =>
-                                handleCaseBranchToggle(
-                                  alias,
-                                  val,
-                                )
+                                handleCaseBranchToggle(alias, val)
                               }
                             />
                             <span className="text-[11px] font-bold">
@@ -1714,8 +1713,6 @@ export function BindingEditor({
         {children}
       </div>
     </div>
-
-
   );
 }
 

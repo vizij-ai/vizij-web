@@ -41,7 +41,10 @@ export function SidebarSection({
       </header>
 
       {hasInstructions && instructions && (
-        <BaseCollapsible.Root defaultOpen={defaultInstructionsOpen} className="group">
+        <BaseCollapsible.Root
+          defaultOpen={defaultInstructionsOpen}
+          className="group"
+        >
           <div className="rounded-xl border border-border-default bg-bg-panel/50 overflow-hidden">
             <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-bg-secondary/50">
               <div className="flex flex-col gap-0.5">

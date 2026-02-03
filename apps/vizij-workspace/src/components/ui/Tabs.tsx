@@ -48,7 +48,8 @@ export function Tabs({
             "gap-1 border-b border-border-default": variant === "default",
             "gap-1 rounded-xl border border-border-default bg-bg-input p-1":
               variant === "pill",
-            "gap-4 border-b border-border-default px-2": variant === "underline",
+            "gap-4 border-b border-border-default px-2":
+              variant === "underline",
           },
           listClassName,
         )}
@@ -106,7 +107,11 @@ export function Tabs({
       </BaseTabs.List>
       <div className={cn("mt-1 focus:outline-none", panelClassName)}>
         {items.map((item) => (
-          <BaseTabs.Panel key={item.id} value={item.id} className="focus:outline-none">
+          <BaseTabs.Panel
+            key={item.id}
+            value={item.id}
+            className="focus:outline-none"
+          >
             {/* Optimization: only render content if active to match typical tab behavior, OR rely on Tabs.Panel hidden prop.
                  Base UI Tabs.Panel usually handles `hidden` or doesn't render children if not active if `keepMounted` is false.
                  By default functionality, it should be fine. */}

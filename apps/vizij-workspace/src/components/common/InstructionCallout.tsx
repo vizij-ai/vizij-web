@@ -90,9 +90,7 @@ export function InstructionCallout({
         "data-[state=open]:bg-bg-panel data-[state=open]:border-border-default",
       )}
     >
-      <BaseCollapsible.Trigger
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group"
-      >
+      <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group">
         <div className="flex items-center gap-3">
           {icon && (
             <div

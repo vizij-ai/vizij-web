@@ -135,7 +135,7 @@ export function Combobox({
     setQuery(e.target.value);
     setIsOpen(true);
     // If clearing input, we might want to clear selection? Headless UI behavior depends.
-    // Usually typing doesn't clear value until selection? 
+    // Usually typing doesn't clear value until selection?
     // Staying consistent: Typing just filters.
   };
 
@@ -143,7 +143,7 @@ export function Combobox({
     if (!disabled) {
       setIsOpen(true);
       // Select text on focus?
-      // inputRef.current?.select(); 
+      // inputRef.current?.select();
     }
   };
 
@@ -196,7 +196,7 @@ export function Combobox({
           <ChevronDown
             className={cn(
               "h-4 w-4 text-text-muted transition-transform duration-200",
-              isOpen && "rotate-180"
+              isOpen && "rotate-180",
             )}
             aria-hidden="true"
           />
