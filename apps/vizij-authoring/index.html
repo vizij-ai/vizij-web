@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vizij Authoring Tool</title>
   </head>
+  <script>
+    (function () {
+      try {
+        const storage = localStorage.getItem("vizij-theme");
+        const root = document.documentElement;
+        // Default to dark
+        root.classList.add("dark");
+
+        if (storage) {
+          const parsed = JSON.parse(storage);
+          if (parsed.state && parsed.state.theme === "light") {
+            root.classList.remove("dark");
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

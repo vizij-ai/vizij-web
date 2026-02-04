@@ -1058,7 +1058,7 @@ export function deleteSceneNode(
   };
 }
 
-function materialKey(shape: Shape): string {
+export function materialKey(shape: Shape): string {
   const parts: string[] = [`type:${shape.material}`];
   MATERIAL_FEATURE_KEYS.forEach((key) => {
     const feature = shape.features?.[key];

@@ -157,6 +157,10 @@ export interface BindingAuthoringState {
     targetId: string,
     upstreamId: string,
   ) => void;
+  selectedRigId: string | null;
+  handleSelectRig: (id: string | null) => void;
+  selectedMaterialId: string | null;
+  handleSelectMaterial: (id: string | null) => void;
 }
 
 export interface BindingAuthoringStore {
@@ -234,6 +238,10 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleShowDriver: () => undefined,
   handleShowAllDrivers: () => undefined,
   handleCreateParentDriverBinding: () => undefined,
+  selectedRigId: null,
+  handleSelectRig: () => undefined,
+  selectedMaterialId: null,
+  handleSelectMaterial: () => undefined,
 };
 
 export function createBindingAuthoringStore(
@@ -251,11 +259,24 @@ export function createBindingAuthoringStore(
       return;
     }
     const nextState = { ...state, ...patch } as BindingAuthoringState;
-    if (nextState === state) {
+
+    // Check if any value actually changed
+    const hasChanged = Object.keys(patch).some(
+      (key) => (state as any)[key] !== (nextState as any)[key],
+    );
+
+    if (!hasChanged) {
       return;
     }
     state = nextState;
     listeners.forEach((listener) => listener());
+  };
+
+  state.handleSelectRig = (id: string | null) => {
+    setState({ selectedRigId: id });
+  };
+  state.handleSelectMaterial = (id: string | null) => {
+    setState({ selectedMaterialId: id });
   };
 
   return {

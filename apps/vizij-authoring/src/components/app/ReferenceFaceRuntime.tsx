@@ -11,6 +11,7 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
+import { cn } from "../../utils/cn";
 import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
@@ -373,19 +374,40 @@ function ReferenceFaceBridge({
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
   return (
-    <div className="ref-face-viewer">
-      <header className="ref-face-viewer__header">
-        <div className="ref-face-viewer__title-group">
-          <p className="ref-face-viewer__eyebrow">Reference Face</p>
-          <p className="ref-face-viewer__status">
-            {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
+    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
+      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
+            Reference Face
           </p>
+          <div className="flex items-center gap-1.5">
+            <div
+              className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                ready
+                  ? "bg-green-500"
+                  : loading
+                    ? "bg-accent animate-pulse"
+                    : "bg-text-muted",
+              )}
+            />
+            <p className="m-0 text-[10px] text-text-secondary font-bold">
+              {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
+            </p>
+          </div>
         </div>
-        <div className="ref-face-viewer__controls">
-          <span className="ref-face-viewer__fps">{formattedFps}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] tabular-nums text-text-muted/80 font-medium">
+            {formattedFps}
+          </span>
           <button
             type="button"
-            className={`ref-face-viewer__idle-btn ${idleBehaviorEnabled ? "ref-face-viewer__idle-btn--active" : ""}`}
+            className={cn(
+              "px-2 py-0.5 border rounded text-[10px] font-bold transition-all cursor-pointer active:scale-95",
+              idleBehaviorEnabled
+                ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
+                : "bg-bg-secondary/20 border-border-default/50 text-text-muted hover:bg-bg-secondary hover:text-text-secondary",
+            )}
             onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
             title={
               idleBehaviorEnabled
@@ -393,12 +415,12 @@ function ReferenceFaceBridge({
                 : "Enable idle behaviors"
             }
           >
-            {idleBehaviorEnabled ? "Idle: ON" : "Idle: OFF"}
+            {idleBehaviorEnabled ? "IDLE: ON" : "IDLE: OFF"}
           </button>
           {onToggleSplit && (
             <button
               type="button"
-              className="ref-face-viewer__split-btn"
+              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
               title={
                 splitVertical
                   ? "Switch to horizontal split"
@@ -411,7 +433,7 @@ function ReferenceFaceBridge({
           )}
         </div>
       </header>
-      <div className="ref-face-viewer__canvas">
+      <div className="flex-1 min-h-0 relative">
         <HeroPassiveBehavior enabled={idleBehaviorEnabled} />
         <RuntimeFaceFrame
           variant="fill"
@@ -433,17 +455,21 @@ function ReferenceFacePlaceholder({
   onToggleSplit,
 }: ReferenceFacePlaceholderProps) {
   return (
-    <div className="ref-face-viewer">
-      <header className="ref-face-viewer__header">
-        <div className="ref-face-viewer__title-group">
-          <p className="ref-face-viewer__eyebrow">Reference Face</p>
-          <p className="ref-face-viewer__status">No file loaded</p>
+    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
+      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
+            Reference Face
+          </p>
+          <p className="m-0 text-[10px] text-text-muted italic font-medium">
+            No file loaded
+          </p>
         </div>
-        <div className="ref-face-viewer__controls">
+        <div className="flex items-center gap-2">
           {onToggleSplit && (
             <button
               type="button"
-              className="ref-face-viewer__split-btn"
+              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
               title={
                 splitVertical
                   ? "Switch to horizontal split"
@@ -456,8 +482,8 @@ function ReferenceFacePlaceholder({
           )}
         </div>
       </header>
-      <div className="ref-face-viewer__canvas ref-face-viewer__canvas--empty">
-        <p className="ref-face-viewer__placeholder-text">
+      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-bg-app/40">
+        <p className="text-text-muted text-[11px] text-center px-6 max-w-[240px] italic leading-relaxed">
           Load a reference face GLB using the sidebar to begin.
         </p>
       </div>

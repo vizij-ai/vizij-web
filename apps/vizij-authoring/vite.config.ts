@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
 import react from "@vitejs/plugin-react-swc";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,7 +12,7 @@ const require = createRequire(import.meta.url);
 const threeEntry = require.resolve("three");
 const threePath = path.resolve(path.dirname(threeEntry), "..");
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   assetsInclude: ["**/*.glb"],
   resolve: {
     alias: {

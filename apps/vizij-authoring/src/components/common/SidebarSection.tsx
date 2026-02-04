@@ -1,5 +1,7 @@
-import { useId, useState } from "react";
+import { Collapsible as BaseCollapsible } from "@base-ui/react";
+import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { cn } from "../../utils/cn";
 
 type SidebarInstructions = {
   label: string;
@@ -23,72 +25,55 @@ export function SidebarSection({
   instructions,
   defaultInstructionsOpen = false,
 }: SidebarSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultInstructionsOpen);
-  const instructionId = useId();
-  const instructionContent = instructions ?? null;
-  const hasInstructions = Boolean(instructionContent);
-  const Chevron = () => (
-    <span className="sidebar__section-chevron" aria-hidden="true">
-      {isOpen ? "▾" : "▸"}
-    </span>
-  );
+  const hasInstructions = Boolean(instructions);
 
   return (
-    <section className="sidebar__section">
-      <header
-        className={`sidebar__section-header${
-          hasInstructions ? " sidebar__section-header--collapsible" : ""
-        }`}
-      >
-        {instructionContent ? (
-          <>
-            <button
-              type="button"
-              className="sidebar__section-trigger"
-              onClick={() => setIsOpen((current) => !current)}
-              aria-expanded={isOpen}
-              aria-controls={instructionId}
-            >
-              <div className="sidebar__section-text">
-                <h2 className="sidebar__section-title">{title}</h2>
-                {description ? (
-                  <p className="sidebar__section-description">{description}</p>
-                ) : null}
-              </div>
-              <Chevron />
-            </button>
-            <div
-              id={instructionId}
-              className={`sidebar__section-instructions sidebar__section-instructions--${
-                instructionContent.size ?? "compact"
-              }`}
-              aria-hidden={!isOpen}
-              style={{ display: isOpen ? "flex" : "none" }}
-              data-open={isOpen ? "true" : undefined}
-            >
-              <p className="sidebar__section-instructions-label">
-                {instructionContent.label}
-              </p>
-              {instructionContent.summary ? (
-                <p className="sidebar__section-instructions-summary">
-                  {instructionContent.summary}
-                </p>
-              ) : null}
-              <div className="sidebar__section-instructions-body">
-                {instructionContent.content}
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="sidebar__section-text">
-            <h2 className="sidebar__section-title">{title}</h2>
-            {description ? (
-              <p className="sidebar__section-description">{description}</p>
-            ) : null}
-          </div>
+    <section className="flex flex-col gap-3 mb-6 last:mb-0">
+      <header className="flex flex-col gap-1 px-1">
+        <h2 className="text-xs font-black uppercase tracking-widest text-text-muted">
+          {title}
+        </h2>
+        {description && (
+          <p className="text-xs text-text-secondary leading-relaxed">
+            {description}
+          </p>
         )}
       </header>
-      {children}
+
+      {hasInstructions && instructions && (
+        <BaseCollapsible.Root
+          defaultOpen={defaultInstructionsOpen}
+          className="group"
+        >
+          <div className="rounded-xl border border-border-default bg-bg-panel/50 overflow-hidden">
+            <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-bg-secondary/50">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                  {instructions.label}
+                </span>
+                {instructions.summary && (
+                  <span className="text-[10px] text-text-muted font-medium">
+                    {instructions.summary}
+                  </span>
+                )}
+              </div>
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 text-text-muted transition-transform duration-200",
+                  "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
+                )}
+              />
+            </BaseCollapsible.Trigger>
+            <BaseCollapsible.Panel className="px-4 pb-4 pt-1 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 duration-100">
+              <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none">
+                {instructions.content}
+              </div>
+            </BaseCollapsible.Panel>
+          </div>
+        </BaseCollapsible.Root>
+      )}
+
+      <div className="flex flex-col gap-3">{children}</div>
     </section>
   );
 }

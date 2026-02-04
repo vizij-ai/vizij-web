@@ -1674,9 +1674,11 @@ export function useRigController(
       if (!updates || typeof updates !== "object") {
         return;
       }
-      const entries = Object.entries(updates).filter(([inputId]) =>
-        standardInputsById.has(inputId),
-      ) as Array<[StandardInputId, number]>;
+      // Relaxed check: allow all updates, similar to handleInputValueChange
+      const entries = Object.entries(updates) as Array<
+        [StandardInputId, number]
+      >;
+
       if (entries.length === 0) {
         return;
       }

@@ -1,14 +1,14 @@
 {
-  "projects": {
-    "default": "semio-vizij"
-  },
-  "targets": {
-    "semio-vizij": {
-      "hosting": {
-        "vizij-authoring": [
-          "vizij-tooling"
-        ]
-      }
+    "projects": {
+        "default": "semio-vizij"
+    },
+    "targets": {
+        "semio-vizij": {
+            "hosting": {
+                "vizij-workspace": [
+                    "vizij-workspace"
+                ]
+            }
+        }
     }
-  }
 }

@@ -1,5 +1,7 @@
-import { useState, useCallback } from "react";
-import type { ReactNode, KeyboardEvent, MouseEvent } from "react";
+import { Collapsible as BaseCollapsible } from "@base-ui/react";
+import type { ReactNode } from "react";
+import { ChevronRight, ChevronDown } from "lucide-react";
+import { cn } from "../../utils/cn";
 import { RowSlider } from "./RowSlider";
 
 export interface CollapsibleRowProps {
@@ -35,91 +37,89 @@ export function CollapsibleRow({
   className = "",
   showSlider = true,
 }: CollapsibleRowProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-
-  const handleToggle = useCallback(() => {
-    if (!expandedContent || disabled) return;
-    setIsExpanded((prev) => !prev);
-  }, [expandedContent, disabled]);
-
-  const shouldIgnoreInteraction = useCallback((target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) return false;
-    // Only block clicks on action buttons/areas; allow empty control strip to toggle.
-    return Boolean(target.closest(".collapsible-row__actions"));
-  }, []);
-
-  const handleHeaderClick = useCallback(
-    (event: MouseEvent) => {
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      handleToggle();
-    },
-    [handleToggle, shouldIgnoreInteraction],
-  );
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (!expandedContent || disabled) return;
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        handleToggle();
-      }
-    },
-    [expandedContent, disabled, handleToggle, shouldIgnoreInteraction],
-  );
-
   const hasExpandableContent = Boolean(expandedContent);
 
   return (
-    <div
-      className={`collapsible-row ${isExpanded ? "collapsible-row--expanded" : ""} ${disabled ? "collapsible-row--disabled" : ""} ${className}`}
-      data-row-id={id}
+    <BaseCollapsible.Root
+      defaultOpen={defaultExpanded}
+      className="group w-full"
     >
       <div
-        className={`collapsible-row__compact ${hasExpandableContent ? "collapsible-row__compact--clickable" : ""}`}
-        onClick={hasExpandableContent ? handleHeaderClick : undefined}
-        onKeyDown={hasExpandableContent ? handleKeyDown : undefined}
-        role={hasExpandableContent ? "button" : undefined}
-        tabIndex={hasExpandableContent && !disabled ? 0 : undefined}
-        aria-expanded={hasExpandableContent ? isExpanded : undefined}
+        className={cn(
+          "bg-bg-secondary/40 border border-border-default/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
+          "group-data-[state=open]:border-accent/50 group-data-[state=open]:shadow-[0_0_0_1px_var(--color-accent-subtle)]",
+          !hasExpandableContent &&
+            "group-data-[state=open]:border-zinc-800/60 group-data-[state=open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
+          disabled && "opacity-50 pointer-events-none",
+          className,
+        )}
+        data-row-id={id}
       >
-        <div className="collapsible-row__header">
-          {hasExpandableContent && (
-            <span className="collapsible-row__toggle-icon">
-              {isExpanded ? "▼" : "▶"}
-            </span>
-          )}
-          <div className="collapsible-row__text">
-            <span className="collapsible-row__title">{title}</span>
-            {subtitle && (
-              <span className="collapsible-row__subtitle">{subtitle}</span>
+        <div className="flex items-center gap-3">
+          <BaseCollapsible.Trigger
+            disabled={!hasExpandableContent || disabled}
+            className={cn(
+              "flex-1 px-2.5 py-1.5 flex items-center gap-3 text-left focus:outline-none focus:bg-zinc-800/20 w-full",
+              hasExpandableContent &&
+                !disabled &&
+                "cursor-pointer hover:bg-zinc-800/30",
+            )}
+          >
+            <div className="flex items-start gap-2.5 flex-grow min-w-0 pointer-events-none">
+              {/* pointer-events-none on content to prevent interfering with button click if complex? No, standard button is fine. */}
+              {hasExpandableContent && (
+                <div className="w-3 h-3 mt-1 flex items-center justify-center shrink-0">
+                  <ChevronRight className="w-3 h-3 text-text-secondary group-data-[state=open]:hidden" />
+                  <ChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
+                </div>
+              )}
+              <div className="flex flex-col gap-0.5 min-w-0 text-left">
+                <span
+                  className={cn(
+                    "text-[13px] font-bold leading-tight truncate transition-colors",
+                    "group-data-[state=open]:text-text-primary",
+                    "group-data-[state=closed]:text-text-secondary",
+                  )}
+                >
+                  {title}
+                </span>
+                {subtitle && (
+                  <span className="text-[10px] text-text-muted truncate leading-tight font-medium">
+                    {subtitle}
+                  </span>
+                )}
+              </div>
+            </div>
+          </BaseCollapsible.Trigger>
+
+          <div className="flex items-center justify-end gap-3 shrink-0 pr-2.5 py-1.5">
+            {showSlider && value !== undefined && onValueChange && (
+              <div className="w-48">
+                <RowSlider
+                  value={value}
+                  min={min}
+                  max={max}
+                  step={step}
+                  onChange={onValueChange}
+                  disabled={disabled}
+                />
+              </div>
+            )}
+            {actions && (
+              <div
+                className="flex items-center gap-1.5 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {actions}
+              </div>
             )}
           </div>
         </div>
-        <div className="collapsible-row__controls">
-          {showSlider && value !== undefined && onValueChange && (
-            <RowSlider
-              value={value}
-              min={min}
-              max={max}
-              step={step}
-              onChange={onValueChange}
-              disabled={disabled}
-            />
-          )}
-          {actions && <div className="collapsible-row__actions">{actions}</div>}
-        </div>
+        <BaseCollapsible.Panel className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 overflow-hidden">
+          <div className="h-px bg-border-default/60 mx-3" />
+          <div className="p-4 bg-bg-secondary/20">{expandedContent}</div>
+        </BaseCollapsible.Panel>
       </div>
-      {isExpanded && expandedContent && (
-        <>
-          <div className="collapsible-row__divider" />
-          <div className="collapsible-row__expanded">{expandedContent}</div>
-        </>
-      )}
-    </div>
+    </BaseCollapsible.Root>
   );
 }

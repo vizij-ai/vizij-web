@@ -5,8 +5,10 @@ import type {
   ElementType,
 } from "react";
 import type { JSX } from "react/jsx-runtime";
+import { Info } from "lucide-react";
+import { cn } from "../../utils/cn";
 import { Badge } from "./Badge";
-import "./panel.css";
+import { Tooltip } from "./Tooltip";
 
 type BaseProps = {
   as?: ElementType;
@@ -59,19 +61,28 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
 
   return (
     <section
-      className={["sidebar__panel", className].filter(Boolean).join(" ")}
+      className={cn(
+        "flex flex-col gap-3 p-3 bg-bg-panel/50 backdrop-blur-md border border-border-default/50 rounded-xl text-text-primary shadow-premium",
+        className,
+      )}
       {...rest}
     >
       {hasHeader && (
-        <header className="sidebar__panel-header">
-          <div>
-            {title ? <p className="sidebar__panel-title">{title}</p> : null}
+        <header className="flex justify-between items-center gap-4 min-h-[24px]">
+          <div className="flex items-center gap-2 pl-1">
+            {title ? (
+              <p className="text-sm font-semibold text-text-primary m-0 leading-tight pl-2">
+                {title}
+              </p>
+            ) : null}
             {description ? (
-              <p className="sidebar__panel-description">{description}</p>
+              <Tooltip content={description} side="right">
+                <Info className="w-3.5 h-3.5 text-text-secondary hover:text-accent transition-colors cursor-help" />
+              </Tooltip>
             ) : null}
           </div>
           {(badge || actions) && (
-            <div className="sidebar__panel-meta">
+            <div className="flex items-center gap-2 shrink-0">
               {actions}
               {renderBadge()}
             </div>

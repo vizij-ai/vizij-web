@@ -6,36 +6,16 @@ import type {
   GraphDiffCategory,
   MissingInputResolution,
 } from "../../types/discrepancy";
+import { Modal } from "../ui/Modal";
+import { Button } from "../ui/Button";
+import { Chip } from "../ui/Chip";
+import { cn } from "../../utils/cn";
 
 const isDev = process.env.NODE_ENV !== "production";
 const logDebug = (...args: unknown[]) => {
   if (!isDev) return;
   // eslint-disable-next-line no-console
   console.debug("[discrepancy]", ...args);
-};
-
-interface DiscrepancyWizardProps {
-  state: DiscrepancyReviewState;
-  onResolve: (result: DiscrepancyResolutionResult) => void;
-}
-
-type WizardStep = "overview" | "differences" | "missing";
-
-const STEP_LABELS: Record<WizardStep, string> = {
-  overview: "Summary",
-  differences: "Graph Differences",
-  missing: "Missing Inputs",
-};
-
-const CATEGORY_LABELS: Record<GraphDiffCategory, string> = {
-  identifiers: "Identifiers",
-  inputs: "Inputs",
-  bindings: "Bindings",
-  expressions: "Expressions",
-  values: "Values & Ranges",
-  metadata: "Metadata",
-  structure: "Structure",
-  other: "Other",
 };
 
 function formatDiffValue(value: unknown): string {
@@ -65,7 +45,10 @@ function normalizeDiffResolutions(
   entries: DiscrepancyReviewState["diff"]["entries"],
 ): Record<string, DiffResolutionChoice | null> {
   return entries.reduce<Record<string, DiffResolutionChoice | null>>(
-    (acc, entry) => {
+    (
+      acc: Record<string, DiffResolutionChoice | null>,
+      entry: { id: string },
+    ) => {
       acc[entry.id] = null;
       return acc;
     },
@@ -77,12 +60,36 @@ function normalizeMissingResolutions(
   paths: readonly string[],
 ): Record<string, MissingInputResolution | null> {
   return paths.reduce<Record<string, MissingInputResolution | null>>(
-    (acc, path) => {
+    (acc: Record<string, MissingInputResolution | null>, path: string) => {
       acc[path] = null;
       return acc;
     },
     {},
   );
+}
+
+type WizardStep = "overview" | "differences" | "missing";
+
+const STEP_LABELS: Record<WizardStep, string> = {
+  overview: "Summary",
+  differences: "Graph Differences",
+  missing: "Missing Inputs",
+};
+
+const CATEGORY_LABELS: Record<GraphDiffCategory, string> = {
+  identifiers: "Identifiers",
+  inputs: "Inputs",
+  bindings: "Bindings",
+  expressions: "Expressions",
+  values: "Values & Ranges",
+  metadata: "Metadata",
+  structure: "Structure",
+  other: "Other",
+};
+
+interface DiscrepancyWizardProps {
+  state: DiscrepancyReviewState;
+  onResolve: (result: DiscrepancyResolutionResult) => void;
 }
 
 export function DiscrepancyWizard({
@@ -142,7 +149,10 @@ export function DiscrepancyWizard({
 
   const diffCounts = useMemo(() => {
     return state.diff.entries.reduce<Record<GraphDiffCategory, number>>(
-      (acc, entry) => {
+      (
+        acc: Record<GraphDiffCategory, number>,
+        entry: { category: GraphDiffCategory },
+      ) => {
         acc[entry.category] = (acc[entry.category] ?? 0) + 1;
         return acc;
       },
@@ -164,7 +174,8 @@ export function DiscrepancyWizard({
       return state.diff.entries;
     }
     return state.diff.entries.filter(
-      (entry) => entry.category === activeCategory,
+      (entry: { category: GraphDiffCategory }) =>
+        entry.category === activeCategory,
     );
   }, [activeCategory, state.diff.entries]);
 
@@ -174,7 +185,7 @@ export function DiscrepancyWizard({
 
   const allMissingResolved =
     state.missingAutoInputs.length === 0 ||
-    state.missingAutoInputs.every((path) => missingResolutions[path]);
+    state.missingAutoInputs.every((path: string) => missingResolutions[path]);
 
   const canApply = allDiffsResolved && allMissingResolved;
 
@@ -252,40 +263,63 @@ export function DiscrepancyWizard({
   }, [faceRename]);
 
   return (
-    <div className="discrepancy-overlay" role="presentation">
-      <div
-        className="discrepancy-wizard"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="discrepancy-wizard-title"
-      >
-        <header className="discrepancy-wizard__header">
-          <div>
-            <p className="discrepancy-wizard__eyebrow">Import Review</p>
-            <h1 id="discrepancy-wizard-title">Resolve Graph Discrepancies</h1>
-            <p className="discrepancy-wizard__meta">
-              Loaded face: {state.faceId ?? "—"} · Imported face:{" "}
-              {state.importedFaceId ?? "unknown"} · Captured at{" "}
-              {new Date(state.createdAt).toLocaleString()}
-            </p>
+    <Modal
+      open={true}
+      onClose={() => onResolve({ accepted: false })}
+      title="Import Review"
+      maxWidth="4xl"
+    >
+      <div className="space-y-6">
+        <header className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-accent-subtle text-accent">
+              <svg
+                className="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-text-primary tracking-tight">
+              Resolve Graph Discrepancies
+            </h1>
           </div>
-          <button
-            type="button"
-            className="button subtle"
-            onClick={() => onResolve({ accepted: false })}
-          >
-            Cancel import
-          </button>
+          <p className="text-xs text-text-muted font-medium">
+            Loaded face:{" "}
+            <span className="text-text-secondary font-mono">
+              {state.faceId ?? "—"}
+            </span>{" "}
+            · Imported face:{" "}
+            <span className="text-text-secondary font-mono">
+              {state.importedFaceId ?? "unknown"}
+            </span>{" "}
+            · Captured at{" "}
+            <span className="text-text-secondary">
+              {new Date(state.createdAt).toLocaleString()}
+            </span>
+          </p>
         </header>
 
-        <nav className="discrepancy-wizard__steps" aria-label="Wizard steps">
+        <nav
+          className="flex gap-1 p-1 bg-bg-panel rounded-xl border border-border-default"
+          aria-label="Wizard steps"
+        >
           {(Object.keys(STEP_LABELS) as WizardStep[]).map((stepId) => (
             <button
               key={stepId}
               type="button"
-              className={`discrepancy-wizard__step-button${
-                step === stepId ? " is-active" : ""
-              }`}
+              className={cn(
+                "flex-1 px-4 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all",
+                step === stepId
+                  ? "bg-accent text-accent-fg shadow-lg shadow-accent/20"
+                  : "text-text-muted hover:text-text-primary hover:bg-bg-hover",
+              )}
               onClick={() => setStep(stepId)}
             >
               {STEP_LABELS[stepId]}
@@ -293,33 +327,53 @@ export function DiscrepancyWizard({
           ))}
         </nav>
 
-        <section className="discrepancy-wizard__content">
+        <div className="min-h-[400px]">
           {step === "overview" && (
-            <div className="discrepancy-wizard__panel">
-              <h2>What changed?</h2>
-              <p>
-                Importing the rig graph produced a normalized IR that does not
-                perfectly match the source graph. Review the detected
-                differences, note any follow-ups, and choose how to handle
-                missing inputs.
-              </p>
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="space-y-2">
+                <h2 className="text-sm font-bold text-text-primary">
+                  What changed?
+                </h2>
+                <p className="text-[13px] text-text-secondary leading-relaxed">
+                  Importing the rig graph produced a normalized IR that does not
+                  perfectly match the source graph. Review the detected
+                  differences, note any follow-ups, and choose how to handle
+                  missing inputs.
+                </p>
+              </div>
+
               {state.importedFaceId &&
                 state.faceId &&
                 state.importedFaceId !== state.faceId && (
-                  <div className="discrepancy-wizard__alert">
-                    <strong>Face mismatch:</strong> Imported graph face is "
-                    {state.importedFaceId}", loaded asset face is "
-                    {state.faceId}".
-                    <div className="discrepancy-wizard__rename">
+                  <div className="bg-warning-subtle border border-warning-subtle rounded-xl p-4 space-y-3">
+                    <p className="text-xs text-warning font-bold flex items-center gap-2">
+                      <svg
+                        className="w-4 h-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      Face mismatch detected
+                    </p>
+                    <p className="text-xs text-warning/80">
+                      Imported graph face is "{state.importedFaceId}", but
+                      loaded asset face is "{state.faceId}".
+                    </p>
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={faceRename}
+                        className="flex-1 h-9 bg-bg-input border border-border-default rounded-lg px-3 text-xs text-text-primary focus:outline-none focus:border-warning"
                         onChange={(event) => setFaceRename(event.target.value)}
-                        aria-label="Rename face ID"
+                        placeholder="New face ID"
                       />
-                      <button
-                        type="button"
-                        className="button"
+                      <Button
+                        size="sm"
                         onClick={() =>
                           submitResult(true, {
                             renameFaceId: faceRename.trim(),
@@ -327,11 +381,38 @@ export function DiscrepancyWizard({
                         }
                         disabled={faceRename.trim().length === 0}
                       >
-                        Rename project face to imported
-                      </button>
+                        Rename to imported
+                      </Button>
                     </div>
                   </div>
                 )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-2xl font-bold text-text-primary">
+                    {state.diff.entries.length}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Differences
+                  </span>
+                </div>
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-[11px] font-bold text-text-secondary mt-2">
+                    {state.diff.limitReached ? "Capped" : "Complete"}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Diff Status
+                  </span>
+                </div>
+                <div className="bg-bg-card rounded-xl border border-border-default p-4 text-center">
+                  <span className="block text-2xl font-bold text-text-primary">
+                    {state.missingAutoInputs.length}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Missing Inputs
+                  </span>
+                </div>
+              </div>
               <ul className="discrepancy-wizard__summary-list">
                 <li>
                   <strong>{state.diff.entries.length}</strong> structural
@@ -349,57 +430,74 @@ export function DiscrepancyWizard({
               </ul>
 
               {state.mismatchReasons.length > 0 && (
-                <div className="discrepancy-wizard__reasons">
-                  <h3>Likely causes</h3>
-                  <ul>
-                    {state.mismatchReasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
+                <div className="bg-bg-secondary rounded-xl border border-border-default p-5 space-y-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Likely causes
+                  </h3>
+                  <ul className="space-y-2">
+                    {state.mismatchReasons.map((reason: string) => (
+                      <li
+                        key={reason}
+                        className="text-xs text-text-secondary flex items-start gap-2"
+                      >
+                        <span className="w-1 h-1 rounded-full bg-accent mt-1.5 shrink-0" />
+                        {reason}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              <label className="discrepancy-wizard__notes">
-                <span>Reviewer notes (optional)</span>
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">
+                  Reviewer notes (optional)
+                </span>
                 <textarea
+                  className="w-full h-24 bg-bg-input border border-border-default rounded-xl p-4 text-xs text-text-primary focus:outline-none focus:border-accent/50 resize-none transition-colors"
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="Capture context or follow-up owners"
                 />
-              </label>
-              <div className="discrepancy-wizard__actions-row">
-                <button
-                  type="button"
-                  className="button secondary"
+              </div>
+
+              <div className="pt-4">
+                <Button
+                  variant="primary"
+                  className="w-full h-11 font-bold"
                   onClick={() => {
                     applyRecommended();
                     submitResult(true);
                   }}
                 >
                   Accept all (use rebuilt)
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {step === "differences" && (
-            <div className="discrepancy-wizard__panel">
-              <div className="discrepancy-wizard__panel-header">
-                <h2>Graph differences</h2>
-                <button
-                  type="button"
-                  className="button subtle"
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex justify-between items-center">
+                <h2 className="text-sm font-bold text-text-primary">
+                  Graph differences
+                </h2>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={applyRecommended}
                 >
-                  Accept recommended fixes
-                </button>
+                  Apply recommeded fixes
+                </Button>
               </div>
-              <div className="discrepancy-wizard__filters">
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  className={`discrepancy-wizard__filter${
-                    activeCategory === "all" ? " is-active" : ""
-                  }`}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border",
+                    activeCategory === "all"
+                      ? "bg-accent-subtle border-accent/30 text-accent"
+                      : "bg-bg-card border-border-default text-text-muted hover:border-border-hover",
+                  )}
                   onClick={() => setActiveCategory("all")}
                 >
                   All ({state.diff.entries.length})
@@ -409,9 +507,12 @@ export function DiscrepancyWizard({
                     <button
                       key={category}
                       type="button"
-                      className={`discrepancy-wizard__filter${
-                        activeCategory === category ? " is-active" : ""
-                      }`}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border",
+                        activeCategory === category
+                          ? "bg-accent-subtle border-accent/30 text-accent"
+                          : "bg-bg-card border-border-default text-text-muted hover:border-border-hover",
+                      )}
                       onClick={() => setActiveCategory(category)}
                     >
                       {CATEGORY_LABELS[category]} ({diffCounts[category] ?? 0})
@@ -420,44 +521,63 @@ export function DiscrepancyWizard({
                 )}
               </div>
               {filteredDiffs.length === 0 ? (
-                <p className="discrepancy-wizard__empty">
-                  No differences for this category.
-                </p>
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                  <p className="text-xs text-text-muted italic">
+                    No differences for this category.
+                  </p>
+                </div>
               ) : (
-                <div className="discrepancy-wizard__diff-list">
+                <div className="space-y-3 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
                   {filteredDiffs.map((entry) => (
                     <article
                       key={entry.id}
-                      className="discrepancy-wizard__diff"
+                      className="bg-bg-card rounded-xl border border-border-default p-4 space-y-4 hover:border-border-hover transition-colors"
                     >
-                      <header className="discrepancy-wizard__diff-header">
-                        <span className={`diff-chip diff-chip--${entry.kind}`}>
-                          {entry.kind}
-                        </span>
-                        <div>
-                          <p className="discrepancy-wizard__diff-path">
+                      <header className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-mono font-bold text-text-primary truncate max-w-md">
                             {entry.path}
                           </p>
-                          <p className="discrepancy-wizard__diff-category">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
                             {CATEGORY_LABELS[entry.category]}
                           </p>
                         </div>
+                        <Chip
+                          tone={
+                            entry.kind === "unexpected"
+                              ? "success"
+                              : entry.kind === "missing"
+                                ? "danger"
+                                : "warning"
+                          }
+                        >
+                          {entry.kind}
+                        </Chip>
                       </header>
-                      <div className="discrepancy-wizard__diff-values">
-                        <div>
-                          <span>Imported</span>
-                          <code>{formatDiffValue(entry.importedValue)}</code>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
+                            Imported Value
+                          </span>
+                          <code className="text-[11px] text-text-secondary font-mono break-all">
+                            {formatDiffValue(entry.importedValue)}
+                          </code>
                         </div>
-                        <div>
-                          <span>Rebuilt</span>
-                          <code>{formatDiffValue(entry.rebuiltValue)}</code>
+                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
+                            Rebuilt Value
+                          </span>
+                          <code className="text-[11px] text-accent font-mono break-all">
+                            {formatDiffValue(entry.rebuiltValue)}
+                          </code>
                         </div>
                       </div>
-                      <div className="discrepancy-wizard__diff-actions">
-                        <label>
+                      <div className="flex gap-4 pt-2 border-t border-border-default">
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
                           <input
                             type="radio"
                             name={`diff-${entry.id}`}
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="use-rebuilt"
                             checked={
                               diffResolutions[entry.id] === "use-rebuilt"
@@ -469,12 +589,15 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          Use rebuilt value
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                            Use rebuilt value
+                          </span>
                         </label>
-                        <label>
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
                           <input
                             type="radio"
                             name={`diff-${entry.id}`}
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="needs-follow-up"
                             checked={
                               diffResolutions[entry.id] === "needs-follow-up"
@@ -486,7 +609,9 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          Flag for follow-up
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                            Flag for follow-up
+                          </span>
                         </label>
                       </div>
                     </article>
@@ -497,28 +622,44 @@ export function DiscrepancyWizard({
           )}
 
           {step === "missing" && (
-            <div className="discrepancy-wizard__panel">
-              <h2>Missing auto-generated inputs</h2>
-              {state.missingAutoInputs.length === 0 ? (
-                <p className="discrepancy-wizard__empty">
-                  No missing inputs detected.
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="space-y-2">
+                <h2 className="text-sm font-bold text-text-primary">
+                  Missing auto-generated inputs
+                </h2>
+                <p className="text-[13px] text-text-secondary leading-relaxed">
+                  Decide whether to create a placeholder standard input or
+                  ignore this discrepancy for now.
                 </p>
+              </div>
+
+              {state.missingAutoInputs.length === 0 ? (
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                  <p className="text-xs text-text-muted italic">
+                    No missing inputs detected.
+                  </p>
+                </div>
               ) : (
-                <ul className="discrepancy-wizard__missing-list">
-                  {state.missingAutoInputs.map((path) => (
-                    <li key={path} className="discrepancy-wizard__missing-item">
-                      <div>
-                        <p>{path}</p>
-                        <p className="discrepancy-wizard__missing-hint">
-                          Decide whether to create a placeholder standard input
-                          or ignore this discrepancy for now.
+                <ul className="space-y-3">
+                  {state.missingAutoInputs.map((path: string) => (
+                    <li
+                      key={path}
+                      className="bg-bg-card rounded-xl border border-border-default p-4 flex justify-between items-center gap-6"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-[11px] font-mono font-bold text-text-primary truncate">
+                          {path}
+                        </p>
+                        <p className="text-[10px] text-text-muted">
+                          Auto-generated in source graph
                         </p>
                       </div>
-                      <div className="discrepancy-wizard__missing-actions">
-                        <label>
+                      <div className="flex gap-4 shrink-0">
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
                           <input
                             type="radio"
                             name={`missing-${path}`}
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="create-placeholder"
                             checked={
                               missingResolutions[path] === "create-placeholder"
@@ -530,19 +671,24 @@ export function DiscrepancyWizard({
                               )
                             }
                           />
-                          Create placeholder input
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                            Create placeholder
+                          </span>
                         </label>
-                        <label>
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
                           <input
                             type="radio"
                             name={`missing-${path}`}
+                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
                             value="ignore"
                             checked={missingResolutions[path] === "ignore"}
                             onChange={() =>
                               handleMissingResolutionChange(path, "ignore")
                             }
                           />
-                          Ignore for now
+                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                            Ignore
+                          </span>
                         </label>
                       </div>
                     </li>
@@ -551,26 +697,26 @@ export function DiscrepancyWizard({
               )}
             </div>
           )}
-        </section>
+        </div>
 
-        <footer className="discrepancy-wizard__footer">
-          <button
-            type="button"
-            className="button subtle"
+        <footer className="flex justify-between items-center pt-6 border-t border-border-default mt-4">
+          <Button
+            variant="ghost"
+            className="text-text-muted hover:text-text-primary"
             onClick={() => submitResult(false)}
           >
             Cancel import
-          </button>
-          <button
-            type="button"
-            className="button primary"
+          </Button>
+          <Button
+            variant="primary"
+            className="h-10 px-6 font-bold text-xs"
             disabled={!canApply}
             onClick={() => submitResult(true)}
           >
-            Apply rebuilt bindings
-          </button>
+            Apply rebuilding & continue
+          </Button>
         </footer>
       </div>
-    </div>
+    </Modal>
   );
 }

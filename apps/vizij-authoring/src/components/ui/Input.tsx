@@ -1,19 +1,53 @@
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 import type { InputHTMLAttributes } from "react";
+import { Input as BaseInput } from "@base-ui/react";
+import { cn } from "../../utils/cn";
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement>;
+export interface InputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
+  size?: "sm" | "md";
+  startContent?: ReactNode;
+  endContent?: ReactNode;
+}
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, ...props }, ref) => {
-    // In styles.css, inputs are styled via element selectors like .sidebar input[type="text"]
-    // We should probably add a utility class to styles.css or just rely on the context.
-    // However, to be modular, we should probably add a specific class for inputs.
-    // But for now, let's just pass through.
-    // Wait, the goal is to standardize.
-    // Let's assume we will add a .input class to styles.css later or use existing ones.
-    // Currently, inputs are styled contextually (e.g. .sidebar input, .asset-card input).
-
-    return <input ref={ref} className={className} {...props} />;
+  ({ className, size = "md", startContent, endContent, ...props }, ref) => {
+    return (
+      <div
+        className={cn(
+          "group flex items-center w-full rounded-lg border border-border-default bg-bg-input shadow-inner transition-all focus-within:ring-2 focus-within:ring-accent/40 focus-within:border-accent focus-within:shadow-premium",
+          {
+            "h-8": size === "sm",
+            "h-10": size === "md",
+          },
+          className,
+        )}
+      >
+        {startContent && (
+          <div className="pl-2 flex items-center pointer-events-none text-text-muted">
+            {startContent}
+          </div>
+        )}
+        <BaseInput
+          ref={ref}
+          className={cn(
+            "flex h-full w-full border-0 bg-transparent px-3 py-1 text-sm text-text-primary shadow-none transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+            {
+              "text-xs": size === "sm",
+              "text-sm": size === "md",
+              "pl-3": !startContent,
+              "pr-3": !endContent,
+            },
+          )}
+          {...props}
+        />
+        {endContent && (
+          <div className="pr-2 flex items-center pointer-events-none text-text-muted">
+            {endContent}
+          </div>
+        )}
+      </div>
+    );
   },
 );
 

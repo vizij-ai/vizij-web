@@ -1,4 +1,4 @@
-# Agent Notes · vizij-authoring
+# Agent Notes · vizij-workspace
 
 ## Purpose
 
@@ -6,9 +6,9 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 
 ## Runbook
 
-- Dev server: `pnpm --filter vizij-authoring dev`
-- Build/preview: `pnpm --filter vizij-authoring build` / `pnpm --filter vizij-authoring preview`
-- Typecheck: `pnpm --filter vizij-authoring typecheck`
+- Dev server: `pnpm --filter vizij-workspace dev`
+- Build/preview: `pnpm --filter vizij-workspace build` / `pnpm --filter vizij-workspace preview`
+- Typecheck: `pnpm --filter vizij-workspace typecheck`
 
 ## Integration Tips
 
@@ -40,3 +40,9 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 - Logic is split into services: `PoseConfigService`, `PoseGraphService`, `PoseSnapshotService`.
 - Use `usePoseRigStore` (or `usePoseRig` from `PoseRigProvider`) to access state and actions.
 - Avoid putting complex logic in components; use store actions or services.
+
+## Design and UI
+
+The general aesthetic of the application is to be clean and polished yet technical and powerful. Use non-grayscale colors sparingly as they will bring a lot of attention to them.
+
+Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements use the application's UI library, are accessible, and are using semantic theme values where applicable (such as colors) so as to be consistent and work with application themes.
