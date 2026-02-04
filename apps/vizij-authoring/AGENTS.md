@@ -1,4 +1,4 @@
-# Agent Notes · vizij-workspace
+# Agent Notes · vizij-authoring
 
 ## Purpose
 
@@ -6,9 +6,9 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 
 ## Runbook
 
-- Dev server: `pnpm --filter vizij-workspace dev`
-- Build/preview: `pnpm --filter vizij-workspace build` / `pnpm --filter vizij-workspace preview`
-- Typecheck: `pnpm --filter vizij-workspace typecheck`
+- Dev server: `pnpm --filter vizij-authoring dev`
+- Build/preview: `pnpm --filter vizij-authoring build` / `pnpm --filter vizij-authoring preview`
+- Typecheck: `pnpm --filter vizij-authoring typecheck`
 
 ## Integration Tips
 

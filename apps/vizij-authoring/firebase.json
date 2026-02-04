@@ -1,9 +1,13 @@
 {
   "hosting": [
     {
-      "site": "vizij-workspace",
+      "site": "vizij-authoring",
       "public": "dist",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
       "headers": [
         {
           "source": "**",
@@ -25,7 +29,9 @@
           "destination": "/index.html"
         }
       ],
-      "predeploy": ["pnpm --filter vizij-workspace build"]
+      "predeploy": [
+        "pnpm --filter vizij-authoring build"
+      ]
     }
   ]
 }

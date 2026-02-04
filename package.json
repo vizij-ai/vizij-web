@@ -11,7 +11,6 @@
     "dev:demo-animation-studio": "pnpm --filter demo-animation-studio run dev",
     "dev:demo-graph-studio": "pnpm --filter demo-graph-studio run dev",
     "dev:vizij-authoring": "pnpm --filter vizij-authoring run dev",
-    "dev:vizij-workspace": "pnpm --filter vizij-workspace run dev",
     "dev:vizij-showcase": "pnpm --filter vizij-showcase run dev",
     "dev:demo-vizij-player": "pnpm --filter demo-vizij-player run dev",
     "dev:minimal-demo-animation": "pnpm --filter minimal-demo-animation run dev",
