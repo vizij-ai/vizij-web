@@ -164,7 +164,17 @@ On Linux/macOS:
 
 ## WebSocket Protocol
 
-Connect to `ws://localhost:9000` (or your configured port) and send JSON messages using e.g. https://websocketking.com/
+Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
+
+### Test with wscat
+
+```bash
+npx wscat -c ws://localhost:9000
+```
+
+Then paste one of the JSON payloads below and press Enter.
+
+Note: browser-based clients served over `https://` may fail to connect to `ws://` due to mixed-content rules.
 
 ### Update Values
 
