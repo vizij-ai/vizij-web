@@ -3,7 +3,7 @@ import type { AnimatableComponent, AnimatableValue } from "@vizij/utils";
 import { buildAutoRigInputBlueprints } from "./autoInputs";
 
 describe("buildAutoRigInputBlueprints", () => {
-  it("returns no blueprints when called with empty inputs", () => {
+  it("produces no blueprints with empty inputs", () => {
     const result = buildAutoRigInputBlueprints(
       {},
       {} as Record<string, AnimatableValue>,
@@ -11,8 +11,8 @@ describe("buildAutoRigInputBlueprints", () => {
       {},
     );
 
-    expect(result.blueprints).toHaveLength(0);
-    expect(result.roots).toHaveLength(0);
+    expect(result.blueprints.length).toBe(0);
+    expect(result.roots.length).toBe(0);
   });
 
   it("omits the standard prefix for generated metadata inputs", () => {

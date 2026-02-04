@@ -6,3 +6,4 @@ node_modules
 .vite
 build
 pnpm-lock.yaml
+apps/**/src-tauri/target

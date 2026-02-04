@@ -1,0 +1,8 @@
+# Rust/Cargo build output
+src-tauri/target/
+
+# Tauri auto-generated files
+src-tauri/gen/
+
+# Rust debug files
+**/*.pdb

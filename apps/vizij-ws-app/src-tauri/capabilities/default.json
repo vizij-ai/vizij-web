@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for vizij-ws app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }]
+    }
+  ]
+}
