@@ -48,16 +48,7 @@ for (let i = 0; i < 6; i += 1) {
   cursor = info.ppid;
 }
 
-const snapCorePresent = fs.existsSync("/snap/core20/current");
-const mountInfoShowsSnap = readFileSafe("/proc/self/mountinfo").includes(
-  "/snap/",
-);
-
-const likelySnap =
-  snapEnv ||
-  vscodeSnapEnv ||
-  parentIsSnap ||
-  (snapCorePresent && mountInfoShowsSnap);
+const likelySnap = snapEnv || vscodeSnapEnv || parentIsSnap;
 
 if (likelySnap) {
   const lines = [

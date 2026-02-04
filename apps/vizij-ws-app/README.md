@@ -109,10 +109,10 @@ cd vizij-web
 pnpm install
 
 # Run in dev mode
-pnpm dev:vizij-ws-app
+pnpm run dev:vizij-ws-app
 
 # Pass CLI arguments
-pnpm dev:vizij-ws-app -- -- -- --glb /path/to/avatar.glb --fullscreen
+pnpm run dev:vizij-ws-app -- -- -- --glb /path/to/avatar.glb --fullscreen
 ```
 
 ---
