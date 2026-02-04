@@ -1082,6 +1082,7 @@ function VizijRuntimeProviderInner({
   const setInput = useCallback(
     (path: string, value: ValueJSON, shape?: ShapeJSON) => {
       markActivity();
+      console.log(`[vizij-runtime] staging input ${path}`, { value, shape });
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
       stagedInputsRef.current.set(namespacedPath, { value, shape });
     },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -10,9 +10,6 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
-import { cn } from "../../utils/cn";
-import { HeroPassiveBehavior } from "./HeroPassiveBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -23,7 +20,6 @@ type ReferenceFaceRuntimeProps = {
   autostart?: boolean;
   driveOrchestrator?: boolean;
   visible?: boolean;
-  hiddenStepHz?: number;
   /** Called when standard inputs are detected from the loaded face */
   onStandardInputsReady?: (
     inputs: StandardRigInput[],
@@ -53,16 +49,23 @@ const FACE_ASSET_GLB_BASE = {
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
 
-function createBundleConfig(file: File): VizijAssetBundle {
+function createBundleConfig(file: File): {
+  bundle: VizijAssetBundle;
+  glbUrl: string;
+} {
+  const glbUrl = URL.createObjectURL(file);
   return {
-    namespace: "refface",
-    glb: {
-      ...FACE_ASSET_GLB_BASE,
-      src: URL.createObjectURL(file),
+    bundle: {
+      namespace: "refface",
+      glb: {
+        ...FACE_ASSET_GLB_BASE,
+        src: glbUrl,
+      },
+      pose: {
+        stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+      },
     },
-    pose: {
-      stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-    },
+    glbUrl,
   };
 }
 
@@ -74,7 +77,6 @@ export function ReferenceFaceRuntime({
   autostart = true,
   driveOrchestrator = false,
   visible = true,
-  hiddenStepHz = 1,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
@@ -83,17 +85,25 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
-  const bundle = useMemo(() => {
+  const bundleConfig = useMemo(() => {
     if (!file) return null;
     return createBundleConfig(file);
   }, [file]);
+
+  useEffect(() => {
+    return () => {
+      if (bundleConfig?.glbUrl) {
+        URL.revokeObjectURL(bundleConfig.glbUrl);
+      }
+    };
+  }, [bundleConfig]);
 
   if (!active) {
     return <>{fallback}</>;
   }
 
   // Show placeholder when no file is loaded
-  if (!bundle) {
+  if (!bundleConfig) {
     return (
       <ReferenceFacePlaceholder
         splitVertical={splitVertical}
@@ -104,23 +114,13 @@ export function ReferenceFaceRuntime({
 
   const shouldAutostart = autostart && visible;
   const shouldDriveVisible = driveOrchestrator && visible;
-  const shouldDriveHidden = driveOrchestrator && !visible && hiddenStepHz > 0;
-
   return (
     <VizijRuntimeProvider
-      assetBundle={bundle}
+      assetBundle={bundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
       orchestratorScope="shared"
     >
-      <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
-      <RuntimeDebugBeacon
-        namespace={namespace}
-        visible={visible}
-        driver={driveOrchestrator}
-        autostart={shouldAutostart}
-        hiddenStepHz={hiddenStepHz}
-      />
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
@@ -132,55 +132,6 @@ export function ReferenceFaceRuntime({
       />
     </VizijRuntimeProvider>
   );
-}
-
-function HiddenStepController({
-  enabled,
-  hz,
-}: {
-  enabled: boolean;
-  hz: number;
-}) {
-  const { step, ready } = useVizijRuntime();
-
-  useEffect(() => {
-    if (!enabled || !ready || hz <= 0) {
-      return;
-    }
-    const intervalMs = 1000 / hz;
-    const id = window.setInterval(() => {
-      step(1 / hz, { forceRuntime: true });
-    }, intervalMs);
-    return () => window.clearInterval(id);
-  }, [enabled, hz, ready, step]);
-
-  return null;
-}
-
-function RuntimeDebugBeacon(props: {
-  namespace: string;
-  visible: boolean;
-  driver: boolean;
-  autostart: boolean;
-  hiddenStepHz: number;
-}) {
-  const { namespace, visible, driver, autostart, hiddenStepHz } = props;
-  const { stepHz } = useVizijRuntime();
-
-  useEffect(() => {
-    broadcastRuntimeStatus({
-      namespace,
-      label: "Reference Face",
-      visible,
-      driver,
-      autostart,
-      hiddenStepHz,
-      stepHz,
-      timestamp: Date.now(),
-    });
-  }, [autostart, driver, hiddenStepHz, namespace, visible, stepHz]);
-
-  return null;
 }
 
 type ReferenceFaceBridgeProps = {
@@ -227,7 +178,6 @@ function ReferenceFaceBridge({
     stepHz,
     assetBundle,
   } = useVizijRuntime();
-  const [idleBehaviorEnabled, setIdleBehaviorEnabled] = useState(false);
   const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
   const stepRef = useRef(step);
@@ -336,12 +286,14 @@ function ReferenceFaceBridge({
     }
   }, [ready, assetBundle.bundle, onBundleReady]);
 
-  // Report standard inputs when they change
+  // Report standard inputs when they change (and clear when none are available)
   useEffect(() => {
-    if (standardInputs.length > 0) {
-      onStandardInputsReady?.(standardInputs, standardInputsById);
+    if (!ready) {
+      onStandardInputsReady?.([], new Map());
+      return;
     }
-  }, [standardInputs, standardInputsById, onStandardInputsReady]);
+    onStandardInputsReady?.(standardInputs, standardInputsById);
+  }, [ready, standardInputs, standardInputsById, onStandardInputsReady]);
 
   // Create and report the animate function
   useEffect(() => {
@@ -382,41 +334,20 @@ function ReferenceFaceBridge({
           </p>
           <div className="flex items-center gap-1.5">
             <div
-              className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                ready
+              className={`w-1.5 h-1.5 rounded-full ${ready
                   ? "bg-green-500"
                   : loading
                     ? "bg-accent animate-pulse"
-                    : "bg-text-muted",
-              )}
+                    : "bg-text-muted"
+                }`}
             />
             <p className="m-0 text-[10px] text-text-secondary font-bold">
               {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] tabular-nums text-text-muted/80 font-medium">
-            {formattedFps}
-          </span>
-          <button
-            type="button"
-            className={cn(
-              "px-2 py-0.5 border rounded text-[10px] font-bold transition-all cursor-pointer active:scale-95",
-              idleBehaviorEnabled
-                ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-                : "bg-bg-secondary/20 border-border-default/50 text-text-muted hover:bg-bg-secondary hover:text-text-secondary",
-            )}
-            onClick={() => setIdleBehaviorEnabled((prev) => !prev)}
-            title={
-              idleBehaviorEnabled
-                ? "Disable idle behaviors"
-                : "Enable idle behaviors"
-            }
-          >
-            {idleBehaviorEnabled ? "IDLE: ON" : "IDLE: OFF"}
-          </button>
+        <div className="ref-face-viewer__controls">
+          <span className="ref-face-viewer__fps">{formattedFps}</span>
           {onToggleSplit && (
             <button
               type="button"
@@ -433,13 +364,8 @@ function ReferenceFaceBridge({
           )}
         </div>
       </header>
-      <div className="flex-1 min-h-0 relative">
-        <HeroPassiveBehavior enabled={idleBehaviorEnabled} />
-        <RuntimeFaceFrame
-          variant="fill"
-          className="hero-face-card"
-          skipBounds={true}
-        />
+      <div className="ref-face-viewer__canvas">
+        <RuntimeFaceFrame variant="fill" className="hero-face-card" />
       </div>
     </div>
   );

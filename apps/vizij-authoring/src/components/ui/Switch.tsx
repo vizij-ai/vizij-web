@@ -2,10 +2,11 @@ import { Switch as BaseSwitch } from "@base-ui/react";
 import type { ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
-export interface SwitchProps {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  id?: string;
+export interface SwitchProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type" | "size" | "onChange"
+> {
+  onChange?: (checked: boolean) => void;
   label?: ReactNode;
   hint?: ReactNode;
   size?: "sm" | "md";
@@ -61,7 +62,7 @@ export function Switch({
       {(label || hint) && (
         <div
           className="flex flex-col"
-          onClick={() => !disabled && onChange(!checked)}
+          onClick={() => !disabled && onChange?.(!checked)}
         >
           {label && (
             <span className="text-[13px] font-bold text-zinc-200 group-hover:text-zinc-100 transition-colors">

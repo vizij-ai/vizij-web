@@ -223,6 +223,7 @@ export function useRigController(
   >("idle");
   const [graphError, setGraphError] = useState<string | null>(null);
   const pendingFaceRenameRef = useRef<string | null>(null);
+  const faceRenameTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     graphRuntimeStore.setState({ graphStatus });
@@ -241,6 +242,9 @@ export function useRigController(
         }
         return { ...state, faceRenameToken: null };
       });
+      if (faceRenameTokenRef.current === token) {
+        faceRenameTokenRef.current = null;
+      }
       if (pendingFaceRenameRef.current === token) {
         pendingFaceRenameRef.current = null;
       }
@@ -261,11 +265,7 @@ export function useRigController(
           return previous;
         }
         const faceRenameToken = rename ? sanitized : null;
-        graphRuntimeStore.setState((state) => ({
-          ...state,
-          faceId: sanitized,
-          faceRenameToken,
-        }));
+        faceRenameTokenRef.current = faceRenameToken;
         pendingFaceRenameRef.current = faceRenameToken;
         if (rename) {
           // Clear the rename marker after the rename is applied so later face/root
@@ -275,7 +275,7 @@ export function useRigController(
         return sanitized;
       });
     },
-    [clearFaceRenameToken, graphRuntimeStore],
+    [clearFaceRenameToken],
   );
 
   const setFaceId = useCallback(
@@ -1162,7 +1162,13 @@ export function useRigController(
   );
 
   useEffect(() => {
-    graphRuntimeStore.setState({ faceId, faceSegment });
+    const faceRenameToken = faceRenameTokenRef.current;
+    graphRuntimeStore.setState({
+      faceId,
+      faceSegment,
+      faceRenameToken:
+        faceRenameToken && faceRenameToken === faceId ? faceRenameToken : null,
+    });
   }, [faceId, faceSegment, graphRuntimeStore]);
 
   const rigOutputLookup = useMemo(() => {

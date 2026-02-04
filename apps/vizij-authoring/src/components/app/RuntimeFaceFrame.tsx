@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-import { Vizij, useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import { useEffect, type ReactNode } from "react";
+import { VizijRuntimeFace, useVizijRuntime } from "@vizij/runtime-react";
 import { cn } from "../../utils/cn";
 
 type RootBounds = {
@@ -19,8 +18,8 @@ export type RuntimeFaceFrameProps = {
   variant?: "fill" | "sm" | "md" | "lg";
   label?: string;
   subtitle?: string;
-  footer?: React.ReactNode;
-  overlay?: React.ReactNode;
+  footer?: ReactNode;
+  overlay?: ReactNode;
   pointerTargetRef?: React.RefObject<HTMLDivElement>;
   onCanvasClick?: () => void;
   skipBounds?: boolean;
@@ -82,22 +81,15 @@ export function RuntimeFaceFrame({
         )}
         onClick={onCanvasClick}
       >
-        {!skipBounds && <FaceCameraBounds />}
-        {rootId && (
-          <Vizij
-            rootId={rootId}
-            namespace="refface"
-            className="w-full h-full"
-            showSafeArea={false}
-          />
-        )}
+        <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
         <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
         {overlay}
       </div>
       {footer && (
         <div className="text-[11px] text-slate-500 px-2 italic">{footer}</div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 }
 
@@ -142,69 +134,4 @@ function RuntimeStatusBadge({
     );
   }
   return null;
-}
-
-function FaceCameraBounds() {
-  const { rootId } = useVizijRuntime();
-  const setStore = useVizijStoreSetter();
-  const currentBounds = useVizijStore((state) => {
-    if (!rootId) {
-      return null;
-    }
-    const entry = state.world[rootId];
-    if (entry && "rootBounds" in entry) {
-      return (entry.rootBounds as RootBounds | undefined) ?? null;
-    }
-    return null;
-  });
-
-  useEffect(() => {
-    if (!rootId) {
-      return;
-    }
-    if (hasSameBounds(currentBounds, FACE_ROOT_BOUNDS)) {
-      return;
-    }
-    setStore((state) => {
-      const entry = state.world[rootId];
-      if (!entry || !("rootBounds" in entry)) {
-        return {};
-      }
-      return {
-        world: {
-          ...state.world,
-          [rootId]: {
-            ...entry,
-            rootBounds: {
-              center: { ...FACE_ROOT_BOUNDS.center },
-              size: { ...FACE_ROOT_BOUNDS.size },
-            },
-          },
-        },
-      };
-    });
-  }, [rootId, currentBounds, setStore]);
-
-  return null;
-}
-
-const BOUNDS_EPSILON = 0.005;
-
-function hasSameBounds(
-  candidate: RootBounds | null | undefined,
-  target: typeof FACE_ROOT_BOUNDS,
-): boolean {
-  if (!candidate) {
-    return false;
-  }
-  return (
-    almostEqual(candidate.center.x, target.center.x) &&
-    almostEqual(candidate.center.y, target.center.y) &&
-    almostEqual(candidate.size.x, target.size.x) &&
-    almostEqual(candidate.size.y, target.size.y)
-  );
-}
-
-function almostEqual(a: number, b: number) {
-  return Math.abs(a - b) <= BOUNDS_EPSILON;
 }
