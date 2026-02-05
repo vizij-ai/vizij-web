@@ -314,9 +314,12 @@ npm install @vizij/arora-types
 import {
   f64,
   createUpdate,
+  createInvoke,
+  createListNodes,
   extractNumericValue,
-  type AroraValue,
-  type AroraUpdate,
+  type Incoming,
+  type Outgoing,
+  type NodeInfo,
 } from '@vizij/arora-types';
 
 // Connect to WebSocket
@@ -324,27 +327,34 @@ const ws = new WebSocket('ws://localhost:9000');
 
 // Send update using helper functions
 function sendEyeGaze(x: number, y: number) {
-  const update = createUpdate({
+  const msg: Incoming = createUpdate({
     'standard/vizij/left_eye/pos/x': f64(x),
     'standard/vizij/left_eye/pos/y': f64(y),
     'standard/vizij/right_eye/pos/x': f64(x),
     'standard/vizij/right_eye/pos/y': f64(y),
   });
-
-  ws.send(JSON.stringify({ type: 'update', ...update }));
+  ws.send(JSON.stringify(msg));
 }
 
-// Or construct manually
-ws.send(JSON.stringify({
-  type: 'update',
-  values: {
-    'standard/vizij/left_eye/pos/x': { f64: 0.5 },
-    'standard/vizij/left_eye/pos/y': { f64: 0.3 },
-  }
-}));
+// Invoke a method (e.g., reset)
+function reset() {
+  const msg: Incoming = createInvoke('reset', {}, 'req-1');
+  ws.send(JSON.stringify(msg));
+}
 
-// Extract values from responses
-function handleNodeInfo(node: { default_value?: AroraValue }) {
+// Handle responses
+ws.onmessage = (event) => {
+  const response: Outgoing = JSON.parse(event.data);
+
+  if (response.type === 'list_nodes_resp') {
+    console.log('Available nodes:', response.nodes);
+  } else if (response.type === 'invoke_resp') {
+    console.log('Invoke result:', response.success, response.message);
+  }
+};
+
+// Extract values from node info
+function handleNodeInfo(node: NodeInfo) {
   if (node.default_value) {
     const value = extractNumericValue(node.default_value);
     console.log('Default:', value); // e.g., 0.0
@@ -364,10 +374,18 @@ function handleNodeInfo(node: { default_value?: AroraValue }) {
 - `extractStringValue(v)` — Get string value
 - `extractBooleanValue(v)` — Get boolean value
 
-**Message Helpers:**
-- `createUpdate(values)` — Create an update payload
-- `createSuccessAck()` — Create success acknowledgment
-- `createErrorAck(message)` — Create error acknowledgment
+**Message Constructors:**
+- `createUpdate(values)` — Create an update message
+- `createListNodes(path?)` — Create a list nodes query
+- `createListMethods(path?)` — Create a list methods query
+- `createInvoke(method, args?, request_id?)` — Create a method invocation
+
+**Response Type Guards:**
+- `isUpdateResp(msg)` — Check if response is an update acknowledgment
+- `isListNodesResp(msg)` — Check if response is a node list
+- `isListMethodsResp(msg)` — Check if response is a method list
+- `isInvokeResp(msg)` — Check if response is an invocation result
+- `isError(msg)` — Check if response is an error
 
 ---
 ## License

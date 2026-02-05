@@ -1,7 +1,6 @@
-use arora_websocket::{Type, Value};
+use arora_websocket::{Incoming, MethodInfo, NodeInfo, Outgoing, Value};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -10,62 +9,42 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Mutex, RwLock};
 use tokio_tungstenite::tungstenite::Message;
 
-/// Messages received from WebSocket clients
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum IncomingMessage {
-    /// Update values on the model using arora-types Value
-    Update { values: HashMap<String, Value> },
-    /// Reset the model to default state
-    Reset,
-    /// Request the list of available nodes (with optional path filter)
-    ListNodes { path: Option<String> },
-}
-
-/// Node metadata returned in list_nodes response
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeInfo {
-    pub path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// The arora-types Type that this node accepts
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_type: Option<Type>,
-    /// Minimum value constraint (for numeric types)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub min: Option<f64>,
-    /// Maximum value constraint (for numeric types)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max: Option<f64>,
-    /// Default value as an arora-types Value
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub default_value: Option<Value>,
-}
-
-/// Messages sent to WebSocket clients
-#[derive(Debug, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum OutgoingMessage {
-    /// List of available nodes
-    Nodes { nodes: Vec<NodeInfo> },
-    /// Acknowledgment
-    Ack { success: bool, message: Option<String> },
-}
+/// Handler function type for method invocations.
+/// Takes args and returns (success, optional return value, optional error message).
+pub type MethodHandler =
+    Box<dyn Fn(HashMap<String, Value>) -> (bool, Option<Value>, Option<String>) + Send + Sync>;
 
 /// Shared state for the WebSocket server
 pub struct WsServerState {
-    pub tracks: RwLock<Vec<String>>,
     pub nodes: RwLock<Vec<NodeInfo>>,
+    pub methods: RwLock<Vec<MethodInfo>>,
+    pub method_handlers: RwLock<HashMap<String, Arc<MethodHandler>>>,
     pub is_running: RwLock<bool>,
 }
 
 impl Default for WsServerState {
     fn default() -> Self {
         Self {
-            tracks: RwLock::new(vec![]),
             nodes: RwLock::new(vec![]),
+            methods: RwLock::new(vec![]),
+            method_handlers: RwLock::new(HashMap::new()),
             is_running: RwLock::new(false),
         }
+    }
+}
+
+impl WsServerState {
+    /// Register a method that can be invoked via the WebSocket protocol.
+    pub async fn register_method<F>(&self, info: MethodInfo, handler: F)
+    where
+        F: Fn(HashMap<String, Value>) -> (bool, Option<Value>, Option<String>) + Send + Sync + 'static,
+    {
+        let path = info.path.clone();
+        self.methods.write().await.push(info);
+        self.method_handlers
+            .write()
+            .await
+            .insert(path, Arc::new(Box::new(handler)));
     }
 }
 
@@ -93,10 +72,10 @@ async fn handle_connection(
             Ok(Message::Text(text)) => {
                 debug!("Received message: {}", text);
 
-                match serde_json::from_str::<IncomingMessage>(&text) {
+                match serde_json::from_str::<Incoming>(&text) {
                     Ok(incoming) => {
                         let response = match incoming {
-                            IncomingMessage::Update { values } => {
+                            Incoming::Update { values } => {
                                 // Validate paths against known input nodes
                                 let known_paths: Vec<String> = {
                                     let state_guard = state.lock().await;
@@ -117,7 +96,7 @@ async fn handle_connection(
 
                                 if !invalid_paths.is_empty() {
                                     warn!("Invalid paths in update: {:?}", invalid_paths);
-                                    OutgoingMessage::Ack {
+                                    Outgoing::UpdateResp {
                                         success: false,
                                         message: Some(format!(
                                             "Unknown input path(s): {}",
@@ -126,35 +105,19 @@ async fn handle_connection(
                                     }
                                 } else if let Err(e) = app_handle.emit("update-values", &values) {
                                     error!("Failed to emit update-values: {}", e);
-                                    OutgoingMessage::Ack {
+                                    Outgoing::UpdateResp {
                                         success: false,
                                         message: Some(format!("Failed to emit: {}", e)),
                                     }
                                 } else {
                                     debug!("Emitted update-values with {} values", values.len());
-                                    OutgoingMessage::Ack {
+                                    Outgoing::UpdateResp {
                                         success: true,
                                         message: None,
                                     }
                                 }
                             }
-                            IncomingMessage::Reset => {
-                                // Emit reset event to frontend
-                                if let Err(e) = app_handle.emit("reset", ()) {
-                                    error!("Failed to emit reset: {}", e);
-                                    OutgoingMessage::Ack {
-                                        success: false,
-                                        message: Some(format!("Failed to emit: {}", e)),
-                                    }
-                                } else {
-                                    debug!("Emitted reset event");
-                                    OutgoingMessage::Ack {
-                                        success: true,
-                                        message: None,
-                                    }
-                                }
-                            }
-                            IncomingMessage::ListNodes { path } => {
+                            Incoming::ListNodes { path } => {
                                 let state = state.lock().await;
                                 let all_nodes = state.nodes.read().await.clone();
 
@@ -173,7 +136,61 @@ async fn handle_connection(
                                     None => all_nodes,
                                 };
 
-                                OutgoingMessage::Nodes { nodes: filtered_nodes }
+                                Outgoing::ListNodesResp {
+                                    nodes: filtered_nodes,
+                                }
+                            }
+                            Incoming::ListMethods { path } => {
+                                let state = state.lock().await;
+                                let all_methods = state.methods.read().await.clone();
+
+                                // Filter methods by path prefix if provided
+                                let filtered_methods = match path {
+                                    Some(prefix) => {
+                                        let prefix = prefix.trim_end_matches('/');
+                                        all_methods
+                                            .into_iter()
+                                            .filter(|method| {
+                                                method.path.starts_with(prefix)
+                                                    || method.path.starts_with(&format!("{}/", prefix))
+                                            })
+                                            .collect()
+                                    }
+                                    None => all_methods,
+                                };
+
+                                Outgoing::ListMethodsResp {
+                                    methods: filtered_methods,
+                                }
+                            }
+                            Incoming::Invoke {
+                                method,
+                                args,
+                                request_id,
+                            } => {
+                                let state = state.lock().await;
+                                let handlers = state.method_handlers.read().await;
+
+                                if let Some(handler) = handlers.get(&method) {
+                                    let handler = handler.clone();
+                                    drop(handlers);
+                                    drop(state);
+
+                                    let (success, value, message) = handler(args);
+                                    Outgoing::InvokeResp {
+                                        success,
+                                        request_id,
+                                        value,
+                                        message,
+                                    }
+                                } else {
+                                    Outgoing::InvokeResp {
+                                        success: false,
+                                        request_id,
+                                        value: None,
+                                        message: Some(format!("Method not found: {}", method)),
+                                    }
+                                }
                             }
                         };
 
@@ -185,9 +202,9 @@ async fn handle_connection(
                     }
                     Err(e) => {
                         warn!("Failed to parse message: {}", e);
-                        let response = OutgoingMessage::Ack {
-                            success: false,
-                            message: Some(format!("Invalid message format: {}", e)),
+                        let response = Outgoing::Error {
+                            request_id: None,
+                            message: format!("Invalid message format: {}", e),
                         };
                         let response_text = serde_json::to_string(&response).unwrap();
                         if let Err(e) = write.send(Message::Text(response_text.into())).await {

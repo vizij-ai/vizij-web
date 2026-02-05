@@ -8,7 +8,8 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 mod ws_server;
-use ws_server::{NodeInfo, WsServerState};
+use arora_websocket::NodeInfo;
+use ws_server::WsServerState;
 
 /// Application state
 struct AppState {
@@ -193,25 +194,6 @@ async fn stop_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
 async fn get_port(app_handle: tauri::AppHandle) -> u16 {
     let state = app_handle.state::<AppState>();
     state.port
-}
-
-/// Get available tracks (placeholder)
-#[tauri::command]
-async fn get_tracks(app_handle: tauri::AppHandle) -> Vec<String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    let tracks = ws_state.tracks.read().await.clone();
-    tracks
-}
-
-/// Set available tracks (for external integration)
-#[tauri::command]
-async fn set_tracks(app_handle: tauri::AppHandle, tracks: Vec<String>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    *ws_state.tracks.write().await = tracks;
-    info!("Tracks updated");
-    Ok(())
 }
 
 /// Set available nodes (called by frontend when model loads)
@@ -401,8 +383,6 @@ pub fn run() {
             stop_ws_server,
             is_ws_running,
             get_port,
-            get_tracks,
-            set_tracks,
             set_nodes,
             get_glb_source,
             read_glb_file,

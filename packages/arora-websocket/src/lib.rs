@@ -1,54 +1,62 @@
-//! Reusable arora-types WebSocket protocol utilities
+//! Arora WebSocket Protocol
 //!
-//! This crate provides common types and utilities for WebSocket communication
-//! using arora-schema types, making it easy to build Rust programs that can
-//! communicate with arora-based WebSocket servers.
+//! This crate defines the standard message protocol for arora-based WebSocket communication.
+//! It provides type-safe message definitions for both client-to-server ([`Incoming`]) and
+//! server-to-client ([`Outgoing`]) messages.
+//!
+//! # Protocol Overview
+//!
+//! Messages are JSON-encoded with a `type` field discriminator:
+//!
+//! ```json
+//! // Client -> Server
+//! {"type": "update", "values": {"face/mouth": {"f64": 0.5}}}
+//! {"type": "list_nodes", "path": "face"}
+//! {"type": "list_methods"}
+//! {"type": "invoke", "method": "reset", "request_id": "req-1"}
+//!
+//! // Server -> Client
+//! {"type": "update_resp", "success": true}
+//! {"type": "list_nodes_resp", "nodes": [...]}
+//! {"type": "list_methods_resp", "methods": [...]}
+//! {"type": "invoke_resp", "success": true, "request_id": "req-1"}
+//! ```
+//!
+//! # Example Usage
+//!
+//! ```rust
+//! use arora_websocket::{Incoming, Outgoing, NodeInfo};
+//!
+//! // Parse incoming message
+//! let json = r#"{"type": "list_nodes"}"#;
+//! let msg: Incoming = serde_json::from_str(json).unwrap();
+//!
+//! // Create response
+//! let response = Outgoing::ListNodesResp {
+//!     nodes: vec![NodeInfo {
+//!         path: "face/mouth".to_string(),
+//!         kind: Some("input".to_string()),
+//!         value_type: None,
+//!         min: Some(0.0),
+//!         max: Some(1.0),
+//!         default_value: None,
+//!         description: None,
+//!     }],
+//! };
+//! let response_json = serde_json::to_string(&response).unwrap();
+//! ```
 
+mod messages;
+mod method;
+mod node;
+
+// Re-export arora-schema types for convenience
 pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
 pub use arora_schema::value::{Type, Value};
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+// Protocol message types
+pub use messages::{Incoming, Outgoing};
 
-/// Generic update payload using arora Value
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AroraUpdate {
-    pub values: HashMap<String, Value>,
-}
-
-/// Generic acknowledgment response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AroraAck {
-    pub success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_arora_update_serialization() {
-        let mut values = HashMap::new();
-        values.insert("test/path".to_string(), Value::F64(0.5));
-
-        let update = AroraUpdate { values };
-        let json = serde_json::to_string(&update).unwrap();
-
-        // Verify it contains the expected structure
-        assert!(json.contains("test/path"));
-        assert!(json.contains("f64"));
-    }
-
-    #[test]
-    fn test_arora_ack_serialization() {
-        let ack = AroraAck {
-            success: true,
-            message: None,
-        };
-        let json = serde_json::to_string(&ack).unwrap();
-        assert!(json.contains("\"success\":true"));
-        assert!(!json.contains("message")); // Should be skipped when None
-    }
-}
+// Metadata types
+pub use method::{MethodInfo, MethodParam};
+pub use node::NodeInfo;

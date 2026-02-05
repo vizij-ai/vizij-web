@@ -5,22 +5,10 @@ import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   type AroraValue,
   type AroraType,
+  type NodeInfo,
   extractNumericValue,
   f64,
 } from "@vizij/arora-types";
-
-/**
- * Node metadata - vizij-specific, synced to Rust backend.
- * Uses arora-types for value_type and default_value.
- */
-type NodeInfo = {
-  path: string;
-  kind?: "input" | "output";
-  value_type?: AroraType;
-  min?: number;
-  max?: number;
-  default_value?: AroraValue;
-};
 
 /**
  * Hook that syncs WebSocket updates to the runtime.

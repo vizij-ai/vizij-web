@@ -41,7 +41,25 @@ export {
   isOption,
 } from "./value";
 
-// Message types
-export type { AroraUpdate, AroraAck } from "./messages";
+// Protocol message types
+export type {
+  NodeInfo,
+  MethodParam,
+  MethodInfo,
+  Incoming,
+  Outgoing,
+} from "./messages";
 
-export { createUpdate, createSuccessAck, createErrorAck } from "./messages";
+export {
+  // Type guards
+  isUpdateResp,
+  isListNodesResp,
+  isListMethodsResp,
+  isInvokeResp,
+  isError,
+  // Message constructors
+  createUpdate,
+  createListNodes,
+  createListMethods,
+  createInvoke,
+} from "./messages";
