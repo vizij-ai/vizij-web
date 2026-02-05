@@ -1,3 +1,4 @@
+use arora_websocket::{Type, Value};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -13,12 +14,10 @@ use tokio_tungstenite::tungstenite::Message;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IncomingMessage {
-    /// Update values on the 3D model
-    Update { values: HashMap<String, f64> },
+    /// Update values on the model using arora-types Value
+    Update { values: HashMap<String, Value> },
     /// Reset the model to default state
     Reset,
-    /// Request the list of available tracks
-    GetTracks,
     /// Request the list of available nodes (with optional path filter)
     ListNodes { path: Option<String> },
 }
@@ -29,20 +28,24 @@ pub struct NodeInfo {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    /// The arora-types Type that this node accepts
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_type: Option<Type>,
+    /// Minimum value constraint (for numeric types)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,
+    /// Maximum value constraint (for numeric types)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<f64>,
+    /// Default value as an arora-types Value
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub default_value: Option<f64>,
+    pub default_value: Option<Value>,
 }
 
 /// Messages sent to WebSocket clients
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutgoingMessage {
-    /// List of available tracks
-    Tracks { tracks: Vec<String> },
     /// List of available nodes
     Nodes { nodes: Vec<NodeInfo> },
     /// Acknowledgment
@@ -151,11 +154,6 @@ async fn handle_connection(
                                     }
                                 }
                             }
-                            IncomingMessage::GetTracks => {
-                                let state = state.lock().await;
-                                let tracks = state.tracks.read().await.clone();
-                                OutgoingMessage::Tracks { tracks }
-                            }
                             IncomingMessage::ListNodes { path } => {
                                 let state = state.lock().await;
                                 let all_nodes = state.nodes.read().await.clone();
@@ -229,12 +227,12 @@ pub async fn run_server(
     state: Arc<Mutex<WsServerState>>,
     cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<(), String> {
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(&addr)
         .await
         .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
 
-    info!("WebSocket server listening on ws://localhost:{}", port);
+    info!("WebSocket server listening on ws://{}", addr);
 
     // Mark server as running
     {

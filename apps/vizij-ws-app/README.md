@@ -166,6 +166,8 @@ On Linux/macOS:
 
 Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
 
+Messages use **arora-types** format for type-safe value serialization. This format ensures compatibility with the Rust backend and provides explicit type information for each value.
+
 ### Test with wscat
 
 ```bash
@@ -180,25 +182,104 @@ Send JSON messages using e.g. https://websocketking.com/. The server binds to `1
 
 Note: browser-based clients served over `https://` may fail to connect to `ws://` due to mixed-content rules.
 
-### Update Values
+---
+
+### Arora-Types Value Format
+
+Values are wrapped in type-annotated objects rather than sent as raw primitives:
+
+| Type | Format | Example |
+|------|--------|---------|
+| Float (64-bit) | `{"f64": <number>}` | `{"f64": 0.5}` |
+| Float (32-bit) | `{"f32": <number>}` | `{"f32": 0.5}` |
+| Integer (32-bit) | `{"i32": <number>}` | `{"i32": 42}` |
+| Boolean | `{"bool": <boolean>}` | `{"bool": true}` |
+| String | `{"str": "<string>"}` | `{"str": "hello"}` |
+| UUID | `{"uuid": "<uuid>"}` | `{"uuid": "550e8400-e29b-41d4-a716-446655440000"}` |
+| Unit | `"unit"` | `"unit"` |
+| Option (some) | `{"v?": <value>}` | `{"v?": {"f64": 1.0}}` |
+| Option (none) | `{"v?": null}` | `{"v?": null}` |
+
+For animation control, most values are `f64` (64-bit floats).
+
+---
+
+### Message Types
+
+#### Update Values
+
+Send new values to control avatar features:
 
 ```json
 {
   "type": "update",
   "values": {
-    "standard/left_eye/pos/x": 0.5,
-    "standard/left_eye/pos/y": 0.3,
-    "standard/right_eye/pos/x": 0.5,
-    "standard/right_eye/pos/y": 0.3
+    "standard/vizij/left_eye/pos/x": {"f64": 0.5},
+    "standard/vizij/left_eye/pos/y": {"f64": 0.3},
+    "standard/vizij/right_eye/pos/x": {"f64": 0.5},
+    "standard/vizij/right_eye/pos/y": {"f64": 0.3}
   }
 }
 ```
 
-### Reset
+**Response:**
+```json
+{"type": "ack", "success": true}
+```
+
+If a path is invalid:
+```json
+{"type": "ack", "success": false, "message": "Unknown input path: invalid/path"}
+```
+
+#### Reset
+
+Reset all values to their defaults:
 
 ```json
 {
   "type": "reset"
+}
+```
+
+**Response:**
+```json
+{"type": "ack", "success": true}
+```
+
+#### List Nodes
+
+Query available input nodes (optionally filtered by path prefix):
+
+```json
+{
+  "type": "list_nodes",
+  "path": "standard/vizij/left_eye"
+}
+```
+
+**Response:**
+```json
+{
+  "type": "nodes",
+  "nodes": [
+    {
+      "path": "standard/vizij/left_eye/pos/x",
+      "kind": "input",
+      "value_type": "f64",
+      "min": -1.0,
+      "max": 1.0,
+      "default_value": {"f64": 0.0}
+    },
+    {
+      "path": "standard/vizij/left_eye/pos/y",
+      "kind": "input",
+      "value_type": "f64",
+      "min": -1.0,
+      "max": 1.0,
+      "default_value": {"f64": 0.0}
+    }
+  ]
 }
 ```
 
@@ -210,64 +291,85 @@ Paths follow the Vizij rig convention. The app automatically prefixes paths with
 
 | Path                       | Description          | Range                  |
 | -------------------------- | -------------------- | ---------------------- |
-| `standard/left_eye/pos/x`  | Left eye horizontal  | -1 (left) to 1 (right) |
-| `standard/left_eye/pos/y`  | Left eye vertical    | -1 (down) to 1 (up)    |
-| `standard/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
-| `standard/right_eye/pos/y` | Right eye vertical   | -1 (down) to 1 (up)    |
+| `standard/vizij/left_eye/pos/x`  | Left eye horizontal  | -1 (left) to 1 (right) |
+| `standard/vizij/left_eye/pos/y`  | Left eye vertical    | -1 (down) to 1 (up)    |
+| `standard/vizij/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
+| `standard/vizij/right_eye/pos/y` | Right eye vertical   | -1 (down) to 1 (up)    |
 
 Click the **Debug** button in the app to see all available paths for your loaded avatar.
 
 ---
 
-## Troubleshooting
+## TypeScript Client Integration
 
-### "WebSocket connection failed"
-
-1. Ensure the app is running and a model is loaded
-2. Check that the port is not in use: `netstat -an | grep 9000`
-3. Wait for "Runtime: ready" status before connecting
-
-### "Model not moving"
-
-1. Open DevTools (F12) and check for errors
-2. Click **Debug** to see available paths
-3. Verify paths match the format shown in Debug output
-4. Ensure values are in valid range (typically -1 to 1)
-
-### Build errors
-
-**Windows:** Install Visual Studio Build Tools with "Desktop development with C++"
-
-**Linux:**
+For TypeScript/JavaScript clients, use the `@vizij/arora-types` package for type-safe message construction:
 
 ```bash
-sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev \
-  libappindicator3-dev \
-  librsvg2-dev \
-  patchelf \
-  libssl-dev \
-  libgtk-3-dev
+npm install @vizij/arora-types
 ```
 
-### Linux: libpthread / GLIBC_PRIVATE error when launching from VS Code
+### Usage Example
 
-If you see an error like:
+```typescript
+import {
+  f64,
+  createUpdate,
+  extractNumericValue,
+  type AroraValue,
+  type AroraUpdate,
+} from '@vizij/arora-types';
 
+// Connect to WebSocket
+const ws = new WebSocket('ws://localhost:9000');
+
+// Send update using helper functions
+function sendEyeGaze(x: number, y: number) {
+  const update = createUpdate({
+    'standard/vizij/left_eye/pos/x': f64(x),
+    'standard/vizij/left_eye/pos/y': f64(y),
+    'standard/vizij/right_eye/pos/x': f64(x),
+    'standard/vizij/right_eye/pos/y': f64(y),
+  });
+
+  ws.send(JSON.stringify({ type: 'update', ...update }));
+}
+
+// Or construct manually
+ws.send(JSON.stringify({
+  type: 'update',
+  values: {
+    'standard/vizij/left_eye/pos/x': { f64: 0.5 },
+    'standard/vizij/left_eye/pos/y': { f64: 0.3 },
+  }
+}));
+
+// Extract values from responses
+function handleNodeInfo(node: { default_value?: AroraValue }) {
+  if (node.default_value) {
+    const value = extractNumericValue(node.default_value);
+    console.log('Default:', value); // e.g., 0.0
+  }
+}
 ```
-symbol lookup error: /snap/core20/.../libpthread.so.0: undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
-```
 
-you are likely running the app from the Snap‑packaged VS Code terminal. The Snap runtime can override glibc resolution and break Tauri binaries.
+### Available Helpers
 
-**Fix:** Run the app from a non‑snap terminal (for example, `gnome-terminal` installed via `apt`) or launch a non‑snap shell and run:
+**Value Constructors:**
+- `f64(n)`, `f32(n)`, `i64(n)`, `i32(n)`, `u64(n)`, `u32(n)` — Numeric values
+- `str(s)`, `bool(b)`, `uuid(id)` — Scalar values
+- `unit()`, `some(value)`, `none()` — Special values
 
-```bash
-pnpm --filter "vizij-ws-app" run dev
-```
+**Value Extractors:**
+- `extractNumericValue(v)` — Get number from any numeric arora value
+- `extractStringValue(v)` — Get string value
+- `extractBooleanValue(v)` — Get boolean value
+
+**Message Helpers:**
+- `createUpdate(values)` — Create an update payload
+- `createSuccessAck()` — Create success acknowledgment
+- `createErrorAck(message)` — Create error acknowledgment
 
 ---
-
 ## License
 
 See the repository root for license information.

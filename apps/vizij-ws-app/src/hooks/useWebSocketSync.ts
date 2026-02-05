@@ -2,13 +2,24 @@ import { useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
+import {
+  type AroraValue,
+  type AroraType,
+  extractNumericValue,
+  f64,
+} from "@vizij/arora-types";
 
+/**
+ * Node metadata - vizij-specific, synced to Rust backend.
+ * Uses arora-types for value_type and default_value.
+ */
 type NodeInfo = {
   path: string;
   kind?: "input" | "output";
+  value_type?: AroraType;
   min?: number;
   max?: number;
-  default_value?: number;
+  default_value?: AroraValue;
 };
 
 /**
@@ -91,9 +102,13 @@ export function useWebSocketSync() {
       return {
         path,
         kind: "input" as const,
+        value_type: "f64" as AroraType, // Current nodes are all f64
         min: constraint?.min,
         max: constraint?.max,
-        default_value: constraint?.defaultValue,
+        default_value:
+          constraint?.defaultValue != null
+            ? f64(constraint.defaultValue)
+            : undefined,
       };
     });
 
@@ -117,19 +132,30 @@ export function useWebSocketSync() {
     console.log("[vizij-ws] Setting up WebSocket listeners");
     console.log("[vizij-ws] Will use path format: rig/" + faceId + "/<path>");
 
-    const unlistenUpdates = listen<Record<string, number>>(
+    // Listen for arora-types Value updates from the WebSocket server
+    const unlistenUpdates = listen<Record<string, AroraValue>>(
       "update-values",
       (event) => {
         console.log("[vizij-ws] Received update:", event.payload);
 
-        Object.entries(event.payload).forEach(([path, value]) => {
-          if (value === undefined) return;
+        Object.entries(event.payload).forEach(([path, aroraValue]) => {
+          if (aroraValue === undefined) return;
+
+          // Extract numeric value from the arora Value
+          const numValue = extractNumericValue(aroraValue);
+          if (numValue === null) {
+            console.warn(
+              `[vizij-ws] Non-numeric value for path ${path}:`,
+              aroraValue,
+            );
+            return;
+          }
 
           // Clean up the incoming path - remove leading slashes
           const cleanPath = path.replace(/^\/+/, "").trim();
 
           // Use setRigValue which builds: rig/${faceId}/${cleanPath}
-          setRigValue(cleanPath, value);
+          setRigValue(cleanPath, numValue);
         });
       },
     );
