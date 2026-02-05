@@ -1,8 +1,14 @@
 //! Arora WebSocket Protocol
 //!
-//! This crate defines the standard message protocol for arora-based WebSocket communication.
-//! It provides type-safe message definitions for both client-to-server ([`Incoming`]) and
-//! server-to-client ([`Outgoing`]) messages.
+//! This crate provides a complete WebSocket server implementation for arora-based
+//! real-time communication. It includes type-safe message definitions, a method
+//! registry for RPC-style invocations, and a ready-to-use WebSocket server.
+//!
+//! # Features
+//!
+//! - **Message Types**: Type-safe [`Incoming`] and [`Outgoing`] message enums
+//! - **Registry**: Store nodes and methods with [`Registry`]
+//! - **Server**: Full WebSocket server with [`AroraWSServer`] (requires `server` feature)
 //!
 //! # Protocol Overview
 //!
@@ -22,33 +28,46 @@
 //! {"type": "invoke_resp", "success": true, "request_id": "req-1"}
 //! ```
 //!
-//! # Example Usage
+//! # Server Example
 //!
-//! ```rust
-//! use arora_websocket::{Incoming, Outgoing, NodeInfo};
+//! ```rust,no_run
+//! use arora_websocket::{AroraWSServer, ServerConfig, MethodInfo, InvokeResult};
+//! use tokio_util::sync::CancellationToken;
 //!
-//! // Parse incoming message
-//! let json = r#"{"type": "list_nodes"}"#;
-//! let msg: Incoming = serde_json::from_str(json).unwrap();
+//! #[tokio::main]
+//! async fn main() {
+//!     let server = AroraWSServer::with_port(9000);
 //!
-//! // Create response
-//! let response = Outgoing::ListNodesResp {
-//!     nodes: vec![NodeInfo {
-//!         path: "face/mouth".to_string(),
-//!         kind: Some("input".to_string()),
-//!         value_type: None,
-//!         min: Some(0.0),
-//!         max: Some(1.0),
-//!         default_value: None,
-//!         description: None,
-//!     }],
-//! };
-//! let response_json = serde_json::to_string(&response).unwrap();
+//!     // Register a method
+//!     server.registry().register_method_fn(
+//!         MethodInfo {
+//!             path: "reset".to_string(),
+//!             params: vec![],
+//!             return_type: None,
+//!             description: Some("Reset to defaults".to_string()),
+//!         },
+//!         |_args| InvokeResult::ok(),
+//!     ).await;
+//!
+//!     // Set update handler
+//!     server.set_update_handler(|values| {
+//!         println!("Received {} updates", values.len());
+//!         Ok(())
+//!     }).await;
+//!
+//!     // Run the server
+//!     let cancel = CancellationToken::new();
+//!     server.run(cancel).await.unwrap();
+//! }
 //! ```
 
 mod messages;
 mod method;
 mod node;
+mod registry;
+
+#[cfg(feature = "server")]
+mod server;
 
 // Re-export arora-schema types for convenience
 pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
@@ -60,3 +79,14 @@ pub use messages::{Incoming, Outgoing};
 // Metadata types
 pub use method::{MethodInfo, MethodParam};
 pub use node::NodeInfo;
+
+// Registry types
+pub use registry::{InvokeResult, MethodHandler, Registry};
+
+// Server types (feature-gated)
+#[cfg(feature = "server")]
+pub use server::{AroraWSServer, ServerConfig, UpdateHandler};
+
+// Re-export cancellation token for convenience
+#[cfg(feature = "server")]
+pub use tokio_util::sync::CancellationToken;

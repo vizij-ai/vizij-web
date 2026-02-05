@@ -5,15 +5,15 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
+
+use arora_websocket::{CancellationToken, NodeInfo};
 
 mod ws_server;
-use arora_websocket::NodeInfo;
-use ws_server::WsServerState;
+use ws_server::WsServer;
 
 /// Application state
 struct AppState {
-    ws_state: Arc<Mutex<WsServerState>>,
+    ws_server: Arc<WsServer>,
     ws_cancel_token: Mutex<Option<CancellationToken>>,
     port: u16,
     glb_source: Option<String>,
@@ -155,12 +155,18 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
         *token_guard = Some(cancel_token);
     }
 
-    let ws_state = state.ws_state.clone();
+    let ws_server = state.ws_server.clone();
     let app_handle_clone = app_handle.clone();
+
+    // Setup Tauri integration (update handler emits events)
+    ws_server.setup_tauri_integration(app_handle.clone()).await;
+
+    // Register the reset method
+    ws_server::register_reset_method(&ws_server, app_handle.clone()).await;
 
     // Spawn the server task
     tokio::spawn(async move {
-        if let Err(e) = ws_server::run_server(port, app_handle_clone.clone(), ws_state, child_token).await {
+        if let Err(e) = ws_server.run(child_token).await {
             log::error!("WebSocket server error: {}", e);
         }
         // Emit server stopped event
@@ -200,9 +206,8 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
 #[tauri::command]
 async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<NodeInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
     let count = nodes.len();
-    *ws_state.nodes.write().await = nodes;
+    state.ws_server.set_nodes(nodes).await;
     info!("Nodes updated: {} available", count);
     Ok(())
 }
@@ -218,8 +223,7 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
 #[tauri::command]
 async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
     let state = app_handle.state::<AppState>();
-    let cancel_token = state.ws_cancel_token.lock().await;
-    cancel_token.is_some()
+    state.ws_server.is_running().await
 }
 
 /// Read a local GLB file and return as base64
@@ -273,7 +277,7 @@ pub fn run() {
 
             // Set up the application state
             app.manage(AppState {
-                ws_state: Arc::new(Mutex::new(WsServerState::default())),
+                ws_server: Arc::new(WsServer::new(port)),
                 ws_cancel_token: Mutex::new(None),
                 port,
                 glb_source: glb_source.clone(),
