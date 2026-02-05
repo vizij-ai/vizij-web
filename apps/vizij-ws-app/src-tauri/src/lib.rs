@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 
-use arora_websocket::{CancellationToken, NodeInfo};
+use arora_websocket::{CancellationToken, SlotInfo};
 
 mod ws_server;
 use ws_server::WsServer;
@@ -94,7 +94,10 @@ fn list_displays() {
         let pos = monitor.position();
         let scale = monitor.scale_factor();
         let name = monitor.name().unwrap_or_else(|| "Unknown".to_string());
-        let is_primary = primary.as_ref().map(|p| p.name() == monitor.name()).unwrap_or(false);
+        let is_primary = primary
+            .as_ref()
+            .map(|p| p.name() == monitor.name())
+            .unwrap_or(false);
 
         println!(
             "  Display {}: {}{}",
@@ -174,7 +177,9 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     });
 
     // Emit server started event with port
-    app_handle.emit("ws:started", port).map_err(|e| e.to_string())?;
+    app_handle
+        .emit("ws:started", port)
+        .map_err(|e| e.to_string())?;
 
     info!("WebSocket server started on port {}", port);
     Ok(())
@@ -204,10 +209,10 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
 
 /// Set available nodes (called by frontend when model loads)
 #[tauri::command]
-async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<NodeInfo>) -> Result<(), String> {
+async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     let count = nodes.len();
-    state.ws_server.set_nodes(nodes).await;
+    state.ws_server.set_slots(nodes).await;
     info!("Nodes updated: {} available", count);
     Ok(())
 }
@@ -325,7 +330,10 @@ pub fn run() {
                         )) {
                             log::error!("Failed to set window size: {}", e);
                         } else {
-                            info!("Window size set to monitor resolution: {}x{}", size.width, size.height);
+                            info!(
+                                "Window size set to monitor resolution: {}x{}",
+                                size.width, size.height
+                            );
                         }
                     }
 
@@ -350,7 +358,8 @@ pub fn run() {
                         let monitor_pos = monitor.position();
                         let monitor_size = monitor.size();
                         let x = monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
-                        let y = monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
+                        let y =
+                            monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
                         if let Err(e) = window.set_position(tauri::Position::Physical(
                             tauri::PhysicalPosition::new(x, y),
                         )) {

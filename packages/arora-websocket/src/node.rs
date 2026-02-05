@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Nodes represent controllable parameters or observable outputs.
 /// Each node has a hierarchical path and optional type/constraint information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeInfo {
+pub struct SlotInfo {
     /// Hierarchical path identifier (e.g., "face/mouth/open", "body/arm/left/rotation")
     pub path: String,
 

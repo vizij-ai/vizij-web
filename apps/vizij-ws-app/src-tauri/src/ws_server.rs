@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use arora_websocket::{
-    AroraWSServer, CancellationToken, InvokeResult, MethodInfo, NodeInfo, ServerConfig, Value,
+    AroraWSServer, CancellationToken, InvokeResult, MethodInfo, ServerConfig, SlotInfo, Value,
 };
 use log::info;
 use tauri::{AppHandle, Emitter};
@@ -31,8 +31,8 @@ impl WsServer {
     }
 
     /// Set the available nodes.
-    pub async fn set_nodes(&self, nodes: Vec<NodeInfo>) {
-        self.server.registry().set_nodes(nodes).await;
+    pub async fn set_slots(&self, nodes: Vec<SlotInfo>) {
+        self.server.registry().set_slots(nodes).await;
     }
 
     /// Register a method that can be invoked via WebSocket.
@@ -40,18 +40,19 @@ impl WsServer {
     where
         F: Fn(std::collections::HashMap<String, Value>) -> InvokeResult + Send + Sync + 'static,
     {
-        self.server.registry().register_method_fn(info, handler).await;
+        self.server
+            .registry()
+            .register_method_fn(info, handler)
+            .await;
     }
 
     /// Configure the update handler to emit Tauri events.
     pub async fn setup_tauri_integration(&self, app_handle: AppHandle) {
         let app = app_handle.clone();
         self.server
-            .set_update_handler(move |values| {
-                match app.emit("update-values", &values) {
-                    Ok(()) => Ok(()),
-                    Err(e) => Err(format!("Failed to emit: {}", e)),
-                }
+            .set_update_handler(move |values| match app.emit("update-values", &values) {
+                Ok(()) => Ok(()),
+                Err(e) => Err(format!("Failed to emit: {}", e)),
             })
             .await;
     }
@@ -83,14 +84,12 @@ pub async fn register_reset_method(server: &WsServer, app_handle: AppHandle) {
                 return_type: None,
                 description: Some("Reset all values to defaults".to_string()),
             },
-            move |_args| {
-                match app.emit("reset", ()) {
-                    Ok(()) => {
-                        info!("Emitted reset event");
-                        InvokeResult::ok()
-                    }
-                    Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
+            move |_args| match app.emit("reset", ()) {
+                Ok(()) => {
+                    info!("Emitted reset event");
+                    InvokeResult::ok()
                 }
+                Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
             },
         )
         .await;
