@@ -24,7 +24,7 @@
 //!
 //! // Server -> Client
 //! {"type": "set_slot_values_resp", "success": true}
-//! {"type": "list_slots_resp", "nodes": [...]}
+//! {"type": "list_slots_resp", "slots": [...]}
 //! {"type": "list_methods_resp", "methods": [...]}
 //! {"type": "invoke_resp", "success": true, "request_id": "req-1"}
 //! ```
@@ -69,9 +69,7 @@ mod registry;
 mod server;
 
 // Re-export all core types from arora-connection
-pub use arora_connection::{
-    InvokeResult, MethodInfo, MethodParam, SlotInfo, Type, Value,
-};
+pub use arora_connection::{InvokeResult, MethodInfo, MethodParam, SlotInfo, Type, Value};
 
 // Re-export connection trait and handler types (feature-gated)
 #[cfg(feature = "server")]

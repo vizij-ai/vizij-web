@@ -210,13 +210,13 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
     state.port
 }
 
-/// Set available nodes (called by frontend when model loads)
+/// Set available slots (called by frontend when model loads)
 #[tauri::command]
-async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<SlotInfo>) -> Result<(), String> {
+async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let count = nodes.len();
-    AroraConnection::set_slots(state.ws_server.as_ref(), nodes).await;
-    info!("Nodes updated: {} available", count);
+    let count = slots.len();
+    AroraConnection::set_slots(state.ws_server.as_ref(), slots).await;
+    info!("Slots updated: {} available", count);
     Ok(())
 }
 
@@ -407,7 +407,7 @@ pub fn run() {
             stop_ws_server,
             is_ws_running,
             get_port,
-            set_nodes,
+            set_slots,
             get_glb_source,
             read_glb_file,
             respond_slot_values,

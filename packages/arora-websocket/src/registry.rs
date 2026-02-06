@@ -31,13 +31,13 @@ where
     }
 }
 
-/// Registry for nodes and methods.
+/// Registry for slots and methods.
 ///
 /// This is the core state container for the WebSocket server.
-/// It stores available nodes and registered methods.
+/// It stores available slots and registered methods.
 #[cfg(feature = "server")]
 pub struct Registry {
-    nodes: RwLock<Vec<SlotInfo>>,
+    slots: RwLock<Vec<SlotInfo>>,
     methods: RwLock<Vec<MethodInfo>>,
     handlers: RwLock<HashMap<String, Arc<dyn RegistryMethodHandler>>>,
 }
@@ -54,29 +54,29 @@ impl Registry {
     /// Create a new empty registry.
     pub fn new() -> Self {
         Self {
-            nodes: RwLock::new(Vec::new()),
+            slots: RwLock::new(Vec::new()),
             methods: RwLock::new(Vec::new()),
             handlers: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Set the available nodes.
-    pub async fn set_slots(&self, nodes: Vec<SlotInfo>) {
-        *self.nodes.write().await = nodes;
+    /// Set the available slots.
+    pub async fn set_slots(&self, slots: Vec<SlotInfo>) {
+        *self.slots.write().await = slots;
     }
 
-    /// Get all registered nodes.
-    pub async fn get_nodes(&self) -> Vec<SlotInfo> {
-        self.nodes.read().await.clone()
+    /// Get all registered slots.
+    pub async fn get_slots(&self) -> Vec<SlotInfo> {
+        self.slots.read().await.clone()
     }
 
-    /// Get nodes filtered by path prefix.
-    pub async fn get_nodes_filtered(&self, prefix: Option<&str>) -> Vec<SlotInfo> {
-        let nodes = self.nodes.read().await;
+    /// Get slots filtered by path prefix.
+    pub async fn get_slots_filtered(&self, prefix: Option<&str>) -> Vec<SlotInfo> {
+        let slots = self.slots.read().await;
         match prefix {
             Some(prefix) => {
                 let prefix = prefix.trim_end_matches('/');
-                nodes
+                slots
                     .iter()
                     .filter(|n| {
                         n.path.starts_with(prefix) || n.path.starts_with(&format!("{}/", prefix))
@@ -84,13 +84,13 @@ impl Registry {
                     .cloned()
                     .collect()
             }
-            None => nodes.clone(),
+            None => slots.clone(),
         }
     }
 
-    /// Get input nodes (nodes with kind == "input").
+    /// Get input slots (slots with kind == "input").
     pub async fn get_input_paths(&self) -> Vec<String> {
-        self.nodes
+        self.slots
             .read()
             .await
             .iter()

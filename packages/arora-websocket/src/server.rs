@@ -36,7 +36,7 @@ pub struct ServerConfig {
     pub port: u16,
     /// Address to bind to (default: "0.0.0.0").
     pub bind_address: String,
-    /// Whether to validate update paths against registered input nodes.
+    /// Whether to validate update paths against registered input slots.
     pub validate_paths: bool,
 }
 
@@ -313,8 +313,8 @@ async fn process_message(
         }
 
         Incoming::ListSlots { path } => {
-            let nodes = registry.get_nodes_filtered(path.as_deref()).await;
-            Outgoing::ListSlotsResp { nodes }
+            let slots = registry.get_slots_filtered(path.as_deref()).await;
+            Outgoing::ListSlotsResp { slots }
         }
 
         Incoming::ListMethods { path } => {

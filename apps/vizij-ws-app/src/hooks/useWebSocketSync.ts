@@ -179,13 +179,13 @@ export function useWebSocketSync() {
       };
     });
 
-    invoke("set_nodes", { nodes })
+    invoke("set_slots", { slots: nodes })
       .then(() => {
-        console.log(`[vizij-ws] Synced ${nodes.length} nodes to backend`);
+        console.log(`[vizij-ws] Synced ${nodes.length} slots to backend`);
         nodesSyncedRef.current = true;
       })
       .catch((err) => {
-        console.error("[vizij-ws] Failed to sync nodes:", err);
+        console.error("[vizij-ws] Failed to sync slots:", err);
       });
   }, [ready, inputConstraints]);
 

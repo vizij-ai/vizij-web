@@ -30,11 +30,11 @@ pub enum Incoming {
         slots: Vec<String>,
     },
 
-    /// Request the list of available nodes.
+    /// Request the list of available slots.
     ///
     /// Example: `{"type": "list_slots"}` or `{"type": "list_slots", "path": "face"}`
     ListSlots {
-        /// Optional path prefix to filter nodes
+        /// Optional path prefix to filter slots
         #[serde(default)]
         path: Option<String>,
     },
@@ -93,10 +93,10 @@ pub enum Outgoing {
 
     /// Response to ListSlots message.
     ///
-    /// Example: `{"type": "list_slots_resp", "nodes": [...]}`
+    /// Example: `{"type": "list_slots_resp", "slots": [...]}`
     ListSlotsResp {
-        /// List of matching nodes
-        nodes: Vec<SlotInfo>,
+        /// List of matching slots
+        slots: Vec<SlotInfo>,
     },
 
     /// Response to ListMethods message.
