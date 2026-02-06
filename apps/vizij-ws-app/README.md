@@ -351,6 +351,37 @@ This separation allows:
 - **Tauri app** to handle app-specific concerns (events, file loading, window management)
 - **Frontend** to remain decoupled from WebSocket implementation details
 
+### Connection Abstraction
+
+The app uses the `AroraConnection` trait from the `arora-connection` crate to abstract the communication protocol. This allows different transport mechanisms to be used without changing the application logic.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  arora-connection (trait)                               │
+│  • AroraConnection trait                                │
+│  • SlotInfo, MethodInfo, InvokeResult types             │
+│  • Handler type definitions                             │
+└─────────────────────────────────────────────────────────┘
+                          ▲
+                          │ implements
+          ┌───────────────┼───────────────┐
+          │               │               │
+┌─────────┴─────┐ ┌───────┴───────┐ ┌─────┴─────────┐
+│ arora-        │ │ Future:       │ │ Future:       │
+│ websocket     │ │ arora-ros2    │ │ arora-grpc    │
+│ (WebSocket)   │ │ (ROS2 node)   │ │ (gRPC/HTTP2)  │
+└───────────────┘ └───────────────┘ └───────────────┘
+```
+
+**To add a new protocol:**
+
+1. Create a new crate (e.g., `arora-ipc`) that depends on `arora-connection`
+2. Implement the `AroraConnection` trait for your transport
+3. Optionally implement `AroraConnectionTauriExt` for Tauri event integration
+4. Update the app to use your implementation instead of (or alongside) `WsServer`
+
+The trait methods handle slot registration, value updates, method invocation, and lifecycle management—see `packages/arora-connection/src/traits.rs` for the full interface.
+
 ---
 
 ## TypeScript Client Integration
