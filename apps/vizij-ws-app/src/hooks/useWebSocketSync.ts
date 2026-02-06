@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
+import { useOrchestrator, valueAsNumber } from "@vizij/orchestrator-react";
 import {
   type AroraValue,
   type AroraType,
@@ -29,6 +30,9 @@ export function useWebSocketSync() {
     namespace,
     faceId: runtimeFaceId,
   } = useVizijRuntime();
+
+  // Get orchestrator for reading cached values
+  const { getPathSnapshot } = useOrchestrator();
 
   // Get faceId like useMouseGaze does
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
@@ -94,13 +98,27 @@ export function useWebSocketSync() {
     console.log("[vizij-ws] Path patterns:", Array.from(patterns).slice(0, 10));
   }, [ready, inputConstraints, namespace, faceId]);
 
-  // Get a rig input value from local state
-  // We track values locally because the orchestrator consumes inputs during evaluation
+  // Get a rig input value - tries orchestrator cache first, then local state
+  // The orchestrator caches values when setInput is called and after graph evaluation
   const getRigValue = useCallback(
     (path: string): number | undefined => {
       if (!ready) return undefined;
 
-      // Check local state first (values we've set via WebSocket)
+      // Build the namespaced path that the orchestrator uses
+      // Format: namespace/rig/faceId/path (e.g., "vizij-ws/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
+      const fullPath = `rig/${faceId}/${path}`;
+      const namespacedPath = `${namespace}/${fullPath}`;
+
+      // Try orchestrator cache first (most current after graph evaluation)
+      const cachedValue = getPathSnapshot(namespacedPath);
+      if (cachedValue !== undefined) {
+        const numValue = valueAsNumber(cachedValue);
+        if (numValue !== undefined) {
+          return numValue;
+        }
+      }
+
+      // Fall back to local state (values we've set via WebSocket)
       const localValue = inputValuesRef.current[path];
       if (localValue !== undefined) {
         return localValue;
@@ -114,7 +132,7 @@ export function useWebSocketSync() {
 
       return undefined;
     },
-    [ready, inputConstraints],
+    [ready, inputConstraints, faceId, namespace, getPathSnapshot],
   );
 
   // Set a rig input value - same pattern as useMouseGaze
