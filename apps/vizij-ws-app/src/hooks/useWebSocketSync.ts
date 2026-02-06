@@ -104,9 +104,19 @@ export function useWebSocketSync() {
     (path: string): number | undefined => {
       if (!ready) return undefined;
 
+      // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
+      let normalizedPath = path
+        .replace(/^\/+/, "") // Remove leading slashes
+        .replace(/\/+/g, "/"); // Replace multiple slashes with single
+
+      // Strip namespace prefix if the path starts with it (e.g., "vizij-ws/standard/..." -> "standard/...")
+      if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
+        normalizedPath = normalizedPath.slice(namespace.length + 1);
+      }
+
       // Build the namespaced path that the orchestrator uses
       // Format: namespace/rig/faceId/path (e.g., "vizij-ws/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
-      const fullPath = `rig/${faceId}/${path}`;
+      const fullPath = `rig/${faceId}/${normalizedPath}`;
       const namespacedPath = `${namespace}/${fullPath}`;
 
       // Try orchestrator cache first (most current after graph evaluation)
@@ -144,17 +154,27 @@ export function useWebSocketSync() {
         return;
       }
 
+      // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
+      let normalizedPath = path
+        .replace(/^\/+/, "") // Remove leading slashes
+        .replace(/\/+/g, "/"); // Replace multiple slashes with single
+
+      // Strip namespace prefix if the path starts with it (e.g., "vizij-ws/standard/..." -> "standard/...")
+      if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
+        normalizedPath = normalizedPath.slice(namespace.length + 1);
+      }
+
       // Update local state (source of truth for GetSlotValues)
       inputValuesRef.current[path] = value;
 
       // Build full path like useMouseGaze: rig/${faceId}/${path}
-      const fullPath = `rig/${faceId}/${path}`;
+      const fullPath = `rig/${faceId}/${normalizedPath}`;
       console.log("[vizij-ws] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
 
       // No step() needed - driveOrchestrator handles the animation loop
     },
-    [ready, setInput, faceId],
+    [ready, setInput, faceId, namespace],
   );
 
   // Sync nodes to backend
@@ -229,14 +249,20 @@ export function useWebSocketSync() {
 
     const unlistenReset = listen("reset", () => {
       console.log("[vizij-ws] Reset event received");
-      // Reset common paths to 0
-      const commonPaths = [
-        "standard/left_eye/pos/x",
-        "standard/left_eye/pos/y",
-        "standard/right_eye/pos/x",
-        "standard/right_eye/pos/y",
-      ];
-      commonPaths.forEach((path) => setRigValue(path, 0));
+      // Reset all slots to their default values
+      Object.entries(inputConstraints).forEach(([path, constraint]) => {
+        const defaultValue = constraint?.defaultValue ?? 0;
+        setRigValue(path, defaultValue);
+      });
+      // Also clear local state and reinitialize from defaults
+      const defaults: Record<string, number> = {};
+      Object.entries(inputConstraints).forEach(([path, constraint]) => {
+        if (constraint?.defaultValue !== undefined) {
+          defaults[path] = constraint.defaultValue;
+        }
+      });
+      inputValuesRef.current = defaults;
+      console.log(`[vizij-ws] Reset ${Object.keys(inputConstraints).length} slots to defaults`);
     });
 
     // Listen for GetSlotValues requests from the WebSocket server
@@ -277,7 +303,7 @@ export function useWebSocketSync() {
       unlistenReset.then((f) => f());
       unlistenGetSlots.then((f) => f());
     };
-  }, [ready, faceId, setRigValue, getRigValue]);
+  }, [ready, faceId, setRigValue, getRigValue, inputConstraints]);
 
   return {
     ready,
