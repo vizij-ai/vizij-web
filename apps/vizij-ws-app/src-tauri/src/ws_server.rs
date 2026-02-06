@@ -3,17 +3,24 @@
 //! This module provides a thin wrapper around `arora_websocket::AroraWSServer`
 //! that integrates with Tauri's event system.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use arora_websocket::{
     AroraWSServer, CancellationToken, InvokeResult, MethodInfo, NodeInfo, ServerConfig, Value,
 };
-use log::info;
+use log::{debug, info, warn};
+use std::sync::mpsc::{channel, Sender};
 use tauri::{AppHandle, Emitter};
 
 /// Wrapper around AroraWSServer that integrates with Tauri.
 pub struct WsServer {
     server: Arc<AroraWSServer>,
+    /// Channel sender for pending GetSlotValues responses.
+    /// When a GetSlotValues request comes in, we store a sender here,
+    /// emit an event to the frontend, and wait for the response.
+    slot_values_responder: Arc<Mutex<Option<Sender<HashMap<String, Value>>>>>,
 }
 
 impl WsServer {
@@ -22,6 +29,7 @@ impl WsServer {
         let config = ServerConfig::with_port(port).validate_paths(true);
         Self {
             server: Arc::new(AroraWSServer::new(config)),
+            slot_values_responder: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -43,8 +51,21 @@ impl WsServer {
         self.server.registry().register_method_fn(info, handler).await;
     }
 
+    /// Called by Tauri command when frontend responds with slot values.
+    pub fn respond_slot_values(&self, values: HashMap<String, Value>) {
+        let mut guard = self.slot_values_responder.lock().unwrap();
+        if let Some(tx) = guard.take() {
+            if tx.send(values).is_err() {
+                warn!("Failed to send slot values response - receiver dropped");
+            }
+        } else {
+            warn!("respond_slot_values called but no pending request");
+        }
+    }
+
     /// Configure the update handler to emit Tauri events.
     pub async fn setup_tauri_integration(&self, app_handle: AppHandle) {
+        // Handler for SetSlotValues: emit to frontend
         let app = app_handle.clone();
         self.server
             .set_set_slot_values_handler(move |values| {
@@ -54,15 +75,42 @@ impl WsServer {
                 }
             })
             .await;
-    
-        // Placeholder. ToDo: implement GetSlotValues handling via Tauri events if needed.
+
+        // Handler for GetSlotValues: request from frontend via event/command pattern
+        let app = app_handle.clone();
+        let responder = self.slot_values_responder.clone();
         self.server
             .set_get_slot_values_handler(move |slots| {
-                // For now, just return an empty map.
-                std::collections::HashMap::new()
+                debug!("GetSlotValues request for {} slots", slots.len());
+
+                // Create a channel for the response
+                let (tx, rx) = channel();
+
+                // Store the sender so respond_slot_values can use it
+                {
+                    let mut guard = responder.lock().unwrap();
+                    *guard = Some(tx);
+                }
+
+                // Emit event to frontend with the requested slots
+                if let Err(e) = app.emit("get-slot-values-request", &slots) {
+                    warn!("Failed to emit get-slot-values-request: {}", e);
+                    return HashMap::new();
+                }
+
+                // Wait for response with timeout
+                match rx.recv_timeout(Duration::from_secs(5)) {
+                    Ok(values) => {
+                        debug!("Received {} slot values from frontend", values.len());
+                        values
+                    }
+                    Err(e) => {
+                        warn!("Timeout or error waiting for slot values: {}", e);
+                        HashMap::new()
+                    }
+                }
             })
             .await;
-
     }
 
     /// Run the server until cancelled.

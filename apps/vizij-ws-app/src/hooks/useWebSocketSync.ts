@@ -33,6 +33,9 @@ export function useWebSocketSync() {
   const nodesSyncedRef = useRef(false);
   const lastLoggedPathsRef = useRef(false);
 
+  // Track current slot values for GetSlotValues requests
+  const currentValuesRef = useRef<Record<string, number>>({});
+
   // Log available paths once when ready
   useEffect(() => {
     if (!ready || lastLoggedPathsRef.current) return;
@@ -73,6 +76,10 @@ export function useWebSocketSync() {
       const fullPath = `rig/${faceId}/${path}`;
       console.log("[vizij-ws] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
+
+      // Track current value for GetSlotValues requests
+      currentValuesRef.current[path] = value;
+
       // No step() needed - driveOrchestrator handles the animation loop
     },
     [ready, setInput, faceId],
@@ -160,9 +167,41 @@ export function useWebSocketSync() {
       commonPaths.forEach((path) => setRigValue(path, 0));
     });
 
+    // Listen for GetSlotValues requests from the WebSocket server
+    const unlistenGetSlots = listen<string[]>(
+      "get-slot-values-request",
+      async (event) => {
+        const requestedSlots = event.payload;
+        console.log(
+          "[vizij-ws] GetSlotValues request for",
+          requestedSlots.length,
+          "slots",
+        );
+
+        // Build response with current values
+        const values: Record<string, AroraValue> = {};
+        for (const slot of requestedSlots) {
+          const currentValue = currentValuesRef.current[slot];
+          if (currentValue !== undefined) {
+            values[slot] = f64(currentValue);
+          }
+        }
+
+        console.log("[vizij-ws] Responding with", Object.keys(values).length, "values");
+
+        // Send response back to Rust
+        try {
+          await invoke("respond_slot_values", { values });
+        } catch (err) {
+          console.error("[vizij-ws] Failed to respond with slot values:", err);
+        }
+      },
+    );
+
     return () => {
       unlistenUpdates.then((f) => f());
       unlistenReset.then((f) => f());
+      unlistenGetSlots.then((f) => f());
     };
   }, [ready, faceId, setRigValue]);
 

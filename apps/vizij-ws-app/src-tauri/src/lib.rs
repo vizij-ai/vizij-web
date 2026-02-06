@@ -6,7 +6,8 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 
-use arora_websocket::{CancellationToken, NodeInfo};
+use arora_websocket::{CancellationToken, NodeInfo, Value};
+use std::collections::HashMap;
 
 mod ws_server;
 use ws_server::WsServer;
@@ -235,6 +236,14 @@ async fn read_glb_file(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&contents))
 }
 
+/// Respond to a GetSlotValues request from the WebSocket server.
+/// Called by the frontend after receiving a "get-slot-values-request" event.
+#[tauri::command]
+fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
+    let state = app_handle.state::<AppState>();
+    state.ws_server.respond_slot_values(values);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Parse command line arguments
@@ -390,6 +399,7 @@ pub fn run() {
             set_nodes,
             get_glb_source,
             read_glb_file,
+            respond_slot_values,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
