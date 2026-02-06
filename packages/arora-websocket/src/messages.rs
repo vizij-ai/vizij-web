@@ -13,22 +13,22 @@ use crate::node::NodeInfo;
 /// Messages received from WebSocket clients.
 ///
 /// All incoming messages use a `type` field to discriminate the message kind.
-/// Example JSON: `{"type": "update", "values": {...}}`
+/// Example JSON: `{"type": "set_slot_values", "values": {...}}`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Incoming {
-    /// Update values on nodes.
+    /// Set values on slots.
     ///
-    /// Example: `{"type": "update", "values": {"face/mouth": {"f64": 0.5}}}`
-    Update {
-        /// Map of node paths to their new values
+    /// Example: `{"type": "set_slot_values", "values": {"face/mouth": {"f64": 0.5}}}`
+    SetSlotValues {
+        /// Map of slot paths to their new values
         values: HashMap<String, Value>,
     },
 
     /// Request the list of available nodes.
     ///
-    /// Example: `{"type": "list_nodes"}` or `{"type": "list_nodes", "path": "face"}`
-    ListNodes {
+    /// Example: `{"type": "list_slots"}` or `{"type": "list_slots", "path": "face"}`
+    ListSlots {
         /// Optional path prefix to filter nodes
         #[serde(default)]
         path: Option<String>,
@@ -66,11 +66,11 @@ pub enum Incoming {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Outgoing {
-    /// Response to Update message.
+    /// Response to SetSlotValues message.
     ///
-    /// Example: `{"type": "update_resp", "success": true}`
-    UpdateResp {
-        /// Whether the update was successful
+    /// Example: `{"type": "set_slot_values_resp", "success": true}`
+    SetSlotValuesResp {
+        /// Whether the setter was successful
         success: bool,
 
         /// Error message if success is false
@@ -78,10 +78,10 @@ pub enum Outgoing {
         message: Option<String>,
     },
 
-    /// Response to ListNodes message.
+    /// Response to ListSlots message.
     ///
-    /// Example: `{"type": "list_nodes_resp", "nodes": [...]}`
-    ListNodesResp {
+    /// Example: `{"type": "list_slots_resp", "nodes": [...]}`
+    ListSlotsResp {
         /// List of matching nodes
         nodes: Vec<NodeInfo>,
     },
@@ -132,26 +132,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_incoming_update_deserialize() {
-        let json = r#"{"type": "update", "values": {"test/path": {"f64": 0.5}}}"#;
+    fn test_incoming_set_slot_values_deserialize() {
+        let json = r#"{"type": "set_slot_values", "values": {"test/path": {"f64": 0.5}}}"#;
         let msg: Incoming = serde_json::from_str(json).unwrap();
         match msg {
-            Incoming::Update { values } => {
+            Incoming::SetSlotValues { values } => {
                 assert!(values.contains_key("test/path"));
             }
-            _ => panic!("Expected Update message"),
+            _ => panic!("Expected SetSlotValues message"),
         }
     }
 
     #[test]
-    fn test_incoming_list_nodes_deserialize() {
-        let json = r#"{"type": "list_nodes", "path": "face"}"#;
+    fn test_incoming_get_slot_values_deserialize() {
+        let json = r#"{"type": "get_slot_values", "slots": ["face/mouth", "face/eyes"]}"#;
         let msg: Incoming = serde_json::from_str(json).unwrap();
         match msg {
-            Incoming::ListNodes { path } => {
+            Incoming::GetSlotValues { slots } => {
+                assert_eq!(slots, vec!["face/mouth", "face/eyes"]);
+            }
+            _ => panic!("Expected GetSlotValues message"),
+        }
+    }
+
+    #[test]
+    fn test_incoming_list_slots_deserialize() {
+        let json = r#"{"type": "list_slots", "path": "face"}"#;
+        let msg: Incoming = serde_json::from_str(json).unwrap();
+        match msg {
+            Incoming::ListSlots { path } => {
                 assert_eq!(path, Some("face".to_string()));
             }
-            _ => panic!("Expected ListNodes message"),
+            _ => panic!("Expected ListSlots message"),
         }
     }
 
@@ -174,13 +186,13 @@ mod tests {
     }
 
     #[test]
-    fn test_outgoing_update_resp_serialize() {
-        let msg = Outgoing::UpdateResp {
+    fn test_outgoing_set_slot_values_resp_serialize() {
+        let msg = Outgoing::SetSlotValuesResp {
             success: true,
             message: None,
         };
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains(r#""type":"update_resp""#));
+        assert!(json.contains(r#""type":"set_slot_values_resp""#));
         assert!(json.contains(r#""success":true"#));
         assert!(!json.contains("message"));
     }

@@ -16,14 +16,14 @@
 //!
 //! ```json
 //! // Client -> Server
-//! {"type": "update", "values": {"face/mouth": {"f64": 0.5}}}
-//! {"type": "list_nodes", "path": "face"}
+//! {"type": "set_slot_values", "values": {"face/mouth": {"f64": 0.5}}}
+//! {"type": "list_slots", "path": "face"}
 //! {"type": "list_methods"}
 //! {"type": "invoke", "method": "reset", "request_id": "req-1"}
 //!
 //! // Server -> Client
-//! {"type": "update_resp", "success": true}
-//! {"type": "list_nodes_resp", "nodes": [...]}
+//! {"type": "set_slot_values_resp", "success": true}
+//! {"type": "list_slots_resp", "nodes": [...]}
 //! {"type": "list_methods_resp", "methods": [...]}
 //! {"type": "invoke_resp", "success": true, "request_id": "req-1"}
 //! ```
@@ -85,7 +85,7 @@ pub use registry::{InvokeResult, MethodHandler, Registry};
 
 // Server types (feature-gated)
 #[cfg(feature = "server")]
-pub use server::{AroraWSServer, ServerConfig, UpdateHandler};
+pub use server::{AroraWSServer, ServerConfig, SetSlotValuesHandler};
 
 // Re-export cancellation token for convenience
 #[cfg(feature = "server")]

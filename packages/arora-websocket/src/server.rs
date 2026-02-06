@@ -18,11 +18,11 @@ use arora_schema::value::Value;
 use crate::messages::{Incoming, Outgoing};
 use crate::registry::Registry;
 
-/// Callback for handling update messages.
+/// Callback for handling SetSlotValues messages.
 ///
-/// Called when a valid update message is received.
+/// Called when a valid SetSlotValues message is received.
 /// Return `Ok(())` to acknowledge success, or `Err(message)` to reject.
-pub type UpdateHandler = Arc<dyn Fn(HashMap<String, Value>) -> Result<(), String> + Send + Sync>;
+pub type SetSlotValuesHandler = Arc<dyn Fn(HashMap<String, Value>) -> Result<(), String> + Send + Sync>;
 
 /// Configuration for the WebSocket server.
 #[derive(Clone)]
@@ -73,7 +73,7 @@ impl ServerConfig {
 pub struct AroraWSServer {
     config: ServerConfig,
     registry: Arc<Registry>,
-    update_handler: RwLock<Option<UpdateHandler>>,
+    update_handler: RwLock<Option<SetSlotValuesHandler>>,
     is_running: RwLock<bool>,
 }
 
@@ -163,7 +163,7 @@ async fn handle_connection(
     stream: TcpStream,
     addr: SocketAddr,
     registry: Arc<Registry>,
-    update_handler: Option<UpdateHandler>,
+    update_handler: Option<SetSlotValuesHandler>,
     validate_paths: bool,
 ) {
     info!("New WebSocket connection from: {}", addr);
@@ -229,11 +229,11 @@ async fn handle_connection(
 async fn process_message(
     incoming: Incoming,
     registry: &Registry,
-    update_handler: &Option<UpdateHandler>,
+    update_handler: &Option<SetSlotValuesHandler>,
     validate_paths: bool,
 ) -> Outgoing {
     match incoming {
-        Incoming::Update { values } => {
+        Incoming::SetSlotValues { values } => {
             // Validate paths if enabled
             if validate_paths {
                 let input_paths = registry.get_input_paths().await;
@@ -244,27 +244,27 @@ async fn process_message(
                     .collect();
 
                 if !invalid_paths.is_empty() {
-                    warn!("Invalid paths in update: {:?}", invalid_paths);
-                    return Outgoing::UpdateResp {
+                    warn!("Invalid paths in SetSlotValues: {:?}", invalid_paths);
+                    return Outgoing::SetSlotValuesResp {
                         success: false,
                         message: Some(format!("Unknown input path(s): {}", invalid_paths.join(", "))),
                     };
                 }
             }
 
-            // Call update handler if registered
+            // Call SetSlotValues handler if registered
             if let Some(handler) = update_handler {
                 match handler(values) {
                     Ok(()) => {
-                        debug!("Update handled successfully");
-                        Outgoing::UpdateResp {
+                        debug!("SetSlotValues handled successfully");
+                        Outgoing::SetSlotValuesResp {
                             success: true,
                             message: None,
                         }
                     }
                     Err(e) => {
-                        error!("Update handler error: {}", e);
-                        Outgoing::UpdateResp {
+                        error!("SetSlotValues handler error: {}", e);
+                        Outgoing::SetSlotValuesResp {
                             success: false,
                             message: Some(e),
                         }
@@ -272,17 +272,17 @@ async fn process_message(
                 }
             } else {
                 // No handler registered, just acknowledge
-                debug!("No update handler registered, acknowledging");
-                Outgoing::UpdateResp {
+                debug!("No SetSlotValues handler registered, acknowledging");
+                Outgoing::SetSlotValuesResp {
                     success: true,
                     message: None,
                 }
             }
         }
 
-        Incoming::ListNodes { path } => {
+        Incoming::ListSlots { path } => {
             let nodes = registry.get_nodes_filtered(path.as_deref()).await;
-            Outgoing::ListNodesResp { nodes }
+            Outgoing::ListSlotsResp { nodes }
         }
 
         Incoming::ListMethods { path } => {
