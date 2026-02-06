@@ -14,7 +14,7 @@ use std::sync::Arc;
 use arora_schema::value::Value;
 
 use crate::method::MethodInfo;
-use crate::node::NodeInfo;
+use crate::node::SlotInfo;
 
 /// Result type for method invocation.
 #[derive(Debug, Clone)]
@@ -77,7 +77,7 @@ where
 /// It stores available nodes and registered methods.
 #[cfg(feature = "server")]
 pub struct Registry {
-    nodes: RwLock<Vec<NodeInfo>>,
+    nodes: RwLock<Vec<SlotInfo>>,
     methods: RwLock<Vec<MethodInfo>>,
     handlers: RwLock<HashMap<String, Arc<dyn MethodHandler>>>,
 }
@@ -101,24 +101,26 @@ impl Registry {
     }
 
     /// Set the available nodes.
-    pub async fn set_nodes(&self, nodes: Vec<NodeInfo>) {
+    pub async fn set_slots(&self, nodes: Vec<SlotInfo>) {
         *self.nodes.write().await = nodes;
     }
 
     /// Get all registered nodes.
-    pub async fn get_nodes(&self) -> Vec<NodeInfo> {
+    pub async fn get_nodes(&self) -> Vec<SlotInfo> {
         self.nodes.read().await.clone()
     }
 
     /// Get nodes filtered by path prefix.
-    pub async fn get_nodes_filtered(&self, prefix: Option<&str>) -> Vec<NodeInfo> {
+    pub async fn get_nodes_filtered(&self, prefix: Option<&str>) -> Vec<SlotInfo> {
         let nodes = self.nodes.read().await;
         match prefix {
             Some(prefix) => {
                 let prefix = prefix.trim_end_matches('/');
                 nodes
                     .iter()
-                    .filter(|n| n.path.starts_with(prefix) || n.path.starts_with(&format!("{}/", prefix)))
+                    .filter(|n| {
+                        n.path.starts_with(prefix) || n.path.starts_with(&format!("{}/", prefix))
+                    })
                     .cloned()
                     .collect()
             }
@@ -168,7 +170,9 @@ impl Registry {
                 let prefix = prefix.trim_end_matches('/');
                 methods
                     .iter()
-                    .filter(|m| m.path.starts_with(prefix) || m.path.starts_with(&format!("{}/", prefix)))
+                    .filter(|m| {
+                        m.path.starts_with(prefix) || m.path.starts_with(&format!("{}/", prefix))
+                    })
                     .cloned()
                     .collect()
             }

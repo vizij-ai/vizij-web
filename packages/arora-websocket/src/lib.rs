@@ -78,7 +78,7 @@ pub use messages::{Incoming, Outgoing};
 
 // Metadata types
 pub use method::{MethodInfo, MethodParam};
-pub use node::NodeInfo;
+pub use node::SlotInfo;
 
 // Registry types
 pub use registry::{InvokeResult, MethodHandler, Registry};

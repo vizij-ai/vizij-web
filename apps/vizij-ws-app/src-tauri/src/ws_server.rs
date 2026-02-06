@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use arora_websocket::{
-    AroraWSServer, CancellationToken, InvokeResult, MethodInfo, NodeInfo, ServerConfig, Value,
+    AroraWSServer, CancellationToken, InvokeResult, MethodInfo, ServerConfig, SlotInfo, Value,
 };
 use log::{debug, info, warn};
 use std::sync::mpsc::{channel, Sender};
@@ -39,8 +39,8 @@ impl WsServer {
     }
 
     /// Set the available nodes.
-    pub async fn set_nodes(&self, nodes: Vec<NodeInfo>) {
-        self.server.registry().set_nodes(nodes).await;
+    pub async fn set_slots(&self, nodes: Vec<SlotInfo>) {
+        self.server.registry().set_slots(nodes).await;
     }
 
     /// Register a method that can be invoked via WebSocket.
@@ -48,7 +48,10 @@ impl WsServer {
     where
         F: Fn(std::collections::HashMap<String, Value>) -> InvokeResult + Send + Sync + 'static,
     {
-        self.server.registry().register_method_fn(info, handler).await;
+        self.server
+            .registry()
+            .register_method_fn(info, handler)
+            .await;
     }
 
     /// Called by Tauri command when frontend responds with slot values.
@@ -140,14 +143,12 @@ pub async fn register_reset_method(server: &WsServer, app_handle: AppHandle) {
                 return_type: None,
                 description: Some("Reset all values to defaults".to_string()),
             },
-            move |_args| {
-                match app.emit("reset", ()) {
-                    Ok(()) => {
-                        info!("Emitted reset event");
-                        InvokeResult::ok()
-                    }
-                    Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
+            move |_args| match app.emit("reset", ()) {
+                Ok(()) => {
+                    info!("Emitted reset event");
+                    InvokeResult::ok()
                 }
+                Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
             },
         )
         .await;

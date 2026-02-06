@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::method::MethodInfo;
-use crate::node::NodeInfo;
+use crate::node::SlotInfo;
 
 /// Messages received from WebSocket clients.
 ///
@@ -99,7 +99,7 @@ pub enum Outgoing {
     /// Example: `{"type": "list_slots_resp", "nodes": [...]}`
     ListSlotsResp {
         /// List of matching nodes
-        nodes: Vec<NodeInfo>,
+        nodes: Vec<SlotInfo>,
     },
 
     /// Response to ListMethods message.
