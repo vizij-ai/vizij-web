@@ -16,6 +16,9 @@ import {
  *   const fullPath = `rig/${faceId}/${path}`;
  *   setInput(fullPath, { float: value });
  *
+ * Maintains local input values state (like vizij-authoring's bindingAuthoringStore)
+ * to track values we've set, since the orchestrator consumes inputs during evaluation.
+ *
  * No step() call needed - driveOrchestrator={true} handles evaluation.
  */
 export function useWebSocketSync() {
@@ -33,8 +36,35 @@ export function useWebSocketSync() {
   const nodesSyncedRef = useRef(false);
   const lastLoggedPathsRef = useRef(false);
 
-  // Track current slot values for GetSlotValues requests
-  const currentValuesRef = useRef<Record<string, number>>({});
+  // Local input values state - tracks values we've set
+  // Keyed by the short path (e.g., "standard/vizij/mouth/morph/jaw_open")
+  const inputValuesRef = useRef<Record<string, number>>({});
+  const inputValuesInitializedRef = useRef(false);
+
+  // Initialize input values from defaults when constraints are loaded
+  useEffect(() => {
+    if (!ready || inputValuesInitializedRef.current) return;
+
+    const constraintKeys = Object.keys(inputConstraints);
+    if (constraintKeys.length === 0) return;
+
+    // Initialize local state with default values (like vizij-authoring does)
+    const defaults: Record<string, number> = {};
+    constraintKeys.forEach((path) => {
+      const constraint = inputConstraints[path];
+      if (constraint?.defaultValue !== undefined) {
+        defaults[path] = constraint.defaultValue;
+      }
+    });
+    inputValuesRef.current = defaults;
+    inputValuesInitializedRef.current = true;
+
+    console.log(
+      "[vizij-ws] Initialized",
+      Object.keys(defaults).length,
+      "input values from defaults",
+    );
+  }, [ready, inputConstraints]);
 
   // Log available paths once when ready
   useEffect(() => {
@@ -64,7 +94,31 @@ export function useWebSocketSync() {
     console.log("[vizij-ws] Path patterns:", Array.from(patterns).slice(0, 10));
   }, [ready, inputConstraints, namespace, faceId]);
 
+  // Get a rig input value from local state
+  // We track values locally because the orchestrator consumes inputs during evaluation
+  const getRigValue = useCallback(
+    (path: string): number | undefined => {
+      if (!ready) return undefined;
+
+      // Check local state first (values we've set via WebSocket)
+      const localValue = inputValuesRef.current[path];
+      if (localValue !== undefined) {
+        return localValue;
+      }
+
+      // Fall back to default value from constraints
+      const constraint = inputConstraints[path];
+      if (constraint?.defaultValue !== undefined) {
+        return constraint.defaultValue;
+      }
+
+      return undefined;
+    },
+    [ready, inputConstraints],
+  );
+
   // Set a rig input value - same pattern as useMouseGaze
+  // Updates both local state AND the runtime (like vizij-authoring's handleInputValueChange)
   const setRigValue = useCallback(
     (path: string, value: number) => {
       if (!ready) {
@@ -72,13 +126,13 @@ export function useWebSocketSync() {
         return;
       }
 
+      // Update local state (source of truth for GetSlotValues)
+      inputValuesRef.current[path] = value;
+
       // Build full path like useMouseGaze: rig/${faceId}/${path}
       const fullPath = `rig/${faceId}/${path}`;
       console.log("[vizij-ws] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
-
-      // Track current value for GetSlotValues requests
-      currentValuesRef.current[path] = value;
 
       // No step() needed - driveOrchestrator handles the animation loop
     },
@@ -175,13 +229,15 @@ export function useWebSocketSync() {
         console.log(
           "[vizij-ws] GetSlotValues request for",
           requestedSlots.length,
-          "slots",
+          "slots:",
+          requestedSlots,
         );
 
-        // Build response with current values
+        // Build response with current values from local state
         const values: Record<string, AroraValue> = {};
         for (const slot of requestedSlots) {
-          const currentValue = currentValuesRef.current[slot];
+          const currentValue = getRigValue(slot);
+          console.log("[vizij-ws] getRigValue for", slot, "=", currentValue);
           if (currentValue !== undefined) {
             values[slot] = f64(currentValue);
           }
@@ -203,11 +259,12 @@ export function useWebSocketSync() {
       unlistenReset.then((f) => f());
       unlistenGetSlots.then((f) => f());
     };
-  }, [ready, faceId, setRigValue]);
+  }, [ready, faceId, setRigValue, getRigValue]);
 
   return {
     ready,
     setRigValue,
+    getRigValue,
     inputConstraints,
     namespace,
     faceId,
