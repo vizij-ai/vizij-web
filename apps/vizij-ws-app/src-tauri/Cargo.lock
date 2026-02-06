@@ -126,6 +126,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
+name = "arora-connection"
+version = "0.1.0"
+dependencies = [
+ "arora-schema",
+ "serde",
+ "tokio-util",
+]
+
+[[package]]
 name = "arora-schema"
 version = "0.1.0"
 source = "git+https://github.com/semio-ai/arora-types.git#56ca70a50e23ddc6ccad473232e8a3fe19cef4bd"
@@ -141,6 +150,7 @@ dependencies = [
 name = "arora-websocket"
 version = "0.2.0"
 dependencies = [
+ "arora-connection",
  "arora-schema",
  "futures-util",
  "log",
@@ -4552,6 +4562,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vizij-ws"
 version = "0.1.0"
 dependencies = [
+ "arora-connection",
  "arora-websocket",
  "base64 0.22.1",
  "clap",

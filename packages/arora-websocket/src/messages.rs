@@ -3,12 +3,9 @@
 //! This module defines the standard message format for arora-based WebSocket communication.
 //! Messages are serialized as JSON with a `type` field discriminator.
 
-use arora_schema::value::Value;
+use arora_connection::{MethodInfo, SlotInfo, Value};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-use crate::method::MethodInfo;
-use crate::node::SlotInfo;
 
 /// Messages received from WebSocket clients.
 ///

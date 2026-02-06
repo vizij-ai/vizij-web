@@ -2,13 +2,14 @@
 name = "arora-websocket"
 version = "0.2.0"
 edition = "2021"
-description = "Reusable arora-types WebSocket protocol with server implementation"
+description = "WebSocket implementation of the Arora protocol connection"
 
 [features]
 default = ["server"]
-server = ["tokio", "tokio-tungstenite", "futures-util", "log", "tokio-util"]
+server = ["tokio", "tokio-tungstenite", "futures-util", "log", "tokio-util", "arora-connection/async"]
 
 [dependencies]
+arora-connection = { path = "../arora-connection" }
 arora-schema = { git = "https://github.com/semio-ai/arora-types.git" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
 
-use arora_schema::value::Value;
+use arora_connection::Value;
 
 use crate::messages::{Incoming, Outgoing};
 use crate::registry::Registry;

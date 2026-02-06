@@ -6,10 +6,12 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 
-use arora_websocket::{CancellationToken, SlotInfo, Value};
 use std::collections::HashMap;
 
+mod connection;
 mod ws_server;
+
+use connection::{AroraConnection, AroraConnectionTauriExt, CancellationToken, SlotInfo, Value};
 use ws_server::WsServer;
 
 /// Application state
@@ -163,14 +165,14 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let app_handle_clone = app_handle.clone();
 
     // Setup Tauri integration (update handler emits events)
-    ws_server.setup_tauri_integration(app_handle.clone()).await;
+    AroraConnectionTauriExt::setup_tauri_integration(ws_server.as_ref(), app_handle.clone()).await;
 
     // Register the reset method
-    ws_server::register_reset_method(&ws_server, app_handle.clone()).await;
+    ws_server::register_reset_method(ws_server.as_ref(), app_handle.clone()).await;
 
     // Spawn the server task
     tokio::spawn(async move {
-        if let Err(e) = ws_server.run(child_token).await {
+        if let Err(e) = AroraConnection::run(ws_server.as_ref(), child_token).await {
             log::error!("WebSocket server error: {}", e);
         }
         // Emit server stopped event
@@ -213,7 +215,7 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
 async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     let count = nodes.len();
-    state.ws_server.set_slots(nodes).await;
+    AroraConnection::set_slots(state.ws_server.as_ref(), nodes).await;
     info!("Nodes updated: {} available", count);
     Ok(())
 }
@@ -229,7 +231,7 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
 #[tauri::command]
 async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
     let state = app_handle.state::<AppState>();
-    state.ws_server.is_running().await
+    AroraConnection::is_running(state.ws_server.as_ref()).await
 }
 
 /// Read a local GLB file and return as base64
@@ -241,12 +243,12 @@ async fn read_glb_file(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&contents))
 }
 
-/// Respond to a GetSlotValues request from the WebSocket server.
+/// Respond to a GetSlotValues request from the connection.
 /// Called by the frontend after receiving a "get-slot-values-request" event.
 #[tauri::command]
 fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
     let state = app_handle.state::<AppState>();
-    state.ws_server.respond_slot_values(values);
+    AroraConnection::respond_slot_values(state.ws_server.as_ref(), values);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

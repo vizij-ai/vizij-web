@@ -1,14 +1,15 @@
 //! Arora WebSocket Protocol
 //!
-//! This crate provides a complete WebSocket server implementation for arora-based
-//! real-time communication. It includes type-safe message definitions, a method
-//! registry for RPC-style invocations, and a ready-to-use WebSocket server.
+//! This crate provides a WebSocket implementation of the Arora protocol connection.
+//! It implements the [`AroraConnection`] trait from `arora-connection` and includes
+//! type-safe message definitions, a method registry, and a ready-to-use server.
 //!
 //! # Features
 //!
 //! - **Message Types**: Type-safe [`Incoming`] and [`Outgoing`] message enums
-//! - **Registry**: Store nodes and methods with [`Registry`]
+//! - **Registry**: Store slots and methods with [`Registry`]
 //! - **Server**: Full WebSocket server with [`AroraWSServer`] (requires `server` feature)
+//! - **Connection Trait**: Implements [`AroraConnection`] for protocol-agnostic usage
 //!
 //! # Protocol Overview
 //!
@@ -62,31 +63,32 @@
 //! ```
 
 mod messages;
-mod method;
-mod node;
 mod registry;
 
 #[cfg(feature = "server")]
 mod server;
 
-// Re-export arora-schema types for convenience
-pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
-pub use arora_schema::value::{Type, Value};
+// Re-export all core types from arora-connection
+pub use arora_connection::{
+    InvokeResult, MethodInfo, MethodParam, SlotInfo, Type, Value,
+};
 
-// Protocol message types
+// Re-export connection trait and handler types (feature-gated)
+#[cfg(feature = "server")]
+pub use arora_connection::{
+    AroraConnection, CancellationToken, GetSlotValuesHandler, MethodHandler,
+    SetSlotValuesHandler as ConnectionSetSlotValuesHandler, SetSlotValuesResult,
+};
+
+// Re-export arora-schema types for backwards compatibility
+pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
+
+// Protocol message types (WebSocket-specific)
 pub use messages::{Incoming, Outgoing};
 
-// Metadata types
-pub use method::{MethodInfo, MethodParam};
-pub use node::SlotInfo;
-
 // Registry types
-pub use registry::{InvokeResult, MethodHandler, Registry};
+pub use registry::Registry;
 
 // Server types (feature-gated)
 #[cfg(feature = "server")]
 pub use server::{AroraWSServer, ServerConfig, SetSlotValuesHandler};
-
-// Re-export cancellation token for convenience
-#[cfg(feature = "server")]
-pub use tokio_util::sync::CancellationToken;

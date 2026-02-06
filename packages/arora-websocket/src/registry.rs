@@ -1,6 +1,6 @@
-//! Registry for nodes and methods.
+//! Registry for slots and methods.
 //!
-//! Provides thread-safe storage for available nodes and invocable methods.
+//! Provides thread-safe storage for available slots and invocable methods.
 
 #[cfg(feature = "server")]
 use tokio::sync::RwLock;
@@ -11,58 +11,18 @@ use std::sync::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use arora_schema::value::Value;
+use arora_connection::{InvokeResult, MethodInfo, SlotInfo, Value};
 
-use crate::method::MethodInfo;
-use crate::node::SlotInfo;
-
-/// Result type for method invocation.
-#[derive(Debug, Clone)]
-pub struct InvokeResult {
-    pub success: bool,
-    pub value: Option<Value>,
-    pub message: Option<String>,
-}
-
-impl InvokeResult {
-    /// Create a successful result with no return value.
-    pub fn ok() -> Self {
-        Self {
-            success: true,
-            value: None,
-            message: None,
-        }
-    }
-
-    /// Create a successful result with a return value.
-    pub fn ok_with_value(value: Value) -> Self {
-        Self {
-            success: true,
-            value: Some(value),
-            message: None,
-        }
-    }
-
-    /// Create an error result.
-    pub fn err(message: impl Into<String>) -> Self {
-        Self {
-            success: false,
-            value: None,
-            message: Some(message.into()),
-        }
-    }
-}
-
-/// Trait for method handlers.
+/// Trait for method handlers in the registry.
 ///
 /// Implement this trait to create custom method handlers.
-pub trait MethodHandler: Send + Sync {
+pub trait RegistryMethodHandler: Send + Sync {
     /// Handle a method invocation.
     fn invoke(&self, args: HashMap<String, Value>) -> InvokeResult;
 }
 
 /// Function-based method handler.
-impl<F> MethodHandler for F
+impl<F> RegistryMethodHandler for F
 where
     F: Fn(HashMap<String, Value>) -> InvokeResult + Send + Sync,
 {
@@ -79,7 +39,7 @@ where
 pub struct Registry {
     nodes: RwLock<Vec<SlotInfo>>,
     methods: RwLock<Vec<MethodInfo>>,
-    handlers: RwLock<HashMap<String, Arc<dyn MethodHandler>>>,
+    handlers: RwLock<HashMap<String, Arc<dyn RegistryMethodHandler>>>,
 }
 
 #[cfg(feature = "server")]
@@ -142,7 +102,7 @@ impl Registry {
     /// Register a method with its handler.
     pub async fn register_method<H>(&self, info: MethodInfo, handler: H)
     where
-        H: MethodHandler + 'static,
+        H: RegistryMethodHandler + 'static,
     {
         let path = info.path.clone();
         self.methods.write().await.push(info);

@@ -1,22 +1,22 @@
-//! Node metadata types for WebSocket protocol.
+//! Slot metadata types for the Arora protocol.
 
 use arora_schema::value::{Type, Value};
 use serde::{Deserialize, Serialize};
 
-/// Metadata describing an available node in the system.
+/// Metadata describing an available slot in the system.
 ///
-/// Nodes represent controllable parameters or observable outputs.
-/// Each node has a hierarchical path and optional type/constraint information.
+/// Slots represent controllable parameters or observable outputs.
+/// Each slot has a hierarchical path and optional type/constraint information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlotInfo {
     /// Hierarchical path identifier (e.g., "face/mouth/open", "body/arm/left/rotation")
     pub path: String,
 
-    /// Node kind/category (e.g., "input", "output", "computed")
+    /// Slot kind/category (e.g., "input", "output", "computed")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
 
-    /// The arora Type that this node accepts/produces
+    /// The arora Type that this slot accepts/produces
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_type: Option<Type>,
 
