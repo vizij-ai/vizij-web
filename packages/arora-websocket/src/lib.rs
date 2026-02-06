@@ -50,7 +50,7 @@
 //!     ).await;
 //!
 //!     // Set update handler
-//!     server.set_update_handler(|values| {
+//!     server.set_set_slot_values_handler(|values| {
 //!         println!("Received {} updates", values.len());
 //!         Ok(())
 //!     }).await;

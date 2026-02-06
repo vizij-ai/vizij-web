@@ -24,6 +24,11 @@ use crate::registry::Registry;
 /// Return `Ok(())` to acknowledge success, or `Err(message)` to reject.
 pub type SetSlotValuesHandler = Arc<dyn Fn(HashMap<String, Value>) -> Result<(), String> + Send + Sync>;
 
+/// Callback for handling GetSlotValues messages.
+/// Called when a valid GetSlotValues message is received.
+/// Returns a map of slot paths to their current values.
+pub type GetSlotValuesHandler = Arc<dyn Fn(Vec<String>) -> HashMap<String, Value> + Send + Sync>;
+
 /// Configuration for the WebSocket server.
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -73,7 +78,8 @@ impl ServerConfig {
 pub struct AroraWSServer {
     config: ServerConfig,
     registry: Arc<Registry>,
-    update_handler: RwLock<Option<SetSlotValuesHandler>>,
+    set_slot_values_handler: RwLock<Option<SetSlotValuesHandler>>,
+    get_slot_values_handler: RwLock<Option<GetSlotValuesHandler>>,
     is_running: RwLock<bool>,
 }
 
@@ -83,7 +89,8 @@ impl AroraWSServer {
         Self {
             config,
             registry: Arc::new(Registry::new()),
-            update_handler: RwLock::new(None),
+            set_slot_values_handler: RwLock::new(None),
+            get_slot_values_handler: RwLock::new(None),
             is_running: RwLock::new(false),
         }
     }
@@ -99,13 +106,21 @@ impl AroraWSServer {
     }
 
     /// Set the update handler callback.
-    ///
     /// This is called whenever a valid update message is received.
-    pub async fn set_update_handler<F>(&self, handler: F)
+    pub async fn set_set_slot_values_handler<F>(&self, handler: F)
     where
         F: Fn(HashMap<String, Value>) -> Result<(), String> + Send + Sync + 'static,
     {
-        *self.update_handler.write().await = Some(Arc::new(handler));
+        *self.set_slot_values_handler.write().await = Some(Arc::new(handler));
+    }
+
+    /// Set the get slot values handler callback.
+    /// This is called whenever a valid get slot values message is received.
+    pub async fn set_get_slot_values_handler<F>(&self, handler: F)
+    where
+        F: Fn(Vec<String>) -> HashMap<String, Value> + Send + Sync + 'static,
+    {
+        *self.get_slot_values_handler.write().await = Some(Arc::new(handler));
     }
 
     /// Check if the server is running.
@@ -134,11 +149,12 @@ impl AroraWSServer {
                     match result {
                         Ok((stream, addr)) => {
                             let registry = self.registry.clone();
-                            let update_handler = self.update_handler.read().await.clone();
+                            let set_slot_values_handler = self.set_slot_values_handler.read().await.clone();
+                            let get_slot_values_handler = self.get_slot_values_handler.read().await.clone();
                             let validate_paths = self.config.validate_paths;
 
                             tokio::spawn(async move {
-                                handle_connection(stream, addr, registry, update_handler, validate_paths).await;
+                                handle_connection(stream, addr, registry, set_slot_values_handler, get_slot_values_handler, validate_paths).await;
                             });
                         }
                         Err(e) => {
@@ -163,7 +179,8 @@ async fn handle_connection(
     stream: TcpStream,
     addr: SocketAddr,
     registry: Arc<Registry>,
-    update_handler: Option<SetSlotValuesHandler>,
+    set_slot_values_handler: Option<SetSlotValuesHandler>,
+    get_slot_values_handler: Option<GetSlotValuesHandler>,
     validate_paths: bool,
 ) {
     info!("New WebSocket connection from: {}", addr);
@@ -185,7 +202,7 @@ async fn handle_connection(
 
                 let response = match serde_json::from_str::<Incoming>(&text) {
                     Ok(incoming) => {
-                        process_message(incoming, &registry, &update_handler, validate_paths).await
+                        process_message(incoming, &registry, &set_slot_values_handler, &get_slot_values_handler, validate_paths).await
                     }
                     Err(e) => {
                         warn!("Failed to parse message: {}", e);
@@ -229,7 +246,8 @@ async fn handle_connection(
 async fn process_message(
     incoming: Incoming,
     registry: &Registry,
-    update_handler: &Option<SetSlotValuesHandler>,
+    set_slot_values_handler: &Option<SetSlotValuesHandler>,
+    get_slot_values_handler: &Option<GetSlotValuesHandler>,
     validate_paths: bool,
 ) -> Outgoing {
     match incoming {
@@ -253,7 +271,7 @@ async fn process_message(
             }
 
             // Call SetSlotValues handler if registered
-            if let Some(handler) = update_handler {
+            if let Some(handler) = set_slot_values_handler {
                 match handler(values) {
                     Ok(()) => {
                         debug!("SetSlotValues handled successfully");
@@ -276,6 +294,20 @@ async fn process_message(
                 Outgoing::SetSlotValuesResp {
                     success: true,
                     message: None,
+                }
+            }
+        }
+
+        Incoming::GetSlotValues { slots } => {
+            // Call GetSlotValues handler if registered
+            if let Some(handler) = get_slot_values_handler {
+                let values = handler(slots);
+                Outgoing::GetSlotValuesResp { values }
+            } else {
+                // No handler registered, return empty values
+                debug!("No GetSlotValues handler registered, returning empty values");
+                Outgoing::GetSlotValuesResp {
+                    values: HashMap::new(),
                 }
             }
         }

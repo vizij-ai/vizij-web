@@ -25,6 +25,14 @@ pub enum Incoming {
         values: HashMap<String, Value>,
     },
 
+    /// Get values of slots.
+    ///
+    /// Example: `{"type": "get_slot_values", "slots": ["face/mouth", "face/eyes"]}`
+    GetSlotValues {
+        /// List of slot paths to retrieve
+        slots: Vec<String>,
+    },
+
     /// Request the list of available nodes.
     ///
     /// Example: `{"type": "list_slots"}` or `{"type": "list_slots", "path": "face"}`
@@ -76,6 +84,14 @@ pub enum Outgoing {
         /// Error message if success is false
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+    },
+
+    /// Response to GetSlotValues message.
+    ///     
+    /// Example: `{"type": "get_slot_values_resp", "values": {"face/mouth": {"f64": 0.5}}}`
+    GetSlotValuesResp {
+        /// Map of slot paths to their current values
+        values: HashMap<String, Value>,
     },
 
     /// Response to ListSlots message.

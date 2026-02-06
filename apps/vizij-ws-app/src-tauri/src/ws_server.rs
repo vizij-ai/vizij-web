@@ -47,13 +47,22 @@ impl WsServer {
     pub async fn setup_tauri_integration(&self, app_handle: AppHandle) {
         let app = app_handle.clone();
         self.server
-            .set_update_handler(move |values| {
+            .set_set_slot_values_handler(move |values| {
                 match app.emit("update-values", &values) {
                     Ok(()) => Ok(()),
                     Err(e) => Err(format!("Failed to emit: {}", e)),
                 }
             })
             .await;
+    
+        // Placeholder. ToDo: implement GetSlotValues handling via Tauri events if needed.
+        self.server
+            .set_get_slot_values_handler(move |slots| {
+                // For now, just return an empty map.
+                std::collections::HashMap::new()
+            })
+            .await;
+
     }
 
     /// Run the server until cancelled.
