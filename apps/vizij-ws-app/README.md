@@ -300,6 +300,59 @@ Click the **Debug** button in the app to see all available paths for your loaded
 
 ---
 
+## Architecture / Internal Data Flow
+
+The app uses a layered architecture where the `arora-websocket` library handles protocol logic, and the Tauri app bridges WebSocket messages to the React frontend:
+
+```
+┌─────────────────┐     WebSocket      ┌───────────────────────┐
+│  External       │ ──────────────────>│  arora-websocket      │
+│  Client         │    JSON messages   │  (Rust library)       │
+│  (Python, etc.) │                    │                       │
+└─────────────────┘                    │  • Parses messages    │
+                                       │  • Validates paths    │
+                                       │  • Dispatches to      │
+                                       │    handlers           │
+                                       └───────────┬───────────┘
+                                                   │
+                                                   │ Callback
+                                                   ▼
+                                       ┌───────────────────────┐
+                                       │  Tauri App            │
+                                       │  (ws_server.rs)       │
+                                       │                       │
+                                       │  SetSlotValueHandler  │
+                                       │  calls app.emit()     │
+                                       └───────────┬───────────┘
+                                                   │
+                                                   │ Tauri Event
+                                                   │ "update-values"
+                                                   ▼
+                                       ┌───────────────────────┐
+                                       │  React Frontend       │
+                                       │                       │
+                                       │  listen("update-      │
+                                       │    values", callback) │
+                                       │                       │
+                                       │  Applies values to    │
+                                       │  Vizij runtime        │
+                                       └───────────────────────┘
+```
+
+### Data Flow Steps
+
+1. **External client** sends a WebSocket message (e.g., `{"type": "set_slot_values", "values": {...}}`)
+2. **arora-websocket** parses the JSON, validates paths against registered input nodes, and calls the registered `SetSlotValueHandler`
+3. **Tauri app** receives the callback and emits a Tauri event using `app.emit("update-values", &values)`
+4. **React frontend** listens for the event via `listen("update-values", callback)` and applies the values to the Vizij runtime
+
+This separation allows:
+- **arora-websocket** to be reused in any Rust WebSocket server (not just Tauri)
+- **Tauri app** to handle app-specific concerns (events, file loading, window management)
+- **Frontend** to remain decoupled from WebSocket implementation details
+
+---
+
 ## TypeScript Client Integration
 
 For TypeScript/JavaScript clients, use the `@vizij/arora-types` package for type-safe message construction:
