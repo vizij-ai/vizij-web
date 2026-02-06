@@ -108,35 +108,35 @@ export type Outgoing =
 
 /** Check if message is an UpdateResp */
 export function isUpdateResp(
-  msg: Outgoing
+  msg: Outgoing,
 ): msg is Extract<Outgoing, { type: "update_resp" }> {
   return msg.type === "update_resp";
 }
 
 /** Check if message is a ListNodesResp */
 export function isListNodesResp(
-  msg: Outgoing
+  msg: Outgoing,
 ): msg is Extract<Outgoing, { type: "list_nodes_resp" }> {
   return msg.type === "list_nodes_resp";
 }
 
 /** Check if message is a ListMethodsResp */
 export function isListMethodsResp(
-  msg: Outgoing
+  msg: Outgoing,
 ): msg is Extract<Outgoing, { type: "list_methods_resp" }> {
   return msg.type === "list_methods_resp";
 }
 
 /** Check if message is an InvokeResp */
 export function isInvokeResp(
-  msg: Outgoing
+  msg: Outgoing,
 ): msg is Extract<Outgoing, { type: "invoke_resp" }> {
   return msg.type === "invoke_resp";
 }
 
 /** Check if message is an Error */
 export function isError(
-  msg: Outgoing
+  msg: Outgoing,
 ): msg is Extract<Outgoing, { type: "error" }> {
   return msg.type === "error";
 }
@@ -172,7 +172,7 @@ export function createListMethods(path?: string): Incoming {
 export function createInvoke(
   method: string,
   args?: Record<string, AroraValue>,
-  request_id?: string
+  request_id?: string,
 ): Incoming {
   return { type: "invoke", method, args, request_id };
 }

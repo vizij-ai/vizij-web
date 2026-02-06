@@ -262,7 +262,9 @@ export function useWebSocketSync() {
         }
       });
       inputValuesRef.current = defaults;
-      console.log(`[vizij-ws] Reset ${Object.keys(inputConstraints).length} slots to defaults`);
+      console.log(
+        `[vizij-ws] Reset ${Object.keys(inputConstraints).length} slots to defaults`,
+      );
     });
 
     // Listen for GetSlotValues requests from the WebSocket server
@@ -287,7 +289,11 @@ export function useWebSocketSync() {
           }
         }
 
-        console.log("[vizij-ws] Responding with", Object.keys(values).length, "values");
+        console.log(
+          "[vizij-ws] Responding with",
+          Object.keys(values).length,
+          "values",
+        );
 
         // Send response back to Rust
         try {

@@ -188,17 +188,17 @@ Note: browser-based clients served over `https://` may fail to connect to `ws://
 
 Values are wrapped in type-annotated objects rather than sent as raw primitives:
 
-| Type | Format | Example |
-|------|--------|---------|
-| Float (64-bit) | `{"f64": <number>}` | `{"f64": 0.5}` |
-| Float (32-bit) | `{"f32": <number>}` | `{"f32": 0.5}` |
-| Integer (32-bit) | `{"i32": <number>}` | `{"i32": 42}` |
-| Boolean | `{"bool": <boolean>}` | `{"bool": true}` |
-| String | `{"str": "<string>"}` | `{"str": "hello"}` |
-| UUID | `{"uuid": "<uuid>"}` | `{"uuid": "550e8400-e29b-41d4-a716-446655440000"}` |
-| Unit | `"unit"` | `"unit"` |
-| Option (some) | `{"v?": <value>}` | `{"v?": {"f64": 1.0}}` |
-| Option (none) | `{"v?": null}` | `{"v?": null}` |
+| Type             | Format                | Example                                            |
+| ---------------- | --------------------- | -------------------------------------------------- |
+| Float (64-bit)   | `{"f64": <number>}`   | `{"f64": 0.5}`                                     |
+| Float (32-bit)   | `{"f32": <number>}`   | `{"f32": 0.5}`                                     |
+| Integer (32-bit) | `{"i32": <number>}`   | `{"i32": 42}`                                      |
+| Boolean          | `{"bool": <boolean>}` | `{"bool": true}`                                   |
+| String           | `{"str": "<string>"}` | `{"str": "hello"}`                                 |
+| UUID             | `{"uuid": "<uuid>"}`  | `{"uuid": "550e8400-e29b-41d4-a716-446655440000"}` |
+| Unit             | `"unit"`              | `"unit"`                                           |
+| Option (some)    | `{"v?": <value>}`     | `{"v?": {"f64": 1.0}}`                             |
+| Option (none)    | `{"v?": null}`        | `{"v?": null}`                                     |
 
 For animation control, most values are `f64` (64-bit floats).
 
@@ -214,22 +214,28 @@ Send new values to control avatar features:
 {
   "type": "update",
   "values": {
-    "standard/vizij/left_eye/pos/x": {"f64": 0.5},
-    "standard/vizij/left_eye/pos/y": {"f64": 0.3},
-    "standard/vizij/right_eye/pos/x": {"f64": 0.5},
-    "standard/vizij/right_eye/pos/y": {"f64": 0.3}
+    "standard/vizij/left_eye/pos/x": { "f64": 0.5 },
+    "standard/vizij/left_eye/pos/y": { "f64": 0.3 },
+    "standard/vizij/right_eye/pos/x": { "f64": 0.5 },
+    "standard/vizij/right_eye/pos/y": { "f64": 0.3 }
   }
 }
 ```
 
 **Response:**
+
 ```json
-{"type": "ack", "success": true}
+{ "type": "ack", "success": true }
 ```
 
 If a path is invalid:
+
 ```json
-{"type": "ack", "success": false, "message": "Unknown input path: invalid/path"}
+{
+  "type": "ack",
+  "success": false,
+  "message": "Unknown input path: invalid/path"
+}
 ```
 
 #### Reset
@@ -243,8 +249,9 @@ Reset all values to their defaults:
 ```
 
 **Response:**
+
 ```json
-{"type": "ack", "success": true}
+{ "type": "ack", "success": true }
 ```
 
 #### List Nodes
@@ -259,6 +266,7 @@ Query available input nodes (optionally filtered by path prefix):
 ```
 
 **Response:**
+
 ```json
 {
   "type": "nodes",
@@ -269,7 +277,7 @@ Query available input nodes (optionally filtered by path prefix):
       "value_type": "f64",
       "min": -1.0,
       "max": 1.0,
-      "default_value": {"f64": 0.0}
+      "default_value": { "f64": 0.0 }
     },
     {
       "path": "standard/vizij/left_eye/pos/y",
@@ -277,7 +285,7 @@ Query available input nodes (optionally filtered by path prefix):
       "value_type": "f64",
       "min": -1.0,
       "max": 1.0,
-      "default_value": {"f64": 0.0}
+      "default_value": { "f64": 0.0 }
     }
   ]
 }
@@ -289,8 +297,8 @@ Paths follow the Vizij rig convention. The app automatically prefixes paths with
 
 **Common eye gaze paths:**
 
-| Path                       | Description          | Range                  |
-| -------------------------- | -------------------- | ---------------------- |
+| Path                             | Description          | Range                  |
+| -------------------------------- | -------------------- | ---------------------- |
 | `standard/vizij/left_eye/pos/x`  | Left eye horizontal  | -1 (left) to 1 (right) |
 | `standard/vizij/left_eye/pos/y`  | Left eye vertical    | -1 (down) to 1 (up)    |
 | `standard/vizij/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
@@ -347,6 +355,7 @@ The app uses a layered architecture where the `arora-websocket` library handles 
 4. **React frontend** listens for the event via `listen("update-values", callback)` and applies the values to the Vizij runtime
 
 This separation allows:
+
 - **arora-websocket** to be reused in any Rust WebSocket server (not just Tauri)
 - **Tauri app** to handle app-specific concerns (events, file loading, window management)
 - **Frontend** to remain decoupled from WebSocket implementation details
@@ -404,25 +413,25 @@ import {
   type Incoming,
   type Outgoing,
   type NodeInfo,
-} from '@vizij/arora-types';
+} from "@vizij/arora-types";
 
 // Connect to WebSocket
-const ws = new WebSocket('ws://localhost:9000');
+const ws = new WebSocket("ws://localhost:9000");
 
 // Send update using helper functions
 function sendEyeGaze(x: number, y: number) {
   const msg: Incoming = createUpdate({
-    'standard/vizij/left_eye/pos/x': f64(x),
-    'standard/vizij/left_eye/pos/y': f64(y),
-    'standard/vizij/right_eye/pos/x': f64(x),
-    'standard/vizij/right_eye/pos/y': f64(y),
+    "standard/vizij/left_eye/pos/x": f64(x),
+    "standard/vizij/left_eye/pos/y": f64(y),
+    "standard/vizij/right_eye/pos/x": f64(x),
+    "standard/vizij/right_eye/pos/y": f64(y),
   });
   ws.send(JSON.stringify(msg));
 }
 
 // Invoke a method (e.g., reset)
 function reset() {
-  const msg: Incoming = createInvoke('reset', {}, 'req-1');
+  const msg: Incoming = createInvoke("reset", {}, "req-1");
   ws.send(JSON.stringify(msg));
 }
 
@@ -430,10 +439,10 @@ function reset() {
 ws.onmessage = (event) => {
   const response: Outgoing = JSON.parse(event.data);
 
-  if (response.type === 'list_nodes_resp') {
-    console.log('Available nodes:', response.nodes);
-  } else if (response.type === 'invoke_resp') {
-    console.log('Invoke result:', response.success, response.message);
+  if (response.type === "list_nodes_resp") {
+    console.log("Available nodes:", response.nodes);
+  } else if (response.type === "invoke_resp") {
+    console.log("Invoke result:", response.success, response.message);
   }
 };
 
@@ -441,7 +450,7 @@ ws.onmessage = (event) => {
 function handleNodeInfo(node: NodeInfo) {
   if (node.default_value) {
     const value = extractNumericValue(node.default_value);
-    console.log('Default:', value); // e.g., 0.0
+    console.log("Default:", value); // e.g., 0.0
   }
 }
 ```
@@ -449,22 +458,26 @@ function handleNodeInfo(node: NodeInfo) {
 ### Available Helpers
 
 **Value Constructors:**
+
 - `f64(n)`, `f32(n)`, `i64(n)`, `i32(n)`, `u64(n)`, `u32(n)` — Numeric values
 - `str(s)`, `bool(b)`, `uuid(id)` — Scalar values
 - `unit()`, `some(value)`, `none()` — Special values
 
 **Value Extractors:**
+
 - `extractNumericValue(v)` — Get number from any numeric arora value
 - `extractStringValue(v)` — Get string value
 - `extractBooleanValue(v)` — Get boolean value
 
 **Message Constructors:**
+
 - `createUpdate(values)` — Create an update message
 - `createListNodes(path?)` — Create a list nodes query
 - `createListMethods(path?)` — Create a list methods query
 - `createInvoke(method, args?, request_id?)` — Create a method invocation
 
 **Response Type Guards:**
+
 - `isUpdateResp(msg)` — Check if response is an update acknowledgment
 - `isListNodesResp(msg)` — Check if response is a node list
 - `isListMethodsResp(msg)` — Check if response is a method list
@@ -472,6 +485,7 @@ function handleNodeInfo(node: NodeInfo) {
 - `isError(msg)` — Check if response is an error
 
 ---
+
 ## License
 
 See the repository root for license information.
