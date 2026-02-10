@@ -328,7 +328,7 @@ pub fn run() {
                 glb_source: glb_source.clone(),
             });
 
-            info!("Vizij WS App initialized with port {}", port);
+            info!("Vizij Standalone App initialized with port {}", port);
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
             }

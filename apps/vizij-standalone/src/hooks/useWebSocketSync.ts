@@ -69,7 +69,7 @@ export function useWebSocketSync() {
     inputValuesInitializedRef.current = true;
 
     console.log(
-      "[vizij-ws] Initialized",
+      "[vizij-standalone] Initialized",
       Object.keys(defaults).length,
       "input values from defaults",
     );
@@ -81,14 +81,14 @@ export function useWebSocketSync() {
     lastLoggedPathsRef.current = true;
 
     const constraintKeys = Object.keys(inputConstraints);
-    console.log("[vizij-ws] Runtime ready!");
-    console.log("[vizij-ws] Namespace:", namespace);
-    console.log("[vizij-ws] Face ID:", faceId);
-    console.log("[vizij-ws] Total input constraints:", constraintKeys.length);
+    console.log("[vizij-standalone] Runtime ready!");
+    console.log("[vizij-standalone] Namespace:", namespace);
+    console.log("[vizij-standalone] Face ID:", faceId);
+    console.log("[vizij-standalone] Total input constraints:", constraintKeys.length);
 
     // Show sample paths to help debug path format
     const samples = constraintKeys.slice(0, 10);
-    console.log("[vizij-ws] Sample constraint paths:", samples);
+    console.log("[vizij-standalone] Sample constraint paths:", samples);
 
     // Show path patterns
     const patterns = new Set<string>();
@@ -100,7 +100,7 @@ export function useWebSocketSync() {
         patterns.add(parts.slice(0, 2).join("/") + "/...");
       }
     });
-    console.log("[vizij-ws] Path patterns:", Array.from(patterns).slice(0, 10));
+    console.log("[vizij-standalone] Path patterns:", Array.from(patterns).slice(0, 10));
   }, [ready, inputConstraints, namespace, faceId]);
 
   // Get a rig input value - tries orchestrator cache first, then local state
@@ -114,13 +114,13 @@ export function useWebSocketSync() {
         .replace(/^\/+/, "") // Remove leading slashes
         .replace(/\/+/g, "/"); // Replace multiple slashes with single
 
-      // Strip namespace prefix if the path starts with it (e.g., "vizij-ws/standard/..." -> "standard/...")
+      // Strip namespace prefix if the path starts with it (e.g., "vizij-standalone/standard/..." -> "standard/...")
       if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
         normalizedPath = normalizedPath.slice(namespace.length + 1);
       }
 
       // Build the namespaced path that the orchestrator uses
-      // Format: namespace/rig/faceId/path (e.g., "vizij-ws/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
+      // Format: namespace/rig/faceId/path (e.g., "vizij-standalone/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
       const fullPath = `rig/${faceId}/${normalizedPath}`;
       const namespacedPath = `${namespace}/${fullPath}`;
 
@@ -155,7 +155,7 @@ export function useWebSocketSync() {
   const setRigValue = useCallback(
     (path: string, value: number) => {
       if (!ready) {
-        console.warn("[vizij-ws] Runtime not ready, skipping setInput");
+        console.warn("[vizij-standalone] Runtime not ready, skipping setInput");
         return;
       }
 
@@ -164,7 +164,7 @@ export function useWebSocketSync() {
         .replace(/^\/+/, "") // Remove leading slashes
         .replace(/\/+/g, "/"); // Replace multiple slashes with single
 
-      // Strip namespace prefix if the path starts with it (e.g., "vizij-ws/standard/..." -> "standard/...")
+      // Strip namespace prefix if the path starts with it (e.g., "vizij-standalone/standard/..." -> "standard/...")
       if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
         normalizedPath = normalizedPath.slice(namespace.length + 1);
       }
@@ -174,7 +174,7 @@ export function useWebSocketSync() {
 
       // Build full path like useMouseGaze: rig/${faceId}/${path}
       const fullPath = `rig/${faceId}/${normalizedPath}`;
-      console.log("[vizij-ws] setInput:", fullPath, "=", value);
+      console.log("[vizij-standalone] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
 
       // No step() needed - driveOrchestrator handles the animation loop
@@ -206,29 +206,29 @@ export function useWebSocketSync() {
 
     invoke("set_slots", { slots: nodes })
       .then(() => {
-        console.log(`[vizij-ws] Synced ${nodes.length} slots to backend`);
+        console.log(`[vizij-standalone] Synced ${nodes.length} slots to backend`);
         nodesSyncedRef.current = true;
       })
       .catch((err) => {
-        console.error("[vizij-ws] Failed to sync slots:", err);
+        console.error("[vizij-standalone] Failed to sync slots:", err);
       });
   }, [ready, inputConstraints]);
 
   // Listen for WebSocket updates
   useEffect(() => {
     if (!ready) {
-      console.log("[vizij-ws] Waiting for runtime to be ready...");
+      console.log("[vizij-standalone] Waiting for runtime to be ready...");
       return;
     }
 
-    console.log("[vizij-ws] Setting up WebSocket listeners");
-    console.log("[vizij-ws] Will use path format: rig/" + faceId + "/<path>");
+    console.log("[vizij-standalone] Setting up WebSocket listeners");
+    console.log("[vizij-standalone] Will use path format: rig/" + faceId + "/<path>");
 
     // Listen for arora-types Value updates from the WebSocket server
     const unlistenUpdates = listen<Record<string, AroraValue>>(
       "update-values",
       (event) => {
-        console.log("[vizij-ws] Received update:", event.payload);
+        console.log("[vizij-standalone] Received update:", event.payload);
 
         Object.entries(event.payload).forEach(([path, aroraValue]) => {
           if (aroraValue === undefined) return;
@@ -237,7 +237,7 @@ export function useWebSocketSync() {
           const numValue = extractNumericValue(aroraValue);
           if (numValue === null) {
             console.warn(
-              `[vizij-ws] Non-numeric value for path ${path}:`,
+              `[vizij-standalone] Non-numeric value for path ${path}:`,
               aroraValue,
             );
             return;
@@ -253,7 +253,7 @@ export function useWebSocketSync() {
     );
 
     const unlistenReset = listen("reset", () => {
-      console.log("[vizij-ws] Reset event received");
+      console.log("[vizij-standalone] Reset event received");
       // Reset all slots to their default values
       Object.entries(inputConstraints).forEach(([path, constraint]) => {
         const defaultValue = constraint?.defaultValue ?? 0;
@@ -268,7 +268,7 @@ export function useWebSocketSync() {
       });
       inputValuesRef.current = defaults;
       console.log(
-        `[vizij-ws] Reset ${Object.keys(inputConstraints).length} slots to defaults`,
+        `[vizij-standalone] Reset ${Object.keys(inputConstraints).length} slots to defaults`,
       );
     });
 
@@ -278,7 +278,7 @@ export function useWebSocketSync() {
       async (event) => {
         const { requestId, slots: requestedSlots } = event.payload;
         console.log(
-          "[vizij-ws] GetSlotValues request for",
+          "[vizij-standalone] GetSlotValues request for",
           requestedSlots.length,
           "slots:",
           requestedSlots,
@@ -288,14 +288,14 @@ export function useWebSocketSync() {
         const values: Record<string, AroraValue> = {};
         for (const slot of requestedSlots) {
           const currentValue = getRigValue(slot);
-          console.log("[vizij-ws] getRigValue for", slot, "=", currentValue);
+          console.log("[vizij-standalone] getRigValue for", slot, "=", currentValue);
           if (currentValue !== undefined) {
             values[slot] = f64(currentValue);
           }
         }
 
         console.log(
-          "[vizij-ws] Responding with",
+          "[vizij-standalone] Responding with",
           Object.keys(values).length,
           "values",
         );
@@ -304,7 +304,7 @@ export function useWebSocketSync() {
         try {
           await invoke("respond_slot_values", { requestId, values });
         } catch (err) {
-          console.error("[vizij-ws] Failed to respond with slot values:", err);
+          console.error("[vizij-standalone] Failed to respond with slot values:", err);
         }
       },
     );

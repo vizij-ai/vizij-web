@@ -1,4 +1,4 @@
-# Vizij WS App
+# Vizij Standalone App
 
 A standalone desktop application that renders Vizij avatars and accepts real-time control via WebSocket. Perfect for integrating facial animation into robotics, VTubing, games, or any application that needs programmatic avatar control.
 
@@ -28,8 +28,8 @@ The executable is self-contained and requires no additional runtime dependencies
 ## Command Line Options
 
 ```
-vizij-ws [OPTIONS]
-vizij-ws <COMMAND>
+vizij-standalone [OPTIONS]
+vizij-standalone <COMMAND>
 ```
 
 ### Subcommands
@@ -109,10 +109,10 @@ cd vizij-web
 pnpm install
 
 # Run in dev mode
-pnpm run dev:vizij-ws-app
+pnpm run dev:vizij-standalone-app
 
 # Pass CLI arguments
-pnpm run dev:vizij-ws-app -- -- -- --glb /path/to/avatar.glb --fullscreen
+pnpm run dev:vizij-standalone-app -- -- -- --glb /path/to/avatar.glb --fullscreen
 ```
 
 ---
@@ -122,16 +122,16 @@ pnpm run dev:vizij-ws-app -- -- -- --glb /path/to/avatar.glb --fullscreen
 ### Building
 
 ```bash
-cd apps/vizij-ws-app
+cd apps/vizij-standalone-app
 pnpm install
 pnpm tauri build
 ```
 
 Output locations:
 
-- **Windows:** `src-tauri/target/release/vizij-ws.exe`
-- **macOS:** `src-tauri/target/release/bundle/macos/Vizij WS.app`
-- **Linux:** `src-tauri/target/release/vizij-ws`
+- **Windows:** `src-tauri/target/release/vizij-standalone.exe`
+- **macOS:** `src-tauri/target/release/bundle/macos/Vizij Standalone.app`
+- **Linux:** `src-tauri/target/release/vizij-standalone`
 
 ### Running
 
@@ -139,25 +139,25 @@ Copy the executable to your target machine and run. On Windows PowerShell, use `
 
 ```bash
 # Basic usage
-.\vizij-ws.exe --glb C:\path\to\avatar.glb
+.\vizij-standalone.exe --glb C:\path\to\avatar.glb
 
 # Fullscreen on second monitor
-.\vizij-ws.exe --glb avatar.glb --fullscreen --display 1
+.\vizij-standalone.exe --glb avatar.glb --fullscreen --display 1
 
 # Kiosk mode
-.\vizij-ws.exe --glb avatar.glb --fullscreen --no-decorations --always-on-top
+.\vizij-standalone.exe --glb avatar.glb --fullscreen --no-decorations --always-on-top
 
 # Custom WebSocket port
-.\vizij-ws.exe --glb avatar.glb --port 8080
+.\vizij-standalone.exe --glb avatar.glb --port 8080
 
 # List available displays
-.\vizij-ws.exe list-displays
+.\vizij-standalone.exe list-displays
 ```
 
 On Linux/macOS:
 
 ```bash
-./vizij-ws --glb /path/to/avatar.glb
+./vizij-standalone --glb /path/to/avatar.glb
 ```
 
 ---
