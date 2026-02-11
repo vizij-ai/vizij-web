@@ -60,6 +60,48 @@ export type PoseRigTraceSuggestion =
       reason: string;
     };
 
+export function selectSafePoseRigTraceSuggestions(
+  suggestions: PoseRigTraceSuggestion[],
+  minConfidence = 0.6,
+): PoseRigTraceSuggestion[] {
+  const ordered = [...suggestions].sort(
+    (a, b) => b.confidence - a.confidence || a.id.localeCompare(b.id),
+  );
+  const selected: PoseRigTraceSuggestion[] = [];
+  const usedLinkChildren = new Set<string>();
+  const usedRetargetSources = new Set<string>();
+  const usedRetargetTargets = new Set<string>();
+
+  ordered.forEach((suggestion) => {
+    if (suggestion.confidence < minConfidence) {
+      return;
+    }
+    if (suggestion.kind === "link-parent-binding") {
+      if (usedLinkChildren.has(suggestion.childInputId)) {
+        return;
+      }
+      usedLinkChildren.add(suggestion.childInputId);
+      selected.push(suggestion);
+      return;
+    }
+
+    const sourceKey = `${suggestion.poseId}::${suggestion.fromInputId}`;
+    if (usedRetargetSources.has(sourceKey)) {
+      return;
+    }
+    const targetKey = `${suggestion.poseId}::${suggestion.toInputId}`;
+    if (usedRetargetTargets.has(targetKey)) {
+      return;
+    }
+
+    usedRetargetSources.add(sourceKey);
+    usedRetargetTargets.add(targetKey);
+    selected.push(suggestion);
+  });
+
+  return selected;
+}
+
 function collectBindingInputIds(binding: AnimatableBinding): string[] {
   const ids = new Set<string>();
   if (

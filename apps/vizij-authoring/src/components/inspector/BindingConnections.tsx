@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as LinkIcon, Box, Sparkles, Route } from "lucide-react";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
@@ -8,9 +8,10 @@ import {
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { Button } from "../ui";
+import { Button, Chip } from "../ui";
 import {
   buildPoseRigFaceTrace,
+  selectSafePoseRigTraceSuggestions,
   type PoseRigTraceSuggestion,
 } from "./rigConnections";
 
@@ -130,6 +131,11 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     ],
   );
 
+  const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [traceFeedback, setTraceFeedback] = useState<string | null>(null);
+
   const applyTraceSuggestion = useCallback(
     (suggestion: PoseRigTraceSuggestion) => {
       if (suggestion.kind === "link-parent-binding") {
@@ -139,16 +145,16 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
         );
         handleSelectRig(suggestion.childInputId);
         handleClearSelection();
-        return;
+        return true;
       }
 
       const pose = poses.find((entry) => entry.id === suggestion.poseId);
       if (!pose) {
-        return;
+        return false;
       }
       const currentValue = pose.values[suggestion.fromInputId];
       if (currentValue === undefined) {
-        return;
+        return false;
       }
       const fromNeutral = neutralInputs[suggestion.fromInputId] ?? 0;
       const toNeutral = neutralInputs[suggestion.toInputId] ?? 0;
@@ -157,6 +163,7 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       removePoseInput(suggestion.poseId, suggestion.fromInputId);
       selectPose(suggestion.poseId);
       handleClearSelection();
+      return true;
     },
     [
       handleClearSelection,
@@ -169,6 +176,114 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       updatePoseValue,
     ],
   );
+
+  useEffect(() => {
+    const liveIds = new Set(
+      trace.suggestedFixes.map((suggestion) => suggestion.id),
+    );
+    setAppliedSuggestionIds((current) => {
+      let changed = false;
+      const next = new Set<string>();
+      current.forEach((id) => {
+        if (liveIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [trace.suggestedFixes]);
+
+  useEffect(() => {
+    if (!traceFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setTraceFeedback(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [traceFeedback]);
+
+  const suggestionsByKind = useMemo(
+    () => ({
+      linkParent: trace.suggestedFixes.filter(
+        (suggestion) => suggestion.kind === "link-parent-binding",
+      ),
+      retarget: trace.suggestedFixes.filter(
+        (suggestion) => suggestion.kind === "retarget-pose-output",
+      ),
+    }),
+    [trace.suggestedFixes],
+  );
+
+  const safeBulkSuggestions = useMemo(
+    () => selectSafePoseRigTraceSuggestions(trace.suggestedFixes, 0.6),
+    [trace.suggestedFixes],
+  );
+
+  const unappliedSafeBulkSuggestions = useMemo(
+    () =>
+      safeBulkSuggestions.filter(
+        (suggestion) => !appliedSuggestionIds.has(suggestion.id),
+      ),
+    [appliedSuggestionIds, safeBulkSuggestions],
+  );
+
+  const handleApplySuggestion = useCallback(
+    (suggestion: PoseRigTraceSuggestion) => {
+      const applied = applyTraceSuggestion(suggestion);
+      if (!applied) {
+        setTraceFeedback(
+          `Suggestion no longer applies: ${suggestion.poseName} ${suggestion.kind}`,
+        );
+        return;
+      }
+      setAppliedSuggestionIds((current) => {
+        const next = new Set(current);
+        next.add(suggestion.id);
+        return next;
+      });
+      setTraceFeedback(
+        suggestion.kind === "link-parent-binding"
+          ? `Applied link: ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`
+          : `Applied retarget: ${suggestion.fromInputId} -> ${suggestion.toInputId}`,
+      );
+    },
+    [applyTraceSuggestion],
+  );
+
+  const handleApplySafeSuggestions = useCallback(() => {
+    if (unappliedSafeBulkSuggestions.length === 0) {
+      setTraceFeedback("No unapplied safe suggestions available.");
+      return;
+    }
+    let appliedCount = 0;
+    let skippedCount = 0;
+    const appliedIds: string[] = [];
+    unappliedSafeBulkSuggestions.forEach((suggestion) => {
+      if (applyTraceSuggestion(suggestion)) {
+        appliedCount += 1;
+        appliedIds.push(suggestion.id);
+      } else {
+        skippedCount += 1;
+      }
+    });
+    if (appliedIds.length > 0) {
+      setAppliedSuggestionIds((current) => {
+        const next = new Set(current);
+        appliedIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+    if (appliedCount > 0) {
+      setTraceFeedback(
+        skippedCount > 0
+          ? `Applied ${appliedCount} safe fixes (${skippedCount} skipped as stale).`
+          : `Applied ${appliedCount} safe fixes.`,
+      );
+      return;
+    }
+    setTraceFeedback("Safe suggestions were stale and could not be applied.");
+  }, [applyTraceSuggestion, unappliedSafeBulkSuggestions]);
 
   if (
     connections.rigs.length === 0 &&
@@ -317,37 +432,126 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
 
         {trace.suggestedFixes.length > 0 && (
           <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
-            <div className="text-[9px] font-semibold text-emerald-300 uppercase tracking-wide">
-              Suggested Fixes
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[9px] font-semibold text-emerald-300 uppercase tracking-wide">
+                Suggested Fixes
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                disabled={unappliedSafeBulkSuggestions.length === 0}
+                onClick={handleApplySafeSuggestions}
+              >
+                Apply Safe ({unappliedSafeBulkSuggestions.length})
+              </Button>
             </div>
-            <div className="flex flex-col gap-1 mt-1">
-              {trace.suggestedFixes.map((suggestion) => (
-                <div
-                  key={suggestion.id}
-                  className="rounded border border-emerald-400/30 bg-slate-900/40 px-2 py-1.5"
-                >
-                  <div className="text-[9px] text-emerald-100 font-medium">
-                    {suggestion.kind === "link-parent-binding"
-                      ? `${suggestion.poseName}: link ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`
-                      : `${suggestion.poseName}: retarget ${suggestion.fromInputId} -> ${suggestion.toInputId}`}
-                  </div>
-                  <div className="text-[9px] text-emerald-200/80 mt-0.5">
-                    {suggestion.reason} (
-                    {(suggestion.confidence * 100).toFixed(0)}
-                    %)
-                  </div>
-                  <div className="mt-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
-                      onClick={() => applyTraceSuggestion(suggestion)}
-                    >
-                      Apply Suggested Fix
-                    </Button>
-                  </div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              <Chip tone="info">
+                Link {suggestionsByKind.linkParent.length}
+              </Chip>
+              <Chip tone="warning">
+                Retarget {suggestionsByKind.retarget.length}
+              </Chip>
+              <Chip tone="success">Safe {safeBulkSuggestions.length}</Chip>
+            </div>
+            {traceFeedback && (
+              <div className="text-[9px] text-emerald-200 mt-1">
+                {traceFeedback}
+              </div>
+            )}
+            <div className="flex flex-col gap-2 mt-1">
+              {suggestionsByKind.linkParent.length > 0 && (
+                <div className="text-[9px] uppercase tracking-wide text-emerald-200/80">
+                  Link parent bindings
                 </div>
-              ))}
+              )}
+              {suggestionsByKind.linkParent.map((suggestion) => {
+                const isApplied = appliedSuggestionIds.has(suggestion.id);
+                return (
+                  <div
+                    key={suggestion.id}
+                    className="rounded border border-emerald-400/30 bg-slate-900/40 px-2 py-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[9px] text-emerald-100 font-medium">
+                        {`${suggestion.poseName}: link ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`}
+                      </div>
+                      <Chip
+                        tone={
+                          suggestion.confidence >= 0.8
+                            ? "success"
+                            : suggestion.confidence >= 0.6
+                              ? "info"
+                              : "warning"
+                        }
+                      >
+                        {(suggestion.confidence * 100).toFixed(0)}%
+                      </Chip>
+                    </div>
+                    <div className="text-[9px] text-emerald-200/80 mt-0.5">
+                      {suggestion.reason}
+                    </div>
+                    <div className="mt-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                        disabled={isApplied}
+                        onClick={() => handleApplySuggestion(suggestion)}
+                      >
+                        {isApplied ? "Applied" : "Apply Suggested Fix"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {suggestionsByKind.retarget.length > 0 && (
+                <div className="text-[9px] uppercase tracking-wide text-emerald-200/80 mt-1">
+                  Retarget pose outputs
+                </div>
+              )}
+              {suggestionsByKind.retarget.map((suggestion) => {
+                const isApplied = appliedSuggestionIds.has(suggestion.id);
+                return (
+                  <div
+                    key={suggestion.id}
+                    className="rounded border border-emerald-400/30 bg-slate-900/40 px-2 py-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[9px] text-emerald-100 font-medium">
+                        {`${suggestion.poseName}: retarget ${suggestion.fromInputId} -> ${suggestion.toInputId}`}
+                      </div>
+                      <Chip
+                        tone={
+                          suggestion.confidence >= 0.8
+                            ? "success"
+                            : suggestion.confidence >= 0.6
+                              ? "info"
+                              : "warning"
+                        }
+                      >
+                        {(suggestion.confidence * 100).toFixed(0)}%
+                      </Chip>
+                    </div>
+                    <div className="text-[9px] text-emerald-200/80 mt-0.5">
+                      {suggestion.reason}
+                    </div>
+                    <div className="mt-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                        disabled={isApplied}
+                        onClick={() => handleApplySuggestion(suggestion)}
+                      >
+                        {isApplied ? "Applied" : "Apply Suggested Fix"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

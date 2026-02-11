@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
-import { buildPoseRigFaceTrace, collectRigDependents } from "./rigConnections";
+import {
+  buildPoseRigFaceTrace,
+  collectRigDependents,
+  selectSafePoseRigTraceSuggestions,
+  type PoseRigTraceSuggestion,
+} from "./rigConnections";
 
 function createSceneNode(
   id: string,
@@ -281,5 +286,72 @@ describe("buildPoseRigFaceTrace", () => {
     expect(
       trace.suggestedFixes.some((fix) => fix.kind === "retarget-pose-output"),
     ).toBe(true);
+  });
+});
+
+describe("selectSafePoseRigTraceSuggestions", () => {
+  it("keeps only high-confidence non-conflicting suggestions", () => {
+    const suggestions: PoseRigTraceSuggestion[] = [
+      {
+        id: "link-high",
+        kind: "link-parent-binding",
+        poseId: "pose_1",
+        poseName: "Pose 1",
+        childInputId: "rig/child/mouth_open",
+        upstreamInputId: "rig/parent/jaw_open",
+        targetId: "anim://mouth/open",
+        targetLabel: "Face Mesh · Mouth Open",
+        confidence: 0.91,
+        reason: "Best link",
+      },
+      {
+        id: "link-dup",
+        kind: "link-parent-binding",
+        poseId: "pose_1",
+        poseName: "Pose 1",
+        childInputId: "rig/child/mouth_open",
+        upstreamInputId: "rig/parent/lip_open",
+        targetId: "anim://mouth/open",
+        targetLabel: "Face Mesh · Mouth Open",
+        confidence: 0.82,
+        reason: "Duplicate child target",
+      },
+      {
+        id: "retarget-high",
+        kind: "retarget-pose-output",
+        poseId: "pose_1",
+        poseName: "Pose 1",
+        fromInputId: "legacy/jaw/open",
+        toInputId: "rig/parent/jaw_open",
+        confidence: 0.88,
+        reason: "Best retarget",
+      },
+      {
+        id: "retarget-target-conflict",
+        kind: "retarget-pose-output",
+        poseId: "pose_1",
+        poseName: "Pose 1",
+        fromInputId: "legacy/lip/open",
+        toInputId: "rig/parent/jaw_open",
+        confidence: 0.86,
+        reason: "Conflicts on same pose target",
+      },
+      {
+        id: "retarget-low",
+        kind: "retarget-pose-output",
+        poseId: "pose_2",
+        poseName: "Pose 2",
+        fromInputId: "legacy/brow/down",
+        toInputId: "rig/brow/down",
+        confidence: 0.41,
+        reason: "Low confidence",
+      },
+    ];
+
+    const selected = selectSafePoseRigTraceSuggestions(suggestions, 0.6);
+    expect(selected.map((entry) => entry.id)).toEqual([
+      "link-high",
+      "retarget-high",
+    ]);
   });
 });
