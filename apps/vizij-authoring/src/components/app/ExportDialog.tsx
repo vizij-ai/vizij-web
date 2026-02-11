@@ -112,6 +112,7 @@ export function ExportDialog({
       poseConfigFileName: poseRig.poseConfigFileName,
       importPoseConfig: poseRig.importPoseConfig,
       blendMode: poseRig.blendMode,
+      crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
   });
 
@@ -192,6 +193,8 @@ export function ExportDialog({
             onIncludeAnimationsChange={handleIncludeAnimationsChange}
             blendMode={poseRig.blendMode}
             onBlendModeChange={poseRig.setBlendMode}
+            crossGroupBlendMode={poseRig.crossGroupBlendMode}
+            onCrossGroupBlendModeChange={poseRig.setCrossGroupBlendMode}
           />
         </div>
 

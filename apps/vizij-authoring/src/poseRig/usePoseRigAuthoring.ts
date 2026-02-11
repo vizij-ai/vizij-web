@@ -37,6 +37,8 @@ export interface UsePoseRigAuthoringResult {
   setRigKind: (kind: "generic" | "face-specific") => void;
   blendMode: "average" | "additive";
   setBlendMode: (mode: "average" | "additive") => void;
+  crossGroupBlendMode: "average" | "additive";
+  setCrossGroupBlendMode: (mode: "average" | "additive") => void;
   standardInputs: StandardRigInput[];
   poses: PoseDefinition[];
   selectedPoseId: string | null;
@@ -118,6 +120,7 @@ export function usePoseRigAuthoring(
   const rigName = store.rigName;
   const rigKind = store.rigKind;
   const blendMode = store.blendMode;
+  const crossGroupBlendMode = store.crossGroupBlendMode;
   const poseGraphSpec = store.poseGraphSpec;
   const poseGraphSummary = store.poseGraphSummary;
   const poseConfigDraft = store.poseConfigDraft;
@@ -170,6 +173,7 @@ export function usePoseRigAuthoring(
   }, [store, applyInputBatch]);
   const resetPoseState = store.reset;
   const setBlendMode = store.setBlendMode;
+  const setCrossGroupBlendMode = store.setCrossGroupBlendMode;
   const setRigKind = store.setRigKind;
 
   // Derived actions
@@ -373,6 +377,8 @@ export function usePoseRigAuthoring(
     currentValues,
     blendMode,
     setBlendMode,
+    crossGroupBlendMode,
+    setCrossGroupBlendMode,
     rigKind,
     setRigKind,
     standardInputs: visibleStandardInputs,

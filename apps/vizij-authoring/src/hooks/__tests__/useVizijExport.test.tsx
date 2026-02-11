@@ -175,6 +175,7 @@ function createOptions(
       poseConfigFileName: "pose_config.json",
       importPoseConfig: vi.fn(),
       blendMode: "average" as const,
+      crossGroupBlendMode: "additive" as const,
     },
     ...overrides,
   };
@@ -297,6 +298,7 @@ describe("useVizijExport", () => {
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
         blendMode: "additive" as const,
+        crossGroupBlendMode: "additive" as const,
       },
     });
     const hook = renderHook(options);
@@ -308,7 +310,10 @@ describe("useVizijExport", () => {
     expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
       options.poseRig.poseConfigDraft,
       Array.from(options.standardInputsById.values()),
-      expect.objectContaining({ blendMode: "additive" }),
+      expect.objectContaining({
+        defaultGroupBlendMode: "additive",
+        crossGroupBlendMode: "additive",
+      }),
     );
     hook.unmount();
   });
@@ -342,6 +347,7 @@ describe("useVizijExport", () => {
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
         blendMode: "additive" as const,
+        crossGroupBlendMode: "additive" as const,
       },
     });
     const hook = renderHook(options);
@@ -353,7 +359,10 @@ describe("useVizijExport", () => {
     expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
       options.poseRig.poseConfigDraft,
       Array.from(options.standardInputsById.values()),
-      expect.objectContaining({ blendMode: "additive" }),
+      expect.objectContaining({
+        defaultGroupBlendMode: "additive",
+        crossGroupBlendMode: "additive",
+      }),
     );
     expect(mockedPoseGraphService.validate).toHaveBeenCalledWith(
       { nodes: [{ id: "pose1", type: "output" }] },
@@ -393,6 +402,7 @@ describe("useVizijExport", () => {
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
         blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
       },
     });
     const hook = renderHook(options);
@@ -425,6 +435,7 @@ describe("useVizijExport", () => {
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
         blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
       },
     });
     const hook = renderHook(options);

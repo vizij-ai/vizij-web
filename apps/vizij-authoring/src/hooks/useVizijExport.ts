@@ -41,6 +41,7 @@ interface PoseRigExportState {
   poseConfigFileName: string;
   importPoseConfig: (file: File) => Promise<void>;
   blendMode?: "average" | "additive";
+  crossGroupBlendMode?: "average" | "additive";
 }
 
 type TraversableBody = {
@@ -229,7 +230,8 @@ export function useVizijExport(
             poseRig.poseConfigDraft,
             standardInputs,
             {
-              blendMode: poseRig.blendMode ?? "average",
+              defaultGroupBlendMode: poseRig.blendMode ?? "average",
+              crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
             },
           );
           poseGraphSpecForExport = spec;
@@ -344,7 +346,8 @@ export function useVizijExport(
         poseRig.poseConfigDraft,
         inputs,
         {
-          blendMode: poseRig.blendMode ?? "average",
+          defaultGroupBlendMode: poseRig.blendMode ?? "average",
+          crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
         },
       );
       const warnings = PoseGraphService.validate(spec, inputs);

@@ -20,6 +20,8 @@ interface ExportPanelProps {
   onIncludeAnimationsChange: (value: boolean) => void;
   blendMode: "average" | "additive";
   onBlendModeChange: (mode: "average" | "additive") => void;
+  crossGroupBlendMode: "average" | "additive";
+  onCrossGroupBlendModeChange: (mode: "average" | "additive") => void;
 }
 
 export function ExportPanel({
@@ -34,6 +36,8 @@ export function ExportPanel({
   onIncludeAnimationsChange,
   blendMode,
   onBlendModeChange,
+  crossGroupBlendMode,
+  onCrossGroupBlendModeChange,
 }: ExportPanelProps) {
   const animationsAvailable = animationCount > 0;
 
@@ -83,8 +87,8 @@ export function ExportPanel({
           round-tripping while still producing standard glTF animations.
         </p>
         <FieldRow
-          label="Pose blend mode"
-          hint="Averaging prevents neutral channels from diluting active poses; additive applies weighted sums."
+          label="Pose group blend mode"
+          hint="Controls how poses blend within each pose group."
           renderLabelInControl
           control={
             <div className="button-group button-group--segmented">
@@ -103,6 +107,35 @@ export function ExportPanel({
                 disabled={!includeBundle || !canExport}
               >
                 Additive
+              </Button>
+            </div>
+          }
+        />
+        <FieldRow
+          label="Cross-group blend mode"
+          hint="Controls how pose-group outputs combine per rig target."
+          renderLabelInControl
+          control={
+            <div className="button-group button-group--segmented">
+              <Button
+                size="sm"
+                variant={
+                  crossGroupBlendMode === "additive" ? "primary" : "subtle"
+                }
+                onClick={() => onCrossGroupBlendModeChange("additive")}
+                disabled={!includeBundle || !canExport}
+              >
+                Additive
+              </Button>
+              <Button
+                size="sm"
+                variant={
+                  crossGroupBlendMode === "average" ? "primary" : "subtle"
+                }
+                onClick={() => onCrossGroupBlendModeChange("average")}
+                disabled={!includeBundle || !canExport}
+              >
+                Average
               </Button>
             </div>
           }
