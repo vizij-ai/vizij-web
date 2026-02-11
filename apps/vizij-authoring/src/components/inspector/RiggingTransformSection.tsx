@@ -7,7 +7,7 @@ import type {
 } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
-import { resolveEffectiveBindingStandardInput } from "./bindingSlotResolution";
+import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -20,6 +20,7 @@ export function RiggingTransformSection({
     bindings,
     standardInputs,
     standardInputsById,
+    inputBindings,
     inputValues,
     handleInputValueChange,
     handleUpdateStandardInput, // To update default value
@@ -50,6 +51,7 @@ export function RiggingTransformSection({
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
+          inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
           onDefaultChange={(id, val) =>
@@ -65,6 +67,7 @@ export function RiggingTransformSection({
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
+          inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
           onDefaultChange={(id, val) =>
@@ -80,6 +83,7 @@ export function RiggingTransformSection({
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
+          inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
           onDefaultChange={(id, val) =>
@@ -98,6 +102,10 @@ interface RiggingVectorRowProps {
   bindings: any;
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
+  inputBindings: Record<
+    string,
+    { inputId?: string | null; slots?: Array<{ inputId?: string | null }> }
+  >;
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
@@ -109,6 +117,7 @@ function RiggingVectorRow({
   bindings,
   standardInputs,
   standardInputsById,
+  inputBindings,
   inputValues,
   onValueChange,
   onDefaultChange,
@@ -125,17 +134,20 @@ function RiggingVectorRow({
       let inputId = null;
       let standardInput = null;
       let unresolvedInputId = null;
+      let blockedReason: string | null = null;
 
       if (targetId) {
         const binding = bindings[targetId];
-        const resolved = resolveEffectiveBindingStandardInput(
+        const resolved = resolveEffectiveControllableBindingStandardInput(
           binding,
           standardInputsById,
           standardInputs,
+          inputBindings,
         );
         inputId = resolved.inputId;
         standardInput = resolved.input;
         unresolvedInputId = resolved.unresolvedInputId;
+        blockedReason = resolved.blockedReason;
       }
 
       // 2. Determine values
@@ -148,6 +160,7 @@ function RiggingVectorRow({
           defaultValue: standardInput.defaultValue ?? 0,
           isBound: true,
           unresolvedInputId,
+          blockedReason,
         };
       } else {
         const val = comp.staticValue ?? 0;
@@ -158,10 +171,18 @@ function RiggingVectorRow({
           defaultValue: val,
           isBound: false,
           unresolvedInputId,
+          blockedReason,
         };
       }
     });
-  }, [feature, bindings, standardInputs, standardInputsById, inputValues]);
+  }, [
+    feature,
+    bindings,
+    standardInputs,
+    standardInputsById,
+    inputBindings,
+    inputValues,
+  ]);
 
   if (components.length === 0) return null;
 
@@ -237,9 +258,11 @@ function RiggingVectorRow({
               disabled={!canEdit}
               title={
                 !canEdit
-                  ? c.unresolvedInputId
-                    ? `Driver "${c.unresolvedInputId}" is unresolved. Open My Drivers to remap.`
-                    : "Value is not driven by a rig input"
+                  ? c.blockedReason
+                    ? c.blockedReason
+                    : c.unresolvedInputId
+                      ? `Driver "${c.unresolvedInputId}" is unresolved. Open My Drivers to remap.`
+                      : "Value is not driven by a rig input"
                   : undefined
               }
               onChange={(e) => {

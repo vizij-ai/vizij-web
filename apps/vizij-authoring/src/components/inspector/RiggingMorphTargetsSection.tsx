@@ -6,7 +6,7 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
-import { resolveEffectiveBindingStandardInput } from "./bindingSlotResolution";
+import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -21,6 +21,7 @@ export function RiggingMorphTargetsSection({
     bindings,
     standardInputs,
     standardInputsById,
+    inputBindings,
     inputValues,
     handleInputValueChange,
     handleUpdateStandardInput,
@@ -63,6 +64,7 @@ export function RiggingMorphTargetsSection({
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
+          inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
           onDefaultChange={(id, val) =>
@@ -81,6 +83,10 @@ interface RiggingScalarRowProps {
   bindings: any;
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
+  inputBindings: Record<
+    string,
+    { inputId?: string | null; slots?: Array<{ inputId?: string | null }> }
+  >;
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
@@ -92,6 +98,7 @@ function RiggingScalarRow({
   bindings,
   standardInputs,
   standardInputsById,
+  inputBindings,
   inputValues,
   onValueChange,
   onDefaultChange,
@@ -104,20 +111,23 @@ function RiggingScalarRow({
   let inputId: string | null = null;
   let standardInput: StandardRigInput | null = null;
   let unresolvedInputId: string | null = null;
+  let blockedReason: string | null = null;
 
   if (targetId) {
     const binding = bindings[targetId];
-    const resolved = resolveEffectiveBindingStandardInput(
+    const resolved = resolveEffectiveControllableBindingStandardInput(
       binding,
       standardInputsById,
       standardInputs,
+      inputBindings,
     );
     inputId = resolved.inputId;
     standardInput = resolved.input;
     unresolvedInputId = resolved.unresolvedInputId;
+    blockedReason = resolved.blockedReason;
   }
 
-  const isBound = !!(inputId && standardInput);
+  const isBound = !!(inputId && standardInput) && !blockedReason;
   const currentValue = isBound
     ? (inputValues[inputId!] ?? standardInput!.defaultValue ?? 0)
     : (component.staticValue ?? 0);
@@ -172,9 +182,11 @@ function RiggingScalarRow({
           disabled={!canEdit}
           title={
             !canEdit
-              ? unresolvedInputId
-                ? `Driver "${unresolvedInputId}" is unresolved. Open My Drivers to remap.`
-                : "Value is not driven by a rig input"
+              ? blockedReason
+                ? blockedReason
+                : unresolvedInputId
+                  ? `Driver "${unresolvedInputId}" is unresolved. Open My Drivers to remap.`
+                  : "Value is not driven by a rig input"
               : undefined
           }
           onChange={(e) => {

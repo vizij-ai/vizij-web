@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { createStandardRigInput } from "@vizij/utils";
 import {
+  resolveControllableInputId,
+  resolveEffectiveControllableBindingStandardInput,
   resolveEffectiveBindingInputId,
   resolveEffectiveBindingStandardInput,
 } from "./bindingSlotResolution";
@@ -120,5 +122,109 @@ describe("resolveEffectiveBindingStandardInput", () => {
     expect(result.inputId).toBe("/jaw/open");
     expect(result.input).toBeNull();
     expect(result.unresolvedInputId).toBe("/jaw/open");
+  });
+});
+
+describe("resolveControllableInputId", () => {
+  it("returns the same input when no parent binding exists", () => {
+    expect(resolveControllableInputId("jaw_open", {})).toEqual({
+      inputId: "jaw_open",
+      blockedReason: null,
+    });
+  });
+
+  it("walks upstream when current input has no self slot", () => {
+    const result = resolveControllableInputId("jaw_open", {
+      jaw_open: {
+        inputId: "mouth_open",
+        slots: [{ inputId: "mouth_open" }],
+      },
+      mouth_open: {
+        inputId: SELF_BINDING_ID,
+        slots: [{ inputId: SELF_BINDING_ID }],
+      },
+    });
+    expect(result).toEqual({
+      inputId: "mouth_open",
+      blockedReason: null,
+    });
+  });
+
+  it("returns blocked for multi-parent bindings without self", () => {
+    const result = resolveControllableInputId("jaw_open", {
+      jaw_open: {
+        slots: [{ inputId: "left_parent" }, { inputId: "right_parent" }],
+      },
+    });
+    expect(result.inputId).toBeNull();
+    expect(result.blockedReason).toContain("multiple parent drivers");
+  });
+});
+
+describe("resolveEffectiveControllableBindingStandardInput", () => {
+  it("resolves to a controllable upstream input when direct input lacks self", () => {
+    const upstream = createStandardRigInput({
+      id: "mouth_open",
+      path: "/mouth/open",
+      label: "Mouth Open",
+      group: "mouth",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    });
+    const derived = createStandardRigInput({
+      id: "jaw_open",
+      path: "/jaw/open",
+      label: "Jaw Open",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    });
+    const resolved = resolveEffectiveControllableBindingStandardInput(
+      { inputId: "jaw_open" },
+      new Map([
+        [upstream.id, upstream],
+        [derived.id, derived],
+      ]),
+      [upstream, derived],
+      {
+        jaw_open: {
+          inputId: "mouth_open",
+          slots: [{ inputId: "mouth_open" }],
+        },
+        mouth_open: {
+          inputId: SELF_BINDING_ID,
+          slots: [{ inputId: SELF_BINDING_ID }],
+        },
+      },
+    );
+    expect(resolved.inputId).toBe("mouth_open");
+    expect(resolved.input).toEqual(upstream);
+    expect(resolved.unresolvedInputId).toBeNull();
+    expect(resolved.blockedReason).toBeNull();
+  });
+
+  it("returns blocked reason for multi-parent non-self chains", () => {
+    const derived = createStandardRigInput({
+      id: "jaw_open",
+      path: "/jaw/open",
+      label: "Jaw Open",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    });
+    const resolved = resolveEffectiveControllableBindingStandardInput(
+      { inputId: "jaw_open" },
+      new Map([[derived.id, derived]]),
+      [derived],
+      {
+        jaw_open: {
+          slots: [{ inputId: "left_parent" }, { inputId: "right_parent" }],
+        },
+      },
+    );
+    expect(resolved.inputId).toBe("jaw_open");
+    expect(resolved.input).toEqual(derived);
+    expect(resolved.unresolvedInputId).toBeNull();
+    expect(resolved.blockedReason).toContain("multiple parent drivers");
   });
 });

@@ -56,6 +56,7 @@ import {
   hasParentBindingInput,
   resolveRigDrivenSelection,
 } from "./inspectorActions";
+import { resolveControllableInputId } from "./bindingSlotResolution";
 
 type PoseVariableItem =
   | {
@@ -1445,6 +1446,20 @@ export function InspectorContent() {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
       const parentBinding = inputBindings[input.id];
+      const controllableResolution = resolveControllableInputId(
+        input.id,
+        inputBindings,
+      );
+      const isDirectRigControlAvailable =
+        !controllableResolution.blockedReason &&
+        (controllableResolution.inputId === null ||
+          controllableResolution.inputId === input.id);
+      const directRigControlReason = controllableResolution.blockedReason
+        ? controllableResolution.blockedReason
+        : controllableResolution.inputId &&
+            controllableResolution.inputId !== input.id
+          ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Edit My Drivers to add local control or adjust "${controllableResolution.inputId}".`
+          : null;
       const standardInputList = managedStandardInputs.map(
         (entry) => entry.input,
       );
@@ -1563,6 +1578,9 @@ export function InspectorContent() {
                   scrubValuesRef.current[input.id] = value;
                 }}
                 onScrub={(_, totalDelta) => {
+                  if (!isDirectRigControlAvailable) {
+                    return;
+                  }
                   const step = (input.range.max - input.range.min) / 100;
                   const startVal = scrubValuesRef.current[input.id] ?? 0;
                   handleInputValueChange(
@@ -1571,30 +1589,47 @@ export function InspectorContent() {
                   );
                 }}
                 renderMainInput={() => (
-                  <div className="flex items-center gap-2 flex-1">
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 flex-1",
+                      !isDirectRigControlAvailable && "opacity-70",
+                    )}
+                    title={directRigControlReason ?? undefined}
+                  >
                     <Slider
                       min={input.range.min ?? -1}
                       max={input.range.max ?? 1}
                       step={0.01}
                       value={value}
                       className="flex-1"
-                      onChange={(val) =>
-                        handleInputValueChange(input.id, val as number)
-                      }
+                      onChange={(val) => {
+                        if (!isDirectRigControlAvailable) {
+                          return;
+                        }
+                        handleInputValueChange(input.id, val as number);
+                      }}
                     />
                     <div className="w-12 flex-shrink-0">
                       <NumberField
                         size="sm"
                         value={value}
                         className="bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
-                        onChange={(val) =>
-                          handleInputValueChange(input.id, val)
-                        }
+                        onChange={(val) => {
+                          if (!isDirectRigControlAvailable) {
+                            return;
+                          }
+                          handleInputValueChange(input.id, val);
+                        }}
                       />
                     </div>
                   </div>
                 )}
               />
+              {!isDirectRigControlAvailable && directRigControlReason && (
+                <p className="text-[10px] text-amber-300/90 px-1 -mt-2">
+                  {directRigControlReason}
+                </p>
+              )}
               <div className="flex flex-col gap-2 flex-1 min-h-0">
                 <div className="flex items-center gap-2 px-1 py-1">
                   <Sliders size={12} className="text-slate-500" />
@@ -1944,6 +1979,7 @@ export function InspectorContent() {
                   bindings={bindings}
                   standardInputs={standardInputs}
                   standardInputsById={standardInputsById}
+                  inputBindings={inputBindings}
                   inputValues={inputValues}
                   onValueChange={handleInputValueChange}
                   onDefaultChange={(id, val) =>
@@ -1959,6 +1995,7 @@ export function InspectorContent() {
                   bindings={bindings}
                   standardInputs={standardInputs}
                   standardInputsById={standardInputsById}
+                  inputBindings={inputBindings}
                   inputValues={inputValues}
                   onValueChange={handleInputValueChange}
                   onDefaultChange={(id, val) =>
