@@ -25,22 +25,9 @@ import type {
 import {
   canonicalizeGraphComparable,
   diffGraphSpecs,
+  rewriteGraphFaceNamespace,
 } from "../utils/graphDiff";
 import { sanitizeFaceId } from "../utils/faceId";
-import type { GraphDiffEntry } from "../types/discrepancy";
-
-function isFaceRenameOnlyDiff(entry: GraphDiffEntry): boolean {
-  if (entry.category !== "identifiers" && entry.category !== "metadata") {
-    return false;
-  }
-  const lowerPath = entry.path.toLowerCase();
-  return (
-    lowerPath.includes("face") ||
-    lowerPath.includes("rig/") ||
-    lowerPath.includes("node_id") ||
-    lowerPath.includes(".id")
-  );
-}
 
 interface UseRigGraphImportOptions {
   faceId: string;
@@ -270,24 +257,45 @@ export function useRigGraphImport({
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
 
         if (shouldOpenDiscrepancyWizard) {
-          const diffResult =
+          const initialDiffResult =
             importedSignature === rebuiltSignature
               ? { entries: [], limitReached: false }
               : diffGraphSpecs(importedComparable, rebuiltComparable, {
                   limit: 300,
                 });
-          const canAutoResolveFaceRename =
+          let diffResult = initialDiffResult;
+
+          let canAutoResolveFaceRename = false;
+          if (
             importedFaceId !== null &&
             importedFaceId !== faceId &&
-            missingBlueprintPaths.length === 0 &&
-            diffResult.entries.length > 0 &&
-            diffResult.entries.every((entry: GraphDiffEntry) =>
-              isFaceRenameOnlyDiff(entry),
+            missingBlueprintPaths.length === 0
+          ) {
+            const rewrittenComparable = rewriteGraphFaceNamespace(
+              importedComparable,
+              importedFaceId,
+              faceId,
             );
+            const rewrittenSignature = JSON.stringify(rewrittenComparable);
+            diffResult =
+              rewrittenSignature === rebuiltSignature
+                ? { entries: [], limitReached: false }
+                : diffGraphSpecs(rewrittenComparable, rebuiltComparable, {
+                    limit: 300,
+                  });
+            canAutoResolveFaceRename = diffResult.entries.length === 0;
+          }
+
+          debugLog("discrepancy diff summary", {
+            initialDiffCount: initialDiffResult.entries.length,
+            residualDiffCount: diffResult.entries.length,
+            canAutoResolveFaceRename,
+          });
+
           if (canAutoResolveFaceRename) {
             discrepancyResult = {
               accepted: true,
-              renameFaceId: importedFaceId,
+              renameFaceId: importedFaceId ?? undefined,
             };
           }
 
