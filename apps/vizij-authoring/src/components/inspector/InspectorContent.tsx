@@ -23,6 +23,7 @@ import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { rgbToHex, hexToRgb } from "../../utils/color";
 import { cleanLabel } from "../../utils/labels";
+import { EmptyState } from "../ui/EmptyState";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
@@ -34,7 +35,7 @@ import {
   RiggingScalarRow,
   RiggingColorRow,
 } from "./RiggingMaterialSection";
-import { EmptyState } from "../ui/EmptyState";
+import { collectRigDependents } from "./rigConnections";
 
 type PoseVariableItem =
   | { type: "scalar"; varId: string; poseVal: number }
@@ -92,6 +93,7 @@ export function InspectorContent() {
     applyStandardInputBatch,
     inputValues,
     bindings,
+    inputBindings,
     handleCreateCustomStandardInput,
     handleAddBindingSlot,
     handleUpdateStandardInput,
@@ -738,28 +740,12 @@ export function InspectorContent() {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
       const dependents = (() => {
-        const list: { name: string; targetId: string }[] = [];
-        Object.entries(bindings).forEach(([targetId, binding]) => {
-          const isDriven =
-            binding.inputId === selectedRigId ||
-            (binding.slots &&
-              binding.slots.some((s) => s.inputId === selectedRigId));
-          if (isDriven) {
-            let label = targetId;
-            for (const obj of objects) {
-              for (const feat of obj.features) {
-                for (const comp of feat.components) {
-                  if (comp.targetId === targetId) {
-                    label = `${obj.name} · ${feat.label} ${feat.components.length > 1 ? comp.label : ""} `;
-                    break;
-                  }
-                }
-              }
-            }
-            list.push({ name: label, targetId });
-          }
+        return collectRigDependents({
+          selectedRigId,
+          bindings,
+          inputBindings,
+          objects,
         });
-        return list;
       })();
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
