@@ -587,7 +587,7 @@ export function InspectorContent() {
               className="h-6 text-[10px]"
               onClick={() => setSceneInspectorView("bindings")}
             >
-              Binding Editor
+              My Drivers
             </Button>
           </div>
           {sceneInspectorView === "quick" ? (
@@ -901,7 +901,7 @@ export function InspectorContent() {
           <div className="flex items-center gap-2 px-1 mb-2">
             <div className="h-px bg-border-default flex-1" />
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
-              Driving {Object.keys(pose.values).length} Variables
+              What I Drive · {Object.keys(pose.values).length} Variables
             </span>
             <div className="h-px bg-border-default flex-1" />
           </div>
@@ -1003,7 +1003,7 @@ export function InspectorContent() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
-                                    title={`Edit binding for ${rawLabel} without leaving Pose`}
+                                    title={`Edit drivers for ${rawLabel} without leaving Pose`}
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setPoseBindingEditorInputId(varId);
@@ -1015,7 +1015,7 @@ export function InspectorContent() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
-                                    title={`Inspect variable bindings for ${rawLabel}`}
+                                    title={`Inspect driver chain for ${rawLabel}`}
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       openRigInspector(varId, "bindings");
@@ -1310,12 +1310,12 @@ export function InspectorContent() {
             onClose={() => setPoseBindingEditorInputId(null)}
             title={
               poseBindingEditorInputId
-                ? `Edit Binding · ${
+                ? `Edit My Drivers · ${
                     managedStandardInputs.find(
                       (entry) => entry.input.id === poseBindingEditorInputId,
                     )?.input.label ?? poseBindingEditorInputId
                   }`
-                : "Edit Binding"
+                : "Edit My Drivers"
             }
             maxWidth="lg"
           >
@@ -1474,7 +1474,7 @@ export function InspectorContent() {
               className="h-6 text-[10px]"
               onClick={() => setRigInspectorView("bindings")}
             >
-              Binding Editor
+              My Drivers
             </Button>
           </div>
 
@@ -1522,7 +1522,7 @@ export function InspectorContent() {
                 <div className="flex items-center gap-2 px-1 py-1">
                   <Sliders size={12} className="text-slate-500" />
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Driving {downstreamInputs.length} variables ·{" "}
+                    What I Drive · {downstreamInputs.length} variables ·{" "}
                     {dependents.length} properties
                   </span>
                 </div>
@@ -1634,11 +1634,11 @@ export function InspectorContent() {
                   onClose={() => setRigDrivenBindingTargetId(null)}
                   title={
                     rigDrivenBindingTargetId
-                      ? `Edit Driven Binding · ${
+                      ? `Edit Target Drivers · ${
                           targetLabelById.get(rigDrivenBindingTargetId) ??
                           rigDrivenBindingTargetId
                         }`
-                      : "Edit Driven Binding"
+                      : "Edit Target Drivers"
                   }
                   maxWidth="lg"
                 >

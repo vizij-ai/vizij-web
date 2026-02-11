@@ -375,7 +375,7 @@ export function BindingConnections({
     <div className="flex flex-col gap-3 p-2 mt-2 border-t border-border-default/50">
       <label className="text-[10px] font-bold text-text-secondary uppercase flex items-center gap-1">
         <LinkIcon size={10} />
-        Connected To
+        My Driver Chain
       </label>
 
       <div className="flex flex-col gap-1.5">
@@ -406,7 +406,7 @@ export function BindingConnections({
                     {pose.label}
                   </div>
                   <span className="text-[9px] opacity-50 truncate max-w-[160px]">
-                    drives: {pose.features.slice(0, 3).join(", ")}
+                    affects: {pose.features.slice(0, 3).join(", ")}
                     {pose.features.length > 3 ? "..." : ""}
                   </span>
                 </div>
@@ -442,7 +442,7 @@ export function BindingConnections({
                     {rig.label}
                   </div>
                   <span className="text-[9px] opacity-50 truncate max-w-[160px]">
-                    drives: {rig.features.join(", ")}
+                    affects: {rig.features.join(", ")}
                   </span>
                 </div>
               </Button>
