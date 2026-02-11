@@ -6,6 +6,7 @@ import {
   buildPoseRigFaceTrace,
   collectRigDependents,
   selectSafePoseRigTraceSuggestions,
+  summarizeTraceConnections,
   type PoseRigTraceSuggestion,
 } from "./rigConnections";
 
@@ -286,6 +287,69 @@ describe("buildPoseRigFaceTrace", () => {
     expect(
       trace.suggestedFixes.some((fix) => fix.kind === "retarget-pose-output"),
     ).toBe(true);
+  });
+});
+
+describe("summarizeTraceConnections", () => {
+  const standardInputsById = new Map<string, StandardRigInput>([
+    [
+      "rig/parent/jaw_open",
+      {
+        id: "rig/parent/jaw_open",
+        path: "/standard/face/jaw/open",
+        label: "Jaw Open",
+        group: "standard",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      },
+    ],
+    [
+      "rig/child/mouth_open",
+      {
+        id: "rig/child/mouth_open",
+        path: "/standard/face/mouth/open",
+        label: "Mouth Open",
+        group: "standard",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      },
+    ],
+  ]);
+
+  it("derives rig and pose summaries from transitive trace chains", () => {
+    const summary = summarizeTraceConnections(
+      [
+        {
+          targetId: "anim://mouth/open",
+          targetLabel: "Face Mesh · Mouth Open",
+          directRigInputIds: ["rig/child/mouth_open"],
+          upstreamRigInputIds: ["rig/child/mouth_open", "rig/parent/jaw_open"],
+          matchedPoseOutputs: [
+            {
+              poseId: "pose_1",
+              poseName: "Jaw Open Pose",
+              inputId: "rig/parent/jaw_open",
+              value: 0.8,
+              neutral: 0,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      standardInputsById,
+    );
+
+    expect(summary.rigs.map((entry) => entry.id)).toEqual([
+      "rig/parent/jaw_open",
+      "rig/child/mouth_open",
+    ]);
+    expect(summary.poses).toEqual([
+      {
+        id: "pose_1",
+        label: "Jaw Open Pose",
+        features: ["Face Mesh · Mouth Open"],
+      },
+    ]);
   });
 });
 

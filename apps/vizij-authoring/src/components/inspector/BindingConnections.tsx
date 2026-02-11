@@ -12,6 +12,7 @@ import { Button, Chip } from "../ui";
 import {
   buildPoseRigFaceTrace,
   selectSafePoseRigTraceSuggestions,
+  summarizeTraceConnections,
   type PoseRigTraceSuggestion,
 } from "./rigConnections";
 
@@ -37,78 +38,6 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
   const { handleClearSelection } = useSelectionStore();
   const { objects } = useSceneComposer();
 
-  const connections = useMemo(() => {
-    const rigDrivers = new Map<
-      string,
-      { id: string; label: string; features: string[] }
-    >();
-    const poseDrivers = new Map<
-      string,
-      { id: string; label: string; features: string[] }
-    >();
-
-    // 1. Find direct Rig drivers
-    node.features.forEach((feature) => {
-      feature.components.forEach((comp) => {
-        const targetId = comp.targetId;
-        if (targetId && bindings[targetId]) {
-          bindings[targetId].slots.forEach((slot) => {
-            const inputId = slot.inputId;
-            if (inputId) {
-              const input = standardInputsById.get(inputId);
-              const label = input?.label || input?.path || inputId;
-
-              if (!rigDrivers.has(inputId)) {
-                rigDrivers.set(inputId, { id: inputId, label, features: [] });
-              }
-
-              const entry = rigDrivers.get(inputId)!;
-              const featureName = feature.label || feature.key;
-              if (!entry.features.includes(featureName)) {
-                entry.features.push(featureName);
-              }
-            }
-          });
-        }
-      });
-    });
-
-    // 2. Find Poses that drive these Rigs
-    const drivenRigIds = Array.from(rigDrivers.keys());
-    if (drivenRigIds.length > 0) {
-      poses.forEach((pose) => {
-        const drivenFeatures = new Set<string>();
-        let isDriving = false;
-
-        drivenRigIds.forEach((rigId) => {
-          const poseValue = pose.values[rigId];
-          const neutralValue = neutralInputs[rigId] ?? 0;
-
-          // If pose has a non-neutral value for this rig, it's a driver
-          if (poseValue !== undefined && poseValue !== neutralValue) {
-            isDriving = true;
-            rigDrivers
-              .get(rigId)
-              ?.features.forEach((f) => drivenFeatures.add(f));
-          }
-        });
-
-        if (isDriving) {
-          poseDrivers.set(pose.id, {
-            id: pose.id,
-            label: pose.name,
-            features: Array.from(drivenFeatures),
-          });
-        }
-      });
-    }
-
-    return {
-      rigs: Array.from(rigDrivers.values()),
-      poses: Array.from(poseDrivers.values()),
-    };
-  }, [node, bindings, standardInputsById, poses, neutralInputs]);
-
   const trace = useMemo(
     () =>
       buildPoseRigFaceTrace({
@@ -129,6 +58,11 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       poses,
       standardInputsById,
     ],
+  );
+
+  const connections = useMemo(
+    () => summarizeTraceConnections(trace.targets, standardInputsById),
+    [standardInputsById, trace.targets],
   );
 
   const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<Set<string>>(

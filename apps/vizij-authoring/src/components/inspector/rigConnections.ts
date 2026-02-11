@@ -12,6 +12,11 @@ interface RigDependentTarget {
   targetId: string;
 }
 
+export interface TraceConnectionsSummary {
+  rigs: Array<{ id: string; label: string; features: string[] }>;
+  poses: Array<{ id: string; label: string; features: string[] }>;
+}
+
 export interface PoseTraceOutput {
   poseId: string;
   poseName: string;
@@ -193,6 +198,73 @@ export function collectRigDependents(params: {
   return Array.from(targets.values()).sort((a, b) =>
     a.name.localeCompare(b.name),
   );
+}
+
+export function summarizeTraceConnections(
+  traceTargets: PoseRigFaceTraceTarget[],
+  standardInputsById: Map<string, StandardRigInput>,
+): TraceConnectionsSummary {
+  const rigMap = new Map<
+    string,
+    { id: string; label: string; features: Set<string> }
+  >();
+  const poseMap = new Map<
+    string,
+    { id: string; label: string; features: Set<string> }
+  >();
+
+  traceTargets.forEach((target) => {
+    const chainInputIds =
+      target.upstreamRigInputIds.length > 0
+        ? target.upstreamRigInputIds
+        : target.directRigInputIds;
+
+    chainInputIds.forEach((inputId) => {
+      const input = standardInputsById.get(inputId);
+      const label = input?.label || input?.path || inputId;
+      const existing = rigMap.get(inputId);
+      if (existing) {
+        existing.features.add(target.targetLabel);
+      } else {
+        rigMap.set(inputId, {
+          id: inputId,
+          label,
+          features: new Set([target.targetLabel]),
+        });
+      }
+    });
+
+    target.matchedPoseOutputs.forEach((output) => {
+      const existing = poseMap.get(output.poseId);
+      if (existing) {
+        existing.features.add(target.targetLabel);
+      } else {
+        poseMap.set(output.poseId, {
+          id: output.poseId,
+          label: output.poseName,
+          features: new Set([target.targetLabel]),
+        });
+      }
+    });
+  });
+
+  const rigs = Array.from(rigMap.values())
+    .map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      features: Array.from(entry.features).sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const poses = Array.from(poseMap.values())
+    .map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      features: Array.from(entry.features).sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return { rigs, poses };
 }
 
 function collectActivePoseOutputs(
