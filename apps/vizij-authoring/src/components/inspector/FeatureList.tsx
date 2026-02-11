@@ -57,6 +57,7 @@ export function FeatureList({
   } = useSceneComposer();
 
   const bindings = useBindingAuthoring((state) => state.bindings);
+  const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
@@ -262,6 +263,7 @@ export function FeatureList({
             feature={feature}
             mode={mode}
             bindings={bindings}
+            bindingIssues={bindingIssues}
             standardInputs={standardInputs}
             standardInputLookup={standardInputsById}
             inputValues={inputValues}
@@ -297,6 +299,7 @@ interface FeatureRowProps {
   feature: SceneObjectFeature;
   mode: "features" | "bindings";
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -502,6 +505,7 @@ function FeatureRow(props: FeatureRowProps) {
             feature={feature}
             component={component}
             bindings={props.bindings}
+            bindingIssues={props.bindingIssues}
             standardInputs={props.standardInputs}
             standardInputLookup={props.standardInputLookup}
             inputValues={props.inputValues}
@@ -533,6 +537,7 @@ interface FeatureBindingRowProps {
   feature: SceneObjectFeature;
   component: SceneFeatureComponent;
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -557,6 +562,7 @@ function FeatureBindingRow({
   feature,
   component,
   bindings,
+  bindingIssues,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -625,6 +631,7 @@ function FeatureBindingRow({
     <BindingEditor
       binding={binding}
       targetId={targetId}
+      issues={bindingIssues.get(targetId)}
       label={`${feature.label} ${component.label ?? ""}`.trim()}
       standardInputs={standardInputs}
       standardInputLookup={standardInputLookup}
@@ -646,6 +653,7 @@ function FeatureBindingRow({
       hiddenDriverIds={hiddenDriverIds}
       onHideDriver={showHideControls ? onHideDriver : undefined}
       onShowDriver={showHideControls ? onShowDriver : undefined}
+      allowSelfBinding={false}
       featureFlags={{
         vectorAuthoringBeta: true,
         conditionalAuthoringBeta: true,

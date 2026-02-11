@@ -114,6 +114,7 @@ export function InspectorContent() {
     applyStandardInputBatch,
     inputValues,
     bindings,
+    bindingIssues,
     inputBindings,
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
@@ -1173,6 +1174,7 @@ export function InspectorContent() {
               <BindingEditor
                 binding={parentBinding}
                 targetId={input.id}
+                issues={bindingIssues.get(input.id)}
                 label={input.label || input.id}
                 standardInputs={standardInputList}
                 standardInputLookup={standardInputsById}
