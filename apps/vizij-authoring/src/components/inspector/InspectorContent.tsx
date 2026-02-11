@@ -919,6 +919,15 @@ export function InspectorContent() {
           </div>
 
           <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
+            {groupedVariables.length === 0 && (
+              <EmptyState
+                icon={Sliders}
+                iconSize={18}
+                title="No Connected Variables"
+                description="This pose has no variable targets yet. Connect one or more rig variables to define the pose output."
+                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+              />
+            )}
             {groupedVariables.map((group) => (
               <div key={group.label} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 px-1 py-1 border-b border-border-default/50">
@@ -1304,17 +1313,20 @@ export function InspectorContent() {
               size={14}
               className="group-hover:text-accent transition-colors"
             />
-            <span className="font-normal text-xs">Add Variable to Pose</span>
+            <span className="font-normal text-xs">
+              Connect Variable to Pose
+            </span>
           </Button>
           <Modal
             open={showSelector}
             onClose={() => setShowSelector(false)}
-            title="Select Variable"
+            title="Connect Variable to Pose"
             maxWidth="md"
           >
             <VariableSelector
               onSelect={handleAddVariable}
               onCancel={() => setShowSelector(false)}
+              defaultTab="variables"
             />
           </Modal>
           <Modal

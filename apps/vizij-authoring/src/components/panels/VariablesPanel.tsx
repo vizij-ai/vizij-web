@@ -213,10 +213,12 @@ export function VariablesPanel({
   onSelectRig,
   onSelectPose,
 }: VariablesPanelProps) {
-  const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
+  const { poses, applyPose, selectPose, selectedPoseId, createPose } =
+    usePoseRig();
   const { managedStandardInputs, handleCreateCustomStandardInput } =
     useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
+  const pendingPoseSelectionRef = useRef(false);
 
   // State for search
   const [search, setSearch] = useState("");
@@ -475,6 +477,22 @@ export function VariablesPanel({
     });
   }, [visibleRoot, search]);
 
+  useEffect(() => {
+    if (!pendingPoseSelectionRef.current || !selectedPoseId) {
+      return;
+    }
+    if (selectedPoseId === "__pose_rig_neutral__") {
+      return;
+    }
+    pendingPoseSelectionRef.current = false;
+    if (onSelectPose) {
+      onSelectPose(selectedPoseId);
+    } else {
+      selectPose(selectedPoseId);
+    }
+    onSelectRig?.(null);
+  }, [onSelectPose, onSelectRig, selectPose, selectedPoseId]);
+
   const handleToggle = (id: string) => {
     const newExpanded = new Set(expandedIds);
     if (newExpanded.has(id)) {
@@ -516,6 +534,11 @@ export function VariablesPanel({
       setSearch(""); // clear search on create? or keep it? VariableSelector kept it but here maybe clear is better or select it.
       // If we keep search, we see it.
     }
+  };
+
+  const handleCreatePose = () => {
+    pendingPoseSelectionRef.current = true;
+    createPose();
   };
 
   const showCreateOption =
@@ -567,6 +590,28 @@ export function VariablesPanel({
             onChange={setSearch}
             placeholder={search ? "Filter..." : "Search or create variable..."}
           />
+        </div>
+        <div className="flex items-center gap-1 px-1 mb-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1"
+            onClick={handleCreatePose}
+            title="Create a new pose and inspect it"
+          >
+            <Activity size={11} className="text-purple-400" />
+            New Pose
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+            onClick={() => searchInputRef.current?.focus()}
+            title="Create a new variable"
+          >
+            <Plus size={11} />
+            New Variable
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
           {(
