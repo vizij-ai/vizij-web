@@ -1,6 +1,6 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-11
+Last updated: 2026-02-11 (late)
 
 This file consolidates active findings from:
 
@@ -28,7 +28,11 @@ This file consolidates active findings from:
    - rig/pose entry points still need equivalent binding-editor capabilities to avoid workflow breaks during migration authoring.
 4. Chain context persistence remains weak:
    - after multi-hop drill-down, orientation is easily lost without explicit path/history affordances.
-5. Broader validation coverage is still targeted rather than full-suite confidence.
+5. Inspector slider fidelity has correctness gaps in current UI wiring:
+   - `BindingEditor` exposes `Slider (self)` for component/leaf bindings where compile-time self context is unavailable, creating inert controls.
+   - quick-edit sections (transform/material/morph) resolve only `slots[0]`, which can diverge from the effective driving slot/expression.
+   - compile issues are computed in rig controller state but not passed into active inspector `BindingEditor` call sites, so failures are hidden.
+6. Broader validation coverage is still targeted rather than full-suite confidence.
 
 ## Architecture Debt (Still Relevant From Audit)
 

@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-11
+Last updated: 2026-02-11 (late)
 
 ## Priority Bands
 
@@ -42,11 +42,15 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 2. Lock confidence with dedicated regression coverage for those workflows.
    - route-selection tests for click-through behavior across inspector modes.
    - editor-availability tests to ensure binding controls are not context-dependent regressions.
-3. Expand required validation beyond targeted tests.
-4. Finish remaining non-chain Rigging <-> Posing integration tasks:
+3. Stabilize inspector slider fidelity so authored bindings are runtime-truthful in every panel.
+   - remove/guard unsupported component `self` binding states.
+   - unify quick-edit slot resolution (transform/material/morph) with effective binding semantics.
+   - surface compile-time binding diagnostics where users edit slot wiring.
+4. Expand required validation beyond targeted tests.
+5. Finish remaining non-chain Rigging <-> Posing integration tasks:
    - quick toggles and focused filtering.
    - coverage panel + rig kind roundtrip tests.
-5. Promote compile/validate/apply visibility from debug-first tooling into normal workflow.
+6. Promote compile/validate/apply visibility from debug-first tooling into normal workflow.
 
 ### P2 (architecture and scale-readiness)
 

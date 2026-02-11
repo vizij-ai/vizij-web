@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-11
+Last updated: 2026-02-11 (late)
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`
 
@@ -69,6 +69,15 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Scope: add targeted tests for click-through routing + binding parity surfaces.
    Acceptance criteria: future inspector refactors fail fast when chain navigation/editing breaks.
 
+5. P1-I5 Inspector slider fidelity tranche (binding validity + quick-edit correctness): `in_progress`
+   Scope:
+   - prevent unsupported `self` slot states for animatable/component bindings.
+   - resolve quick-edit controls (transform/material/morph) against effective active slots, not only `slots[0]`.
+   - surface compile-time binding issues directly in active `BindingEditor` panels.
+     Acceptance criteria:
+   - no quick-edit slider appears interactive while targeting an unresolved/non-driving source without an explicit issue message.
+   - known "translation works, scale inert" repro class is either fixed or yields clear diagnostics tied to target binding issues.
+
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
@@ -79,6 +88,12 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 ## Active Blockers
 
 1. None identified in the 2026-02-11 P0 tranche after targeted validation.
+
+## Active Risks (P1)
+
+1. Component-level `Slider (self)` can be authored from UI while compile path treats it as unavailable in that context, producing inert sliders without obvious feedback.
+2. Multiple inspector quick-edit sections currently assume `slots[0]` is the active source, which can drift from expression-driving slots.
+3. Binding issues are computed in controller state but not shown in active inspector `BindingEditor` call sites.
 
 ## Immediate Exit Criteria for Stabilization
 

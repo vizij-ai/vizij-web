@@ -109,6 +109,18 @@ Use this file for app-local implementation backlog only.
       Context: recent fixes caught behavior gaps only during deep manual review.
       Goal: lock in click-through + binding-edit expectations before broader P1/P2 work.
       Exit criteria: 1. Tests cover pose->rig->animatable click-through routing. 2. Tests cover rig->pose back-navigation from connected lists. 3. Tests cover binding editor availability and updates from each inspector context.
+- [ ] Prevent inert "self" bindings on animatable leaf targets.
+      Context: binding UI currently allows `Slider (self)` for leaf/component bindings, but graph compilation only supports `self` for parent/input bindings; component self resolves to "Self reference unavailable for this input." and silently falls back.
+      Goal: remove invalid authoring states by context-gating self options and/or adding explicit component-self semantics.
+      Exit criteria: 1. Component/animatable binding rows cannot land in unsupported self states without explicit warning. 2. Existing unsupported self states are surfaced as actionable diagnostics and migration fixups. 3. Slider interactions always map to an actual runtime-driven input for the edited target.
+- [ ] Fix inspector quick-edit driver resolution to use active slot (not hard-coded slot[0]).
+      Context: transform/material/morph quick-edit sections currently read only `binding.slots[0].inputId`, so multi-slot or legacy-normalized bindings can appear unbound or edit the wrong driver.
+      Goal: resolve the effective slot deterministically (first valid non-self bound slot, with explicit handling for read-only/self cases) across all quick-edit sections.
+      Exit criteria: 1. Transform/material/morph rows display/edit the same effective driver as binding evaluation. 2. Multi-slot bindings remain editable from quick-edit rows. 3. Regression tests cover slot ordering and self-slot edge cases.
+- [ ] Surface compile-time binding diagnostics directly inside active inspector editors.
+      Context: `BindingEditor` supports `issues`, but inspector call sites do not pass graph-build issues, so invalid bindings look editable but inert.
+      Goal: always show target/slot diagnostic messages (missing inputs, unsupported self, unresolved expression vars) where users author bindings.
+      Exit criteria: 1. Scene and parent/input `BindingEditor` instances render graph issues for the selected target. 2. Inert slider states always include a visible reason. 3. Tests cover at least one unsupported-self and one missing-input scenario.
 - [ ] Add test coverage for standard-input coverage panel + pose rig kind roundtrip.
 - [ ] Expand required validation set beyond targeted suites.
 - [ ] Promote compile/validate/apply states from debug-first presentation to primary authoring workflow feedback.
@@ -149,6 +161,9 @@ Use this file for app-local implementation backlog only.
 - [ ] Selecting variable-to-drive can break hierarchy.
 - [ ] Reference face hierarchy not shown.
 - [ ] Self rigs should be hidden/locked.
+- [ ] Some binding-editor sliders appear non-functional for specific leaves (commonly scale) when slot/input resolution is invalid or unsupported.
+- [ ] Quick-edit sections (transform/material/morph) may show stale/non-editable drivers because they assume slot index `0` is always the active source.
+- [ ] Binding compile issues are not surfaced in active editor panels, making broken slot/expression states hard to distinguish from runtime bugs.
 
 ## UI Polish Backlog
 
