@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Link as LinkIcon, Box, Sparkles } from "lucide-react";
+import { Link as LinkIcon, Box, Sparkles, Route } from "lucide-react";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   useBindingAuthoring,
@@ -9,6 +9,7 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button } from "../ui";
+import { buildPoseRigFaceTrace } from "./rigConnections";
 
 interface BindingConnectionsProps {
   node: SceneObjectNode;
@@ -20,12 +21,14 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     (state) => state.standardInputsById,
   );
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
 
   const { selectPose } = usePoseRig();
   const poses = usePoseRigStore((state) => state.poses);
   const neutralInputs = usePoseRigStore((state) => state.neutralInputs);
 
   const { handleClearSelection } = useSelectionStore();
+  const { objects } = useSceneComposer();
 
   const connections = useMemo(() => {
     const rigDrivers = new Map<
@@ -99,7 +102,34 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     };
   }, [node, bindings, standardInputsById, poses, neutralInputs]);
 
-  if (connections.rigs.length === 0 && connections.poses.length === 0)
+  const trace = useMemo(
+    () =>
+      buildPoseRigFaceTrace({
+        node,
+        objects,
+        bindings,
+        inputBindings,
+        poses,
+        neutralInputs,
+        standardInputsById,
+      }),
+    [
+      bindings,
+      inputBindings,
+      neutralInputs,
+      node,
+      objects,
+      poses,
+      standardInputsById,
+    ],
+  );
+
+  if (
+    connections.rigs.length === 0 &&
+    connections.poses.length === 0 &&
+    trace.targets.length === 0 &&
+    trace.unmatchedPoseOutputs.length === 0
+  )
     return null;
 
   return (
@@ -170,6 +200,71 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 </div>
               </Button>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5 pt-2 mt-1 border-t border-border-default/40">
+        <label className="text-[10px] font-bold text-text-secondary uppercase flex items-center gap-1">
+          <Route size={10} />
+          Pose-Rig-Face Trace
+        </label>
+
+        {trace.targets.length === 0 ? (
+          <p className="text-[10px] text-text-muted italic px-1">
+            {trace.diagnostics[0] ??
+              "No traceable pose/rig path for this selection."}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {trace.targets.map((target) => (
+              <div
+                key={target.targetId}
+                className="rounded border border-border-default/50 bg-bg-panel/30 px-2 py-1.5"
+              >
+                <div className="text-[10px] font-semibold text-text-primary truncate">
+                  {target.targetLabel}
+                </div>
+                <div className="text-[9px] text-text-muted mt-1">
+                  Rig chain:{" "}
+                  {target.upstreamRigInputIds.length > 0
+                    ? target.upstreamRigInputIds.join(" -> ")
+                    : "none"}
+                </div>
+                <div className="text-[9px] text-text-muted mt-0.5">
+                  Pose outputs:{" "}
+                  {target.matchedPoseOutputs.length > 0
+                    ? target.matchedPoseOutputs
+                        .map(
+                          (output) =>
+                            `${output.poseName} (${output.inputId}=${output.value.toFixed(3)})`,
+                        )
+                        .join("; ")
+                    : "none"}
+                </div>
+                {target.diagnostics.length > 0 && (
+                  <div className="text-[9px] text-warning mt-1">
+                    {target.diagnostics.join(" ")}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {trace.unmatchedPoseOutputs.length > 0 && (
+          <div className="rounded border border-warning/40 bg-warning-subtle/20 px-2 py-1.5">
+            <div className="text-[9px] font-semibold text-warning uppercase tracking-wide">
+              Unmatched Pose Outputs
+            </div>
+            <div className="text-[9px] text-warning mt-1">
+              {trace.unmatchedPoseOutputs
+                .map(
+                  (output) =>
+                    `${output.poseName} -> ${output.inputId}=${output.value.toFixed(3)}`,
+                )
+                .join("; ")}
+            </div>
           </div>
         )}
       </div>
