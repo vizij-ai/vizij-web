@@ -19,19 +19,16 @@ This file consolidates active findings from:
 
 ## Active Findings That Still Matter
 
-1. Deep-review follow-ups (2026-02-11) reopened P0 correctness work:
-   - graph clear/remove paths can retain stale runtime graph controllers.
-   - runtime input staging may miss first-ready replay when runtime bridge initializes late.
-   - pose graph export path can throw uncaught on build failures.
-2. Chain-authoring visibility/correctness still has critical gaps:
-   - add-driven flow still binds full features (for example x/y/z together) instead of leaf targets.
-   - Variables pane does not yet surface all path-backed standard inputs.
-   - top inspector summaries still use direct-slot logic while trace panel uses transitive chain traversal.
-   - compared to `main` legacy inspector flow, active UI no longer exposes an equivalent direct per-feature binding-expression editor path or clear static-vs-animatable matrix controls.
-3. Migration tooling now has actionable remap/trace primitives, but still needs:
-   - preview/ignore/undo-safe apply semantics for suggestions.
-   - broader remap coverage for legacy edge cases (including optional non-delta output review).
-4. Broader validation coverage is still targeted rather than full-suite confidence.
+1. P0 correctness tranche is now stabilized; primary remaining risk is inspector traversal ergonomics rather than runtime correctness.
+2. Inspector chain traversal is still incomplete as an authored workflow:
+   - connected/driven surfaces report relationships but not all rows support deterministic click-through.
+   - users cannot yet treat inspector as a continuous graph-navigation surface across pose, rig, and animatable nodes.
+3. Binding-authoring parity is still context-dependent:
+   - animatable/feature entry points expose robust binding controls.
+   - rig/pose entry points still need equivalent binding-editor capabilities to avoid workflow breaks during migration authoring.
+4. Chain context persistence remains weak:
+   - after multi-hop drill-down, orientation is easily lost without explicit path/history affordances.
+5. Broader validation coverage is still targeted rather than full-suite confidence.
 
 ## Architecture Debt (Still Relevant From Audit)
 
@@ -48,7 +45,7 @@ This file consolidates active findings from:
 ## Priority Interpretation
 
 1. P0: correctness and behavior alignment for active runtime-truthful pipeline.
-2. P1: integration hardening and test coverage expansion.
+2. P1: inspector chain authoring completion (drill-down routing + binding parity) and associated regression coverage.
 3. P2: architecture/performance debt that blocks upcoming scene/material work.
 4. P3: UX polish and deferred enhancements.
 

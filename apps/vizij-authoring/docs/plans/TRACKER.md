@@ -51,6 +51,24 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - active scene inspector now surfaces feature matrix and direct binding editors via `apps/vizij-authoring/src/components/inspector/FeatureList.tsx`.
      Required actions: none.
 
+## P1 Focus Queue (Inspector Chain Authoring)
+
+1. P1-I1 Chain drill-down routing across inspector modes: `planned`
+   Scope: driven/connected rows must route to concrete inspector selections and support sequential traversal pose -> rig -> animatable and reverse.
+   Acceptance criteria: no reported relationship is non-navigable unless explicitly marked read-only.
+
+2. P1-I2 Binding-editor parity from pose/rig contexts: `planned`
+   Scope: expose BindingEditor-equivalent controls when entering from rig or pose workflows, and keep expression + slot edits consistent with animatable feature editor behavior.
+   Acceptance criteria: users can author binding details without switching to a different workbench as a required step.
+
+3. P1-I3 Chain context affordances (navigation memory): `planned`
+   Scope: preserve chain context while drilling through nodes and provide deterministic return path to prior chain nodes.
+   Acceptance criteria: authors can traverse and return without losing orientation.
+
+4. P1-I4 Regression harness for chain authoring UX: `planned`
+   Scope: add targeted tests for click-through routing + binding parity surfaces.
+   Acceptance criteria: future inspector refactors fail fast when chain navigation/editing breaks.
+
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
@@ -65,4 +83,5 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 ## Immediate Exit Criteria for Stabilization
 
 1. Keep typecheck + targeted validation set green while P1 items are sequenced.
-2. Expand required validation set beyond targeted suites for broader confidence.
+2. Complete P1-I1 through P1-I4 for inspector chain authoring.
+3. Expand required validation set beyond targeted suites for broader confidence.

@@ -34,12 +34,19 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-1. Expand required validation beyond targeted tests.
-2. Finish remaining Rigging <-> Posing integration tasks:
-   - navigation/linking flows.
+1. Primary focus: inspector chain traversal + binding parity across Pose/Rig/Animatable.
+   - make all connected/driven rows navigable to concrete inspector targets.
+   - support end-to-end click-through in both directions (pose -> rig -> animatable and reverse).
+   - expose binding-authoring parity from each context (slot wiring, aliases/value types, expression editing, normalize helpers).
+   - preserve user orientation with chain context affordances (for example breadcrumb/history pathing).
+2. Lock confidence with dedicated regression coverage for those workflows.
+   - route-selection tests for click-through behavior across inspector modes.
+   - editor-availability tests to ensure binding controls are not context-dependent regressions.
+3. Expand required validation beyond targeted tests.
+4. Finish remaining non-chain Rigging <-> Posing integration tasks:
    - quick toggles and focused filtering.
    - coverage panel + rig kind roundtrip tests.
-3. Promote compile/validate/apply visibility from debug-first tooling into normal workflow.
+5. Promote compile/validate/apply visibility from debug-first tooling into normal workflow.
 
 ### P2 (architecture and scale-readiness)
 
