@@ -30,6 +30,7 @@ import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
+import { FeatureList } from "./FeatureList";
 import {
   RiggingMaterialSection,
   RiggingScalarRow,
@@ -53,6 +54,9 @@ type PoseVariableItem =
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
   const [blendAmount, setBlendAmount] = useState(0);
+  const [sceneInspectorView, setSceneInspectorView] = useState<
+    "quick" | "features" | "bindings"
+  >("quick");
   const scrubValuesRef = useRef<Record<string, number>>({});
 
   // Hooks
@@ -103,6 +107,10 @@ export function InspectorContent() {
     setBlendAmount(0);
   }, [selectedPoseId]);
 
+  useEffect(() => {
+    setSceneInspectorView("quick");
+  }, [selectedId, selectedMaterialId, selectedPoseId, selectedRigId]);
+
   // 1. Scene Object Mode
   if (inspectorMode === "scene" && selectedId) {
     const node = getNode(selectedId);
@@ -115,10 +123,48 @@ export function InspectorContent() {
             id={node.id}
             onNameChange={(name) => handleRenameShape(node.id, name)}
           />
-          <RiggingTransformSection node={node} />
-          <RiggingMorphTargetsSection node={node} />
-          <RiggingMaterialSection node={node} />
-          <BindingConnections node={node} />
+          <div className="flex items-center gap-1 px-1 py-1">
+            <Button
+              variant={sceneInspectorView === "quick" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-6 text-[10px]"
+              onClick={() => setSceneInspectorView("quick")}
+            >
+              Quick
+            </Button>
+            <Button
+              variant={
+                sceneInspectorView === "features" ? "secondary" : "ghost"
+              }
+              size="sm"
+              className="h-6 text-[10px]"
+              onClick={() => setSceneInspectorView("features")}
+            >
+              Feature Matrix
+            </Button>
+            <Button
+              variant={
+                sceneInspectorView === "bindings" ? "secondary" : "ghost"
+              }
+              size="sm"
+              className="h-6 text-[10px]"
+              onClick={() => setSceneInspectorView("bindings")}
+            >
+              Binding Editor
+            </Button>
+          </div>
+          {sceneInspectorView === "quick" ? (
+            <>
+              <RiggingTransformSection node={node} />
+              <RiggingMorphTargetsSection node={node} />
+              <RiggingMaterialSection node={node} />
+              <BindingConnections node={node} />
+            </>
+          ) : sceneInspectorView === "features" ? (
+            <FeatureList node={node} mode="features" />
+          ) : (
+            <FeatureList node={node} mode="bindings" />
+          )}
         </div>
       );
     }
