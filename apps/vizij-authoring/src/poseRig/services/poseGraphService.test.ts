@@ -95,4 +95,43 @@ describe("PoseGraphService", () => {
     const warnings = PoseGraphService.validate(spec, inputs);
     expect(warnings.length).toBe(0);
   });
+
+  it("generates a safe summary for existing specs", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0.1, frown: 0 },
+      poses: [
+        {
+          id: "pose_a",
+          name: "Smile",
+          group: "Emotions",
+          values: { smile: 0.8, frown: 0 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+    const inputs: StandardRigInput[] = [
+      createInput("smile", "/face/smile"),
+      createInput("frown", "/face/frown"),
+    ];
+    const { spec } = PoseGraphService.buildSpec(config, inputs, {
+      blendMode: "average",
+    });
+
+    const summary = PoseGraphService.generateSummary(spec, inputs);
+    expect(summary.inputs).toHaveLength(1);
+    expect(summary.inputs[0]).toMatchObject({
+      id: "smile",
+      path: "/face/smile",
+      neutral: 0.1,
+    });
+    expect(summary.outputs).toEqual(["/face/smile"]);
+  });
+
+  it("returns an empty summary when parsing fails", () => {
+    const summary = PoseGraphService.generateSummary({ nodes: [] }, []);
+    expect(summary).toEqual({ inputs: [], outputs: [] });
+  });
 });

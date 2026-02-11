@@ -26,35 +26,97 @@ export const PoseGraphService = {
   },
 
   generateSummary(
-    _spec: GraphSpec,
-    _standardInputs: StandardRigInput[],
+    spec: GraphSpec,
+    standardInputs: StandardRigInput[],
   ): PoseRigGraphSummary {
-    // buildPoseGraphSpec returns summary, but if we only have spec, we might need to re-derive it
-    // or we can rely on buildSpec returning it.
-    // If we need to generate summary from an *existing* spec (e.g. imported), we might need logic for that.
-    // For now, let's assume we use buildSpec to get both.
-    // If we strictly need to generate summary from spec, we'd need to parse it.
-    // Let's use parsePoseGraphSpec to get info, but it returns ParsedPoseGraph (neutral, poses), not GraphSummary.
-    // GraphSummary is about contributions.
-    // The current graphBuilder calculates summary during build.
-    // Re-calculating summary from spec would require reversing the graph logic which is hard.
-    // So usually we generate summary when we build the graph.
+    try {
+      const parsed = parsePoseGraphSpec(spec, standardInputs, {
+        allowUnknownInputs: true,
+      });
+      const summary: PoseRigGraphSummary = {
+        inputs: [],
+        outputs: [],
+      };
 
-    // However, the plan says "generateSummary(spec: GraphSpec)".
-    // Maybe it means extracting info?
-    // For now, I'll leave a TODO or throw if not implemented, but since I'm wrapping buildPoseGraphSpec,
-    // I'll expose a method that does both or just return the summary from the build step.
+      const standardById = new Map(
+        standardInputs.map((input) => [input.id, input]),
+      );
 
-    // Actually, let's look at the plan again.
-    // "generateSummary(spec: GraphSpec): GraphSummary"
-    // If I have a spec, I can't easily get the summary without knowing the inputs and poses it represents.
-    // Unless I parse it back to poses and then rebuild?
+      Object.entries(parsed.neutralInputs).forEach(
+        ([inputId, neutralValue]) => {
+          if (standardById.has(inputId)) {
+            return;
+          }
+          standardById.set(inputId, {
+            id: inputId,
+            path: inputId,
+            label: inputId,
+            group: "imported",
+            defaultValue: neutralValue,
+            range: { min: -1, max: 1 },
+          });
+        },
+      );
 
-    // Let's just implement buildSpec for now which returns both.
-    // I'll add a helper to extract summary if possible, or just note that it comes from build.
-    throw new Error(
-      "generateSummary from spec not fully supported yet; use buildSpec to get summary.",
-    );
+      parsed.poses.forEach((pose) => {
+        Object.keys(pose.values).forEach((inputId) => {
+          if (standardById.has(inputId)) {
+            return;
+          }
+          standardById.set(inputId, {
+            id: inputId,
+            path: inputId,
+            label: inputId,
+            group: "imported",
+            defaultValue: parsed.neutralInputs[inputId] ?? 0,
+            range: { min: -1, max: 1 },
+          });
+        });
+      });
+
+      standardById.forEach((input, inputId) => {
+        const neutral =
+          parsed.neutralInputs[inputId] ?? input.defaultValue ?? 0;
+        const contributions: PoseRigGraphSummary["inputs"][number]["contributions"] =
+          [];
+
+        parsed.poses.forEach((pose) => {
+          const poseValue = pose.values[inputId];
+          if (poseValue === undefined) {
+            return;
+          }
+          const delta = poseValue - neutral;
+          if (Math.abs(delta) < 1e-6) {
+            return;
+          }
+          contributions.push({
+            poseId: pose.id,
+            poseName: pose.name,
+            value: poseValue,
+            delta,
+          });
+        });
+
+        if (contributions.length === 0) {
+          return;
+        }
+
+        summary.inputs.push({
+          id: inputId,
+          path: input.path,
+          neutral,
+          contributions,
+        });
+        summary.outputs.push(input.path);
+      });
+
+      return summary;
+    } catch {
+      return {
+        inputs: [],
+        outputs: [],
+      };
+    }
   },
 
   validate(spec: GraphSpec, standardInputs: StandardRigInput[]): string[] {
