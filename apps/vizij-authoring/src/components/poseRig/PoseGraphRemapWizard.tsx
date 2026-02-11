@@ -8,7 +8,11 @@ export interface PoseGraphRemapOption {
   path: string;
   label: string;
   score: number;
+  confidence: PoseRemapConfidence;
+  rationale: string[];
 }
+
+export type PoseRemapConfidence = "high" | "medium" | "low";
 
 export interface PoseGraphRemapRow {
   id: string;
@@ -17,6 +21,9 @@ export interface PoseGraphRemapRow {
   suggestedPath: string | null;
   poseSlug?: string;
   currentInputId?: string | null;
+  confidence?: PoseRemapConfidence;
+  confidenceScore?: number;
+  rationale?: string[];
   status: "auto" | "review";
   reason?: string;
   needsReview?: boolean;
@@ -68,11 +75,56 @@ export function PoseGraphRemapWizard({
     [standardInputs],
   );
 
+  const { hasConflicts, conflictMessages, conflictRowIds } = useMemo(() => {
+    const rowIdsByPath = new Map<string, string[]>();
+    allRows.forEach((row) => {
+      const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
+      if (!resolvedPath) {
+        return;
+      }
+      const key = resolvedPath.toLowerCase();
+      const ids = rowIdsByPath.get(key) ?? [];
+      ids.push(row.id);
+      rowIdsByPath.set(key, ids);
+    });
+    const nextConflictRowIds = new Set<string>();
+    const messages: string[] = [];
+    rowIdsByPath.forEach((rowIds, pathKey) => {
+      if (rowIds.length < 2) {
+        return;
+      }
+      rowIds.forEach((rowId) => nextConflictRowIds.add(rowId));
+      messages.push(
+        `${rowIds.length} outputs currently map to ${pathKey}. Choose unique targets.`,
+      );
+    });
+    return {
+      hasConflicts: nextConflictRowIds.size > 0,
+      conflictMessages: messages,
+      conflictRowIds: nextConflictRowIds,
+    };
+  }, [allRows, edits]);
+
   const canApply =
     allRows.length === 0 ||
-    allRows.every((row) =>
+    (allRows.every((row) =>
       Boolean((edits[row.id] ?? row.suggestedPath)?.trim()),
-    );
+    ) &&
+      !hasConflicts);
+
+  const confidenceLabel = (confidence?: PoseRemapConfidence) => {
+    if (!confidence) {
+      return null;
+    }
+    switch (confidence) {
+      case "high":
+        return "High confidence";
+      case "medium":
+        return "Medium confidence";
+      default:
+        return "Low confidence";
+    }
+  };
 
   return (
     <Modal
@@ -109,6 +161,19 @@ export function PoseGraphRemapWizard({
         </header>
 
         <div className="space-y-8 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+          {hasConflicts && (
+            <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200">
+              <div className="font-semibold uppercase tracking-wide text-[10px] mb-1">
+                Resolve Mapping Conflicts
+              </div>
+              <div className="space-y-1">
+                {conflictMessages.map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
@@ -130,7 +195,7 @@ export function PoseGraphRemapWizard({
                     key={row.id}
                     className={cn(
                       "bg-slate-950 rounded-2xl border p-5 space-y-4 transition-all",
-                      row.needsReview
+                      row.needsReview || conflictRowIds.has(row.id)
                         ? "border-amber-500/30 bg-amber-500/[0.02]"
                         : "border-white/5",
                     )}
@@ -140,6 +205,21 @@ export function PoseGraphRemapWizard({
                         <p className="text-xs font-bold text-slate-200">
                           Pose {row.poseSlug ?? row.id}
                         </p>
+                        {row.confidence && (
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                              row.confidence === "high" &&
+                                "bg-emerald-500/20 text-emerald-300",
+                              row.confidence === "medium" &&
+                                "bg-sky-500/20 text-sky-300",
+                              row.confidence === "low" &&
+                                "bg-amber-500/20 text-amber-300",
+                            )}
+                          >
+                            {confidenceLabel(row.confidence)}
+                          </span>
+                        )}
                         <p className="text-[10px] text-slate-400 font-mono">
                           Variable:{" "}
                           {row.currentInputId ?? row.poseSlug ?? "(unknown)"}
@@ -150,6 +230,16 @@ export function PoseGraphRemapWizard({
                         {row.reason && (
                           <p className="text-[10px] text-amber-400/80 font-medium">
                             {row.reason}
+                          </p>
+                        )}
+                        {row.rationale && row.rationale.length > 0 && (
+                          <p className="text-[10px] text-slate-500">
+                            {row.rationale.join(" · ")}
+                          </p>
+                        )}
+                        {conflictRowIds.has(row.id) && (
+                          <p className="text-[10px] text-amber-300 font-medium">
+                            This mapping conflicts with another output.
                           </p>
                         )}
                       </div>
@@ -193,7 +283,17 @@ export function PoseGraphRemapWizard({
                               }
                             >
                               {option.label ?? option.path}
-                              <span className="text-[9px] font-black text-blue-500/60 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                              <span
+                                className={cn(
+                                  "text-[9px] font-black px-1.5 py-0.5 rounded",
+                                  option.confidence === "high" &&
+                                    "text-emerald-300 bg-emerald-500/20",
+                                  option.confidence === "medium" &&
+                                    "text-sky-300 bg-sky-500/20",
+                                  option.confidence === "low" &&
+                                    "text-amber-300 bg-amber-500/20",
+                                )}
+                              >
                                 {(option.score * 100).toFixed(0)}%
                               </span>
                             </button>

@@ -22,6 +22,7 @@ import { buildRigInputPath } from "../poseRig/utils";
 import type {
   PoseGraphRemapOption,
   PoseGraphRemapRow,
+  PoseRemapConfidence,
 } from "../components/poseRig/PoseGraphRemapWizard";
 
 export interface PoseGraphRemapState {
@@ -63,6 +64,16 @@ export function resolvePoseGraphSourceInputId(
   }
   const fallback = row.poseSlug?.trim();
   return fallback && fallback.length > 0 ? fallback : null;
+}
+
+function toConfidence(score: number): PoseRemapConfidence {
+  if (score >= 0.8) {
+    return "high";
+  }
+  if (score >= 0.45) {
+    return "medium";
+  }
+  return "low";
 }
 
 export function usePoseGraphImport({
@@ -125,6 +136,29 @@ export function usePoseGraphImport({
               currentInputId,
               status: "auto",
               reason: "Matched existing standard input",
+              confidence: "high",
+              confidenceScore: 1,
+              rationale: ["Exact standard input path match"],
+            });
+            return;
+          }
+
+          const rigMatchedInput = normalizedPath
+            ? rigOutputLookup.get(normalizedPath)
+            : null;
+          if (rigMatchedInput) {
+            autoRows.push({
+              id: `${output.nodeId}-${index}`,
+              nodeId: output.nodeId,
+              originalPath: output.path,
+              suggestedPath: rigMatchedInput.path,
+              poseSlug,
+              currentInputId,
+              status: "auto",
+              reason: "Matched existing rig output path",
+              confidence: "high",
+              confidenceScore: 0.95,
+              rationale: ["Exact rig output to standard input match"],
             });
             return;
           }
@@ -146,6 +180,11 @@ export function usePoseGraphImport({
               currentInputId,
               status: "auto",
               reason: "Converted rig path to standard input",
+              confidence: "medium",
+              confidenceScore: 0.72,
+              rationale: [
+                "Legacy rig path converted to a known standard input",
+              ],
             });
             return;
           }
@@ -153,6 +192,7 @@ export function usePoseGraphImport({
           const suggestions = rankStandardInputs(
             output.path ?? "",
             poseSlug,
+            currentInputId,
             standardInputs,
           );
           const best = suggestions[0] ?? null;
@@ -169,6 +209,11 @@ export function usePoseGraphImport({
               ? "No standard input match found"
               : "Output path missing",
             options: suggestions,
+            confidence: best?.confidence ?? "low",
+            confidenceScore: best?.score ?? 0,
+            rationale: best?.rationale ?? [
+              "No high-confidence mapping detected",
+            ],
           });
         });
 
@@ -207,6 +252,7 @@ export function usePoseGraphImport({
         return;
       }
       const combinedRows = rows.filter((row) => row.suggestedPath);
+      const targetToSourceMap = new Map<string, Set<string>>();
       const idRemaps: Array<{ fromId: string; toId: string }> = [];
       const assigned = new Map<string, string>();
       combinedRows.forEach((row) => {
@@ -217,6 +263,12 @@ export function usePoseGraphImport({
             normalizeStandardRigInputPath(standardPath);
           const targetInput = standardInputsByPath.get(normalizedStandardPath);
           const sourceInputId = resolvePoseGraphSourceInputId(row);
+          if (targetInput && sourceInputId) {
+            const sourceSet =
+              targetToSourceMap.get(targetInput.id) ?? new Set();
+            sourceSet.add(sourceInputId);
+            targetToSourceMap.set(targetInput.id, sourceSet);
+          }
           if (
             targetInput &&
             sourceInputId &&
@@ -230,6 +282,21 @@ export function usePoseGraphImport({
           updatePoseGraphOutputPath(poseGraphRemap.spec, row.nodeId, rigPath);
         }
       });
+      const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
+        ([, sourceSet]) => sourceSet.size > 1,
+      );
+      if (conflictingTargets.length > 0) {
+        const conflictMessage = conflictingTargets
+          .map(
+            ([targetId, sourceSet]) =>
+              `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
+          )
+          .join("\n");
+        await alertDialog(
+          `Resolve remap conflicts before applying:\n${conflictMessage}`,
+        );
+        return;
+      }
       if (idRemaps.length > 0) {
         remapPoseGraphInputIds(poseGraphRemap.spec, idRemaps);
       }
@@ -239,7 +306,13 @@ export function usePoseGraphImport({
       );
       setPoseGraphRemap(null);
     },
-    [applyPoseGraphImport, faceSegment, poseGraphRemap, standardInputsByPath],
+    [
+      alertDialog,
+      applyPoseGraphImport,
+      faceSegment,
+      poseGraphRemap,
+      standardInputsByPath,
+    ],
   );
 
   const handlePoseGraphRemapCancel = useCallback(() => {
@@ -309,6 +382,7 @@ function computeSimilarityScore(
 function rankStandardInputs(
   targetPath: string,
   poseSlug: string | undefined,
+  currentInputId: string | null,
   standardInputs: StandardRigInput[],
 ): PoseGraphRemapOption[] {
   const targetTokens = [...tokenize(targetPath), ...tokenize(poseSlug)].filter(
@@ -317,6 +391,7 @@ function rankStandardInputs(
   const targetLeaf = getPathLeaf(targetPath) ?? null;
   const ranked = standardInputs
     .map((input) => {
+      const rationale: string[] = [];
       const candidateTokens = [
         ...tokenize(input.path),
         ...tokenize(input.label),
@@ -329,13 +404,45 @@ function rankStandardInputs(
         targetLeaf,
         candidateLeaf,
       );
-      if (score <= 0) {
+      let weightedScore = score;
+      if (currentInputId && currentInputId === input.id) {
+        weightedScore += 0.9;
+        rationale.push("Input id matches existing pose output id");
+      } else if (
+        currentInputId &&
+        input.sourceId &&
+        currentInputId === input.sourceId
+      ) {
+        weightedScore += 0.75;
+        rationale.push("Source id matches existing pose output id");
+      }
+      if (targetLeaf && candidateLeaf && targetLeaf === candidateLeaf) {
+        weightedScore += 0.25;
+        rationale.push("Path leaf matches");
+      }
+      if (
+        targetPath &&
+        normalizeGraphPath(targetPath) === normalizeGraphPath(input.path)
+      ) {
+        weightedScore += 0.4;
+        rationale.push("Path matches exactly");
+      }
+      const normalizedScore = Math.max(0, Math.min(weightedScore, 1));
+      if (normalizedScore <= 0.2) {
         return null;
       }
+      const confidence = toConfidence(normalizedScore);
       return {
         path: input.path,
         label: input.label ?? input.path,
-        score,
+        score: normalizedScore,
+        confidence,
+        rationale:
+          rationale.length > 0
+            ? rationale
+            : confidence === "high"
+              ? ["High token similarity"]
+              : ["Partial token similarity"],
       };
     })
     .filter((entry): entry is PoseGraphRemapOption => entry !== null)
