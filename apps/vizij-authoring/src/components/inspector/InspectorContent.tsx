@@ -23,7 +23,9 @@ import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { rgbToHex, hexToRgb } from "../../utils/color";
+import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
+import { BindingEditor } from "../binding";
 import { EmptyState } from "../ui/EmptyState";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
@@ -37,11 +39,20 @@ import {
   RiggingScalarRow,
   RiggingColorRow,
 } from "./RiggingMaterialSection";
-import { collectRigDependents } from "./rigConnections";
+import {
+  collectDirectDownstreamRigInputs,
+  collectRigDependents,
+} from "./rigConnections";
 import { resolveSelectionTargetIds } from "./bindingSelection";
 
 type PoseVariableItem =
-  | { type: "scalar"; varId: string; poseVal: number }
+  | {
+      type: "scalar";
+      varId: string;
+      poseVal: number;
+      drivenPropertyCount: number;
+      drivenVariableCount: number;
+    }
   | {
       type: "color";
       label: string;
@@ -59,7 +70,14 @@ export function InspectorContent() {
   const [sceneInspectorView, setSceneInspectorView] = useState<
     "quick" | "features" | "bindings"
   >("quick");
+  const [rigInspectorView, setRigInspectorView] = useState<
+    "quick" | "bindings"
+  >("quick");
   const scrubValuesRef = useRef<Record<string, number>>({});
+  const pendingSceneInspectorViewRef = useRef<
+    "quick" | "features" | "bindings" | null
+  >(null);
+  const pendingRigInspectorViewRef = useRef<"quick" | "bindings" | null>(null);
 
   // Hooks
   const {
@@ -68,6 +86,7 @@ export function InspectorContent() {
     selectedRigId,
     selectedMaterialId,
     handleSelectObject,
+    handleSelectRig,
     inspectorMode,
   } = useUnifiedSelection();
 
@@ -101,6 +120,14 @@ export function InspectorContent() {
     handleRenameShape,
     handleBindingInputChange,
     handleResetBinding,
+    handleEnsureParentBinding,
+    handleParentBindingInputChange,
+    handleParentAddBindingSlot,
+    handleParentRemoveBindingSlot,
+    handleParentBindingExpressionChange,
+    handleParentBindingSlotAliasChange,
+    handleParentBindingSlotValueTypeChange,
+    handleParentResetBinding,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
 
@@ -110,8 +137,78 @@ export function InspectorContent() {
   }, [selectedPoseId]);
 
   useEffect(() => {
+    if (inspectorMode !== "scene") {
+      return;
+    }
+    const nextView = pendingSceneInspectorViewRef.current;
+    if (nextView) {
+      setSceneInspectorView(nextView);
+      pendingSceneInspectorViewRef.current = null;
+      return;
+    }
     setSceneInspectorView("quick");
-  }, [selectedId, selectedMaterialId, selectedPoseId, selectedRigId]);
+  }, [inspectorMode, selectedId, selectedMaterialId]);
+
+  useEffect(() => {
+    if (inspectorMode !== "rig" || !selectedRigId) {
+      return;
+    }
+    const nextView = pendingRigInspectorViewRef.current;
+    if (nextView) {
+      setRigInspectorView(nextView);
+      pendingRigInspectorViewRef.current = null;
+      return;
+    }
+    setRigInspectorView("quick");
+  }, [inspectorMode, selectedRigId]);
+
+  const targetOwnerById = (() => {
+    const targetOwners = new Map<string, string>();
+    objects.forEach((objectNode) => {
+      objectNode.features.forEach((feature) => {
+        feature.components.forEach((component) => {
+          if (!component.targetId) {
+            return;
+          }
+          targetOwners.set(component.targetId, objectNode.id);
+        });
+      });
+    });
+    return targetOwners;
+  })();
+
+  const openSceneBindingInspector = (targetId: string) => {
+    const objectId = targetOwnerById.get(targetId);
+    if (!objectId) {
+      return;
+    }
+    pendingSceneInspectorViewRef.current = "bindings";
+    handleSelectObject(objectId);
+  };
+
+  const openRigInspector = (
+    rigId: string,
+    view: "quick" | "bindings" = "quick",
+  ) => {
+    pendingRigInspectorViewRef.current = view;
+    handleSelectRig(rigId);
+  };
+
+  const handleRequestCreateStandardInput = (suggestedPath?: string) => {
+    const response = promptDialog(
+      "Enter the rig path for the new standard input (e.g., /eyes/blink)",
+      suggestedPath ?? "/",
+    );
+    if (response === null) {
+      return null;
+    }
+    const trimmed = response.trim();
+    if (!trimmed) {
+      alertDialog("Path cannot be empty.");
+      return null;
+    }
+    return handleCreateCustomStandardInput(trimmed);
+  };
 
   // 1. Scene Object Mode
   if (inspectorMode === "scene" && selectedId) {
@@ -300,10 +397,23 @@ export function InspectorContent() {
           } else {
             if (!groups[groupKey])
               groups[groupKey] = { label: groupLabel, items: [] };
+            const drivenPropertyCount = collectRigDependents({
+              selectedRigId: varId,
+              bindings,
+              inputBindings,
+              objects,
+            }).length;
+            const drivenVariableCount = collectDirectDownstreamRigInputs({
+              selectedRigId: varId,
+              inputBindings,
+              standardInputsById,
+            }).length;
             groups[groupKey].items.push({
               type: "scalar",
               varId,
               poseVal: val,
+              drivenPropertyCount,
+              drivenVariableCount,
             });
           }
         });
@@ -471,6 +581,12 @@ export function InspectorContent() {
                       const max = inputDef?.range?.max ?? 1;
                       const liveVal = inputValues[varId] ?? 0;
                       const isDifferent = Math.abs(liveVal - poseVal) > 0.001;
+                      const canInspectVariable = standardInputsById.has(varId);
+                      const chainSummary =
+                        item.drivenVariableCount > 0 ||
+                        item.drivenPropertyCount > 0
+                          ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
+                          : null;
 
                       return (
                         <RiggingPropertyRow
@@ -527,6 +643,25 @@ export function InspectorContent() {
                                   }
                                 />
                               </div>
+                              {chainSummary && (
+                                <span className="text-[9px] text-text-muted font-mono whitespace-nowrap">
+                                  {chainSummary}
+                                </span>
+                              )}
+                              {canInspectVariable && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
+                                  title={`Inspect variable bindings for ${rawLabel}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openRigInspector(varId, "bindings");
+                                  }}
+                                >
+                                  <ChevronRight size={12} />
+                                </Button>
+                              )}
                             </div>
                           )}
                           renderDefaultInput={() => (
@@ -820,14 +955,21 @@ export function InspectorContent() {
     if (rigInput) {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
-      const dependents = (() => {
-        return collectRigDependents({
-          selectedRigId,
-          bindings,
-          inputBindings,
-          objects,
-        });
-      })();
+      const parentBinding = inputBindings[input.id];
+      const standardInputList = managedStandardInputs.map(
+        (entry) => entry.input,
+      );
+      const downstreamInputs = collectDirectDownstreamRigInputs({
+        selectedRigId,
+        inputBindings,
+        standardInputsById,
+      });
+      const dependents = collectRigDependents({
+        selectedRigId,
+        bindings,
+        inputBindings,
+        objects,
+      });
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
@@ -865,102 +1007,213 @@ export function InspectorContent() {
               handleUpdateStandardInput(input.id, { path })
             }
           />
-          <RiggingPropertyRow
-            label="Current Value"
-            onScrubStart={() => {
-              scrubValuesRef.current[input.id] = value;
-            }}
-            onScrub={(_, totalDelta) => {
-              const step = (input.range.max - input.range.min) / 100;
-              const startVal = scrubValuesRef.current[input.id] ?? 0;
-              handleInputValueChange(input.id, startVal + totalDelta * step);
-            }}
-            renderMainInput={() => (
-              <div className="flex items-center gap-2 flex-1">
-                <Slider
-                  min={input.range.min ?? -1}
-                  max={input.range.max ?? 1}
-                  step={0.01}
-                  value={value}
-                  className="flex-1"
-                  onChange={(val) =>
-                    handleInputValueChange(input.id, val as number)
-                  }
-                />
-                <div className="w-12 flex-shrink-0">
-                  <NumberField
-                    size="sm"
-                    value={value}
-                    className="bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
-                    onChange={(val) => handleInputValueChange(input.id, val)}
-                  />
-                </div>
-              </div>
-            )}
-          />
-          <div className="flex flex-col gap-2 flex-1 min-h-0">
-            <div className="flex items-center gap-2 px-1 py-1">
-              <Sliders size={12} className="text-slate-500" />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Driving {dependents.length} properties
-              </span>
-            </div>
-            {dependents.length === 0 ? (
-              <EmptyState
-                icon={Sliders}
-                iconSize={20}
-                title="No Driven Properties"
-                description="This variable isn't currently driving any scene properties."
-                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-              />
-            ) : (
-              <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 flex-1">
-                {dependents.map((d) => (
-                  <div
-                    key={d.targetId}
-                    className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 group"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
-                    <span className="flex-1 truncate">{d.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
-                      onClick={() => handleResetBinding(d.targetId)}
-                      title="Remove binding"
-                    >
-                      <Trash2 size={10} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
+          <div className="flex items-center gap-1 px-1 py-1">
             <Button
-              variant="ghost"
+              variant={rigInspectorView === "quick" ? "secondary" : "ghost"}
               size="sm"
-              className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
-              onClick={() => setShowSelector(true)}
+              className="h-6 text-[10px]"
+              onClick={() => setRigInspectorView("quick")}
             >
-              <Plus
-                size={14}
-                className="group-hover:text-blue-400 transition-colors"
-              />
-              <span className="font-normal text-xs">Add Driven Variable</span>
+              Quick
             </Button>
-            <Modal
-              open={showSelector}
-              onClose={() => setShowSelector(false)}
-              title="Select Property to Drive"
-              maxWidth="md"
+            <Button
+              variant={rigInspectorView === "bindings" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-6 text-[10px]"
+              onClick={() => setRigInspectorView("bindings")}
             >
-              <VariableSelector
-                onSelect={handleAddRigDrivenVariable}
-                onCancel={() => setShowSelector(false)}
-                defaultTab="scene"
-              />
-            </Modal>
+              Binding Editor
+            </Button>
           </div>
+
+          {rigInspectorView === "quick" ? (
+            <>
+              <RiggingPropertyRow
+                label="Current Value"
+                onScrubStart={() => {
+                  scrubValuesRef.current[input.id] = value;
+                }}
+                onScrub={(_, totalDelta) => {
+                  const step = (input.range.max - input.range.min) / 100;
+                  const startVal = scrubValuesRef.current[input.id] ?? 0;
+                  handleInputValueChange(
+                    input.id,
+                    startVal + totalDelta * step,
+                  );
+                }}
+                renderMainInput={() => (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Slider
+                      min={input.range.min ?? -1}
+                      max={input.range.max ?? 1}
+                      step={0.01}
+                      value={value}
+                      className="flex-1"
+                      onChange={(val) =>
+                        handleInputValueChange(input.id, val as number)
+                      }
+                    />
+                    <div className="w-12 flex-shrink-0">
+                      <NumberField
+                        size="sm"
+                        value={value}
+                        className="bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
+                        onChange={(val) =>
+                          handleInputValueChange(input.id, val)
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              />
+              <div className="flex flex-col gap-2 flex-1 min-h-0">
+                <div className="flex items-center gap-2 px-1 py-1">
+                  <Sliders size={12} className="text-slate-500" />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Driving {downstreamInputs.length} variables ·{" "}
+                    {dependents.length} properties
+                  </span>
+                </div>
+
+                {downstreamInputs.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
+                      Variables
+                    </div>
+                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
+                      {downstreamInputs.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
+                          onClick={() => openRigInspector(entry.id)}
+                          title={`Inspect ${entry.label}`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+                          <span className="flex-1 truncate">{entry.label}</span>
+                          <ChevronRight size={10} className="text-text-muted" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dependents.length === 0 ? (
+                  <EmptyState
+                    icon={Sliders}
+                    iconSize={20}
+                    title="No Driven Properties"
+                    description="This variable isn't currently driving any scene properties."
+                    className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                  />
+                ) : (
+                  <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 flex-1">
+                    {dependents.map((d) => (
+                      <div
+                        key={d.targetId}
+                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 group"
+                      >
+                        <button
+                          type="button"
+                          className="flex flex-1 items-center gap-2 min-w-0 text-left"
+                          onClick={() => openSceneBindingInspector(d.targetId)}
+                          title={`Inspect ${d.name}`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
+                          <span className="flex-1 truncate">{d.name}</span>
+                          <ChevronRight
+                            size={10}
+                            className="text-text-muted opacity-70 group-hover:opacity-100"
+                          />
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
+                          onClick={() => handleResetBinding(d.targetId)}
+                          title="Remove binding"
+                        >
+                          <Trash2 size={10} />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
+                  onClick={() => setShowSelector(true)}
+                >
+                  <Plus
+                    size={14}
+                    className="group-hover:text-blue-400 transition-colors"
+                  />
+                  <span className="font-normal text-xs">
+                    Add Driven Variable
+                  </span>
+                </Button>
+                <Modal
+                  open={showSelector}
+                  onClose={() => setShowSelector(false)}
+                  title="Select Property to Drive"
+                  maxWidth="md"
+                >
+                  <VariableSelector
+                    onSelect={handleAddRigDrivenVariable}
+                    onCancel={() => setShowSelector(false)}
+                    defaultTab="scene"
+                  />
+                </Modal>
+              </div>
+            </>
+          ) : parentBinding ? (
+            <div className="rounded-lg border border-border-default/60 bg-bg-panel/30 p-2 overflow-y-auto custom-scrollbar">
+              <BindingEditor
+                binding={parentBinding}
+                targetId={input.id}
+                label={input.label || input.id}
+                standardInputs={standardInputList}
+                standardInputLookup={standardInputsById}
+                onBindingInputChange={handleParentBindingInputChange}
+                onAddBindingSlot={handleParentAddBindingSlot}
+                onRemoveBindingSlot={handleParentRemoveBindingSlot}
+                onBindingExpressionChange={handleParentBindingExpressionChange}
+                onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+                onBindingSlotValueTypeChange={
+                  handleParentBindingSlotValueTypeChange
+                }
+                onRequestCreateStandardInput={handleRequestCreateStandardInput}
+                onResetBinding={handleParentResetBinding}
+                expandable={false}
+                defaultExpanded={true}
+                currentValues={inputValues}
+                onInputValueChange={handleInputValueChange}
+                featureFlags={{
+                  vectorAuthoringBeta: true,
+                  conditionalAuthoringBeta: true,
+                }}
+              />
+            </div>
+          ) : (
+            <EmptyState
+              icon={Sliders}
+              iconSize={20}
+              title="No Parent Binding"
+              description="This variable has no input binding yet. Create one to map it from upstream rig inputs."
+              className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleEnsureParentBinding(input.id)}
+                >
+                  Create Binding
+                </Button>
+              }
+            />
+          )}
         </div>
       );
     }

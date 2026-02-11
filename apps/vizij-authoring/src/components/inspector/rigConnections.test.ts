@@ -4,6 +4,7 @@ import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   buildPoseRigFaceTrace,
+  collectDirectDownstreamRigInputs,
   collectRigDependents,
   selectSafePoseRigTraceSuggestions,
   summarizeTraceConnections,
@@ -100,6 +101,66 @@ describe("collectRigDependents", () => {
     });
 
     expect(dependents).toEqual([]);
+  });
+});
+
+describe("collectDirectDownstreamRigInputs", () => {
+  it("returns direct child rig inputs that reference the selected rig", () => {
+    const inputBindings: InputBindingMap = {
+      "rig/child/mouth_open": {
+        targetId: "rig/child/mouth_open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+      "rig/child/lip_raise": {
+        targetId: "rig/child/lip_raise",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+      "rig/child/unused": {
+        targetId: "rig/child/unused",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/other/source" }],
+      },
+    };
+    const standardInputsById = new Map<string, StandardRigInput>([
+      [
+        "rig/child/mouth_open",
+        {
+          id: "rig/child/mouth_open",
+          path: "/standard/face/mouth/open",
+          label: "Mouth Open",
+          group: "standard",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+      [
+        "rig/child/lip_raise",
+        {
+          id: "rig/child/lip_raise",
+          path: "/standard/face/lip/raise",
+          label: "Lip Raise",
+          group: "standard",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+    ]);
+
+    const dependents = collectDirectDownstreamRigInputs({
+      selectedRigId: "rig/parent/jaw_open",
+      inputBindings,
+      standardInputsById,
+    });
+
+    expect(dependents).toEqual([
+      { id: "rig/child/lip_raise", label: "Lip Raise" },
+      { id: "rig/child/mouth_open", label: "Mouth Open" },
+    ]);
   });
 });
 

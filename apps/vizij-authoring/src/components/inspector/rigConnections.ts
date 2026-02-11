@@ -12,6 +12,11 @@ interface RigDependentTarget {
   targetId: string;
 }
 
+export interface DirectRigInputDependent {
+  id: string;
+  label: string;
+}
+
 export interface TraceConnectionsSummary {
   rigs: Array<{ id: string; label: string; features: string[] }>;
   poses: Array<{ id: string; label: string; features: string[] }>;
@@ -150,6 +155,34 @@ export function collectDownstreamRigInputIds(
   }
 
   return downstream;
+}
+
+export function collectDirectDownstreamRigInputs(params: {
+  selectedRigId: string;
+  inputBindings: InputBindingMap;
+  standardInputsById: Map<string, StandardRigInput>;
+}): DirectRigInputDependent[] {
+  const { selectedRigId, inputBindings, standardInputsById } = params;
+  const results = new Map<string, DirectRigInputDependent>();
+
+  Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
+    if (targetInputId === selectedRigId) {
+      return;
+    }
+    const inputIds = collectBindingInputIds(binding);
+    if (!inputIds.includes(selectedRigId)) {
+      return;
+    }
+    const input = standardInputsById.get(targetInputId);
+    results.set(targetInputId, {
+      id: targetInputId,
+      label: input?.label || input?.path || targetInputId,
+    });
+  });
+
+  return Array.from(results.values()).sort((a, b) =>
+    a.label.localeCompare(b.label),
+  );
 }
 
 function resolveTargetName(
