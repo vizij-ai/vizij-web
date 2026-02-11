@@ -33,6 +33,7 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
+import type { PoseGroupInspectorSelection } from "./types/poseGroupInspector";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
@@ -75,6 +76,8 @@ function AppContent({ loader }: AppContentProps) {
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectedPoseGroup, setSelectedPoseGroup] =
+    useState<PoseGroupInspectorSelection | null>(null);
 
   // Reference Face State
 
@@ -362,6 +365,8 @@ function AppContent({ loader }: AppContentProps) {
             selectedRigId={selectedRigId}
             onSelectRig={handleSelectRig}
             onSelectPose={handleSelectPose}
+            selectedPoseGroup={selectedPoseGroup}
+            onSelectPoseGroup={setSelectedPoseGroup}
           />
         }
         leftMiddleVisible={panels.materials.isVisible}
@@ -375,7 +380,12 @@ function AppContent({ loader }: AppContentProps) {
         bottomPanel={<AnimationPanel />}
         // Right
         rightTopVisible={panels.inspector.isVisible}
-        rightTopPanel={<InspectorPanel />}
+        rightTopPanel={
+          <InspectorPanel
+            selectedPoseGroup={selectedPoseGroup}
+            onSelectPoseGroup={setSelectedPoseGroup}
+          />
+        }
         rightBottomVisible={panels.debug.isVisible}
         rightBottomPanel={
           <DebugPanel

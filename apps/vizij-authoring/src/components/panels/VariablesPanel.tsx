@@ -7,21 +7,18 @@ import {
   Play,
   Search,
   Sliders,
-  RotateCcw,
 } from "lucide-react";
 import type { StandardRigInput } from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { PanelSearch, TreeRow } from "../ui";
-import { Modal } from "../ui/Modal";
-import { Slider } from "../ui/Slider";
-import { NumberField } from "../ui/NumberField";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
+import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -121,13 +118,6 @@ function collectPoseIds(node: TreeNode): string[] {
   return ids;
 }
 
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.max(0, Math.min(1, value));
-}
-
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
@@ -139,7 +129,7 @@ interface TreeRowWrapperProps {
   onToggle: (id: string) => void;
   onAction?: (node: TreeNode, action: string) => void;
   onSelect?: (node: TreeNode) => void;
-  selection?: { type: "pose" | "rig"; id: string } | null;
+  selection?: { type: "pose" | "rig" | "pose-group"; id: string } | null;
   searchQuery: string;
 }
 
@@ -155,6 +145,9 @@ function TreeRowWrapper({
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children.size > 0;
+  const isPoseGroupFolder =
+    node.type === "folder" &&
+    (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
 
   // Check selection
   const isSelected =
@@ -164,7 +157,10 @@ function TreeRowWrapper({
       (node.data as PoseDefinition)?.id === selection.id) ||
       (node.type === "rig" &&
         selection.type === "rig" &&
-        (node.data as RigNodeData)?.input?.id === selection.id));
+        (node.data as RigNodeData)?.input?.id === selection.id) ||
+      (isPoseGroupFolder &&
+        selection.type === "pose-group" &&
+        node.id === selection.id));
 
   // Determine Icon
   let Icon = Folder;
@@ -189,7 +185,9 @@ function TreeRowWrapper({
       isExpanded={isExpanded}
       isSelected={!!isSelected}
       onToggle={() => onToggle(node.id)}
-      onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
+      onSelect={
+        !hasChildren || isPoseGroupFolder ? () => onSelect?.(node) : undefined
+      }
       highlightQuery={searchQuery}
       icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
       actions={
@@ -270,38 +268,23 @@ interface VariablesPanelProps {
   selectedRigId?: string | null;
   onSelectRig?: (id: string | null) => void;
   onSelectPose?: (id: string) => void;
+  selectedPoseGroup?: PoseGroupInspectorSelection | null;
+  onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
 }
 
 export function VariablesPanel({
   selectedRigId,
   onSelectRig,
   onSelectPose,
+  selectedPoseGroup,
+  onSelectPoseGroup,
 }: VariablesPanelProps) {
-  const {
-    poses,
-    applyPose,
-    selectPose,
-    selectedPoseId,
-    createPose,
-    neutralInputs,
-    blendMode,
-  } = usePoseRig();
-  const {
-    managedStandardInputs,
-    handleCreateCustomStandardInput,
-    applyStandardInputBatch,
-    standardInputsById,
-  } = useBindingAuthoring((state) => state);
+  const { poses, applyPose, selectPose, selectedPoseId, createPose } =
+    usePoseRig();
+  const { managedStandardInputs, handleCreateCustomStandardInput } =
+    useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
   const pendingPoseSelectionRef = useRef(false);
-  const [poseGroupInspector, setPoseGroupInspector] = useState<{
-    groupPath: string;
-    label: string;
-    poseIds: string[];
-  } | null>(null);
-  const [poseGroupWeights, setPoseGroupWeights] = useState<
-    Record<string, number>
-  >({});
 
   // State for search
   const [search, setSearch] = useState("");
@@ -323,93 +306,6 @@ export function VariablesPanel({
         disabled: entry.disabled,
       }));
   }, [managedStandardInputs]);
-
-  const poseLookup = useMemo(() => {
-    const lookup = new Map<string, PoseDefinition>();
-    poses.forEach((pose) => lookup.set(pose.id, pose));
-    return lookup;
-  }, [poses]);
-
-  const activePoseGroupPoses = useMemo(() => {
-    if (!poseGroupInspector) {
-      return [] as PoseDefinition[];
-    }
-    return poseGroupInspector.poseIds
-      .map((poseId) => poseLookup.get(poseId))
-      .filter((pose): pose is PoseDefinition => Boolean(pose));
-  }, [poseGroupInspector, poseLookup]);
-
-  const resolveNeutralValue = (inputId: string) => {
-    const neutral = neutralInputs[inputId];
-    if (typeof neutral === "number" && Number.isFinite(neutral)) {
-      return neutral;
-    }
-    const fallback = standardInputsById.get(inputId)?.defaultValue;
-    if (typeof fallback === "number" && Number.isFinite(fallback)) {
-      return fallback;
-    }
-    return 0;
-  };
-
-  const clampInputValue = (inputId: string, value: number) => {
-    const input = standardInputsById.get(inputId);
-    if (!input?.range) {
-      return value;
-    }
-    const min = Number.isFinite(input.range.min) ? input.range.min : value;
-    const max = Number.isFinite(input.range.max) ? input.range.max : value;
-    return Math.max(min, Math.min(max, value));
-  };
-
-  const applyPoseGroupPreview = (
-    groupPoses: PoseDefinition[],
-    weights: Record<string, number>,
-  ) => {
-    const updates: Record<string, number> = {};
-    managedStandardInputs.forEach((entry) => {
-      updates[entry.input.id] = resolveNeutralValue(entry.input.id);
-    });
-
-    const affectedInputs = new Set<string>();
-    groupPoses.forEach((pose) => {
-      Object.keys(pose.values).forEach((inputId) =>
-        affectedInputs.add(inputId),
-      );
-    });
-
-    affectedInputs.forEach((inputId) => {
-      const neutral = resolveNeutralValue(inputId);
-      let totalWeight = 0;
-      let totalWeightedDelta = 0;
-      groupPoses.forEach((pose) => {
-        const weight = clamp01(weights[pose.id] ?? 0);
-        if (weight <= 0) {
-          return;
-        }
-        const target = pose.values[inputId];
-        const poseValue =
-          typeof target === "number" && Number.isFinite(target)
-            ? target
-            : neutral;
-        const delta = poseValue - neutral;
-        if (Math.abs(delta) < 1e-6) {
-          return;
-        }
-        totalWeight += weight;
-        totalWeightedDelta += delta * weight;
-      });
-
-      let nextValue = neutral;
-      if (blendMode === "additive") {
-        nextValue = neutral + totalWeightedDelta;
-      } else if (totalWeight > 0) {
-        nextValue = neutral + totalWeightedDelta / Math.max(totalWeight, 1);
-      }
-      updates[inputId] = clampInputValue(inputId, nextValue);
-    });
-
-    applyStandardInputBatch(updates, { replace: true });
-  };
 
   const referenceRigEntries = useMemo(
     () =>
@@ -687,6 +583,23 @@ export function VariablesPanel({
     setExpandedIds(newExpanded);
   };
 
+  const openPoseGroupInspector = (node: TreeNode) => {
+    const folderData = node.data as PoseGroupNodeData | undefined;
+    if (!folderData || folderData.kind !== "pose-group") {
+      return;
+    }
+    const poseIds = collectPoseIds(node);
+    if (poseIds.length === 0) {
+      return;
+    }
+    onSelectPoseGroup?.({
+      groupPath: folderData.groupPath,
+      label: node.label,
+      poseIds,
+      nodeId: node.id,
+    });
+  };
+
   const handleAction = (node: TreeNode, action: string) => {
     if (node.type === "pose" && action === "play") {
       const poseData = node.data as PoseDefinition;
@@ -694,33 +607,14 @@ export function VariablesPanel({
       return;
     }
     if (node.type === "folder" && action === "inspect-pose-group") {
-      const folderData = node.data as PoseGroupNodeData | undefined;
-      if (!folderData || folderData.kind !== "pose-group") {
-        return;
-      }
-      const poseIds = collectPoseIds(node);
-      if (poseIds.length === 0) {
-        return;
-      }
-      setPoseGroupInspector({
-        groupPath: folderData.groupPath,
-        label: node.label,
-        poseIds,
-      });
-      setPoseGroupWeights((previous) => {
-        const next: Record<string, number> = {};
-        poseIds.forEach((poseId) => {
-          next[poseId] =
-            selectedPoseId === poseId ? 1 : (previous[poseId] ?? 0);
-        });
-        return next;
-      });
+      openPoseGroupInspector(node);
     }
   };
 
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
       const poseData = node.data as PoseDefinition;
+      onSelectPoseGroup?.(null);
       if (onSelectPose) {
         onSelectPose(poseData.id);
       } else {
@@ -732,6 +626,13 @@ export function VariablesPanel({
     } else if (node.type === "rig") {
       const rigData = node.data as RigNodeData;
       onSelectRig?.(rigData.input.id);
+      onSelectPoseGroup?.(null);
+    } else if (
+      node.type === "folder" &&
+      (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
+    ) {
+      openPoseGroupInspector(node);
+      onSelectRig?.(null);
     }
   };
 
@@ -763,49 +664,16 @@ export function VariablesPanel({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const activeSelection = useMemo(() => {
+    if (selectedPoseGroup?.nodeId) {
+      return {
+        type: "pose-group" as const,
+        id: selectedPoseGroup.nodeId,
+      };
+    }
     if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
     if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
     return null;
-  }, [selectedPoseId, selectedRigId]);
-
-  const groupTotalWeight = useMemo(
-    () =>
-      activePoseGroupPoses.reduce(
-        (sum, pose) => sum + clamp01(poseGroupWeights[pose.id] ?? 0),
-        0,
-      ),
-    [activePoseGroupPoses, poseGroupWeights],
-  );
-
-  const handlePoseGroupWeightChange = (poseId: string, nextWeight: number) => {
-    const clamped = clamp01(nextWeight);
-    setPoseGroupWeights((previous) => {
-      const next = {
-        ...previous,
-        [poseId]: clamped,
-      };
-      applyPoseGroupPreview(activePoseGroupPoses, next);
-      return next;
-    });
-  };
-
-  const handlePoseGroupReset = () => {
-    const next: Record<string, number> = {};
-    activePoseGroupPoses.forEach((pose) => {
-      next[pose.id] = 0;
-    });
-    setPoseGroupWeights(next);
-    applyPoseGroupPreview(activePoseGroupPoses, next);
-  };
-
-  const handlePoseGroupSolo = (poseId: string) => {
-    const next: Record<string, number> = {};
-    activePoseGroupPoses.forEach((pose) => {
-      next[pose.id] = pose.id === poseId ? 1 : 0;
-    });
-    setPoseGroupWeights(next);
-    applyPoseGroupPreview(activePoseGroupPoses, next);
-  };
+  }, [selectedPoseGroup?.nodeId, selectedPoseId, selectedRigId]);
 
   const actions = (
     <Button
@@ -821,285 +689,151 @@ export function VariablesPanel({
   );
 
   return (
-    <>
-      <Panel
-        title="Variables"
-        description="Manage poses and rig variables."
-        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-        actions={actions}
-        badge={`${totalCount}`}
-      >
-        <div className="flex flex-col h-full gap-1 p-2">
-          {/* Search Input */}
-          <div className="flex items-center gap-2 px-1 mb-1">
-            <PanelSearch
-              ref={searchInputRef}
-              value={search}
-              onChange={setSearch}
-              placeholder={
-                search ? "Filter..." : "Search or create variable..."
-              }
-            />
-          </div>
-          <div className="flex items-center gap-1 px-1 mb-1">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-6 px-2 text-[10px] gap-1"
-              onClick={handleCreatePose}
-              title="Create a new pose and inspect it"
-            >
-              <Activity size={11} className="text-purple-400" />
-              New Pose
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-              onClick={() => searchInputRef.current?.focus()}
-              title="Create a new variable"
-            >
-              <Plus size={11} />
-              New Variable
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-            {(
-              [
-                ["auto", "Auto"],
-                ["preset", "Preset"],
-                ["custom", "Custom"],
-                ["reference", "Reference"],
-              ] as Array<[RigNodeSource, string]>
-            ).map(([source, label]) => {
-              const isActive = enabledSources.has(source);
-              const count = sourceCounts[source];
-              return (
-                <button
-                  key={source}
-                  type="button"
-                  className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                    isActive
-                      ? "border-border-hover bg-bg-panel text-text-primary"
-                      : "border-border-default text-text-muted hover:text-text-primary"
-                  }`}
-                  onClick={() => {
-                    setEnabledSources((previous) => {
-                      const next = new Set(previous);
-                      if (next.has(source)) {
-                        next.delete(source);
-                      } else {
-                        next.add(source);
-                      }
-                      return next;
-                    });
-                  }}
-                >
-                  {label} ({count})
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Create Option */}
-            {showCreateOption && (
-              <div
-                className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
-                onClick={handleCreate}
-              >
-                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
-                  <Plus size={12} strokeWidth={2.5} />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-medium truncate">
-                    Create "<span className="text-accent">{search}</span>"
-                  </span>
-                  <span className="text-[10px] text-text-muted">
-                    Create and select new variable
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {visibleRoot.children.size === 0 && !showCreateOption ? (
-              <EmptyState
-                icon={Search}
-                iconSize={18}
-                title={
-                  search.trim().length > 0
-                    ? "No results"
-                    : "No variables defined"
-                }
-                description={
-                  search.trim().length > 0
-                    ? `No variables found matching "${search}"`
-                    : "Create new variables or import a model with poses."
-                }
-                action={
-                  search.trim().length > 0 ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSearch("")}
-                      className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                    >
-                      Clear Search
-                    </Button>
-                  ) : undefined
-                }
-                className="py-12"
-              />
-            ) : (
-              Array.from(visibleRoot.children.values())
-                .sort((a, b) => {
-                  if (a.type === "folder" && b.type !== "folder") return -1;
-                  if (a.type !== "folder" && b.type === "folder") return 1;
-                  return a.label.localeCompare(b.label);
-                })
-                .map((child) => (
-                  <TreeRowWrapper
-                    key={child.id}
-                    node={child}
-                    depth={0}
-                    expanded={expandedIds}
-                    onToggle={handleToggle}
-                    onAction={handleAction}
-                    onSelect={handleSelect}
-                    selection={activeSelection}
-                    searchQuery={search}
-                  />
-                ))
-            )}
-          </div>
-        </div>
-      </Panel>
-      <Modal
-        open={poseGroupInspector !== null}
-        onClose={() => setPoseGroupInspector(null)}
-        title={
-          poseGroupInspector
-            ? `Pose Group Inspector · ${poseGroupInspector.label}`
-            : "Pose Group Inspector"
-        }
-        maxWidth="xl"
-      >
-        {poseGroupInspector && activePoseGroupPoses.length > 0 ? (
-          <div className="flex flex-col gap-4">
-            <p className="text-xs text-text-muted">
-              Preview combinations within this pose group using the current
-              group blend mode (<span className="font-mono">{blendMode}</span>
-              ). This stages a neutral baseline first, then applies the group
-              vector.
-            </p>
-            <div className="flex items-center justify-between gap-2 rounded border border-border-default/60 bg-bg-panel/40 px-3 py-2">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Group Path
-                </span>
-                <span className="text-xs font-mono text-text-primary">
-                  /{poseGroupInspector.groupPath}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-text-muted font-mono">
-                  Total Weight: {groupTotalWeight.toFixed(2)}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1"
-                  onClick={handlePoseGroupReset}
-                  title="Reset all pose weights in this group"
-                >
-                  <RotateCcw size={11} />
-                  Reset
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {activePoseGroupPoses.map((pose) => {
-                const weight = clamp01(poseGroupWeights[pose.id] ?? 0);
-                return (
-                  <div
-                    key={pose.id}
-                    className="rounded border border-border-default/60 bg-bg-panel/30 px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <div className="text-xs text-text-primary truncate">
-                          {pose.name}
-                        </div>
-                        <div className="text-[10px] text-text-muted font-mono truncate">
-                          {pose.id}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          onClick={() => handlePoseGroupSolo(pose.id)}
-                          title="Solo this pose at 100%"
-                        >
-                          Solo
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          onClick={() => {
-                            if (onSelectPose) {
-                              onSelectPose(pose.id);
-                            } else {
-                              selectPose(pose.id);
-                            }
-                            applyPose(pose.id);
-                          }}
-                          title="Select and play this pose"
-                        >
-                          Play
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Slider
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={weight}
-                        className="flex-1"
-                        onChange={(value) =>
-                          handlePoseGroupWeightChange(pose.id, value as number)
-                        }
-                      />
-                      <div className="w-20 flex-shrink-0">
-                        <NumberField
-                          size="sm"
-                          value={weight}
-                          className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-xs"
-                          onChange={(value) =>
-                            handlePoseGroupWeightChange(pose.id, value)
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <EmptyState
-            icon={Activity}
-            iconSize={18}
-            title="No Poses In Group"
-            description="This folder does not currently contain pose entries."
-            className="py-8"
+    <Panel
+      title="Variables"
+      description="Manage poses and rig variables."
+      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+      actions={actions}
+      badge={`${totalCount}`}
+    >
+      <div className="flex flex-col h-full min-h-0 gap-1 p-2">
+        <div className="flex items-center gap-2 px-1 mb-1">
+          <PanelSearch
+            ref={searchInputRef}
+            value={search}
+            onChange={setSearch}
+            placeholder={search ? "Filter..." : "Search or create variable..."}
           />
-        )}
-      </Modal>
-    </>
+        </div>
+        <div className="flex items-center gap-1 px-1 mb-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1"
+            onClick={handleCreatePose}
+            title="Create a new pose and inspect it"
+          >
+            <Activity size={11} className="text-purple-400" />
+            New Pose
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+            onClick={() => searchInputRef.current?.focus()}
+            title="Create a new variable"
+          >
+            <Plus size={11} />
+            New Variable
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+          {(
+            [
+              ["auto", "Auto"],
+              ["preset", "Preset"],
+              ["custom", "Custom"],
+              ["reference", "Reference"],
+            ] as Array<[RigNodeSource, string]>
+          ).map(([source, label]) => {
+            const isActive = enabledSources.has(source);
+            const count = sourceCounts[source];
+            return (
+              <button
+                key={source}
+                type="button"
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  isActive
+                    ? "border-border-hover bg-bg-panel text-text-primary"
+                    : "border-border-default text-text-muted hover:text-text-primary"
+                }`}
+                onClick={() => {
+                  setEnabledSources((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(source)) {
+                      next.delete(source);
+                    } else {
+                      next.add(source);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+          {showCreateOption && (
+            <div
+              className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
+              onClick={handleCreate}
+            >
+              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
+                <Plus size={12} strokeWidth={2.5} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-medium truncate">
+                  Create "<span className="text-accent">{search}</span>"
+                </span>
+                <span className="text-[10px] text-text-muted">
+                  Create and select new variable
+                </span>
+              </div>
+            </div>
+          )}
+
+          {visibleRoot.children.size === 0 && !showCreateOption ? (
+            <EmptyState
+              icon={Search}
+              iconSize={18}
+              title={
+                search.trim().length > 0 ? "No results" : "No variables defined"
+              }
+              description={
+                search.trim().length > 0
+                  ? `No variables found matching "${search}"`
+                  : "Create new variables or import a model with poses."
+              }
+              action={
+                search.trim().length > 0 ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearch("")}
+                    className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                  >
+                    Clear Search
+                  </Button>
+                ) : undefined
+              }
+              className="py-12"
+            />
+          ) : (
+            Array.from(visibleRoot.children.values())
+              .sort((a, b) => {
+                if (a.type === "folder" && b.type !== "folder") return -1;
+                if (a.type !== "folder" && b.type === "folder") return 1;
+                return a.label.localeCompare(b.label);
+              })
+              .map((child) => (
+                <TreeRowWrapper
+                  key={child.id}
+                  node={child}
+                  depth={0}
+                  expanded={expandedIds}
+                  onToggle={handleToggle}
+                  onAction={handleAction}
+                  onSelect={handleSelect}
+                  selection={activeSelection}
+                  searchQuery={search}
+                />
+              ))
+          )}
+        </div>
+      </div>
+    </Panel>
   );
 }
