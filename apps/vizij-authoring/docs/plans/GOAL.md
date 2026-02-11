@@ -36,4 +36,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-11)
 
-P0 and P1 stabilization complete in current branch. Focus shifts to P2 architecture/scale-readiness while preserving full `vizij-authoring` validate green status.
+P0 is complete and prior P1 routing/parity tranche is complete, but P1 is reopened for Quori smoke follow-up focused on inspector intent clarity, quick-edit slider reliability, and legacy pose-import mapping ergonomics before moving fully into P2.

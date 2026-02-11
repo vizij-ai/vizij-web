@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-11 (P1 complete)
+Last updated: 2026-02-11 (P1 follow-up in progress)
 
 ## Priority Bands
 
@@ -34,14 +34,18 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-Status (2026-02-11): complete in current branch.
+Status (2026-02-11): core tranche complete; follow-up tranche reopened from Quori smoke findings.
 
 1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
 2. Done: routing-contract and chain regression coverage additions.
-3. Done: inspector slider fidelity fixes (self-slot guard, active-slot quick edit, issue surfacing).
+3. Done: inspector slider fidelity baseline fixes (self-slot guard, active-slot quick edit, issue surfacing).
 4. Done: expanded app-level validation path (`vizij-authoring` `validate` script).
 5. Done: standard-input coverage panel + pose rig kind roundtrip tests.
 6. Done: compile/validate/apply signals promoted into primary inspector workflow.
+7. Next: terminology/label contract pass for inspector relationship surfaces.
+8. Next: split rig add-driven actions into explicit property vs variable workflows.
+9. Next: close remaining quick-edit inert-slider edge cases for legacy/non-canonical input ids.
+10. Next: add pose import remap by normalized path/source-id before strict id pruning and disambiguate root-vs-missing parent binding states.
 
 ### P2 (architecture and scale-readiness)
 

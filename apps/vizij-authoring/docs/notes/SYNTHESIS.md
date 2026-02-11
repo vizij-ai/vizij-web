@@ -1,6 +1,6 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-11 (P1 complete)
+Last updated: 2026-02-11 (P1 follow-up in progress)
 
 This file consolidates active findings from:
 
@@ -19,9 +19,12 @@ This file consolidates active findings from:
 
 ## Active Findings That Still Matter
 
-1. P0 and P1 tranches are now stabilized in this branch; remaining concerns are primarily P2 architecture/scale items.
-2. Full-suite app validation now runs through `pnpm --filter vizij-authoring run validate` and is green, reducing prior targeted-only confidence risk.
-3. Inspector chain navigation, context breadcrumbs, and cross-context binding parity are now implemented in active flows (scene/rig/pose) with targeted regression tests.
+1. Inspector chain traversal exists, but terminology and action labels are still ambiguous for migration-heavy workflows (`what drives me` vs `what I drive`).
+2. Rig inspector quick actions and list labeling still conflate variables and properties in ways that confuse authoring intent.
+3. Quick-edit sections still have legacy-id edge cases where bindings can look valid in `BindingEditor` but inert in quick strips.
+4. Pose binding modal state still overloads "No Parent Binding" (root variable vs broken mapping) and needs explicit state semantics.
+5. Pose config import is still exact-id based and prunes legacy ids without path/source-id remap.
+6. Full app validation remains green, but these are behavior/UX correctness gaps found in Quori smoke testing and tracked for immediate follow-up.
 
 ## Architecture Debt (Still Relevant From Audit)
 
@@ -38,8 +41,10 @@ This file consolidates active findings from:
 ## Priority Interpretation
 
 1. P0: correctness and behavior alignment for active runtime-truthful pipeline.
-2. P1: inspector chain authoring completion (drill-down routing + binding parity) and associated regression coverage.
+2. P1: inspector chain reliability and migration ergonomics (terminology, routing affordances, quick-edit fidelity, pose id remap/disambiguation).
 3. P2: architecture/performance debt that blocks upcoming scene/material work.
 4. P3: UX polish and deferred enhancements.
 
 See `apps/vizij-authoring/docs/plans/BACKLOG.md` for concrete tasks mapped to this priority model.
+
+See `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md` for detailed smoke-test evidence and acceptance criteria.

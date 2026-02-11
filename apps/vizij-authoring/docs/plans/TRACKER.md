@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-11 (P1 complete)
+Last updated: 2026-02-11 (P1 follow-up in progress)
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`
 
@@ -51,7 +51,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - active scene inspector now surfaces feature matrix and direct binding editors via `apps/vizij-authoring/src/components/inspector/FeatureList.tsx`.
      Required actions: none.
 
-## P1 Focus Queue (Inspector Chain Authoring)
+## P1 Completed Tranche (Inspector Chain Authoring)
 
 1. P1-I1 Chain drill-down routing across inspector modes: `done`
    Evidence:
@@ -80,6 +80,35 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - quick-edit sections use effective slot resolution in `apps/vizij-authoring/src/components/inspector/bindingSlotResolution.ts` and consuming inspector sections.
    - compile-time binding issues now surface in scene + rig/pose editing paths via `issues` wiring in `apps/vizij-authoring/src/components/inspector/FeatureList.tsx` and `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
 
+## P1 Follow-up Queue (Quori Smoke)
+
+1. P1-Q1 Terminology and relationship-perspective pass: `planned`
+   Scope:
+   - unify inspector naming around `what drives me` and `what I drive`.
+   - explicitly label variable-vs-property relationship groups in inspector lists.
+     Evidence:
+   - smoke report `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md`.
+
+2. P1-Q2 Rig inspector add-driven IA split (property vs variable): `planned`
+   Scope:
+   - replace current mismatched `Add Driven Variable` flow with separate explicit actions.
+     Evidence:
+   - current action opens property selection only in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+
+3. P1-Q3 Quick-edit slider reliability on legacy/non-canonical ids: `planned`
+   Scope:
+   - align quick section input-id resolution with binding-editor fallback behavior.
+   - investigate and lock down Quori `L_Eye` scale inert-control case.
+     Evidence:
+   - smoke report + quick-vs-binding resolution divergence in inspector components.
+
+4. P1-Q4 Pose binding-state disambiguation + import id remap: `planned`
+   Scope:
+   - distinguish root variable no-parent state from missing-link errors.
+   - add normalized path/source-id pose import remap before pruning.
+     Evidence:
+   - strict id pruning in `apps/vizij-authoring/src/poseRig/services/poseConfigService.ts`.
+
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
@@ -90,7 +119,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## Active Blockers
 
-1. None identified after P1 closeout validation run.
+1. No hard compile/runtime blockers. P1 is reopened for inspector/import UX correctness gaps from Quori smoke testing.
 
 ## Immediate Exit Criteria for Stabilization
 

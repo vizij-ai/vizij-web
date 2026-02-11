@@ -1,6 +1,6 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-11 (P1 complete)
+Last updated: 2026-02-11 (P1 follow-up in progress)
 
 This directory is the source of truth for authoring-app planning and analysis.
 
@@ -17,7 +17,10 @@ Use these for active planning and execution.
 
 1. `apps/vizij-authoring/docs/notes/SYNTHESIS.md` is the working synthesis of audits/reviews.
 2. `apps/vizij-authoring/docs/notes/runtime-chain-review-2026-02-11.md` is the latest deep review of import/IR/runtime chain behavior and editor chain surfacing.
-3. `apps/vizij-authoring/docs/notes/audit.md`, `apps/vizij-authoring/docs/notes/pose_report.md`, and `apps/vizij-authoring/docs/notes/review.md` are detailed source reports.
+3. `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md` captures current inspector/import issues observed in Quori smoke testing and defines the active P1 follow-up plan.
+4. `apps/vizij-authoring/docs/notes/audit.md`, `apps/vizij-authoring/docs/notes/pose_report.md`, and `apps/vizij-authoring/docs/notes/review.md` are detailed source reports.
+5. `apps/vizij-authoring/docs/ARCHITECTURE.md` is the full architecture explainer for contributors onboarding to the authoring app.
+6. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md` is the practical contributor guide (rules, perf, race notes, security, flags, and PR checklist).
 
 The detailed reports can contain stale findings after code changes. Treat `SYNTHESIS.md` as the active interpretation layer.
 
