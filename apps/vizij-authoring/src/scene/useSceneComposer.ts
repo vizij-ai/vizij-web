@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { cloneRawValue, getLookup } from "@vizij/utils";
+import { getLookup } from "@vizij/utils";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
 import type { BindingValueType } from "@vizij/node-graph-authoring";
 import type { ShapeMaterial } from "@vizij/render";

@@ -62,11 +62,7 @@ export function InspectorContent() {
     selectedRigId,
     selectedMaterialId,
     handleSelectObject,
-    handleSelectPose,
-    handleSelectRig,
-    handleSelectMaterial,
     inspectorMode,
-    handleClearSelection,
   } = useUnifiedSelection();
 
   const {
@@ -74,7 +70,6 @@ export function InspectorContent() {
     objects,
     materials,
     updateMaterialLabel,
-    assignMaterial,
     setAnimatableValue,
   } = useSceneComposer();
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ChangeEvent } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   type AnimatableBinding,
@@ -12,8 +11,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { BindingEditor } from "../binding";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
-import { Button, Card, CardHeader, CardBody, Input, Select } from "../ui";
-import { cn } from "../../utils/cn";
+import { Button, Card, CardHeader, CardBody, Select } from "../ui";
 import { collectDriversForNode } from "./DriverPanel";
 
 interface DriverBindingSectionProps {

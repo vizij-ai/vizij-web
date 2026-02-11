@@ -1,9 +1,9 @@
 import React from "react";
 import { DiscrepancyWizard } from "../discrepancy/DiscrepancyWizard";
 import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
-import { ExportDialog } from "./ExportDialog";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { ExportDialog } from "./ExportDialog";
 
 interface AppWizardsProps {
   showExportDialog: boolean;

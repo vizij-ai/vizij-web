@@ -18,7 +18,6 @@ export function RiggingMorphTargetsSection({
 }: RiggingMorphTargetsSectionProps) {
   const {
     bindings,
-    standardInputs,
     standardInputsById,
     inputValues,
     handleInputValueChange,

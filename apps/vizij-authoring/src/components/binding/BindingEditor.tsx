@@ -606,13 +606,6 @@ export function BindingEditor({
     return expressionFunctionGroups.flatMap(({ category, entries }) => {
       const categoryLabel = FUNCTION_CATEGORY_LABELS[category] ?? category;
       return entries.map((entry) => {
-        const detail = functionDetailLookup.get(entry.nodeType);
-        const descriptionSources = ensureDistinctDescriptions([
-          detail?.signatureDoc,
-          entry.description,
-        ]);
-        const parameterKeywords =
-          detail?.parameters.flatMap((param) => [param.label, param.id]) ?? [];
         return {
           value: entry.nodeType,
           label: `${entry.name}()`,
@@ -626,19 +619,6 @@ export function BindingEditor({
     ? (FUNCTION_CATEGORY_LABELS[selectedFunctionDetail.category] ??
       selectedFunctionDetail.category)
     : null;
-
-  const functionSelectCurrentLabel = selectedFunctionDetail ? (
-    <div className="flex items-center gap-2">
-      <span className="font-bold text-text-primary">
-        {selectedFunctionDetail.name}()
-      </span>
-      {selectedFunctionCategoryLabel && (
-        <span className="px-1.5 py-0.5 rounded-full bg-accent-subtle border border-accent/20 text-[9px] font-black uppercase tracking-widest text-accent">
-          {selectedFunctionCategoryLabel}
-        </span>
-      )}
-    </div>
-  ) : undefined;
 
   const functionSignaturePreview = selectedFunctionDetail
     ? buildSignaturePreview(selectedFunctionDetail)

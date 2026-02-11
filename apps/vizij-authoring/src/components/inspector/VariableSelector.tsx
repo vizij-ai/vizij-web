@@ -3,8 +3,6 @@ import { Folder, Box, Zap, Activity } from "lucide-react";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
-import { cn } from "../../utils/cn";
-import type { SceneObjectNode } from "../../scene/sceneGraph";
 
 // ----------------------------------------------------------------------------
 // Types

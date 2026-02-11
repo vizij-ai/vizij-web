@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { Panel, Chip, ListRow } from "../ui";
-import { cn } from "../../utils/cn";
 
 function isMapped(binding: any): boolean {
   if (!binding) return false;

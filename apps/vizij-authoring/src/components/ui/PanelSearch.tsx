@@ -1,5 +1,4 @@
 import { forwardRef } from "react";
-import { cn } from "../../utils/cn";
 import { Input } from "./Input";
 
 interface PanelSearchProps {

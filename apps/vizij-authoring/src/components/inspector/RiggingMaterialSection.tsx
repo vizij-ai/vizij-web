@@ -175,7 +175,6 @@ export function RiggingScalarRow({
   onDefaultChange,
   onStaticValueChange,
 }: RiggingScalarRowProps) {
-  const scrubValuesRef = useRef<Record<string, number>>({});
   const component = feature.components[0];
   if (!component) return null;
 

@@ -44,8 +44,6 @@ export function InstructionCallout({
     onToggle?.(next);
   };
 
-  const handleToggle = () => handleOpenChange(!open);
-
   // If externally triggered, we just render the content based on open state
   if (isExternalTrigger) {
     return (

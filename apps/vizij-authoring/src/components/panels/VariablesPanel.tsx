@@ -1,13 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import {
-  Plus,
-  Folder,
-  Zap,
-  Activity,
-  Play,
-  ChevronRight,
-  Search,
-} from "lucide-react";
+import { Plus, Folder, Zap, Activity, Play, Search } from "lucide-react";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -15,7 +7,6 @@ import { PanelSearch, TreeRow } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { cn } from "../../utils/cn";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 

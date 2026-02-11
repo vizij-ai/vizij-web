@@ -2,8 +2,6 @@ import { useMemo, useState, useCallback } from "react";
 import { Palette, Box, Plus } from "lucide-react";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Panel, PanelSearch, TreeRow, Button } from "../ui";
-import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
-import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 
 export function MaterialsPanel() {
@@ -21,11 +19,6 @@ export function MaterialsPanel() {
         m.id.toLowerCase().includes(query),
     );
   }, [materials, search]);
-
-  const { isExpanded, toggleNode } = useHierarchyTreeState(
-    `${DEFAULT_NAMESPACE}_materials`,
-    materials.map((m) => m.id),
-  );
 
   const handleSelect = useCallback(
     (id: string) => {
