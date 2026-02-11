@@ -15,6 +15,17 @@ describe("PoseConfigService", () => {
     expect(config.poses).toEqual([]);
   });
 
+  it("preserves rigKind during normalize", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      rigKind: "generic" as const,
+      neutralInputs: { a: 0 },
+      poses: [],
+    };
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.rigKind).toBe("generic");
+  });
+
   it("throws on invalid version", () => {
     const input = {
       version: 999,
@@ -55,5 +66,20 @@ describe("PoseConfigService", () => {
 
     const c: any = { version: 1, poses: [{ id: "1" }] };
     expect(PoseConfigService.diff(a, c)).toBe(true);
+  });
+
+  it("roundtrips rigKind through create -> serialize -> normalize", () => {
+    const created = PoseConfigService.create(
+      [],
+      { a: 0.25 },
+      "Test Rig",
+      "face_a",
+      "generic",
+    );
+    const serialized = PoseConfigService.serialize(created);
+    const parsed = JSON.parse(serialized);
+    const { config } = PoseConfigService.normalize(parsed);
+    expect(config.rigKind).toBe("generic");
+    expect(config.faceId).toBe("face_a");
   });
 });
