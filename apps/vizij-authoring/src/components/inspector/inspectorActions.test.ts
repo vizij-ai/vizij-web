@@ -124,6 +124,25 @@ describe("hasParentBindingInput", () => {
     ).toBe(true);
   });
 
+  it("matches legacy-format equivalents using normalized ids", () => {
+    expect(
+      hasParentBindingInput(
+        {
+          inputId: "/l_eye/translation/x",
+        },
+        "l_eye_translation_x",
+      ),
+    ).toBe(true);
+    expect(
+      hasParentBindingInput(
+        {
+          slots: [{ inputId: "/jaw/open" }],
+        },
+        "jaw_open",
+      ),
+    ).toBe(true);
+  });
+
   it("returns false for null/empty bindings and non-matching parents", () => {
     expect(hasParentBindingInput(null, "jaw_open")).toBe(false);
     expect(hasParentBindingInput(undefined, "jaw_open")).toBe(false);

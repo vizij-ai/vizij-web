@@ -63,15 +63,32 @@ interface InputBindingLike {
   slots?: BindingSlotLike[] | null;
 }
 
+function normalizeInputToken(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "_")
+    .toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export function hasParentBindingInput(
   binding: InputBindingLike | null | undefined,
   parentInputId: string,
 ): boolean {
-  if (!binding || !parentInputId) {
+  if (!binding) {
     return false;
   }
 
-  if (binding.inputId === parentInputId) {
+  const normalizedParent = normalizeInputToken(parentInputId);
+  if (!normalizedParent) {
+    return false;
+  }
+
+  if (normalizeInputToken(binding.inputId) === normalizedParent) {
     return true;
   }
 
@@ -79,5 +96,7 @@ export function hasParentBindingInput(
     return false;
   }
 
-  return binding.slots.some((slot) => slot.inputId === parentInputId);
+  return binding.slots.some(
+    (slot) => normalizeInputToken(slot.inputId) === normalizedParent,
+  );
 }
