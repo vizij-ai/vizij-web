@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-11 (P1 follow-up completed)
+Last updated: 2026-02-11 (P1 pose-authoring tranche planned)
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`
 
@@ -102,17 +102,46 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - normalized/source-id remap path and collision warnings added in `apps/vizij-authoring/src/poseRig/services/poseConfigService.ts`.
    - regression coverage in `apps/vizij-authoring/src/poseRig/services/poseConfigService.test.ts` and `apps/vizij-authoring/src/components/inspector/inspectorActions.test.ts`.
 
+## P1 Next Tranche (Pose Authoring Completeness)
+
+1. T1 Pose-group domain + lifecycle surface: `planned`
+   Scope:
+   - introduce first-class pose-group entities and migrate existing `pose.group` labels.
+   - surface lifecycle controls with deterministic selection and confirmation semantics.
+
+2. T2 Two-layer pose compiler topology: `planned`
+   Scope:
+   - implement two-layer blending compile topology (within-group then cross-group per target).
+   - define strategy defaults and persistence contracts.
+
+3. T3 Pose aggregate binding semantics in UI: `planned`
+   Scope:
+   - surface pose aggregate outputs as explicit rig binding sources.
+   - align inspector chain terminology with aggregate semantics.
+
+4. T4 Rig boundary enforcement: `planned`
+   Scope:
+   - enforce low-level-only animatable write boundary for rig variables.
+   - provide migration diagnostics for legacy direct mappings.
+
+5. T5 Strategy controls + diagnostics expansion: `planned`
+   Scope:
+   - add group strategy editors (local and cross-group) plus import strategy controls.
+   - add pose-layer diagnostics (group/aggregate/boundary/target coverage) with actionable routing.
+
+Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
 2. `pnpm --filter vizij-authoring typecheck`: `pass`.
 3. `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx src/components/inspector/rigConnections.test.ts src/components/inspector/VariableSelector.test.tsx src/hooks/__tests__/usePoseGraphImport.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/hooks/__tests__/graphRuntime.test.ts src/utils/graphDiff.test.ts`: `pass` (31 tests).
 4. Coverage status: `full app suite` via `vizij-authoring` validate run.
-5. `pnpm --filter vizij-authoring run validate`: `pass` (lint + typecheck + full Vitest run, 45 files / 188 tests).
+5. `pnpm --filter vizij-authoring run validate`: `pass` (lint + typecheck + full Vitest run, 45 files / 193 tests).
 
 ## Active Blockers
 
-1. No hard compile/runtime blockers. Quori smoke follow-up tranche is complete; remaining work is P2+ scope and any newly discovered smoke issues.
+1. No hard compile/runtime blockers. Current focus is P1 pose-authoring completeness tranche before broad P2 architecture pull-in.
 
 ## Immediate Exit Criteria for Stabilization
 

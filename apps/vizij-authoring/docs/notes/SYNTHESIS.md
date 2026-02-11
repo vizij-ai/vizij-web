@@ -1,6 +1,6 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-11 (P1 follow-up in progress)
+Last updated: 2026-02-11 (P1 pose-authoring tranche planned)
 
 This file consolidates active findings from:
 
@@ -19,12 +19,12 @@ This file consolidates active findings from:
 
 ## Active Findings That Still Matter
 
-1. Inspector chain traversal exists, but terminology and action labels are still ambiguous for migration-heavy workflows (`what drives me` vs `what I drive`).
-2. Rig inspector quick actions and list labeling still conflate variables and properties in ways that confuse authoring intent.
-3. Quick-edit sections still have legacy-id edge cases where bindings can look valid in `BindingEditor` but inert in quick strips.
-4. Pose binding modal state still overloads "No Parent Binding" (root variable vs broken mapping) and needs explicit state semantics.
-5. Pose config import is still exact-id based and prunes legacy ids without path/source-id remap.
-6. Full app validation remains green, but these are behavior/UX correctness gaps found in Quori smoke testing and tracked for immediate follow-up.
+1. Pose compiler currently uses a single global blend layer across all poses; target architecture requires two-layer blending (within-group and cross-group per rig target).
+2. `pose.group` currently behaves mostly as metadata/path segment, not as a first-class computational group entity with own strategy.
+3. Pose-to-rig relationship surfacing still implies direct pose-to-target bindings, while target model requires aggregate pose-layer outputs as binding sources.
+4. Rig boundary enforcement is incomplete for the intended architecture where only low-level rig variables write animatables.
+5. Import/remap grouping and strategy behavior are still implicit and need explicit controls for migration safety.
+6. Full app validation remains green, but these are architecture/authoring correctness gaps tracked in the P1 pose-authoring spec.
 
 ## Architecture Debt (Still Relevant From Audit)
 
@@ -41,10 +41,11 @@ This file consolidates active findings from:
 ## Priority Interpretation
 
 1. P0: correctness and behavior alignment for active runtime-truthful pipeline.
-2. P1: inspector chain reliability and migration ergonomics (terminology, routing affordances, quick-edit fidelity, pose id remap/disambiguation).
+2. P1: pose-authoring architecture correctness (first-class groups, two-layer blending, aggregate binding semantics, boundary enforcement, and aligned UI/diagnostics).
 3. P2: architecture/performance debt that blocks upcoming scene/material work.
 4. P3: UX polish and deferred enhancements.
 
 See `apps/vizij-authoring/docs/plans/BACKLOG.md` for concrete tasks mapped to this priority model.
+See `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md` for the concrete implementation spec and acceptance criteria.
 
 See `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md` for detailed smoke-test evidence and acceptance criteria.

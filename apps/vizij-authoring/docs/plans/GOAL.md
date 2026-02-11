@@ -36,4 +36,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-11)
 
-P0 is complete and prior P1 routing/parity tranche is complete, but P1 is reopened for Quori smoke follow-up focused on inspector intent clarity, quick-edit slider reliability, and legacy pose-import mapping ergonomics before moving fully into P2.
+P0 is complete and prior P1 routing/parity tranche is complete. P1 is now focused on pose-authoring architecture correctness: first-class pose groups, two-layer pose blending (within-group + cross-group), aggregate pose-output binding into rig variables, boundary enforcement between rig layers, and corresponding authoring/import diagnostics before moving fully into P2.

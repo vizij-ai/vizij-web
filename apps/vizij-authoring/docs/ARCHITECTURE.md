@@ -297,6 +297,12 @@ Flow:
 3. Pose import supports remap/confidence/conflict workflows.
 4. Applied pose values can batch-stage into rig inputs.
 
+Current limitation:
+
+1. Pose compilation currently blends across all poses in one layer and treats `pose.group` primarily as path metadata.
+2. Target architecture is moving to first-class pose groups and two-layer blending (within-group and cross-group per rig target).
+3. See `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md` and `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+
 ## F. Scene projection and inspector traversal
 
 Key files:

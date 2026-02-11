@@ -89,6 +89,34 @@ Use this file for app-local implementation backlog only.
 
 ## P1 (next up)
 
+- [ ] Implement first-class pose-group domain model (not just `pose.group` labels).
+      Context: current pose compiler treats groups primarily as naming/path metadata, but target behavior requires group entities with own blend semantics.
+      Goal: represent pose groups explicitly in authoring state and compile contracts.
+      Exit criteria: 1. Pose groups have identity + local blend strategy. 2. Poses reference group entities deterministically. 3. Existing `pose.group` assets migrate without data loss.
+- [ ] Implement two-layer pose blending in compile output.
+      Context: current pose graph applies one global blend layer across all poses per target variable.
+      Goal: blend within each group first, then blend group outputs per target (default cross-group additive).
+      Exit criteria: 1. Per-group-per-target blend nodes exist in compiled graph. 2. Cross-group-per-target blend nodes exist and are strategy-driven. 3. Roundtrip export/import preserves behavior.
+- [ ] Surface pose aggregate outputs as first-class rig binding sources.
+      Context: UI currently implies pose-to-variable links directly from individual poses, but target binding semantics are aggregate outputs.
+      Goal: make rig target binding semantics explicit: aggregate pose layer -> rig variable target.
+      Exit criteria: 1. Inspector can show and navigate pose entry vs group output vs aggregate output. 2. Binding editor targets aggregate pose-layer sources where appropriate. 3. Chain labels are unambiguous and typed.
+- [ ] Enforce rig-layer boundary: only low-level rig variables may write animatable leaves.
+      Context: target architecture requires higher-order variables to compose through rig bindings, not direct animatable writes.
+      Goal: prevent invalid higher-order-to-animatable wiring and provide migration guidance for legacy assets.
+      Exit criteria: 1. Compiler blocks or migrates invalid boundary-crossing bindings with diagnostics. 2. UI prevents creating new invalid direct mappings. 3. Tests cover valid and invalid boundary cases.
+- [ ] Add pose-group and blend-strategy authoring UI.
+      Context: no first-class editor exists for group-local and cross-group blend strategy configuration.
+      Goal: expose group lifecycle + strategy editing without raw JSON edits.
+      Exit criteria: 1. User can create/rename/delete groups and assign poses. 2. User can configure local group strategy and cross-group strategy. 3. Preview/diff surfaces show expected target-value effects.
+- [ ] Add explicit pose import grouping/strategy controls and migration affordances.
+      Context: import grouping behavior is currently implicit and source-name-driven.
+      Goal: make grouping and blend strategy outcomes explicit during remap apply.
+      Exit criteria: 1. Import supports preserve/map/prefix/flatten grouping strategies. 2. Strategy choice is shown before apply and deterministic. 3. Group-level conflicts are actionable with clear resolution UX.
+- [ ] Add pose-layer diagnostics (group, aggregate, boundary, and target coverage).
+      Context: current diagnostics emphasize id remap and slot issues, but do not expose missing group aggregate or boundary violations clearly.
+      Goal: provide actionable pose architecture diagnostics during authoring and export.
+      Exit criteria: 1. Diagnostics cover empty groups, missing aggregate contributions, unsupported boundary crossings, and unresolved target mappings. 2. Each diagnostic links to relevant editor context. 3. Regression coverage exists for each diagnostic class.
 - [x] Make inspector chain traversal first-class across Pose -> Rig -> Animatable.
       Context: authors can inspect "driven" relationships but cannot reliably click through each link in the chain and continue authoring from that next node.
       Goal: every chain list row behaves like navigable graph topology, so users can drill from high-level pose outputs down to final animatable leaves.
@@ -151,6 +179,14 @@ Use this file for app-local implementation backlog only.
 
 ## P2 (architecture and scale-readiness)
 
+- [ ] Extract shared pose-derived analysis service for grouping/path/chain summaries.
+      Context: pose grouping and chain summaries are currently computed inside UI components with duplicated assumptions.
+      Goal: centralize derived pose/group/path/chain computations in reusable selectors/services.
+      Exit criteria: 1. Shared service provides pose membership summary, path preview/collision detection, and downstream property summary. 2. Inspector + Variables panel consume shared derivations. 3. Service-level tests cover legacy-id and collision edge cases.
+- [ ] Rationalize pose store command surface for lifecycle/group/import diagnostics.
+      Context: pose actions are available but not organized by domain intent, which increases UI coupling and side-effect ambiguity.
+      Goal: expose stable command groups for lifecycle, grouping, and import/diagnostic flows.
+      Exit criteria: 1. UI calls through stable command APIs (minimal ad-hoc mutations). 2. Command side effects on config/spec regeneration are documented and test-covered. 3. Integration tests verify runtime sync invariants after command operations.
 - [ ] Extract remaining cross-workbench app flows into focused hooks/services.
 - [ ] Add store-level tests for graph runtime, binding authoring, and selection stores.
 - [ ] Harden RobotData audit:
