@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Trash2,
   Plus,
@@ -18,8 +18,15 @@ import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { Switch } from "../ui/Switch";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useGraphRuntime,
+} from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import type {
+  SceneFeatureComponent,
+  SceneObjectFeature,
+} from "../../scene/sceneGraph";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { rgbToHex, hexToRgb } from "../../utils/color";
@@ -64,6 +71,16 @@ type PoseVariableItem =
       }[];
     };
 
+type InspectorChainMode = "scene" | "rig" | "pose";
+
+type InspectorChainNode = {
+  mode: InspectorChainMode;
+  id: string;
+  label: string;
+  view?: "quick" | "features" | "bindings";
+  targetId?: string;
+};
+
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
   const [blendAmount, setBlendAmount] = useState(0);
@@ -78,6 +95,18 @@ export function InspectorContent() {
     "quick" | "features" | "bindings" | null
   >(null);
   const pendingRigInspectorViewRef = useRef<"quick" | "bindings" | null>(null);
+  const pendingChainNavigationRef = useRef<InspectorChainNode | null>(null);
+  const [inspectorChainPath, setInspectorChainPath] = useState<
+    InspectorChainNode[]
+  >([]);
+  const [focusedSceneBindingTargetId, setFocusedSceneBindingTargetId] =
+    useState<string | null>(null);
+  const [poseBindingEditorInputId, setPoseBindingEditorInputId] = useState<
+    string | null
+  >(null);
+  const [rigDrivenBindingTargetId, setRigDrivenBindingTargetId] = useState<
+    string | null
+  >(null);
 
   // Hooks
   const {
@@ -86,6 +115,7 @@ export function InspectorContent() {
     selectedRigId,
     selectedMaterialId,
     handleSelectObject,
+    handleSelectPose,
     handleSelectRig,
     inspectorMode,
   } = useUnifiedSelection();
@@ -120,6 +150,11 @@ export function InspectorContent() {
     handleUpdateStandardInput,
     handleRenameShape,
     handleBindingInputChange,
+    handleAddBindingSlot,
+    handleRemoveBindingSlot,
+    handleUpdateBindingExpression,
+    handleUpdateBindingSlotAlias,
+    handleBindingSlotValueTypeChange,
     handleResetBinding,
     handleEnsureParentBinding,
     handleParentBindingInputChange,
@@ -131,6 +166,16 @@ export function InspectorContent() {
     handleParentResetBinding,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
+
+  const graphStatus = useGraphRuntime((state) => state.graphStatus);
+  const graphError = useGraphRuntime((state) => state.graphError);
+  const graphWarning = useGraphRuntime((state) => state.graphWarning);
+  const bindingIssueCount = useBindingAuthoring((state) =>
+    Array.from(state.bindingIssues.values()).reduce(
+      (count, issues) => count + issues.length,
+      0,
+    ),
+  );
 
   // Reset blend amount when selected pose changes
   useEffect(() => {
@@ -152,6 +197,7 @@ export function InspectorContent() {
 
   useEffect(() => {
     if (inspectorMode !== "rig" || !selectedRigId) {
+      setRigDrivenBindingTargetId(null);
       return;
     }
     const nextView = pendingRigInspectorViewRef.current;
@@ -162,6 +208,12 @@ export function InspectorContent() {
     }
     setRigInspectorView("quick");
   }, [inspectorMode, selectedRigId]);
+
+  useEffect(() => {
+    if (inspectorMode !== "pose" || !selectedPoseId) {
+      setPoseBindingEditorInputId(null);
+    }
+  }, [inspectorMode, selectedPoseId]);
 
   const targetOwnerById = (() => {
     const targetOwners = new Map<string, string>();
@@ -178,21 +230,300 @@ export function InspectorContent() {
     return targetOwners;
   })();
 
+  const targetLabelById = useMemo(() => {
+    const labels = new Map<string, string>();
+    objects.forEach((objectNode) => {
+      objectNode.features.forEach((feature) => {
+        feature.components.forEach((component) => {
+          if (!component.targetId) {
+            return;
+          }
+          const componentLabel =
+            component.label?.trim() || component.componentKey || "Value";
+          labels.set(
+            component.targetId,
+            `${objectNode.name} · ${feature.label} ${componentLabel}`,
+          );
+        });
+      });
+    });
+    return labels;
+  }, [objects]);
+
+  const sceneNodeById = useMemo(
+    () => new Map(objects.map((objectNode) => [objectNode.id, objectNode])),
+    [objects],
+  );
+
+  const rigInputById = useMemo(
+    () =>
+      new Map(
+        managedStandardInputs.map((entry) => [entry.input.id, entry.input]),
+      ),
+    [managedStandardInputs],
+  );
+
+  const poseById = useMemo(
+    () => new Map(poses.map((pose) => [pose.id, pose])),
+    [poses],
+  );
+
+  const currentInspectorChainNode = useMemo(() => {
+    if (inspectorMode === "scene" && selectedId) {
+      const sceneNode = sceneNodeById.get(selectedId);
+      return {
+        mode: "scene" as const,
+        id: selectedId,
+        label: sceneNode?.name || selectedId,
+        view: sceneInspectorView,
+      };
+    }
+    if (inspectorMode === "rig" && selectedRigId) {
+      const rig = rigInputById.get(selectedRigId);
+      return {
+        mode: "rig" as const,
+        id: selectedRigId,
+        label: rig?.label || selectedRigId,
+        view: rigInspectorView,
+      };
+    }
+    if (inspectorMode === "pose" && selectedPoseId) {
+      const pose = poseById.get(selectedPoseId);
+      return {
+        mode: "pose" as const,
+        id: selectedPoseId,
+        label: pose?.name || selectedPoseId,
+      };
+    }
+    return null;
+  }, [
+    inspectorMode,
+    poseById,
+    rigInputById,
+    rigInspectorView,
+    sceneInspectorView,
+    sceneNodeById,
+    selectedId,
+    selectedPoseId,
+    selectedRigId,
+  ]);
+
+  useEffect(() => {
+    if (!currentInspectorChainNode) {
+      pendingChainNavigationRef.current = null;
+      setInspectorChainPath([]);
+      return;
+    }
+    const pending = pendingChainNavigationRef.current;
+    if (
+      pending &&
+      pending.mode === currentInspectorChainNode.mode &&
+      pending.id === currentInspectorChainNode.id
+    ) {
+      setInspectorChainPath((current) => {
+        if (current.length === 0) {
+          return [currentInspectorChainNode];
+        }
+        const existingIndex = current.findIndex(
+          (entry) =>
+            entry.mode === currentInspectorChainNode.mode &&
+            entry.id === currentInspectorChainNode.id,
+        );
+        if (existingIndex >= 0) {
+          return current.slice(0, existingIndex + 1);
+        }
+        return [...current, currentInspectorChainNode];
+      });
+      pendingChainNavigationRef.current = null;
+      return;
+    }
+    pendingChainNavigationRef.current = null;
+    setInspectorChainPath((current) => {
+      if (
+        current.length === 1 &&
+        current[0].mode === currentInspectorChainNode.mode &&
+        current[0].id === currentInspectorChainNode.id &&
+        current[0].view === currentInspectorChainNode.view
+      ) {
+        return current;
+      }
+      return [currentInspectorChainNode];
+    });
+  }, [currentInspectorChainNode]);
+
+  useEffect(() => {
+    if (inspectorMode !== "scene" || sceneInspectorView !== "bindings") {
+      setFocusedSceneBindingTargetId(null);
+      return;
+    }
+    if (!selectedId || !focusedSceneBindingTargetId) {
+      return;
+    }
+    const selectedNode = sceneNodeById.get(selectedId);
+    const hasTarget =
+      selectedNode?.features.some((feature: SceneObjectFeature) =>
+        feature.components.some(
+          (component: SceneFeatureComponent) =>
+            component.targetId === focusedSceneBindingTargetId,
+        ),
+      ) ?? false;
+    if (!hasTarget) {
+      setFocusedSceneBindingTargetId(null);
+    }
+  }, [
+    focusedSceneBindingTargetId,
+    inspectorMode,
+    sceneInspectorView,
+    sceneNodeById,
+    selectedId,
+  ]);
+
+  const navigateWithChain = (
+    node: InspectorChainNode,
+    navigate: () => void,
+  ) => {
+    pendingChainNavigationRef.current = node;
+    navigate();
+  };
+
+  const renderChainPath = () => {
+    if (inspectorChainPath.length <= 1) {
+      return null;
+    }
+    return (
+      <div className="flex items-center gap-1 flex-wrap px-1 py-0.5 mb-1">
+        <span className="text-[9px] uppercase tracking-wider font-bold text-text-muted">
+          Chain
+        </span>
+        {inspectorChainPath.map((entry, index) => {
+          const isLast = index === inspectorChainPath.length - 1;
+          return (
+            <React.Fragment key={`${entry.mode}:${entry.id}:${index}`}>
+              <button
+                type="button"
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded border transition-colors",
+                  isLast
+                    ? "border-accent/40 text-accent bg-accent/10 cursor-default"
+                    : "border-border-default/40 text-text-secondary hover:text-text-primary hover:border-border-default",
+                )}
+                disabled={isLast}
+                onClick={() => {
+                  setInspectorChainPath((current) =>
+                    current.slice(0, index + 1),
+                  );
+                  pendingChainNavigationRef.current = entry;
+                  if (entry.mode === "scene") {
+                    pendingSceneInspectorViewRef.current =
+                      entry.view ?? "bindings";
+                    setFocusedSceneBindingTargetId(entry.targetId ?? null);
+                    handleSelectObject(entry.id);
+                    return;
+                  }
+                  if (entry.mode === "rig") {
+                    pendingRigInspectorViewRef.current =
+                      entry.view === "bindings" ? "bindings" : "quick";
+                    handleSelectRig(entry.id);
+                    return;
+                  }
+                  handleSelectPose(entry.id);
+                }}
+              >
+                {entry.label}
+              </button>
+              {!isLast && (
+                <ChevronRight size={10} className="text-text-muted/70" />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderAuthoringStatus = () => {
+    const statusTone =
+      graphStatus === "ready"
+        ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
+        : graphStatus === "loading"
+          ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+          : graphStatus === "error"
+            ? "text-red-300 border-red-500/40 bg-red-500/10"
+            : "text-text-muted border-border-default/50 bg-bg-panel/30";
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap px-1 py-0.5 mb-1">
+        <span
+          className={cn(
+            "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
+            statusTone,
+          )}
+        >
+          Compile {graphStatus}
+        </span>
+        {graphWarning ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
+            {graphWarning}
+          </span>
+        ) : null}
+        {graphError ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 bg-red-500/10 text-red-200 truncate max-w-[260px]">
+            {graphError}
+          </span>
+        ) : null}
+        <span className="text-[9px] px-1.5 py-0.5 rounded border border-border-default/50 bg-bg-panel/30 text-text-muted">
+          Binding issues {bindingIssueCount}
+        </span>
+      </div>
+    );
+  };
+
   const openSceneBindingInspector = (targetId: string) => {
     const objectId = targetOwnerById.get(targetId);
     if (!objectId) {
       return;
     }
+    const objectNode = sceneNodeById.get(objectId);
+    setFocusedSceneBindingTargetId(targetId);
     pendingSceneInspectorViewRef.current = "bindings";
-    handleSelectObject(objectId);
+    navigateWithChain(
+      {
+        mode: "scene",
+        id: objectId,
+        label: objectNode?.name || objectId,
+        view: "bindings",
+        targetId,
+      },
+      () => handleSelectObject(objectId),
+    );
+  };
+
+  const openPoseInspector = (poseId: string) => {
+    const pose = poseById.get(poseId);
+    navigateWithChain(
+      {
+        mode: "pose",
+        id: poseId,
+        label: pose?.name || poseId,
+      },
+      () => handleSelectPose(poseId),
+    );
   };
 
   const openRigInspector = (
     rigId: string,
     view: "quick" | "bindings" = "quick",
   ) => {
+    const rig = rigInputById.get(rigId);
     pendingRigInspectorViewRef.current = view;
-    handleSelectRig(rigId);
+    navigateWithChain(
+      {
+        mode: "rig",
+        id: rigId,
+        label: rig?.label || rigId,
+        view,
+      },
+      () => handleSelectRig(rigId),
+    );
   };
 
   const handleRequestCreateStandardInput = (suggestedPath?: string) => {
@@ -223,6 +554,8 @@ export function InspectorContent() {
             id={node.id}
             onNameChange={(name) => handleRenameShape(node.id, name)}
           />
+          {renderChainPath()}
+          {renderAuthoringStatus()}
           <div className="flex items-center gap-1 px-1 py-1">
             <Button
               variant={sceneInspectorView === "quick" ? "secondary" : "ghost"}
@@ -286,12 +619,21 @@ export function InspectorContent() {
               <RiggingTransformSection node={node} />
               <RiggingMorphTargetsSection node={node} />
               <RiggingMaterialSection node={node} />
-              <BindingConnections node={node} />
+              <BindingConnections
+                node={node}
+                onSelectPose={openPoseInspector}
+                onSelectRig={(rigId) => openRigInspector(rigId, "quick")}
+                onSelectTarget={openSceneBindingInspector}
+              />
             </>
           ) : sceneInspectorView === "features" ? (
             <FeatureList node={node} mode="features" />
           ) : (
-            <FeatureList node={node} mode="bindings" />
+            <FeatureList
+              node={node}
+              mode="bindings"
+              focusedTargetId={focusedSceneBindingTargetId}
+            />
           )}
         </div>
       );
@@ -503,6 +845,8 @@ export function InspectorContent() {
             onNameChange={(name) => updatePoseName(pose.id, name)}
             onPathChange={(group) => updatePoseGroup(pose.id, group)}
           />
+          {renderChainPath()}
+          {renderAuthoringStatus()}
           <RiggingPropertyRow
             label="Current Value"
             defaultLabel="Pose"
@@ -650,18 +994,32 @@ export function InspectorContent() {
                                 </span>
                               )}
                               {canInspectVariable && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
-                                  title={`Inspect variable bindings for ${rawLabel}`}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openRigInspector(varId, "bindings");
-                                  }}
-                                >
-                                  <ChevronRight size={12} />
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
+                                    title={`Edit binding for ${rawLabel} without leaving Pose`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setPoseBindingEditorInputId(varId);
+                                    }}
+                                  >
+                                    <Sliders size={12} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
+                                    title={`Inspect variable bindings for ${rawLabel}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openRigInspector(varId, "bindings");
+                                    }}
+                                  >
+                                    <ChevronRight size={12} />
+                                  </Button>
+                                </>
                               )}
                             </div>
                           )}
@@ -943,6 +1301,93 @@ export function InspectorContent() {
               onCancel={() => setShowSelector(false)}
             />
           </Modal>
+          <Modal
+            open={poseBindingEditorInputId !== null}
+            onClose={() => setPoseBindingEditorInputId(null)}
+            title={
+              poseBindingEditorInputId
+                ? `Edit Binding · ${
+                    managedStandardInputs.find(
+                      (entry) => entry.input.id === poseBindingEditorInputId,
+                    )?.input.label ?? poseBindingEditorInputId
+                  }`
+                : "Edit Binding"
+            }
+            maxWidth="lg"
+          >
+            {poseBindingEditorInputId &&
+            managedStandardInputs.find(
+              (entry) => entry.input.id === poseBindingEditorInputId,
+            )?.input ? (
+              (() => {
+                const inputToEdit = managedStandardInputs.find(
+                  (entry) => entry.input.id === poseBindingEditorInputId,
+                )!.input;
+                const bindingToEdit = inputBindings[inputToEdit.id] ?? null;
+                const standardInputList = managedStandardInputs.map(
+                  (entry) => entry.input,
+                );
+                if (!bindingToEdit) {
+                  return (
+                    <EmptyState
+                      icon={Sliders}
+                      iconSize={20}
+                      title="No Parent Binding"
+                      description="Create a parent binding to map this pose-driven variable from upstream rig inputs."
+                      className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                      action={
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            handleEnsureParentBinding(inputToEdit.id)
+                          }
+                        >
+                          Create Binding
+                        </Button>
+                      }
+                    />
+                  );
+                }
+                return (
+                  <BindingEditor
+                    binding={bindingToEdit}
+                    targetId={inputToEdit.id}
+                    issues={bindingIssues.get(inputToEdit.id)}
+                    label={inputToEdit.label || inputToEdit.id}
+                    standardInputs={standardInputList}
+                    standardInputLookup={standardInputsById}
+                    onBindingInputChange={handleParentBindingInputChange}
+                    onAddBindingSlot={handleParentAddBindingSlot}
+                    onRemoveBindingSlot={handleParentRemoveBindingSlot}
+                    onBindingExpressionChange={
+                      handleParentBindingExpressionChange
+                    }
+                    onBindingSlotAliasChange={
+                      handleParentBindingSlotAliasChange
+                    }
+                    onBindingSlotValueTypeChange={
+                      handleParentBindingSlotValueTypeChange
+                    }
+                    onRequestCreateStandardInput={
+                      handleRequestCreateStandardInput
+                    }
+                    onResetBinding={handleParentResetBinding}
+                    expandable={false}
+                    defaultExpanded={true}
+                    currentValues={inputValues}
+                    onInputValueChange={handleInputValueChange}
+                    featureFlags={{
+                      vectorAuthoringBeta: true,
+                      conditionalAuthoringBeta: true,
+                    }}
+                  />
+                );
+              })()
+            ) : (
+              <p className="text-xs text-text-muted">No variable selected.</p>
+            )}
+          </Modal>
         </div>
       );
     }
@@ -1008,6 +1453,8 @@ export function InspectorContent() {
               handleUpdateStandardInput(input.id, { path })
             }
           />
+          {renderChainPath()}
+          {renderAuthoringStatus()}
           <div className="flex items-center gap-1 px-1 py-1">
             <Button
               variant={rigInspectorView === "quick" ? "secondary" : "ghost"}
@@ -1130,6 +1577,17 @@ export function InspectorContent() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-text-primary"
+                          onClick={() =>
+                            setRigDrivenBindingTargetId(d.targetId)
+                          }
+                          title="Edit binding here"
+                        >
+                          <Sliders size={10} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
                           onClick={() => handleResetBinding(d.targetId)}
                           title="Remove binding"
@@ -1166,6 +1624,63 @@ export function InspectorContent() {
                     onCancel={() => setShowSelector(false)}
                     defaultTab="scene"
                   />
+                </Modal>
+                <Modal
+                  open={rigDrivenBindingTargetId !== null}
+                  onClose={() => setRigDrivenBindingTargetId(null)}
+                  title={
+                    rigDrivenBindingTargetId
+                      ? `Edit Driven Binding · ${
+                          targetLabelById.get(rigDrivenBindingTargetId) ??
+                          rigDrivenBindingTargetId
+                        }`
+                      : "Edit Driven Binding"
+                  }
+                  maxWidth="lg"
+                >
+                  {rigDrivenBindingTargetId &&
+                  bindings[rigDrivenBindingTargetId] ? (
+                    <BindingEditor
+                      binding={bindings[rigDrivenBindingTargetId]}
+                      targetId={rigDrivenBindingTargetId}
+                      issues={bindingIssues.get(rigDrivenBindingTargetId)}
+                      label={
+                        targetLabelById.get(rigDrivenBindingTargetId) ??
+                        rigDrivenBindingTargetId
+                      }
+                      standardInputs={standardInputList}
+                      standardInputLookup={standardInputsById}
+                      onBindingInputChange={handleBindingInputChange}
+                      onAddBindingSlot={handleAddBindingSlot}
+                      onRemoveBindingSlot={handleRemoveBindingSlot}
+                      onBindingExpressionChange={handleUpdateBindingExpression}
+                      onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
+                      onBindingSlotValueTypeChange={
+                        handleBindingSlotValueTypeChange
+                      }
+                      onRequestCreateStandardInput={
+                        handleRequestCreateStandardInput
+                      }
+                      onResetBinding={handleResetBinding}
+                      expandable={false}
+                      defaultExpanded={true}
+                      currentValues={inputValues}
+                      onInputValueChange={handleInputValueChange}
+                      allowSelfBinding={false}
+                      featureFlags={{
+                        vectorAuthoringBeta: true,
+                        conditionalAuthoringBeta: true,
+                      }}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={Sliders}
+                      iconSize={20}
+                      title="No Binding"
+                      description="This driven target has no editable binding state."
+                      className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                    />
+                  )}
                 </Modal>
               </div>
             </>
@@ -1307,6 +1822,8 @@ export function InspectorContent() {
               updateMaterialLabel(material.id, newName)
             }
           />
+          {renderChainPath()}
+          {renderAuthoringStatus()}
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-4">
             <div className="flex flex-col gap-0.5 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50">

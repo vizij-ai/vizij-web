@@ -18,9 +18,17 @@ import {
 
 interface BindingConnectionsProps {
   node: SceneObjectNode;
+  onSelectPose?: (poseId: string) => void;
+  onSelectRig?: (rigId: string) => void;
+  onSelectTarget?: (targetId: string) => void;
 }
 
-export function BindingConnections({ node }: BindingConnectionsProps) {
+export function BindingConnections({
+  node,
+  onSelectPose,
+  onSelectRig,
+  onSelectTarget,
+}: BindingConnectionsProps) {
   const bindings = useBindingAuthoring((state) => state.bindings);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
@@ -384,6 +392,10 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 size="sm"
                 className="h-auto py-1 text-[10px] px-2 bg-purple-900/10 hover:bg-purple-600/20 hover:text-purple-300 border-purple-500/20 hover:border-purple-500/40 transition-colors justify-start"
                 onClick={() => {
+                  if (onSelectPose) {
+                    onSelectPose(pose.id);
+                    return;
+                  }
                   selectPose(pose.id);
                   handleClearSelection();
                 }}
@@ -416,6 +428,10 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 size="sm"
                 className="h-auto py-1 text-[10px] px-2 bg-bg-panel/30 hover:bg-accent-subtle hover:text-accent border-border-default/50 hover:border-accent/30 transition-colors justify-start"
                 onClick={() => {
+                  if (onSelectRig) {
+                    onSelectRig(rig.id);
+                    return;
+                  }
                   handleSelectRig(rig.id);
                   handleClearSelection();
                 }}
@@ -453,25 +469,93 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 key={target.targetId}
                 className="rounded border border-border-default/50 bg-bg-panel/30 px-2 py-1.5"
               >
-                <div className="text-[10px] font-semibold text-text-primary truncate">
-                  {target.targetLabel}
+                <div className="flex items-center justify-between gap-2">
+                  {onSelectTarget ? (
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-text-primary truncate hover:text-accent transition-colors"
+                      onClick={() => onSelectTarget(target.targetId)}
+                      title={`Inspect ${target.targetLabel}`}
+                    >
+                      {target.targetLabel}
+                    </button>
+                  ) : (
+                    <div className="text-[10px] font-semibold text-text-primary truncate">
+                      {target.targetLabel}
+                    </div>
+                  )}
+                  {!onSelectTarget && <Chip tone="default">Read-only</Chip>}
                 </div>
                 <div className="text-[9px] text-text-muted mt-1">
-                  Rig chain:{" "}
-                  {target.upstreamRigInputIds.length > 0
-                    ? target.upstreamRigInputIds.join(" -> ")
-                    : "none"}
+                  Rig chain:
                 </div>
+                {target.upstreamRigInputIds.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {target.upstreamRigInputIds.map((rigId) =>
+                      onSelectRig ? (
+                        <button
+                          key={rigId}
+                          type="button"
+                          className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/40 hover:border-accent/50 hover:text-accent transition-colors text-[9px] font-mono"
+                          onClick={() => onSelectRig(rigId)}
+                          title={`Inspect rig input ${rigId}`}
+                        >
+                          {rigId}
+                        </button>
+                      ) : (
+                        <span
+                          key={rigId}
+                          className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/20 text-[9px] font-mono"
+                        >
+                          {rigId}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[9px] text-text-muted/70 mt-0.5">
+                    none
+                  </div>
+                )}
+                <div className="text-[9px] text-text-muted mt-1">
+                  Pose outputs:
+                </div>
+                {target.matchedPoseOutputs.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {target.matchedPoseOutputs.map((output) => {
+                      const label = `${output.poseName} (${output.inputId}=${output.value.toFixed(3)})`;
+                      return onSelectPose ? (
+                        <button
+                          key={`${output.poseId}:${output.inputId}`}
+                          type="button"
+                          className="px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 hover:text-purple-200 transition-colors text-[9px]"
+                          onClick={() => onSelectPose(output.poseId)}
+                          title={`Inspect pose ${output.poseName}`}
+                        >
+                          {label}
+                        </button>
+                      ) : (
+                        <span
+                          key={`${output.poseId}:${output.inputId}`}
+                          className="px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/5 text-[9px]"
+                        >
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-[9px] text-text-muted/70 mt-0.5">
+                    none
+                  </div>
+                )}
+                {!onSelectRig && !onSelectPose && (
+                  <div className="text-[9px] text-text-muted/70 mt-1 italic">
+                    Trace links are read-only in this context.
+                  </div>
+                )}
                 <div className="text-[9px] text-text-muted mt-0.5">
-                  Pose outputs:{" "}
-                  {target.matchedPoseOutputs.length > 0
-                    ? target.matchedPoseOutputs
-                        .map(
-                          (output) =>
-                            `${output.poseName} (${output.inputId}=${output.value.toFixed(3)})`,
-                        )
-                        .join("; ")
-                    : "none"}
+                  Target id: {target.targetId}
                 </div>
                 {target.diagnostics.length > 0 && (
                   <div className="text-[9px] text-warning mt-1">
