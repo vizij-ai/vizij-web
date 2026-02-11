@@ -38,6 +38,7 @@ import {
   RiggingColorRow,
 } from "./RiggingMaterialSection";
 import { collectRigDependents } from "./rigConnections";
+import { resolveSelectionTargetIds } from "./bindingSelection";
 
 type PoseVariableItem =
   | { type: "scalar"; varId: string; poseVal: number }
@@ -96,7 +97,6 @@ export function InspectorContent() {
     bindings,
     inputBindings,
     handleCreateCustomStandardInput,
-    handleAddBindingSlot,
     handleUpdateStandardInput,
     handleRenameShape,
     handleBindingInputChange,
@@ -333,21 +333,25 @@ export function InspectorContent() {
           variableId = selection.id;
         } else if (selection.type === "property") {
           const nameSafe = selection.label.replace(/[^a-zA-Z0-9]/g, "_");
-          const newVar = handleCreateCustomStandardInput(`/ ${nameSafe} `);
+          const newVar = handleCreateCustomStandardInput(`/${nameSafe}`);
           if (!newVar) return;
           variableId = newVar.id;
-          if (selection.targetId) {
-            handleAddBindingSlot(selection.targetId);
-          } else {
-            const obj = objects.find((o) => o.id === selection.objectId);
-            const feat = obj?.features.find(
-              (f) => f.id === selection.featureId,
-            );
-            if (feat && feat.components.length > 0) {
-              const targetId = feat.components[0].targetId;
-              if (targetId) handleAddBindingSlot(targetId);
-            }
+          const targetIds = resolveSelectionTargetIds(selection, objects);
+          if (targetIds.length === 0) {
+            return;
           }
+          const shouldApplyBulk =
+            targetIds.length === 1 ||
+            (typeof window !== "undefined" &&
+              window.confirm(
+                `Bind all ${targetIds.length} components for "${selection.label}" to this new variable?`,
+              ));
+          if (!shouldApplyBulk) {
+            return;
+          }
+          targetIds.forEach((targetId) =>
+            handleBindingInputChange(targetId, variableId),
+          );
         }
         if (variableId) updatePoseValue(pose.id, variableId, 0);
       };
@@ -828,27 +832,7 @@ export function InspectorContent() {
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
         if (selection.type === "property") {
-          if (selection.targetId) {
-            handleBindingInputChange(selection.targetId, selectedRigId);
-            return;
-          }
-          const targetIds =
-            selection.targetIds && selection.targetIds.length > 0
-              ? selection.targetIds
-              : (() => {
-                  const obj = objects.find((o) => o.id === selection.objectId);
-                  const feat = obj?.features.find(
-                    (f) => f.id === selection.featureId,
-                  );
-                  if (!feat) {
-                    return [];
-                  }
-                  return feat.components
-                    .map((component) => component.targetId)
-                    .filter((targetId): targetId is string =>
-                      Boolean(targetId),
-                    );
-                })();
+          const targetIds = resolveSelectionTargetIds(selection, objects);
           if (targetIds.length === 0) {
             return;
           }
