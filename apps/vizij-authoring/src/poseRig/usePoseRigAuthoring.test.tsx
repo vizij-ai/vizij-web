@@ -383,6 +383,47 @@ describe("usePoseRigAuthoring", () => {
     });
   });
 
+  it("reassigns imported grouped poses even when legacy groupId is present", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.importPoseConfigFromData({
+        version: 1,
+        faceId: "face",
+        neutralInputs: { smile: 0, brow_raise: 0 },
+        poseGroups: [
+          { id: "emotion", name: "Emotion", path: "emotion" },
+          { id: "viseme", name: "Viseme", path: "viseme" },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            group: "emotion",
+            groupId: "emotion",
+            values: { smile: 0.5 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      });
+    });
+
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_smile");
+    expect(result.current?.poseConfigDraft?.poses[0]?.group).toBe("emotion");
+
+    act(() => {
+      if (poseId) {
+        result.current?.updatePoseGroup(poseId, "viseme");
+      }
+    });
+
+    expect(result.current?.poses[0]?.group).toBe("viseme");
+    expect(result.current?.poses[0]?.groupId).toBeNull();
+    expect(result.current?.poseConfigDraft?.poses[0]?.group).toBe("viseme");
+    expect(result.current?.poseConfigDraft?.poses[0]?.groupId).toBe("viseme");
+  });
+
   it("appends imported poses instead of overwriting existing ones", () => {
     const { result } = hook!;
     act(() => {

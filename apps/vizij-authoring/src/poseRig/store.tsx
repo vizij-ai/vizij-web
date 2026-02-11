@@ -340,13 +340,17 @@ export function createPoseRigStore(
     },
     updatePoseGroup: (poseId, group) => {
       setState((prev) => ({
-        poses: prev.poses.map((p) => (p.id === poseId ? { ...p, group } : p)),
+        poses: prev.poses.map((p) =>
+          p.id === poseId ? { ...p, group, groupId: null } : p,
+        ),
       }));
     },
     updatePoseGroupBatch: (poseIds, group) => {
       const ids = new Set(poseIds);
       setState((prev) => ({
-        poses: prev.poses.map((p) => (ids.has(p.id) ? { ...p, group } : p)),
+        poses: prev.poses.map((p) =>
+          ids.has(p.id) ? { ...p, group, groupId: null } : p,
+        ),
       }));
     },
     clearPose: (poseId) => {

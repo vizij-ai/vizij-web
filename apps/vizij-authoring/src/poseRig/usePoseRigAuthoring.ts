@@ -195,7 +195,11 @@ export function usePoseRigAuthoring(
 
   const updatePoseGroup = useCallback(
     (poseId: string, group: string | null | undefined) => {
-      store.updatePose(poseId, (p) => ({ ...p, group: group ?? null }));
+      store.updatePose(poseId, (p) => ({
+        ...p,
+        group: group ?? null,
+        groupId: null,
+      }));
     },
     [store],
   );
@@ -204,7 +208,11 @@ export function usePoseRigAuthoring(
     (poseIds: Iterable<string>, group: string | null | undefined) => {
       const ids = new Set(poseIds);
       ids.forEach((id) =>
-        store.updatePose(id, (p) => ({ ...p, group: group ?? null })),
+        store.updatePose(id, (p) => ({
+          ...p,
+          group: group ?? null,
+          groupId: null,
+        })),
       );
     },
     [store],
