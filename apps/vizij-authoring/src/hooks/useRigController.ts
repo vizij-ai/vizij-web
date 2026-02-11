@@ -207,7 +207,10 @@ export function useRigController(
     graphRuntimeStore.setState({ setStoreState });
   }, [graphRuntimeStore, setStoreState]);
 
-  const stageRuntimeInput = graphRuntimeStore.getState().stageRuntimeInput;
+  const getStageRuntimeInput = useCallback(
+    () => graphRuntimeStore.getState().stageRuntimeInput,
+    [graphRuntimeStore],
+  );
 
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -1369,6 +1372,7 @@ export function useRigController(
       return;
     }
     if (bindingsById.size > 0) {
+      const stageRuntimeInput = getStageRuntimeInput();
       bindingsById.forEach((graphPath, inputId) => {
         const stored = inputValuesRef.current[inputId];
         const fallbackInput = standardInputsById.get(inputId);
@@ -1380,6 +1384,7 @@ export function useRigController(
       });
       return;
     }
+    const stageRuntimeInput = getStageRuntimeInput();
     fallbackBindings.forEach(({ graphPath, inputId, defaultValue }) => {
       const stored = inputId ? inputValuesRef.current[inputId] : undefined;
       const value =
@@ -1388,7 +1393,7 @@ export function useRigController(
           : defaultValue;
       stageRuntimeInput?.(graphPath, value);
     });
-  }, [graphError, graphStatus, stageRuntimeInput, standardInputsById]);
+  }, [getStageRuntimeInput, graphError, graphStatus, standardInputsById]);
 
   const graphTimeSeconds = 0;
   const graphPlaybackState = "paused" as const;
@@ -1606,9 +1611,10 @@ export function useRigController(
         }
         return;
       }
+      const stageRuntimeInput = getStageRuntimeInput();
       stageRuntimeInput?.(graphPath, value);
     },
-    [faceId, graphStatus, graphError, stageRuntimeInput, standardInputsById],
+    [faceId, getStageRuntimeInput, graphStatus, graphError, standardInputsById],
   );
 
   const handleInputValueChange = useCallback(
