@@ -40,12 +40,16 @@ describe("collectRigDependents", () => {
   it("includes indirect targets driven through parent rig bindings", () => {
     const bindings: BindingMap = {
       "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
       },
     };
     const inputBindings: InputBindingMap = {
       "rig/child/mouth_open": {
+        targetId: "rig/child/mouth_open",
+        inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
       },
@@ -71,6 +75,8 @@ describe("collectRigDependents", () => {
   it("returns no dependents when a rig input is disconnected", () => {
     const bindings: BindingMap = {
       "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
       },
@@ -120,12 +126,16 @@ describe("buildPoseRigFaceTrace", () => {
   it("traces pose outputs through rig chains to animatable targets", () => {
     const bindings: BindingMap = {
       "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
       },
     };
     const inputBindings: InputBindingMap = {
       "rig/child/mouth_open": {
+        targetId: "rig/child/mouth_open",
+        inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
       },

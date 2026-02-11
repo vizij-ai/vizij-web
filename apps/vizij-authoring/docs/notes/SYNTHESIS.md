@@ -19,16 +19,8 @@ This file consolidates active findings from:
 
 ## Active Findings That Still Matter
 
-1. Higher-level rig diagnostics can report "No Driven properties" even when behavior suggests real drive wiring; inspector/runtime mapping fidelity needs investigation.
-2. Pose outputs expose driven-variable lists without sufficient detail/retarget controls, which blocks recovery for legacy-wired faces.
-3. Face-element selection can show pose associations that do not appear to flow through to rig writes; end-to-end pose -> rig -> face tracing is missing.
-4. Import review mismatch flow is still too manual; face-id rename should be auto-resolved where safe and order-only list permutations should not trigger mismatch friction.
-5. `useRigController` reads `stageRuntimeInput` non-reactively from store state, which risks stale callback capture.
-6. Graph playback actions exposed through graph runtime store are currently no-op while debug UI still surfaces controls.
-7. `ExportDialog` accepts `onImportPoseGraph` prop but currently ignores it in favor of underscore-prefixed parameter.
-8. `PoseGraphService.generateSummary` still throws and is not safe for future callers.
-9. `exportGlb` validates `poseRig.poseGraphSpec` directly and may diverge from the recompute path (`buildSpec` with active blend mode) used by pose-graph export.
-10. Broader validation coverage is narrow; current green checks are targeted rather than comprehensive for authoring behavior.
+1. P0 correctness findings from 2026-02-11 are resolved (diagnostic fidelity, pose retargeting/editability, pose->rig->face trace, import mismatch auto-resolution, reactive staging, playback UX gating, pose graph import wiring, export pose validation parity, and non-throwing pose summary generation).
+2. Broader validation coverage is still targeted rather than full-suite confidence.
 
 ## Architecture Debt (Still Relevant From Audit)
 

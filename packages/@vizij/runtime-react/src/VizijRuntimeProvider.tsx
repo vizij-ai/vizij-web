@@ -99,6 +99,9 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 };
 
 const DEFAULT_DURATION = 0.35;
+const DEV_MODE =
+  (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env
+    ?.NODE_ENV !== "production";
 
 const EASINGS: Record<string, (t: number) => number> = {
   linear: (t: number) => t,
@@ -1284,7 +1287,7 @@ function VizijRuntimeProviderInner({
           gltfAnimations = pickExtractedAnimations(loaded);
         } else {
           world = glbAsset.world as Record<string, any>;
-          animatables = glbAsset.animatables;
+          animatables = glbAsset.animatables as Record<string, AnimatableValue>;
           bundle = glbAsset.bundle ?? bundle;
           gltfAnimations = undefined;
         }
@@ -1358,7 +1361,7 @@ function VizijRuntimeProviderInner({
   const registerControllers = useCallback(async () => {
     clearControllers();
 
-    if (process.env.NODE_ENV !== "production") {
+    if (DEV_MODE) {
       console.log("[vizij-runtime] registerControllers", {
         hasRig: Boolean(assetBundle.rig),
         hasPose: Boolean(assetBundle.pose?.graph),
@@ -1481,7 +1484,7 @@ function VizijRuntimeProviderInner({
     }
 
     registeredGraphsRef.current = graphIds;
-    if (process.env.NODE_ENV !== "production") {
+    if (DEV_MODE) {
       console.log("[vizij-runtime] registered graph ids", graphIds);
     }
 
@@ -1527,7 +1530,7 @@ function VizijRuntimeProviderInner({
     }
 
     const controllers = listControllers();
-    if (process.env.NODE_ENV !== "production") {
+    if (DEV_MODE) {
       console.log("[vizij-runtime] controllers after register", {
         controllers,
         graphIds,
