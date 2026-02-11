@@ -77,6 +77,7 @@ import {
 import { linkChildInput, unlinkChildInput } from "./standardInputLinks";
 import {
   buildFallbackGraphPath,
+  subscribeRuntimeInputBridgeAvailable,
   type GraphInputBindingEntry,
 } from "./graphRuntime";
 import {
@@ -215,6 +216,7 @@ export function useRigController(
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
+  const [runtimeInputBridgeEpoch, setRuntimeInputBridgeEpoch] = useState(0);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [graphWarning, setGraphWarning] = useState<string | null>(null);
   const pendingFaceRenameRef = useRef<string | null>(null);
@@ -230,6 +232,14 @@ export function useRigController(
   useEffect(() => {
     graphRuntimeStore.setState({ graphWarning });
   }, [graphRuntimeStore, graphWarning]);
+
+  useEffect(
+    () =>
+      subscribeRuntimeInputBridgeAvailable(graphRuntimeStore, () => {
+        setRuntimeInputBridgeEpoch((prev) => prev + 1);
+      }),
+    [graphRuntimeStore],
+  );
 
   const [faceId, setFaceIdState] = useState<string>("robot");
   const clearFaceRenameToken = useCallback(
@@ -2138,7 +2148,12 @@ export function useRigController(
 
   useEffect(() => {
     stageInputsFromState();
-  }, [graphInputDefaults, graphStatus, stageInputsFromState]);
+  }, [
+    graphInputDefaults,
+    graphStatus,
+    runtimeInputBridgeEpoch,
+    stageInputsFromState,
+  ]);
 
   const collectAnimatableExportState = useCallback(() => {
     const nextAnimatables = { ...animatables };
