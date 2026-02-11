@@ -1,6 +1,8 @@
 import type { BuildGraphResult } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 
+let lastIrCompileWarningSignature: string | null = null;
+
 export type RuntimeGraphSpec = {
   spec: GraphSpec;
   source: "legacy" | "ir";
@@ -25,11 +27,29 @@ export function resolveRuntimeGraphSpec(
       const compiled = rigGraphBuild.ir.compile({ preferLegacySpec: false });
       if (compiled?.spec) {
         if (compiled.issues && compiled.issues.length > 0) {
-          // eslint-disable-next-line no-console -- diagnostics for IR compile
-          console.warn(
-            "[vizij-authoring] IR runtime compile reported issues",
-            compiled.issues,
-          );
+          const faceId = rigGraphBuild.summary?.faceId ?? "unknown";
+          const firstIssue =
+            typeof compiled.issues[0] === "string"
+              ? compiled.issues[0]
+              : JSON.stringify(compiled.issues[0]);
+          const signature = `${faceId}:${compiled.issues.length}:${firstIssue}`;
+          if (signature !== lastIrCompileWarningSignature) {
+            lastIrCompileWarningSignature = signature;
+            const issuePreview = compiled.issues
+              .slice(0, 3)
+              .map((issue) =>
+                typeof issue === "string" ? issue : JSON.stringify(issue),
+              );
+            const remaining = compiled.issues.length - issuePreview.length;
+            if (remaining > 0) {
+              issuePreview.push(`... ${remaining} more`);
+            }
+            // eslint-disable-next-line no-console -- diagnostics for IR compile
+            console.warn(
+              "[vizij-authoring] IR runtime compile reported issues",
+              issuePreview,
+            );
+          }
           return {
             runtimeSpec: { spec: rigGraphBuild.spec, source: "legacy" },
             blocked: false,

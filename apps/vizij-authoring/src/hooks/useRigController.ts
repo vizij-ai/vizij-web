@@ -427,6 +427,7 @@ export function useRigController(
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
   const graphIrRef = useRef<BuildGraphResult["ir"] | null>(null);
+  const lastGraphSummaryLogSignatureRef = useRef<string | null>(null);
   const lastKnownGoodRuntimeSpecRef = useRef<RuntimeGraphSpec | null>(null);
   const skipRuntimeUnloadRef = useRef(false);
   const graphInputBindingsRef = useRef<GraphInputBindingEntry[]>([]);
@@ -1480,9 +1481,7 @@ export function useRigController(
   }, [customInputs]);
 
   useEffect(() => {
-    if (autoInputs.size === 0) {
-      return;
-    }
+    const activeInputsById = standardInputsByIdRef.current;
     setBindings((previous) => {
       let changed = false;
       const next: BindingMap = { ...previous };
@@ -1496,12 +1495,10 @@ export function useRigController(
 
       autoBlueprints.forEach((blueprint) => {
         const entry =
-          (blueprint.sourceId &&
-            autoInputsBySourceId.get(blueprint.sourceId)) ??
-          autoInputs.get(blueprint.path);
-        if (!entry) {
-          return;
-        }
+          (blueprint.sourceId
+            ? autoInputsBySourceId.get(blueprint.sourceId)
+            : undefined) ?? autoInputs.get(blueprint.path);
+        const resolvedInput = entry?.input ?? blueprint.input;
         const componentId = blueprint.metadata.componentId;
         const component = componentsByIdRef.current.get(componentId);
         if (!component) {
@@ -1516,10 +1513,10 @@ export function useRigController(
         if (ensured !== currentBinding) {
           next[componentId] = ensured;
         }
-        if (ensured.inputId) {
+        if (ensured.inputId && activeInputsById.has(ensured.inputId)) {
           return;
         }
-        const updated = updateBindingWithInput(ensured, target, entry.input);
+        const updated = updateBindingWithInput(ensured, target, resolvedInput);
         if (updated !== ensured) {
           next[componentId] = updated;
           changed = true;
@@ -1530,7 +1527,7 @@ export function useRigController(
 
       return changed ? next : previous;
     });
-  }, [autoBlueprints, autoInputs]);
+  }, [autoBlueprints, autoInputs, standardInputsByIdRef]);
 
   useEffect(() => {
     updateInputValues((previous) => {
@@ -2023,16 +2020,26 @@ export function useRigController(
     graphSummaryRef.current = rigGraphBuild.summary;
     graphIrRef.current = rigGraphBuild.ir ?? null;
     if (__DEV__) {
-      console.log("[rig-controller] graph summary", {
+      const signature = JSON.stringify({
         faceId,
         inputs: rigGraphBuild.summary.inputs.length,
         outputs: rigGraphBuild.summary.outputs.length,
-        sampleInput: rigGraphBuild.summary.inputs[0],
-        sampleOutput: rigGraphBuild.summary.outputs[0],
-        sampleOutputInAnimatables: rigGraphBuild.summary.outputs[0]
-          ? Boolean(animatables[rigGraphBuild.summary.outputs[0]])
-          : false,
+        sampleInput: rigGraphBuild.summary.inputs[0] ?? null,
+        sampleOutput: rigGraphBuild.summary.outputs[0] ?? null,
       });
+      if (signature !== lastGraphSummaryLogSignatureRef.current) {
+        lastGraphSummaryLogSignatureRef.current = signature;
+        console.log("[rig-controller] graph summary", {
+          faceId,
+          inputs: rigGraphBuild.summary.inputs.length,
+          outputs: rigGraphBuild.summary.outputs.length,
+          sampleInput: rigGraphBuild.summary.inputs[0],
+          sampleOutput: rigGraphBuild.summary.outputs[0],
+          sampleOutputInAnimatables: rigGraphBuild.summary.outputs[0]
+            ? Boolean(animatables[rigGraphBuild.summary.outputs[0]])
+            : false,
+        });
+      }
     }
     setGraphStatus("ready");
     setGraphError(null);
