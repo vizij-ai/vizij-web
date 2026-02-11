@@ -6,29 +6,29 @@ Last updated: 2026-02-11
 
 ### P0 (correctness and runtime-truthful behavior)
 
-1. Resolve rig/pose wiring fidelity and retargeting gaps:
-   - false "No Driven properties" diagnostics for higher-level rig items
-   - pose-output variable retargeting for previously wired/legacy faces
-   - pose -> rig -> face connection traceability and mismatch diagnosis
-   - import review auto-rename and order-insensitive matching behavior
-   - upgrade trace/remap outputs from diagnostics-only to actionable migration fixes
-2. Close deep-review runtime correctness regressions:
+1. Restore leaf-accurate chain authoring and visibility:
+   - add-driven selection must support leaf components (no implicit xyz bulk binding).
+   - Variables pane must include all path-backed standard inputs, not only custom inputs.
+   - chain summaries must be transitive (`inputBindings` aware) across all inspector surfaces.
+   - restore direct per-feature/per-leaf binding-expression editing in active inspector flows.
+   - restore explicit static-vs-animatable feature controls in active inspector flows.
+2. Complete migration-grade trace/remap UX:
+   - upgrade suggestion apply flow with preview, ignore, and undo-safe apply semantics.
+   - harden low-confidence remap handling for legacy split-graph assets.
+   - support optional non-delta output remap review for migration audits.
+3. Close deep-review runtime correctness regressions:
    - clear/remove graph payloads must unregister stale runtime graphs
    - restage defaults/inputs when runtime bridge becomes ready after graph setup
    - guard uncaught pose-graph build failures in pose export flow
-3. Harden face-mismatch auto-resolution:
-   - auto-solve pure face-id namespace mismatches by deterministic rewrite + strict residual diff
-   - avoid broad heuristic auto-accept for non-face semantic mismatches
 4. Keep baseline green:
    - `vizij-authoring` typecheck.
    - targeted runtime/authoring regression suites.
-5. Fix active runtime wiring risks:
-   - non-reactive `stageRuntimeInput` read path.
-   - no-op playback controls vs exposed debug controls.
-   - disconnected pose graph import action in export dialog flow.
-6. Close pose/export contract gaps:
-   - align `exportGlb` pose validation with recomputed pose graph using active blend mode.
-   - remove or safely handle `PoseGraphService.generateSummary` throw path.
+5. Keep regression guardrails on recently fixed wiring paths:
+   - discrepancy/import action wiring remains covered by targeted tests.
+   - playback UI stays disabled until runtime playback is actually wired.
+6. Keep pose/export contract fixes locked in with tests:
+   - `exportGlb` continues validating recomputed pose graph using active blend mode.
+   - `PoseGraphService.generateSummary` remains non-throwing for imported specs.
 
 ### P1 (integration hardening and confidence)
 

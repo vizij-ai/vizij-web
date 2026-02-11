@@ -24,18 +24,38 @@ Use this file for app-local implementation backlog only.
       Context: pose graph export can throw before user feedback when spec build fails.
       Goal: export should fail gracefully with actionable dialog messaging, consistent with `exportGlb` handling.
       Exit criteria: thrown build failures are caught, dialog shown, no uncaught error path.
-- [ ] Harden import mismatch auto-resolution for face-id migration.
-      Context: we should auto-solve pure face mismatch imports, but current heuristics can over-match and mask non-face deltas.
-      Goal: auto-rename when and only when mismatch is a deterministic face-id namespace rewrite.
-      Exit criteria: strict residual diff after face rewrite is empty -> auto-accept/rename; otherwise open review with explicit reasons.
-- [ ] Ship migration-grade pose output remap for legacy split-graph faces.
-      Context: remap UI exists, but migration cases still need stronger mapping confidence and conflict handling.
-      Goal: support reliable remap from legacy output identities to current standard-input rig paths.
-      Exit criteria: remap suggestions include confidence + rationale, conflicting assignments are surfaced and resolvable in-flow, and applied remaps update both output paths and input-id links.
-- [ ] Make pose -> rig -> face trace actionable with suggested fixes.
-      Context: trace diagnostics show mismatches but do not yet provide direct repair actions.
-      Goal: convert diagnostics into concrete fix suggestions and one-click apply operations.
-      Exit criteria: unmatched chains provide actionable suggestions (retarget output path, create/repair input binding, ignore), with dry-run preview + undo-safe apply path.
+- [ ] Restore direct binding-expression authoring path from legacy inspector flow.
+      Context: `main` app exposed per-feature/per-leaf `BindingEditor` flows (slots, aliases, value types, expressions), but current active inspector path does not surface equivalent editing.
+      Goal: user can select an object feature/leaf and directly author slot wiring + expressions without leaving the active inspector workflow.
+      Exit criteria: active inspector exposes `BindingEditor` (or equivalent) for feature leaves, including add/remove slot, alias/value type controls, normalize helpers, and expression editing.
+- [ ] Restore explicit static-vs-animatable feature controls in active inspector.
+      Context: legacy `main` inspector clearly surfaced feature animated/static state and default/constraint editing; current UI has fragmented sections and no single equivalent control surface.
+      Goal: static and animated feature states are clearly visible and editable from active inspector modes.
+      Exit criteria: user can inspect/toggle animated state and edit default/constraint behavior for feature leaves in one coherent UI path.
+- [ ] Restore leaf-level driven-variable authoring in inspector.
+      Context: selecting a property to drive currently binds all feature components (for example translation x/y/z), not a specific leaf target.
+      Goal: allow choosing exact leaf components and bind only the selected component unless user explicitly opts into bulk bind.
+      Exit criteria: user can bind one component at a time (x vs y vs z), inspect/edit that relationship directly, and optionally bulk-bind with explicit confirmation.
+- [ ] Make Variables pane path-complete for rig authoring.
+      Context: Variables pane currently surfaces only custom main-face rig inputs and does not represent all path-backed standard inputs.
+      Goal: all path-backed inputs (`auto`, `preset`, `custom`, plus mapped reference paths when relevant) are visible and selectable as variables.
+      Exit criteria: every standard input with a path appears in Variables with source badges/filters and can be selected for drive/remap workflows.
+- [ ] Align chain surfacing across inspector summaries and trace views.
+      Context: trace view is transitive-chain aware, but top-level \"Connected To\" and pose grouping still rely on direct-slot matching.
+      Goal: all chain-oriented UI consistently reflects pose -> rig -> animatable relationships through `inputBindings`.
+      Exit criteria: selecting an element yields consistent direct + transitive chain reporting across summaries, grouping, and trace diagnostics.
+- [ ] Resolve legacy inspector component drift (rewire or retire dormant panels).
+      Context: legacy components (`FeatureList`, `DriverPanel`, `DriverBindingSection`) still exist but are not clearly part of active inspector routing.
+      Goal: either integrate these capabilities into active inspector flows or remove dead paths with replacement UX documented.
+      Exit criteria: no dormant critical editing path remains; docs accurately describe the supported authoring surfaces.
+- [ ] Complete trace suggestion UX (preview, ignore, undo-safe apply).
+      Context: actionable suggestions now exist and can be applied, but apply path lacks dry-run preview, explicit ignore, and undo-safe operations.
+      Goal: make migration fixes safe and auditable for production retargeting workflows.
+      Exit criteria: each suggestion supports preview, apply, ignore, and undo-safe rollback semantics.
+- [ ] Harden remap coverage for migration edge cases.
+      Context: remap confidence/conflict handling is improved, but delta-only filtering and low-confidence legacies still require manual recovery.
+      Goal: make legacy split-graph remap robust across inactive outputs and ambiguous naming.
+      Exit criteria: remap flow can optionally include non-delta outputs, surfaces confidence rationale clearly, and provides deterministic conflict resolution.
 - [x] Investigate false "No Driven properties" signals for higher-level rig items.
       Context: authors can observe rigs visibly driving the face while inspector/high-level summaries claim there are no driven properties.
       Goal: align inspector diagnostics with actual runtime write paths so the driven-property state is trustworthy.
@@ -52,6 +72,10 @@ Use this file for app-local implementation backlog only.
       Context: face mismatch review currently behaves as manual friction; list comparisons can fail because of ordering rather than semantic mismatch.
       Goal: auto-resolve face-id rename workflows and treat permutation-only list differences as equivalent.
       Exit criteria: import review auto-renames when safe, ignores order-only diffs, and only prompts when there is a true mapping conflict.
+- [x] Harden import mismatch auto-resolution for face-id migration.
+      Context: auto-resolution must be deterministic and avoid broad heuristic acceptance.
+      Goal: auto-rename only when residual diff after face namespace rewrite is empty.
+      Exit criteria: strict rewrite + residual diff gate is enforced before auto-accept.
 - [x] Make runtime input staging reactive in `useRigController` (avoid stale `getState()` callback capture).
 - [x] Resolve graph playback UX mismatch:
   - either wire playback actions to runtime behavior

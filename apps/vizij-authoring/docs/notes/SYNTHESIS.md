@@ -23,11 +23,15 @@ This file consolidates active findings from:
    - graph clear/remove paths can retain stale runtime graph controllers.
    - runtime input staging may miss first-ready replay when runtime bridge initializes late.
    - pose graph export path can throw uncaught on build failures.
-2. Import/remap migration ergonomics still need tightening:
-   - face mismatch auto-resolution should be deterministic and strict (pure namespace rewrite only).
-   - pose-output remap for legacy split-graph assets needs stronger confidence/conflict handling.
-   - pose->rig->face diagnostics should offer directly actionable repair suggestions.
-3. Broader validation coverage is still targeted rather than full-suite confidence.
+2. Chain-authoring visibility/correctness still has critical gaps:
+   - add-driven flow still binds full features (for example x/y/z together) instead of leaf targets.
+   - Variables pane does not yet surface all path-backed standard inputs.
+   - top inspector summaries still use direct-slot logic while trace panel uses transitive chain traversal.
+   - compared to `main` legacy inspector flow, active UI no longer exposes an equivalent direct per-feature binding-expression editor path or clear static-vs-animatable matrix controls.
+3. Migration tooling now has actionable remap/trace primitives, but still needs:
+   - preview/ignore/undo-safe apply semantics for suggestions.
+   - broader remap coverage for legacy edge cases (including optional non-delta output review).
+4. Broader validation coverage is still targeted rather than full-suite confidence.
 
 ## Architecture Debt (Still Relevant From Audit)
 

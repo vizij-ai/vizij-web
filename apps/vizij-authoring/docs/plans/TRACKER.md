@@ -38,9 +38,17 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 3. F3 Import/trace migration ergonomics: `in_progress`
    Scope:
-   - auto-resolve pure face mismatch deterministically (strict residual-diff check).
-   - improve legacy split-graph pose-output remap confidence/conflict handling.
-   - make pose->rig->face trace suggestions directly actionable.
+   - done: deterministic face mismatch auto-resolve (strict residual-diff gate).
+   - done: remap confidence/conflict handling and actionable trace suggestions.
+   - open: preview/ignore/undo-safe suggestion application and broader remap coverage for migration edge cases.
+
+4. F4 Leaf-level chain authoring and visibility: `blocked`
+   Evidence:
+   - "Add Driven Variable" binds whole features (for example translation x/y/z) instead of leaf targets.
+   - Variables pane does not list all path-backed standard inputs.
+   - top summaries still show direct-slot relationships while trace panel is transitive-chain aware.
+   - legacy `main` inspector affordances (feature matrix + direct `BindingEditor` path) are not surfaced in current active inspector flow.
+     Required actions: component-level selector and binding edits; path-complete Variables pane with source filtering; chain-consistent summaries across inspector views; restore direct feature/leaf binding-expression editing and static-vs-animatable controls in active inspector modes.
 
 ## Validation Health
 
@@ -54,9 +62,13 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 1. Graph clear/remove path can leave stale runtime controllers active.
 2. Runtime defaults may not stage automatically when runtime becomes ready after graph setup.
 3. Import/trace migration tooling still requires manual recovery in common legacy remap scenarios.
+4. Leaf-level driven-variable authoring is missing (feature-level bulk bind regression).
+5. Variables pane is not path-complete for all standard inputs.
+6. Inspector chain summaries are not consistently transitive across views.
 
 ## Immediate Exit Criteria for Stabilization
 
 1. Resolve F1/F2 blocking runtime correctness regressions and add regression tests.
-2. Resolve F3 migration ergonomics tranche (face mismatch auto-rename strictness + actionable remap/trace flow).
-3. Keep typecheck + targeted validation set green while follow-ups land.
+2. Resolve F4 chain-authoring tranche (leaf-level binding + path-complete variables + transitive summaries).
+3. Close remaining F3 migration UX gaps (preview/ignore/undo-safe apply + broader remap coverage).
+4. Keep typecheck + targeted validation set green while follow-ups land.

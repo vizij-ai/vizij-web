@@ -16,7 +16,8 @@ Use these for active planning and execution.
 ## Notes and analysis
 
 1. `apps/vizij-authoring/docs/notes/SYNTHESIS.md` is the working synthesis of audits/reviews.
-2. `apps/vizij-authoring/docs/notes/audit.md`, `apps/vizij-authoring/docs/notes/pose_report.md`, and `apps/vizij-authoring/docs/notes/review.md` are detailed source reports.
+2. `apps/vizij-authoring/docs/notes/runtime-chain-review-2026-02-11.md` is the latest deep review of import/IR/runtime chain behavior and editor chain surfacing.
+3. `apps/vizij-authoring/docs/notes/audit.md`, `apps/vizij-authoring/docs/notes/pose_report.md`, and `apps/vizij-authoring/docs/notes/review.md` are detailed source reports.
 
 The detailed reports can contain stale findings after code changes. Treat `SYNTHESIS.md` as the active interpretation layer.
 
