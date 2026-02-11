@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SELF_BINDING_ID } from "@vizij/utils";
-import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
+import { createStandardRigInput } from "@vizij/utils";
+import {
+  resolveEffectiveBindingInputId,
+  resolveEffectiveBindingStandardInput,
+} from "./bindingSlotResolution";
 
 describe("resolveEffectiveBindingInputId", () => {
   it("returns null when binding is missing", () => {
@@ -38,5 +42,56 @@ describe("resolveEffectiveBindingInputId", () => {
         inputId: SELF_BINDING_ID,
       }),
     ).toBeNull();
+  });
+});
+
+describe("resolveEffectiveBindingStandardInput", () => {
+  it("resolves direct input ids", () => {
+    const standardInput = createStandardRigInput({
+      id: "l_eye_scale_x",
+      path: "/l_eye/scale/x",
+      label: "L Eye Scale X",
+      group: "l_eye",
+      defaultValue: 1,
+      range: { min: 0, max: 2 },
+    });
+    const result = resolveEffectiveBindingStandardInput(
+      { inputId: "l_eye_scale_x" },
+      new Map([[standardInput.id, standardInput]]),
+      [standardInput],
+    );
+    expect(result.inputId).toBe("l_eye_scale_x");
+    expect(result.input).toEqual(standardInput);
+    expect(result.unresolvedInputId).toBeNull();
+  });
+
+  it("falls back by normalized path/id when slot input id is legacy-formatted", () => {
+    const standardInput = createStandardRigInput({
+      id: "l_eye_scale_x",
+      path: "/l_eye/scale/x",
+      label: "L Eye Scale X",
+      group: "l_eye",
+      defaultValue: 1,
+      range: { min: 0, max: 2 },
+    });
+    const result = resolveEffectiveBindingStandardInput(
+      { inputId: "/l/eye/scale/x" },
+      new Map(),
+      [standardInput],
+    );
+    expect(result.inputId).toBe("l_eye_scale_x");
+    expect(result.input).toEqual(standardInput);
+    expect(result.unresolvedInputId).toBeNull();
+  });
+
+  it("returns unresolved id when lookup fails", () => {
+    const result = resolveEffectiveBindingStandardInput(
+      { inputId: "legacy_missing_input" },
+      new Map(),
+      [],
+    );
+    expect(result.inputId).toBe("legacy_missing_input");
+    expect(result.input).toBeNull();
+    expect(result.unresolvedInputId).toBe("legacy_missing_input");
   });
 });

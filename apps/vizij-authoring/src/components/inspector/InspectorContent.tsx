@@ -168,6 +168,7 @@ export function InspectorContent() {
     handleParentBindingSlotValueTypeChange,
     handleParentResetBinding,
     handleCreateParentDriverBinding,
+    standardInputs,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
 
@@ -1878,6 +1879,7 @@ export function InspectorContent() {
                   label="Color"
                   feature={colorFeature}
                   bindings={bindings}
+                  standardInputs={standardInputs}
                   standardInputsById={standardInputsById}
                   inputValues={inputValues}
                   onValueChange={handleInputValueChange}
@@ -1892,6 +1894,7 @@ export function InspectorContent() {
                   label="Opacity"
                   feature={opacityFeature}
                   bindings={bindings}
+                  standardInputs={standardInputs}
                   standardInputsById={standardInputsById}
                   inputValues={inputValues}
                   onValueChange={handleInputValueChange}

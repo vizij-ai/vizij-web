@@ -1,4 +1,5 @@
 import { SELF_BINDING_ID } from "@vizij/utils";
+import type { StandardRigInput } from "@vizij/utils";
 
 interface BindingSlotLike {
   inputId?: string | null;
@@ -38,4 +39,52 @@ export function resolveEffectiveBindingInputId(
     return null;
   }
   return fallback;
+}
+
+function normalizeInputIdentifier(value: string): string {
+  return value.trim().replace(/^\/+/, "").replace(/\/+/g, "_").toLowerCase();
+}
+
+export function resolveEffectiveBindingStandardInput(
+  binding: BindingLike | null | undefined,
+  standardInputsById: Map<string, StandardRigInput>,
+  standardInputs: readonly StandardRigInput[],
+): {
+  inputId: string | null;
+  input: StandardRigInput | null;
+  unresolvedInputId: string | null;
+} {
+  const inputId = resolveEffectiveBindingInputId(binding);
+  if (!inputId) {
+    return {
+      inputId: null,
+      input: null,
+      unresolvedInputId: null,
+    };
+  }
+
+  const direct = standardInputsById.get(inputId);
+  if (direct) {
+    return {
+      inputId,
+      input: direct,
+      unresolvedInputId: null,
+    };
+  }
+
+  const normalizedId = normalizeInputIdentifier(inputId);
+  const fallback =
+    standardInputs.find(
+      (candidate) => normalizeInputIdentifier(candidate.id) === normalizedId,
+    ) ??
+    standardInputs.find(
+      (candidate) => normalizeInputIdentifier(candidate.path) === normalizedId,
+    ) ??
+    null;
+
+  return {
+    inputId: fallback?.id ?? inputId,
+    input: fallback,
+    unresolvedInputId: fallback ? null : inputId,
+  };
 }

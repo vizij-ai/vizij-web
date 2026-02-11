@@ -12,7 +12,7 @@ import { Select, Button } from "../ui";
 import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
-import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
+import { resolveEffectiveBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -21,6 +21,7 @@ interface RiggingMaterialSectionProps {
 export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   const {
     bindings,
+    standardInputs,
     standardInputsById,
     inputValues,
     handleInputValueChange,
@@ -123,6 +124,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           label="Color"
           feature={colorFeature}
           bindings={bindings}
+          standardInputs={standardInputs}
           standardInputsById={standardInputsById}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
@@ -138,6 +140,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           label="Opacity"
           feature={opacityFeature}
           bindings={bindings}
+          standardInputs={standardInputs}
           standardInputsById={standardInputsById}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
@@ -155,6 +158,7 @@ interface RiggingScalarRowProps {
   label: string;
   feature: SceneObjectFeature;
   bindings: any;
+  standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
@@ -170,6 +174,7 @@ export function RiggingScalarRow({
   label,
   feature,
   bindings,
+  standardInputs,
   standardInputsById,
   inputValues,
   onValueChange,
@@ -180,16 +185,20 @@ export function RiggingScalarRow({
   if (!component) return null;
 
   const targetId = component.targetId;
-  let inputId = null;
-  let standardInput = null;
+  let inputId: string | null = null;
+  let standardInput: StandardRigInput | null = null;
+  let unresolvedInputId: string | null = null;
 
   if (targetId) {
     const binding = bindings[targetId];
-    const resolvedInputId = resolveEffectiveBindingInputId(binding);
-    if (resolvedInputId) {
-      inputId = resolvedInputId;
-      standardInput = standardInputsById.get(inputId);
-    }
+    const resolved = resolveEffectiveBindingStandardInput(
+      binding,
+      standardInputsById,
+      standardInputs,
+    );
+    inputId = resolved.inputId;
+    standardInput = resolved.input;
+    unresolvedInputId = resolved.unresolvedInputId;
   }
 
   const isBound = !!(inputId && standardInput);
@@ -230,7 +239,13 @@ export function RiggingScalarRow({
           min={0}
           max={1}
           disabled={!canEdit}
-          title={!canEdit ? "Value is not driven by a rig input" : undefined}
+          title={
+            !canEdit
+              ? unresolvedInputId
+                ? `Driver "${unresolvedInputId}" is unresolved. Open My Drivers to remap.`
+                : "Value is not driven by a rig input"
+              : undefined
+          }
           onChange={(e) => {
             if (!canEdit) return;
             const num = parseFloat(e.target.value);
@@ -264,6 +279,7 @@ export function RiggingColorRow({
   label,
   feature,
   bindings,
+  standardInputs,
   standardInputsById,
   inputValues,
   onValueChange,
@@ -284,16 +300,20 @@ export function RiggingColorRow({
 
     const compLabel = comp.componentKey?.toUpperCase() ?? comp.label;
     const targetId = comp.targetId;
-    let inputId = null;
-    let standardInput = null;
+    let inputId: string | null = null;
+    let standardInput: StandardRigInput | null = null;
+    let unresolvedInputId: string | null = null;
 
     if (targetId) {
       const binding = bindings[targetId];
-      const resolvedInputId = resolveEffectiveBindingInputId(binding);
-      if (resolvedInputId) {
-        inputId = resolvedInputId;
-        standardInput = standardInputsById.get(inputId);
-      }
+      const resolved = resolveEffectiveBindingStandardInput(
+        binding,
+        standardInputsById,
+        standardInputs,
+      );
+      inputId = resolved.inputId;
+      standardInput = resolved.input;
+      unresolvedInputId = resolved.unresolvedInputId;
     }
 
     const isBound = !!(inputId && standardInput);
@@ -311,6 +331,7 @@ export function RiggingColorRow({
       currentValue,
       defaultValue,
       isBound,
+      unresolvedInputId,
     };
   };
 
@@ -501,6 +522,13 @@ export function RiggingColorRow({
                   min={0}
                   max={1}
                   disabled={!canEdit}
+                  title={
+                    !canEdit
+                      ? c.unresolvedInputId
+                        ? `Driver "${c.unresolvedInputId}" is unresolved. Open My Drivers to remap.`
+                        : "Value is not driven by a rig input"
+                      : undefined
+                  }
                   onChange={(e) => {
                     if (!canEdit) return;
                     const num = parseFloat(e.target.value);

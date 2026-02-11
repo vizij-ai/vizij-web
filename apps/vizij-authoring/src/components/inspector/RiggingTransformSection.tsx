@@ -7,7 +7,7 @@ import type {
 } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
-import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
+import { resolveEffectiveBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -107,6 +107,7 @@ function RiggingVectorRow({
   label,
   feature,
   bindings,
+  standardInputs,
   standardInputsById,
   inputValues,
   onValueChange,
@@ -123,14 +124,18 @@ function RiggingVectorRow({
       const targetId = comp.targetId;
       let inputId = null;
       let standardInput = null;
+      let unresolvedInputId = null;
 
       if (targetId) {
         const binding = bindings[targetId];
-        const resolvedInputId = resolveEffectiveBindingInputId(binding);
-        if (resolvedInputId) {
-          inputId = resolvedInputId;
-          standardInput = standardInputsById.get(inputId);
-        }
+        const resolved = resolveEffectiveBindingStandardInput(
+          binding,
+          standardInputsById,
+          standardInputs,
+        );
+        inputId = resolved.inputId;
+        standardInput = resolved.input;
+        unresolvedInputId = resolved.unresolvedInputId;
       }
 
       // 2. Determine values
@@ -142,6 +147,7 @@ function RiggingVectorRow({
           currentValue: inputValues[inputId] ?? standardInput.defaultValue ?? 0,
           defaultValue: standardInput.defaultValue ?? 0,
           isBound: true,
+          unresolvedInputId,
         };
       } else {
         const val = comp.staticValue ?? 0;
@@ -151,10 +157,11 @@ function RiggingVectorRow({
           currentValue: val,
           defaultValue: val,
           isBound: false,
+          unresolvedInputId,
         };
       }
     });
-  }, [feature, bindings, standardInputsById, inputValues]);
+  }, [feature, bindings, standardInputs, standardInputsById, inputValues]);
 
   if (components.length === 0) return null;
 
@@ -229,7 +236,11 @@ function RiggingVectorRow({
               step={0.01}
               disabled={!canEdit}
               title={
-                !canEdit ? "Value is not driven by a rig input" : undefined
+                !canEdit
+                  ? c.unresolvedInputId
+                    ? `Driver "${c.unresolvedInputId}" is unresolved. Open My Drivers to remap.`
+                    : "Value is not driven by a rig input"
+                  : undefined
               }
               onChange={(e) => {
                 if (!canEdit || !c.inputId) return;
