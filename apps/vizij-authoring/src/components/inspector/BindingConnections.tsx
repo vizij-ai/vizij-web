@@ -30,6 +30,9 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
   const handleCreateParentDriverBinding = useBindingAuthoring(
     (state) => state.handleCreateParentDriverBinding,
   );
+  const handleUnlinkChildInput = useBindingAuthoring(
+    (state) => state.handleUnlinkChildInput,
+  );
 
   const { selectPose, updatePoseValue, removePoseInput } = usePoseRig();
   const poses = usePoseRigStore((state) => state.poses);
@@ -68,6 +71,17 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
   const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [ignoredSuggestionIds, setIgnoredSuggestionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [previewSuggestionId, setPreviewSuggestionId] = useState<string | null>(
+    null,
+  );
+  const [lastUndoAction, setLastUndoAction] = useState<{
+    appliedIds: string[];
+    label: string;
+    rollback: () => void;
+  } | null>(null);
   const [traceFeedback, setTraceFeedback] = useState<string | null>(null);
 
   const applyTraceSuggestion = useCallback(
@@ -79,17 +93,27 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
         );
         handleSelectRig(suggestion.childInputId);
         handleClearSelection();
-        return true;
+        return {
+          applied: true,
+          rollback: () => {
+            handleUnlinkChildInput(
+              suggestion.upstreamInputId,
+              suggestion.childInputId,
+            );
+          },
+          label: `${suggestion.poseName}: ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`,
+        };
       }
 
       const pose = poses.find((entry) => entry.id === suggestion.poseId);
       if (!pose) {
-        return false;
+        return { applied: false };
       }
       const currentValue = pose.values[suggestion.fromInputId];
       if (currentValue === undefined) {
-        return false;
+        return { applied: false };
       }
+      const previousTargetValue = pose.values[suggestion.toInputId];
       const fromNeutral = neutralInputs[suggestion.fromInputId] ?? 0;
       const toNeutral = neutralInputs[suggestion.toInputId] ?? 0;
       const remappedValue = toNeutral + (currentValue - fromNeutral);
@@ -97,11 +121,31 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       removePoseInput(suggestion.poseId, suggestion.fromInputId);
       selectPose(suggestion.poseId);
       handleClearSelection();
-      return true;
+      return {
+        applied: true,
+        rollback: () => {
+          updatePoseValue(
+            suggestion.poseId,
+            suggestion.fromInputId,
+            currentValue,
+          );
+          if (previousTargetValue === undefined) {
+            removePoseInput(suggestion.poseId, suggestion.toInputId);
+          } else {
+            updatePoseValue(
+              suggestion.poseId,
+              suggestion.toInputId,
+              previousTargetValue,
+            );
+          }
+        },
+        label: `${suggestion.poseName}: ${suggestion.fromInputId} -> ${suggestion.toInputId}`,
+      };
     },
     [
       handleClearSelection,
       handleCreateParentDriverBinding,
+      handleUnlinkChildInput,
       handleSelectRig,
       neutralInputs,
       poses,
@@ -127,7 +171,22 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       });
       return changed ? next : current;
     });
-  }, [trace.suggestedFixes]);
+    setIgnoredSuggestionIds((current) => {
+      let changed = false;
+      const next = new Set<string>();
+      current.forEach((id) => {
+        if (liveIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+    if (previewSuggestionId && !liveIds.has(previewSuggestionId)) {
+      setPreviewSuggestionId(null);
+    }
+  }, [previewSuggestionId, trace.suggestedFixes]);
 
   useEffect(() => {
     if (!traceFeedback) {
@@ -137,21 +196,37 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     return () => window.clearTimeout(timer);
   }, [traceFeedback]);
 
+  const visibleSuggestions = useMemo(
+    () =>
+      trace.suggestedFixes.filter(
+        (suggestion) => !ignoredSuggestionIds.has(suggestion.id),
+      ),
+    [ignoredSuggestionIds, trace.suggestedFixes],
+  );
+
+  const previewSuggestion = useMemo(
+    () =>
+      visibleSuggestions.find(
+        (suggestion) => suggestion.id === previewSuggestionId,
+      ) ?? null,
+    [previewSuggestionId, visibleSuggestions],
+  );
+
   const suggestionsByKind = useMemo(
     () => ({
-      linkParent: trace.suggestedFixes.filter(
+      linkParent: visibleSuggestions.filter(
         (suggestion) => suggestion.kind === "link-parent-binding",
       ),
-      retarget: trace.suggestedFixes.filter(
+      retarget: visibleSuggestions.filter(
         (suggestion) => suggestion.kind === "retarget-pose-output",
       ),
     }),
-    [trace.suggestedFixes],
+    [visibleSuggestions],
   );
 
   const safeBulkSuggestions = useMemo(
-    () => selectSafePoseRigTraceSuggestions(trace.suggestedFixes, 0.6),
-    [trace.suggestedFixes],
+    () => selectSafePoseRigTraceSuggestions(visibleSuggestions, 0.6),
+    [visibleSuggestions],
   );
 
   const unappliedSafeBulkSuggestions = useMemo(
@@ -164,8 +239,8 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
 
   const handleApplySuggestion = useCallback(
     (suggestion: PoseRigTraceSuggestion) => {
-      const applied = applyTraceSuggestion(suggestion);
-      if (!applied) {
+      const result = applyTraceSuggestion(suggestion);
+      if (!result.applied) {
         setTraceFeedback(
           `Suggestion no longer applies: ${suggestion.poseName} ${suggestion.kind}`,
         );
@@ -176,6 +251,14 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
         next.add(suggestion.id);
         return next;
       });
+      if (result.rollback) {
+        setLastUndoAction({
+          appliedIds: [suggestion.id],
+          label: result.label ?? suggestion.id,
+          rollback: result.rollback,
+        });
+      }
+      setPreviewSuggestionId(null);
       setTraceFeedback(
         suggestion.kind === "link-parent-binding"
           ? `Applied link: ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`
@@ -193,10 +276,15 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     let appliedCount = 0;
     let skippedCount = 0;
     const appliedIds: string[] = [];
+    const rollbackStack: Array<() => void> = [];
     unappliedSafeBulkSuggestions.forEach((suggestion) => {
-      if (applyTraceSuggestion(suggestion)) {
+      const result = applyTraceSuggestion(suggestion);
+      if (result.applied) {
         appliedCount += 1;
         appliedIds.push(suggestion.id);
+        if (result.rollback) {
+          rollbackStack.push(result.rollback);
+        }
       } else {
         skippedCount += 1;
       }
@@ -209,6 +297,17 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
       });
     }
     if (appliedCount > 0) {
+      if (rollbackStack.length > 0) {
+        setLastUndoAction({
+          appliedIds,
+          label: `Bulk safe apply (${appliedCount})`,
+          rollback: () => {
+            for (let index = rollbackStack.length - 1; index >= 0; index -= 1) {
+              rollbackStack[index]?.();
+            }
+          },
+        });
+      }
       setTraceFeedback(
         skippedCount > 0
           ? `Applied ${appliedCount} safe fixes (${skippedCount} skipped as stale).`
@@ -218,6 +317,42 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     }
     setTraceFeedback("Safe suggestions were stale and could not be applied.");
   }, [applyTraceSuggestion, unappliedSafeBulkSuggestions]);
+
+  const handleIgnoreSuggestion = useCallback(
+    (suggestionId: string) => {
+      setIgnoredSuggestionIds((current) => {
+        const next = new Set(current);
+        next.add(suggestionId);
+        return next;
+      });
+      if (previewSuggestionId === suggestionId) {
+        setPreviewSuggestionId(null);
+      }
+    },
+    [previewSuggestionId],
+  );
+
+  const handleUndoLast = useCallback(() => {
+    if (!lastUndoAction) {
+      return;
+    }
+    lastUndoAction.rollback();
+    setAppliedSuggestionIds((current) => {
+      let changed = false;
+      const next = new Set(current);
+      lastUndoAction.appliedIds.forEach((id) => {
+        if (next.delete(id)) {
+          changed = true;
+        }
+      });
+      if (!changed) {
+        return current;
+      }
+      return next;
+    });
+    setTraceFeedback(`Undid: ${lastUndoAction.label}`);
+    setLastUndoAction(null);
+  }, [lastUndoAction]);
 
   if (
     connections.rigs.length === 0 &&
@@ -370,15 +505,26 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
               <div className="text-[9px] font-semibold text-emerald-300 uppercase tracking-wide">
                 Suggested Fixes
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
-                disabled={unappliedSafeBulkSuggestions.length === 0}
-                onClick={handleApplySafeSuggestions}
-              >
-                Apply Safe ({unappliedSafeBulkSuggestions.length})
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                  disabled={unappliedSafeBulkSuggestions.length === 0}
+                  onClick={handleApplySafeSuggestions}
+                >
+                  Apply Safe ({unappliedSafeBulkSuggestions.length})
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[9px] px-2"
+                  disabled={!lastUndoAction}
+                  onClick={handleUndoLast}
+                >
+                  Undo
+                </Button>
+              </div>
             </div>
             <div className="mt-1 flex flex-wrap gap-1.5">
               <Chip tone="info">
@@ -388,10 +534,52 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                 Retarget {suggestionsByKind.retarget.length}
               </Chip>
               <Chip tone="success">Safe {safeBulkSuggestions.length}</Chip>
+              <Chip tone="default">Ignored {ignoredSuggestionIds.size}</Chip>
             </div>
             {traceFeedback && (
               <div className="text-[9px] text-emerald-200 mt-1">
                 {traceFeedback}
+              </div>
+            )}
+            {previewSuggestion && (
+              <div className="mt-1 rounded border border-emerald-300/40 bg-emerald-900/20 px-2 py-1.5">
+                <div className="text-[9px] font-semibold text-emerald-100 uppercase tracking-wide">
+                  Preview
+                </div>
+                <div className="text-[9px] text-emerald-100 mt-0.5">
+                  {previewSuggestion.kind === "link-parent-binding"
+                    ? `${previewSuggestion.poseName}: link ${previewSuggestion.upstreamInputId} -> ${previewSuggestion.childInputId}`
+                    : `${previewSuggestion.poseName}: retarget ${previewSuggestion.fromInputId} -> ${previewSuggestion.toInputId}`}
+                </div>
+                <div className="text-[9px] text-emerald-200/80 mt-0.5">
+                  {previewSuggestion.reason}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                    onClick={() => handleApplySuggestion(previewSuggestion)}
+                  >
+                    Apply
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-[9px] px-2"
+                    onClick={() => handleIgnoreSuggestion(previewSuggestion.id)}
+                  >
+                    Ignore
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[9px] px-2"
+                    onClick={() => setPreviewSuggestionId(null)}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             )}
             <div className="flex flex-col gap-2 mt-1">
@@ -426,7 +614,24 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                     <div className="text-[9px] text-emerald-200/80 mt-0.5">
                       {suggestion.reason}
                     </div>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2"
+                        onClick={() => setPreviewSuggestionId(suggestion.id)}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2"
+                        disabled={isApplied}
+                        onClick={() => handleIgnoreSuggestion(suggestion.id)}
+                      >
+                        Ignore
+                      </Button>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -472,7 +677,24 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                     <div className="text-[9px] text-emerald-200/80 mt-0.5">
                       {suggestion.reason}
                     </div>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2"
+                        onClick={() => setPreviewSuggestionId(suggestion.id)}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 text-[9px] px-2"
+                        disabled={isApplied}
+                        onClick={() => handleIgnoreSuggestion(suggestion.id)}
+                      >
+                        Ignore
+                      </Button>
                       <Button
                         variant="secondary"
                         size="sm"
