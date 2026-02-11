@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Plus, Folder, Zap, Activity, Play, Search } from "lucide-react";
+import type { StandardRigInput } from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -15,6 +16,13 @@ import type { ManagedStandardInput } from "../../types/standardInputs";
 // ----------------------------------------------------------------------------
 
 type NodeType = "folder" | "pose" | "rig";
+type RigNodeSource = "auto" | "preset" | "custom" | "reference";
+
+interface RigNodeData {
+  input: StandardRigInput;
+  source: RigNodeSource;
+  disabled?: boolean;
+}
 
 interface TreeNode {
   id: string;
@@ -22,8 +30,23 @@ interface TreeNode {
   type: NodeType;
   children: Map<string, TreeNode>;
   showChildren: boolean; // Default expansion state
-  data?: PoseDefinition | ManagedStandardInput;
+  data?: PoseDefinition | RigNodeData;
 }
+
+function resolveManagedSource(entry: ManagedStandardInput): RigNodeSource {
+  const isPreset = entry.metadata?.elementType === "standard";
+  if (isPreset) {
+    return "preset";
+  }
+  return entry.source;
+}
+
+const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
+  auto: "bg-sky-900/40 text-sky-200",
+  preset: "bg-emerald-900/40 text-emerald-200",
+  custom: "bg-amber-900/40 text-amber-200",
+  reference: "bg-violet-900/40 text-violet-200",
+};
 
 function getOrCreateChild(
   parent: TreeNode,
@@ -140,8 +163,12 @@ function TreeRowWrapper({
           )}
 
           {node.type === "rig" && node.data && (
-            <span className="text-[9px] font-mono bg-bg-panel px-1 rounded text-text-muted">
-              Rig
+            <span
+              className={`text-[9px] font-mono px-1 rounded ${
+                SOURCE_BADGE_CLASS[(node.data as RigNodeData).source]
+              }`}
+            >
+              {(node.data as RigNodeData).source}
             </span>
           )}
         </>
@@ -193,11 +220,49 @@ export function VariablesPanel({
 
   // State for search
   const [search, setSearch] = useState("");
+  const [enabledSources, setEnabledSources] = useState<Set<RigNodeSource>>(
+    () => new Set(["auto", "preset", "custom", "reference"]),
+  );
 
   // State for tree expansion
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(["root"]),
   );
+
+  const mainFaceRigEntries = useMemo(() => {
+    return managedStandardInputs
+      .filter((entry) => Boolean(entry.input.path?.trim()))
+      .map((entry) => ({
+        input: entry.input,
+        source: resolveManagedSource(entry),
+        disabled: entry.disabled,
+      }));
+  }, [managedStandardInputs]);
+
+  const referenceRigEntries = useMemo(
+    () =>
+      referenceFace.standardInputs
+        .filter((entry) => Boolean(entry.path?.trim()))
+        .map((entry) => ({
+          input: entry,
+          source: "reference" as const,
+        })),
+    [referenceFace.standardInputs],
+  );
+
+  const sourceCounts = useMemo(() => {
+    const counts: Record<RigNodeSource, number> = {
+      auto: 0,
+      preset: 0,
+      custom: 0,
+      reference: 0,
+    };
+    mainFaceRigEntries.forEach((entry) => {
+      counts[entry.source] += 1;
+    });
+    counts.reference = referenceRigEntries.length;
+    return counts;
+  }, [mainFaceRigEntries, referenceRigEntries.length]);
 
   // Build Tree
   const rootNode = useMemo(() => {
@@ -249,12 +314,12 @@ export function VariablesPanel({
       });
     });
 
-    // 2. Process Custom Rigs (Main Face)
-    const customRigs = managedStandardInputs.filter(
-      (m) => m.source === "custom",
-    );
-    customRigs.forEach((managed) => {
-      const input = managed.input;
+    // 2. Process path-backed Rigs (Main Face)
+    mainFaceRigEntries.forEach((entry) => {
+      if (!enabledSources.has(entry.source)) {
+        return;
+      }
+      const input = entry.input;
       const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
 
       let current = targetRoot;
@@ -269,7 +334,7 @@ export function VariablesPanel({
         type: "rig",
         children: new Map(),
         showChildren: false,
-        data: managed,
+        data: entry,
       });
     });
 
@@ -286,7 +351,11 @@ export function VariablesPanel({
 
       if (referenceFace.isLoaded) {
         // Add standard inputs from Reference Face
-        referenceFace.standardInputs.forEach((input) => {
+        referenceRigEntries.forEach((entry) => {
+          if (!enabledSources.has("reference")) {
+            return;
+          }
+          const input = entry.input;
           const pathParts = input.path
             ? input.path.split("/").filter(Boolean)
             : [];
@@ -302,7 +371,7 @@ export function VariablesPanel({
             type: "rig",
             children: new Map(),
             showChildren: false,
-            data: { input, source: "reference" } as any,
+            data: entry,
           });
         });
       } else {
@@ -326,8 +395,9 @@ export function VariablesPanel({
     return root;
   }, [
     poses,
-    managedStandardInputs,
-    referenceFace.standardInputs,
+    enabledSources,
+    mainFaceRigEntries,
+    referenceRigEntries,
     referenceFace.isLoaded,
     referenceFace.isLoading,
     referenceFace.file,
@@ -434,7 +504,7 @@ export function VariablesPanel({
       // When selecting logic, we might also want to clear rig selection?
       onSelectRig?.(null);
     } else if (node.type === "rig") {
-      const rigData = node.data as ManagedStandardInput;
+      const rigData = node.data as RigNodeData;
       onSelectRig?.(rigData.input.id);
     }
   };
@@ -456,8 +526,7 @@ export function VariablesPanel({
 
   // Calculate total count
   const totalCount =
-    poses.length +
-    managedStandardInputs.filter((m) => m.source === "custom").length;
+    poses.length + mainFaceRigEntries.length + referenceRigEntries.length;
 
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -498,6 +567,43 @@ export function VariablesPanel({
             onChange={setSearch}
             placeholder={search ? "Filter..." : "Search or create variable..."}
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+          {(
+            [
+              ["auto", "Auto"],
+              ["preset", "Preset"],
+              ["custom", "Custom"],
+              ["reference", "Reference"],
+            ] as Array<[RigNodeSource, string]>
+          ).map(([source, label]) => {
+            const isActive = enabledSources.has(source);
+            const count = sourceCounts[source];
+            return (
+              <button
+                key={source}
+                type="button"
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  isActive
+                    ? "border-border-hover bg-bg-panel text-text-primary"
+                    : "border-border-default text-text-muted hover:text-text-primary"
+                }`}
+                onClick={() => {
+                  setEnabledSources((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(source)) {
+                      next.delete(source);
+                    } else {
+                      next.add(source);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
