@@ -117,6 +117,7 @@ export function usePoseRigAuthoring(
   const selectedPoseId = store.selectedPoseId;
   const rigName = store.rigName;
   const rigKind = store.rigKind;
+  const blendMode = store.blendMode;
   const poseGraphSpec = store.poseGraphSpec;
   const poseGraphSummary = store.poseGraphSummary;
   const poseConfigDraft = store.poseConfigDraft;
@@ -370,7 +371,7 @@ export function usePoseRigAuthoring(
     neutralInputs,
     savedNeutral: neutralInputs,
     currentValues,
-    blendMode: "average", // TODO: Add to store/state
+    blendMode,
     setBlendMode,
     rigKind,
     setRigKind,

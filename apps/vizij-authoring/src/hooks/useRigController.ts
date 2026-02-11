@@ -20,8 +20,6 @@ import {
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
-import { useGraphInstance } from "@vizij/node-graph-react";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   useVizijStore,
   useVizijStoreSetter,
@@ -68,7 +66,6 @@ import type { SelectionStore } from "../state/selectionStore";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { useFeatureLabels } from "./useFeatureLabels";
-import { useGraphPlaybackControls } from "./useGraphPlaybackControls";
 import { useManagedStandardInputs } from "./useManagedStandardInputs";
 import { useStandardInputCollections } from "./useStandardInputCollections";
 import { useStandardInputSelectionSync } from "./useStandardInputSelectionSync";
@@ -79,11 +76,13 @@ import {
 } from "./standardInputMutations";
 import { linkChildInput, unlinkChildInput } from "./standardInputLinks";
 import {
-  applyGraphOutputsToAnimatables,
   buildFallbackGraphPath,
-  stageGraphInputsFromState,
   type GraphInputBindingEntry,
 } from "./graphRuntime";
+import {
+  resolveRuntimeGraphSpec,
+  type RuntimeGraphSpec,
+} from "./runtimeGraphSpec";
 import { useRigGraphImport } from "./useRigGraphImport";
 import { useRigPersistence } from "./useRigPersistence";
 
@@ -208,20 +207,13 @@ export function useRigController(
     graphRuntimeStore.setState({ setStoreState });
   }, [graphRuntimeStore, setStoreState]);
 
-  const {
-    loadGraph: loadRigGraph,
-    unloadGraph: unloadRigGraph,
-    evalAll: evalRigGraph,
-    stageInput: stageRigInput,
-    clearStaged: clearRigStaged,
-    step: stepRigGraph,
-    setTime: setRigTime,
-  } = useGraphInstance(undefined, { autoEval: false });
+  const stageRuntimeInput = graphRuntimeStore.getState().stageRuntimeInput;
 
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [graphError, setGraphError] = useState<string | null>(null);
+  const [graphWarning, setGraphWarning] = useState<string | null>(null);
   const pendingFaceRenameRef = useRef<string | null>(null);
   const faceRenameTokenRef = useRef<string | null>(null);
 
@@ -232,6 +224,9 @@ export function useRigController(
   useEffect(() => {
     graphRuntimeStore.setState({ graphError });
   }, [graphRuntimeStore, graphError]);
+  useEffect(() => {
+    graphRuntimeStore.setState({ graphWarning });
+  }, [graphRuntimeStore, graphWarning]);
 
   const [faceId, setFaceIdState] = useState<string>("robot");
   const clearFaceRenameToken = useCallback(
@@ -419,6 +414,8 @@ export function useRigController(
   const drivenAnimatablesRef = useRef<Set<string>>(new Set());
   const graphSummaryRef = useRef<BuildGraphResult["summary"] | null>(null);
   const graphIrRef = useRef<BuildGraphResult["ir"] | null>(null);
+  const lastKnownGoodRuntimeSpecRef = useRef<RuntimeGraphSpec | null>(null);
+  const skipRuntimeUnloadRef = useRef(false);
   const graphInputBindingsRef = useRef<GraphInputBindingEntry[]>([]);
   const graphInputBindingsByIdRef = useRef<Map<string, string>>(new Map());
   const autoPlayTokenRef = useRef<string | null>(null);
@@ -1293,42 +1290,18 @@ export function useRigController(
     standardInputMetadataById,
   ]);
 
-  const runtimeGraphSpec = useMemo<{
-    spec: GraphSpec;
-    source: "legacy" | "ir";
-  } | null>(() => {
-    if (!rigGraphBuild) {
-      return null;
+  const runtimeGraphSpec = useMemo(() => {
+    const resolved = resolveRuntimeGraphSpec(
+      rigGraphBuild,
+      lastKnownGoodRuntimeSpecRef.current,
+    );
+    if (!resolved.blocked && resolved.runtimeSpec) {
+      lastKnownGoodRuntimeSpecRef.current = resolved.runtimeSpec;
     }
-    if (rigGraphBuild.ir) {
-      try {
-        const compiled = rigGraphBuild.ir.compile({ preferLegacySpec: false });
-        if (compiled?.spec) {
-          if (compiled.issues && compiled.issues.length > 0) {
-            // eslint-disable-next-line no-console -- diagnostics for IR compile
-            console.warn(
-              "[vizij-authoring] IR runtime compile reported issues",
-              compiled.issues,
-            );
-          }
-          return {
-            spec: compiled.spec,
-            source: "ir",
-          };
-        }
-      } catch (error) {
-        // eslint-disable-next-line no-console -- diagnostics for IR compile
-        console.error(
-          "[vizij-authoring] Failed to compile IR graph for runtime",
-          error,
-        );
-      }
-    }
-    return {
-      spec: rigGraphBuild.spec,
-      source: "legacy",
-    };
+    return resolved;
   }, [rigGraphBuild]);
+  skipRuntimeUnloadRef.current =
+    runtimeGraphSpec.blocked && Boolean(lastKnownGoodRuntimeSpecRef.current);
 
   const bindingIssues = useMemo(
     () =>
@@ -1341,6 +1314,12 @@ export function useRigController(
         : new Map<string, readonly string[]>(),
     [rigGraphBuild],
   );
+
+  useEffect(() => {
+    graphRuntimeStore.setState({
+      graphSpec: runtimeGraphSpec.runtimeSpec?.spec ?? null,
+    });
+  }, [graphRuntimeStore, runtimeGraphSpec.runtimeSpec]);
 
   const graphMachineReport = useMemo(
     () => (rigGraphBuild ? buildMachineReport(rigGraphBuild) : null),
@@ -1380,54 +1359,44 @@ export function useRigController(
     });
   }, [animatables, namespace, setValue]);
 
-  const applyGraphOutputs = useCallback(
-    (result: unknown) => {
-      applyGraphOutputsToAnimatables({
-        result,
-        animatables,
-        namespace,
-        setValue,
-        drivenAnimatablesRef,
-        resetDrivenAnimatables,
+  const stageInputsFromState = useCallback(() => {
+    if (graphStatus !== "ready" || graphError) {
+      return;
+    }
+    const bindingsById = graphInputBindingsByIdRef.current;
+    const fallbackBindings = graphInputBindingsRef.current;
+    if (bindingsById.size === 0 && fallbackBindings.length === 0) {
+      return;
+    }
+    if (bindingsById.size > 0) {
+      bindingsById.forEach((graphPath, inputId) => {
+        const stored = inputValuesRef.current[inputId];
+        const fallbackInput = standardInputsById.get(inputId);
+        const value =
+          typeof stored === "number" && Number.isFinite(stored)
+            ? stored
+            : (fallbackInput?.defaultValue ?? 0);
+        stageRuntimeInput?.(graphPath, value);
       });
-    },
-    [animatables, namespace, resetDrivenAnimatables, setValue],
-  );
+      return;
+    }
+    fallbackBindings.forEach(({ graphPath, inputId, defaultValue }) => {
+      const stored = inputId ? inputValuesRef.current[inputId] : undefined;
+      const value =
+        typeof stored === "number" && Number.isFinite(stored)
+          ? stored
+          : defaultValue;
+      stageRuntimeInput?.(graphPath, value);
+    });
+  }, [graphError, graphStatus, stageRuntimeInput, standardInputsById]);
 
-  const stageInputsFromState = useCallback(
-    (options?: { clear?: boolean }) => {
-      stageGraphInputsFromState({
-        graphStatus,
-        bindingsById: graphInputBindingsByIdRef.current,
-        fallbackBindings: graphInputBindingsRef.current,
-        inputValues: inputValuesRef.current,
-        standardInputsById,
-        stageRigInput,
-        clearRigStaged,
-        clearExisting: options?.clear,
-        debug: __DEV__,
-      });
-    },
-    [clearRigStaged, graphStatus, stageRigInput, standardInputsById],
-  );
-
-  const {
-    graphTimeSeconds,
-    graphPlaybackState,
-    graphFrameRate,
-    playGraph,
-    pauseGraph,
-    stopGraph,
-    stepGraph,
-  } = useGraphPlaybackControls({
-    graphStatus,
-    stageInputsFromState,
-    stepRigGraph,
-    evalRigGraph,
-    applyGraphOutputs,
-    setRigTime,
-    resetDrivenAnimatables,
-  });
+  const graphTimeSeconds = 0;
+  const graphPlaybackState = "paused" as const;
+  const graphFrameRate = 0;
+  const playGraph = () => {};
+  const pauseGraph = () => {};
+  const stopGraph = () => {};
+  const stepGraph = () => {};
 
   useEffect(() => {
     graphRuntimeStore.setState({
@@ -1451,7 +1420,7 @@ export function useRigController(
   ]);
 
   useEffect(() => {
-    if (graphStatus !== "ready") {
+    if (graphStatus !== "ready" || graphError) {
       return;
     }
     if (!rootId) {
@@ -1462,13 +1431,8 @@ export function useRigController(
     if (autoPlayTokenRef.current === token) {
       return;
     }
-    if (graphPlaybackState === "playing") {
-      autoPlayTokenRef.current = token;
-      return;
-    }
-    playGraph();
     autoPlayTokenRef.current = token;
-  }, [faceId, graphPlaybackState, graphStatus, playGraph, rootId]);
+  }, [faceId, graphStatus, graphError, rootId]);
 
   useEffect(() => {
     if (graphStatus === "ready") {
@@ -1478,13 +1442,11 @@ export function useRigController(
   }, [graphStatus]);
 
   const evaluateGraphNow = useCallback(() => {
-    if (graphStatus !== "ready") {
+    if (graphStatus !== "ready" || graphError) {
       return;
     }
     stageInputsFromState();
-    const result = evalRigGraph();
-    applyGraphOutputs(result);
-  }, [applyGraphOutputs, evalRigGraph, graphStatus, stageInputsFromState]);
+  }, [graphStatus, graphError, stageInputsFromState]);
 
   const rootRenderable = useMemo(() => {
     return rootId ? (world[rootId] as Group | undefined) : undefined;
@@ -1620,7 +1582,7 @@ export function useRigController(
 
   const stageGraphInputValue = useCallback(
     (inputId: string, value: number) => {
-      if (graphStatus !== "ready") {
+      if (graphStatus !== "ready" || graphError) {
         if (__DEV__) {
           console.warn(
             "[vizij] skipped staging input while graph not ready",
@@ -1644,20 +1606,9 @@ export function useRigController(
         }
         return;
       }
-      stageRigInput(graphPath, { float: value });
-      // if (__DEV__) {
-      //   // eslint-disable-next-line no-console -- debug logger
-      //   console.debug("[vizij] staged input", {
-      //     inputId,
-      //     graphPath,
-      //     value,
-      //     fallback: !graphInputBindingsRef.current.some(
-      //       (binding) => binding.graphPath === graphPath,
-      //     ),
-      //   });
-      // }
+      stageRuntimeInput?.(graphPath, value);
     },
-    [faceId, graphStatus, stageRigInput, standardInputsById],
+    [faceId, graphStatus, graphError, stageRuntimeInput, standardInputsById],
   );
 
   const handleInputValueChange = useCallback(
@@ -2010,14 +1961,13 @@ export function useRigController(
   }, [faceId, rootRenderable, setFaceId, sourceName]);
 
   useEffect(() => {
-    if (!rigGraphBuild || !runtimeGraphSpec) {
+    if (!rigGraphBuild) {
       setGraphStatus("idle");
       setGraphError(null);
+      setGraphWarning(null);
       graphSummaryRef.current = null;
       graphIrRef.current = null;
       resetDrivenAnimatables();
-      unloadRigGraph();
-      clearRigStaged();
       return;
     }
 
@@ -2026,59 +1976,48 @@ export function useRigController(
       graphSummaryRef.current = null;
       graphIrRef.current = null;
       resetDrivenAnimatables();
-      unloadRigGraph();
-      clearRigStaged();
       setGraphStatus("error");
       setGraphError(
         fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; "),
       );
+      setGraphWarning(null);
       return;
     }
 
-    let cancelled = false;
-
-    setGraphStatus("loading");
-    setGraphError(null);
-
-    (async () => {
-      try {
-        await loadRigGraph(runtimeGraphSpec.spec);
-        if (cancelled) {
-          return;
-        }
-        graphSummaryRef.current = rigGraphBuild.summary;
-        graphIrRef.current = rigGraphBuild.ir ?? null;
-        setGraphStatus("ready");
-        setGraphError(null);
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
+    if (runtimeGraphSpec.blocked || !runtimeGraphSpec.runtimeSpec) {
+      if (!skipRuntimeUnloadRef.current) {
         graphSummaryRef.current = null;
         graphIrRef.current = null;
-        setGraphStatus("error");
-        setGraphError(err instanceof Error ? err.message : String(err));
         resetDrivenAnimatables();
+        setGraphStatus("error");
+      } else {
+        setGraphStatus("ready");
       }
-    })();
+      setGraphError(
+        runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.",
+      );
+      setGraphWarning(null);
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-      graphSummaryRef.current = null;
-      graphIrRef.current = null;
-      resetDrivenAnimatables();
-      unloadRigGraph();
-      clearRigStaged();
-    };
-  }, [
-    clearRigStaged,
-    loadRigGraph,
-    faceId,
-    resetDrivenAnimatables,
-    rigGraphBuild,
-    runtimeGraphSpec,
-    unloadRigGraph,
-  ]);
+    graphSummaryRef.current = rigGraphBuild.summary;
+    graphIrRef.current = rigGraphBuild.ir ?? null;
+    if (__DEV__) {
+      console.log("[rig-controller] graph summary", {
+        faceId,
+        inputs: rigGraphBuild.summary.inputs.length,
+        outputs: rigGraphBuild.summary.outputs.length,
+        sampleInput: rigGraphBuild.summary.inputs[0],
+        sampleOutput: rigGraphBuild.summary.outputs[0],
+        sampleOutputInAnimatables: rigGraphBuild.summary.outputs[0]
+          ? Boolean(animatables[rigGraphBuild.summary.outputs[0]])
+          : false,
+      });
+    }
+    setGraphStatus("ready");
+    setGraphError(null);
+    setGraphWarning(runtimeGraphSpec.warning ?? null);
+  }, [faceId, resetDrivenAnimatables, rigGraphBuild, runtimeGraphSpec]);
 
   useEffect(() => {
     const summary = graphSummaryRef.current;
@@ -2089,8 +2028,6 @@ export function useRigController(
       resetDrivenAnimatables();
       return;
     }
-
-    clearRigStaged();
 
     const facePrefix = `rig/${faceId}/`;
     const summaryInputPaths = Array.isArray(summary.inputs)
@@ -2182,7 +2119,6 @@ export function useRigController(
 
     setGraphInputDefaults(defaults);
   }, [
-    clearRigStaged,
     faceId,
     graphStatus,
     managedStandardInputs,
@@ -2192,7 +2128,7 @@ export function useRigController(
   ]);
 
   useEffect(() => {
-    stageInputsFromState({ clear: true });
+    stageInputsFromState();
   }, [graphInputDefaults, graphStatus, stageInputsFromState]);
 
   const collectAnimatableExportState = useCallback(() => {

@@ -164,7 +164,8 @@ export function createPoseRigStore(
       patch.faceId ||
       patch.rigKind ||
       patch.standardInputs ||
-      patch.standardInputSchema
+      patch.standardInputSchema ||
+      patch.blendMode
     ) {
       const standardInputSchema =
         nextState.poseConfigDraft?.standardInputSchema ??
@@ -185,6 +186,9 @@ export function createPoseRigStore(
         const { spec, summary } = PoseGraphService.buildSpec(
           nextState.poseConfigDraft,
           nextState.standardInputs,
+          {
+            blendMode: nextState.blendMode,
+          },
         );
         nextState.poseGraphSpec = spec;
         nextState.poseGraphSummary = summary;

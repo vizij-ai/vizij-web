@@ -8,17 +8,20 @@ export const PoseGraphService = {
   buildSpec(
     config: PoseRigConfigFile,
     standardInputs: StandardRigInput[],
+    options?: {
+      blendMode?: "average" | "additive";
+      poseGroupSegment?: string | null;
+    },
   ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
-    const faceSegment =
-      config.rigKind === "generic" ? "standard" : config.faceId;
+    const rigKind = config.rigKind ?? "face-specific";
     return buildPoseGraphSpec({
-      faceId: faceSegment,
+      faceId: config.faceId,
+      rigKind,
       neutralInputs: config.neutralInputs,
       poses: config.poses,
       standardInputs,
-      // Default to average blend mode if not specified in config (config doesn't have blend mode yet, maybe it should?)
-      // For now, we'll assume average or let it be passed in options if we extend this.
-      blendMode: "average",
+      blendMode: options?.blendMode ?? "average",
+      poseGroupSegment: options?.poseGroupSegment ?? null,
     });
   },
 

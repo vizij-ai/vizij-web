@@ -10,7 +10,7 @@ import {
   type BindingMap,
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -25,6 +25,7 @@ import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
 import type { PoseRigConfigFile } from "../poseRig/types";
+import { PoseGraphService } from "../poseRig/services/poseGraphService";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;
@@ -39,6 +40,7 @@ interface PoseRigExportState {
   poseConfigDraft: PoseRigConfigFile | null;
   poseConfigFileName: string;
   importPoseConfig: (file: File) => Promise<void>;
+  blendMode?: "average" | "additive";
 }
 
 type TraversableBody = {
@@ -235,6 +237,44 @@ export function useVizijExport(
         inputMetadata: standardInputMetadataById,
       });
 
+      if (bundle?.graphs?.length) {
+        const rigGraph = bundle.graphs.find((graph) => graph.kind === "rig");
+        const fatalIssues = (
+          rigGraph?.metadata as { issues?: { fatal?: unknown[] } } | undefined
+        )?.issues?.fatal;
+        if (Array.isArray(fatalIssues) && fatalIssues.length > 0) {
+          await alertDialog(
+            "Fix rig graph errors before exporting the bundled GLB.",
+          );
+          return;
+        }
+        if (rigGraph?.spec) {
+          try {
+            await normalizeGraphSpec(rigGraph.spec as GraphSpec);
+          } catch (error) {
+            await alertDialog(
+              `Rig graph validation failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            return;
+          }
+        }
+        if (poseRig.poseGraphSpec) {
+          const inputs = Array.from(standardInputsById.values());
+          const poseWarnings = PoseGraphService.validate(
+            poseRig.poseGraphSpec,
+            inputs,
+          );
+          if (poseWarnings.length > 0) {
+            await alertDialog(
+              `Pose graph is invalid:\n${poseWarnings.join("\n")}`,
+            );
+            return;
+          }
+        }
+      }
+
       exportScene(
         primaryBody,
         bundle
@@ -270,9 +310,23 @@ export function useVizijExport(
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
-    const spec = poseRig.poseGraphSpec;
-    if (!spec) {
-      await alertDialog("Build the pose rig graph before exporting.");
+    if (!poseRig.poseConfigDraft) {
+      await alertDialog(
+        "Capture a neutral pose or add pose data before exporting.",
+      );
+      return;
+    }
+    const inputs = Array.from(standardInputsById.values());
+    const { spec } = PoseGraphService.buildSpec(
+      poseRig.poseConfigDraft,
+      inputs,
+      {
+        blendMode: poseRig.blendMode ?? "average",
+      },
+    );
+    const warnings = PoseGraphService.validate(spec, inputs);
+    if (warnings.length > 0) {
+      await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
       return;
     }
     const slug = faceSlug(faceId);
@@ -282,7 +336,13 @@ export function useVizijExport(
       "json",
     );
     downloadJsonFile(cloneSerializable(spec), fileName);
-  }, [alertDialog, faceId, poseRig.poseGraphFileName, poseRig.poseGraphSpec]);
+  }, [
+    alertDialog,
+    faceId,
+    poseRig.poseConfigDraft,
+    poseRig.poseGraphFileName,
+    standardInputsById,
+  ]);
 
   const exportPoseConfigFile = useCallback(async () => {
     const config = poseRig.poseConfigDraft;

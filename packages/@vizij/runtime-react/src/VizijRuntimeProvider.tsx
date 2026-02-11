@@ -36,6 +36,11 @@ import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { valueAsNumber } from "@vizij/value-json";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
+import {
+  resolveRuntimeUpdatePlan,
+  type RuntimeGraphBundle,
+  type RuntimeUpdateTier,
+} from "./updatePolicy";
 import type {
   AnimateValueOptions,
   InputDriverFactory,
@@ -114,18 +119,19 @@ function resolveEasing(easing?: AnimateValueOptions["easing"]) {
 }
 
 function findRootId(world: Record<string, any>): string | null {
+  let fallback: string | null = null;
   for (const entry of Object.values(world)) {
-    if (
-      entry &&
-      typeof entry === "object" &&
-      entry.type === "group" &&
-      entry.rootBounds &&
-      entry.id
-    ) {
+    if (!entry || typeof entry !== "object" || entry.type !== "group") {
+      continue;
+    }
+    if (entry.rootBounds && entry.id) {
       return entry.id as string;
     }
+    if (!fallback && entry.id) {
+      fallback = entry.id as string;
+    }
   }
-  return null;
+  return fallback;
 }
 
 function normalisePath(path: string): string {
@@ -341,6 +347,33 @@ function namespaceGraphSpec(
     ...(spec as Record<string, unknown>),
     nodes: nextNodes,
   } as GraphRegistrationConfig["spec"];
+}
+
+function stripNulls<T>(value: T): T {
+  if (value === null) {
+    return undefined as T;
+  }
+  if (Array.isArray(value)) {
+    const next = value
+      .map((entry) => stripNulls(entry))
+      .filter((entry) => entry !== undefined && entry !== null);
+    return next as unknown as T;
+  }
+  if (typeof value !== "object" || value === undefined) {
+    return value;
+  }
+  const next: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
+    if (entry === null) {
+      return;
+    }
+    const cleaned = stripNulls(entry);
+    if (cleaned === undefined) {
+      return;
+    }
+    next[key] = cleaned;
+  });
+  return next as T;
 }
 
 const now = () =>
@@ -812,6 +845,7 @@ export function VizijRuntimeProvider({
   children,
   namespace: namespaceProp,
   faceId: faceIdProp,
+  updateTier = "auto",
   autoCreate = true,
   createOptions,
   autostart = false,
@@ -844,6 +878,7 @@ export function VizijRuntimeProvider({
         assetBundle={assetBundle}
         namespace={namespaceProp}
         faceId={faceIdProp}
+        updateTier={updateTier}
         autoCreate={autoCreate}
         autostart={autostart}
         driveOrchestrator={driveOrchestrator}
@@ -877,6 +912,7 @@ type VizijRuntimeProviderInnerProps = {
   assetBundle: VizijAssetBundle;
   namespace?: string;
   faceId?: string;
+  updateTier: RuntimeUpdateTier;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
@@ -892,6 +928,7 @@ function VizijRuntimeProviderInner({
   assetBundle: initialAssetBundle,
   namespace: namespaceProp,
   faceId: faceIdProp,
+  updateTier,
   mergeStrategy,
   onRegisterControllers,
   onStatusChange,
@@ -902,44 +939,70 @@ function VizijRuntimeProviderInner({
   createOptions,
   driveOrchestrator,
 }: VizijRuntimeProviderInnerProps) {
+  const [assetBundleOverride, setAssetBundleOverride] =
+    useState<VizijAssetBundle | null>(null);
+  const [graphUpdateToken, setGraphUpdateToken] = useState(0);
+  const effectiveAssetBundle = assetBundleOverride ?? initialAssetBundle;
   const [extractedBundle, setExtractedBundle] =
     useState<VizijBundleExtension | null>(() => {
-      if (initialAssetBundle.bundle) {
-        return initialAssetBundle.bundle;
+      if (effectiveAssetBundle.bundle) {
+        return effectiveAssetBundle.bundle;
       }
       if (
-        initialAssetBundle.glb.kind === "world" &&
-        initialAssetBundle.glb.bundle
+        effectiveAssetBundle.glb.kind === "world" &&
+        effectiveAssetBundle.glb.bundle
       ) {
-        return initialAssetBundle.glb.bundle;
+        return effectiveAssetBundle.glb.bundle;
       }
       return null;
     });
   const [extractedAnimations, setExtractedAnimations] = useState<
     VizijAnimationAsset[]
   >([]);
+  const previousBundleRef = useRef<VizijAssetBundle | null>(null);
+  const pendingPlanRef = useRef<ReturnType<
+    typeof resolveRuntimeUpdatePlan
+  > | null>(null);
+  const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
 
   useEffect(() => {
-    if (initialAssetBundle.bundle) {
-      setExtractedBundle(initialAssetBundle.bundle);
+    if (effectiveAssetBundle.bundle) {
+      setExtractedBundle(effectiveAssetBundle.bundle);
       return;
     }
-    if (initialAssetBundle.glb.kind === "world") {
-      setExtractedBundle(initialAssetBundle.glb.bundle ?? null);
+    if (effectiveAssetBundle.glb.kind === "world") {
+      setExtractedBundle(effectiveAssetBundle.glb.bundle ?? null);
     } else {
       setExtractedBundle(null);
     }
-  }, [initialAssetBundle]);
+  }, [effectiveAssetBundle]);
+
+  useEffect(() => {
+    updateTierRef.current = updateTier;
+  }, [updateTier]);
 
   const assetBundle = useMemo(
     () =>
       mergeAssetBundle(
-        initialAssetBundle,
+        effectiveAssetBundle,
         extractedBundle,
         extractedAnimations,
       ),
-    [initialAssetBundle, extractedBundle, extractedAnimations],
+    [effectiveAssetBundle, extractedBundle, extractedAnimations],
   );
+
+  useEffect(() => {
+    const plan = resolveRuntimeUpdatePlan(
+      previousBundleRef.current,
+      effectiveAssetBundle,
+      updateTierRef.current,
+    );
+    pendingPlanRef.current = plan;
+    previousBundleRef.current = effectiveAssetBundle;
+    if (plan.reregisterGraphs) {
+      setGraphUpdateToken((prev) => prev + 1);
+    }
+  }, [effectiveAssetBundle]);
 
   const {
     ready,
@@ -1032,16 +1095,7 @@ function VizijRuntimeProviderInner({
     );
     setInputConstraints(constraints);
 
-    const isDevEnv =
-      typeof globalThis !== "undefined" &&
-      Boolean((globalThis as any)?.process?.env?.NODE_ENV !== "production");
-    if (isDevEnv) {
-      const size = Object.keys(constraints).length;
-      console.log("[vizij-runtime] input constraints computed", size, {
-        namespace,
-        rigId: rigAsset.id,
-      });
-    }
+    // Intentionally no logging here to keep runtime console quiet.
   }, [assetBundle.rig, namespace]);
 
   const requestLoopMode = useCallback((mode: LoopMode) => {
@@ -1082,7 +1136,6 @@ function VizijRuntimeProviderInner({
   const setInput = useCallback(
     (path: string, value: ValueJSON, shape?: ShapeJSON) => {
       markActivity();
-      console.log(`[vizij-runtime] staging input ${path}`, { value, shape });
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
       stagedInputsRef.current.set(namespacedPath, { value, shape });
     },
@@ -1174,12 +1227,21 @@ function VizijRuntimeProviderInner({
     driveOrchestratorRef.current = driveOrchestrator;
   }, [driveOrchestrator]);
 
-  const glbAsset = initialAssetBundle.glb;
+  const glbAsset = effectiveAssetBundle.glb;
   const baseBundle: VizijBundleExtension | null =
-    initialAssetBundle.bundle ?? null;
+    effectiveAssetBundle.bundle ?? null;
 
   useEffect(() => {
     let cancelled = false;
+    const plan = pendingPlanRef.current;
+    if (plan && !plan.reloadAssets && status.rootId !== null) {
+      reportStatus((prev) =>
+        prev.loading ? { ...prev, loading: false } : prev,
+      );
+      return () => {
+        cancelled = true;
+      };
+    }
     resetErrors();
     reportStatus((prev) => ({
       ...prev,
@@ -1277,6 +1339,7 @@ function VizijRuntimeProviderInner({
     resetErrors,
     setExtractedBundle,
     setExtractedAnimations,
+    status.rootId,
   ]);
 
   useEffect(() => {
@@ -1294,6 +1357,14 @@ function VizijRuntimeProviderInner({
 
   const registerControllers = useCallback(async () => {
     clearControllers();
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[vizij-runtime] registerControllers", {
+        hasRig: Boolean(assetBundle.rig),
+        hasPose: Boolean(assetBundle.pose?.graph),
+        namespace,
+      });
+    }
 
     const baseOutputPaths = new Set<string>();
     const namespacedOutputPaths = new Set<string>();
@@ -1326,6 +1397,7 @@ function VizijRuntimeProviderInner({
       });
       return;
     }
+    // Avoid logging here; browsers building DTS don't have `process` types.
 
     const rigOutputs = collectOutputPaths(rigSpec);
     const rigInputs = collectInputPaths(rigSpec);
@@ -1340,7 +1412,7 @@ function VizijRuntimeProviderInner({
     const graphConfigs: GraphRegistrationConfig[] = [
       {
         id: namespaceControllerId(rigAsset.id, namespace, "graph"),
-        spec: namespaceGraphSpec(rigSpec, namespace),
+        spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
         subs: namespaceSubscriptions(rigSubs, namespace),
       },
     ];
@@ -1363,7 +1435,7 @@ function VizijRuntimeProviderInner({
 
         graphConfigs.push({
           id: namespaceControllerId(poseGraphAsset.id, namespace, "graph"),
-          spec: namespaceGraphSpec(poseSpec, namespace),
+          spec: stripNulls(namespaceGraphSpec(poseSpec, namespace)),
           subs: namespaceSubscriptions(poseSubs, namespace),
         });
       } else {
@@ -1409,6 +1481,9 @@ function VizijRuntimeProviderInner({
     }
 
     registeredGraphsRef.current = graphIds;
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[vizij-runtime] registered graph ids", graphIds);
+    }
 
     const animationIds: string[] = [];
     for (const anim of assetBundle.animations ?? []) {
@@ -1452,6 +1527,13 @@ function VizijRuntimeProviderInner({
     }
 
     const controllers = listControllers();
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[vizij-runtime] controllers after register", {
+        controllers,
+        graphIds,
+        animationIds,
+      });
+    }
     reportStatus((prev) => ({
       ...prev,
       ready: true,
@@ -1478,6 +1560,13 @@ function VizijRuntimeProviderInner({
     if (!ready || status.loading) {
       return;
     }
+    const plan = pendingPlanRef.current;
+    const hasRegistered =
+      registeredGraphsRef.current.length > 0 ||
+      registeredAnimationsRef.current.length > 0;
+    if (plan && !plan.reregisterGraphs && hasRegistered) {
+      return;
+    }
     registerControllers().catch((err: unknown) => {
       pushError({
         message: "Failed to register controllers",
@@ -1486,7 +1575,7 @@ function VizijRuntimeProviderInner({
         timestamp: performance.now(),
       });
     });
-  }, [ready, status.loading, registerControllers, pushError]);
+  }, [ready, status.loading, graphUpdateToken, registerControllers, pushError]);
 
   useEffect(() => {
     if (!frame) {
@@ -1935,11 +2024,46 @@ function VizijRuntimeProviderInner({
     return () => window.clearInterval(id);
   }, [reportStatus]);
 
+  const setGraphBundle = useCallback(
+    (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
+      const nextAssetBundle: VizijAssetBundle = {
+        ...effectiveAssetBundle,
+        rig: bundle.rig ?? effectiveAssetBundle.rig,
+        pose: bundle.pose ?? effectiveAssetBundle.pose,
+      };
+      const plan = resolveRuntimeUpdatePlan(
+        previousBundleRef.current,
+        nextAssetBundle,
+        options?.tier ?? updateTierRef.current,
+      );
+      pendingPlanRef.current = plan;
+      previousBundleRef.current = nextAssetBundle;
+      setAssetBundleOverride(nextAssetBundle);
+      if (plan.reregisterGraphs) {
+        setGraphUpdateToken((prev) => prev + 1);
+      }
+      if (plan.reloadAssets) {
+        reportStatus((prev) => ({
+          ...prev,
+          loading: true,
+          ready: false,
+        }));
+      } else {
+        reportStatus((prev) => ({
+          ...prev,
+          loading: false,
+        }));
+      }
+    },
+    [effectiveAssetBundle, reportStatus],
+  );
+
   const contextValue: VizijRuntimeContextValue = useMemo(
     () => ({
       ...status,
       assetBundle,
       setInput,
+      setGraphBundle,
       setValue: setRendererValue,
       stagePoseNeutral,
       animateValue,
@@ -1955,6 +2079,7 @@ function VizijRuntimeProviderInner({
       status,
       assetBundle,
       setInput,
+      setGraphBundle,
       setRendererValue,
       stagePoseNeutral,
       animateValue,

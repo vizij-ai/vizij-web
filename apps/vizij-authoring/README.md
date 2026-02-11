@@ -1,15 +1,16 @@
 # vizij-authoring
 
-The `vizij-authoring` app focuses on visualising Vizij assets without a rig or orchestrator. It provides a
-minimal control panel to load `.glb` files, inspect their hierarchy, and export them back to
-a GLB.
+The `vizij-authoring` app is a runtime-truthful authoring surface for Vizij assets. It provides a
+fast end-to-end workflow to load `.glb` files (or authored graphs), inspect hierarchy and bindings,
+author expressions and poses, validate against the runtime, and export bundled outputs.
 
 ## Available interactions
 
-- **Load** – Choose a local GLB file, paste a URL, or use the bundled Hugo sample.
+- **Load** – Choose a local GLB file, paste a URL, import a GraphSpec JSON/IR, or open a bundled GLB.
 - **Inspect** – Hover over any rendered element to see its metadata, animatable properties,
   and current values.
-- **Export** – Download the currently loaded Vizij as `scene.glb`.
+- **Export** – Download a bundled GLB (primary) that includes GraphSpec + IR + assets.
+- **Export (legacy)** – Download raw graph JSONs and pose config files when required.
 - **Author expressions** – Combine multiple control slots with `+`, `-`, `*`, `/`, parentheses, comparisons (`>`, `<`, `==`, `!=`), boolean logic (`&&`, `||`), and unary negation (`!`); the canvas reflects changes immediately and highlights invalid math.
 - **Curate labels** – Rename features inline, reset to the original asset label with a click, and see overrides at-a-glance.
 - **Refine slots** – Add additional slot inputs, rename their aliases, and manage per-slot remaps without leaving the feature inspector.
@@ -62,6 +63,22 @@ See [STD_FACE_MAPPING_SPEC.md](src/components/app/STD_FACE_MAPPING_SPEC.md) for 
 1. Update the stacked-operator inline snapshot with `pnpm --filter @vizij/node-graph-authoring vitest src/__tests__/irParity.test.ts --run --update`.
 2. Regenerate `src/__tests__/__fixtures__/graphSpecParity.ts` via the helper snippet documented in `packages/@vizij/node-graph-authoring/README.md#updating-ir-parity-fixtures`.
 3. Re-run `pnpm --filter @vizij/node-graph-authoring test` and `pnpm --filter vizij-authoring typecheck` to confirm the refreshed fixtures stay in sync.
+
+## Export workflow (runtime-truthful)
+
+Primary export target:
+
+- **Bundled GLB** that includes GraphSpec + IR + assets (recommended for runtime).
+
+Additional exports:
+
+- Graphs / subgraphs as JSON
+- IR snapshots as JSON
+
+Validation rules:
+
+- Export is **blocked when GraphSpec is invalid** (fatal build issues or failed normalization).
+- Export is **allowed even if IR is broken**, but the runtime will continue using the last-known-good GraphSpec.
 
 ## Scripts
 

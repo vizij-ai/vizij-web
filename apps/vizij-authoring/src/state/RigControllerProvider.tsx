@@ -5,6 +5,7 @@ import {
   createGraphRuntimeStore,
   GraphRuntimeStoreProvider,
   useGraphRuntimeStore,
+  useGraphRuntimeStoreApi,
   type GraphRuntimeState,
   type GraphRuntimeStore,
 } from "./graphRuntimeStore";
@@ -39,6 +40,8 @@ export function useGraphRuntime<T = GraphRuntimeState>(
   ) => T;
   return useGraphRuntimeStore(resolvedSelector, equalityFn);
 }
+
+export { useGraphRuntimeStoreApi };
 
 export function useBindingAuthoring<T = BindingAuthoringState>(
   selector?: (state: BindingAuthoringState) => T,

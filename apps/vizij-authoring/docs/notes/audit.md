@@ -2,6 +2,8 @@
 
 This audit documents systemic issues that will hinder the next phase of vizij-authoring (object/material authoring, Blender-style duplication, richer UI) and proposes concrete, architecture-focused remediations.
 
+> **Status note (2026-02-11):** This audit remains directionally valid, but some implementation notes are now partially complete. Use `apps/vizij-authoring/docs/notes/SYNTHESIS.md` for current active vs resolved interpretation.
+
 ---
 
 ## 1. App Shell & `useRigController` Monolith

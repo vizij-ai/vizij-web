@@ -39,7 +39,7 @@ export function ExportDialog({
   sourceName,
   loadedBundle,
   canExport,
-  onImportPoseGraph,
+  onImportPoseGraph: _onImportPoseGraph,
 }: ExportDialogProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -86,40 +86,36 @@ export function ExportDialog({
     [poseRig],
   );
 
-  const {
-    exportGraph,
-    exportGlb,
-    exportPoseGraphFile,
-    exportPoseConfigFile,
-    importPoseConfigFile,
-  } = useVizijExport({
-    faceId,
-    graphFileName,
-    exportFileName,
-    rootId,
-    sourceName,
-    includeVizijBundle,
-    includeImportedAnimations,
-    loadedBundle,
-    animatableComponents,
-    animatables,
-    values,
-    bindings,
-    inputBindings,
-    standardInputsById,
-    featureLabelOverrides,
-    collectAnimatableExportState,
-    setStoreState,
-    getExportableBodies,
-    alertDialog: showAlert,
-    poseRig: {
-      poseGraphSpec: poseRig.poseGraphSpec,
-      poseGraphFileName: poseRig.poseGraphFileName,
-      poseConfigDraft: poseRig.poseConfigDraft,
-      poseConfigFileName: poseRig.poseConfigFileName,
-      importPoseConfig: handleImportPoseConfig,
-    },
-  });
+  const { exportGraph, exportGlb, exportPoseGraphFile, exportPoseConfigFile } =
+    useVizijExport({
+      faceId,
+      graphFileName,
+      exportFileName,
+      rootId,
+      sourceName,
+      includeVizijBundle,
+      includeImportedAnimations,
+      loadedBundle,
+      animatableComponents,
+      animatables,
+      values,
+      bindings,
+      inputBindings,
+      standardInputsById,
+      featureLabelOverrides,
+      collectAnimatableExportState,
+      setStoreState,
+      getExportableBodies,
+      alertDialog: showAlert,
+      poseRig: {
+        poseGraphSpec: poseRig.poseGraphSpec,
+        poseGraphFileName: poseRig.poseGraphFileName,
+        poseConfigDraft: poseRig.poseConfigDraft,
+        poseConfigFileName: poseRig.poseConfigFileName,
+        importPoseConfig: handleImportPoseConfig,
+        blendMode: poseRig.blendMode,
+      },
+    });
 
   const bundleSummary = useMemo<VizijBundleSummary>(() => {
     if (!loadedBundle) {

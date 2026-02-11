@@ -68,6 +68,8 @@ export function DebugPanel({
 
   // Graph Runtime Hook
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
+  const graphError = useGraphRuntime((state) => state.graphError);
+  const graphWarning = useGraphRuntime((state) => state.graphWarning);
   const faceId = useGraphRuntime((state) => state.faceId);
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
   const handleFaceIdChange = useGraphRuntime(
@@ -307,6 +309,21 @@ export function DebugPanel({
                           {graphStatus}
                         </span>
                       </div>
+
+                      {(graphError || graphWarning) && (
+                        <div className="flex flex-col gap-2">
+                          {graphError && (
+                            <div className="rounded-md bg-red-950/70 text-red-200 text-[11px] font-semibold px-3 py-2 border border-red-800/60">
+                              {graphError}
+                            </div>
+                          )}
+                          {graphWarning && (
+                            <div className="rounded-md bg-amber-950/60 text-amber-200 text-[11px] font-semibold px-3 py-2 border border-amber-700/60">
+                              {graphWarning}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">

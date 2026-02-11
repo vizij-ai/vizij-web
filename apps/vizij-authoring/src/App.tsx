@@ -5,7 +5,7 @@ import {
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { loadGLTFFromBlobWithBundle } from "@vizij/render";
+import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -16,20 +16,11 @@ import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { MaterialsPanel } from "./components/panels/MaterialsPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
-import { ExportDialog } from "./components/app/ExportDialog";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import { AppWizards } from "./components/app/AppWizards";
-import {
-  type StandardRigInput,
-} from "@vizij/utils";
-import type { VizijBundleExtension } from "@vizij/render";
-import {
-  extractBindingsFromBundle,
-  getInputIdsWithBindings,
-} from "./utils/standardInputBindings";
 import {
   RigControllerProvider,
   useBindingAuthoring,
@@ -45,6 +36,7 @@ import { InspectorPanel } from "./components/inspector/InspectorPanel";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
+import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -85,13 +77,6 @@ function AppContent({ loader }: AppContentProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Reference Face State
-  const [refFaceStandardInputs, setRefFaceStandardInputs] = useState<StandardRigInput[]>([]);
-  const [refFaceStandardInputsById, setRefFaceStandardInputsById] = useState<Map<string, StandardRigInput>>(new Map());
-  const [refFaceIsLoading, setRefFaceIsLoading] = useState(false);
-  const [refFaceIsLoaded, setRefFaceIsLoaded] = useState(false);
-  const [refFaceInputIdsWithBindings, setRefFaceInputIdsWithBindings] = useState<Set<string>>(new Set());
-  const [refFaceInputValues, setRefFaceInputValues] = useState<Record<string, number>>({});
-  const refFaceAnimateValueRef = useRef<((path: string, value: number) => void) | undefined>(undefined);
 
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
@@ -109,69 +94,6 @@ function AppContent({ loader }: AppContentProps) {
       }
     },
     [loadFromFile],
-  );
-
-  // Handle bundle ready from ReferenceFaceRuntime - extract binding information
-  const handleRefFaceBundleReady = useCallback(
-    (bundle: VizijBundleExtension | null) => {
-      if (!bundle) {
-        setRefFaceInputIdsWithBindings(new Set());
-        return;
-      }
-      const bindingInfo = extractBindingsFromBundle(bundle);
-      const idsWithBindings = getInputIdsWithBindings(bindingInfo);
-      setRefFaceInputIdsWithBindings(idsWithBindings);
-    },
-    [],
-  );
-
-  const handleRefFaceStandardInputsReady = useCallback(
-    (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
-      setRefFaceStandardInputs(inputs);
-      setRefFaceStandardInputsById(byId);
-      // Initialize input values with defaults
-      const initialValues: Record<string, number> = {};
-      for (const input of inputs) {
-        initialValues[input.id] = input.defaultValue;
-      }
-      setRefFaceInputValues(initialValues);
-    },
-    [],
-  );
-
-  const handleRefFaceLoadingStateChange = useCallback(
-    (isLoading: boolean, isLoaded: boolean) => {
-      setRefFaceIsLoading(isLoading);
-      setRefFaceIsLoaded(isLoaded);
-    },
-    [],
-  );
-
-  const handleRefFaceAnimateValueReady = useCallback(
-    (animateFn: ((path: string, value: number) => void) | undefined) => {
-      refFaceAnimateValueRef.current = animateFn;
-    },
-    [],
-  );
-
-  const handleRefFaceInputValueChange = useCallback(
-    (inputId: string, value: number) => {
-      const input = refFaceStandardInputsById.get(inputId);
-      if (!input) {
-        console.warn(`[App] Unknown reference face input ID: ${inputId}`);
-        return;
-      }
-      console.warn(`[App] Reference face input change: ${inputId} = ${value}`);
-      setRefFaceInputValues((prev) => ({ ...prev, [inputId]: value }));
-
-      // Animate the reference face - this will also trigger onStandardInputChange
-      // which propagates to the main face
-      const animateFn = refFaceAnimateValueRef.current;
-      if (animateFn) {
-        animateFn(input.path, value);
-      }
-    },
-    [refFaceStandardInputsById],
   );
 
   const handleLoadQuori = useCallback(() => {
@@ -198,10 +120,13 @@ function AppContent({ loader }: AppContentProps) {
 
   // Graph Runtime Hook
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
-  const discrepancyReview = useGraphRuntime((state) => state.discrepancyReview);
-  const resolveDiscrepancyReview = useGraphRuntime(
-    (state) => state.resolveDiscrepancyReview,
-  );
+  const runtimeWorld = useVizijStore((state) => state.world);
+  const runtimeAnimatables = useVizijStore((state) => state.animatables);
+  useGraphRuntime((state) => state.graphSpec);
+  useGraphRuntime((state) => state.poseGraphSpec);
+  useGraphRuntime((state) => state.poseConfig);
+  useGraphRuntime((state) => state.discrepancyReview);
+  useGraphRuntime((state) => state.resolveDiscrepancyReview);
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
@@ -348,6 +273,13 @@ function AppContent({ loader }: AppContentProps) {
     />
   );
 
+  const runtimeBundle = buildRuntimeBaseBundle({
+    namespace: DEFAULT_NAMESPACE,
+    world: runtimeWorld ?? null,
+    animatables: runtimeAnimatables ?? null,
+    loadedBundle: loadedBundle ?? null,
+  });
+
   const viewerContent = (
     <div
       className={
@@ -365,6 +297,7 @@ function AppContent({ loader }: AppContentProps) {
             <Viewer
               rootId={rootId}
               namespace={DEFAULT_NAMESPACE}
+              bundle={rootId ? runtimeBundle : null}
               onClearSelection={handleClearSelection}
               showSelectionGlow={showSelectionGlow}
               onImportClick={handleImportClick}
@@ -390,6 +323,7 @@ function AppContent({ loader }: AppContentProps) {
         <Viewer
           rootId={rootId}
           namespace={DEFAULT_NAMESPACE}
+          bundle={rootId ? runtimeBundle : null}
           onClearSelection={handleClearSelection}
           showSelectionGlow={showSelectionGlow}
           onImportClick={handleImportClick}

@@ -2,17 +2,6 @@ import { useEffect, type ReactNode } from "react";
 import { VizijRuntimeFace, useVizijRuntime } from "@vizij/runtime-react";
 import { cn } from "../../utils/cn";
 
-type RootBounds = {
-  center: { x: number; y: number };
-  size: { x: number; y: number };
-};
-
-// Define default bounds for checking if we need to reset
-const FACE_ROOT_BOUNDS = {
-  center: { x: 0, y: 0 },
-  size: { x: 1, y: 1 },
-};
-
 export type RuntimeFaceFrameProps = {
   className?: string;
   variant?: "fill" | "sm" | "md" | "lg";
@@ -34,19 +23,15 @@ export function RuntimeFaceFrame({
   overlay,
   pointerTargetRef,
   onCanvasClick,
-  skipBounds = false,
+  skipBounds: _skipBounds = false,
 }: RuntimeFaceFrameProps) {
-  const { ready, loading, error, stagePoseNeutral, rootId } = useVizijRuntime();
+  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
 
   useEffect(() => {
     if (ready) {
       stagePoseNeutral();
     }
   }, [ready, stagePoseNeutral]);
-
-  const frameClassName = ["face-frame", `face-frame--${variant}`, className]
-    .filter(Boolean)
-    .join(" ");
 
   return (
     <div
@@ -87,9 +72,8 @@ export function RuntimeFaceFrame({
       </div>
       {footer && (
         <div className="text-[11px] text-slate-500 px-2 italic">{footer}</div>
-      )
-      }
-    </div >
+      )}
+    </div>
   );
 }
 
