@@ -33,17 +33,26 @@ function RuntimeGraphBridge() {
   const lastPayloadRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // The rig graph and pose graph currently target the same rig input paths.
+    // Registering both causes pose outputs to overwrite manual low-level slider input.
+    // Keep pose config for export/metadata, but only register pose graph when rig graph is absent.
+    const includePoseGraph = !graphSpec && Boolean(poseGraphSpec);
+    const posePayload = graphSpec
+      ? {
+          graph: undefined,
+          config: poseConfig ?? undefined,
+        }
+      : poseGraphSpec || poseConfig
+        ? {
+            graph: includePoseGraph
+              ? { id: "pose", spec: poseGraphSpec }
+              : undefined,
+            config: poseConfig ?? undefined,
+          }
+        : undefined;
     const payload = {
       rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
-      pose:
-        poseGraphSpec || poseConfig
-          ? {
-              ...(poseGraphSpec
-                ? { graph: { id: "pose", spec: poseGraphSpec } }
-                : {}),
-              ...(poseConfig ? { config: poseConfig } : {}),
-            }
-          : undefined,
+      pose: posePayload,
     };
     const serialized = JSON.stringify(payload);
     if (serialized === lastPayloadRef.current) {

@@ -203,7 +203,7 @@ describe("Viewer", () => {
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
         pose: {
-          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          graph: undefined,
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
@@ -220,7 +220,10 @@ describe("Viewer", () => {
     expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
-        pose: undefined,
+        pose: {
+          graph: undefined,
+          config: undefined,
+        },
       },
       { tier: "graphs" },
     );
@@ -235,6 +238,44 @@ describe("Viewer", () => {
       {
         rig: undefined,
         pose: undefined,
+      },
+      { tier: "graphs" },
+    );
+  });
+
+  it("registers pose graph only when rig graph is absent", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: undefined,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: undefined,
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          config: { version: 1, neutralInputs: {}, poses: [] },
+        },
       },
       { tier: "graphs" },
     );

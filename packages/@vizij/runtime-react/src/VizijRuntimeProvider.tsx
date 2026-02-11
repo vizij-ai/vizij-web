@@ -763,17 +763,26 @@ function mergeAssetBundle(
   const resolvedRig = base.rig ?? rigFromBundle ?? undefined;
 
   const basePose = base.pose;
+  const hasBasePoseGraphOverride = Boolean(
+    basePose && Object.prototype.hasOwnProperty.call(basePose, "graph"),
+  );
+  const hasBasePoseConfigOverride = Boolean(
+    basePose && Object.prototype.hasOwnProperty.call(basePose, "config"),
+  );
   const poseStageFilter = basePose?.stageNeutralFilter;
-  const poseGraphFromBundle = basePose?.graph
+  const poseGraphFromBundle = hasBasePoseGraphOverride
     ? null
     : convertBundleGraph(
         pickBundleGraph(resolvedBundle, ["pose-driver", "pose"]),
       );
-  const resolvedPoseGraph = basePose?.graph ?? poseGraphFromBundle ?? undefined;
-  const resolvedPoseConfig =
-    basePose?.config ??
-    (resolvedBundle?.poses?.config as PoseRigConfig | undefined) ??
-    undefined;
+  const resolvedPoseGraph = hasBasePoseGraphOverride
+    ? basePose?.graph
+    : (basePose?.graph ?? poseGraphFromBundle ?? undefined);
+  const resolvedPoseConfig = hasBasePoseConfigOverride
+    ? basePose?.config
+    : (basePose?.config ??
+      (resolvedBundle?.poses?.config as PoseRigConfig | undefined) ??
+      undefined);
 
   let resolvedPose = basePose;
   if (basePose) {
