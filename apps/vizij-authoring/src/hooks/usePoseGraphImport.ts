@@ -66,6 +66,83 @@ export function resolvePoseGraphSourceInputId(
   return fallback && fallback.length > 0 ? fallback : null;
 }
 
+export type PoseGraphRemapApplyPlan =
+  | { status: "ready"; spec: GraphSpec }
+  | { status: "conflict"; message: string };
+
+export function buildPoseGraphRemapApplyPlan(params: {
+  spec: GraphSpec;
+  rows: PoseGraphRemapRow[];
+  standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
+  faceSegment: string;
+}): PoseGraphRemapApplyPlan {
+  const { spec, rows, standardInputsByPath, faceSegment } = params;
+  const combinedRows = rows.filter((row) => row.suggestedPath);
+  const targetToSourceMap = new Map<string, Set<string>>();
+  const idRemaps: Array<{ fromId: string; toId: string }> = [];
+  const assigned = new Map<string, string>();
+  const outputPathUpdates: Array<{ nodeId: string; path: string }> = [];
+
+  combinedRows.forEach((row) => {
+    const desired = row.suggestedPath?.trim();
+    if (!desired) {
+      return;
+    }
+
+    const standardPath = ensureStandardPathInput(desired);
+    const normalizedStandardPath = normalizeStandardRigInputPath(standardPath);
+    const targetInput = standardInputsByPath.get(normalizedStandardPath);
+    const sourceInputId = resolvePoseGraphSourceInputId(row);
+
+    if (targetInput && sourceInputId) {
+      const sourceSet = targetToSourceMap.get(targetInput.id) ?? new Set();
+      sourceSet.add(sourceInputId);
+      targetToSourceMap.set(targetInput.id, sourceSet);
+    }
+
+    if (
+      targetInput &&
+      sourceInputId &&
+      targetInput.id !== sourceInputId &&
+      assigned.get(sourceInputId) !== targetInput.id
+    ) {
+      assigned.set(sourceInputId, targetInput.id);
+      idRemaps.push({ fromId: sourceInputId, toId: targetInput.id });
+    }
+
+    outputPathUpdates.push({
+      nodeId: row.nodeId,
+      path: buildRigInputPath(faceSegment, standardPath),
+    });
+  });
+
+  const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
+    ([, sourceSet]) => sourceSet.size > 1,
+  );
+  if (conflictingTargets.length > 0) {
+    const conflictMessage = conflictingTargets
+      .map(
+        ([targetId, sourceSet]) =>
+          `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
+      )
+      .join("\n");
+    return {
+      status: "conflict",
+      message: `Resolve remap conflicts before applying:\n${conflictMessage}`,
+    };
+  }
+
+  const nextSpec = cloneSerializable(spec) as GraphSpec;
+  outputPathUpdates.forEach(({ nodeId, path }) => {
+    updatePoseGraphOutputPath(nextSpec, nodeId, path);
+  });
+  if (idRemaps.length > 0) {
+    remapPoseGraphInputIds(nextSpec, idRemaps);
+  }
+
+  return { status: "ready", spec: nextSpec };
+}
+
 function toConfidence(score: number): PoseRemapConfidence {
   if (score >= 0.8) {
     return "high";
@@ -253,59 +330,17 @@ export function usePoseGraphImport({
       if (!poseGraphRemap) {
         return;
       }
-      const combinedRows = rows.filter((row) => row.suggestedPath);
-      const targetToSourceMap = new Map<string, Set<string>>();
-      const idRemaps: Array<{ fromId: string; toId: string }> = [];
-      const assigned = new Map<string, string>();
-      combinedRows.forEach((row) => {
-        const desired = row.suggestedPath?.trim();
-        if (desired) {
-          const standardPath = ensureStandardPathInput(desired);
-          const normalizedStandardPath =
-            normalizeStandardRigInputPath(standardPath);
-          const targetInput = standardInputsByPath.get(normalizedStandardPath);
-          const sourceInputId = resolvePoseGraphSourceInputId(row);
-          if (targetInput && sourceInputId) {
-            const sourceSet =
-              targetToSourceMap.get(targetInput.id) ?? new Set();
-            sourceSet.add(sourceInputId);
-            targetToSourceMap.set(targetInput.id, sourceSet);
-          }
-          if (
-            targetInput &&
-            sourceInputId &&
-            targetInput.id !== sourceInputId &&
-            assigned.get(sourceInputId) !== targetInput.id
-          ) {
-            assigned.set(sourceInputId, targetInput.id);
-            idRemaps.push({ fromId: sourceInputId, toId: targetInput.id });
-          }
-          const rigPath = buildRigInputPath(faceSegment, standardPath);
-          updatePoseGraphOutputPath(poseGraphRemap.spec, row.nodeId, rigPath);
-        }
+      const plan = buildPoseGraphRemapApplyPlan({
+        spec: poseGraphRemap.spec,
+        rows,
+        standardInputsByPath,
+        faceSegment,
       });
-      const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
-        ([, sourceSet]) => sourceSet.size > 1,
-      );
-      if (conflictingTargets.length > 0) {
-        const conflictMessage = conflictingTargets
-          .map(
-            ([targetId, sourceSet]) =>
-              `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
-          )
-          .join("\n");
-        await alertDialog(
-          `Resolve remap conflicts before applying:\n${conflictMessage}`,
-        );
+      if (plan.status === "conflict") {
+        await alertDialog(plan.message);
         return;
       }
-      if (idRemaps.length > 0) {
-        remapPoseGraphInputIds(poseGraphRemap.spec, idRemaps);
-      }
-      await applyPoseGraphImport(
-        poseGraphRemap.spec,
-        poseGraphRemap.rigNameHint,
-      );
+      await applyPoseGraphImport(plan.spec, poseGraphRemap.rigNameHint);
       setPoseGraphRemap(null);
     },
     [
