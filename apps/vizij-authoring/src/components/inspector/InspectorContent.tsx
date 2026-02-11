@@ -51,6 +51,10 @@ import {
   collectRigDependents,
 } from "./rigConnections";
 import { resolveSelectionTargetIds } from "./bindingSelection";
+import {
+  classifyPoseParentBindingEmptyState,
+  resolveRigDrivenSelection,
+} from "./inspectorActions";
 
 type PoseVariableItem =
   | {
@@ -1348,19 +1352,21 @@ export function InspectorContent() {
                     inputBindings,
                     objects,
                   }).length;
-                  const hasDownstream =
-                    drivenVariableCount > 0 || drivenPropertyCount > 0;
+                  const emptyStateKind = classifyPoseParentBindingEmptyState(
+                    drivenVariableCount,
+                    drivenPropertyCount,
+                  );
                   return (
                     <EmptyState
                       icon={Sliders}
                       iconSize={20}
                       title={
-                        hasDownstream
+                        emptyStateKind === "root"
                           ? "Root Variable (No Parent Drivers)"
                           : "No Parent Drivers (Currently Unlinked)"
                       }
                       description={
-                        hasDownstream
+                        emptyStateKind === "root"
                           ? "This pose-driven variable is currently a root input. Create a parent binding only if you want it remapped from upstream rig variables."
                           : "This pose-driven variable has no parent drivers and no downstream outputs yet. Add downstream targets or create a parent binding to connect it."
                       }
@@ -1455,32 +1461,49 @@ export function InspectorContent() {
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
-        if (selection.type === "variable") {
-          if (selection.id === selectedRigId) {
-            alertDialog("A variable cannot directly drive itself.");
-            return;
-          }
-          handleCreateParentDriverBinding(selection.id, selectedRigId);
-          openRigInspector(selection.id, "bindings");
+        const resolvedSelection = resolveRigDrivenSelection(
+          selection,
+          selectedRigId,
+          objects,
+        );
+
+        if (resolvedSelection.kind === "self-variable") {
+          alertDialog("A variable cannot directly drive itself.");
           return;
         }
-        if (selection.type === "property") {
-          const targetIds = resolveSelectionTargetIds(selection, objects);
-          if (targetIds.length === 0) {
+
+        if (resolvedSelection.kind === "variable") {
+          handleCreateParentDriverBinding(
+            resolvedSelection.childInputId,
+            selectedRigId,
+          );
+          openRigInspector(resolvedSelection.childInputId, "bindings");
+          return;
+        }
+
+        if (resolvedSelection.kind === "empty-property") {
+          return;
+        }
+
+        if (resolvedSelection.kind === "property") {
+          if (resolvedSelection.targetIds.length === 0) {
             return;
           }
+          const selectionLabel =
+            selection.type === "property" ? selection.label : "selection";
           const shouldApplyBulk =
-            targetIds.length === 1 ||
+            resolvedSelection.targetIds.length === 1 ||
             (typeof window !== "undefined" &&
               window.confirm(
-                `Bind all ${targetIds.length} components for "${selection.label}" to this rig input?`,
+                `Bind all ${resolvedSelection.targetIds.length} components for "${selectionLabel}" to this rig input?`,
               ));
           if (!shouldApplyBulk) {
             return;
           }
-          targetIds.forEach((targetId) => {
+          resolvedSelection.targetIds.forEach((targetId) => {
             handleBindingInputChange(targetId, selectedRigId);
           });
+          return;
         }
       };
 
