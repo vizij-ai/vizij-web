@@ -172,6 +172,20 @@ export function createPoseRigStore(
         nextState.lastImportedConfig?.standardInputSchema ??
         nextState.standardInputSchema ??
         undefined;
+      const basePoseGroups =
+        nextState.poseConfigDraft?.poseGroups ??
+        nextState.lastImportedConfig?.poseGroups;
+      const poseGroups =
+        patch.blendMode && basePoseGroups
+          ? basePoseGroups.map((group) => ({
+              ...group,
+              blendMode: nextState.blendMode,
+            }))
+          : basePoseGroups;
+      const crossGroupBlendMode =
+        nextState.poseConfigDraft?.crossGroupBlendMode ??
+        nextState.lastImportedConfig?.crossGroupBlendMode ??
+        "additive";
 
       nextState.poseConfigDraft = PoseConfigService.create(
         nextState.poses,
@@ -180,6 +194,11 @@ export function createPoseRigStore(
         nextState.faceId,
         nextState.rigKind,
         standardInputSchema,
+        {
+          poseGroups,
+          defaultGroupBlendMode: nextState.blendMode,
+          crossGroupBlendMode,
+        },
       );
 
       try {
@@ -187,7 +206,9 @@ export function createPoseRigStore(
           nextState.poseConfigDraft,
           nextState.standardInputs,
           {
-            blendMode: nextState.blendMode,
+            defaultGroupBlendMode: nextState.blendMode,
+            crossGroupBlendMode:
+              nextState.poseConfigDraft.crossGroupBlendMode ?? "additive",
           },
         );
         nextState.poseGraphSpec = spec;

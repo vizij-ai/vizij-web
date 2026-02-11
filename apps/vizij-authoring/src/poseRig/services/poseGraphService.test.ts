@@ -63,8 +63,49 @@ describe("PoseGraphService", () => {
     const { spec } = PoseGraphService.buildSpec(config, inputs, {
       blendMode: "additive",
     });
-    expect(findNode(spec, "pose_add_smile")?.type).toBe("add");
-    expect(findNode(spec, "pose_overlay_smile")).toBeUndefined();
+    const groupAddNode = spec.nodes?.find(
+      (node: any) =>
+        node.id?.startsWith("pose_group_add_smile") && node.type === "add",
+    );
+    expect(groupAddNode?.type).toBe("add");
+    expect(
+      spec.nodes?.find((node: any) =>
+        node.id?.startsWith("pose_group_overlay_smile"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("builds cross-group additive topology when groups share a target", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "additive",
+      poses: [
+        {
+          id: "pose_a",
+          name: "Smile",
+          group: "Emotions",
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+        {
+          id: "pose_b",
+          name: "Talk",
+          group: "Visemes",
+          values: { smile: -0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const { spec } = PoseGraphService.buildSpec(config, inputs, {
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+    });
+    expect(findNode(spec, "pose_cross_apply_smile")?.type).toBe("add");
   });
 
   it("flags invalid specs", () => {

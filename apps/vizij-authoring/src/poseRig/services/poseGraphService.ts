@@ -10,6 +10,8 @@ export const PoseGraphService = {
     standardInputs: StandardRigInput[],
     options?: {
       blendMode?: "average" | "additive";
+      defaultGroupBlendMode?: "average" | "additive";
+      crossGroupBlendMode?: "average" | "additive";
       poseGroupSegment?: string | null;
     },
   ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
@@ -20,7 +22,13 @@ export const PoseGraphService = {
       neutralInputs: config.neutralInputs,
       poses: config.poses,
       standardInputs,
-      blendMode: options?.blendMode ?? "average",
+      poseGroups: config.poseGroups,
+      defaultGroupBlendMode:
+        options?.defaultGroupBlendMode ?? options?.blendMode ?? "average",
+      crossGroupBlendMode:
+        options?.crossGroupBlendMode ??
+        config.crossGroupBlendMode ??
+        "additive",
       poseGroupSegment: options?.poseGroupSegment ?? null,
     });
   },
