@@ -405,4 +405,38 @@ describe("useVizijExport", () => {
     expect(options.alertDialog).toHaveBeenCalledTimes(1);
     hook.unmount();
   });
+
+  it("shows a dialog when pose graph build fails during pose export", async () => {
+    mockedPoseGraphService.buildSpec.mockImplementation(() => {
+      throw new Error("build failed");
+    });
+
+    const options = createOptions({
+      alertDialog: vi.fn(),
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {},
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseGraphFile();
+    });
+
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      "Failed to build pose graph for export: build failed",
+    );
+    expect(mockedDownloadJsonFile).not.toHaveBeenCalled();
+    hook.unmount();
+  });
 });

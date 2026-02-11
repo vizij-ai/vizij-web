@@ -338,26 +338,34 @@ export function useVizijExport(
       );
       return;
     }
-    const inputs = Array.from(standardInputsById.values());
-    const { spec } = PoseGraphService.buildSpec(
-      poseRig.poseConfigDraft,
-      inputs,
-      {
-        blendMode: poseRig.blendMode ?? "average",
-      },
-    );
-    const warnings = PoseGraphService.validate(spec, inputs);
-    if (warnings.length > 0) {
-      await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
-      return;
+    try {
+      const inputs = Array.from(standardInputsById.values());
+      const { spec } = PoseGraphService.buildSpec(
+        poseRig.poseConfigDraft,
+        inputs,
+        {
+          blendMode: poseRig.blendMode ?? "average",
+        },
+      );
+      const warnings = PoseGraphService.validate(spec, inputs);
+      if (warnings.length > 0) {
+        await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
+        return;
+      }
+      const slug = faceSlug(faceId);
+      const fileName = ensureExtension(
+        poseRig.poseGraphFileName,
+        `${slug}_pose_graph`,
+        "json",
+      );
+      downloadJsonFile(cloneSerializable(spec), fileName);
+    } catch (error) {
+      await alertDialog(
+        `Failed to build pose graph for export: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
-    const slug = faceSlug(faceId);
-    const fileName = ensureExtension(
-      poseRig.poseGraphFileName,
-      `${slug}_pose_graph`,
-      "json",
-    );
-    downloadJsonFile(cloneSerializable(spec), fileName);
   }, [
     alertDialog,
     faceId,
