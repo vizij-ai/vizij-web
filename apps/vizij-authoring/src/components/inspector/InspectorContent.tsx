@@ -140,8 +140,8 @@ export function InspectorContent() {
 
   const {
     poses,
+    neutralInputs,
     updatePoseValue,
-    applyPose,
     removePoseInput,
     updatePoseName,
     updatePoseGroup,
@@ -825,30 +825,41 @@ export function InspectorContent() {
         if (variableId) updatePoseValue(pose.id, variableId, 0);
       };
 
-      const captureStartValues = () => {
-        if (blendAmount === 0) {
-          Object.keys(pose.values).forEach((varId) => {
-            scrubValuesRef.current[varId] = inputValues[varId] ?? 0;
-          });
+      const resolvePoseNeutralValue = (varId: string): number => {
+        const neutral = neutralInputs[varId];
+        if (typeof neutral === "number" && Number.isFinite(neutral)) {
+          return neutral;
         }
+        const fallbackDefault = standardInputsById.get(varId)?.defaultValue;
+        if (
+          typeof fallbackDefault === "number" &&
+          Number.isFinite(fallbackDefault)
+        ) {
+          return fallbackDefault;
+        }
+        return 0;
       };
 
-      // Allow manual capture for Play button even if blendAmount > 0
-      const forceCaptureValues = () => {
-        Object.keys(pose.values).forEach((varId) => {
-          scrubValuesRef.current[varId] = inputValues[varId] ?? 0;
-        });
+      const resolvePoseInputValue = (varId: string): number => {
+        const staged = inputValues[varId];
+        if (typeof staged === "number" && Number.isFinite(staged)) {
+          return staged;
+        }
+        return resolvePoseNeutralValue(varId);
       };
 
       const handleBlend = (amount: number) => {
         setBlendAmount(amount);
         const updates: Record<string, number> = {};
+        managedStandardInputs.forEach((entry) => {
+          updates[entry.input.id] = resolvePoseNeutralValue(entry.input.id);
+        });
         Object.entries(pose.values).forEach(([varId, targetVal]) => {
-          const startVal = scrubValuesRef.current[varId] ?? 0;
-          const newVal = startVal + (targetVal - startVal) * amount;
+          const neutralVal = resolvePoseNeutralValue(varId);
+          const newVal = neutralVal + (targetVal - neutralVal) * amount;
           updates[varId] = newVal;
         });
-        applyStandardInputBatch(updates);
+        applyStandardInputBatch(updates, { replace: true });
       };
 
       return (
@@ -865,8 +876,7 @@ export function InspectorContent() {
           {renderAuthoringStatus()}
           <RiggingPropertyRow
             label="Current Value"
-            defaultLabel="Pose"
-            onScrubStart={captureStartValues}
+            defaultLabel="Pose Target"
             onScrub={(_, totalDelta) => {
               // Blend based on delta (assuming 100px = 100% blend)
               const newAmount = Math.max(
@@ -900,9 +910,7 @@ export function InspectorContent() {
                   className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
                   title="Play Pose (100%)"
                   onClick={() => {
-                    if (blendAmount === 0) forceCaptureValues();
-                    applyPose(pose.id);
-                    setBlendAmount(1);
+                    handleBlend(1);
                   }}
                 >
                   <Play size={12} fill="currentColor" />
@@ -949,7 +957,7 @@ export function InspectorContent() {
                       const label = cleanLabel(rawLabel, group.label);
                       const min = inputDef?.range?.min ?? -1;
                       const max = inputDef?.range?.max ?? 1;
-                      const liveVal = inputValues[varId] ?? 0;
+                      const liveVal = resolvePoseInputValue(varId);
                       const isDifferent = Math.abs(liveVal - poseVal) > 0.001;
                       const canInspectVariable = standardInputsById.has(varId);
                       const chainSummary =
@@ -962,7 +970,7 @@ export function InspectorContent() {
                         <RiggingPropertyRow
                           key={varId}
                           label={label}
-                          defaultLabel="Pose"
+                          defaultLabel="Pose Target"
                           hasDifferentDefault={isDifferent}
                           onResetToDefault={() =>
                             handleInputValueChange(varId, poseVal)
@@ -971,16 +979,18 @@ export function InspectorContent() {
                             updatePoseValue(
                               pose.id,
                               varId,
-                              inputValues[varId] ?? 0,
+                              resolvePoseInputValue(varId),
                             )
                           }
                           onScrubStart={() => {
                             scrubValuesRef.current[varId] =
-                              inputValues[varId] ?? 0;
+                              resolvePoseInputValue(varId);
                           }}
                           onScrub={(delta, totalDelta) => {
                             const step = 0.01;
-                            const startVal = scrubValuesRef.current[varId] ?? 0;
+                            const startVal =
+                              scrubValuesRef.current[varId] ??
+                              resolvePoseInputValue(varId);
                             handleInputValueChange(
                               varId,
                               startVal + totalDelta * step,
@@ -998,7 +1008,7 @@ export function InspectorContent() {
                                   handleInputValueChange(varId, val as number)
                                 }
                               />
-                              <div className="w-12 flex-shrink-0">
+                              <div className="w-20 flex-shrink-0">
                                 <NumberField
                                   size="sm"
                                   value={liveVal} // Assuming liveVal is number, need check
@@ -1062,7 +1072,7 @@ export function InspectorContent() {
                                 onScrubStart={() => {
                                   scrubValuesRef.current[varId] = poseVal;
                                 }}
-                                className="h-full flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5 min-w-[60px]"
+                                className="h-full flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5 min-w-[88px]"
                               >
                                 <Input
                                   size="sm"
@@ -1100,7 +1110,7 @@ export function InspectorContent() {
                       const b = item.components.find((c) => c.channel === "b");
                       const isDifferent = item.components.some(
                         (c) =>
-                          Math.abs((inputValues[c.varId] ?? 0) - c.poseVal) >
+                          Math.abs(resolvePoseInputValue(c.varId) - c.poseVal) >
                           0.001,
                       );
 
@@ -1133,13 +1143,19 @@ export function InspectorContent() {
                       const renderColorInputs = (isPoseValue: boolean) => {
                         const curR = isPoseValue
                           ? (r?.poseVal ?? 0)
-                          : (inputValues[r?.varId ?? ""] ?? 0);
+                          : r?.varId
+                            ? resolvePoseInputValue(r.varId)
+                            : 0;
                         const curG = isPoseValue
                           ? (g?.poseVal ?? 0)
-                          : (inputValues[g?.varId ?? ""] ?? 0);
+                          : g?.varId
+                            ? resolvePoseInputValue(g.varId)
+                            : 0;
                         const curB = isPoseValue
                           ? (b?.poseVal ?? 0)
-                          : (inputValues[b?.varId ?? ""] ?? 0);
+                          : b?.varId
+                            ? resolvePoseInputValue(b.varId)
+                            : 0;
                         const hex = rgbToHex(curR, curG, curB);
 
                         return (
@@ -1190,7 +1206,8 @@ export function InspectorContent() {
                                       if (c?.varId) {
                                         const step = 0.01;
                                         const startVal =
-                                          scrubValuesRef.current[c.varId] ?? 0;
+                                          scrubValuesRef.current[c.varId] ??
+                                          resolvePoseInputValue(c.varId);
                                         const nextVal =
                                           startVal + totalDelta * step;
                                         if (isPoseValue) {
@@ -1214,7 +1231,7 @@ export function InspectorContent() {
                                       if (c?.varId) {
                                         const baseline = isPoseValue
                                           ? c.poseVal
-                                          : (inputValues[c.varId] ?? 0);
+                                          : resolvePoseInputValue(c.varId);
                                         scrubValuesRef.current[c.varId] =
                                           baseline;
                                       }
@@ -1233,7 +1250,9 @@ export function InspectorContent() {
                                     type="text"
                                     value={(isPoseValue
                                       ? (c?.poseVal ?? 0)
-                                      : (inputValues[c?.varId ?? ""] ?? 0)
+                                      : c?.varId
+                                        ? resolvePoseInputValue(c.varId)
+                                        : 0
                                     ).toFixed(2)}
                                     className="border-none text-right font-mono text-[9px] text-text-primary bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                     onChange={(e) => {
@@ -1275,7 +1294,7 @@ export function InspectorContent() {
                         <RiggingPropertyRow
                           key={`color - ${item.featureId} -${idx} `}
                           label={item.label}
-                          defaultLabel="Pose"
+                          defaultLabel="Pose Target"
                           hasDifferentDefault={isDifferent}
                           onResetToDefault={() =>
                             item.components.forEach((c) =>
@@ -1287,7 +1306,7 @@ export function InspectorContent() {
                               updatePoseValue(
                                 pose.id,
                                 c.varId,
-                                inputValues[c.varId] ?? 0,
+                                resolvePoseInputValue(c.varId),
                               ),
                             )
                           }
