@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createStandardRigInput } from "@vizij/utils";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
 import { PoseConfigService } from "./poseConfigService";
 
@@ -81,5 +82,64 @@ describe("PoseConfigService", () => {
     const { config } = PoseConfigService.normalize(parsed);
     expect(config.rigKind).toBe("generic");
     expect(config.faceId).toBe("face_a");
+  });
+
+  it("remaps legacy pose inputs by path/source-id before pruning", () => {
+    const standardInputs = [
+      createStandardRigInput({
+        id: "l_eye_translation_x",
+        path: "/l_eye/translation/x",
+        sourceId: "legacy_source_eye_x",
+        label: "L Eye Translation X",
+        group: "l_eye",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+    ];
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: {
+        "/l_eye/translation/x": 0.15,
+        missing_neutral: 0.25,
+      },
+      poses: [
+        {
+          id: "pose_1",
+          name: "Legacy Pose",
+          values: {
+            legacy_source_eye_x: 0.8,
+            missing_input: 0.3,
+          },
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(
+      input,
+      standardInputs,
+      null,
+    );
+
+    expect(config.neutralInputs).toEqual({ l_eye_translation_x: 0.15 });
+    expect(config.poses[0]?.values).toEqual({ l_eye_translation_x: 0.8 });
+    expect(
+      warnings.some((warning) =>
+        warning.includes('Neutral input "/l_eye/translation/x" remapped'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Pose "Legacy Pose" input "legacy_source_eye_x" remapped',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Pose "Legacy Pose" references missing input "missing_input" and was pruned.',
+        ),
+      ),
+    ).toBe(true);
   });
 });

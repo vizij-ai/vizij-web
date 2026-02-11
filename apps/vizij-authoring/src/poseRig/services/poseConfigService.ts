@@ -1,4 +1,7 @@
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import type {
   PoseRigConfigFile,
   LowLevelRigSummary,
@@ -39,61 +42,152 @@ export const PoseConfigService = {
       );
     }
 
-    const validInputs = new Set(standardInputs.map((i) => i.id));
+    const inputsById = new Map(
+      standardInputs.map((input) => [input.id, input]),
+    );
+    const inputsBySourceId = new Map<string, string>();
+    const inputsByPath = new Map<string, string>();
+    const inputsByNormalizedId = new Map<string, string>();
+    const inputsByNormalizedPath = new Map<string, string>();
+    const inputsByNormalizedSourceId = new Map<string, string>();
+
+    const normalizeToken = (value: string): string =>
+      value.trim().replace(/^\/+/, "").replace(/\/+/g, "_").toLowerCase();
+
+    const pushLookupValue = (
+      lookup: Map<string, string>,
+      key: string | null | undefined,
+      inputId: string,
+    ) => {
+      if (!key) {
+        return;
+      }
+      const normalized = key.trim();
+      if (!normalized) {
+        return;
+      }
+      if (!lookup.has(normalized)) {
+        lookup.set(normalized, inputId);
+      }
+    };
+
+    standardInputs.forEach((input) => {
+      const normalizedPath = normalizeStandardRigInputPath(input.path);
+      pushLookupValue(inputsByPath, normalizedPath, input.id);
+      pushLookupValue(inputsByNormalizedId, normalizeToken(input.id), input.id);
+      pushLookupValue(
+        inputsByNormalizedPath,
+        normalizeToken(normalizedPath),
+        input.id,
+      );
+      if (input.sourceId) {
+        pushLookupValue(inputsBySourceId, input.sourceId, input.id);
+        pushLookupValue(
+          inputsByNormalizedSourceId,
+          normalizeToken(input.sourceId),
+          input.id,
+        );
+      }
+    });
+
+    const validInputs = new Set(inputsById.keys());
+    const seenWarnings = new Set<string>();
+    const pushWarning = (message: string) => {
+      if (seenWarnings.has(message)) {
+        return;
+      }
+      seenWarnings.add(message);
+      warnings.push(message);
+    };
+
+    const resolveInputId = (
+      rawKey: string,
+    ): {
+      id: string | null;
+      reason: "sourceId" | "path" | "normalized" | null;
+    } => {
+      const key = rawKey.trim();
+      if (!key) {
+        return { id: null, reason: null };
+      }
+      if (inputsById.has(key)) {
+        return { id: key, reason: null };
+      }
+      const sourceMatch = inputsBySourceId.get(key);
+      if (sourceMatch) {
+        return { id: sourceMatch, reason: "sourceId" };
+      }
+      const normalizedPath = normalizeStandardRigInputPath(key);
+      const pathMatch = inputsByPath.get(normalizedPath);
+      if (pathMatch) {
+        return { id: pathMatch, reason: "path" };
+      }
+      const normalized = normalizeToken(key);
+      const normalizedMatch =
+        inputsByNormalizedId.get(normalized) ??
+        inputsByNormalizedPath.get(normalized) ??
+        inputsByNormalizedSourceId.get(normalized) ??
+        null;
+      if (normalizedMatch) {
+        return { id: normalizedMatch, reason: "normalized" };
+      }
+      return { id: null, reason: null };
+    };
+
     const neutralInputs: Record<string, number> = {};
 
     for (const [key, value] of Object.entries(
       candidate.neutralInputs as Record<string, number>,
     )) {
-      if (validInputs.size > 0 && !validInputs.has(key)) {
-        warnings.push(`Neutral value for missing input "${key}" was ignored.`);
+      if (validInputs.size === 0) {
+        neutralInputs[key] = value;
         continue;
       }
-      neutralInputs[key] = value;
+
+      const resolved = resolveInputId(key);
+      if (!resolved.id) {
+        pushWarning(`Neutral value for missing input "${key}" was ignored.`);
+        continue;
+      }
+      neutralInputs[resolved.id] = value;
+      if (resolved.id !== key) {
+        pushWarning(
+          `Neutral input "${key}" remapped to "${resolved.id}" via ${resolved.reason ?? "id"} match.`,
+        );
+      }
     }
 
     const poses = candidate.poses.map((pose) => {
       const values: Record<string, number> = {};
-      let pruned = false;
-      for (const [key, value] of Object.entries(pose.values)) {
-        if (validInputs.size > 0 && !validInputs.has(key)) {
-          pruned = true;
+      const poseValues =
+        pose.values && typeof pose.values === "object"
+          ? (pose.values as Record<string, number>)
+          : {};
+      for (const [key, value] of Object.entries(poseValues)) {
+        if (validInputs.size === 0) {
+          values[key] = value;
           continue;
         }
-        values[key] = value;
+        const resolved = resolveInputId(key);
+        if (!resolved.id) {
+          pushWarning(
+            `Pose "${pose.name}" references missing input "${key}" and was pruned.`,
+          );
+          continue;
+        }
+        values[resolved.id] = value;
+        if (resolved.id !== key) {
+          pushWarning(
+            `Pose "${pose.name}" input "${key}" remapped to "${resolved.id}" via ${resolved.reason ?? "id"} match.`,
+          );
+        }
       }
-      if (pruned) {
-        // We don't have exact message from test for pruning *values* inside pose,
-        // but test says: 'Pose "Legacy Pose" references missing input "missing_input" and was pruned.'
-        // This implies the input was pruned from the pose.
-        // Wait, the test message says "was pruned". Does it mean the POSE was pruned?
-        // "Pose ... references missing input ... and was pruned."
-        // If the pose becomes empty? Or just the input?
-        // "references missing input ... and was pruned" sounds like the input was pruned.
-        // But the message starts with "Pose ...".
-        // Let's assume it warns about the input being pruned from the pose.
-        // I'll construct the warning.
-      }
-      // Actually, let's look at the test expectation again.
-      // 'Pose "Legacy Pose" references missing input "missing_input" and was pruned.'
-      // I'll add this warning if I prune an input.
 
       const newPose = {
         ...pose,
         values,
       };
       return newPose;
-    });
-
-    // Re-iterate to generate warnings for pruned inputs in poses
-    candidate.poses.forEach((pose) => {
-      for (const key of Object.keys(pose.values)) {
-        if (validInputs.size > 0 && !validInputs.has(key)) {
-          warnings.push(
-            `Pose "${pose.name}" references missing input "${key}" and was pruned.`,
-          );
-        }
-      }
     });
 
     return {
