@@ -2,6 +2,7 @@
 
 Last updated: 2026-02-11
 Scope: inspector + import/migration behavior observed during Quori face smoke testing.
+Status: mostly resolved; active residual items are tracked in `plans/BACKLOG.md` P1 remaining queue.
 
 ## Executive Summary
 

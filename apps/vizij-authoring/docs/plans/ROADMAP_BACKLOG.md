@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-11 (P1 pose-authoring tranche planned)
+Last updated: 2026-02-11 (P1 pose architecture tranche in progress)
 
 ## Priority Bands
 
@@ -34,7 +34,7 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-Status (2026-02-11): prior chain/parity tranche complete; reopened for pose architecture correctness (groups + two-layer blending + aggregate binding semantics).
+Status (2026-02-11): chain/parity + pose-group compiler tranches complete; remaining scope is semantic surfacing and boundary/diagnostic hardening.
 
 1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
 2. Done: routing-contract and chain regression coverage additions.
@@ -42,14 +42,16 @@ Status (2026-02-11): prior chain/parity tranche complete; reopened for pose arch
 4. Done: expanded app-level validation path (`vizij-authoring` `validate` script).
 5. Done: standard-input coverage panel + pose rig kind roundtrip tests.
 6. Done: compile/validate/apply signals promoted into primary inspector workflow.
-7. Next: introduce first-class pose-group domain model and migrate existing `pose.group` data.
-8. Next: implement two-layer pose blending (within-group and cross-group per target).
-9. Next: surface pose aggregate outputs as explicit rig binding sources in authoring UI.
-10. Next: enforce rig boundary where only low-level rig variables can write animatable leaves.
-11. Next: add pose-group and blend-strategy authoring UI (local and cross-group strategies).
-12. Next: add explicit import grouping strategy controls and group-level conflict handling.
-13. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
-14. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+7. Done: first-class pose-group domain model and migration support (`pose.group` carry-forward).
+8. Done: two-layer pose blending compile topology (within-group, then cross-group).
+9. Done: blend strategy controls surfaced for authoring/export flow.
+10. Done: pose creation + pose-group inspection UI for hands-on chain validation.
+11. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
+12. Next: enforce rig boundary where only low-level rig variables can write animatable leaves.
+13. Next: add explicit pose-group lifecycle UI (create/rename/delete independent of path edits).
+14. Next: add explicit import grouping strategy controls and group-level conflict handling.
+15. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
+16. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
 ### P2 (architecture and scale-readiness)
 

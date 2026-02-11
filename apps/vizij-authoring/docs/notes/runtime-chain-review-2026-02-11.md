@@ -3,6 +3,7 @@
 Date: 2026-02-11
 Compared branches: `chris-work` vs `vizij_workspace_as_authoring`
 Legacy UX reference: `main` branch `apps/vizij-authoring` inspector flow
+Status: historical deep review; most P0/P1 findings are resolved, remaining architecture items are tracked in `plans/TRACKER.md` and `plans/BACKLOG.md`.
 
 ## Scope
 

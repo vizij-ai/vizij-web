@@ -36,4 +36,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-11)
 
-P0 is complete and prior P1 routing/parity tranche is complete. P1 is now focused on pose-authoring architecture correctness: first-class pose groups, two-layer pose blending (within-group + cross-group), aggregate pose-output binding into rig variables, boundary enforcement between rig layers, and corresponding authoring/import diagnostics before moving fully into P2.
+P0 is complete and prior P1 routing/parity tranche is complete. P1 pose architecture work is now partially complete (first-class pose groups + two-layer blending + strategy controls + pose-group inspector); remaining scope is aggregate pose-output binding surfacing, rig boundary enforcement, and import/diagnostic completeness before moving fully into P2.

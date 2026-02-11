@@ -1,51 +1,56 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-11 (P1 pose-authoring tranche planned)
+Last updated: 2026-02-11 (post pose-group inspector tranche)
 
-This file consolidates active findings from:
+This file is the relevance filter for all authoring notes. Use this before acting on older findings.
 
-1. `apps/vizij-authoring/docs/notes/audit.md`
-2. `apps/vizij-authoring/docs/notes/pose_report.md`
-3. `apps/vizij-authoring/docs/notes/review.md`
+## Current Signal
 
-## Resolved Since Initial Reports
+1. P0 stabilization findings are resolved and locked by tests.
+2. P1 chain-parity and Quori smoke correction findings are resolved.
+3. Active P1 work has shifted to pose architecture semantics:
+   - aggregate pose-source surfacing in inspector/binding flows,
+   - rig boundary enforcement for animatable writes,
+   - grouping/import strategy controls and diagnostics completeness.
 
-1. Runtime graph bundle updates now flow through `setGraphBundle` and bundle override logic in runtime-react.
-2. Targeted regressions called out in `pose_report.md` are fixed:
-   - `vizij-authoring` typecheck passes.
-   - `Viewer` targeted tests pass.
-   - runtime bundle helper tests pass with the split helper API.
-3. Runtime provider update-policy test is green (`runtimeUpdatePolicy.test.ts`).
+## Resolved Findings Since Initial Reviews
+
+1. Runtime graph clear/remove semantics and late-readiness input restaging are fixed.
+2. Import remap and discrepancy handling are deterministic and conflict-safe.
+3. Inspector chain clickthrough and cross-context binding editing are implemented.
+4. Quick-edit slider reliability issues tied to slot resolution are fixed.
+5. Pose parent-binding modal ambiguity (root vs missing link) is fixed.
+6. Pose-group domain model and two-layer compile topology are implemented.
+7. Pose authoring UX now includes:
+   - pose creation and target editing,
+   - neutral-safe single-pose preview semantics,
+   - sidebar pose-group inspector controls.
 
 ## Active Findings That Still Matter
 
-1. Pose compiler currently uses a single global blend layer across all poses; target architecture requires two-layer blending (within-group and cross-group per rig target).
-2. `pose.group` currently behaves mostly as metadata/path segment, not as a first-class computational group entity with own strategy.
-3. Pose-to-rig relationship surfacing still implies direct pose-to-target bindings, while target model requires aggregate pose-layer outputs as binding sources.
-4. Rig boundary enforcement is incomplete for the intended architecture where only low-level rig variables write animatables.
-5. Import/remap grouping and strategy behavior are still implicit and need explicit controls for migration safety.
-6. Full app validation remains green, but these are architecture/authoring correctness gaps tracked in the P1 pose-authoring spec.
+1. Inspector semantics should distinguish pose entry vs group output vs aggregate output explicitly.
+2. Rig boundary constraints still need strict enforcement and diagnostics for invalid higher-order animatable writes.
+3. Group lifecycle editing is still path-first and needs explicit group create/rename/delete UX.
+4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
+5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
 
-## Architecture Debt (Still Relevant From Audit)
+## Notes Relevance Matrix
 
-1. Continue slimming app shell orchestration and keep domain logic in slice stores.
-2. Add store-level tests for graph runtime, binding authoring, and selection stores.
-3. Improve heavy audit flows:
-   - RobotData audit versioning/caching and optional worker offload.
-   - Bundle audit queueing, chunking, and caching.
-4. Replace JSON-only deep cloning in critical import/export paths with schema-aware clone behavior.
-5. Modularize pose authoring internals further for testability and state isolation.
-6. Define scene-editing command API before material/object editing work expands.
-7. Replace bespoke virtualization in `StandardInputsSection` with maintained virtualizer primitives.
+1. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`: `active-reference`
+   Use for target architecture semantics and acceptance intent.
+2. `apps/vizij-authoring/docs/notes/runtime-chain-review-2026-02-11.md`: `historical-with-residual`
+   Most critical findings are resolved; remaining value is context for aggregate semantics and boundary follow-up.
+3. `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md`: `mostly-resolved`
+   Keep as smoke-test evidence; unresolved threads are now captured as P1 backlog items.
+4. `apps/vizij-authoring/docs/notes/audit.md`: `historical`
+   Architecture debt reference for P2 planning.
+5. `apps/vizij-authoring/docs/notes/pose_report.md`: `historical`
+   Earlier regression evidence, now superseded by current tracker/test status.
+6. `apps/vizij-authoring/docs/notes/review.md`: `historical`
+   Keep for chronology; do not treat as current task source without tracker confirmation.
 
-## Priority Interpretation
+## Execution Source of Truth
 
-1. P0: correctness and behavior alignment for active runtime-truthful pipeline.
-2. P1: pose-authoring architecture correctness (first-class groups, two-layer blending, aggregate binding semantics, boundary enforcement, and aligned UI/diagnostics).
-3. P2: architecture/performance debt that blocks upcoming scene/material work.
-4. P3: UX polish and deferred enhancements.
-
-See `apps/vizij-authoring/docs/plans/BACKLOG.md` for concrete tasks mapped to this priority model.
-See `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md` for the concrete implementation spec and acceptance criteria.
-
-See `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md` for detailed smoke-test evidence and acceptance criteria.
+1. Concrete tasks and status: `apps/vizij-authoring/docs/plans/BACKLOG.md` and `apps/vizij-authoring/docs/plans/TRACKER.md`.
+2. Priority positioning: `apps/vizij-authoring/docs/plans/ROADMAP_BACKLOG.md`.
+3. Pose architecture implementation contract: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.

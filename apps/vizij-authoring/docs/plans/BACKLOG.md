@@ -1,6 +1,6 @@
 # Backlog
 
-Last updated: 2026-02-11
+Last updated: 2026-02-11 (post pose-group inspector tranche)
 
 The canonical planning set for authoring lives in:
 
@@ -89,14 +89,30 @@ Use this file for app-local implementation backlog only.
 
 ## P1 (next up)
 
-- [ ] Implement first-class pose-group domain model (not just `pose.group` labels).
+- [x] Implement first-class pose-group domain model (not just `pose.group` labels).
       Context: current pose compiler treats groups primarily as naming/path metadata, but target behavior requires group entities with own blend semantics.
       Goal: represent pose groups explicitly in authoring state and compile contracts.
       Exit criteria: 1. Pose groups have identity + local blend strategy. 2. Poses reference group entities deterministically. 3. Existing `pose.group` assets migrate without data loss.
-- [ ] Implement two-layer pose blending in compile output.
+- [x] Implement two-layer pose blending in compile output.
       Context: current pose graph applies one global blend layer across all poses per target variable.
       Goal: blend within each group first, then blend group outputs per target (default cross-group additive).
       Exit criteria: 1. Per-group-per-target blend nodes exist in compiled graph. 2. Cross-group-per-target blend nodes exist and are strategy-driven. 3. Roundtrip export/import preserves behavior.
+- [x] Add pose blend-strategy controls to authoring export flow.
+      Context: strategy controls were implicit and hidden from normal authoring surfaces.
+      Goal: let authors configure default group blend and cross-group blend behavior in-app.
+      Exit criteria: 1. export panel exposes both strategy controls. 2. selections persist through pose compile/export paths. 3. tests cover strategy-influenced graph generation.
+- [x] Add pose creation + target authoring affordances for validation workflows.
+      Context: validating pose handling required creating fresh poses and wiring targets without importing legacy configs.
+      Goal: support direct pose creation and target assignment in normal workflow.
+      Exit criteria: 1. users can create poses from variables panel and inspector flows. 2. pose target rows support save/reset and live scrub editing. 3. authoring state updates without manual config edits.
+- [x] Add sidebar pose-group inspector for pose-vector previewing.
+      Context: pose interactions required a group-level surface to test combinations and neutral behavior.
+      Goal: provide in-sidebar group controls (weights, solo, play, reset) without popup interruption.
+      Exit criteria: 1. selecting a pose-group folder opens inspector pane section. 2. sliders stage preview values against neutral baseline. 3. authors can solo/reset/weight poses within the selected group.
+- [x] Make single-pose playback/preview semantics neutral-baseline-safe.
+      Context: single-pose slider interactions could leave unrelated pose values active and appear to collapse targets toward zero instead of neutral.
+      Goal: pose preview starts from neutral baseline and composes only the selected pose contribution.
+      Exit criteria: 1. play sets selected pose to 100% preview. 2. slider blend scales selected pose deltas from neutral. 3. unrelated pose entries do not remain implicitly active in single-pose mode.
 - [ ] Surface pose aggregate outputs as first-class rig binding sources.
       Context: UI currently implies pose-to-variable links directly from individual poses, but target binding semantics are aggregate outputs.
       Goal: make rig target binding semantics explicit: aggregate pose layer -> rig variable target.
@@ -216,7 +232,8 @@ Use this file for app-local implementation backlog only.
 ## Known Bugs
 
 - [ ] Inspector connected-variable list is too broad.
-- [ ] Pose sliders are inconsistent.
+- [ ] Aggregate-vs-entry pose contribution labeling is still ambiguous in inspector chain views.
+- [ ] Pose group inspector currently scopes to one selected group; no global cross-group mix surface yet.
 - [x] Some quick-edit transform sliders (notably scale on select legacy-loaded shapes) can appear inert despite binding editor showing a driver.
 - [ ] Creating material without attached shape fails.
 - [ ] Selecting variable-to-drive can break hierarchy.

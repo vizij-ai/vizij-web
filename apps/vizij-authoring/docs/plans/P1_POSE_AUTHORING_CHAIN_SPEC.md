@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-11
 Owner: Vizij Authoring
-Status: planned (top-priority P1)
+Status: in_progress (top-priority P1, partial implementation landed)
 
 ## 1) Scope and intent
 
@@ -55,17 +55,22 @@ For each rig target variable:
 1. Poses currently target rig input ids.
 2. Neutral baseline exists and is used in apply/capture flows.
 3. Rig parent-binding expressions support multi-source composition.
+4. First-class pose-group entities are normalized in pose config/store state.
+5. Compiler emits two-layer pose blending (group-local + cross-group).
+6. Authoring UI exposes default group and cross-group blend strategy selection.
+7. Sidebar pose-group inspector allows group-level previewing (weights/solo/reset) against neutral baseline.
 
 ## 3.2 Not aligned (must change)
 
-1. Pose compiler currently performs one global blend layer across all poses, not two layers.
-2. `pose.group` is metadata/path segment only; group is not first-class compiler structure.
-3. No explicit pose aggregate nodes are exposed as binding sources in authoring UI.
-4. No strict guard that higher-order rig variables cannot bind animatable leaves.
+1. Pose aggregate nodes are not yet surfaced as first-class binding sources in inspector semantics.
+2. No strict guard yet that higher-order rig variables cannot bind animatable leaves.
+3. Group lifecycle UI is still path-first; explicit create/rename/delete group workflows need dedicated surface.
+4. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
+5. Diagnostics for aggregate/boundary/group-coverage gaps are not yet complete in editor/export surfaces.
 
 ## 4) P1 implementation tracks
 
-## P1-T1 Pose group domain model
+## P1-T1 Pose group domain model (`done`)
 
 Introduce first-class pose-group entities in authoring state:
 
@@ -79,7 +84,7 @@ Acceptance criteria:
 2. poses are assigned by reference to group entities, not free-form text only
 3. migration path preserves existing `pose.group` data
 
-## P1-T2 Two-layer pose compiler
+## P1-T2 Two-layer pose compiler (`done`)
 
 Extend pose graph build pipeline:
 
@@ -93,7 +98,7 @@ Acceptance criteria:
 2. strategy can differ at group-local and cross-group layers
 3. export/import roundtrip preserves equivalent graph behavior
 
-## P1-T3 Rig boundary enforcement
+## P1-T3 Rig boundary enforcement (`planned`)
 
 Enforce low-level-only animatable write boundary:
 
@@ -107,7 +112,7 @@ Acceptance criteria:
 2. inspector clearly explains boundary violations
 3. tests cover valid and invalid boundary scenarios
 
-## P1-T4 Pose/rig binding semantics in UI
+## P1-T4 Pose/rig binding semantics in UI (`in_progress`)
 
 Update inspector and binding UIs to show aggregate semantics:
 
@@ -121,7 +126,7 @@ Acceptance criteria:
 2. every shown relationship is actionable or explicitly read-only
 3. chain breadcrumb remains stable during multi-hop navigation
 
-## P1-T5 Pose-group and blend strategy UI
+## P1-T5 Pose-group and blend strategy UI (`in_progress`)
 
 Add dedicated UI for:
 
@@ -135,7 +140,7 @@ Acceptance criteria:
 2. strategy previews show expected target-value effect
 3. strategy state is included in export/import contracts
 
-## P1-T6 Migration/import/export updates
+## P1-T6 Migration/import/export updates (`planned`)
 
 1. import supports explicit grouping strategy selection and mapping
 2. export serializes first-class group/blend semantics
@@ -147,7 +152,7 @@ Acceptance criteria:
 2. unresolved group topology conflicts are actionable
 3. docs describe exact migration behavior
 
-## P1-T7 Diagnostics and validation
+## P1-T7 Diagnostics and validation (`planned`)
 
 Add targeted diagnostics:
 
@@ -170,11 +175,12 @@ Acceptance criteria:
 
 ## 6) Rollout sequence
 
-1. T1 domain model
-2. T2 compiler
-3. T3 boundary enforcement
-4. T4/T5 UI
-5. T6 migration/export
-6. T7 diagnostics and full validation pass
+1. T1 domain model (`done`)
+2. T2 compiler (`done`)
+3. T5 blend controls (`in_progress`, strategy controls landed; lifecycle/editor parity pending)
+4. T4 aggregate-source semantics + chain labeling (`in_progress`)
+5. T3 boundary enforcement (`planned`)
+6. T6 migration/import grouping strategy (`planned`)
+7. T7 diagnostics and full validation pass (`planned`)
 
 All steps must keep `pnpm --filter vizij-authoring run validate` green and include focused tests for changed semantics.
