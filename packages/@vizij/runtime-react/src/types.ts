@@ -17,7 +17,17 @@ export type PoseDefinition = {
   name?: string;
   description?: string;
   group?: string | null;
+  groupId?: string | null;
   values: Record<string, number | undefined>;
+};
+
+export type PoseBlendMode = "average" | "additive";
+
+export type PoseGroupDefinition = {
+  id: string;
+  name: string;
+  path: string;
+  blendMode?: PoseBlendMode;
 };
 
 export type PoseRigConfig = {
@@ -25,6 +35,8 @@ export type PoseRigConfig = {
   faceId?: string | null;
   title?: string;
   description?: string;
+  poseGroups?: PoseGroupDefinition[];
+  crossGroupBlendMode?: PoseBlendMode;
   neutralInputs: Record<string, number>;
   poses: PoseDefinition[];
   metadata?:

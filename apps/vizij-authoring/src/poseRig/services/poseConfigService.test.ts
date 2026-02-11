@@ -196,4 +196,76 @@ describe("PoseConfigService", () => {
       ),
     ).toBe(true);
   });
+
+  it("normalizes pose groups and cross-group blend mode", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0 },
+      poseGroups: [{ id: "emotion", name: "Emotion", path: "emotion" }],
+      crossGroupBlendMode: "average" as const,
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          group: "emotion",
+          values: { smile: 0.5 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.crossGroupBlendMode).toBe("average");
+    expect(config.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "average",
+      },
+    ]);
+    expect(config.poses[0]).toMatchObject({
+      group: "emotion",
+      groupId: "emotion",
+    });
+  });
+
+  it("creates grouped config defaults with explicit strategies", () => {
+    const created = PoseConfigService.create(
+      [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          group: "emotion",
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      { smile: 0 },
+      "Pose Rig",
+      "face_a",
+      "face-specific",
+      undefined,
+      {
+        defaultGroupBlendMode: "additive",
+        crossGroupBlendMode: "average",
+      },
+    );
+
+    expect(created.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "additive",
+      },
+    ]);
+    expect(created.crossGroupBlendMode).toBe("average");
+    expect(created.poses[0]).toMatchObject({
+      group: "emotion",
+      groupId: "emotion",
+    });
+  });
 });

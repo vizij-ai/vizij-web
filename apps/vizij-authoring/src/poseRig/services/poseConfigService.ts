@@ -6,8 +6,110 @@ import type {
   PoseRigConfigFile,
   LowLevelRigSummary,
   PoseDefinition,
+  PoseGroupDefinition,
+  PoseBlendMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
+
+function sanitizeGroupPath(value: string | null | undefined): string {
+  const normalized = (value ?? "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/+/g, "/");
+  if (!normalized) {
+    return "default";
+  }
+  return normalized;
+}
+
+function sanitizeGroupId(value: string | null | undefined, fallback: string) {
+  const normalized = (value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_/-]+/g, "_")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/+/g, "_");
+  if (!normalized) {
+    return fallback.replace(/\//g, "_");
+  }
+  return normalized;
+}
+
+function humanizeGroupName(path: string): string {
+  const leaf = path.split("/").filter(Boolean).pop() ?? path;
+  return leaf
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function normalizePoseGroups(
+  poses: PoseDefinition[],
+  poseGroups: unknown,
+  defaultGroupBlendMode: PoseBlendMode,
+): {
+  poseGroups: PoseGroupDefinition[];
+  groupById: Map<string, PoseGroupDefinition>;
+  groupByPath: Map<string, PoseGroupDefinition>;
+} {
+  const groups: PoseGroupDefinition[] = [];
+  const groupById = new Map<string, PoseGroupDefinition>();
+  const groupByPath = new Map<string, PoseGroupDefinition>();
+  const sourceGroups = Array.isArray(poseGroups)
+    ? (poseGroups as PoseGroupDefinition[])
+    : [];
+
+  sourceGroups.forEach((group) => {
+    if (!group || typeof group !== "object") {
+      return;
+    }
+    const path = sanitizeGroupPath(group.path ?? group.name ?? group.id);
+    const id = sanitizeGroupId(group.id, path);
+    const existingByPath = groupByPath.get(path);
+    if (existingByPath) {
+      return;
+    }
+    const normalized: PoseGroupDefinition = {
+      id,
+      path,
+      name:
+        typeof group.name === "string" && group.name.trim().length > 0
+          ? group.name.trim()
+          : humanizeGroupName(path),
+      blendMode:
+        group.blendMode === "additive" || group.blendMode === "average"
+          ? group.blendMode
+          : defaultGroupBlendMode,
+    };
+    groups.push(normalized);
+    groupById.set(id, normalized);
+    groupByPath.set(path, normalized);
+  });
+
+  poses.forEach((pose) => {
+    const posePath = sanitizeGroupPath(pose.group);
+    const poseGroupId = pose.groupId
+      ? sanitizeGroupId(pose.groupId, posePath)
+      : null;
+    const existing =
+      (poseGroupId ? groupById.get(poseGroupId) : null) ??
+      (pose.group ? groupByPath.get(posePath) : null);
+    if (existing || !pose.group) {
+      return;
+    }
+    const normalized: PoseGroupDefinition = {
+      id: poseGroupId ?? sanitizeGroupId(null, posePath),
+      path: posePath,
+      name: humanizeGroupName(posePath),
+      blendMode: defaultGroupBlendMode,
+    };
+    groups.push(normalized);
+    groupById.set(normalized.id, normalized);
+    groupByPath.set(normalized.path, normalized);
+  });
+
+  return { poseGroups: groups, groupById, groupByPath };
+}
 
 export const PoseConfigService = {
   normalize(
@@ -166,6 +268,17 @@ export const PoseConfigService = {
       }
     }
 
+    const defaultGroupBlendMode: PoseBlendMode = "average";
+    const {
+      poseGroups: normalizedGroups,
+      groupById,
+      groupByPath,
+    } = normalizePoseGroups(
+      candidate.poses as PoseDefinition[],
+      candidate.poseGroups,
+      defaultGroupBlendMode,
+    );
+
     const poses = candidate.poses.map((pose) => {
       const values: Record<string, number> = {};
       const poseSourcesByResolvedId = new Map<string, string>();
@@ -201,8 +314,20 @@ export const PoseConfigService = {
         }
       }
 
+      const fallbackGroupPath = pose.group
+        ? sanitizeGroupPath(pose.group)
+        : null;
+      const fallbackGroup =
+        (pose.groupId
+          ? groupById.get(sanitizeGroupId(pose.groupId, ""))
+          : null) ??
+        (fallbackGroupPath ? groupByPath.get(fallbackGroupPath) : null) ??
+        null;
+
       const newPose = {
         ...pose,
+        groupId: fallbackGroup?.id ?? null,
+        group: fallbackGroup?.path ?? fallbackGroupPath ?? null,
         values,
       };
       return newPose;
@@ -215,6 +340,12 @@ export const PoseConfigService = {
         rigKind: candidate.rigKind ?? "face-specific",
         title: candidate.title ?? undefined,
         description: candidate.description ?? undefined,
+        poseGroups: normalizedGroups,
+        crossGroupBlendMode:
+          candidate.crossGroupBlendMode === "average" ||
+          candidate.crossGroupBlendMode === "additive"
+            ? candidate.crossGroupBlendMode
+            : "additive",
         neutralInputs,
         poses: poses.map((p) => ({ ...p, values: { ...p.values } })),
         lowLevel:
@@ -238,14 +369,49 @@ export const PoseConfigService = {
     faceId: string | null,
     rigKind: "generic" | "face-specific" = "face-specific",
     standardInputSchema?: PoseRigConfigFile["standardInputSchema"],
+    options?: {
+      poseGroups?: PoseGroupDefinition[];
+      defaultGroupBlendMode?: PoseBlendMode;
+      crossGroupBlendMode?: PoseBlendMode;
+    },
   ): PoseRigConfigFile {
+    const defaultGroupBlendMode = options?.defaultGroupBlendMode ?? "average";
+    const { poseGroups } = normalizePoseGroups(
+      poses,
+      options?.poseGroups,
+      defaultGroupBlendMode,
+    );
+
+    const normalizedPoses = poses.map((pose) => {
+      const posePath = pose.group ? sanitizeGroupPath(pose.group) : null;
+      const group =
+        (pose.groupId
+          ? poseGroups.find(
+              (entry) =>
+                entry.id === sanitizeGroupId(pose.groupId, posePath ?? ""),
+            )
+          : null) ??
+        (posePath
+          ? poseGroups.find((entry) => entry.path === posePath)
+          : null) ??
+        null;
+      return {
+        ...pose,
+        groupId: group?.id ?? null,
+        group: group?.path ?? posePath ?? null,
+        values: { ...pose.values },
+      };
+    });
+
     return {
       version: POSE_RIG_CONFIG_VERSION,
       faceId,
       rigKind,
       title: rigName,
       neutralInputs: { ...neutralInputs },
-      poses: poses.map((p) => ({ ...p, values: { ...p.values } })),
+      poseGroups,
+      crossGroupBlendMode: options?.crossGroupBlendMode ?? "additive",
+      poses: normalizedPoses,
       standardInputSchema: standardInputSchema ?? {
         id: "vizij-standard-face",
         version: "v1",
