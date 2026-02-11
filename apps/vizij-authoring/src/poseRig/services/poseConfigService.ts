@@ -136,6 +136,7 @@ export const PoseConfigService = {
 
     const neutralInputs: Record<string, number> = {};
 
+    const neutralSourcesByResolvedId = new Map<string, string>();
     for (const [key, value] of Object.entries(
       candidate.neutralInputs as Record<string, number>,
     )) {
@@ -149,6 +150,14 @@ export const PoseConfigService = {
         pushWarning(`Neutral value for missing input "${key}" was ignored.`);
         continue;
       }
+      const firstSource = neutralSourcesByResolvedId.get(resolved.id);
+      if (firstSource && firstSource !== key) {
+        pushWarning(
+          `Neutral inputs "${firstSource}" and "${key}" both remap to "${resolved.id}"; keeping value from "${key}".`,
+        );
+      } else if (!firstSource) {
+        neutralSourcesByResolvedId.set(resolved.id, key);
+      }
       neutralInputs[resolved.id] = value;
       if (resolved.id !== key) {
         pushWarning(
@@ -159,6 +168,7 @@ export const PoseConfigService = {
 
     const poses = candidate.poses.map((pose) => {
       const values: Record<string, number> = {};
+      const poseSourcesByResolvedId = new Map<string, string>();
       const poseValues =
         pose.values && typeof pose.values === "object"
           ? (pose.values as Record<string, number>)
@@ -174,6 +184,14 @@ export const PoseConfigService = {
             `Pose "${pose.name}" references missing input "${key}" and was pruned.`,
           );
           continue;
+        }
+        const firstSource = poseSourcesByResolvedId.get(resolved.id);
+        if (firstSource && firstSource !== key) {
+          pushWarning(
+            `Pose "${pose.name}" inputs "${firstSource}" and "${key}" both remap to "${resolved.id}"; keeping value from "${key}".`,
+          );
+        } else if (!firstSource) {
+          poseSourcesByResolvedId.set(resolved.id, key);
         }
         values[resolved.id] = value;
         if (resolved.id !== key) {

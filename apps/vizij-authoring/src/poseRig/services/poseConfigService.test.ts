@@ -142,4 +142,58 @@ describe("PoseConfigService", () => {
       ),
     ).toBe(true);
   });
+
+  it("warns when multiple legacy keys remap to the same input", () => {
+    const standardInputs = [
+      createStandardRigInput({
+        id: "l_eye_translation_x",
+        path: "/l_eye/translation/x",
+        sourceId: "legacy_source_eye_x",
+        label: "L Eye Translation X",
+        group: "l_eye",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+    ];
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: {
+        "/l_eye/translation/x": 0.2,
+        legacy_source_eye_x: 0.6,
+      },
+      poses: [
+        {
+          id: "pose_collision",
+          name: "Collision Pose",
+          values: {
+            "/l_eye/translation/x": 0.4,
+            legacy_source_eye_x: 0.9,
+          },
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(
+      input,
+      standardInputs,
+      null,
+    );
+
+    expect(config.neutralInputs).toEqual({ l_eye_translation_x: 0.6 });
+    expect(config.poses[0]?.values).toEqual({ l_eye_translation_x: 0.9 });
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Neutral inputs "/l_eye/translation/x" and "legacy_source_eye_x" both remap to "l_eye_translation_x"',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Pose "Collision Pose" inputs "/l_eye/translation/x" and "legacy_source_eye_x" both remap to "l_eye_translation_x"',
+        ),
+      ),
+    ).toBe(true);
+  });
 });
