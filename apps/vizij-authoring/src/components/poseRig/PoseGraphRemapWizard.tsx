@@ -20,6 +20,7 @@ export interface PoseGraphRemapRow {
   nodeId: string;
   originalPath: string | null;
   suggestedPath: string | null;
+  isDeltaOutput?: boolean;
   poseSlug?: string;
   currentInputId?: string | null;
   confidence?: PoseRemapConfidence;
@@ -69,6 +70,11 @@ export function PoseGraphRemapWizard({
   });
   const [filterMode, setFilterMode] = useState<RemapFilterMode>("all");
   const [query, setQuery] = useState("");
+  const nonDeltaCount = useMemo(
+    () => allRows.filter((row) => row.isDeltaOutput === false).length,
+    [allRows],
+  );
+  const [includeNonDelta, setIncludeNonDelta] = useState(false);
 
   useEffect(() => {
     setEdits((current) => {
@@ -91,6 +97,12 @@ export function PoseGraphRemapWizard({
     });
   }, [allRows]);
 
+  useEffect(() => {
+    if (nonDeltaCount === 0 && includeNonDelta) {
+      setIncludeNonDelta(false);
+    }
+  }, [includeNonDelta, nonDeltaCount]);
+
   const standardOptions = useMemo(
     () =>
       standardInputs.map((input) => ({
@@ -101,35 +113,53 @@ export function PoseGraphRemapWizard({
     [standardInputs],
   );
 
-  const { hasConflicts, conflictMessages, conflictRowIds } = useMemo(() => {
-    const rowIdsByPath = new Map<string, string[]>();
-    allRows.forEach((row) => {
-      const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
-      if (!resolvedPath) {
-        return;
-      }
-      const key = resolvedPath.toLowerCase();
-      const ids = rowIdsByPath.get(key) ?? [];
-      ids.push(row.id);
-      rowIdsByPath.set(key, ids);
-    });
-    const nextConflictRowIds = new Set<string>();
-    const messages: string[] = [];
-    rowIdsByPath.forEach((rowIds, pathKey) => {
-      if (rowIds.length < 2) {
-        return;
-      }
-      rowIds.forEach((rowId) => nextConflictRowIds.add(rowId));
-      messages.push(
-        `${rowIds.length} outputs currently map to ${pathKey}. Choose unique targets.`,
-      );
-    });
-    return {
-      hasConflicts: nextConflictRowIds.size > 0,
-      conflictMessages: messages,
-      conflictRowIds: nextConflictRowIds,
-    };
-  }, [allRows, edits]);
+  const rowsForApply = useMemo(
+    () =>
+      includeNonDelta
+        ? allRows
+        : allRows.filter((row) => row.isDeltaOutput !== false),
+    [allRows, includeNonDelta],
+  );
+
+  const { hasConflicts, conflictMessages, conflictRowIds, conflictGroups } =
+    useMemo(() => {
+      const rowIdsByPath = new Map<string, string[]>();
+      const rowsById = new Map(rowsForApply.map((row) => [row.id, row]));
+      rowsForApply.forEach((row) => {
+        const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
+        if (!resolvedPath) {
+          return;
+        }
+        const key = resolvedPath.toLowerCase();
+        const ids = rowIdsByPath.get(key) ?? [];
+        ids.push(row.id);
+        rowIdsByPath.set(key, ids);
+      });
+      const nextConflictRowIds = new Set<string>();
+      const messages: string[] = [];
+      const nextConflictGroups = new Map<string, PoseGraphRemapRow[]>();
+      rowIdsByPath.forEach((rowIds, pathKey) => {
+        if (rowIds.length < 2) {
+          return;
+        }
+        rowIds.forEach((rowId) => nextConflictRowIds.add(rowId));
+        messages.push(
+          `${rowIds.length} outputs currently map to ${pathKey}. Choose unique targets.`,
+        );
+        nextConflictGroups.set(
+          pathKey,
+          rowIds
+            .map((rowId) => rowsById.get(rowId))
+            .filter((row): row is PoseGraphRemapRow => Boolean(row)),
+        );
+      });
+      return {
+        hasConflicts: nextConflictRowIds.size > 0,
+        conflictMessages: messages,
+        conflictRowIds: nextConflictRowIds,
+        conflictGroups: nextConflictGroups,
+      };
+    }, [edits, rowsForApply]);
 
   const summary = useMemo(() => {
     let mapped = 0;
@@ -137,7 +167,7 @@ export function PoseGraphRemapWizard({
     let medium = 0;
     let low = 0;
     let needsAttention = 0;
-    allRows.forEach((row) => {
+    rowsForApply.forEach((row) => {
       const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
       if (resolvedPath) {
         mapped += 1;
@@ -157,7 +187,7 @@ export function PoseGraphRemapWizard({
         needsAttention += 1;
       }
     });
-    const unmapped = allRows.length - mapped;
+    const unmapped = rowsForApply.length - mapped;
     return {
       mapped,
       unmapped,
@@ -168,12 +198,21 @@ export function PoseGraphRemapWizard({
       auto: autoRows.length,
       review: rows.length,
       conflicts: conflictRowIds.size,
+      considered: rowsForApply.length,
+      hiddenNonDelta: allRows.length - rowsForApply.length,
     };
-  }, [allRows, autoRows.length, conflictRowIds, edits, rows.length]);
+  }, [
+    allRows.length,
+    autoRows.length,
+    conflictRowIds,
+    edits,
+    rows.length,
+    rowsForApply,
+  ]);
 
   const filteredRows = useMemo(() => {
     const queryValue = query.trim().toLowerCase();
-    return allRows.filter((row) => {
+    return rowsForApply.filter((row) => {
       const lowConfidence = row.confidence === "low";
       const needsAttention =
         row.needsReview || lowConfidence || conflictRowIds.has(row.id);
@@ -203,20 +242,20 @@ export function PoseGraphRemapWizard({
         .toLowerCase();
       return haystack.includes(queryValue);
     });
-  }, [allRows, conflictRowIds, edits, filterMode, query]);
+  }, [conflictRowIds, edits, filterMode, query, rowsForApply]);
 
   const unresolvedRowsWithSuggestions = useMemo(
     () =>
-      allRows.filter((row) => {
+      rowsForApply.filter((row) => {
         const resolved = (edits[row.id] ?? row.suggestedPath ?? "").trim();
         return !resolved && Boolean(row.options?.length);
       }),
-    [allRows, edits],
+    [edits, rowsForApply],
   );
 
   const canApply =
-    allRows.length === 0 ||
-    (allRows.every((row) =>
+    rowsForApply.length === 0 ||
+    (rowsForApply.every((row) =>
       Boolean((edits[row.id] ?? row.suggestedPath)?.trim()),
     ) &&
       !hasConflicts);
@@ -259,6 +298,55 @@ export function PoseGraphRemapWizard({
       default:
         return "Low confidence";
     }
+  };
+
+  const handleAutoResolveConflicts = () => {
+    if (conflictGroups.size === 0) {
+      return;
+    }
+    const confidenceRank = (row: PoseGraphRemapRow) => {
+      if (typeof row.confidenceScore === "number") {
+        return row.confidenceScore;
+      }
+      if (row.confidence === "high") {
+        return 1;
+      }
+      if (row.confidence === "medium") {
+        return 0.6;
+      }
+      if (row.confidence === "low") {
+        return 0.25;
+      }
+      return 0;
+    };
+
+    setEdits((current) => {
+      const next = { ...current };
+      conflictGroups.forEach((groupRows) => {
+        const sorted = [...groupRows].sort((left, right) => {
+          const confidenceDelta = confidenceRank(right) - confidenceRank(left);
+          if (confidenceDelta !== 0) {
+            return confidenceDelta;
+          }
+          if (left.status !== right.status) {
+            return left.status === "auto" ? -1 : 1;
+          }
+          return left.id.localeCompare(right.id);
+        });
+        const winner = sorted[0];
+        sorted.slice(1).forEach((row) => {
+          next[row.id] = "";
+        });
+        if (winner) {
+          next[winner.id] = (
+            current[winner.id] ??
+            winner.suggestedPath ??
+            ""
+          ).trim();
+        }
+      });
+      return next;
+    });
   };
 
   return (
@@ -315,6 +403,10 @@ export function PoseGraphRemapWizard({
               <Chip tone={summary.needsAttention > 0 ? "warning" : "muted"}>
                 Needs attention {summary.needsAttention}
               </Chip>
+              <Chip tone="default">In scope {summary.considered}</Chip>
+              <Chip tone={summary.hiddenNonDelta > 0 ? "info" : "muted"}>
+                Hidden non-delta {summary.hiddenNonDelta}
+              </Chip>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -366,6 +458,21 @@ export function PoseGraphRemapWizard({
               >
                 Low confidence
               </button>
+              {nonDeltaCount > 0 && (
+                <button
+                  type="button"
+                  className={cn(
+                    "h-7 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-colors",
+                    includeNonDelta
+                      ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-200"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20",
+                  )}
+                  onClick={() => setIncludeNonDelta((value) => !value)}
+                >
+                  {includeNonDelta ? "Hide" : "Include"} non-delta (
+                  {nonDeltaCount})
+                </button>
+              )}
               <input
                 className="ml-auto h-8 min-w-[180px] bg-slate-900 border border-white/10 rounded-lg px-3 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500/50"
                 placeholder="Search pose, variable, or path"
@@ -394,15 +501,25 @@ export function PoseGraphRemapWizard({
                 Reset edited mappings
               </Button>
               <span className="text-[10px] text-slate-500">
-                Showing {filteredRows.length} of {allRows.length}
+                Showing {filteredRows.length} of {rowsForApply.length}
               </span>
             </div>
           </section>
 
           {hasConflicts && (
             <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200">
-              <div className="font-semibold uppercase tracking-wide text-[10px] mb-1">
-                Resolve Mapping Conflicts
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="font-semibold uppercase tracking-wide text-[10px]">
+                  Resolve Mapping Conflicts
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[9px] px-2"
+                  onClick={handleAutoResolveConflicts}
+                >
+                  Auto-resolve deterministically
+                </Button>
               </div>
               <div className="space-y-1">
                 {conflictMessages.map((message) => (
@@ -426,7 +543,7 @@ export function PoseGraphRemapWizard({
               </div>
             </div>
 
-            {allRows.length > 0 ? (
+            {rowsForApply.length > 0 ? (
               filteredRows.length > 0 ? (
                 <div className="space-y-3">
                   {filteredRows.map((row) => (
@@ -457,6 +574,11 @@ export function PoseGraphRemapWizard({
                               )}
                             >
                               {confidenceLabel(row.confidence)}
+                            </span>
+                          )}
+                          {row.isDeltaOutput === false && (
+                            <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-indigo-500/20 text-indigo-300">
+                              Non-delta
                             </span>
                           )}
                           <p className="text-[10px] text-slate-400 font-mono">
@@ -601,7 +723,7 @@ export function PoseGraphRemapWizard({
             className="h-10 px-8 font-bold text-xs"
             disabled={!canApply}
             onClick={() => {
-              const nextRows = allRows.map((row) => ({
+              const nextRows = rowsForApply.map((row) => ({
                 ...row,
                 suggestedPath:
                   edits[row.id]?.trim() || row.suggestedPath || null,
@@ -609,7 +731,9 @@ export function PoseGraphRemapWizard({
               void onApply(nextRows);
             }}
           >
-            {allRows.length === 0 ? "Finish import" : "Apply mappings & finish"}
+            {rowsForApply.length === 0
+              ? "Finish import"
+              : "Apply mappings & finish"}
           </Button>
         </footer>
       </div>

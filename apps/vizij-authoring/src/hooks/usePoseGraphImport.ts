@@ -107,14 +107,12 @@ export function usePoseGraphImport({
         const reviewRows: PoseGraphRemapRow[] = [];
 
         outputs.forEach((output, index) => {
-          if (
+          const isDeltaOutput = !(
             activeInputIds &&
             activeInputIds.size > 0 &&
             output.inputId &&
             !activeInputIds.has(output.inputId)
-          ) {
-            return;
-          }
+          );
           const poseSlug = extractPoseSlug(output.nodeId);
           const currentInputId = output.inputId?.trim() || poseSlug || null;
           const normalizedPath = output.path
@@ -132,6 +130,7 @@ export function usePoseGraphImport({
               nodeId: output.nodeId,
               originalPath: output.path,
               suggestedPath: canonicalInput.path,
+              isDeltaOutput,
               poseSlug,
               currentInputId,
               status: "auto",
@@ -152,6 +151,7 @@ export function usePoseGraphImport({
               nodeId: output.nodeId,
               originalPath: output.path,
               suggestedPath: rigMatchedInput.path,
+              isDeltaOutput,
               poseSlug,
               currentInputId,
               status: "auto",
@@ -176,6 +176,7 @@ export function usePoseGraphImport({
               nodeId: output.nodeId,
               originalPath: output.path,
               suggestedPath: inferredInput.path,
+              isDeltaOutput,
               poseSlug,
               currentInputId,
               status: "auto",
@@ -201,6 +202,7 @@ export function usePoseGraphImport({
             nodeId: output.nodeId,
             originalPath: output.path,
             suggestedPath: best?.path ?? inferred ?? null,
+            isDeltaOutput,
             poseSlug,
             currentInputId,
             status: "review",
