@@ -190,6 +190,9 @@ afterEach(() => {
   mockedExportScene.mockReset();
   mockedNormalizeGraphSpec.mockReset();
   mockedBuildRigGraphSpec.mockReset();
+  mockedPoseGraphService.buildSpec.mockReset();
+  mockedPoseGraphService.validate.mockReset();
+  mockedPoseGraphService.parse.mockReset();
   mockedDownloadJsonFile.mockReset();
 });
 
@@ -307,6 +310,66 @@ describe("useVizijExport", () => {
       Array.from(options.standardInputsById.values()),
       expect.objectContaining({ blendMode: "additive" }),
     );
+    hook.unmount();
+  });
+
+  it("recomputes pose graph for GLB export using the active blend mode", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue([]);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {},
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
+      options.poseRig.poseConfigDraft,
+      Array.from(options.standardInputsById.values()),
+      expect.objectContaining({ blendMode: "additive" }),
+    );
+    expect(mockedPoseGraphService.validate).toHaveBeenCalledWith(
+      { nodes: [{ id: "pose1", type: "output" }] },
+      Array.from(options.standardInputsById.values()),
+    );
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
+      bundle: {
+        graphs: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "pose-driver",
+            spec: { nodes: [{ id: "pose1", type: "output" }] },
+          }),
+        ]),
+      },
+    });
     hook.unmount();
   });
 

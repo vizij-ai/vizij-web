@@ -221,6 +221,28 @@ export function useVizijExport(
         featureLabelOverrides,
       );
 
+      const standardInputs = Array.from(standardInputsById.values());
+      let poseGraphSpecForExport = poseRig.poseGraphSpec;
+      if (poseRig.poseConfigDraft) {
+        try {
+          const { spec } = PoseGraphService.buildSpec(
+            poseRig.poseConfigDraft,
+            standardInputs,
+            {
+              blendMode: poseRig.blendMode ?? "average",
+            },
+          );
+          poseGraphSpecForExport = spec;
+        } catch (error) {
+          await alertDialog(
+            `Failed to build pose graph for export: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return;
+        }
+      }
+
       const bundle = buildVizijBundle({
         includeVizijBundle,
         includeImportedAnimations,
@@ -235,6 +257,7 @@ export function useVizijExport(
         standardInputsById,
         featureLabelOverrides,
         inputMetadata: standardInputMetadataById,
+        poseGraphSpecForExport,
       });
 
       if (bundle?.graphs?.length) {
@@ -260,11 +283,10 @@ export function useVizijExport(
             return;
           }
         }
-        if (poseRig.poseGraphSpec) {
-          const inputs = Array.from(standardInputsById.values());
+        if (poseGraphSpecForExport) {
           const poseWarnings = PoseGraphService.validate(
-            poseRig.poseGraphSpec,
-            inputs,
+            poseGraphSpecForExport,
+            standardInputs,
           );
           if (poseWarnings.length > 0) {
             await alertDialog(
@@ -407,6 +429,7 @@ interface BuildVizijBundleOptions {
     string,
     { source?: "auto" | "custom" | "preset"; root?: string }
   >;
+  poseGraphSpecForExport?: GraphSpec | null;
 }
 
 function buildVizijBundle(
@@ -449,6 +472,7 @@ function buildVizijBundle(
     : undefined;
   const rigSpec = cloneSerializable(rigGraphResult.spec);
   const slug = faceSlug(faceId);
+  const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [
     {
@@ -472,12 +496,12 @@ function buildVizijBundle(
     },
   ];
 
-  if (poseRig.poseGraphSpec) {
+  if (poseGraphSpec) {
     graphs.push({
       id: poseRig.poseGraphFileName || `${slug}_pose_graph`,
       kind: "pose-driver",
       label: poseRig.poseGraphFileName || "pose graph",
-      spec: cloneSerializable(poseRig.poseGraphSpec) as unknown as Record<
+      spec: cloneSerializable(poseGraphSpec) as unknown as Record<
         string,
         unknown
       >,
