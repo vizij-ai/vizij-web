@@ -1,0 +1,159 @@
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import type { StandardRigInput } from "@vizij/utils";
+import { VariablesPanel } from "./VariablesPanel";
+
+const poseRigState = {
+  poses: [],
+  applyPose: vi.fn(),
+  selectPose: vi.fn(),
+  selectedPoseId: null as string | null,
+  createPose: vi.fn(),
+};
+
+const referenceFaceState = {
+  file: { name: "ref.glb" } as File,
+  setFile: vi.fn(),
+  isLoaded: true,
+  isLoading: false,
+  standardInputs: [] as StandardRigInput[],
+  standardInputsById: new Map<string, StandardRigInput>(),
+  inputIdsWithBindings: new Set<string>(),
+  inputValues: {} as Record<string, number>,
+  handleInputValueChange: vi.fn(),
+  handleResetAllInputValues: vi.fn(),
+  onStandardInputsReady: vi.fn(),
+  onLoadingStateChange: vi.fn(),
+  onAnimateValueReady: vi.fn(),
+  onStandardInputChange: vi.fn(),
+  onBundleReady: vi.fn(),
+};
+
+const bindingState = {
+  managedStandardInputs: [] as Array<{
+    input: StandardRigInput;
+    source: "auto" | "preset" | "custom";
+    metadata?: { elementType?: string };
+    disabled?: boolean;
+  }>,
+  standardInputsByPath: new Map<string, StandardRigInput>(),
+  handleCreateCustomStandardInput: vi.fn(),
+  handleUpdateStandardInput: vi.fn(),
+};
+
+vi.mock("../../state/PoseRigProvider", () => ({
+  usePoseRig: () => poseRigState,
+}));
+
+vi.mock("../../state/ReferenceFaceContext", () => ({
+  useReferenceFace: () => referenceFaceState,
+}));
+
+vi.mock("../../state/RigControllerProvider", () => ({
+  useBindingAuthoring: (selector: (state: typeof bindingState) => unknown) =>
+    selector(bindingState),
+}));
+
+function makeInput(
+  id: string,
+  path: string,
+  overrides?: Partial<StandardRigInput>,
+): StandardRigInput {
+  return {
+    id,
+    path,
+    label: id,
+    group: "test",
+    defaultValue: 0,
+    range: { min: -1, max: 1 },
+    ...overrides,
+  };
+}
+
+describe("VariablesPanel", () => {
+  beforeEach(() => {
+    poseRigState.poses = [];
+    poseRigState.selectedPoseId = null;
+    poseRigState.applyPose.mockReset();
+    poseRigState.selectPose.mockReset();
+    poseRigState.createPose.mockReset();
+
+    referenceFaceState.file = { name: "ref.glb" } as File;
+    referenceFaceState.isLoaded = true;
+    referenceFaceState.isLoading = false;
+    referenceFaceState.standardInputs = [];
+    referenceFaceState.standardInputsById = new Map();
+    referenceFaceState.inputValues = {};
+
+    bindingState.managedStandardInputs = [];
+    bindingState.standardInputsByPath = new Map();
+    bindingState.handleCreateCustomStandardInput.mockReset();
+    bindingState.handleUpdateStandardInput.mockReset();
+  });
+
+  it("surfaces shared variables when main and reference paths overlap", () => {
+    const sharedMain = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Jaw Open",
+    });
+    const sharedRef = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Jaw Open Ref",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: sharedMain,
+        source: "custom",
+      },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/standard/jaw/open", sharedMain],
+    ]);
+    referenceFaceState.standardInputs = [sharedRef];
+    referenceFaceState.standardInputsById = new Map([
+      [sharedRef.id, sharedRef],
+    ]);
+
+    render(<VariablesPanel />);
+
+    expect(screen.getByText(/Shared \(1\)/)).toBeTruthy();
+  });
+
+  it("copies a reference variable into main-face variables from toolbar action", () => {
+    const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Brow Up",
+      defaultValue: 0.25,
+      range: { min: 0, max: 1 },
+      sourceId: "legacy_ref_brow",
+    });
+    const created = makeInput("standard_brow_up", "/standard/brow/up", {
+      label: "Brow Up",
+      defaultValue: 0.25,
+      range: { min: 0, max: 1 },
+      sourceId: "legacy_ref_brow",
+    });
+
+    referenceFaceState.standardInputs = [referenceOnly];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceOnly.id, referenceOnly],
+    ]);
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
+
+    const onSelectRig = vi.fn();
+    render(<VariablesPanel onSelectRig={onSelectRig} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (1)" }));
+
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
+      "/standard/brow/up",
+    );
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      created.id,
+      {
+        label: referenceOnly.label,
+        defaultValue: referenceOnly.defaultValue,
+        range: referenceOnly.range,
+        sourceId: referenceOnly.sourceId,
+      },
+    );
+    expect(onSelectRig).toHaveBeenCalledWith(created.id);
+  });
+});

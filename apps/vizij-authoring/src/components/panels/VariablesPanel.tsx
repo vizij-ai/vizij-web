@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
   Plus,
+  Copy,
   Folder,
   Zap,
   Activity,
@@ -8,7 +9,10 @@ import {
   Search,
   Sliders,
 } from "lucide-react";
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -25,12 +29,15 @@ import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector
 // ----------------------------------------------------------------------------
 
 type NodeType = "folder" | "pose" | "rig";
-type RigNodeSource = "auto" | "preset" | "custom" | "reference";
+type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 
 interface RigNodeData {
   input: StandardRigInput;
   source: RigNodeSource;
   disabled?: boolean;
+  normalizedPath?: string;
+  linkedMainInputId?: string | null;
+  linkedReferenceInputId?: string | null;
 }
 
 interface PoseGroupNodeData {
@@ -62,6 +69,7 @@ const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
   preset: "bg-emerald-900/40 text-emerald-200",
   custom: "bg-amber-900/40 text-amber-200",
   reference: "bg-violet-900/40 text-violet-200",
+  shared: "bg-teal-900/40 text-teal-200",
 };
 
 function getOrCreateChild(
@@ -207,6 +215,22 @@ function TreeRowWrapper({
             </Button>
           )}
 
+          {node.type === "rig" &&
+            (node.data as RigNodeData | undefined)?.source === "reference" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "copy-to-main");
+                }}
+                title="Copy variable to main face"
+              >
+                <Copy size={10} />
+              </Button>
+            )}
+
           {node.type === "folder" &&
             (node.data as PoseGroupNodeData | undefined)?.kind ===
               "pose-group" && (
@@ -281,15 +305,19 @@ export function VariablesPanel({
 }: VariablesPanelProps) {
   const { poses, applyPose, selectPose, selectedPoseId, createPose } =
     usePoseRig();
-  const { managedStandardInputs, handleCreateCustomStandardInput } =
-    useBindingAuthoring((state) => state);
+  const {
+    managedStandardInputs,
+    standardInputsByPath,
+    handleCreateCustomStandardInput,
+    handleUpdateStandardInput,
+  } = useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
   const pendingPoseSelectionRef = useRef(false);
 
   // State for search
   const [search, setSearch] = useState("");
   const [enabledSources, setEnabledSources] = useState<Set<RigNodeSource>>(
-    () => new Set(["auto", "preset", "custom", "reference"]),
+    () => new Set(["auto", "preset", "custom", "shared", "reference"]),
   );
 
   // State for tree expansion
@@ -307,16 +335,60 @@ export function VariablesPanel({
       }));
   }, [managedStandardInputs]);
 
-  const referenceRigEntries = useMemo(
-    () =>
-      referenceFace.standardInputs
-        .filter((entry) => Boolean(entry.path?.trim()))
-        .map((entry) => ({
+  const referenceRigEntries = useMemo(() => {
+    const mainByPath = new Map<string, StandardRigInput>();
+    mainFaceRigEntries.forEach((entry) => {
+      const normalized = normalizeStandardRigInputPath(entry.input.path);
+      mainByPath.set(normalized, entry.input);
+    });
+    return referenceFace.standardInputs
+      .filter((entry) => Boolean(entry.path?.trim()))
+      .map((entry) => {
+        const normalizedPath = normalizeStandardRigInputPath(entry.path);
+        const linkedMain = mainByPath.get(normalizedPath);
+        return {
           input: entry,
           source: "reference" as const,
-        })),
-    [referenceFace.standardInputs],
-  );
+          normalizedPath,
+          linkedMainInputId: linkedMain?.id ?? null,
+        };
+      });
+  }, [mainFaceRigEntries, referenceFace.standardInputs]);
+
+  const sharedRigEntries = useMemo(() => {
+    if (!referenceFace.file || !referenceFace.isLoaded) {
+      return [] as RigNodeData[];
+    }
+    const referenceByPath = new Map<string, StandardRigInput>();
+    referenceRigEntries.forEach((entry) => {
+      const normalized = entry.normalizedPath
+        ? normalizeStandardRigInputPath(entry.normalizedPath)
+        : normalizeStandardRigInputPath(entry.input.path);
+      referenceByPath.set(normalized, entry.input);
+    });
+    const entries: RigNodeData[] = [];
+    mainFaceRigEntries.forEach((entry) => {
+      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+      const referenceInput = referenceByPath.get(normalizedPath);
+      if (!referenceInput) {
+        return;
+      }
+      entries.push({
+        input: entry.input,
+        source: "shared",
+        disabled: entry.disabled,
+        normalizedPath,
+        linkedMainInputId: entry.input.id,
+        linkedReferenceInputId: referenceInput.id,
+      });
+    });
+    return entries;
+  }, [
+    mainFaceRigEntries,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referenceRigEntries,
+  ]);
 
   const sourceCounts = useMemo(() => {
     const counts: Record<RigNodeSource, number> = {
@@ -324,13 +396,61 @@ export function VariablesPanel({
       preset: 0,
       custom: 0,
       reference: 0,
+      shared: 0,
     };
     mainFaceRigEntries.forEach((entry) => {
       counts[entry.source] += 1;
     });
     counts.reference = referenceRigEntries.length;
+    counts.shared = sharedRigEntries.length;
     return counts;
-  }, [mainFaceRigEntries, referenceRigEntries.length]);
+  }, [mainFaceRigEntries, referenceRigEntries.length, sharedRigEntries.length]);
+
+  const copyReferenceVariableToMain = (
+    referenceEntry: RigNodeData,
+    options?: { select?: boolean },
+  ): string | null => {
+    const select = options?.select ?? true;
+    if (referenceEntry.source !== "reference") {
+      return null;
+    }
+    if (referenceEntry.linkedMainInputId) {
+      if (select) {
+        onSelectRig?.(referenceEntry.linkedMainInputId);
+        onSelectPoseGroup?.(null);
+      }
+      return referenceEntry.linkedMainInputId;
+    }
+    const normalizedPath = referenceEntry.normalizedPath
+      ? normalizeStandardRigInputPath(referenceEntry.normalizedPath)
+      : normalizeStandardRigInputPath(referenceEntry.input.path);
+    const existing = standardInputsByPath.get(normalizedPath);
+    if (existing) {
+      if (select) {
+        onSelectRig?.(existing.id);
+        onSelectPoseGroup?.(null);
+      }
+      return existing.id;
+    }
+    const created = handleCreateCustomStandardInput(normalizedPath);
+    if (!created) {
+      return null;
+    }
+    handleUpdateStandardInput(created.id, {
+      label: referenceEntry.input.label,
+      defaultValue: referenceEntry.input.defaultValue,
+      range: {
+        min: referenceEntry.input.range.min,
+        max: referenceEntry.input.range.max,
+      },
+      sourceId: referenceEntry.input.sourceId ?? null,
+    });
+    if (select) {
+      onSelectRig?.(created.id);
+      onSelectPoseGroup?.(null);
+    }
+    return created.id;
+  };
 
   // Build Tree
   const rootNode = useMemo(() => {
@@ -343,6 +463,43 @@ export function VariablesPanel({
     };
 
     const hasReferenceFace = !!referenceFace.file;
+
+    // Shared variables root (when both faces expose the same path-backed input)
+    if (
+      hasReferenceFace &&
+      enabledSources.has("shared") &&
+      referenceFace.isLoaded
+    ) {
+      const sharedRoot: TreeNode = {
+        id: "shared",
+        label: "Shared",
+        type: "folder",
+        children: new Map(),
+        showChildren: true,
+      };
+      sharedRigEntries.forEach((entry) => {
+        const normalized = entry.normalizedPath
+          ? normalizeStandardRigInputPath(entry.normalizedPath)
+          : normalizeStandardRigInputPath(entry.input.path);
+        const pathParts = normalized.split("/").filter(Boolean);
+        let current = sharedRoot;
+        for (const part of pathParts) {
+          current = getOrCreateChild(current, part, part);
+        }
+        const key = `shared_${entry.input.id}`;
+        current.children.set(key, {
+          id: `${current.id}/${key}`,
+          label: entry.input.label || entry.input.id,
+          type: "rig",
+          children: new Map(),
+          showChildren: false,
+          data: entry,
+        });
+      });
+      if (sharedRoot.children.size > 0) {
+        root.children.set("shared", sharedRoot);
+      }
+    }
 
     // Helper to get the target root for main face items
     let targetRoot = root;
@@ -479,6 +636,7 @@ export function VariablesPanel({
     poses,
     enabledSources,
     mainFaceRigEntries,
+    sharedRigEntries,
     referenceRigEntries,
     referenceFace.isLoaded,
     referenceFace.isLoading,
@@ -606,6 +764,13 @@ export function VariablesPanel({
       applyPose(poseData.id);
       return;
     }
+    if (node.type === "rig" && action === "copy-to-main") {
+      const rigData = node.data as RigNodeData;
+      if (rigData.source === "reference") {
+        copyReferenceVariableToMain(rigData, { select: true });
+      }
+      return;
+    }
     if (node.type === "folder" && action === "inspect-pose-group") {
       openPoseGroupInspector(node);
     }
@@ -625,7 +790,15 @@ export function VariablesPanel({
       onSelectRig?.(null);
     } else if (node.type === "rig") {
       const rigData = node.data as RigNodeData;
-      onSelectRig?.(rigData.input.id);
+      if (rigData.source === "reference") {
+        if (rigData.linkedMainInputId) {
+          onSelectRig?.(rigData.linkedMainInputId);
+        } else {
+          onSelectRig?.(null);
+        }
+      } else {
+        onSelectRig?.(rigData.input.id);
+      }
       onSelectPoseGroup?.(null);
     } else if (
       node.type === "folder" &&
@@ -650,6 +823,23 @@ export function VariablesPanel({
     createPose();
   };
 
+  const handleCopyReferenceToMain = () => {
+    let firstCopied: string | null = null;
+    referenceRigEntries.forEach((entry) => {
+      if (entry.linkedMainInputId) {
+        return;
+      }
+      const copied = copyReferenceVariableToMain(entry, { select: false });
+      if (!firstCopied && copied) {
+        firstCopied = copied;
+      }
+    });
+    if (firstCopied) {
+      onSelectRig?.(firstCopied);
+      onSelectPoseGroup?.(null);
+    }
+  };
+
   const showCreateOption =
     search.trim().length > 0 &&
     !managedStandardInputs.some(
@@ -658,7 +848,14 @@ export function VariablesPanel({
 
   // Calculate total count
   const totalCount =
-    poses.length + mainFaceRigEntries.length + referenceRigEntries.length;
+    poses.length +
+    mainFaceRigEntries.length +
+    referenceRigEntries.length +
+    sharedRigEntries.length;
+
+  const uncopiedReferenceCount = referenceRigEntries.filter(
+    (entry) => !entry.linkedMainInputId,
+  ).length;
 
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -733,36 +930,54 @@ export function VariablesPanel({
               ["auto", "Auto"],
               ["preset", "Preset"],
               ["custom", "Custom"],
+              ...(referenceFace.file ? ([["shared", "Shared"]] as const) : []),
               ["reference", "Reference"],
             ] as Array<[RigNodeSource, string]>
-          ).map(([source, label]) => {
-            const isActive = enabledSources.has(source);
-            const count = sourceCounts[source];
-            return (
-              <button
-                key={source}
-                type="button"
-                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                  isActive
-                    ? "border-border-hover bg-bg-panel text-text-primary"
-                    : "border-border-default text-text-muted hover:text-text-primary"
-                }`}
-                onClick={() => {
-                  setEnabledSources((previous) => {
-                    const next = new Set(previous);
-                    if (next.has(source)) {
-                      next.delete(source);
-                    } else {
-                      next.add(source);
-                    }
-                    return next;
-                  });
-                }}
-              >
-                {label} ({count})
-              </button>
-            );
-          })}
+          )
+            .filter(([source]) =>
+              source === "reference" ? Boolean(referenceFace.file) : true,
+            )
+            .map(([source, label]) => {
+              const isActive = enabledSources.has(source);
+              const count = sourceCounts[source];
+              return (
+                <button
+                  key={source}
+                  type="button"
+                  className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                    isActive
+                      ? "border-border-hover bg-bg-panel text-text-primary"
+                      : "border-border-default text-text-muted hover:text-text-primary"
+                  }`}
+                  onClick={() => {
+                    setEnabledSources((previous) => {
+                      const next = new Set(previous);
+                      if (next.has(source)) {
+                        next.delete(source);
+                      } else {
+                        next.add(source);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  {label} ({count})
+                </button>
+              );
+            })}
+          {referenceFace.file && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+              onClick={handleCopyReferenceToMain}
+              disabled={uncopiedReferenceCount === 0}
+              title="Copy reference-only variables to main face"
+            >
+              <Copy size={11} />
+              Copy Ref ({uncopiedReferenceCount})
+            </Button>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">

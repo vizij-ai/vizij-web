@@ -6,6 +6,7 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -116,6 +117,10 @@ function AppContent({ loader }: AppContentProps) {
   const mainFaceHandleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
+  const mainFaceInputValues = useBindingAuthoring((state) => state.inputValues);
+  const mainFaceInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
 
   const referenceFaceContextValue = useReferenceFaceState(
     mainFaceHandleInputValueChange,
@@ -203,6 +208,58 @@ function AppContent({ loader }: AppContentProps) {
   });
 
   const { panels } = useWorkspaceStore();
+  const {
+    selectedRigId,
+    handleSelectObject,
+    handleSelectPose,
+    handleSelectRig,
+    handleClearSelection,
+  } = useUnifiedSelection();
+
+  // Shared-variable parity bridge:
+  // When a main-face variable is selected and a reference-face variable with the
+  // same normalized path exists, mirror the edited value into the reference face.
+  useEffect(() => {
+    if (!selectedRigId || !referenceFaceContextValue.isLoaded) {
+      return;
+    }
+    const mainInput = mainFaceInputsById.get(selectedRigId);
+    if (!mainInput?.path) {
+      return;
+    }
+    const normalizedPath = normalizeStandardRigInputPath(mainInput.path);
+    const matchingReferenceInput =
+      referenceFaceContextValue.standardInputs.find(
+        (input) => normalizeStandardRigInputPath(input.path) === normalizedPath,
+      );
+    if (!matchingReferenceInput) {
+      return;
+    }
+    const nextValue = mainFaceInputValues[selectedRigId];
+    if (typeof nextValue !== "number" || !Number.isFinite(nextValue)) {
+      return;
+    }
+    const currentReferenceValue =
+      referenceFaceContextValue.inputValues[matchingReferenceInput.id];
+    if (
+      typeof currentReferenceValue === "number" &&
+      Math.abs(currentReferenceValue - nextValue) < 1e-6
+    ) {
+      return;
+    }
+    referenceFaceContextValue.handleInputValueChange(
+      matchingReferenceInput.id,
+      nextValue,
+    );
+  }, [
+    selectedRigId,
+    mainFaceInputValues,
+    mainFaceInputsById,
+    referenceFaceContextValue.isLoaded,
+    referenceFaceContextValue.standardInputs,
+    referenceFaceContextValue.inputValues,
+    referenceFaceContextValue.handleInputValueChange,
+  ]);
 
   // Reference Face Import
   const refFaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -257,14 +314,6 @@ function AppContent({ loader }: AppContentProps) {
     skipNextDiscrepancyCheck.current = true;
     fileInputRef.current?.click();
   }, []);
-
-  const {
-    selectedRigId,
-    handleSelectObject,
-    handleSelectPose,
-    handleSelectRig,
-    handleClearSelection,
-  } = useUnifiedSelection();
 
   const menuBar = (
     <AppMenuBar
