@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   classifyPoseParentBindingEmptyState,
+  hasParentBindingInput,
   resolveRigDrivenSelection,
 } from "./inspectorActions";
 
@@ -101,5 +102,37 @@ describe("classifyPoseParentBindingEmptyState", () => {
 
   it("classifies unlinked state when no downstream links exist", () => {
     expect(classifyPoseParentBindingEmptyState(0, 0)).toBe("unlinked");
+  });
+});
+
+describe("hasParentBindingInput", () => {
+  it("returns true when binding.inputId matches parent input", () => {
+    expect(
+      hasParentBindingInput({ inputId: "jaw_open", slots: [] }, "jaw_open"),
+    ).toBe(true);
+  });
+
+  it("returns true when any binding slot matches parent input", () => {
+    expect(
+      hasParentBindingInput(
+        {
+          inputId: "fallback_input",
+          slots: [{ inputId: "brow_raise" }, { inputId: "jaw_open" }],
+        },
+        "jaw_open",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for null/empty bindings and non-matching parents", () => {
+    expect(hasParentBindingInput(null, "jaw_open")).toBe(false);
+    expect(hasParentBindingInput(undefined, "jaw_open")).toBe(false);
+    expect(hasParentBindingInput({ inputId: "smile" }, "jaw_open")).toBe(false);
+    expect(
+      hasParentBindingInput(
+        { slots: [{ inputId: "smile" }, { inputId: "brow_raise" }] },
+        "jaw_open",
+      ),
+    ).toBe(false);
   });
 });

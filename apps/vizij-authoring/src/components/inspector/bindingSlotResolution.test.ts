@@ -94,4 +94,31 @@ describe("resolveEffectiveBindingStandardInput", () => {
     expect(result.input).toBeNull();
     expect(result.unresolvedInputId).toBe("legacy_missing_input");
   });
+
+  it("returns unresolved id when normalized fallback is ambiguous", () => {
+    const first = createStandardRigInput({
+      id: "jaw_open_a",
+      path: "/Jaw/Open",
+      label: "Jaw Open A",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    });
+    const second = createStandardRigInput({
+      id: "jaw_open_b",
+      path: "/jaw/open",
+      label: "Jaw Open B",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    });
+    const result = resolveEffectiveBindingStandardInput(
+      { inputId: "/jaw/open" },
+      new Map(),
+      [first, second],
+    );
+    expect(result.inputId).toBe("/jaw/open");
+    expect(result.input).toBeNull();
+    expect(result.unresolvedInputId).toBe("/jaw/open");
+  });
 });

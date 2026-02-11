@@ -53,6 +53,7 @@ import {
 import { resolveSelectionTargetIds } from "./bindingSelection";
 import {
   classifyPoseParentBindingEmptyState,
+  hasParentBindingInput,
   resolveRigDrivenSelection,
 } from "./inspectorActions";
 
@@ -1473,6 +1474,18 @@ export function InspectorContent() {
         }
 
         if (resolvedSelection.kind === "variable") {
+          const existingBinding = inputBindings[resolvedSelection.childInputId];
+          const alreadyLinked = hasParentBindingInput(
+            existingBinding,
+            selectedRigId,
+          );
+          if (alreadyLinked) {
+            alertDialog(
+              "This variable is already driven by the selected rig variable.",
+            );
+            openRigInspector(resolvedSelection.childInputId, "bindings");
+            return;
+          }
           handleCreateParentDriverBinding(
             resolvedSelection.childInputId,
             selectedRigId,

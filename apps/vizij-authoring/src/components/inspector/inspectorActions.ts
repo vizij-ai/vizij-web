@@ -53,3 +53,31 @@ export function classifyPoseParentBindingEmptyState(
     ? "root"
     : "unlinked";
 }
+
+interface BindingSlotLike {
+  inputId?: string | null;
+}
+
+interface InputBindingLike {
+  inputId?: string | null;
+  slots?: BindingSlotLike[] | null;
+}
+
+export function hasParentBindingInput(
+  binding: InputBindingLike | null | undefined,
+  parentInputId: string,
+): boolean {
+  if (!binding || !parentInputId) {
+    return false;
+  }
+
+  if (binding.inputId === parentInputId) {
+    return true;
+  }
+
+  if (!Array.isArray(binding.slots)) {
+    return false;
+  }
+
+  return binding.slots.some((slot) => slot.inputId === parentInputId);
+}

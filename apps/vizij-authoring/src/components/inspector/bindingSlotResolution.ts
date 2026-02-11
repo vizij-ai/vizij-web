@@ -73,14 +73,17 @@ export function resolveEffectiveBindingStandardInput(
   }
 
   const normalizedId = normalizeInputIdentifier(inputId);
+  const normalizedMatches = standardInputs.filter(
+    (candidate) =>
+      normalizeInputIdentifier(candidate.id) === normalizedId ||
+      normalizeInputIdentifier(candidate.path) === normalizedId,
+  );
+  const uniqueMatchIds = new Set(normalizedMatches.map((entry) => entry.id));
   const fallback =
-    standardInputs.find(
-      (candidate) => normalizeInputIdentifier(candidate.id) === normalizedId,
-    ) ??
-    standardInputs.find(
-      (candidate) => normalizeInputIdentifier(candidate.path) === normalizedId,
-    ) ??
-    null;
+    uniqueMatchIds.size === 1
+      ? (normalizedMatches.find((entry) => uniqueMatchIds.has(entry.id)) ??
+        null)
+      : null;
 
   return {
     inputId: fallback?.id ?? inputId,
