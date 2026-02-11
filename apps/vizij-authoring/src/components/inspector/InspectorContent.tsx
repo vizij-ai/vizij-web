@@ -339,13 +339,17 @@ export function InspectorContent() {
     }
     pendingChainNavigationRef.current = null;
     setInspectorChainPath((current) => {
+      if (current.length === 0) {
+        return [currentInspectorChainNode];
+      }
+      const lastEntry = current[current.length - 1];
       if (
-        current.length === 1 &&
-        current[0].mode === currentInspectorChainNode.mode &&
-        current[0].id === currentInspectorChainNode.id &&
-        current[0].view === currentInspectorChainNode.view
+        lastEntry.mode === currentInspectorChainNode.mode &&
+        lastEntry.id === currentInspectorChainNode.id
       ) {
-        return current;
+        const next = [...current];
+        next[next.length - 1] = currentInspectorChainNode;
+        return next;
       }
       return [currentInspectorChainNode];
     });
