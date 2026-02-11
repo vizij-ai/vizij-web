@@ -1381,44 +1381,40 @@ function VizijRuntimeProviderInner({
       });
     };
 
+    const graphConfigs: GraphRegistrationConfig[] = [];
+    rigInputMapRef.current = {};
+
     const rigAsset = assetBundle.rig;
-    if (!rigAsset) {
-      pushError({
-        message: "Asset bundle is missing a rig graph.",
-        phase: "registration",
-        timestamp: performance.now(),
-      });
-      return;
+    if (rigAsset) {
+      const rigSpec = resolveGraphSpec(
+        rigAsset,
+        `${rigAsset.id ?? "rig"} graph`,
+      );
+      if (!rigSpec) {
+        pushError({
+          message: "Rig graph is missing a usable spec or IR payload.",
+          phase: "registration",
+          timestamp: performance.now(),
+        });
+      } else {
+        // Avoid logging here; browsers building DTS don't have `process` types.
+        const rigOutputs = collectOutputPaths(rigSpec);
+        const rigInputs = collectInputPaths(rigSpec);
+        rigInputMapRef.current = collectInputPathMap(rigSpec);
+        recordOutputs(rigOutputs);
+
+        const rigSubs = rigAsset.subscriptions ?? {
+          inputs: rigInputs,
+          outputs: rigOutputs,
+        };
+
+        graphConfigs.push({
+          id: namespaceControllerId(rigAsset.id, namespace, "graph"),
+          spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
+          subs: namespaceSubscriptions(rigSubs, namespace),
+        });
+      }
     }
-
-    const rigSpec = resolveGraphSpec(rigAsset, `${rigAsset.id ?? "rig"} graph`);
-    if (!rigSpec) {
-      pushError({
-        message: "Rig graph is missing a usable spec or IR payload.",
-        phase: "registration",
-        timestamp: performance.now(),
-      });
-      return;
-    }
-    // Avoid logging here; browsers building DTS don't have `process` types.
-
-    const rigOutputs = collectOutputPaths(rigSpec);
-    const rigInputs = collectInputPaths(rigSpec);
-    rigInputMapRef.current = collectInputPathMap(rigSpec);
-    recordOutputs(rigOutputs);
-
-    const rigSubs = rigAsset.subscriptions ?? {
-      inputs: rigInputs,
-      outputs: rigOutputs,
-    };
-
-    const graphConfigs: GraphRegistrationConfig[] = [
-      {
-        id: namespaceControllerId(rigAsset.id, namespace, "graph"),
-        spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
-        subs: namespaceSubscriptions(rigSubs, namespace),
-      },
-    ];
 
     const poseGraphAsset = assetBundle.pose?.graph;
     if (poseGraphAsset) {
@@ -2029,11 +2025,34 @@ function VizijRuntimeProviderInner({
 
   const setGraphBundle = useCallback(
     (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
+      const hasRigOverride = Object.prototype.hasOwnProperty.call(
+        bundle,
+        "rig",
+      );
+      const hasPoseOverride = Object.prototype.hasOwnProperty.call(
+        bundle,
+        "pose",
+      );
       const nextAssetBundle: VizijAssetBundle = {
         ...effectiveAssetBundle,
-        rig: bundle.rig ?? effectiveAssetBundle.rig,
-        pose: bundle.pose ?? effectiveAssetBundle.pose,
       };
+
+      if (hasRigOverride) {
+        if (bundle.rig) {
+          nextAssetBundle.rig = bundle.rig;
+        } else {
+          delete nextAssetBundle.rig;
+        }
+      }
+
+      if (hasPoseOverride) {
+        if (bundle.pose) {
+          nextAssetBundle.pose = bundle.pose;
+        } else {
+          delete nextAssetBundle.pose;
+        }
+      }
+
       const plan = resolveRuntimeUpdatePlan(
         previousBundleRef.current,
         nextAssetBundle,

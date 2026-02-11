@@ -84,4 +84,24 @@ describe("resolveRuntimeUpdatePlan", () => {
     expect(plan.reloadAssets).toBe(false);
     expect(plan.reregisterGraphs).toBe(true);
   });
+
+  it("treats rig removal as graph re-registration in graphs mode", () => {
+    const prev = makeBundle();
+    const next = makeBundle({
+      rig: undefined,
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(true);
+  });
+
+  it("treats pose removal as graph re-registration in graphs mode", () => {
+    const prev = makeBundle();
+    const next = makeBundle({
+      pose: undefined,
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(true);
+  });
 });

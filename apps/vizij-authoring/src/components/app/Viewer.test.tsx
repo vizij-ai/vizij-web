@@ -172,4 +172,71 @@ describe("Viewer", () => {
 
     expect(setGraphBundleSpy).toHaveBeenCalled();
   });
+
+  it("emits add/update/remove graph bundle transitions", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          config: { version: 1, neutralInputs: {}, poses: [] },
+        },
+      },
+      { tier: "graphs" },
+    );
+
+    act(() => {
+      store.setState({
+        poseGraphSpec: undefined,
+        poseConfig: undefined,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: undefined,
+      },
+      { tier: "graphs" },
+    );
+
+    act(() => {
+      store.setState({
+        graphSpec: undefined,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: undefined,
+        pose: undefined,
+      },
+      { tier: "graphs" },
+    );
+  });
 });
