@@ -1337,23 +1337,50 @@ export function InspectorContent() {
                   (entry) => entry.input,
                 );
                 if (!bindingToEdit) {
+                  const drivenVariableCount = collectDirectDownstreamRigInputs({
+                    selectedRigId: inputToEdit.id,
+                    inputBindings,
+                    standardInputsById,
+                  }).length;
+                  const drivenPropertyCount = collectRigDependents({
+                    selectedRigId: inputToEdit.id,
+                    bindings,
+                    inputBindings,
+                    objects,
+                  }).length;
+                  const hasDownstream =
+                    drivenVariableCount > 0 || drivenPropertyCount > 0;
                   return (
                     <EmptyState
                       icon={Sliders}
                       iconSize={20}
-                      title="No Parent Binding"
-                      description="Create a parent binding to map this pose-driven variable from upstream rig inputs."
+                      title={
+                        hasDownstream
+                          ? "Root Variable (No Parent Drivers)"
+                          : "No Parent Drivers (Currently Unlinked)"
+                      }
+                      description={
+                        hasDownstream
+                          ? "This pose-driven variable is currently a root input. Create a parent binding only if you want it remapped from upstream rig variables."
+                          : "This pose-driven variable has no parent drivers and no downstream outputs yet. Add downstream targets or create a parent binding to connect it."
+                      }
                       className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
                       action={
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() =>
-                            handleEnsureParentBinding(inputToEdit.id)
-                          }
-                        >
-                          Create Binding
-                        </Button>
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-[10px] text-text-muted font-mono">
+                            Downstream: {drivenVariableCount} vars ·{" "}
+                            {drivenPropertyCount} props
+                          </span>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              handleEnsureParentBinding(inputToEdit.id)
+                            }
+                          >
+                            Create Parent Binding
+                          </Button>
+                        </div>
                       }
                     />
                   );
