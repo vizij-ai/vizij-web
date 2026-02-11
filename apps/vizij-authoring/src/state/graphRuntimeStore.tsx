@@ -33,6 +33,7 @@ export interface GraphRuntimeState {
   values: Map<string, RawValue | undefined>;
   graphTimeSeconds: number;
   graphPlaybackState: GraphPlaybackState;
+  graphPlaybackAvailable: boolean;
   graphFrameRate: number;
   graphInsights: PersistedGraphInsight | null;
   graphMachineReport: MachineReport | null;
@@ -81,6 +82,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   values: new Map(),
   graphTimeSeconds: 0,
   graphPlaybackState: "paused",
+  graphPlaybackAvailable: false,
   graphFrameRate: 0,
   graphInsights: null,
   graphMachineReport: null,

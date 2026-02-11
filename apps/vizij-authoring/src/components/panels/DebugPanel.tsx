@@ -80,6 +80,9 @@ export function DebugPanel({
   const graphPlaybackState = useGraphRuntime(
     (state) => state.graphPlaybackState,
   );
+  const graphPlaybackAvailable = useGraphRuntime(
+    (state) => state.graphPlaybackAvailable,
+  );
   const playGraph = useGraphRuntime((state) => state.playGraph);
   const pauseGraph = useGraphRuntime((state) => state.pauseGraph);
   const stopGraph = useGraphRuntime((state) => state.stopGraph);
@@ -257,6 +260,9 @@ export function DebugPanel({
   }, [graphFrameRate]);
 
   const handleTogglePlayback = () => {
+    if (!graphPlaybackAvailable) {
+      return;
+    }
     if (graphPlaybackState === "playing") {
       pauseGraph();
     } else {
@@ -389,6 +395,12 @@ export function DebugPanel({
                       </div>
 
                       <div className="flex items-center gap-2 pt-1">
+                        {!graphPlaybackAvailable && (
+                          <div className="w-full rounded-md bg-bg-secondary/60 text-text-muted text-[11px] px-3 py-2 border border-border-default">
+                            Playback controls are disabled until runtime-backed
+                            transport actions are implemented.
+                          </div>
+                        )}
                         <Button
                           variant={
                             graphPlaybackState === "playing"
@@ -396,7 +408,9 @@ export function DebugPanel({
                               : "primary"
                           }
                           onClick={handleTogglePlayback}
-                          disabled={graphStatus !== "ready"}
+                          disabled={
+                            graphStatus !== "ready" || !graphPlaybackAvailable
+                          }
                           size="sm"
                           className="flex-1 h-9 font-bold"
                         >
@@ -415,7 +429,9 @@ export function DebugPanel({
                         <Button
                           variant="secondary"
                           onClick={stepGraph}
-                          disabled={graphStatus !== "ready"}
+                          disabled={
+                            graphStatus !== "ready" || !graphPlaybackAvailable
+                          }
                           size="sm"
                           className="h-9 px-4 font-medium"
                           title="Step Frame"
@@ -426,7 +442,9 @@ export function DebugPanel({
                         <Button
                           variant="danger"
                           onClick={stopGraph}
-                          disabled={graphStatus !== "ready"}
+                          disabled={
+                            graphStatus !== "ready" || !graphPlaybackAvailable
+                          }
                           size="sm"
                           className="h-9 px-4 font-medium"
                           title="Stop"

@@ -1397,6 +1397,7 @@ export function useRigController(
 
   const graphTimeSeconds = 0;
   const graphPlaybackState = "paused" as const;
+  const graphPlaybackAvailable = false;
   const graphFrameRate = 0;
   const playGraph = () => {};
   const pauseGraph = () => {};
@@ -1407,6 +1408,7 @@ export function useRigController(
     graphRuntimeStore.setState({
       graphTimeSeconds,
       graphPlaybackState,
+      graphPlaybackAvailable,
       graphFrameRate,
       playGraph,
       pauseGraph,
@@ -1415,6 +1417,7 @@ export function useRigController(
     });
   }, [
     graphFrameRate,
+    graphPlaybackAvailable,
     graphPlaybackState,
     graphRuntimeStore,
     graphTimeSeconds,
