@@ -83,6 +83,9 @@ type InspectorChainNode = {
 
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
+  const [rigAddMode, setRigAddMode] = useState<"property" | "variable">(
+    "property",
+  );
   const [blendAmount, setBlendAmount] = useState(0);
   const [sceneInspectorView, setSceneInspectorView] = useState<
     "quick" | "features" | "bindings"
@@ -164,6 +167,7 @@ export function InspectorContent() {
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
     handleParentResetBinding,
+    handleCreateParentDriverBinding,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
 
@@ -1423,6 +1427,15 @@ export function InspectorContent() {
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
+        if (selection.type === "variable") {
+          if (selection.id === selectedRigId) {
+            alertDialog("A variable cannot directly drive itself.");
+            return;
+          }
+          handleCreateParentDriverBinding(selection.id, selectedRigId);
+          openRigInspector(selection.id, "bindings");
+          return;
+        }
         if (selection.type === "property") {
           const targetIds = resolveSelectionTargetIds(selection, objects);
           if (targetIds.length === 0) {
@@ -1607,11 +1620,31 @@ export function InspectorContent() {
                   variant="ghost"
                   size="sm"
                   className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
-                  onClick={() => setShowSelector(true)}
+                  onClick={() => {
+                    setRigAddMode("property");
+                    setShowSelector(true);
+                  }}
                 >
                   <Plus
                     size={14}
                     className="group-hover:text-blue-400 transition-colors"
+                  />
+                  <span className="font-normal text-xs">
+                    Add Driven Property
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-1 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
+                  onClick={() => {
+                    setRigAddMode("variable");
+                    setShowSelector(true);
+                  }}
+                >
+                  <Plus
+                    size={14}
+                    className="group-hover:text-emerald-400 transition-colors"
                   />
                   <span className="font-normal text-xs">
                     Add Driven Variable
@@ -1620,13 +1653,19 @@ export function InspectorContent() {
                 <Modal
                   open={showSelector}
                   onClose={() => setShowSelector(false)}
-                  title="Select Property to Drive"
+                  title={
+                    rigAddMode === "property"
+                      ? "Select Property to Drive"
+                      : "Select Variable to Drive"
+                  }
                   maxWidth="md"
                 >
                   <VariableSelector
                     onSelect={handleAddRigDrivenVariable}
                     onCancel={() => setShowSelector(false)}
-                    defaultTab="scene"
+                    defaultTab={
+                      rigAddMode === "property" ? "scene" : "variables"
+                    }
                   />
                 </Modal>
                 <Modal
