@@ -124,27 +124,27 @@ Use this file for app-local implementation backlog only.
 - [x] Add test coverage for standard-input coverage panel + pose rig kind roundtrip.
 - [x] Expand required validation set beyond targeted suites.
 - [x] Promote compile/validate/apply states from debug-first presentation to primary authoring workflow feedback.
-- [ ] Standardize inspector terminology around relationship perspective (`what drives me` vs `what I drive`).
+- [x] Standardize inspector terminology around relationship perspective (`what drives me` vs `what I drive`).
       Context: current labels (`Binding Editor`, `Edit binding`, `Driving`) are inconsistent across scene/rig/pose, making chain intent ambiguous.
       Goal: inspector language should be perspective-first and consistent in all modes.
       Exit criteria: 1. tabs/buttons use one relationship vocabulary across scene/rig/pose. 2. variable/property relationship lists are explicitly labeled by type. 3. docs reflect the finalized terminology contract.
-- [ ] Split rig inspector add-driven actions into explicit property and variable flows.
+- [x] Split rig inspector add-driven actions into explicit property and variable flows.
       Context: `Add Driven Variable` currently opens scene-property picker and processes only property selections.
       Goal: remove label/behavior mismatch and support both authoring intents directly.
       Exit criteria: 1. separate actions for adding driven properties vs driven variables. 2. each action opens the matching picker context by default. 3. tests cover both paths.
-- [ ] Align quick-edit driver resolution with BindingEditor fallback logic for legacy/non-canonical input ids.
+- [x] Align quick-edit driver resolution with BindingEditor fallback logic for legacy/non-canonical input ids.
       Context: quick transform/material/morph strips can appear inert when slot input ids are legacy-normalized while BindingEditor still resolves them.
       Goal: quick-edit and BindingEditor resolve/edit the same effective driver ids.
       Exit criteria: 1. quick strips resolve normalized legacy ids deterministically. 2. unresolved slots show explicit inline reason. 3. Quori smoke case (`L_Eye` scale) is reproducibly functional.
-- [ ] Disambiguate pose binding modal states for root variables vs missing parent links.
+- [x] Disambiguate pose binding modal states for root variables vs missing parent links.
       Context: `No Parent Binding` currently conflates valid root variables and actual mapping gaps.
       Goal: make pose binding diagnostics actionable and semantically accurate.
       Exit criteria: 1. root/no-parent state is clearly labeled as valid when appropriate. 2. missing-link state exposes actionable fix CTA. 3. no false-error messaging for root pose-driven variables.
-- [ ] Add legacy pose-config import remap by normalized path/source-id before strict id pruning.
+- [x] Add legacy pose-config import remap by normalized path/source-id before strict id pruning.
       Context: pose config normalization currently prunes unknown ids by exact match only.
       Goal: preserve legacy pose values when logical inputs still exist under migrated ids.
       Exit criteria: 1. import attempts deterministic remap by normalized path/source id. 2. unresolved ids are reported in migration diagnostics. 3. tests cover remap success and unresolved reporting.
-- [ ] Add regression coverage for Quori smoke findings.
+- [x] Add regression coverage for Quori smoke findings.
       Context: recent behavior gaps were only found by manual smoke testing.
       Goal: lock in fixes for inspector intent clarity and slider reliability.
       Exit criteria: 1. tests cover rig add-driven dual actions. 2. tests cover quick-edit fallback id resolution. 3. tests cover pose root-vs-missing parent state and pose id remap.
@@ -181,7 +181,7 @@ Use this file for app-local implementation backlog only.
 
 - [ ] Inspector connected-variable list is too broad.
 - [ ] Pose sliders are inconsistent.
-- [ ] Some quick-edit transform sliders (notably scale on select legacy-loaded shapes) can appear inert despite binding editor showing a driver.
+- [x] Some quick-edit transform sliders (notably scale on select legacy-loaded shapes) can appear inert despite binding editor showing a driver.
 - [ ] Creating material without attached shape fails.
 - [ ] Selecting variable-to-drive can break hierarchy.
 - [ ] Reference face hierarchy not shown.

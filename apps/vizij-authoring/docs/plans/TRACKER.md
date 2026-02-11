@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-11 (P1 follow-up in progress)
+Last updated: 2026-02-11 (P1 follow-up completed)
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`
 
@@ -82,32 +82,25 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## P1 Follow-up Queue (Quori Smoke)
 
-1. P1-Q1 Terminology and relationship-perspective pass: `planned`
-   Scope:
-   - unify inspector naming around `what drives me` and `what I drive`.
-   - explicitly label variable-vs-property relationship groups in inspector lists.
-     Evidence:
-   - smoke report `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md`.
+1. P1-Q1 Terminology and relationship-perspective pass: `done`
+   Evidence:
+   - inspector labels standardized to perspective language in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx` and `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx`.
 
-2. P1-Q2 Rig inspector add-driven IA split (property vs variable): `planned`
-   Scope:
-   - replace current mismatched `Add Driven Variable` flow with separate explicit actions.
-     Evidence:
-   - current action opens property selection only in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+2. P1-Q2 Rig inspector add-driven IA split (property vs variable): `done`
+   Evidence:
+   - distinct `Add Driven Property` and `Add Driven Variable` flows in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - variable flow now guards duplicates and routes directly to the child variable binding editor.
 
-3. P1-Q3 Quick-edit slider reliability on legacy/non-canonical ids: `planned`
-   Scope:
-   - align quick section input-id resolution with binding-editor fallback behavior.
-   - investigate and lock down Quori `L_Eye` scale inert-control case.
-     Evidence:
-   - smoke report + quick-vs-binding resolution divergence in inspector components.
+3. P1-Q3 Quick-edit slider reliability on legacy/non-canonical ids: `done`
+   Evidence:
+   - effective-slot resolution shared across quick-edit sections via `apps/vizij-authoring/src/components/inspector/bindingSlotResolution.ts`.
+   - ambiguous normalized fallback now remains unresolved (instead of incorrectly selecting one candidate), with regression coverage in `apps/vizij-authoring/src/components/inspector/bindingSlotResolution.test.ts`.
 
-4. P1-Q4 Pose binding-state disambiguation + import id remap: `planned`
-   Scope:
-   - distinguish root variable no-parent state from missing-link errors.
-   - add normalized path/source-id pose import remap before pruning.
-     Evidence:
-   - strict id pruning in `apps/vizij-authoring/src/poseRig/services/poseConfigService.ts`.
+4. P1-Q4 Pose binding-state disambiguation + import id remap: `done`
+   Evidence:
+   - pose parent-binding modal now distinguishes root vs unlinked states in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - normalized/source-id remap path and collision warnings added in `apps/vizij-authoring/src/poseRig/services/poseConfigService.ts`.
+   - regression coverage in `apps/vizij-authoring/src/poseRig/services/poseConfigService.test.ts` and `apps/vizij-authoring/src/components/inspector/inspectorActions.test.ts`.
 
 ## Validation Health
 
@@ -115,11 +108,11 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. `pnpm --filter vizij-authoring typecheck`: `pass`.
 3. `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx src/components/inspector/rigConnections.test.ts src/components/inspector/VariableSelector.test.tsx src/hooks/__tests__/usePoseGraphImport.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/hooks/__tests__/graphRuntime.test.ts src/utils/graphDiff.test.ts`: `pass` (31 tests).
 4. Coverage status: `full app suite` via `vizij-authoring` validate run.
-5. `pnpm --filter vizij-authoring run validate`: `pass` (lint + typecheck + full Vitest run, 44 files / 172 tests).
+5. `pnpm --filter vizij-authoring run validate`: `pass` (lint + typecheck + full Vitest run, 45 files / 188 tests).
 
 ## Active Blockers
 
-1. No hard compile/runtime blockers. P1 is reopened for inspector/import UX correctness gaps from Quori smoke testing.
+1. No hard compile/runtime blockers. Quori smoke follow-up tranche is complete; remaining work is P2+ scope and any newly discovered smoke issues.
 
 ## Immediate Exit Criteria for Stabilization
 

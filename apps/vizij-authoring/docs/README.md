@@ -1,6 +1,6 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-11 (P1 follow-up in progress)
+Last updated: 2026-02-11 (P1 follow-up completed)
 
 This directory is the source of truth for authoring-app planning and analysis.
 
