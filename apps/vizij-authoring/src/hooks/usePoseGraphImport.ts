@@ -54,6 +54,17 @@ function extractPoseSlug(nodeId: string): string {
   return nodeId.replace(/^out_/, "");
 }
 
+export function resolvePoseGraphSourceInputId(
+  row: Pick<PoseGraphRemapRow, "currentInputId" | "poseSlug">,
+): string | null {
+  const current = row.currentInputId?.trim();
+  if (current) {
+    return current;
+  }
+  const fallback = row.poseSlug?.trim();
+  return fallback && fallback.length > 0 ? fallback : null;
+}
+
 export function usePoseGraphImport({
   faceSegment,
   standardInputs,
@@ -94,6 +105,7 @@ export function usePoseGraphImport({
             return;
           }
           const poseSlug = extractPoseSlug(output.nodeId);
+          const currentInputId = output.inputId?.trim() || poseSlug || null;
           const normalizedPath = output.path
             ? normalizeGraphPath(output.path)
             : null;
@@ -110,6 +122,7 @@ export function usePoseGraphImport({
               originalPath: output.path,
               suggestedPath: canonicalInput.path,
               poseSlug,
+              currentInputId,
               status: "auto",
               reason: "Matched existing standard input",
             });
@@ -130,6 +143,7 @@ export function usePoseGraphImport({
               originalPath: output.path,
               suggestedPath: inferredInput.path,
               poseSlug,
+              currentInputId,
               status: "auto",
               reason: "Converted rig path to standard input",
             });
@@ -148,6 +162,7 @@ export function usePoseGraphImport({
             originalPath: output.path,
             suggestedPath: best?.path ?? inferred ?? null,
             poseSlug,
+            currentInputId,
             status: "review",
             needsReview: true,
             reason: output.path
@@ -191,9 +206,7 @@ export function usePoseGraphImport({
       if (!poseGraphRemap) {
         return;
       }
-      const combinedRows = [...poseGraphRemap.autoRows, ...rows].filter(
-        (row) => row.suggestedPath,
-      );
+      const combinedRows = rows.filter((row) => row.suggestedPath);
       const idRemaps: Array<{ fromId: string; toId: string }> = [];
       const assigned = new Map<string, string>();
       combinedRows.forEach((row) => {
@@ -203,14 +216,15 @@ export function usePoseGraphImport({
           const normalizedStandardPath =
             normalizeStandardRigInputPath(standardPath);
           const targetInput = standardInputsByPath.get(normalizedStandardPath);
+          const sourceInputId = resolvePoseGraphSourceInputId(row);
           if (
             targetInput &&
-            row.poseSlug &&
-            targetInput.id !== row.poseSlug &&
-            assigned.get(row.poseSlug) !== targetInput.id
+            sourceInputId &&
+            targetInput.id !== sourceInputId &&
+            assigned.get(sourceInputId) !== targetInput.id
           ) {
-            assigned.set(row.poseSlug, targetInput.id);
-            idRemaps.push({ fromId: row.poseSlug, toId: targetInput.id });
+            assigned.set(sourceInputId, targetInput.id);
+            idRemaps.push({ fromId: sourceInputId, toId: targetInput.id });
           }
           const rigPath = buildRigInputPath(faceSegment, standardPath);
           updatePoseGraphOutputPath(poseGraphRemap.spec, row.nodeId, rigPath);

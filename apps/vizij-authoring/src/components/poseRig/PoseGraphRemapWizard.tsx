@@ -16,6 +16,7 @@ export interface PoseGraphRemapRow {
   originalPath: string | null;
   suggestedPath: string | null;
   poseSlug?: string;
+  currentInputId?: string | null;
   status: "auto" | "review";
   reason?: string;
   needsReview?: boolean;
@@ -37,9 +38,19 @@ export function PoseGraphRemapWizard({
   onApply,
   onCancel,
 }: PoseGraphRemapWizardProps) {
+  const allRows = useMemo(
+    () =>
+      [...autoRows, ...rows].sort((a, b) => {
+        const nameA = (a.poseSlug ?? a.currentInputId ?? a.id).toLowerCase();
+        const nameB = (b.poseSlug ?? b.currentInputId ?? b.id).toLowerCase();
+        return nameA.localeCompare(nameB);
+      }),
+    [autoRows, rows],
+  );
+
   const [edits, setEdits] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
-    rows.forEach((row) => {
+    allRows.forEach((row) => {
       if (row.suggestedPath) {
         map[row.id] = row.suggestedPath;
       }
@@ -58,16 +69,10 @@ export function PoseGraphRemapWizard({
   );
 
   const canApply =
-    rows.length === 0 ||
-    rows.every((row) => Boolean((edits[row.id] ?? row.suggestedPath)?.trim()));
-
-  const orderedAutoRows = useMemo(() => {
-    return autoRows.slice().sort((a, b) => {
-      const nameA = (a.poseSlug ?? a.id).toLowerCase();
-      const nameB = (b.poseSlug ?? b.id).toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-  }, [autoRows]);
+    allRows.length === 0 ||
+    allRows.every((row) =>
+      Boolean((edits[row.id] ?? row.suggestedPath)?.trim()),
+    );
 
   return (
     <Modal
@@ -96,79 +101,31 @@ export function PoseGraphRemapWizard({
                 Remap Pose Outputs
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                {rows.length} output{rows.length === 1 ? "" : "s"} need a new
-                target · {autoRows.length} auto-matched
+                {allRows.length} output{allRows.length === 1 ? "" : "s"} ready
+                for inspection and retargeting
               </p>
             </div>
           </div>
         </header>
 
         <div className="space-y-8 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-          {orderedAutoRows.length > 0 && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-200">
-                  Auto-matched outputs
-                </h2>
-                <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-wider">
-                  {orderedAutoRows.length}
-                </span>
-              </div>
-              <p className="text-[13px] text-slate-400">
-                The following outputs already map to known standard inputs and
-                will be applied automatically.
-              </p>
-              <ul className="grid grid-cols-1 gap-2">
-                {orderedAutoRows.map((row) => (
-                  <li
-                    key={row.id}
-                    className="bg-slate-950/50 rounded-xl border border-white/5 p-3 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-200 min-w-[120px]">
-                        {row.poseSlug ?? row.id}
-                      </span>
-                      <svg
-                        className="w-4 h-4 text-slate-700"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M5 12h14m-7-7 7 7-7 7" />
-                      </svg>
-                      <code className="text-[11px] text-blue-400 font-mono">
-                        {row.suggestedPath ?? row.originalPath}
-                      </code>
-                    </div>
-                    {row.reason && (
-                      <span className="text-[10px] text-slate-500 italic">
-                        {row.reason}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           <section className="space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-slate-200">
-                  Needs review
+                  Pose outputs
                 </h2>
-                {rows.length > 0 && (
+                {allRows.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                    {rows.length}
+                    {allRows.length}
                   </span>
                 )}
               </div>
             </div>
 
-            {rows.length > 0 ? (
+            {allRows.length > 0 ? (
               <div className="space-y-3">
-                {rows.map((row) => (
+                {allRows.map((row) => (
                   <article
                     key={row.id}
                     className={cn(
@@ -182,6 +139,10 @@ export function PoseGraphRemapWizard({
                       <div className="space-y-1">
                         <p className="text-xs font-bold text-slate-200">
                           Pose {row.poseSlug ?? row.id}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          Variable:{" "}
+                          {row.currentInputId ?? row.poseSlug ?? "(unknown)"}
                         </p>
                         <code className="text-[11px] text-slate-500 font-mono">
                           {row.originalPath ?? "(missing path)"}
@@ -283,7 +244,7 @@ export function PoseGraphRemapWizard({
             className="h-10 px-8 font-bold text-xs"
             disabled={!canApply}
             onClick={() => {
-              const nextRows = rows.map((row) => ({
+              const nextRows = allRows.map((row) => ({
                 ...row,
                 suggestedPath:
                   edits[row.id]?.trim() || row.suggestedPath || null,
@@ -291,7 +252,7 @@ export function PoseGraphRemapWizard({
               void onApply(nextRows);
             }}
           >
-            {rows.length === 0 ? "Finish import" : "Apply mappings & finish"}
+            {allRows.length === 0 ? "Finish import" : "Apply mappings & finish"}
           </Button>
         </footer>
       </div>
