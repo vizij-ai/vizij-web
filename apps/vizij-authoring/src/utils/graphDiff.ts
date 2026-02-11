@@ -16,6 +16,59 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
+function isPrimitive(
+  value: unknown,
+): value is string | number | boolean | null | undefined {
+  return (
+    value === null ||
+    value === undefined ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, nested) => {
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) {
+      return nested;
+    }
+    return Object.fromEntries(
+      Object.entries(nested as Record<string, unknown>).sort(([a], [b]) =>
+        a.localeCompare(b),
+      ),
+    );
+  });
+}
+
+export function canonicalizeGraphComparable(value: unknown): unknown {
+  if (isPrimitive(value)) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const canonicalItems = value.map((entry) =>
+      canonicalizeGraphComparable(entry),
+    );
+    const sorted = [...canonicalItems].sort((a, b) =>
+      stableStringify(a).localeCompare(stableStringify(b)),
+    );
+    return sorted;
+  }
+
+  if (isPlainObject(value)) {
+    const next: Record<string, unknown> = {};
+    Object.keys(value)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((key) => {
+        next[key] = canonicalizeGraphComparable(value[key]);
+      });
+    return next;
+  }
+
+  return value;
+}
+
 function isIdentifiedList(value: unknown): value is Array<{
   id: string;
   [key: string]: unknown;

@@ -22,8 +22,25 @@ import type {
   DiscrepancyResolutionResult,
   GraphDiffResult,
 } from "../types/discrepancy";
-import { diffGraphSpecs } from "../utils/graphDiff";
+import {
+  canonicalizeGraphComparable,
+  diffGraphSpecs,
+} from "../utils/graphDiff";
 import { sanitizeFaceId } from "../utils/faceId";
+import type { GraphDiffEntry } from "../types/discrepancy";
+
+function isFaceRenameOnlyDiff(entry: GraphDiffEntry): boolean {
+  if (entry.category !== "identifiers" && entry.category !== "metadata") {
+    return false;
+  }
+  const lowerPath = entry.path.toLowerCase();
+  return (
+    lowerPath.includes("face") ||
+    lowerPath.includes("rig/") ||
+    lowerPath.includes("node_id") ||
+    lowerPath.includes(".id")
+  );
+}
 
 interface UseRigGraphImportOptions {
   faceId: string;
@@ -214,9 +231,13 @@ export function useRigGraphImport({
           normalizeGraphSpec(spec),
           normalizeGraphSpec(rebuiltSpec),
         ]);
+        const importedComparable =
+          canonicalizeGraphComparable(importedNormalized);
+        const rebuiltComparable =
+          canonicalizeGraphComparable(rebuiltNormalized);
 
-        const importedSignature = JSON.stringify(importedNormalized);
-        const rebuiltSignature = JSON.stringify(rebuiltNormalized);
+        const importedSignature = JSON.stringify(importedComparable);
+        const rebuiltSignature = JSON.stringify(rebuiltComparable);
         debugLog("import comparison", {
           importedFaceId,
           loadedFaceId: faceId,
@@ -249,10 +270,31 @@ export function useRigGraphImport({
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
 
         if (shouldOpenDiscrepancyWizard) {
+          const diffResult =
+            importedSignature === rebuiltSignature
+              ? { entries: [], limitReached: false }
+              : diffGraphSpecs(importedComparable, rebuiltComparable, {
+                  limit: 300,
+                });
+          const canAutoResolveFaceRename =
+            importedFaceId !== null &&
+            importedFaceId !== faceId &&
+            missingBlueprintPaths.length === 0 &&
+            diffResult.entries.length > 0 &&
+            diffResult.entries.every((entry: GraphDiffEntry) =>
+              isFaceRenameOnlyDiff(entry),
+            );
+          if (canAutoResolveFaceRename) {
+            discrepancyResult = {
+              accepted: true,
+              renameFaceId: importedFaceId,
+            };
+          }
+
           if (pendingReviewRef.current) {
             debugLog("discrepancy review already open – awaiting resolution");
             discrepancyResult = await pendingReviewRef.current;
-          } else {
+          } else if (!discrepancyResult) {
             const mismatchReasons = [
               "Slot aliases, expressions, and defaults are normalised during import.",
               "Identifier sanitisation may regenerate component or input ids.",
@@ -265,13 +307,6 @@ export function useRigGraphImport({
                   .join(", ")}.`,
               );
             }
-            const diffResult =
-              importedSignature === rebuiltSignature
-                ? { entries: [], limitReached: false }
-                : diffGraphSpecs(importedNormalized, rebuiltNormalized, {
-                    limit: 300,
-                  });
-
             pendingReviewRef.current = openDiscrepancyReview({
               faceId,
               importedFaceId: importedFaceId ?? null,
