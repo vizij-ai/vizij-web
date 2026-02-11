@@ -173,6 +173,7 @@ export function InspectorContent() {
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
     handleParentResetBinding,
+    handleEnableParentLocalControl,
     handleCreateParentDriverBinding,
     standardInputs,
     standardInputsById,
@@ -1626,9 +1627,19 @@ export function InspectorContent() {
                 )}
               />
               {!isDirectRigControlAvailable && directRigControlReason && (
-                <p className="text-[10px] text-amber-300/90 px-1 -mt-2">
-                  {directRigControlReason}
-                </p>
+                <div className="flex items-center justify-between gap-2 px-1 -mt-2">
+                  <p className="text-[10px] text-amber-300/90">
+                    {directRigControlReason}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-[10px] whitespace-nowrap"
+                    onClick={() => handleEnableParentLocalControl(input.id)}
+                  >
+                    Enable Local Control
+                  </Button>
+                </div>
               )}
               <div className="flex flex-col gap-2 flex-1 min-h-0">
                 <div className="flex items-center gap-2 px-1 py-1">

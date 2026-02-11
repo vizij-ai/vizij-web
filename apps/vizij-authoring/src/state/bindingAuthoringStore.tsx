@@ -118,6 +118,7 @@ export interface BindingAuthoringState {
     valueType: BindingValueType,
   ) => void;
   handleParentResetBinding: (targetId: string) => void;
+  handleEnableParentLocalControl: (targetId: string) => void;
   handleCloneStandardInputs: (
     inputIds: readonly string[],
     options?: { labelSuffix?: string; pathSuffix?: string },
@@ -218,6 +219,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleParentBindingSlotAliasChange: () => undefined,
   handleParentBindingSlotValueTypeChange: () => undefined,
   handleParentResetBinding: () => undefined,
+  handleEnableParentLocalControl: () => undefined,
   handleCloneStandardInputs: () => new Map(),
   handleUpdateFeatureLabel: () => undefined,
   setFeatureLabelOverrides: () => undefined,
