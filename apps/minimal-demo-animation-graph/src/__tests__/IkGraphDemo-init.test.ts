@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import { describe, it, expect, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterAll } from "vitest";
+import { act, render, waitFor } from "@testing-library/react";
 import { GraphProvider } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
@@ -75,6 +75,20 @@ function Probe({ onReady }: { onReady: (rt: any) => void }) {
   return null;
 }
 
+const originalConsoleError = console.error;
+const consoleErrorSpy = vi
+  .spyOn(console, "error")
+  .mockImplementation((msg, ...args) => {
+    if (typeof msg === "string" && msg.includes("not wrapped in act")) {
+      return;
+    }
+    originalConsoleError.call(console, msg as any, ...args);
+  });
+
+afterAll(() => {
+  consoleErrorSpy.mockRestore();
+});
+
 describe("Demo (animation-graph) init behavior with declarative seeds", () => {
   it("applies initialParams/initialInputs and resolves readiness", async () => {
     const spec = { nodes: [], edges: [] };
@@ -104,7 +118,9 @@ describe("Demo (animation-graph) init behavior with declarative seeds", () => {
     });
 
     // Await readiness
-    await runtimeRef.waitForGraphReady?.();
+    await act(async () => {
+      await runtimeRef.waitForGraphReady?.();
+    });
     await waitFor(() => {
       expect(Boolean(runtimeRef.graphLoaded)).toBe(true);
     });
