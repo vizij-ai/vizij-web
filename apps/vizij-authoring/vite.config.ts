@@ -17,7 +17,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   assetsInclude: ["**/*.glb"],
   resolve: {
-    dedupe: ["react", "react-dom"],
+    dedupe: ["react", "react-dom", "three"],
     alias: {
       "@vizij/node-graph-authoring": path.resolve(
         workspaceRoot,
@@ -79,5 +79,6 @@ export default defineConfig({
   test: {
     pool: "threads",
     environment: "jsdom",
+    setupFiles: ["./src/test/setupVitest.ts"],
   },
 });

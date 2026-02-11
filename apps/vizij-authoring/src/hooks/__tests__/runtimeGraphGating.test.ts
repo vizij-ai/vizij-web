@@ -1,9 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { BuildGraphResult } from "@vizij/node-graph-authoring";
 import { resolveRuntimeGraphSpec } from "../runtimeGraphSpec";
 
 describe("resolveRuntimeGraphSpec", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
   const legacySpec: GraphSpec = {
     nodes: [{ id: "legacy", type: "input", params: { path: "rig/face/x" } }],
   };
@@ -67,5 +77,9 @@ describe("resolveRuntimeGraphSpec", () => {
     expect(result.runtimeSpec?.source).toBe("legacy");
     expect(result.blocked).toBe(false);
     expect(result.warning).toMatch(/legacy spec/i);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[vizij-authoring] IR runtime compile reported issues",
+      expect.any(Array),
+    );
   });
 });
