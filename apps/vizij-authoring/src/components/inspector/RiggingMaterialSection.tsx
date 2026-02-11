@@ -12,6 +12,7 @@ import { Select, Button } from "../ui";
 import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -184,8 +185,9 @@ export function RiggingScalarRow({
 
   if (targetId) {
     const binding = bindings[targetId];
-    if (binding?.slots?.[0]?.inputId) {
-      inputId = binding.slots[0].inputId;
+    const resolvedInputId = resolveEffectiveBindingInputId(binding);
+    if (resolvedInputId) {
+      inputId = resolvedInputId;
       standardInput = standardInputsById.get(inputId);
     }
   }
@@ -287,8 +289,9 @@ export function RiggingColorRow({
 
     if (targetId) {
       const binding = bindings[targetId];
-      if (binding?.slots?.[0]?.inputId) {
-        inputId = binding.slots[0].inputId;
+      const resolvedInputId = resolveEffectiveBindingInputId(binding);
+      if (resolvedInputId) {
+        inputId = resolvedInputId;
         standardInput = standardInputsById.get(inputId);
       }
     }

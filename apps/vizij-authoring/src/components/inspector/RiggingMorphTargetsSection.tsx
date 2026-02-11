@@ -6,6 +6,7 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -101,8 +102,9 @@ function RiggingScalarRow({
 
   if (targetId) {
     const binding = bindings[targetId];
-    if (binding?.slots?.[0]?.inputId) {
-      inputId = binding.slots[0].inputId;
+    const resolvedInputId = resolveEffectiveBindingInputId(binding);
+    if (resolvedInputId) {
+      inputId = resolvedInputId;
       standardInput = standardInputsById.get(inputId);
     }
   }

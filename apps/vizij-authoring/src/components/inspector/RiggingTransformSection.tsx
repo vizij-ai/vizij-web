@@ -7,6 +7,7 @@ import type {
 } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -125,8 +126,9 @@ function RiggingVectorRow({
 
       if (targetId) {
         const binding = bindings[targetId];
-        if (binding?.slots?.[0]?.inputId) {
-          inputId = binding.slots[0].inputId;
+        const resolvedInputId = resolveEffectiveBindingInputId(binding);
+        if (resolvedInputId) {
+          inputId = resolvedInputId;
           standardInput = standardInputsById.get(inputId);
         }
       }
