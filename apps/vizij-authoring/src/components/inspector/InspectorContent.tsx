@@ -16,6 +16,7 @@ import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
+import { Switch } from "../ui/Switch";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -75,6 +76,7 @@ export function InspectorContent() {
     materials,
     updateMaterialLabel,
     setAnimatableValue,
+    setFeatureAnimated,
   } = useSceneComposer();
 
   const {
@@ -155,6 +157,34 @@ export function InspectorContent() {
           </div>
           {sceneInspectorView === "quick" ? (
             <>
+              <div className="flex flex-col gap-1 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50">
+                <div className="text-[9px] font-bold text-text-secondary uppercase tracking-wider px-0.5">
+                  Animation State
+                </div>
+                <div className="flex flex-col gap-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+                  {node.features.map((feature) => (
+                    <div
+                      key={feature.id}
+                      className="flex items-center justify-between gap-2 px-1.5 py-1 rounded bg-bg-panel/30 border border-border-default/40"
+                    >
+                      <span className="text-[11px] text-text-primary truncate">
+                        {feature.label}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[9px] uppercase tracking-wide text-text-muted">
+                          {feature.animated ? "Animated" : "Static"}
+                        </span>
+                        <Switch
+                          checked={feature.animated}
+                          onChange={(checked) =>
+                            setFeatureAnimated(node.id, feature.id, checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <RiggingTransformSection node={node} />
               <RiggingMorphTargetsSection node={node} />
               <RiggingMaterialSection node={node} />
