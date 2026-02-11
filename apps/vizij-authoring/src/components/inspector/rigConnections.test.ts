@@ -170,6 +170,7 @@ describe("buildPoseRigFaceTrace", () => {
     });
     expect(trace.targets[0].matchedPoseOutputs).toHaveLength(1);
     expect(trace.unmatchedPoseOutputs).toEqual([]);
+    expect(trace.suggestedFixes).toEqual([]);
   });
 
   it("reports unmatched pose outputs as diagnostics", () => {
@@ -197,6 +198,88 @@ describe("buildPoseRigFaceTrace", () => {
 
     expect(trace.targets).toEqual([]);
     expect(trace.unmatchedPoseOutputs).toHaveLength(1);
+    expect(trace.suggestedFixes).toEqual([]);
     expect(trace.diagnostics.join(" ")).toMatch(/not mapped/i);
+  });
+
+  it("suggests parent-binding links for valid but disconnected pose outputs", () => {
+    const bindings: BindingMap = {
+      "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
+      },
+    };
+    const inputBindings: InputBindingMap = {};
+    const objects = [
+      createSceneNode("face_mesh", ["anim://mouth/open"], "Face Mesh"),
+    ];
+
+    const trace = buildPoseRigFaceTrace({
+      node: objects[0],
+      objects,
+      bindings,
+      inputBindings,
+      poses: [
+        {
+          id: "pose_1",
+          name: "Jaw Open Pose",
+          values: { "rig/parent/jaw_open": 0.9 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      neutralInputs: { "rig/parent/jaw_open": 0 },
+      standardInputsById,
+    });
+
+    expect(
+      trace.suggestedFixes.some((fix) => fix.kind === "link-parent-binding"),
+    ).toBe(true);
+  });
+
+  it("suggests output retargeting for unknown legacy pose input ids", () => {
+    const bindings: BindingMap = {
+      "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
+      },
+    };
+    const inputBindings: InputBindingMap = {
+      "rig/child/mouth_open": {
+        targetId: "rig/child/mouth_open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+    };
+    const objects = [
+      createSceneNode("face_mesh", ["anim://mouth/open"], "Face Mesh"),
+    ];
+
+    const trace = buildPoseRigFaceTrace({
+      node: objects[0],
+      objects,
+      bindings,
+      inputBindings,
+      poses: [
+        {
+          id: "pose_1",
+          name: "Legacy Pose",
+          values: { "legacy/jaw/open": 0.9 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      neutralInputs: { "legacy/jaw/open": 0 },
+      standardInputsById,
+    });
+
+    expect(
+      trace.suggestedFixes.some((fix) => fix.kind === "retarget-pose-output"),
+    ).toBe(true);
   });
 });

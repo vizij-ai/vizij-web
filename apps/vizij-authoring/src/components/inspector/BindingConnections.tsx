@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Link as LinkIcon, Box, Sparkles, Route } from "lucide-react";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
@@ -9,7 +9,10 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button } from "../ui";
-import { buildPoseRigFaceTrace } from "./rigConnections";
+import {
+  buildPoseRigFaceTrace,
+  type PoseRigTraceSuggestion,
+} from "./rigConnections";
 
 interface BindingConnectionsProps {
   node: SceneObjectNode;
@@ -22,8 +25,11 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
   );
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const handleCreateParentDriverBinding = useBindingAuthoring(
+    (state) => state.handleCreateParentDriverBinding,
+  );
 
-  const { selectPose } = usePoseRig();
+  const { selectPose, updatePoseValue, removePoseInput } = usePoseRig();
   const poses = usePoseRigStore((state) => state.poses);
   const neutralInputs = usePoseRigStore((state) => state.neutralInputs);
 
@@ -124,11 +130,52 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
     ],
   );
 
+  const applyTraceSuggestion = useCallback(
+    (suggestion: PoseRigTraceSuggestion) => {
+      if (suggestion.kind === "link-parent-binding") {
+        handleCreateParentDriverBinding(
+          suggestion.childInputId,
+          suggestion.upstreamInputId,
+        );
+        handleSelectRig(suggestion.childInputId);
+        handleClearSelection();
+        return;
+      }
+
+      const pose = poses.find((entry) => entry.id === suggestion.poseId);
+      if (!pose) {
+        return;
+      }
+      const currentValue = pose.values[suggestion.fromInputId];
+      if (currentValue === undefined) {
+        return;
+      }
+      const fromNeutral = neutralInputs[suggestion.fromInputId] ?? 0;
+      const toNeutral = neutralInputs[suggestion.toInputId] ?? 0;
+      const remappedValue = toNeutral + (currentValue - fromNeutral);
+      updatePoseValue(suggestion.poseId, suggestion.toInputId, remappedValue);
+      removePoseInput(suggestion.poseId, suggestion.fromInputId);
+      selectPose(suggestion.poseId);
+      handleClearSelection();
+    },
+    [
+      handleClearSelection,
+      handleCreateParentDriverBinding,
+      handleSelectRig,
+      neutralInputs,
+      poses,
+      removePoseInput,
+      selectPose,
+      updatePoseValue,
+    ],
+  );
+
   if (
     connections.rigs.length === 0 &&
     connections.poses.length === 0 &&
     trace.targets.length === 0 &&
-    trace.unmatchedPoseOutputs.length === 0
+    trace.unmatchedPoseOutputs.length === 0 &&
+    trace.suggestedFixes.length === 0
   )
     return null;
 
@@ -264,6 +311,43 @@ export function BindingConnections({ node }: BindingConnectionsProps) {
                     `${output.poseName} -> ${output.inputId}=${output.value.toFixed(3)}`,
                 )
                 .join("; ")}
+            </div>
+          </div>
+        )}
+
+        {trace.suggestedFixes.length > 0 && (
+          <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+            <div className="text-[9px] font-semibold text-emerald-300 uppercase tracking-wide">
+              Suggested Fixes
+            </div>
+            <div className="flex flex-col gap-1 mt-1">
+              {trace.suggestedFixes.map((suggestion) => (
+                <div
+                  key={suggestion.id}
+                  className="rounded border border-emerald-400/30 bg-slate-900/40 px-2 py-1.5"
+                >
+                  <div className="text-[9px] text-emerald-100 font-medium">
+                    {suggestion.kind === "link-parent-binding"
+                      ? `${suggestion.poseName}: link ${suggestion.upstreamInputId} -> ${suggestion.childInputId}`
+                      : `${suggestion.poseName}: retarget ${suggestion.fromInputId} -> ${suggestion.toInputId}`}
+                  </div>
+                  <div className="text-[9px] text-emerald-200/80 mt-0.5">
+                    {suggestion.reason} (
+                    {(suggestion.confidence * 100).toFixed(0)}
+                    %)
+                  </div>
+                  <div className="mt-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 text-[9px] px-2 bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-400/40 text-emerald-100"
+                      onClick={() => applyTraceSuggestion(suggestion)}
+                    >
+                      Apply Suggested Fix
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
