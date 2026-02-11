@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-11 (late)
+Last updated: 2026-02-11 (P1 complete)
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`
 
@@ -53,50 +53,46 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## P1 Focus Queue (Inspector Chain Authoring)
 
-1. P1-I1 Chain drill-down routing across inspector modes: `planned`
-   Scope: driven/connected rows must route to concrete inspector selections and support sequential traversal pose -> rig -> animatable and reverse.
-   Acceptance criteria: no reported relationship is non-navigable unless explicitly marked read-only.
+1. P1-I1 Chain drill-down routing across inspector modes: `done`
+   Evidence:
+   - chain navigation callbacks now route pose/rig/trace selections deterministically in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx` and `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - rig -> scene navigation now focuses the concrete target binding and opens binding view in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx` and `apps/vizij-authoring/src/components/inspector/FeatureList.tsx`.
 
-2. P1-I2 Binding-editor parity from pose/rig contexts: `planned`
-   Scope: expose BindingEditor-equivalent controls when entering from rig or pose workflows, and keep expression + slot edits consistent with animatable feature editor behavior.
-   Acceptance criteria: users can author binding details without switching to a different workbench as a required step.
+2. P1-I2 Binding-editor parity from pose/rig contexts: `done`
+   Evidence:
+   - pose mode now supports in-context binding editing modal for selected driven variables in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - rig mode now supports in-context editing for driven scene target bindings in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - scene/animatable context remains supported through `FeatureList` + `BindingEditor`.
 
-3. P1-I3 Chain context affordances (navigation memory): `planned`
-   Scope: preserve chain context while drilling through nodes and provide deterministic return path to prior chain nodes.
-   Acceptance criteria: authors can traverse and return without losing orientation.
+3. P1-I3 Chain context affordances (navigation memory): `done`
+   Evidence:
+   - breadcrumb chain path with jump-back behavior is now rendered in inspector modes and tracked in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
 
-4. P1-I4 Regression harness for chain authoring UX: `planned`
-   Scope: add targeted tests for click-through routing + binding parity surfaces.
-   Acceptance criteria: future inspector refactors fail fast when chain navigation/editing breaks.
+4. P1-I4 Regression harness for chain authoring UX: `done`
+   Evidence:
+   - inspector routing callbacks are covered by `apps/vizij-authoring/src/components/inspector/BindingConnections.test.tsx`.
+   - focused-slot resolution and quick-edit correctness are covered by `apps/vizij-authoring/src/components/inspector/bindingSlotResolution.test.ts`.
+   - coverage and pose rig kind roundtrip tests now exist in `apps/vizij-authoring/src/components/app/StandardInputCoveragePanel.test.tsx` and `apps/vizij-authoring/src/poseRig/services/poseConfigService.test.ts`.
 
-5. P1-I5 Inspector slider fidelity tranche (binding validity + quick-edit correctness): `in_progress`
-   Scope:
-   - prevent unsupported `self` slot states for animatable/component bindings.
-   - resolve quick-edit controls (transform/material/morph) against effective active slots, not only `slots[0]`.
-   - surface compile-time binding issues directly in active `BindingEditor` panels.
-     Acceptance criteria:
-   - no quick-edit slider appears interactive while targeting an unresolved/non-driving source without an explicit issue message.
-   - known "translation works, scale inert" repro class is either fixed or yields clear diagnostics tied to target binding issues.
+5. P1-I5 Inspector slider fidelity tranche (binding validity + quick-edit correctness): `done`
+   Evidence:
+   - unsupported component self-slot states are guarded/surfaced in `apps/vizij-authoring/src/components/binding/BindingEditor.tsx`.
+   - quick-edit sections use effective slot resolution in `apps/vizij-authoring/src/components/inspector/bindingSlotResolution.ts` and consuming inspector sections.
+   - compile-time binding issues now surface in scene + rig/pose editing paths via `issues` wiring in `apps/vizij-authoring/src/components/inspector/FeatureList.tsx` and `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
 
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
 2. `pnpm --filter vizij-authoring typecheck`: `pass`.
 3. `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx src/components/inspector/rigConnections.test.ts src/components/inspector/VariableSelector.test.tsx src/hooks/__tests__/usePoseGraphImport.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/hooks/__tests__/graphRuntime.test.ts src/utils/graphDiff.test.ts`: `pass` (31 tests).
-4. Coverage status: `targeted` (not full-suite confidence).
+4. Coverage status: `full app suite` via `vizij-authoring` validate run.
+5. `pnpm --filter vizij-authoring run validate`: `pass` (lint + typecheck + full Vitest run, 44 files / 172 tests).
 
 ## Active Blockers
 
-1. None identified in the 2026-02-11 P0 tranche after targeted validation.
-
-## Active Risks (P1)
-
-1. Component-level `Slider (self)` can be authored from UI while compile path treats it as unavailable in that context, producing inert sliders without obvious feedback.
-2. Multiple inspector quick-edit sections currently assume `slots[0]` is the active source, which can drift from expression-driving slots.
-3. Binding issues are computed in controller state but not shown in active inspector `BindingEditor` call sites.
+1. None identified after P1 closeout validation run.
 
 ## Immediate Exit Criteria for Stabilization
 
-1. Keep typecheck + targeted validation set green while P1 items are sequenced.
-2. Complete P1-I1 through P1-I4 for inspector chain authoring.
-3. Expand required validation set beyond targeted suites for broader confidence.
+1. Keep `pnpm --filter vizij-authoring run validate` green while moving into P2 scope.
+2. Preserve inspector chain parity/trace routing behavior via the new P1 regression tests.

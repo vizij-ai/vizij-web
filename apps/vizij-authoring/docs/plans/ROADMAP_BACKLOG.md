@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-11 (late)
+Last updated: 2026-02-11 (P1 complete)
 
 ## Priority Bands
 
@@ -34,23 +34,14 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-1. Primary focus: inspector chain traversal + binding parity across Pose/Rig/Animatable.
-   - make all connected/driven rows navigable to concrete inspector targets.
-   - support end-to-end click-through in both directions (pose -> rig -> animatable and reverse).
-   - expose binding-authoring parity from each context (slot wiring, aliases/value types, expression editing, normalize helpers).
-   - preserve user orientation with chain context affordances (for example breadcrumb/history pathing).
-2. Lock confidence with dedicated regression coverage for those workflows.
-   - route-selection tests for click-through behavior across inspector modes.
-   - editor-availability tests to ensure binding controls are not context-dependent regressions.
-3. Stabilize inspector slider fidelity so authored bindings are runtime-truthful in every panel.
-   - remove/guard unsupported component `self` binding states.
-   - unify quick-edit slot resolution (transform/material/morph) with effective binding semantics.
-   - surface compile-time binding diagnostics where users edit slot wiring.
-4. Expand required validation beyond targeted tests.
-5. Finish remaining non-chain Rigging <-> Posing integration tasks:
-   - quick toggles and focused filtering.
-   - coverage panel + rig kind roundtrip tests.
-6. Promote compile/validate/apply visibility from debug-first tooling into normal workflow.
+Status (2026-02-11): complete in current branch.
+
+1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
+2. Done: routing-contract and chain regression coverage additions.
+3. Done: inspector slider fidelity fixes (self-slot guard, active-slot quick edit, issue surfacing).
+4. Done: expanded app-level validation path (`vizij-authoring` `validate` script).
+5. Done: standard-input coverage panel + pose rig kind roundtrip tests.
+6. Done: compile/validate/apply signals promoted into primary inspector workflow.
 
 ### P2 (architecture and scale-readiness)
 

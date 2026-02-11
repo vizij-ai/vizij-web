@@ -36,4 +36,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-11)
 
-Stabilization and hardening after runtime-react main-face migration: close type/test regressions, align docs to reality, then continue remaining authoring and runtime milestones.
+P0 and P1 stabilization complete in current branch. Focus shifts to P2 architecture/scale-readiness while preserving full `vizij-authoring` validate green status.

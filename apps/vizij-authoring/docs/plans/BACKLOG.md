@@ -89,41 +89,41 @@ Use this file for app-local implementation backlog only.
 
 ## P1 (next up)
 
-- [ ] Make inspector chain traversal first-class across Pose -> Rig -> Animatable.
+- [x] Make inspector chain traversal first-class across Pose -> Rig -> Animatable.
       Context: authors can inspect "driven" relationships but cannot reliably click through each link in the chain and continue authoring from that next node.
       Goal: every chain list row behaves like navigable graph topology, so users can drill from high-level pose outputs down to final animatable leaves.
       Exit criteria: 1. Clicking a pose-driven rig row opens Rig inspector for that exact input id. 2. Clicking a rig-driven property row opens Scene inspector for the bound animatable target. 3. Clicking connected pose rows from scene/animatable context opens Pose inspector and preserves chain context. 4. The flow works bidirectionally (pose -> rig -> animatable and animatable -> rig -> pose) without dead ends.
-- [ ] Add explicit selection-routing contracts for all inspector "connected/driven" surfaces.
+- [x] Add explicit selection-routing contracts for all inspector "connected/driven" surfaces.
       Context: current routing behavior differs by panel (some select, some summarize only), which breaks mental model continuity.
       Goal: all chain-surfacing UI uses one deterministic selection/routing contract.
       Exit criteria: 1. Every connected/driven list item is either explicitly actionable or explicitly marked read-only. 2. Actionable rows route to a concrete inspector mode + selected entity id. 3. No list reports a relationship that cannot be navigated to in the editor.
-- [ ] Restore binding-authoring parity for Rig and Pose inspector contexts.
+- [x] Restore binding-authoring parity for Rig and Pose inspector contexts.
       Context: `BindingEditor` capabilities are strongest in animatable/feature contexts; rig/pose contexts still rely on partial controls and indirection.
       Goal: regardless of entry point (pose, rig, animatable), users can inspect and edit slot wiring/expression semantics for the selected relationship.
       Exit criteria: 1. Rig context exposes equivalent binding controls (slot add/remove, alias/value-type, expression edit, normalize helpers) for its driven targets. 2. Pose context exposes equivalent binding controls for pose-output-to-rig mappings (including retarget/edit without leaving pose workflow). 3. Edits made from rig/pose contexts are reflected immediately in animatable inspector surfaces and trace diagnostics.
-- [ ] Add chain-context affordances in inspector (breadcrumbs/return path/history).
+- [x] Add chain-context affordances in inspector (breadcrumbs/return path/history).
       Context: after clicking through multiple chain hops, users lose context about where they came from and what upstream/downstream relationships remain.
       Goal: maintain orientation while traversing graph chains in authoring sessions.
       Exit criteria: 1. Inspector shows current chain path (for example `Pose > Rig Input > Animatable Leaf`) or equivalent context indicator. 2. User can jump back to prior node(s) without re-searching in Variables panel. 3. Context is cleared/reset predictably when selection is manually changed outside chain navigation.
-- [ ] Add regression tests for inspector chain navigation + binding parity workflows.
+- [x] Add regression tests for inspector chain navigation + binding parity workflows.
       Context: recent fixes caught behavior gaps only during deep manual review.
       Goal: lock in click-through + binding-edit expectations before broader P1/P2 work.
       Exit criteria: 1. Tests cover pose->rig->animatable click-through routing. 2. Tests cover rig->pose back-navigation from connected lists. 3. Tests cover binding editor availability and updates from each inspector context.
-- [ ] Prevent inert "self" bindings on animatable leaf targets.
+- [x] Prevent inert "self" bindings on animatable leaf targets.
       Context: binding UI currently allows `Slider (self)` for leaf/component bindings, but graph compilation only supports `self` for parent/input bindings; component self resolves to "Self reference unavailable for this input." and silently falls back.
       Goal: remove invalid authoring states by context-gating self options and/or adding explicit component-self semantics.
       Exit criteria: 1. Component/animatable binding rows cannot land in unsupported self states without explicit warning. 2. Existing unsupported self states are surfaced as actionable diagnostics and migration fixups. 3. Slider interactions always map to an actual runtime-driven input for the edited target.
-- [ ] Fix inspector quick-edit driver resolution to use active slot (not hard-coded slot[0]).
+- [x] Fix inspector quick-edit driver resolution to use active slot (not hard-coded slot[0]).
       Context: transform/material/morph quick-edit sections currently read only `binding.slots[0].inputId`, so multi-slot or legacy-normalized bindings can appear unbound or edit the wrong driver.
       Goal: resolve the effective slot deterministically (first valid non-self bound slot, with explicit handling for read-only/self cases) across all quick-edit sections.
       Exit criteria: 1. Transform/material/morph rows display/edit the same effective driver as binding evaluation. 2. Multi-slot bindings remain editable from quick-edit rows. 3. Regression tests cover slot ordering and self-slot edge cases.
-- [ ] Surface compile-time binding diagnostics directly inside active inspector editors.
+- [x] Surface compile-time binding diagnostics directly inside active inspector editors.
       Context: `BindingEditor` supports `issues`, but inspector call sites do not pass graph-build issues, so invalid bindings look editable but inert.
       Goal: always show target/slot diagnostic messages (missing inputs, unsupported self, unresolved expression vars) where users author bindings.
       Exit criteria: 1. Scene and parent/input `BindingEditor` instances render graph issues for the selected target. 2. Inert slider states always include a visible reason. 3. Tests cover at least one unsupported-self and one missing-input scenario.
-- [ ] Add test coverage for standard-input coverage panel + pose rig kind roundtrip.
-- [ ] Expand required validation set beyond targeted suites.
-- [ ] Promote compile/validate/apply states from debug-first presentation to primary authoring workflow feedback.
+- [x] Add test coverage for standard-input coverage panel + pose rig kind roundtrip.
+- [x] Expand required validation set beyond targeted suites.
+- [x] Promote compile/validate/apply states from debug-first presentation to primary authoring workflow feedback.
 
 ## P2 (architecture and scale-readiness)
 
@@ -161,9 +161,9 @@ Use this file for app-local implementation backlog only.
 - [ ] Selecting variable-to-drive can break hierarchy.
 - [ ] Reference face hierarchy not shown.
 - [ ] Self rigs should be hidden/locked.
-- [ ] Some binding-editor sliders appear non-functional for specific leaves (commonly scale) when slot/input resolution is invalid or unsupported.
-- [ ] Quick-edit sections (transform/material/morph) may show stale/non-editable drivers because they assume slot index `0` is always the active source.
-- [ ] Binding compile issues are not surfaced in active editor panels, making broken slot/expression states hard to distinguish from runtime bugs.
+- [x] Some binding-editor sliders appear non-functional for specific leaves (commonly scale) when slot/input resolution is invalid or unsupported.
+- [x] Quick-edit sections (transform/material/morph) may show stale/non-editable drivers because they assume slot index `0` is always the active source.
+- [x] Binding compile issues are not surfaced in active editor panels, making broken slot/expression states hard to distinguish from runtime bugs.
 
 ## UI Polish Backlog
 
