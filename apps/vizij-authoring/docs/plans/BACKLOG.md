@@ -12,6 +12,30 @@ Use this file for app-local implementation backlog only.
 
 ## P0 (must address first)
 
+- [ ] Fix runtime graph bundle clear semantics to avoid stale graph controllers.
+      Context: when rig/pose graphs are removed or become invalid, viewer bridge sends `undefined`, but runtime bundle merge keeps prior graph values.
+      Goal: clearing graph payloads must unregister corresponding runtime graphs so stale controls do not keep running.
+      Exit criteria: graph/pose removal path clears runtime controllers, verified with targeted tests for add/update/remove graph bundle transitions.
+- [ ] Replay staged standard-input defaults when runtime input bridge becomes ready.
+      Context: graph defaults can stage before `stageRuntimeInput` is available, leaving runtime state unstaged until manual user edits.
+      Goal: when runtime readiness flips to ready, staged/default input values are pushed automatically.
+      Exit criteria: first-ready runtime state matches binding store values without extra slider interaction; regression test covers ready-after-graph sequence.
+- [ ] Guard pose graph export build failures in `exportPoseGraphFile`.
+      Context: pose graph export can throw before user feedback when spec build fails.
+      Goal: export should fail gracefully with actionable dialog messaging, consistent with `exportGlb` handling.
+      Exit criteria: thrown build failures are caught, dialog shown, no uncaught error path.
+- [ ] Harden import mismatch auto-resolution for face-id migration.
+      Context: we should auto-solve pure face mismatch imports, but current heuristics can over-match and mask non-face deltas.
+      Goal: auto-rename when and only when mismatch is a deterministic face-id namespace rewrite.
+      Exit criteria: strict residual diff after face rewrite is empty -> auto-accept/rename; otherwise open review with explicit reasons.
+- [ ] Ship migration-grade pose output remap for legacy split-graph faces.
+      Context: remap UI exists, but migration cases still need stronger mapping confidence and conflict handling.
+      Goal: support reliable remap from legacy output identities to current standard-input rig paths.
+      Exit criteria: remap suggestions include confidence + rationale, conflicting assignments are surfaced and resolvable in-flow, and applied remaps update both output paths and input-id links.
+- [ ] Make pose -> rig -> face trace actionable with suggested fixes.
+      Context: trace diagnostics show mismatches but do not yet provide direct repair actions.
+      Goal: convert diagnostics into concrete fix suggestions and one-click apply operations.
+      Exit criteria: unmatched chains provide actionable suggestions (retarget output path, create/repair input binding, ignore), with dry-run preview + undo-safe apply path.
 - [x] Investigate false "No Driven properties" signals for higher-level rig items.
       Context: authors can observe rigs visibly driving the face while inspector/high-level summaries claim there are no driven properties.
       Goal: align inspector diagnostics with actual runtime write paths so the driven-property state is trustworthy.

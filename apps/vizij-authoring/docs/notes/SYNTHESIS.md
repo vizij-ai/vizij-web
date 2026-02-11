@@ -19,8 +19,15 @@ This file consolidates active findings from:
 
 ## Active Findings That Still Matter
 
-1. P0 correctness findings from 2026-02-11 are resolved (diagnostic fidelity, pose retargeting/editability, pose->rig->face trace, import mismatch auto-resolution, reactive staging, playback UX gating, pose graph import wiring, export pose validation parity, and non-throwing pose summary generation).
-2. Broader validation coverage is still targeted rather than full-suite confidence.
+1. Deep-review follow-ups (2026-02-11) reopened P0 correctness work:
+   - graph clear/remove paths can retain stale runtime graph controllers.
+   - runtime input staging may miss first-ready replay when runtime bridge initializes late.
+   - pose graph export path can throw uncaught on build failures.
+2. Import/remap migration ergonomics still need tightening:
+   - face mismatch auto-resolution should be deterministic and strict (pure namespace rewrite only).
+   - pose-output remap for legacy split-graph assets needs stronger confidence/conflict handling.
+   - pose->rig->face diagnostics should offer directly actionable repair suggestions.
+3. Broader validation coverage is still targeted rather than full-suite confidence.
 
 ## Architecture Debt (Still Relevant From Audit)
 

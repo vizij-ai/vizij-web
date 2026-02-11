@@ -24,7 +24,23 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 5. D5 Export pipeline + docs alignment: `done`
    Evidence: GraphSpec fatal/normalize gating and pose graph validation in `apps/vizij-authoring/src/hooks/useVizijExport.ts`; test coverage exists in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
-   Open: none.
+   Open: guard uncaught `exportPoseGraphFile` build failures.
+
+## Regression Follow-ups (2026-02-11 deep review)
+
+1. F1 Runtime graph clear semantics: `blocked`
+   Evidence: graph bridge can omit rig/pose payloads, but runtime merge path may keep prior graphs.
+   Required: explicit graph removal behavior in `setGraphBundle` flow + tests for graph remove transitions.
+
+2. F2 Runtime input restage on late readiness: `blocked`
+   Evidence: input staging can happen before `stageRuntimeInput` exists, without replay on runtime-ready transition.
+   Required: readiness-triggered restage hook and targeted regression test.
+
+3. F3 Import/trace migration ergonomics: `in_progress`
+   Scope:
+   - auto-resolve pure face mismatch deterministically (strict residual-diff check).
+   - improve legacy split-graph pose-output remap confidence/conflict handling.
+   - make pose->rig->face trace suggestions directly actionable.
 
 ## Validation Health
 
@@ -35,10 +51,12 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## Active Blockers
 
-1. None. P0 blockers cleared on 2026-02-11.
+1. Graph clear/remove path can leave stale runtime controllers active.
+2. Runtime defaults may not stage automatically when runtime becomes ready after graph setup.
+3. Import/trace migration tooling still requires manual recovery in common legacy remap scenarios.
 
 ## Immediate Exit Criteria for Stabilization
 
-1. Resolved: all active blockers above are closed.
-2. Resolved: targeted validation set now includes runtime policy, viewer/runtime bundle, export flow, trace diagnostics, pose import remap helper, graph diff canonicalization, and pose graph service tests.
-3. Resolved: typecheck + targeted suites are green.
+1. Resolve F1/F2 blocking runtime correctness regressions and add regression tests.
+2. Resolve F3 migration ergonomics tranche (face mismatch auto-rename strictness + actionable remap/trace flow).
+3. Keep typecheck + targeted validation set green while follow-ups land.

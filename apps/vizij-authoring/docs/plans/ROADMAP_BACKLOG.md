@@ -11,14 +11,22 @@ Last updated: 2026-02-11
    - pose-output variable retargeting for previously wired/legacy faces
    - pose -> rig -> face connection traceability and mismatch diagnosis
    - import review auto-rename and order-insensitive matching behavior
-2. Keep baseline green:
+   - upgrade trace/remap outputs from diagnostics-only to actionable migration fixes
+2. Close deep-review runtime correctness regressions:
+   - clear/remove graph payloads must unregister stale runtime graphs
+   - restage defaults/inputs when runtime bridge becomes ready after graph setup
+   - guard uncaught pose-graph build failures in pose export flow
+3. Harden face-mismatch auto-resolution:
+   - auto-solve pure face-id namespace mismatches by deterministic rewrite + strict residual diff
+   - avoid broad heuristic auto-accept for non-face semantic mismatches
+4. Keep baseline green:
    - `vizij-authoring` typecheck.
    - targeted runtime/authoring regression suites.
-3. Fix active runtime wiring risks:
+5. Fix active runtime wiring risks:
    - non-reactive `stageRuntimeInput` read path.
    - no-op playback controls vs exposed debug controls.
    - disconnected pose graph import action in export dialog flow.
-4. Close pose/export contract gaps:
+6. Close pose/export contract gaps:
    - align `exportGlb` pose validation with recomputed pose graph using active blend mode.
    - remove or safely handle `PoseGraphService.generateSummary` throw path.
 
