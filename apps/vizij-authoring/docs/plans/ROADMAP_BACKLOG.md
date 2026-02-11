@@ -6,27 +6,29 @@ Last updated: 2026-02-11
 
 ### P0 (correctness and runtime-truthful behavior)
 
-1. Restore leaf-accurate chain authoring and visibility:
+Status (2026-02-11): complete in current branch; move focus to P1 expansion work.
+
+1. Done: Restore leaf-accurate chain authoring and visibility:
    - add-driven selection must support leaf components (no implicit xyz bulk binding).
    - Variables pane must include all path-backed standard inputs, not only custom inputs.
    - chain summaries must be transitive (`inputBindings` aware) across all inspector surfaces.
    - restore direct per-feature/per-leaf binding-expression editing in active inspector flows.
    - restore explicit static-vs-animatable feature controls in active inspector flows.
-2. Complete migration-grade trace/remap UX:
+2. Done: Complete migration-grade trace/remap UX:
    - upgrade suggestion apply flow with preview, ignore, and undo-safe apply semantics.
    - harden low-confidence remap handling for legacy split-graph assets.
    - support optional non-delta output remap review for migration audits.
-3. Close deep-review runtime correctness regressions:
+3. Done: Close deep-review runtime correctness regressions:
    - clear/remove graph payloads must unregister stale runtime graphs
    - restage defaults/inputs when runtime bridge becomes ready after graph setup
    - guard uncaught pose-graph build failures in pose export flow
-4. Keep baseline green:
+4. Done: Keep baseline green:
    - `vizij-authoring` typecheck.
    - targeted runtime/authoring regression suites.
-5. Keep regression guardrails on recently fixed wiring paths:
+5. Done: Keep regression guardrails on recently fixed wiring paths:
    - discrepancy/import action wiring remains covered by targeted tests.
    - playback UI stays disabled until runtime playback is actually wired.
-6. Keep pose/export contract fixes locked in with tests:
+6. Done: Keep pose/export contract fixes locked in with tests:
    - `exportGlb` continues validating recomputed pose graph using active blend mode.
    - `PoseGraphService.generateSummary` remains non-throwing for imported specs.
 

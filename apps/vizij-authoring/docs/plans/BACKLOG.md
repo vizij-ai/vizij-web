@@ -12,47 +12,47 @@ Use this file for app-local implementation backlog only.
 
 ## P0 (must address first)
 
-- [ ] Fix runtime graph bundle clear semantics to avoid stale graph controllers.
+- [x] Fix runtime graph bundle clear semantics to avoid stale graph controllers.
       Context: when rig/pose graphs are removed or become invalid, viewer bridge sends `undefined`, but runtime bundle merge keeps prior graph values.
       Goal: clearing graph payloads must unregister corresponding runtime graphs so stale controls do not keep running.
       Exit criteria: graph/pose removal path clears runtime controllers, verified with targeted tests for add/update/remove graph bundle transitions.
-- [ ] Replay staged standard-input defaults when runtime input bridge becomes ready.
+- [x] Replay staged standard-input defaults when runtime input bridge becomes ready.
       Context: graph defaults can stage before `stageRuntimeInput` is available, leaving runtime state unstaged until manual user edits.
       Goal: when runtime readiness flips to ready, staged/default input values are pushed automatically.
       Exit criteria: first-ready runtime state matches binding store values without extra slider interaction; regression test covers ready-after-graph sequence.
-- [ ] Guard pose graph export build failures in `exportPoseGraphFile`.
+- [x] Guard pose graph export build failures in `exportPoseGraphFile`.
       Context: pose graph export can throw before user feedback when spec build fails.
       Goal: export should fail gracefully with actionable dialog messaging, consistent with `exportGlb` handling.
       Exit criteria: thrown build failures are caught, dialog shown, no uncaught error path.
-- [ ] Restore direct binding-expression authoring path from legacy inspector flow.
+- [x] Restore direct binding-expression authoring path from legacy inspector flow.
       Context: `main` app exposed per-feature/per-leaf `BindingEditor` flows (slots, aliases, value types, expressions), but current active inspector path does not surface equivalent editing.
       Goal: user can select an object feature/leaf and directly author slot wiring + expressions without leaving the active inspector workflow.
       Exit criteria: active inspector exposes `BindingEditor` (or equivalent) for feature leaves, including add/remove slot, alias/value type controls, normalize helpers, and expression editing.
-- [ ] Restore explicit static-vs-animatable feature controls in active inspector.
+- [x] Restore explicit static-vs-animatable feature controls in active inspector.
       Context: legacy `main` inspector clearly surfaced feature animated/static state and default/constraint editing; current UI has fragmented sections and no single equivalent control surface.
       Goal: static and animated feature states are clearly visible and editable from active inspector modes.
       Exit criteria: user can inspect/toggle animated state and edit default/constraint behavior for feature leaves in one coherent UI path.
-- [ ] Restore leaf-level driven-variable authoring in inspector.
+- [x] Restore leaf-level driven-variable authoring in inspector.
       Context: selecting a property to drive currently binds all feature components (for example translation x/y/z), not a specific leaf target.
       Goal: allow choosing exact leaf components and bind only the selected component unless user explicitly opts into bulk bind.
       Exit criteria: user can bind one component at a time (x vs y vs z), inspect/edit that relationship directly, and optionally bulk-bind with explicit confirmation.
-- [ ] Make Variables pane path-complete for rig authoring.
+- [x] Make Variables pane path-complete for rig authoring.
       Context: Variables pane currently surfaces only custom main-face rig inputs and does not represent all path-backed standard inputs.
       Goal: all path-backed inputs (`auto`, `preset`, `custom`, plus mapped reference paths when relevant) are visible and selectable as variables.
       Exit criteria: every standard input with a path appears in Variables with source badges/filters and can be selected for drive/remap workflows.
-- [ ] Align chain surfacing across inspector summaries and trace views.
+- [x] Align chain surfacing across inspector summaries and trace views.
       Context: trace view is transitive-chain aware, but top-level \"Connected To\" and pose grouping still rely on direct-slot matching.
       Goal: all chain-oriented UI consistently reflects pose -> rig -> animatable relationships through `inputBindings`.
       Exit criteria: selecting an element yields consistent direct + transitive chain reporting across summaries, grouping, and trace diagnostics.
-- [ ] Resolve legacy inspector component drift (rewire or retire dormant panels).
+- [x] Resolve legacy inspector component drift (rewire or retire dormant panels).
       Context: legacy components (`FeatureList`, `DriverPanel`, `DriverBindingSection`) still exist but are not clearly part of active inspector routing.
       Goal: either integrate these capabilities into active inspector flows or remove dead paths with replacement UX documented.
       Exit criteria: no dormant critical editing path remains; docs accurately describe the supported authoring surfaces.
-- [ ] Complete trace suggestion UX (preview, ignore, undo-safe apply).
+- [x] Complete trace suggestion UX (preview, ignore, undo-safe apply).
       Context: actionable suggestions now exist and can be applied, but apply path lacks dry-run preview, explicit ignore, and undo-safe operations.
       Goal: make migration fixes safe and auditable for production retargeting workflows.
       Exit criteria: each suggestion supports preview, apply, ignore, and undo-safe rollback semantics.
-- [ ] Harden remap coverage for migration edge cases.
+- [x] Harden remap coverage for migration edge cases.
       Context: remap confidence/conflict handling is improved, but delta-only filtering and low-confidence legacies still require manual recovery.
       Goal: make legacy split-graph remap robust across inactive outputs and ambiguous naming.
       Exit criteria: remap flow can optionally include non-delta outputs, surfaces confidence rationale clearly, and provides deterministic conflict resolution.

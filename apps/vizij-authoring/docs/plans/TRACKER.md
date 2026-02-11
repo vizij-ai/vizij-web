@@ -24,51 +24,45 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 5. D5 Export pipeline + docs alignment: `done`
    Evidence: GraphSpec fatal/normalize gating and pose graph validation in `apps/vizij-authoring/src/hooks/useVizijExport.ts`; test coverage exists in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
-   Open: guard uncaught `exportPoseGraphFile` build failures.
+   Open: none.
 
 ## Regression Follow-ups (2026-02-11 deep review)
 
-1. F1 Runtime graph clear semantics: `blocked`
-   Evidence: graph bridge can omit rig/pose payloads, but runtime merge path may keep prior graphs.
-   Required: explicit graph removal behavior in `setGraphBundle` flow + tests for graph remove transitions.
+1. F1 Runtime graph clear semantics: `done`
+   Evidence: graph-tier updates now clear omitted rig/pose payloads in `packages/@vizij/runtime-react/src/VizijRuntimeProvider.tsx`, with remove-transition coverage in `packages/@vizij/runtime-react/src/__tests__/updatePolicy.test.ts` and bridge transition coverage in `apps/vizij-authoring/src/components/app/Viewer.test.tsx`.
+   Required: none.
 
-2. F2 Runtime input restage on late readiness: `blocked`
-   Evidence: input staging can happen before `stageRuntimeInput` exists, without replay on runtime-ready transition.
-   Required: readiness-triggered restage hook and targeted regression test.
+2. F2 Runtime input restage on late readiness: `done`
+   Evidence: runtime-input bridge availability subscription now replays staged inputs in `apps/vizij-authoring/src/hooks/useRigController.ts`, with regression coverage in `apps/vizij-authoring/src/hooks/__tests__/graphRuntime.test.ts`.
+   Required: none.
 
-3. F3 Import/trace migration ergonomics: `in_progress`
+3. F3 Import/trace migration ergonomics: `done`
    Scope:
    - done: deterministic face mismatch auto-resolve (strict residual-diff gate).
    - done: remap confidence/conflict handling and actionable trace suggestions.
-   - open: preview/ignore/undo-safe suggestion application and broader remap coverage for migration edge cases.
+   - done: preview/ignore/undo-safe suggestion application in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx`.
+   - done: optional non-delta remap review and deterministic conflict auto-resolution in `apps/vizij-authoring/src/components/poseRig/PoseGraphRemapWizard.tsx`.
 
-4. F4 Leaf-level chain authoring and visibility: `blocked`
+4. F4 Leaf-level chain authoring and visibility: `done`
    Evidence:
-   - "Add Driven Variable" binds whole features (for example translation x/y/z) instead of leaf targets.
-   - Variables pane does not list all path-backed standard inputs.
-   - top summaries still show direct-slot relationships while trace panel is transitive-chain aware.
-   - legacy `main` inspector affordances (feature matrix + direct `BindingEditor` path) are not surfaced in current active inspector flow.
-     Required actions: component-level selector and binding edits; path-complete Variables pane with source filtering; chain-consistent summaries across inspector views; restore direct feature/leaf binding-expression editing and static-vs-animatable controls in active inspector modes.
+   - leaf-level selection with explicit bulk binding confirmation is active in `apps/vizij-authoring/src/components/inspector/VariableSelector.tsx` and `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - Variables pane is path-complete with source filters/badges in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
+   - chain summaries now derive from transitive trace state in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx`.
+   - active scene inspector now surfaces feature matrix and direct binding editors via `apps/vizij-authoring/src/components/inspector/FeatureList.tsx`.
+     Required actions: none.
 
 ## Validation Health
 
 1. `pnpm --filter @vizij/runtime-react test -- src/__tests__/runtimeUpdatePolicy.test.ts`: `pass`.
 2. `pnpm --filter vizij-authoring typecheck`: `pass`.
-3. `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx src/utils/__tests__/runtimeBundle.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/components/inspector/rigConnections.test.ts src/hooks/__tests__/usePoseGraphImport.test.ts src/utils/graphDiff.test.ts src/poseRig/services/poseGraphService.test.ts`: `pass` (26 tests).
+3. `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx src/components/inspector/rigConnections.test.ts src/components/inspector/VariableSelector.test.tsx src/hooks/__tests__/usePoseGraphImport.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/hooks/__tests__/graphRuntime.test.ts src/utils/graphDiff.test.ts`: `pass` (31 tests).
 4. Coverage status: `targeted` (not full-suite confidence).
 
 ## Active Blockers
 
-1. Graph clear/remove path can leave stale runtime controllers active.
-2. Runtime defaults may not stage automatically when runtime becomes ready after graph setup.
-3. Import/trace migration tooling still requires manual recovery in common legacy remap scenarios.
-4. Leaf-level driven-variable authoring is missing (feature-level bulk bind regression).
-5. Variables pane is not path-complete for all standard inputs.
-6. Inspector chain summaries are not consistently transitive across views.
+1. None identified in the 2026-02-11 P0 tranche after targeted validation.
 
 ## Immediate Exit Criteria for Stabilization
 
-1. Resolve F1/F2 blocking runtime correctness regressions and add regression tests.
-2. Resolve F4 chain-authoring tranche (leaf-level binding + path-complete variables + transitive summaries).
-3. Close remaining F3 migration UX gaps (preview/ignore/undo-safe apply + broader remap coverage).
-4. Keep typecheck + targeted validation set green while follow-ups land.
+1. Keep typecheck + targeted validation set green while P1 items are sequenced.
+2. Expand required validation set beyond targeted suites for broader confidence.
