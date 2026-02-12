@@ -75,7 +75,8 @@ pub use arora_connection::{InvokeResult, MethodInfo, MethodParam, SlotInfo, Type
 #[cfg(feature = "server")]
 pub use arora_connection::{
     AroraConnection, CancellationToken, GetSlotValuesHandler, MethodHandler,
-    SetSlotValuesHandler as ConnectionSetSlotValuesHandler, SetSlotValuesResult,
+    OnClientConnectedHandler, SetSlotValuesHandler as ConnectionSetSlotValuesHandler,
+    SetSlotValuesResult,
 };
 
 // Re-export arora-schema types for backwards compatibility
@@ -89,4 +90,4 @@ pub use registry::Registry;
 
 // Server types (feature-gated)
 #[cfg(feature = "server")]
-pub use server::{AroraWSServer, ServerConfig, SetSlotValuesHandler};
+pub use server::{process_message, AroraWSServer, ServerConfig, SetSlotValuesHandler};

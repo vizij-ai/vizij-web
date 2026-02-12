@@ -1,6 +1,7 @@
 //! WebSocket server implementation.
 //!
 //! Provides a ready-to-use WebSocket server that handles the arora protocol.
+//! Each server supports at most one active client at a time.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -10,10 +11,12 @@ use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
 
-use arora_connection::Value;
+use arora_connection::{OnClientConnectedHandler, Value};
 
 use crate::messages::{Incoming, Outgoing};
 use crate::registry::Registry;
@@ -75,11 +78,16 @@ impl ServerConfig {
 /// WebSocket server for the arora protocol.
 ///
 /// Handles connections, parses messages, and dispatches to registered handlers.
+/// Supports at most one active client at a time -- when a new client connects,
+/// the previous one is disconnected.
 pub struct AroraWSServer {
     config: ServerConfig,
     registry: Arc<Registry>,
     set_slot_values_handler: RwLock<Option<SetSlotValuesHandler>>,
     get_slot_values_handler: RwLock<Option<GetSlotValuesHandler>>,
+    on_client_connected_handler: RwLock<Option<OnClientConnectedHandler>>,
+    /// Cancel token for the single active client. When cancelled, the client is disconnected.
+    active_client: Arc<RwLock<Option<CancellationToken>>>,
     is_running: RwLock<bool>,
 }
 
@@ -91,6 +99,8 @@ impl AroraWSServer {
             registry: Arc::new(Registry::new()),
             set_slot_values_handler: RwLock::new(None),
             get_slot_values_handler: RwLock::new(None),
+            on_client_connected_handler: RwLock::new(None),
+            active_client: Arc::new(RwLock::new(None)),
             is_running: RwLock::new(false),
         }
     }
@@ -123,6 +133,20 @@ impl AroraWSServer {
         *self.get_slot_values_handler.write().await = Some(Arc::new(handler));
     }
 
+    /// Set the handler called when a new client connects.
+    pub async fn set_on_client_connected_handler(&self, handler: OnClientConnectedHandler) {
+        *self.on_client_connected_handler.write().await = Some(handler);
+    }
+
+    /// Disconnect the current active client (if any).
+    pub async fn disconnect_client(&self) {
+        let mut guard = self.active_client.write().await;
+        if let Some(token) = guard.take() {
+            token.cancel();
+            info!("Disconnected active client on ws://{}:{}", self.config.bind_address, self.config.port);
+        }
+    }
+
     /// Check if the server is running.
     pub async fn is_running(&self) -> bool {
         *self.is_running.read().await
@@ -148,13 +172,32 @@ impl AroraWSServer {
                 result = listener.accept() => {
                     match result {
                         Ok((stream, addr)) => {
+                            // Disconnect previous client (exclusive client policy)
+                            self.disconnect_client().await;
+
+                            // Create a per-client cancel token (child of the server's token)
+                            let client_token = cancel_token.child_token();
+                            *self.active_client.write().await = Some(client_token.clone());
+
+                            // Notify the on_client_connected handler
+                            let handler = self.on_client_connected_handler.read().await.clone();
+                            if let Some(handler) = handler {
+                                let conn_id = self.connection_id();
+                                handler(conn_id);
+                            }
+
                             let registry = self.registry.clone();
                             let set_slot_values_handler = self.set_slot_values_handler.read().await.clone();
                             let get_slot_values_handler = self.get_slot_values_handler.read().await.clone();
                             let validate_paths = self.config.validate_paths;
+                            let active_client = self.active_client.clone();
 
                             tokio::spawn(async move {
-                                handle_connection(stream, addr, registry, set_slot_values_handler, get_slot_values_handler, validate_paths).await;
+                                handle_connection(
+                                    stream, addr, registry,
+                                    set_slot_values_handler, get_slot_values_handler,
+                                    validate_paths, client_token, active_client,
+                                ).await;
                             });
                         }
                         Err(e) => {
@@ -164,6 +207,8 @@ impl AroraWSServer {
                 }
                 _ = cancel_token.cancelled() => {
                     info!("Arora WebSocket server shutting down");
+                    // Disconnect the active client on shutdown
+                    self.disconnect_client().await;
                     break;
                 }
             }
@@ -171,6 +216,11 @@ impl AroraWSServer {
 
         *self.is_running.write().await = false;
         Ok(())
+    }
+
+    /// Get the connection identifier.
+    pub fn connection_id(&self) -> String {
+        format!("ws://127.0.0.1:{}", self.config.port)
     }
 }
 
@@ -182,6 +232,8 @@ async fn handle_connection(
     set_slot_values_handler: Option<SetSlotValuesHandler>,
     get_slot_values_handler: Option<GetSlotValuesHandler>,
     validate_paths: bool,
+    client_token: CancellationToken,
+    active_client: Arc<RwLock<Option<CancellationToken>>>,
 ) {
     info!("New WebSocket connection from: {}", addr);
 
@@ -195,55 +247,83 @@ async fn handle_connection(
 
     let (mut write, mut read) = ws_stream.split();
 
-    while let Some(msg) = read.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("Received message: {}", text);
+    loop {
+        tokio::select! {
+            msg = read.next() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        debug!("Received message: {}", text);
 
-                let response = match serde_json::from_str::<Incoming>(&text) {
-                    Ok(incoming) => {
-                        process_message(incoming, &registry, &set_slot_values_handler, &get_slot_values_handler, validate_paths).await
-                    }
-                    Err(e) => {
-                        warn!("Failed to parse message: {}", e);
-                        Outgoing::Error {
-                            request_id: None,
-                            message: format!("Invalid message format: {}", e),
+                        let response = match serde_json::from_str::<Incoming>(&text) {
+                            Ok(incoming) => {
+                                process_message(incoming, &registry, &set_slot_values_handler, &get_slot_values_handler, validate_paths).await
+                            }
+                            Err(e) => {
+                                warn!("Failed to parse message: {}", e);
+                                Outgoing::Error {
+                                    request_id: None,
+                                    message: format!("Invalid message format: {}", e),
+                                }
+                            }
+                        };
+
+                        let response_text = serde_json::to_string(&response).unwrap();
+                        if let Err(e) = write.send(Message::Text(response_text.into())).await {
+                            error!("Failed to send response: {}", e);
+                            break;
                         }
                     }
+                    Some(Ok(Message::Close(_))) => {
+                        info!("Client {} disconnected", addr);
+                        break;
+                    }
+                    Some(Ok(Message::Ping(data))) => {
+                        if let Err(e) = write.send(Message::Pong(data)).await {
+                            error!("Failed to send pong: {}", e);
+                            break;
+                        }
+                    }
+                    Some(Ok(_)) => {
+                        // Ignore other message types
+                    }
+                    Some(Err(e)) => {
+                        error!("Error reading message: {}", e);
+                        break;
+                    }
+                    None => {
+                        // Stream ended
+                        break;
+                    }
+                }
+            }
+            _ = client_token.cancelled() => {
+                info!("Client {} disconnected by server (exclusive client policy)", addr);
+                // Send a close frame to the client
+                let close_frame = CloseFrame {
+                    code: CloseCode::Normal,
+                    reason: "Another client connected".into(),
                 };
-
-                let response_text = serde_json::to_string(&response).unwrap();
-                if let Err(e) = write.send(Message::Text(response_text.into())).await {
-                    error!("Failed to send response: {}", e);
-                    break;
-                }
-            }
-            Ok(Message::Close(_)) => {
-                info!("Client {} disconnected", addr);
-                break;
-            }
-            Ok(Message::Ping(data)) => {
-                if let Err(e) = write.send(Message::Pong(data)).await {
-                    error!("Failed to send pong: {}", e);
-                    break;
-                }
-            }
-            Ok(_) => {
-                // Ignore other message types
-            }
-            Err(e) => {
-                error!("Error reading message: {}", e);
+                let _ = write.send(Message::Close(Some(close_frame))).await;
                 break;
             }
         }
+    }
+
+    // Clear the active client only if this was a natural disconnect.
+    // If our token was cancelled, we were replaced by a new client -- don't touch active_client.
+    if !client_token.is_cancelled() {
+        let mut guard = active_client.write().await;
+        *guard = None;
     }
 
     info!("Connection closed for: {}", addr);
 }
 
 /// Process an incoming message and return the response.
-async fn process_message(
+///
+/// This function is public so it can be reused by other connection types
+/// (e.g., WebAppServer) that share the same arora protocol.
+pub async fn process_message(
     incoming: Incoming,
     registry: &Registry,
     set_slot_values_handler: &Option<SetSlotValuesHandler>,

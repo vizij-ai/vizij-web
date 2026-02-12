@@ -9,23 +9,25 @@ use tokio::sync::Mutex;
 use std::collections::HashMap;
 
 mod connection;
+mod connection_manager;
 mod ws_server;
 
-use connection::{AroraConnection, AroraConnectionTauriExt, CancellationToken, SlotInfo, Value};
+use connection::{CancellationToken, SlotInfo, Value};
+use connection_manager::ConnectionManager;
 use ws_server::WsServer;
 
 /// Application state
 struct AppState {
-    ws_server: Arc<WsServer>,
-    ws_start_lock: Mutex<()>,
-    ws_cancel_token: Mutex<Option<CancellationToken>>,
+    connection_manager: Arc<ConnectionManager>,
+    cancel_token: Mutex<Option<CancellationToken>>,
     port: u16,
+    web_port: Option<u16>,
     glb_source: Option<String>,
 }
 
 /// CLI structure with optional subcommands
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about = "Vizij WebSocket-controlled avatar renderer", long_about = None)]
+#[command(author, version, about = "Vizij standalone avatar renderer", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -33,6 +35,14 @@ struct Cli {
     /// WebSocket server port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
+
+    /// Web control server port
+    #[arg(short = 'w', long, default_value_t = 8080)]
+    web_port: u16,
+
+    /// Disable web-based remote control
+    #[arg(long, default_value_t = false)]
+    no_web_control: bool,
 
     /// GLB file path or URL to load on startup
     #[arg(short, long)]
@@ -134,24 +144,18 @@ fn warn_if_snap_env() {
     }
 }
 
-/// Start the WebSocket server
+/// Start connection servers
 #[tauri::command]
 async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let _start_guard = state.ws_start_lock.lock().await;
     let port = state.port;
-    let addr = format!("0.0.0.0:{}", port);
+    let addr = format!("127.0.0.1:{}", port);
 
-    // Check running state from the server itself (single source of truth).
-    if AroraConnection::is_running(state.ws_server.as_ref()).await {
-        return Err("WebSocket server is already running".to_string());
-    }
-
-    // Clear any stale token left from a previous run.
+    // Check if already running
     {
-        let mut cancel_token = state.ws_cancel_token.lock().await;
+        let cancel_token = state.cancel_token.lock().await;
         if cancel_token.is_some() {
-            *cancel_token = None;
+            return Err("Connection servers are already running".to_string());
         }
     }
 
@@ -160,37 +164,27 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     }
 
     let cancel_token = CancellationToken::new();
-    let child_token = cancel_token.child_token();
 
     // Store the cancel token
     {
-        let mut token_guard = state.ws_cancel_token.lock().await;
-        *token_guard = Some(cancel_token);
+        let mut token_guard = state.cancel_token.lock().await;
+        *token_guard = Some(cancel_token.clone());
     }
 
-    let ws_server = state.ws_server.clone();
+    let manager = state.connection_manager.clone();
     let app_handle_clone = app_handle.clone();
 
-    // Setup Tauri integration (update handler emits events)
-    AroraConnectionTauriExt::setup_tauri_integration(ws_server.as_ref(), app_handle.clone()).await;
+    // Setup Tauri event handlers for all connections
+    manager.setup_all(app_handle.clone()).await;
 
-    // Register the reset method
-    ws_server::register_reset_method(ws_server.as_ref(), app_handle.clone()).await;
+    // Spawn all connection servers
+    let handles = manager.run_all(cancel_token);
 
-    // Spawn the server task
+    // Monitor and emit stopped event when all connections finish
     tokio::spawn(async move {
-        if let Err(e) = AroraConnection::run(ws_server.as_ref(), child_token).await {
-            log::error!("WebSocket server error: {}", e);
+        for handle in handles {
+            let _ = handle.await;
         }
-
-        // Clear cancellation token on task exit so start/stop state remains consistent.
-        let state = app_handle_clone.state::<AppState>();
-        {
-            let mut token_guard = state.ws_cancel_token.lock().await;
-            *token_guard = None;
-        }
-
-        // Emit server stopped event
         let _ = app_handle_clone.emit("ws:stopped", ());
     });
 
@@ -199,29 +193,22 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
         .emit("ws:started", port)
         .map_err(|e| e.to_string())?;
 
-    info!("WebSocket server started on port {}", port);
+    info!("Connection servers started (WS port: {})", port);
     Ok(())
 }
 
-/// Stop the WebSocket server
+/// Stop connection servers
 #[tauri::command]
 async fn stop_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
 
-    // If server is already stopped, also clear any stale token.
-    if !AroraConnection::is_running(state.ws_server.as_ref()).await {
-        let mut cancel_token = state.ws_cancel_token.lock().await;
-        *cancel_token = None;
-        return Err("WebSocket server is not running".to_string());
-    }
-
-    let mut cancel_token = state.ws_cancel_token.lock().await;
+    let mut cancel_token = state.cancel_token.lock().await;
     if let Some(token) = cancel_token.take() {
         token.cancel();
-        info!("WebSocket server stop requested");
+        info!("Connection servers stop requested");
         Ok(())
     } else {
-        Err("WebSocket server is not running".to_string())
+        Err("Connection servers are not running".to_string())
     }
 }
 
@@ -237,7 +224,7 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
 async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     let count = slots.len();
-    AroraConnection::set_slots(state.ws_server.as_ref(), slots).await;
+    state.connection_manager.set_slots(slots).await;
     info!("Slots updated: {} available", count);
     Ok(())
 }
@@ -249,11 +236,11 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
     state.glb_source.clone()
 }
 
-/// Check if the WebSocket server is running
+/// Check if any connection server is running
 #[tauri::command]
 async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
     let state = app_handle.state::<AppState>();
-    AroraConnection::is_running(state.ws_server.as_ref()).await
+    state.connection_manager.is_any_running().await
 }
 
 /// Read a local GLB file and return as base64
@@ -268,15 +255,16 @@ async fn read_glb_file(path: String) -> Result<String, String> {
 /// Respond to a GetSlotValues request from the connection.
 /// Called by the frontend after receiving a "get-slot-values-request" event.
 #[tauri::command]
-fn respond_slot_values(
-    app_handle: tauri::AppHandle,
-    request_id: String,
-    values: HashMap<String, Value>,
-) {
+fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
     let state = app_handle.state::<AppState>();
-    state
-        .ws_server
-        .respond_slot_values_with_id(&request_id, values);
+    state.connection_manager.respond_slot_values(values);
+}
+
+/// Get the web control port (None if web control is disabled)
+#[tauri::command]
+async fn get_web_port(app_handle: tauri::AppHandle) -> Option<u16> {
+    let state = app_handle.state::<AppState>();
+    state.web_port
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -319,16 +307,26 @@ pub fn run() {
                 }
             });
 
-            // Set up the application state
+            // Set up connection manager with all connection interfaces
+            let mut manager = ConnectionManager::new();
+            manager.add_connection(Arc::new(WsServer::new(port)));
+
+            let web_port = if !cli.no_web_control {
+                // WebAppServer will be added here in a future task
+                None
+            } else {
+                None
+            };
+
             app.manage(AppState {
-                ws_server: Arc::new(WsServer::new(port)),
-                ws_start_lock: Mutex::new(()),
-                ws_cancel_token: Mutex::new(None),
+                connection_manager: Arc::new(manager),
+                cancel_token: Mutex::new(None),
                 port,
+                web_port,
                 glb_source: glb_source.clone(),
             });
 
-            info!("Vizij Standalone App initialized with port {}", port);
+            info!("Vizij Standalone App initialized with WS port {}", port);
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
             }
@@ -436,6 +434,7 @@ pub fn run() {
             stop_ws_server,
             is_ws_running,
             get_port,
+            get_web_port,
             set_slots,
             get_glb_source,
             read_glb_file,

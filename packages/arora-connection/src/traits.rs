@@ -33,6 +33,10 @@ pub type GetSlotValuesHandler = Arc<dyn Fn(Vec<String>) -> HashMap<String, Value
 /// Handler function type for method invocations.
 pub type MethodHandler = Arc<dyn Fn(HashMap<String, Value>) -> InvokeResult + Send + Sync>;
 
+/// Handler called when a new client connects to this connection.
+/// Receives the connection identifier (e.g., "ws://127.0.0.1:9000").
+pub type OnClientConnectedHandler = Arc<dyn Fn(String) + Send + Sync>;
+
 /// Abstract interface for an Arora protocol connection.
 ///
 /// This trait defines the contract for any connection type that bridges
@@ -110,4 +114,21 @@ pub trait AroraConnection: Send + Sync {
 
     /// Get the connection identifier (e.g., "ws://127.0.0.1:9000" for WebSocket).
     fn connection_id(&self) -> String;
+
+    /// Set a handler that is called when a new client connects.
+    ///
+    /// The handler receives the connection identifier. It is called before
+    /// the client enters its message loop. Used by the ConnectionManager
+    /// to enforce exclusive client policy across connections.
+    fn set_on_client_connected_handler(
+        &self,
+        handler: OnClientConnectedHandler,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+
+    /// Disconnect the current active client on this connection.
+    ///
+    /// Each connection supports at most one active client. This method
+    /// forcefully closes that client's connection (e.g., sends a WS Close
+    /// frame and drops the connection).
+    fn disconnect_client(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 }
