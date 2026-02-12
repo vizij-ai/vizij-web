@@ -60,22 +60,22 @@ import { resolveControllableInputId } from "./bindingSlotResolution";
 
 type PoseVariableItem =
   | {
-    type: "scalar";
-    varId: string;
-    poseVal: number;
-    drivenPropertyCount: number;
-    drivenVariableCount: number;
-  }
-  | {
-    type: "color";
-    label: string;
-    featureId: string;
-    components: {
+      type: "scalar";
       varId: string;
       poseVal: number;
-      channel: "r" | "g" | "b";
-    }[];
-  };
+      drivenPropertyCount: number;
+      drivenVariableCount: number;
+    }
+  | {
+      type: "color";
+      label: string;
+      featureId: string;
+      components: {
+        varId: string;
+        poseVal: number;
+        channel: "r" | "g" | "b";
+      }[];
+    };
 
 type InspectorChainMode = "scene" | "rig" | "pose";
 
@@ -101,9 +101,9 @@ export function InspectorContent() {
     "quick" | "bindings"
   >("quick");
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const pendingSceneInspectorViewRef = useRef<
-    "quick" | "bindings" | null
-  >(null);
+  const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
+    null,
+  );
 
   const pendingRigInspectorViewRef = useRef<"quick" | "bindings" | null>(null);
   const pendingChainNavigationRef = useRef<InspectorChainNode | null>(null);
@@ -141,8 +141,6 @@ export function InspectorContent() {
     updateAnimatableDescriptor,
     setStaticFeatureValue,
   } = useSceneComposer();
-
-
 
   const {
     poses,
@@ -589,7 +587,6 @@ export function InspectorContent() {
               Quick
             </Button>
 
-
             <Button
               variant={
                 sceneInspectorView === "bindings" ? "secondary" : "ghost"
@@ -601,30 +598,27 @@ export function InspectorContent() {
               My Drivers
             </Button>
           </div>
-          {
-            sceneInspectorView === "quick" ? (
-              <>
-                <RiggingTransformSection node={node} />
+          {sceneInspectorView === "quick" ? (
+            <>
+              <RiggingTransformSection node={node} />
 
-                <RiggingMorphTargetsSection node={node} />
-                <RiggingMaterialSection node={node} />
-                <BindingConnections
-                  node={node}
-                  onSelectPose={openPoseInspector}
-                  onSelectRig={(rigId) => openRigInspector(rigId, "quick")}
-                  onSelectTarget={openSceneBindingInspector}
-                />
-              </>
-            ) : (
-              <FeatureList
+              <RiggingMorphTargetsSection node={node} />
+              <RiggingMaterialSection node={node} />
+              <BindingConnections
                 node={node}
-                mode="bindings"
-                focusedTargetId={focusedSceneBindingTargetId}
+                onSelectPose={openPoseInspector}
+                onSelectRig={(rigId) => openRigInspector(rigId, "quick")}
+                onSelectTarget={openSceneBindingInspector}
               />
-            )
-          }
-
-        </div >
+            </>
+          ) : (
+            <FeatureList
+              node={node}
+              mode="bindings"
+              focusedTargetId={focusedSceneBindingTargetId}
+            />
+          )}
+        </div>
       );
     }
   }
@@ -935,7 +929,7 @@ export function InspectorContent() {
                       const canInspectVariable = standardInputsById.has(varId);
                       const chainSummary =
                         item.drivenVariableCount > 0 ||
-                          item.drivenPropertyCount > 0
+                        item.drivenPropertyCount > 0
                           ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
                           : null;
 
@@ -1326,18 +1320,19 @@ export function InspectorContent() {
             onClose={() => setPoseBindingEditorInputId(null)}
             title={
               poseBindingEditorInputId
-                ? `Edit My Drivers · ${managedStandardInputs.find(
-                  (entry) => entry.input.id === poseBindingEditorInputId,
-                )?.input.label ?? poseBindingEditorInputId
-                }`
+                ? `Edit My Drivers · ${
+                    managedStandardInputs.find(
+                      (entry) => entry.input.id === poseBindingEditorInputId,
+                    )?.input.label ?? poseBindingEditorInputId
+                  }`
                 : "Edit My Drivers"
             }
             maxWidth="lg"
           >
             {poseBindingEditorInputId &&
-              managedStandardInputs.find(
-                (entry) => entry.input.id === poseBindingEditorInputId,
-              )?.input ? (
+            managedStandardInputs.find(
+              (entry) => entry.input.id === poseBindingEditorInputId,
+            )?.input ? (
               (() => {
                 const inputToEdit = managedStandardInputs.find(
                   (entry) => entry.input.id === poseBindingEditorInputId,
@@ -1461,7 +1456,7 @@ export function InspectorContent() {
       const directRigControlReason = controllableResolution.blockedReason
         ? controllableResolution.blockedReason
         : controllableResolution.inputId &&
-          controllableResolution.inputId !== input.id
+            controllableResolution.inputId !== input.id
           ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Edit My Drivers to add local control or adjust "${controllableResolution.inputId}".`
           : null;
       const standardInputList = managedStandardInputs.map(
@@ -1786,15 +1781,16 @@ export function InspectorContent() {
                   onClose={() => setRigDrivenBindingTargetId(null)}
                   title={
                     rigDrivenBindingTargetId
-                      ? `Edit Target Drivers · ${targetLabelById.get(rigDrivenBindingTargetId) ??
-                      rigDrivenBindingTargetId
-                      }`
+                      ? `Edit Target Drivers · ${
+                          targetLabelById.get(rigDrivenBindingTargetId) ??
+                          rigDrivenBindingTargetId
+                        }`
                       : "Edit Target Drivers"
                   }
                   maxWidth="lg"
                 >
                   {rigDrivenBindingTargetId &&
-                    bindings[rigDrivenBindingTargetId] ? (
+                  bindings[rigDrivenBindingTargetId] ? (
                     <BindingEditor
                       binding={bindings[rigDrivenBindingTargetId]}
                       targetId={rigDrivenBindingTargetId}
@@ -1907,55 +1903,55 @@ export function InspectorContent() {
       const colorFeature =
         material.animated.color || material.staticValues.color !== undefined
           ? ({
-            id: `mat-color-${material.id}`,
-            key: "color",
-            label: "Color",
-            animated: !!material.animated.color,
-            value: material.animated.color || "",
-            staticValue: material.staticValues.color,
-            components: [
-              {
-                label: "R",
-                targetId: material.animated.color
-                  ? `${material.animated.color}:r`
-                  : undefined,
-                staticValue: (material.staticValues.color as any)?.r,
-              },
-              {
-                label: "G",
-                targetId: material.animated.color
-                  ? `${material.animated.color}:g`
-                  : undefined,
-                staticValue: (material.staticValues.color as any)?.g,
-              },
-              {
-                label: "B",
-                targetId: material.animated.color
-                  ? `${material.animated.color}:b`
-                  : undefined,
-                staticValue: (material.staticValues.color as any)?.b,
-              },
-            ],
-          } as any)
+              id: `mat-color-${material.id}`,
+              key: "color",
+              label: "Color",
+              animated: !!material.animated.color,
+              value: material.animated.color || "",
+              staticValue: material.staticValues.color,
+              components: [
+                {
+                  label: "R",
+                  targetId: material.animated.color
+                    ? `${material.animated.color}:r`
+                    : undefined,
+                  staticValue: (material.staticValues.color as any)?.r,
+                },
+                {
+                  label: "G",
+                  targetId: material.animated.color
+                    ? `${material.animated.color}:g`
+                    : undefined,
+                  staticValue: (material.staticValues.color as any)?.g,
+                },
+                {
+                  label: "B",
+                  targetId: material.animated.color
+                    ? `${material.animated.color}:b`
+                    : undefined,
+                  staticValue: (material.staticValues.color as any)?.b,
+                },
+              ],
+            } as any)
           : null;
 
       const opacityFeature =
         material.animated.opacity || material.staticValues.opacity !== undefined
           ? ({
-            id: `mat-opacity-${material.id}`,
-            key: "opacity",
-            label: "Opacity",
-            animated: !!material.animated.opacity,
-            value: material.animated.opacity || "",
-            staticValue: material.staticValues.opacity,
-            components: [
-              {
-                label: "Opacity",
-                targetId: material.animated.opacity || undefined,
-                staticValue: material.staticValues.opacity,
-              },
-            ],
-          } as any)
+              id: `mat-opacity-${material.id}`,
+              key: "opacity",
+              label: "Opacity",
+              animated: !!material.animated.opacity,
+              value: material.animated.opacity || "",
+              staticValue: material.staticValues.opacity,
+              components: [
+                {
+                  label: "Opacity",
+                  targetId: material.animated.opacity || undefined,
+                  staticValue: material.staticValues.opacity,
+                },
+              ],
+            } as any)
           : null;
 
       const handleStaticValueChange = (
@@ -1999,15 +1995,17 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
-                  onToggleAnimated={(animated) => setFeatureAnimated(material.id, `${material.id}-color`, animated)}
+                  onToggleAnimated={(animated) =>
+                    setFeatureAnimated(
+                      material.id,
+                      `${material.id}-color`,
+                      animated,
+                    )
+                  }
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
                 />
-
-
-
-
               )}
               {opacityFeature && (
                 <RiggingScalarRow
@@ -2023,15 +2021,17 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
-                  onToggleAnimated={(animated) => setFeatureAnimated(material.id, `${material.id}-opacity`, animated)}
+                  onToggleAnimated={(animated) =>
+                    setFeatureAnimated(
+                      material.id,
+                      `${material.id}-opacity`,
+                      animated,
+                    )
+                  }
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
                 />
-
-
-
-
               )}
             </div>
 

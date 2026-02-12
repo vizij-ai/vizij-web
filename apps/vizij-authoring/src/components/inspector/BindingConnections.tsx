@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link as LinkIcon, Box, Sparkles, Route, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Link as LinkIcon,
+  Box,
+  Sparkles,
+  Route,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   useBindingAuthoring,
@@ -468,8 +475,8 @@ export function BindingConnections({
                         const constraints = anim?.constraints as any;
                         const range =
                           constraints &&
-                            typeof constraints.min === "number" &&
-                            typeof constraints.max === "number"
+                          typeof constraints.min === "number" &&
+                          typeof constraints.max === "number"
                             ? `${constraints.min.toFixed(2)} - ${constraints.max.toFixed(2)}`
                             : null;
 
@@ -560,8 +567,8 @@ export function BindingConnections({
                         const constraints = anim?.constraints as any;
                         const range =
                           constraints &&
-                            typeof constraints.min === "number" &&
-                            typeof constraints.max === "number"
+                          typeof constraints.min === "number" &&
+                          typeof constraints.max === "number"
                             ? `${constraints.min.toFixed(2)} - ${constraints.max.toFixed(2)}`
                             : null;
 

@@ -25,9 +25,7 @@ export interface RiggingPropertyRowProps {
   hasMinChanged?: boolean;
   hasMaxChanged?: boolean;
 
-
   className?: string;
-
 
   icon?: React.ReactNode;
 }
@@ -140,7 +138,6 @@ export function RiggingPropertyRow({
   hasMinChanged,
   hasMaxChanged,
 
-
   onScrub,
   onScrubStart,
   onScrubEnd,
@@ -178,7 +175,6 @@ export function RiggingPropertyRow({
               )}
             >
               {isExpanded ? <X size={12} /> : <Pencil size={11} />}
-
             </BaseButton>
           ) : (
             <div className="w-3.5 flex justify-center text-zinc-500">
@@ -213,7 +209,9 @@ export function RiggingPropertyRow({
               }}
               className={cn(
                 "ml-1 p-1 rounded cursor-pointer transition-colors",
-                hasDifferentDefault ? "text-accent hover:text-accent-hover hover:bg-accent/10" : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent"
+                hasDifferentDefault
+                  ? "text-accent hover:text-accent-hover hover:bg-accent/10"
+                  : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
               )}
               title="Reset to default"
               disabled={!hasDifferentDefault}
@@ -221,7 +219,6 @@ export function RiggingPropertyRow({
               <RotateCcw size={10} />
             </BaseButton>
           )}
-
         </div>
       </div>
 
@@ -247,7 +244,9 @@ export function RiggingPropertyRow({
                     }}
                     className={cn(
                       "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasDifferentDefault ? "text-accent hover:text-accent-hover hover:bg-accent-subtle" : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent"
+                      hasDifferentDefault
+                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
+                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
                     )}
                     title="Save to default"
                     disabled={!hasDifferentDefault}
@@ -255,7 +254,6 @@ export function RiggingPropertyRow({
                     <Save size={12} />
                   </BaseButton>
                 )}
-
               </div>
             </div>
           )}
@@ -278,7 +276,9 @@ export function RiggingPropertyRow({
                     }}
                     className={cn(
                       "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasMinChanged ? "text-accent hover:text-accent-hover hover:bg-accent-subtle" : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent"
+                      hasMinChanged
+                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
+                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
                     )}
                     title="Save current to min"
                     disabled={!hasMinChanged}
@@ -286,9 +286,7 @@ export function RiggingPropertyRow({
                     <Save size={12} />
                   </BaseButton>
                 )}
-
               </div>
-
             </div>
           )}
 
@@ -310,7 +308,9 @@ export function RiggingPropertyRow({
                     }}
                     className={cn(
                       "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasMaxChanged ? "text-accent hover:text-accent-hover hover:bg-accent-subtle" : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent"
+                      hasMaxChanged
+                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
+                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
                     )}
                     title="Save current to max"
                     disabled={!hasMaxChanged}
@@ -318,9 +318,7 @@ export function RiggingPropertyRow({
                     <Save size={12} />
                   </BaseButton>
                 )}
-
               </div>
-
             </div>
           )}
 
@@ -338,7 +336,6 @@ export function RiggingPropertyRow({
           )}
         </div>
       )}
-
     </div>
   );
 }
