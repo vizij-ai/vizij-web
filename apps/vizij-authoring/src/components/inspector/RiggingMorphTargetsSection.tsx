@@ -1,15 +1,14 @@
 import React, { useMemo, useRef, useCallback } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
-
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { cn } from "../../utils/cn";
 import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingMorphTargetsSectionProps {

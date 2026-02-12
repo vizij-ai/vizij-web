@@ -1,7 +1,6 @@
 import React, { useRef } from "react";
 import { Lock, LockOpen, Palette, Box, ChevronRight, Info } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
-
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
 import type {

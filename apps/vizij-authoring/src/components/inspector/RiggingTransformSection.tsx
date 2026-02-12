@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useCallback } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
-
 import { cn } from "../../utils/cn";
 import type {
   SceneObjectNode,
@@ -10,7 +9,6 @@ import type {
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
-
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 
 interface RiggingTransformSectionProps {
@@ -189,8 +187,6 @@ function RiggingVectorRow({
   onUpdateStandardInput,
   setStaticFeatureValue,
 }: RiggingVectorRowProps) {
-  const isAnimated = feature.animated;
-
   const scrubValuesRef = useRef<Record<string, number>>({});
 
   // Extract inputs for x, y, z components
@@ -295,7 +291,7 @@ function RiggingVectorRow({
     (c) =>
       c.hasInputMetadata &&
       Math.abs((c.currentValue as number) - (c.defaultValue as number)) >
-        0.0001,
+      0.0001,
   );
 
   const handleReset = () => {
