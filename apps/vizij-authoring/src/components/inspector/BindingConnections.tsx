@@ -1,9 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link as LinkIcon, Box, Sparkles, Route } from "lucide-react";
+import {
+  Link as LinkIcon,
+  Box,
+  Sparkles,
+  Route,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
   useBindingAuthoring,
   useSelectionStore,
+  useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
@@ -35,6 +43,8 @@ export function BindingConnections({
   );
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const animatables = useGraphRuntime((state) => state.animatables);
   const handleCreateParentDriverBinding = useBindingAuthoring(
     (state) => state.handleCreateParentDriverBinding,
   );
@@ -91,6 +101,31 @@ export function BindingConnections({
     rollback: () => void;
   } | null>(null);
   const [traceFeedback, setTraceFeedback] = useState<string | null>(null);
+
+  const [expandedPoseIds, setExpandedPoseIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedRigIds, setExpandedRigIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const togglePoseExpansion = useCallback((id: string) => {
+    setExpandedPoseIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleRigExpansion = useCallback((id: string) => {
+    setExpandedRigIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const applyTraceSuggestion = useCallback(
     (suggestion: PoseRigTraceSuggestion) => {
@@ -385,33 +420,93 @@ export function BindingConnections({
             <span className="text-[9px] text-slate-600 font-medium px-1">
               POSES
             </span>
-            {connections.poses.map((pose) => (
-              <Button
-                key={pose.id}
-                variant="secondary"
-                size="sm"
-                className="h-auto py-1 text-[10px] px-2 bg-purple-900/10 hover:bg-purple-600/20 hover:text-purple-300 border-purple-500/20 hover:border-purple-500/40 transition-colors justify-start"
-                onClick={() => {
-                  if (onSelectPose) {
-                    onSelectPose(pose.id);
-                    return;
-                  }
-                  selectPose(pose.id);
-                  handleClearSelection();
-                }}
-              >
-                <div className="flex flex-col items-start gap-0.5">
-                  <div className="flex items-center gap-1.5 font-semibold">
-                    <Sparkles size={10} className="text-purple-400" />
-                    {pose.label}
+            {connections.poses.map((pose) => {
+              const isExpanded = expandedPoseIds.has(pose.id);
+              const affectedTargets = trace.targets.filter((t) =>
+                t.matchedPoseOutputs.some((o) => o.poseId === pose.id),
+              );
+
+              return (
+                <div key={pose.id} className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1 group/pose">
+                    <button
+                      onClick={() => togglePoseExpansion(pose.id)}
+                      className="p-0.5 hover:bg-purple-500/10 rounded transition-colors text-purple-400 cursor-pointer"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown size={12} />
+                      ) : (
+                        <ChevronRight size={12} />
+                      )}
+                    </button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-auto py-1 text-[10px] px-2 bg-purple-900/10 hover:bg-purple-600/20 hover:text-purple-300 border-purple-500/20 hover:border-purple-500/40 transition-colors justify-start flex-1"
+                      onClick={() => {
+                        if (onSelectPose) {
+                          onSelectPose(pose.id);
+                          return;
+                        }
+                        selectPose(pose.id);
+                        handleClearSelection();
+                      }}
+                    >
+                      <div className="flex flex-col items-start gap-0.5 w-full">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <Sparkles size={10} className="text-purple-400" />
+                          {pose.label}
+                        </div>
+                        <span className="text-[9px] opacity-50 truncate max-w-[160px]">
+                          affects: {pose.features.slice(0, 3).join(", ")}
+                          {pose.features.length > 3 ? "..." : ""}
+                        </span>
+                      </div>
+                    </Button>
                   </div>
-                  <span className="text-[9px] opacity-50 truncate max-w-[160px]">
-                    affects: {pose.features.slice(0, 3).join(", ")}
-                    {pose.features.length > 3 ? "..." : ""}
-                  </span>
+                  {isExpanded && affectedTargets.length > 0 && (
+                    <div className="flex flex-col gap-1 ml-4 mt-0.5 pb-1 last:pb-0">
+                      {affectedTargets.map((target) => {
+                        const output = target.matchedPoseOutputs.find(
+                          (o) => o.poseId === pose.id,
+                        );
+                        if (!output) return null;
+                        const anim = animatables[target.targetId];
+                        const constraints = anim?.constraints as any;
+                        const range =
+                          constraints &&
+                          typeof constraints.min === "number" &&
+                          typeof constraints.max === "number"
+                            ? `${constraints.min.toFixed(2)} - ${constraints.max.toFixed(2)}`
+                            : null;
+
+                        return (
+                          <div
+                            key={target.targetId}
+                            className="flex items-baseline gap-2 text-[9px] text-purple-200/70 cursor-pointer group/item hover:text-purple-300 transition-colors"
+                            onClick={() => onSelectTarget?.(target.targetId)}
+                          >
+                            <span className="truncate font-medium flex-1">
+                              {target.targetLabel}
+                            </span>
+                            <div className="flex gap-1.5 items-center shrink-0">
+                              <span className="font-mono text-purple-400">
+                                {output.value.toFixed(3)}
+                              </span>
+                              {range && (
+                                <span className="opacity-50 text-[8px] italic">
+                                  ({range})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </Button>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -421,32 +516,89 @@ export function BindingConnections({
             <span className="text-[9px] text-text-muted font-medium px-1">
               RIGS
             </span>
-            {connections.rigs.map((rig) => (
-              <Button
-                key={rig.id}
-                variant="secondary"
-                size="sm"
-                className="h-auto py-1 text-[10px] px-2 bg-bg-panel/30 hover:bg-accent-subtle hover:text-accent border-border-default/50 hover:border-accent/30 transition-colors justify-start"
-                onClick={() => {
-                  if (onSelectRig) {
-                    onSelectRig(rig.id);
-                    return;
-                  }
-                  handleSelectRig(rig.id);
-                  handleClearSelection();
-                }}
-              >
-                <div className="flex flex-col items-start gap-0.5">
-                  <div className="flex items-center gap-1.5 font-semibold">
-                    <Box size={10} className="text-accent" />
-                    {rig.label}
+            {connections.rigs.map((rig) => {
+              const isExpanded = expandedRigIds.has(rig.id);
+              const affectedTargets = trace.targets.filter((t) =>
+                t.upstreamRigInputIds.includes(rig.id),
+              );
+
+              return (
+                <div key={rig.id} className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1 group/rig">
+                    <button
+                      onClick={() => toggleRigExpansion(rig.id)}
+                      className="p-0.5 hover:bg-accent-subtle rounded transition-colors text-text-muted cursor-pointer"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown size={12} />
+                      ) : (
+                        <ChevronRight size={12} />
+                      )}
+                    </button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-auto py-1 text-[10px] px-2 bg-bg-panel/30 hover:bg-accent-subtle hover:text-accent border-border-default/50 hover:border-accent/30 transition-colors justify-start flex-1"
+                      onClick={() => {
+                        if (onSelectRig) {
+                          onSelectRig(rig.id);
+                          return;
+                        }
+                        handleSelectRig(rig.id);
+                        handleClearSelection();
+                      }}
+                    >
+                      <div className="flex flex-col items-start gap-0.5 w-full">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <Box size={10} className="text-accent" />
+                          {rig.label}
+                        </div>
+                        <span className="text-[9px] opacity-50 truncate max-w-[160px]">
+                          affects: {rig.features.join(", ")}
+                        </span>
+                      </div>
+                    </Button>
                   </div>
-                  <span className="text-[9px] opacity-50 truncate max-w-[160px]">
-                    affects: {rig.features.join(", ")}
-                  </span>
+                  {isExpanded && affectedTargets.length > 0 && (
+                    <div className="flex flex-col gap-1 ml-4 mt-0.5 pb-1 last:pb-0">
+                      {affectedTargets.map((target) => {
+                        const val = inputValues[rig.id] ?? 0;
+                        const anim = animatables[target.targetId];
+                        const constraints = anim?.constraints as any;
+                        const range =
+                          constraints &&
+                          typeof constraints.min === "number" &&
+                          typeof constraints.max === "number"
+                            ? `${constraints.min.toFixed(2)} - ${constraints.max.toFixed(2)}`
+                            : null;
+
+                        return (
+                          <div
+                            key={target.targetId}
+                            className="flex items-baseline gap-2 text-[9px] text-text-muted cursor-pointer group/item hover:text-accent transition-colors"
+                            onClick={() => onSelectTarget?.(target.targetId)}
+                          >
+                            <span className="truncate font-medium flex-1">
+                              {target.targetLabel}
+                            </span>
+                            <div className="flex gap-1.5 items-center shrink-0">
+                              <span className="font-mono text-accent">
+                                {val.toFixed(3)}
+                              </span>
+                              {range && (
+                                <span className="opacity-50 text-[8px] italic">
+                                  ({range})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </Button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

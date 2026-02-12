@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
-import type { StandardRigInput } from "@vizij/utils";
+import { Lock, LockOpen, Palette, Box, ChevronRight, Info } from "lucide-react";
+import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
 import type {
@@ -31,8 +32,15 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
 
   const { handleSelectMaterial } = useUnifiedSelection();
 
-  const { materials, assignMaterial, duplicateMaterial, setAnimatableValue } =
-    useSceneComposer();
+  const {
+    materials,
+    assignMaterial,
+    duplicateMaterial,
+    setAnimatableValue,
+    setFeatureAnimated,
+    updateAnimatableDescriptor,
+    setStaticFeatureValue,
+  } = useSceneComposer();
 
   // Helper to find feature by key
   const findFeature = (key: string) =>
@@ -130,10 +138,17 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
-          onDefaultChange={(id, val) =>
+          onDefaultChange={(id: string, val: number) =>
             handleUpdateStandardInput(id, { defaultValue: val })
           }
           onStaticValueChange={handleStaticValueChange}
+          onToggleAnimated={(animated: boolean) =>
+            setFeatureAnimated(node.id, colorFeature.id, animated)
+          }
+          onConstraintChange={updateAnimatableDescriptor}
+          onUpdateStandardInput={handleUpdateStandardInput}
+          setStaticFeatureValue={setStaticFeatureValue}
+          node={node}
         />
       )}
 
@@ -147,10 +162,17 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           inputBindings={inputBindings}
           inputValues={inputValues}
           onValueChange={handleInputValueChange}
-          onDefaultChange={(id, val) =>
+          onDefaultChange={(id: string, val: number) =>
             handleUpdateStandardInput(id, { defaultValue: val })
           }
           onStaticValueChange={handleStaticValueChange}
+          onToggleAnimated={(animated: boolean) =>
+            setFeatureAnimated(node.id, opacityFeature.id, animated)
+          }
+          onConstraintChange={updateAnimatableDescriptor}
+          onUpdateStandardInput={handleUpdateStandardInput}
+          setStaticFeatureValue={setStaticFeatureValue}
+          node={node}
         />
       )}
     </div>
@@ -170,11 +192,23 @@ interface RiggingScalarRowProps {
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
+  onToggleAnimated: (animated: boolean) => void;
+  onConstraintChange: (
+    id: string,
+    updater: (curr: AnimatableValue) => AnimatableValue,
+  ) => void;
   onStaticValueChange?: (
     targetId: string,
     value: number,
     channel?: string,
   ) => void;
+  onUpdateStandardInput: (id: string, updates: any) => void;
+  setStaticFeatureValue?: (
+    nodeId: string,
+    featureId: string,
+    value: any,
+  ) => void;
+  node?: SceneObjectNode;
 }
 
 export function RiggingScalarRow({
@@ -188,7 +222,14 @@ export function RiggingScalarRow({
   onValueChange,
   onDefaultChange,
   onStaticValueChange,
+  onToggleAnimated,
+  onConstraintChange,
+  onUpdateStandardInput,
+  setStaticFeatureValue,
+  node,
 }: RiggingScalarRowProps) {
+  const scrubValuesRef = useRef<Record<string, number>>({});
+
   const component = feature.components[0];
   if (!component) return null;
 
@@ -213,7 +254,13 @@ export function RiggingScalarRow({
   }
 
   const isBound = !!(inputId && standardInput) && !blockedReason;
-  const canEdit = isBound || (!!targetId && !!onStaticValueChange);
+
+  const minVal = isBound
+    ? standardInput!.range.min
+    : ((feature.descriptor?.constraints as any)?.min ?? 0);
+  const maxVal = isBound
+    ? standardInput!.range.max
+    : ((feature.descriptor?.constraints as any)?.max ?? 0);
 
   const currentValue = isBound
     ? (inputValues[inputId!] ?? standardInput!.defaultValue ?? 0)
@@ -232,42 +279,174 @@ export function RiggingScalarRow({
   };
 
   const handleSaveToDefault = () => {
-    if (isBound && inputId) onDefaultChange(inputId, currentValue as number);
+    if (isBound && inputId)
+      onUpdateStandardInput(inputId, { defaultValue: currentValue as number });
   };
 
-  const renderInput = (isDefault: boolean) => {
-    const val = isDefault ? defaultValue : currentValue;
+  const hasMinChanged =
+    Math.abs((currentValue as number) - (minVal as number)) > 0.0001;
+  const hasMaxChanged =
+    Math.abs((currentValue as number) - (maxVal as number)) > 0.0001;
+
+  const handleSaveToMin = () => {
+    if (isBound && inputId) {
+      onUpdateStandardInput(inputId, {
+        range: { min: currentValue as number },
+      });
+    } else if (feature.animatableId) {
+      onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
+        const nextConstraints = { ...(curr.constraints || {}) } as any;
+        nextConstraints.min = currentValue;
+        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+      });
+    }
+  };
+
+  const handleSaveToMax = () => {
+    if (isBound && inputId) {
+      onUpdateStandardInput(inputId, {
+        range: { max: currentValue as number },
+      });
+    } else if (feature.animatableId) {
+      onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
+        const nextConstraints = { ...(curr.constraints || {}) } as any;
+        nextConstraints.max = currentValue;
+        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+      });
+    }
+  };
+
+  const renderInput = (type: "current" | "default" | "min" | "max") => {
+    let val: number | undefined;
+    let canEdit = true;
+
+    if (type === "current") {
+      val = currentValue as number;
+      canEdit = isBound || !!onStaticValueChange;
+    } else if (type === "default") {
+      val = defaultValue as number;
+      canEdit = isBound;
+    } else if (type === "min") {
+      val = minVal;
+      canEdit = true;
+    } else if (type === "max") {
+      val = maxVal;
+      canEdit = true;
+    }
 
     return (
       <div
-        className={`flex items-center bg-bg-input/50 rounded-sm border border-transparent ${canEdit ? "focus-within:border-accent/50" : "opacity-70"} relative flex-1 min-w-0 h-5`}
+        className={cn(
+          "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
+          canEdit ? "focus-within:border-accent/50" : "opacity-70",
+        )}
       >
+        <ScrubbableLabel
+          label={label}
+          onScrub={(_, totalDelta) => {
+            const step = 0.01;
+            if (type === "current") {
+              if (isBound && inputId) {
+                const startVal = scrubValuesRef.current[inputId] ?? 0;
+                onValueChange(inputId, startVal + totalDelta * step);
+              } else if (onStaticValueChange) {
+                const startValueToUse = scrubValuesRef.current["current"] ?? 0;
+                const newVal = startValueToUse + totalDelta * step;
+                if (feature.animated && feature.animatableId) {
+                  onStaticValueChange(feature.animatableId, newVal);
+                } else if (setStaticFeatureValue && node) {
+                  setStaticFeatureValue(node.id, feature.id, newVal);
+                }
+              }
+            } else if (type === "default" && inputId) {
+              const startVal = scrubValuesRef.current[inputId] ?? 0;
+              onDefaultChange(inputId, startVal + totalDelta * step);
+            } else if (
+              (type === "min" || type === "max") &&
+              (inputId || feature.animatableId)
+            ) {
+              const startVal = scrubValuesRef.current[type] ?? 0;
+              const nextVal = startVal + totalDelta * step;
+              if (isBound && inputId) {
+                onUpdateStandardInput(inputId, { range: { [type]: nextVal } });
+              } else if (feature.animatableId) {
+                onConstraintChange?.(
+                  feature.animatableId,
+                  (curr: AnimatableValue) => {
+                    const nextConstraints = {
+                      ...(curr.constraints || {}),
+                    } as any;
+                    nextConstraints[type === "min" ? "min" : "max"] = nextVal;
+                    return {
+                      ...curr,
+                      constraints: nextConstraints,
+                    } as AnimatableValue;
+                  },
+                );
+              }
+            }
+          }}
+          onScrubStart={() => {
+            if (type === "current") {
+              if (isBound && inputId)
+                scrubValuesRef.current[inputId] = (currentValue as number) ?? 0;
+              else
+                scrubValuesRef.current["current"] =
+                  (currentValue as number) ?? 0;
+            } else if (type === "default" && inputId) {
+              scrubValuesRef.current[inputId] = (defaultValue as number) ?? 0;
+            } else if (
+              (type === "min" || type === "max") &&
+              (inputId || feature.animatableId)
+            ) {
+              scrubValuesRef.current[type] =
+                (type === "min" ? minVal : maxVal) ?? 0;
+            }
+          }}
+          className="text-[9px] font-bold px-1 select-none transition-colors text-text-muted"
+        />
         <input
           type="number"
           className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none pl-1"
-          value={typeof val === "number" ? parseFloat(val.toFixed(2)) : val}
-          step={0.1}
+          value={typeof val === "number" ? val : 0}
+          step={0.01}
           min={0}
           max={1}
           disabled={!canEdit}
-          title={
-            !canEdit
-              ? blockedReason
-                ? blockedReason
-                : unresolvedInputId
-                  ? `Driver "${unresolvedInputId}" is unresolved. Open My Drivers to remap.`
-                  : "Value is not driven by a rig input"
-              : undefined
-          }
           onChange={(e) => {
-            if (!canEdit) return;
             const num = parseFloat(e.target.value);
-            if (!isNaN(num)) {
+            if (isNaN(num)) return;
+            if (type === "current") {
+              if (isBound && inputId) onValueChange(inputId, num);
+              else if (onStaticValueChange) {
+                if (feature.animated && feature.animatableId) {
+                  onStaticValueChange(feature.animatableId, num);
+                } else if (setStaticFeatureValue && node) {
+                  setStaticFeatureValue(node.id, feature.id, num);
+                }
+              }
+            } else if (type === "default" && inputId) {
+              onDefaultChange(inputId, num);
+            } else if (
+              (type === "min" || type === "max") &&
+              (inputId || feature.animatableId)
+            ) {
               if (isBound && inputId) {
-                if (isDefault) onDefaultChange(inputId, num);
-                else onValueChange(inputId, num);
-              } else if (targetId && onStaticValueChange) {
-                onStaticValueChange(targetId, num);
+                onUpdateStandardInput(inputId, { range: { [type]: num } });
+              } else if (feature.animatableId) {
+                onConstraintChange?.(
+                  feature.animatableId,
+                  (curr: AnimatableValue) => {
+                    const nextConstraints = {
+                      ...(curr.constraints || {}),
+                    } as any;
+                    nextConstraints[type === "min" ? "min" : "max"] = num;
+                    return {
+                      ...curr,
+                      constraints: nextConstraints,
+                    } as AnimatableValue;
+                  },
+                );
               }
             }
           }}
@@ -276,14 +455,42 @@ export function RiggingScalarRow({
     );
   };
 
+  const renderAnimatableRow = () => (
+    <div className="flex gap-1.5 flex-1">
+      <button
+        className={cn(
+          "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
+          feature.animated
+            ? "bg-accent/10 text-accent hover:bg-accent/20"
+            : "bg-bg-input/50 text-text-muted hover:bg-bg-input/70",
+        )}
+        onClick={() => onToggleAnimated?.(!feature.animated)}
+      >
+        {feature.animated ? (
+          <LockOpen size={10} className="shrink-0" />
+        ) : (
+          <Lock size={10} className="shrink-0" />
+        )}
+        <span>Value</span>
+      </button>
+    </div>
+  );
+
   return (
     <RiggingPropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
+      hasMinChanged={hasMinChanged}
+      hasMaxChanged={hasMaxChanged}
       onResetToDefault={handleReset}
       onSaveToDefault={handleSaveToDefault}
-      renderMainInput={() => renderInput(false)}
-      renderDefaultInput={() => renderInput(true)}
+      onSaveToMin={handleSaveToMin}
+      onSaveToMax={handleSaveToMax}
+      renderMainInput={() => renderInput("current")}
+      renderDefaultInput={() => renderInput("default")}
+      renderMinInput={() => renderInput("min")}
+      renderMaxInput={() => renderInput("max")}
+      renderAnimatableRow={renderAnimatableRow}
     />
   );
 }
@@ -299,6 +506,11 @@ export function RiggingColorRow({
   onValueChange,
   onDefaultChange,
   onStaticValueChange,
+  onToggleAnimated,
+  onConstraintChange,
+  onUpdateStandardInput,
+  setStaticFeatureValue,
+  node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
 
@@ -341,12 +553,17 @@ export function RiggingColorRow({
       ? (standardInput!.defaultValue ?? 0)
       : (comp.staticValue ?? 0);
 
+    const min = isBound ? standardInput!.range.min : 0;
+    const max = isBound ? standardInput!.range.max : 1;
+
     return {
       label: compLabel,
       inputId,
       targetId,
       currentValue,
       defaultValue,
+      min,
+      max,
       isBound,
       unresolvedInputId,
       blockedReason,
@@ -380,8 +597,65 @@ export function RiggingColorRow({
   const handleSaveToDefault = () => {
     components.forEach((c) => {
       if (c.isBound && c.inputId)
-        onDefaultChange(c.inputId, c.currentValue as number);
+        onUpdateStandardInput(c.inputId, {
+          defaultValue: c.currentValue as number,
+        });
     });
+  };
+
+  const hasMinChanged = components.some(
+    (c) => Math.abs((c.currentValue as number) - (c.min as number)) > 0.0001,
+  );
+  const hasMaxChanged = components.some(
+    (c) => Math.abs((c.currentValue as number) - (c.max as number)) > 0.0001,
+  );
+
+  const handleSaveToMin = () => {
+    components.forEach((c) => {
+      if (c.isBound && c.inputId) {
+        onUpdateStandardInput(c.inputId, {
+          range: { min: c.currentValue as number },
+        });
+      }
+    });
+
+    if (feature.animatableId) {
+      onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
+        const nextConstraints = { ...(curr.constraints || {}) } as any;
+        const currentVals = { ...(nextConstraints.min || {}) };
+        components.forEach((c) => {
+          if (!c.isBound) {
+            currentVals[c.label.toLowerCase()] = c.currentValue;
+          }
+        });
+        nextConstraints.min = currentVals;
+        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+      });
+    }
+  };
+
+  const handleSaveToMax = () => {
+    components.forEach((c) => {
+      if (c.isBound && c.inputId) {
+        onUpdateStandardInput(c.inputId, {
+          range: { max: c.currentValue as number },
+        });
+      }
+    });
+
+    if (feature.animatableId) {
+      onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
+        const nextConstraints = { ...(curr.constraints || {}) } as any;
+        const currentVals = { ...(nextConstraints.max || {}) };
+        components.forEach((c) => {
+          if (!c.isBound) {
+            currentVals[c.label.toLowerCase()] = c.currentValue;
+          }
+        });
+        nextConstraints.max = currentVals;
+        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+      });
+    }
   };
 
   const rgbToHex = (r: number, g: number, b: number) => {
@@ -403,41 +677,84 @@ export function RiggingColorRow({
       : null;
   };
 
-  const renderInputs = (isDefault: boolean) => {
-    const currentR = isDefault
-      ? (rComp?.defaultValue ?? 0)
-      : (rComp?.currentValue ?? 0);
-    const currentG = isDefault
-      ? (gComp?.defaultValue ?? 0)
-      : (gComp?.currentValue ?? 0);
-    const currentB = isDefault
-      ? (bComp?.defaultValue ?? 0)
-      : (bComp?.currentValue ?? 0);
+  const renderInputs = (type: "current" | "default" | "min" | "max") => {
+    let rVal: number | undefined;
+    let gVal: number | undefined;
+    let bVal: number | undefined;
+
+    if (type === "current") {
+      rVal = rComp?.currentValue as number;
+      gVal = gComp?.currentValue as number;
+      bVal = bComp?.currentValue as number;
+    } else if (type === "default") {
+      rVal = rComp?.defaultValue as number;
+      gVal = gComp?.defaultValue as number;
+      bVal = bComp?.defaultValue as number;
+    } else if (type === "min") {
+      rVal = rComp?.min as number;
+      gVal = gComp?.min as number;
+      bVal = bComp?.min as number;
+    } else if (type === "max") {
+      rVal = rComp?.max as number;
+      gVal = gComp?.max as number;
+      bVal = bComp?.max as number;
+    }
 
     const hexColor = rgbToHex(
-      currentR as number,
-      currentG as number,
-      currentB as number,
+      (rVal ?? 0) as number,
+      (gVal ?? 0) as number,
+      (bVal ?? 0) as number,
     );
+
     const canEditAny =
-      components.some((c) => c.isBound) || !!onStaticValueChange;
+      type === "current"
+        ? components.some((c) => c.isBound) || !!onStaticValueChange
+        : type === "default"
+          ? components.some((c) => c.isBound)
+          : !!feature.animatableId;
 
     const handleColorChange = (newHex: string) => {
       const rgb = hexToRgb(newHex);
       if (!rgb) return;
 
-      [
-        { comp: rComp, val: rgb.r },
-        { comp: gComp, val: rgb.g },
-        { comp: bComp, val: rgb.b },
-      ].forEach(({ comp, val }) => {
-        if (comp?.isBound && comp.inputId) {
-          if (isDefault) onDefaultChange(comp.inputId, val);
-          else onValueChange(comp.inputId, val);
-        } else if (comp?.targetId && onStaticValueChange) {
-          onStaticValueChange(comp.targetId, val, comp.label.toLowerCase());
-        }
-      });
+      if (type === "current" || type === "default") {
+        [
+          { comp: rComp, val: rgb.r },
+          { comp: gComp, val: rgb.g },
+          { comp: bComp, val: rgb.b },
+        ].forEach(({ comp, val }) => {
+          if (!comp) return;
+          if (comp.isBound && comp.inputId) {
+            if (type === "current") onValueChange(comp.inputId, val);
+            else onDefaultChange(comp.inputId, val);
+          } else if (type === "current" && onStaticValueChange) {
+            if (feature.animated && feature.animatableId) {
+              onStaticValueChange(
+                feature.animatableId,
+                val,
+                comp.label.toLowerCase(),
+              );
+            } else if (setStaticFeatureValue && node) {
+              const current = (feature.staticValue as any) || {};
+              setStaticFeatureValue(node.id, feature.id, {
+                ...current,
+                [comp.label.toLowerCase()]: val,
+              });
+            }
+          }
+        });
+      } else if (feature.animatableId) {
+        onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
+          const nextConstraints = { ...(curr.constraints || {}) } as any;
+          const kind = type === "min" ? "min" : "max";
+          const currentVals = { ...(nextConstraints[kind] || {}) };
+          currentVals.r = rgb.r;
+          currentVals.g = rgb.g;
+          currentVals.b = rgb.b;
+          nextConstraints[kind] = currentVals;
+          return { ...curr, constraints: nextConstraints } as AnimatableValue;
+        });
+      }
     };
 
     return (
@@ -475,10 +792,19 @@ export function RiggingColorRow({
 
         <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
-            const val = isDefault ? c.defaultValue : c.currentValue;
-            const canEdit =
-              c.isBound || (!!c.targetId && !!onStaticValueChange);
-            const label = c === rComp ? "R" : c === gComp ? "G" : "B";
+            let compVal: number | undefined;
+            if (c === rComp) compVal = rVal;
+            else if (c === gComp) compVal = gVal;
+            else if (c === bComp) compVal = bVal;
+
+            const canEditComp =
+              type === "current"
+                ? c.isBound || !!onStaticValueChange
+                : type === "default"
+                  ? c.isBound
+                  : !!feature.animatableId;
+
+            const labelKey = c === rComp ? "R" : c === gComp ? "G" : "B";
             const labelColor =
               c === rComp
                 ? "text-red-500"
@@ -491,39 +817,75 @@ export function RiggingColorRow({
                 key={i}
                 className={cn(
                   "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
-                  canEdit ? "focus-within:border-accent/50" : "opacity-70",
+                  canEditComp ? "focus-within:border-accent/50" : "opacity-70",
                 )}
               >
                 <ScrubbableLabel
-                  label={label}
+                  label={labelKey}
                   onScrub={(_, totalDelta) => {
                     const step = 0.01;
-                    const startKey = c.inputId || c.targetId || "";
-                    if (!startKey) return;
-
-                    const startVal = scrubValuesRef.current[startKey] ?? 0;
+                    const scrubKey = c.isBound
+                      ? c.inputId!
+                      : c.targetId || `static-${type}-${labelKey}`;
+                    const startVal = scrubValuesRef.current[scrubKey] ?? 0;
                     const nextVal = startVal + totalDelta * step;
 
-                    if (c.isBound && c.inputId) {
-                      if (isDefault) onDefaultChange(c.inputId, nextVal);
-                      else onValueChange(c.inputId, nextVal);
-                    } else if (c.targetId && onStaticValueChange) {
-                      onStaticValueChange(
-                        c.targetId,
-                        nextVal,
-                        c.label.toLowerCase(),
-                      );
+                    if (type === "current") {
+                      if (c.isBound && c.inputId)
+                        onValueChange(c.inputId, nextVal);
+                      else if (onStaticValueChange) {
+                        if (feature.animated && feature.animatableId) {
+                          onStaticValueChange(
+                            feature.animatableId,
+                            nextVal,
+                            c.label.toLowerCase(),
+                          );
+                        } else if (setStaticFeatureValue && node) {
+                          const current = (feature.staticValue as any) || {};
+                          setStaticFeatureValue(node.id, feature.id, {
+                            ...current,
+                            [c.label.toLowerCase()]: nextVal,
+                          });
+                        }
+                      }
+                    } else if (type === "default" && c.inputId) {
+                      onUpdateStandardInput(c.inputId, {
+                        defaultValue: nextVal,
+                      });
+                    } else if (c.inputId || feature.animatableId) {
+                      if (c.isBound && c.inputId) {
+                        onUpdateStandardInput(c.inputId, {
+                          range: { [type]: nextVal },
+                        });
+                      } else if (feature.animatableId) {
+                        onConstraintChange?.(
+                          feature.animatableId,
+                          (curr: AnimatableValue) => {
+                            const nextConstraints = {
+                              ...(curr.constraints || {}),
+                            } as any;
+                            const kind = type === "min" ? "min" : "max";
+                            const currentVal = nextConstraints[kind] || {};
+                            nextConstraints[kind] = {
+                              ...(typeof currentVal === "object"
+                                ? currentVal
+                                : {}),
+                              [c.label.toLowerCase()]: nextVal,
+                            } as any;
+                            return {
+                              ...curr,
+                              constraints: nextConstraints,
+                            } as AnimatableValue;
+                          },
+                        );
+                      }
                     }
                   }}
                   onScrubStart={() => {
-                    const startKey = c.inputId || c.targetId || "";
-                    if (!startKey) return;
-
-                    const baseline = isDefault
-                      ? c.defaultValue
-                      : c.currentValue;
-                    scrubValuesRef.current[startKey] =
-                      (baseline as number) ?? 0;
+                    const scrubKey = c.isBound
+                      ? c.inputId!
+                      : c.targetId || `static-${type}-${labelKey}`;
+                    scrubValuesRef.current[scrubKey] = (compVal as number) ?? 0;
                   }}
                   className={cn(
                     "text-[9px] font-bold px-1 select-none transition-colors",
@@ -533,34 +895,58 @@ export function RiggingColorRow({
                 <input
                   type="number"
                   className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none"
-                  value={
-                    typeof val === "number" ? parseFloat(val.toFixed(2)) : 0
-                  }
+                  value={typeof compVal === "number" ? compVal : 0}
                   step={0.01}
                   min={0}
                   max={1}
-                  disabled={!canEdit}
-                  title={
-                    !canEdit
-                      ? c.blockedReason
-                        ? c.blockedReason
-                        : c.unresolvedInputId
-                          ? `Driver "${c.unresolvedInputId}" is unresolved. Open My Drivers to remap.`
-                          : "Value is not driven by a rig input"
-                      : undefined
-                  }
+                  disabled={!canEditComp}
                   onChange={(e) => {
-                    if (!canEdit) return;
                     const num = parseFloat(e.target.value);
-                    if (!isNaN(num)) {
+                    if (isNaN(num)) return;
+                    if (type === "current") {
+                      if (c.isBound && c.inputId) onValueChange(c.inputId, num);
+                      else if (onStaticValueChange) {
+                        if (feature.animated && feature.animatableId) {
+                          onStaticValueChange(
+                            feature.animatableId,
+                            num,
+                            c.label.toLowerCase(),
+                          );
+                        } else if (setStaticFeatureValue && node) {
+                          const current = (feature.staticValue as any) || {};
+                          setStaticFeatureValue(node.id, feature.id, {
+                            ...current,
+                            [c.label.toLowerCase()]: num,
+                          });
+                        }
+                      }
+                    } else if (type === "default" && c.inputId) {
+                      onUpdateStandardInput(c.inputId, { defaultValue: num });
+                    } else if (c.inputId || feature.animatableId) {
                       if (c.isBound && c.inputId) {
-                        if (isDefault) onDefaultChange(c.inputId, num);
-                        else onValueChange(c.inputId, num);
-                      } else if (c.targetId && onStaticValueChange) {
-                        onStaticValueChange(
-                          c.targetId,
-                          num,
-                          c.label.toLowerCase(),
+                        onUpdateStandardInput(c.inputId, {
+                          range: { [type]: num },
+                        });
+                      } else if (feature.animatableId) {
+                        onConstraintChange?.(
+                          feature.animatableId,
+                          (curr: AnimatableValue) => {
+                            const nextConstraints = {
+                              ...(curr.constraints || {}),
+                            } as any;
+                            const kind = type === "min" ? "min" : "max";
+                            const currentVal = nextConstraints[kind] || {};
+                            nextConstraints[kind] = {
+                              ...(typeof currentVal === "object"
+                                ? currentVal
+                                : {}),
+                              [c.label.toLowerCase()]: num,
+                            } as any;
+                            return {
+                              ...curr,
+                              constraints: nextConstraints,
+                            } as AnimatableValue;
+                          },
                         );
                       }
                     }
@@ -574,14 +960,45 @@ export function RiggingColorRow({
     );
   };
 
+  const renderAnimatableRow = () => (
+    <div className="flex gap-1.5 flex-1">
+      {components.map((c, i) => (
+        <button
+          key={i}
+          className={cn(
+            "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
+            feature.animated
+              ? "bg-accent/10 text-accent hover:bg-accent/20"
+              : "bg-bg-input/50 text-text-muted hover:bg-bg-input/70",
+          )}
+          onClick={() => onToggleAnimated?.(!feature.animated)}
+        >
+          {feature.animated ? (
+            <LockOpen size={10} className="shrink-0" />
+          ) : (
+            <Lock size={10} className="shrink-0" />
+          )}
+          <span>{c.label.substring(0, 1)}</span>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <RiggingPropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
+      hasMinChanged={hasMinChanged}
+      hasMaxChanged={hasMaxChanged}
       onResetToDefault={handleReset}
       onSaveToDefault={handleSaveToDefault}
-      renderMainInput={() => renderInputs(false)}
-      renderDefaultInput={() => renderInputs(true)}
+      onSaveToMin={handleSaveToMin}
+      onSaveToMax={handleSaveToMax}
+      renderMainInput={() => renderInputs("current")}
+      renderDefaultInput={() => renderInputs("default")}
+      renderMinInput={() => renderInputs("min")}
+      renderMaxInput={() => renderInputs("max")}
+      renderAnimatableRow={renderAnimatableRow}
     />
   );
 }

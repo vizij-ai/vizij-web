@@ -94,15 +94,17 @@ export function InspectorContent() {
   );
   const [blendAmount, setBlendAmount] = useState(0);
   const [sceneInspectorView, setSceneInspectorView] = useState<
-    "quick" | "features" | "bindings"
+    "quick" | "bindings"
   >("quick");
+
   const [rigInspectorView, setRigInspectorView] = useState<
     "quick" | "bindings"
   >("quick");
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const pendingSceneInspectorViewRef = useRef<
-    "quick" | "features" | "bindings" | null
-  >(null);
+  const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
+    null,
+  );
+
   const pendingRigInspectorViewRef = useRef<"quick" | "bindings" | null>(null);
   const pendingChainNavigationRef = useRef<InspectorChainNode | null>(null);
   const [inspectorChainPath, setInspectorChainPath] = useState<
@@ -136,6 +138,8 @@ export function InspectorContent() {
     updateMaterialLabel,
     setAnimatableValue,
     setFeatureAnimated,
+    updateAnimatableDescriptor,
+    setStaticFeatureValue,
   } = useSceneComposer();
 
   const {
@@ -431,7 +435,8 @@ export function InspectorContent() {
                   pendingChainNavigationRef.current = entry;
                   if (entry.mode === "scene") {
                     pendingSceneInspectorViewRef.current =
-                      entry.view ?? "bindings";
+                      entry.view === "bindings" ? "bindings" : "quick";
+
                     setFocusedSceneBindingTargetId(entry.targetId ?? null);
                     handleSelectObject(entry.id);
                     return;
@@ -581,16 +586,7 @@ export function InspectorContent() {
             >
               Quick
             </Button>
-            <Button
-              variant={
-                sceneInspectorView === "features" ? "secondary" : "ghost"
-              }
-              size="sm"
-              className="h-6 text-[10px]"
-              onClick={() => setSceneInspectorView("features")}
-            >
-              Feature Matrix
-            </Button>
+
             <Button
               variant={
                 sceneInspectorView === "bindings" ? "secondary" : "ghost"
@@ -604,35 +600,8 @@ export function InspectorContent() {
           </div>
           {sceneInspectorView === "quick" ? (
             <>
-              <div className="flex flex-col gap-1 p-1.5 bg-bg-panel/40 rounded-lg border border-border-default/50">
-                <div className="text-[9px] font-bold text-text-secondary uppercase tracking-wider px-0.5">
-                  Animation State
-                </div>
-                <div className="flex flex-col gap-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
-                  {node.features.map((feature) => (
-                    <div
-                      key={feature.id}
-                      className="flex items-center justify-between gap-2 px-1.5 py-1 rounded bg-bg-panel/30 border border-border-default/40"
-                    >
-                      <span className="text-[11px] text-text-primary truncate">
-                        {feature.label}
-                      </span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-[9px] uppercase tracking-wide text-text-muted">
-                          {feature.animated ? "Animated" : "Static"}
-                        </span>
-                        <Switch
-                          checked={feature.animated}
-                          onChange={(checked) =>
-                            setFeatureAnimated(node.id, feature.id, checked)
-                          }
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
               <RiggingTransformSection node={node} />
+
               <RiggingMorphTargetsSection node={node} />
               <RiggingMaterialSection node={node} />
               <BindingConnections
@@ -642,8 +611,6 @@ export function InspectorContent() {
                 onSelectTarget={openSceneBindingInspector}
               />
             </>
-          ) : sceneInspectorView === "features" ? (
-            <FeatureList node={node} mode="features" />
           ) : (
             <FeatureList
               node={node}
@@ -2028,6 +1995,16 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
+                  onToggleAnimated={(animated) =>
+                    setFeatureAnimated(
+                      material.id,
+                      `${material.id}-color`,
+                      animated,
+                    )
+                  }
+                  onConstraintChange={updateAnimatableDescriptor}
+                  onUpdateStandardInput={handleUpdateStandardInput}
+                  setStaticFeatureValue={setStaticFeatureValue}
                 />
               )}
               {opacityFeature && (
@@ -2044,6 +2021,16 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
+                  onToggleAnimated={(animated) =>
+                    setFeatureAnimated(
+                      material.id,
+                      `${material.id}-opacity`,
+                      animated,
+                    )
+                  }
+                  onConstraintChange={updateAnimatableDescriptor}
+                  onUpdateStandardInput={handleUpdateStandardInput}
+                  setStaticFeatureValue={setStaticFeatureValue}
                 />
               )}
             </div>
