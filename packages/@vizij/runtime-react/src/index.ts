@@ -3,6 +3,7 @@ export { VizijRuntimeFace } from "./VizijRuntimeFace";
 export { useVizijRuntime } from "./hooks/useVizijRuntime";
 export { useVizijOutputs } from "./hooks/useVizijOutputs";
 export { useRigInput } from "./hooks/useRigInput";
+export { resolveRuntimeUpdatePlan } from "./updatePolicy";
 
 export type {
   VizijAssetBundle,
@@ -23,4 +24,7 @@ export type {
   InputDriverLifecycle,
   InputDriverContext,
   VizijRuntimeFaceProps,
+  RuntimeUpdateTier,
+  RuntimeUpdatePlan,
+  RuntimeGraphBundle,
 } from "./types";

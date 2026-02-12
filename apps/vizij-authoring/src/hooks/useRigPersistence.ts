@@ -369,6 +369,7 @@ export function useRigPersistence({
     }
     setTimeout(() => {
       skipPersistRef.current = false;
+      rebuildAutoInputs();
     }, 0);
     lastLoadedFaceIdRef.current = faceId;
   }, [
@@ -389,6 +390,7 @@ export function useRigPersistence({
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
     skipPersistRef,
+    rebuildAutoInputs,
     updateInputValues,
   ]);
 

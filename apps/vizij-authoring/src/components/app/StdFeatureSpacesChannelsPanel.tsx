@@ -4,7 +4,7 @@ import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
-import { Button, Panel, Switch, Chip, Input } from "../ui";
+import { Button, Panel, Chip, Input } from "../ui";
 import { cn } from "../../utils/cn";
 
 /**
@@ -191,8 +191,6 @@ function validateNodeName(name: string): string | null {
 function nameExistsAtLevel(existingNames: Set<string>, name: string): boolean {
   return existingNames.has(name.toLowerCase());
 }
-
-const TREE_MAX_HEIGHT = 800;
 
 export function StdFeatureSpacesChannelsPanel() {
   const [search, setSearch] = useState("");
@@ -647,41 +645,6 @@ export function StdFeatureSpacesChannelsPanel() {
       mainFaceStandardInputs,
       handleCreateCustomStandardInput,
       handleUpdateStandardInput,
-    ],
-  );
-
-  // Handle removing channels from main face that don't exist in reference namespace
-  const handleRemoveUnmatched = useCallback(
-    (namespaceName: string) => {
-      const mainNamespaceNode = mainInputTree.get(namespaceName);
-      const refNamespaceNode = refInputTree.get(namespaceName);
-
-      if (!mainNamespaceNode) return;
-
-      // Collect all inputs from the main namespace
-      const mainInputs = collectInputsUnderNode(mainNamespaceNode);
-
-      // Build a set of normalized paths from reference namespace (if it exists)
-      const refInputs = refNamespaceNode
-        ? collectInputsUnderNode(refNamespaceNode)
-        : [];
-      const refPaths = buildNormalizedPathSet(refInputs);
-
-      // Remove main face inputs that don't exist in reference
-      for (const mainInput of mainInputs) {
-        const normalizedPath = normalizeStandardRigInputPath(mainInput.path);
-        if (!refPaths.has(normalizedPath)) {
-          // Remove this input from main face
-          handleDeleteCustomStandardInput(mainInput.id);
-          handleDisableStandardInput(mainInput.id);
-        }
-      }
-    },
-    [
-      mainInputTree,
-      refInputTree,
-      handleDeleteCustomStandardInput,
-      handleDisableStandardInput,
     ],
   );
 

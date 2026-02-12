@@ -1,18 +1,17 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { Popover as BasePopover } from "@base-ui/react";
-import { Box, Folder } from "lucide-react";
+import { Box, Folder, Search } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
+import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
-import { Panel, Button, Select, PanelSearch, TreeRow } from "../ui";
 import { cn } from "../../utils/cn";
+import { EmptyState } from "../ui/EmptyState";
+import { Panel, Button, Select, PanelSearch, TreeRow } from "../ui";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
-import { useReferenceFace } from "../../state/ReferenceFaceContext";
-import { EmptyState } from "../ui/EmptyState";
-import { Search } from "lucide-react";
 
 interface HierarchyPanelProps {
   allowEditActions?: boolean;
@@ -170,15 +169,6 @@ export function HierarchyPanel({
       const Icon = isShape ? Box : Folder;
       const typeLabel = isShape ? "Shape" : "Group";
 
-      const icon = (
-        <span
-          className="flex items-center justify-center w-4 h-4 bg-accent/10 text-accent rounded-sm select-none border border-accent/20"
-          title={typeLabel}
-        >
-          <Icon size={10} strokeWidth={2.5} />
-        </span>
-      );
-
       return (
         <TreeRow
           key={node.id}
@@ -190,16 +180,7 @@ export function HierarchyPanel({
           onToggle={() => toggleNode(node.id)}
           onSelect={() => handleSelect(node.id)}
           highlightQuery={search}
-          icon={null} // We use 'actions' for the right-side content, but wait, the old design had the icon on the RIGHT side on hover?
-          // No, looking at my `VariablesPanel` refactor plan, I put icons on the left.
-          // Let's re-read the original `HierarchyPanel.tsx`.
-          // Original:
-          // <button ... className="rotate-90">...</button> (Expander)
-          // <div className="flex items-center gap-2 flex-1 ..."> (Label Container)
-          //    <span ...>{node.name}</span> (Label)
-          //    <span className="flex items-center gap-1.5 ml-auto opacity-0 group-hover:opacity-100 ..."> (Right side icons)
-          // So yes, NO icon on the left by default. The icon (Box/Folder) was on the RIGHT.
-
+          icon={null}
           actions={
             <>
               <span

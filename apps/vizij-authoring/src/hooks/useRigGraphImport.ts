@@ -22,7 +22,11 @@ import type {
   DiscrepancyResolutionResult,
   GraphDiffResult,
 } from "../types/discrepancy";
-import { diffGraphSpecs } from "../utils/graphDiff";
+import {
+  canonicalizeGraphComparable,
+  diffGraphSpecs,
+  rewriteGraphFaceNamespace,
+} from "../utils/graphDiff";
 import { sanitizeFaceId } from "../utils/faceId";
 
 interface UseRigGraphImportOptions {
@@ -214,9 +218,13 @@ export function useRigGraphImport({
           normalizeGraphSpec(spec),
           normalizeGraphSpec(rebuiltSpec),
         ]);
+        const importedComparable =
+          canonicalizeGraphComparable(importedNormalized);
+        const rebuiltComparable =
+          canonicalizeGraphComparable(rebuiltNormalized);
 
-        const importedSignature = JSON.stringify(importedNormalized);
-        const rebuiltSignature = JSON.stringify(rebuiltNormalized);
+        const importedSignature = JSON.stringify(importedComparable);
+        const rebuiltSignature = JSON.stringify(rebuiltComparable);
         debugLog("import comparison", {
           importedFaceId,
           loadedFaceId: faceId,
@@ -249,10 +257,52 @@ export function useRigGraphImport({
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
 
         if (shouldOpenDiscrepancyWizard) {
+          const initialDiffResult =
+            importedSignature === rebuiltSignature
+              ? { entries: [], limitReached: false }
+              : diffGraphSpecs(importedComparable, rebuiltComparable, {
+                  limit: 300,
+                });
+          let diffResult = initialDiffResult;
+
+          let canAutoResolveFaceRename = false;
+          if (
+            importedFaceId !== null &&
+            importedFaceId !== faceId &&
+            missingBlueprintPaths.length === 0
+          ) {
+            const rewrittenComparable = rewriteGraphFaceNamespace(
+              importedComparable,
+              importedFaceId,
+              faceId,
+            );
+            const rewrittenSignature = JSON.stringify(rewrittenComparable);
+            diffResult =
+              rewrittenSignature === rebuiltSignature
+                ? { entries: [], limitReached: false }
+                : diffGraphSpecs(rewrittenComparable, rebuiltComparable, {
+                    limit: 300,
+                  });
+            canAutoResolveFaceRename = diffResult.entries.length === 0;
+          }
+
+          debugLog("discrepancy diff summary", {
+            initialDiffCount: initialDiffResult.entries.length,
+            residualDiffCount: diffResult.entries.length,
+            canAutoResolveFaceRename,
+          });
+
+          if (canAutoResolveFaceRename) {
+            discrepancyResult = {
+              accepted: true,
+              renameFaceId: importedFaceId ?? undefined,
+            };
+          }
+
           if (pendingReviewRef.current) {
             debugLog("discrepancy review already open – awaiting resolution");
             discrepancyResult = await pendingReviewRef.current;
-          } else {
+          } else if (!discrepancyResult) {
             const mismatchReasons = [
               "Slot aliases, expressions, and defaults are normalised during import.",
               "Identifier sanitisation may regenerate component or input ids.",
@@ -265,13 +315,6 @@ export function useRigGraphImport({
                   .join(", ")}.`,
               );
             }
-            const diffResult =
-              importedSignature === rebuiltSignature
-                ? { entries: [], limitReached: false }
-                : diffGraphSpecs(importedNormalized, rebuiltNormalized, {
-                    limit: 300,
-                  });
-
             pendingReviewRef.current = openDiscrepancyReview({
               faceId,
               importedFaceId: importedFaceId ?? null,

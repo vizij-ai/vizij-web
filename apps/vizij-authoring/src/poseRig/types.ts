@@ -3,6 +3,14 @@ import type { StandardRigInput } from "@vizij/utils";
 export const POSE_RIG_CONFIG_VERSION = 1;
 
 export type StandardInputId = StandardRigInput["id"];
+export type PoseBlendMode = "average" | "additive";
+
+export interface PoseGroupDefinition {
+  id: string;
+  name: string;
+  path: string;
+  blendMode?: PoseBlendMode;
+}
 
 export interface LowLevelBinding {
   targetId: string;
@@ -29,6 +37,7 @@ export interface PoseDefinition {
   name: string;
   description?: string;
   group?: string | null;
+  groupId?: string | null;
   values: Record<StandardInputId, number>;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +56,8 @@ export interface PoseRigConfigFile {
   rigKind?: "generic" | "face-specific";
   title?: string;
   description?: string;
+  poseGroups?: PoseGroupDefinition[];
+  crossGroupBlendMode?: PoseBlendMode;
   neutralInputs: Record<StandardInputId, number>;
   poses: PoseDefinition[];
   lowLevel?: LowLevelRigSummary | null;

@@ -1,5 +1,5 @@
-import React from "react";
-import { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "../../utils/cn";
 
 interface EmptyStateProps {
@@ -7,7 +7,7 @@ interface EmptyStateProps {
   iconSize?: number;
   title: string;
   description?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
 }
 

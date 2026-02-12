@@ -10,7 +10,7 @@ import {
   type BindingMap,
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -25,6 +25,7 @@ import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
 import type { PoseRigConfigFile } from "../poseRig/types";
+import { PoseGraphService } from "../poseRig/services/poseGraphService";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;
@@ -39,6 +40,8 @@ interface PoseRigExportState {
   poseConfigDraft: PoseRigConfigFile | null;
   poseConfigFileName: string;
   importPoseConfig: (file: File) => Promise<void>;
+  blendMode?: "average" | "additive";
+  crossGroupBlendMode?: "average" | "additive";
 }
 
 type TraversableBody = {
@@ -219,6 +222,29 @@ export function useVizijExport(
         featureLabelOverrides,
       );
 
+      const standardInputs = Array.from(standardInputsById.values());
+      let poseGraphSpecForExport = poseRig.poseGraphSpec;
+      if (poseRig.poseConfigDraft) {
+        try {
+          const { spec } = PoseGraphService.buildSpec(
+            poseRig.poseConfigDraft,
+            standardInputs,
+            {
+              defaultGroupBlendMode: poseRig.blendMode ?? "average",
+              crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
+            },
+          );
+          poseGraphSpecForExport = spec;
+        } catch (error) {
+          await alertDialog(
+            `Failed to build pose graph for export: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return;
+        }
+      }
+
       const bundle = buildVizijBundle({
         includeVizijBundle,
         includeImportedAnimations,
@@ -233,7 +259,45 @@ export function useVizijExport(
         standardInputsById,
         featureLabelOverrides,
         inputMetadata: standardInputMetadataById,
+        poseGraphSpecForExport,
       });
+
+      if (bundle?.graphs?.length) {
+        const rigGraph = bundle.graphs.find((graph) => graph.kind === "rig");
+        const fatalIssues = (
+          rigGraph?.metadata as { issues?: { fatal?: unknown[] } } | undefined
+        )?.issues?.fatal;
+        if (Array.isArray(fatalIssues) && fatalIssues.length > 0) {
+          await alertDialog(
+            "Fix rig graph errors before exporting the bundled GLB.",
+          );
+          return;
+        }
+        if (rigGraph?.spec) {
+          try {
+            await normalizeGraphSpec(rigGraph.spec as GraphSpec);
+          } catch (error) {
+            await alertDialog(
+              `Rig graph validation failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            return;
+          }
+        }
+        if (poseGraphSpecForExport) {
+          const poseWarnings = PoseGraphService.validate(
+            poseGraphSpecForExport,
+            standardInputs,
+          );
+          if (poseWarnings.length > 0) {
+            await alertDialog(
+              `Pose graph is invalid:\n${poseWarnings.join("\n")}`,
+            );
+            return;
+          }
+        }
+      }
 
       exportScene(
         primaryBody,
@@ -270,19 +334,48 @@ export function useVizijExport(
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
-    const spec = poseRig.poseGraphSpec;
-    if (!spec) {
-      await alertDialog("Build the pose rig graph before exporting.");
+    if (!poseRig.poseConfigDraft) {
+      await alertDialog(
+        "Capture a neutral pose or add pose data before exporting.",
+      );
       return;
     }
-    const slug = faceSlug(faceId);
-    const fileName = ensureExtension(
-      poseRig.poseGraphFileName,
-      `${slug}_pose_graph`,
-      "json",
-    );
-    downloadJsonFile(cloneSerializable(spec), fileName);
-  }, [alertDialog, faceId, poseRig.poseGraphFileName, poseRig.poseGraphSpec]);
+    try {
+      const inputs = Array.from(standardInputsById.values());
+      const { spec } = PoseGraphService.buildSpec(
+        poseRig.poseConfigDraft,
+        inputs,
+        {
+          defaultGroupBlendMode: poseRig.blendMode ?? "average",
+          crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
+        },
+      );
+      const warnings = PoseGraphService.validate(spec, inputs);
+      if (warnings.length > 0) {
+        await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
+        return;
+      }
+      const slug = faceSlug(faceId);
+      const fileName = ensureExtension(
+        poseRig.poseGraphFileName,
+        `${slug}_pose_graph`,
+        "json",
+      );
+      downloadJsonFile(cloneSerializable(spec), fileName);
+    } catch (error) {
+      await alertDialog(
+        `Failed to build pose graph for export: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }, [
+    alertDialog,
+    faceId,
+    poseRig.poseConfigDraft,
+    poseRig.poseGraphFileName,
+    standardInputsById,
+  ]);
 
   const exportPoseConfigFile = useCallback(async () => {
     const config = poseRig.poseConfigDraft;
@@ -347,6 +440,7 @@ interface BuildVizijBundleOptions {
     string,
     { source?: "auto" | "custom" | "preset"; root?: string }
   >;
+  poseGraphSpecForExport?: GraphSpec | null;
 }
 
 function buildVizijBundle(
@@ -389,6 +483,7 @@ function buildVizijBundle(
     : undefined;
   const rigSpec = cloneSerializable(rigGraphResult.spec);
   const slug = faceSlug(faceId);
+  const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [
     {
@@ -412,12 +507,12 @@ function buildVizijBundle(
     },
   ];
 
-  if (poseRig.poseGraphSpec) {
+  if (poseGraphSpec) {
     graphs.push({
       id: poseRig.poseGraphFileName || `${slug}_pose_graph`,
       kind: "pose-driver",
       label: poseRig.poseGraphFileName || "pose graph",
-      spec: cloneSerializable(poseRig.poseGraphSpec) as unknown as Record<
+      spec: cloneSerializable(poseGraphSpec) as unknown as Record<
         string,
         unknown
       >,

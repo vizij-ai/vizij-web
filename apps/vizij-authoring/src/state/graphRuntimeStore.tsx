@@ -5,6 +5,7 @@ import type {
   MachineReport,
 } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { PoseRigConfig } from "@vizij/runtime-react";
 import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { PersistedGraphInsight } from "../rig/persistence";
@@ -22,12 +23,17 @@ export interface GraphRuntimeState {
   faceRenameToken: string | null;
   graphStatus: GraphStatus;
   graphError: string | null;
+  graphWarning?: string | null;
+  graphSpec?: GraphSpec | null;
+  poseGraphSpec?: GraphSpec | null;
+  poseConfig?: PoseRigConfig | null;
   graphInputDefaults: Record<string, number>;
   world: World;
   animatables: Record<string, AnimatableValue>;
   values: Map<string, RawValue | undefined>;
   graphTimeSeconds: number;
   graphPlaybackState: GraphPlaybackState;
+  graphPlaybackAvailable: boolean;
   graphFrameRate: number;
   graphInsights: PersistedGraphInsight | null;
   graphMachineReport: MachineReport | null;
@@ -45,6 +51,7 @@ export interface GraphRuntimeState {
   ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
+  stageRuntimeInput?: (graphPath: string, value: number) => void;
 }
 
 type GraphRuntimeStoreUpdate =
@@ -65,12 +72,17 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   faceRenameToken: null,
   graphStatus: "idle",
   graphError: null,
+  graphWarning: null,
+  graphSpec: null,
+  poseGraphSpec: null,
+  poseConfig: null,
   graphInputDefaults: {},
   world: {} as World,
   animatables: {} as Record<string, AnimatableValue>,
   values: new Map(),
   graphTimeSeconds: 0,
   graphPlaybackState: "paused",
+  graphPlaybackAvailable: false,
   graphFrameRate: 0,
   graphInsights: null,
   graphMachineReport: null,
@@ -88,6 +100,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   }),
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
   setGraphPlaybackState: noop,
+  stageRuntimeInput: undefined,
 };
 
 export function createGraphRuntimeStore(
@@ -146,7 +159,7 @@ export function GraphRuntimeStoreProvider({
   );
 }
 
-function useGraphRuntimeStoreApi(): GraphRuntimeStore {
+export function useGraphRuntimeStoreApi(): GraphRuntimeStore {
   const store = useContext(GraphRuntimeStoreContext);
   if (!store) {
     throw new Error(

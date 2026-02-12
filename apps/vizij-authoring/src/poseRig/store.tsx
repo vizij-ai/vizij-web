@@ -28,6 +28,7 @@ export interface PoseRigState {
   selectedPoseId: string | null;
   activePoseId: string | null; // For "preview" mode
   blendMode: "average" | "additive";
+  crossGroupBlendMode: "average" | "additive";
 
   // Graph/Config State
   poseGraphSpec: GraphSpec | null;
@@ -67,6 +68,7 @@ export interface PoseRigState {
   reset: () => void;
   setFilenames: (filenames: { config?: string; graph?: string }) => void;
   setBlendMode: (mode: "average" | "additive") => void;
+  setCrossGroupBlendMode: (mode: "average" | "additive") => void;
   updatePoseName: (poseId: string, name: string) => void;
   updatePoseGroup: (poseId: string, group: string | null) => void;
   updatePoseGroupBatch: (
@@ -112,6 +114,7 @@ const defaultState: Omit<
   | "duplicatePose"
   | "setFilenames"
   | "setBlendMode"
+  | "setCrossGroupBlendMode"
   | "updatePoseName"
   | "updatePoseGroup"
   | "updatePoseGroupBatch"
@@ -130,6 +133,7 @@ const defaultState: Omit<
   selectedPoseId: NEUTRAL_POSE_ID,
   activePoseId: null,
   blendMode: "average",
+  crossGroupBlendMode: "additive",
   poseGraphSpec: null,
   poseGraphSummary: null,
   poseConfigDraft: null,
@@ -164,13 +168,25 @@ export function createPoseRigStore(
       patch.faceId ||
       patch.rigKind ||
       patch.standardInputs ||
-      patch.standardInputSchema
+      patch.standardInputSchema ||
+      patch.blendMode ||
+      patch.crossGroupBlendMode
     ) {
       const standardInputSchema =
         nextState.poseConfigDraft?.standardInputSchema ??
         nextState.lastImportedConfig?.standardInputSchema ??
         nextState.standardInputSchema ??
         undefined;
+      const basePoseGroups =
+        nextState.poseConfigDraft?.poseGroups ??
+        nextState.lastImportedConfig?.poseGroups;
+      const poseGroups =
+        patch.blendMode && basePoseGroups
+          ? basePoseGroups.map((group) => ({
+              ...group,
+              blendMode: nextState.blendMode,
+            }))
+          : basePoseGroups;
 
       nextState.poseConfigDraft = PoseConfigService.create(
         nextState.poses,
@@ -179,12 +195,21 @@ export function createPoseRigStore(
         nextState.faceId,
         nextState.rigKind,
         standardInputSchema,
+        {
+          poseGroups,
+          defaultGroupBlendMode: nextState.blendMode,
+          crossGroupBlendMode: nextState.crossGroupBlendMode,
+        },
       );
 
       try {
         const { spec, summary } = PoseGraphService.buildSpec(
           nextState.poseConfigDraft,
           nextState.standardInputs,
+          {
+            defaultGroupBlendMode: nextState.blendMode,
+            crossGroupBlendMode: nextState.crossGroupBlendMode,
+          },
         );
         nextState.poseGraphSpec = spec;
         nextState.poseGraphSummary = summary;
@@ -223,6 +248,7 @@ export function createPoseRigStore(
     | "duplicatePose"
     | "setFilenames"
     | "setBlendMode"
+    | "setCrossGroupBlendMode"
     | "updatePoseName"
     | "updatePoseGroup"
     | "updatePoseGroupBatch"
@@ -238,6 +264,9 @@ export function createPoseRigStore(
     },
     setBlendMode: (mode) => {
       setState({ blendMode: mode });
+    },
+    setCrossGroupBlendMode: (mode) => {
+      setState({ crossGroupBlendMode: mode });
     },
     setFilenames: (filenames) => {
       setState((prev) => ({ filenames: { ...prev.filenames, ...filenames } }));
@@ -311,13 +340,17 @@ export function createPoseRigStore(
     },
     updatePoseGroup: (poseId, group) => {
       setState((prev) => ({
-        poses: prev.poses.map((p) => (p.id === poseId ? { ...p, group } : p)),
+        poses: prev.poses.map((p) =>
+          p.id === poseId ? { ...p, group, groupId: null } : p,
+        ),
       }));
     },
     updatePoseGroupBatch: (poseIds, group) => {
       const ids = new Set(poseIds);
       setState((prev) => ({
-        poses: prev.poses.map((p) => (ids.has(p.id) ? { ...p, group } : p)),
+        poses: prev.poses.map((p) =>
+          ids.has(p.id) ? { ...p, group, groupId: null } : p,
+        ),
       }));
     },
     clearPose: (poseId) => {
@@ -416,6 +449,9 @@ export function createPoseRigStore(
         currentValues: { ...newNeutralInputs },
         rigName: normalized.title || DEFAULT_RIG_NAME,
         rigKind: normalized.rigKind ?? "face-specific",
+        blendMode:
+          normalized.poseGroups?.[0]?.blendMode ?? state.blendMode ?? "average",
+        crossGroupBlendMode: normalized.crossGroupBlendMode ?? "additive",
         standardInputSchema: normalized.standardInputSchema ?? null,
         lastImportedConfig: config,
         poseConfigDraft: normalized,

@@ -70,7 +70,7 @@ function createBundleConfig(file: File): {
 }
 
 export function ReferenceFaceRuntime({
-  namespace = "refface",
+  namespace: _namespace = "refface",
   file = null,
   active = true,
   fallback = null,
@@ -334,12 +334,13 @@ function ReferenceFaceBridge({
           </p>
           <div className="flex items-center gap-1.5">
             <div
-              className={`w-1.5 h-1.5 rounded-full ${ready
+              className={`w-1.5 h-1.5 rounded-full ${
+                ready
                   ? "bg-green-500"
                   : loading
                     ? "bg-accent animate-pulse"
                     : "bg-text-muted"
-                }`}
+              }`}
             />
             <p className="m-0 text-[10px] text-text-secondary font-bold">
               {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}

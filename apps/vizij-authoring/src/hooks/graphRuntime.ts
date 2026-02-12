@@ -222,3 +222,24 @@ export function buildFallbackGraphPath(
   const trimmed = normalizedPath.replace(/^\/+/, "");
   return trimmed.length > 0 ? `rig/${faceId}/${trimmed}` : `rig/${faceId}`;
 }
+
+export interface RuntimeInputBridgeStore {
+  getState: () => {
+    stageRuntimeInput?: (graphPath: string, value: number) => void;
+  };
+  subscribe: (listener: () => void) => () => void;
+}
+
+export function subscribeRuntimeInputBridgeAvailable(
+  store: RuntimeInputBridgeStore,
+  onAvailable: () => void,
+): () => void {
+  let previous = store.getState().stageRuntimeInput;
+  return store.subscribe(() => {
+    const next = store.getState().stageRuntimeInput;
+    if (next && next !== previous) {
+      onAvailable();
+    }
+    previous = next;
+  });
+}

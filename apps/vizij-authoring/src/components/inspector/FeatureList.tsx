@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { BindingMap, BindingValueType } from "@vizij/node-graph-authoring";
 import {
@@ -35,6 +35,7 @@ interface FeatureListProps {
   mode: "features" | "bindings";
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 export function FeatureList({
@@ -42,6 +43,7 @@ export function FeatureList({
   mode,
   hiddenMode = "grey",
   showHideControls = true,
+  focusedTargetId = null,
 }: FeatureListProps) {
   const {
     setFeatureAnimated,
@@ -57,6 +59,7 @@ export function FeatureList({
   } = useSceneComposer();
 
   const bindings = useBindingAuthoring((state) => state.bindings);
+  const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
@@ -262,6 +265,7 @@ export function FeatureList({
             feature={feature}
             mode={mode}
             bindings={bindings}
+            bindingIssues={bindingIssues}
             standardInputs={standardInputs}
             standardInputLookup={standardInputsById}
             inputValues={inputValues}
@@ -286,6 +290,7 @@ export function FeatureList({
             onShowDriver={handleShowDriver}
             hiddenMode={hiddenMode}
             showHideControls={showHideControls}
+            focusedTargetId={focusedTargetId}
           />
         ))}
       </div>
@@ -297,6 +302,7 @@ interface FeatureRowProps {
   feature: SceneObjectFeature;
   mode: "features" | "bindings";
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -360,6 +366,7 @@ interface FeatureRowProps {
   onShowDriver?: (id: string) => void;
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 function FeatureRow(props: FeatureRowProps) {
@@ -502,6 +509,7 @@ function FeatureRow(props: FeatureRowProps) {
             feature={feature}
             component={component}
             bindings={props.bindings}
+            bindingIssues={props.bindingIssues}
             standardInputs={props.standardInputs}
             standardInputLookup={props.standardInputLookup}
             inputValues={props.inputValues}
@@ -520,6 +528,7 @@ function FeatureRow(props: FeatureRowProps) {
             onShowDriver={props.onShowDriver}
             hiddenMode={props.hiddenMode}
             showHideControls={props.showHideControls}
+            focusedTargetId={props.focusedTargetId}
           />
         ))}
       </div>
@@ -533,6 +542,7 @@ interface FeatureBindingRowProps {
   feature: SceneObjectFeature;
   component: SceneFeatureComponent;
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -551,12 +561,14 @@ interface FeatureBindingRowProps {
   onShowDriver?: (id: string) => void;
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 function FeatureBindingRow({
   feature,
   component,
   bindings,
+  bindingIssues,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -575,6 +587,7 @@ function FeatureBindingRow({
   onShowDriver,
   hiddenMode = "grey",
   showHideControls = true,
+  focusedTargetId = null,
 }: FeatureBindingRowProps) {
   const targetId = component.targetId;
   const binding = targetId ? bindings[targetId] : undefined;
@@ -609,6 +622,19 @@ function FeatureBindingRow({
     };
   }, [binding?.slots, hiddenDriverIds, standardInputs, standardInputLookup]);
 
+  const isFocusedTarget = Boolean(targetId && focusedTargetId === targetId);
+
+  useEffect(() => {
+    if (!targetId || !isFocusedTarget || typeof document === "undefined") {
+      return;
+    }
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${rowId}"]`);
+    if (!row) {
+      return;
+    }
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [isFocusedTarget, rowId, targetId]);
+
   if (!targetId) {
     return null;
   }
@@ -625,6 +651,7 @@ function FeatureBindingRow({
     <BindingEditor
       binding={binding}
       targetId={targetId}
+      issues={bindingIssues.get(targetId)}
       label={`${feature.label} ${component.label ?? ""}`.trim()}
       standardInputs={standardInputs}
       standardInputLookup={standardInputLookup}
@@ -646,6 +673,7 @@ function FeatureBindingRow({
       hiddenDriverIds={hiddenDriverIds}
       onHideDriver={showHideControls ? onHideDriver : undefined}
       onShowDriver={showHideControls ? onShowDriver : undefined}
+      allowSelfBinding={false}
       featureFlags={{
         vectorAuthoringBeta: true,
         conditionalAuthoringBeta: true,
@@ -666,6 +694,8 @@ function FeatureBindingRow({
       className={cn(
         "rounded-lg border border-slate-800/60 bg-slate-950/10 mb-2 overflow-hidden",
         isGrey && "opacity-50 grayscale-[0.5]",
+        isFocusedTarget &&
+          "ring-1 ring-accent/50 shadow-[0_0_0_1px_var(--color-accent-subtle)]",
       )}
     >
       {isGrey && (
@@ -689,9 +719,11 @@ function FeatureBindingRow({
         </div>
       )}
       <CollapsibleRow
+        key={isFocusedTarget ? `${rowId}:focused` : rowId}
         id={rowId}
         title={title}
         subtitle={subtitle}
+        defaultExpanded={isFocusedTarget}
         showSlider={false}
         expandedContent={content}
         className="border-none m-0 rounded-none bg-transparent"

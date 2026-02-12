@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import {
   createPoseRigStore,
   PoseRigStoreProvider,
@@ -66,6 +67,47 @@ function PoseRigController({
     onInputValueChange: handleInputValueChange,
     applyInputBatch: applyStandardInputBatch,
   });
+
+  const setGraphRuntimeState = useGraphRuntime((state) => state.setStoreState);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncPoseGraph = async () => {
+      if (!poseRig.poseGraphSpec) {
+        setGraphRuntimeState((prev) => ({
+          ...prev,
+          poseGraphSpec: null,
+          poseConfig: poseRig.poseConfigDraft ?? null,
+        }));
+        return;
+      }
+
+      try {
+        const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
+        if (cancelled) return;
+        setGraphRuntimeState((prev) => ({
+          ...prev,
+          poseGraphSpec: normalized,
+          poseConfig: poseRig.poseConfigDraft ?? null,
+        }));
+      } catch (error) {
+        console.warn("[poseRig] Failed to normalize pose graph", error);
+        if (cancelled) return;
+        setGraphRuntimeState((prev) => ({
+          ...prev,
+          poseGraphSpec: null,
+          poseConfig: poseRig.poseConfigDraft ?? null,
+        }));
+      }
+    };
+
+    void syncPoseGraph();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [poseRig.poseGraphSpec, poseRig.poseConfigDraft, setGraphRuntimeState]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>

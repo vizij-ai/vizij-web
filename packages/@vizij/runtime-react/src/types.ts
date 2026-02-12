@@ -17,7 +17,17 @@ export type PoseDefinition = {
   name?: string;
   description?: string;
   group?: string | null;
+  groupId?: string | null;
   values: Record<string, number | undefined>;
+};
+
+export type PoseBlendMode = "average" | "additive";
+
+export type PoseGroupDefinition = {
+  id: string;
+  name: string;
+  path: string;
+  blendMode?: PoseBlendMode;
 };
 
 export type PoseRigConfig = {
@@ -25,10 +35,17 @@ export type PoseRigConfig = {
   faceId?: string | null;
   title?: string;
   description?: string;
+  poseGroups?: PoseGroupDefinition[];
+  crossGroupBlendMode?: PoseBlendMode;
   neutralInputs: Record<string, number>;
   poses: PoseDefinition[];
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
+  metadata?:
+    | Record<string, unknown>
+    | {
+        createdAt: string;
+        updatedAt: string;
+        author?: string;
+      };
 };
 
 export type RootBounds = {
@@ -51,8 +68,8 @@ export type VizijGlbAsset =
     }
   | {
       kind: "world";
-      world: World;
-      animatables: Record<string, AnimatableValue>;
+      world: World | Record<string, unknown>;
+      animatables: Record<string, AnimatableValue> | Record<string, unknown>;
       bundle?: VizijBundleExtension | null;
     };
 
@@ -194,6 +211,13 @@ export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
 export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
+  setGraphBundle: (
+    bundle: {
+      rig?: VizijGraphAsset;
+      pose?: VizijAssetBundle["pose"];
+    },
+    options?: { tier?: "auto" | "assets" | "graphs" },
+  ) => void;
   setValue: (
     id: string,
     namespace: string,
@@ -225,6 +249,7 @@ export type VizijRuntimeProviderProps = {
   children: ReactNode;
   namespace?: string;
   faceId?: string;
+  updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   createOptions?: CreateOrchOptions;
   autostart?: boolean;
@@ -233,4 +258,16 @@ export type VizijRuntimeProviderProps = {
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
   orchestratorScope?: "auto" | "shared" | "isolated";
+};
+
+export type RuntimeUpdateTier = "auto" | "assets" | "graphs";
+
+export type RuntimeUpdatePlan = {
+  reloadAssets: boolean;
+  reregisterGraphs: boolean;
+};
+
+export type RuntimeGraphBundle = {
+  rig?: VizijGraphAsset;
+  pose?: VizijAssetBundle["pose"];
 };

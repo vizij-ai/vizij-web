@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
     "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "validate": "pnpm run lint && pnpm run typecheck && pnpm run test",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "vitest --run --passWithNoTests",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@testing-library/react": "^16.3.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",

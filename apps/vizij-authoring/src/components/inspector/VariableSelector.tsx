@@ -3,8 +3,6 @@ import { Folder, Box, Zap, Activity } from "lucide-react";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
-import { cn } from "../../utils/cn";
-import type { SceneObjectNode } from "../../scene/sceneGraph";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -12,7 +10,14 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 
 export type VariableSelection =
   | { type: "variable"; id: string }
-  | { type: "property"; objectId: string; featureId: string; label: string };
+  | {
+      type: "property";
+      objectId: string;
+      featureId: string;
+      label: string;
+      targetId?: string;
+      targetIds?: string[];
+    };
 
 interface VariableSelectorProps {
   onSelect: (selection: VariableSelection) => void;
@@ -346,26 +351,77 @@ function SceneTree({
             {/* Render Features first as "children" */}
             {hasFeatures && (
               <div className="flex flex-col border-l border-accent/10 ml-[5px] my-0.5">
-                {node.features.map((feature) => (
-                  <div
-                    key={feature.id}
-                    className="flex items-center gap-2 py-1 px-2 ml-2 hover:bg-accent-subtle hover:text-text-primary rounded cursor-pointer text-text-secondary transition-all border border-transparent hover:border-accent/20 group/prop"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect({
-                        type: "property",
-                        objectId: node.id,
-                        featureId: feature.id,
-                        label: `${node.name} · ${feature.label}`,
-                      });
-                    }}
-                  >
-                    <span className="w-1 h-1 rounded-full bg-accent group-hover/prop:scale-125 transition-transform" />
-                    <span className="text-[11px] font-medium truncate">
-                      {feature.label}
-                    </span>
-                  </div>
-                ))}
+                {node.features.map((feature) => {
+                  const targetComponents = feature.components.filter(
+                    (component) => Boolean(component.targetId),
+                  );
+                  if (targetComponents.length === 0) {
+                    return null;
+                  }
+                  return (
+                    <div key={feature.id} className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-2 py-1 px-2 ml-2 rounded text-text-secondary border border-transparent">
+                        <span className="w-1 h-1 rounded-full bg-accent/80" />
+                        <span className="text-[11px] font-medium truncate flex-1">
+                          {feature.label}
+                        </span>
+                        {targetComponents.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 px-1.5 text-[9px]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const targetIds = targetComponents
+                                .map((component) => component.targetId)
+                                .filter((targetId): targetId is string =>
+                                  Boolean(targetId),
+                                );
+                              if (targetIds.length === 0) {
+                                return;
+                              }
+                              onSelect({
+                                type: "property",
+                                objectId: node.id,
+                                featureId: feature.id,
+                                label: `${node.name} · ${feature.label}`,
+                                targetIds,
+                              });
+                            }}
+                          >
+                            All
+                          </Button>
+                        )}
+                      </div>
+                      {targetComponents.map((component) => {
+                        if (!component.targetId) {
+                          return null;
+                        }
+                        return (
+                          <div
+                            key={component.id}
+                            className="flex items-center gap-2 py-1 px-2 ml-8 mr-2 hover:bg-accent-subtle hover:text-text-primary rounded cursor-pointer text-text-secondary transition-all border border-transparent hover:border-accent/20 group/prop"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSelect({
+                                type: "property",
+                                objectId: node.id,
+                                featureId: feature.id,
+                                label: `${node.name} · ${feature.label}.${component.label}`,
+                                targetId: component.targetId ?? undefined,
+                              });
+                            }}
+                          >
+                            <span className="w-1 h-1 rounded-full bg-accent group-hover/prop:scale-125 transition-transform" />
+                            <span className="text-[10px] font-medium truncate">
+                              {component.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {/* Render Object Children */}

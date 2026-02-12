@@ -1,10 +1,8 @@
 import type { ReactNode, HTMLAttributes } from "react";
 import { cn } from "../../utils/cn";
 
-interface ListRowProps extends Omit<
-  HTMLAttributes<HTMLDivElement>,
-  "title" | "children"
-> {
+interface ListRowProps
+  extends Omit<HTMLAttributes<HTMLDivElement>, "title" | "children"> {
   title: ReactNode;
   meta?: ReactNode;
   actions?: ReactNode;

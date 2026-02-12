@@ -401,6 +401,7 @@ interface BindingEditorProps {
   hiddenDriverIds?: ReadonlySet<string> | Set<string>;
   onHideDriver?: (inputId: string) => void;
   onShowDriver?: (inputId: string) => void;
+  allowSelfBinding?: boolean;
 }
 
 export function BindingEditor({
@@ -432,6 +433,7 @@ export function BindingEditor({
   hiddenDriverIds,
   onHideDriver,
   onShowDriver: _onShowDriver,
+  allowSelfBinding = true,
 }: BindingEditorProps) {
   const vectorAuthoringEnabled = featureFlags.vectorAuthoringBeta !== false;
   const conditionalAuthoringEnabled =
@@ -606,13 +608,6 @@ export function BindingEditor({
     return expressionFunctionGroups.flatMap(({ category, entries }) => {
       const categoryLabel = FUNCTION_CATEGORY_LABELS[category] ?? category;
       return entries.map((entry) => {
-        const detail = functionDetailLookup.get(entry.nodeType);
-        const descriptionSources = ensureDistinctDescriptions([
-          detail?.signatureDoc,
-          entry.description,
-        ]);
-        const parameterKeywords =
-          detail?.parameters.flatMap((param) => [param.label, param.id]) ?? [];
         return {
           value: entry.nodeType,
           label: `${entry.name}()`,
@@ -626,19 +621,6 @@ export function BindingEditor({
     ? (FUNCTION_CATEGORY_LABELS[selectedFunctionDetail.category] ??
       selectedFunctionDetail.category)
     : null;
-
-  const functionSelectCurrentLabel = selectedFunctionDetail ? (
-    <div className="flex items-center gap-2">
-      <span className="font-bold text-text-primary">
-        {selectedFunctionDetail.name}()
-      </span>
-      {selectedFunctionCategoryLabel && (
-        <span className="px-1.5 py-0.5 rounded-full bg-accent-subtle border border-accent/20 text-[9px] font-black uppercase tracking-widest text-accent">
-          {selectedFunctionCategoryLabel}
-        </span>
-      )}
-    </div>
-  ) : undefined;
 
   const functionSignaturePreview = selectedFunctionDetail
     ? buildSignaturePreview(selectedFunctionDetail)
@@ -833,10 +815,18 @@ export function BindingEditor({
   //   [expressionDraft, handleExpressionDraftChange],
   // );
 
-  const issueList = useMemo(
-    () => (issues ? [...new Set(issues)] : []),
-    [issues],
-  );
+  const issueList = useMemo(() => {
+    const merged = issues ? [...issues] : [];
+    if (
+      !allowSelfBinding &&
+      slots.some((slot) => slot.inputId === SELF_BINDING_ID)
+    ) {
+      merged.push(
+        "Slider (self) is unavailable for this target. Bind the slot to a rig input or unbind it.",
+      );
+    }
+    return [...new Set(merged)];
+  }, [allowSelfBinding, issues, slots]);
 
   const caseMetadata = useMemo(() => {
     if (!resolveSlotDiagnostics || slots.length === 0) {
@@ -980,17 +970,23 @@ export function BindingEditor({
               normalizedSlotInputId === null
                 ? "Unbound"
                 : normalizedSlotInputId === SELF_BINDING_ID
-                  ? "Slider (self)"
+                  ? allowSelfBinding
+                    ? "Slider (self)"
+                    : "Slider (self) · unsupported"
                   : (formattedSelectedInputLabel ??
                     selectedInput?.label ??
                     normalizedSlotInputId);
 
             const baseOptions: ComboboxOption[] = [
-              {
-                value: SELF_BINDING_ID,
-                label: "Slider (self)",
-                description: "Manual control",
-              },
+              ...(allowSelfBinding
+                ? [
+                    {
+                      value: SELF_BINDING_ID,
+                      label: "Slider (self)",
+                      description: "Manual control",
+                    },
+                  ]
+                : []),
               ...standardInputs.map((input) => ({
                 value: input.id,
                 label: formatRigPathLabel(input.path, faceId),

@@ -16,6 +16,132 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
+function isPrimitive(
+  value: unknown,
+): value is string | number | boolean | null | undefined {
+  return (
+    value === null ||
+    value === undefined ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, nested) => {
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) {
+      return nested;
+    }
+    return Object.fromEntries(
+      Object.entries(nested as Record<string, unknown>).sort(([a], [b]) =>
+        a.localeCompare(b),
+      ),
+    );
+  });
+}
+
+function isEdgeLikeEntry(value: unknown): boolean {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const from = value.from;
+  const to = value.to;
+  return (
+    isPlainObject(from) &&
+    typeof from.node_id === "string" &&
+    isPlainObject(to) &&
+    typeof to.node_id === "string"
+  );
+}
+
+function isOrderInsensitiveArray(value: unknown[]): boolean {
+  if (value.length === 0) {
+    return false;
+  }
+  return value.every(
+    (entry) =>
+      (isPlainObject(entry) && typeof entry.id === "string") ||
+      isEdgeLikeEntry(entry),
+  );
+}
+
+export function canonicalizeGraphComparable(value: unknown): unknown {
+  if (isPrimitive(value)) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const canonicalItems = value.map((entry) =>
+      canonicalizeGraphComparable(entry),
+    );
+    if (isOrderInsensitiveArray(canonicalItems)) {
+      return [...canonicalItems].sort((a, b) =>
+        stableStringify(a).localeCompare(stableStringify(b)),
+      );
+    }
+    return canonicalItems;
+  }
+
+  if (isPlainObject(value)) {
+    const next: Record<string, unknown> = {};
+    Object.keys(value)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((key) => {
+        next[key] = canonicalizeGraphComparable(value[key]);
+      });
+    return next;
+  }
+
+  return value;
+}
+
+function rewriteFaceString(
+  value: string,
+  fromFaceId: string,
+  toFaceId: string,
+): string {
+  if (!value || fromFaceId === toFaceId) {
+    return value;
+  }
+  let rewritten = value;
+  rewritten = rewritten.split(`rig/${fromFaceId}/`).join(`rig/${toFaceId}/`);
+  rewritten = rewritten.split(`/rig/${fromFaceId}/`).join(`/rig/${toFaceId}/`);
+  if (rewritten === fromFaceId) {
+    return toFaceId;
+  }
+  return rewritten;
+}
+
+export function rewriteGraphFaceNamespace(
+  value: unknown,
+  fromFaceId: string,
+  toFaceId: string,
+): unknown {
+  if (fromFaceId === toFaceId) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return rewriteFaceString(value, fromFaceId, toFaceId);
+  }
+  if (isPrimitive(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) =>
+      rewriteGraphFaceNamespace(entry, fromFaceId, toFaceId),
+    );
+  }
+  if (isPlainObject(value)) {
+    const next: Record<string, unknown> = {};
+    Object.entries(value).forEach(([key, nested]) => {
+      next[key] = rewriteGraphFaceNamespace(nested, fromFaceId, toFaceId);
+    });
+    return next;
+  }
+  return value;
+}
+
 function isIdentifiedList(value: unknown): value is Array<{
   id: string;
   [key: string]: unknown;

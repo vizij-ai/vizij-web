@@ -5,9 +5,10 @@ import {
   Zap,
   Activity,
   Play,
-  ChevronRight,
   Search,
+  Sliders,
 } from "lucide-react";
+import type { StandardRigInput } from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -15,15 +16,29 @@ import { PanelSearch, TreeRow } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { cn } from "../../utils/cn";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
+import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
 // ----------------------------------------------------------------------------
 
 type NodeType = "folder" | "pose" | "rig";
+type RigNodeSource = "auto" | "preset" | "custom" | "reference";
+
+interface RigNodeData {
+  input: StandardRigInput;
+  source: RigNodeSource;
+  disabled?: boolean;
+}
+
+interface PoseGroupNodeData {
+  kind: "pose-group";
+  groupPath: string;
+}
+
+type TreeNodeData = PoseDefinition | RigNodeData | PoseGroupNodeData;
 
 interface TreeNode {
   id: string;
@@ -31,8 +46,23 @@ interface TreeNode {
   type: NodeType;
   children: Map<string, TreeNode>;
   showChildren: boolean; // Default expansion state
-  data?: PoseDefinition | ManagedStandardInput;
+  data?: TreeNodeData;
 }
+
+function resolveManagedSource(entry: ManagedStandardInput): RigNodeSource {
+  const isPreset = entry.metadata?.elementType === "standard";
+  if (isPreset) {
+    return "preset";
+  }
+  return entry.source;
+}
+
+const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
+  auto: "bg-sky-900/40 text-sky-200",
+  preset: "bg-emerald-900/40 text-emerald-200",
+  custom: "bg-amber-900/40 text-amber-200",
+  reference: "bg-violet-900/40 text-violet-200",
+};
 
 function getOrCreateChild(
   parent: TreeNode,
@@ -72,6 +102,22 @@ function simplifyNode(node: TreeNode): TreeNode {
   return newNode;
 }
 
+function collectPoseIds(node: TreeNode): string[] {
+  const ids: string[] = [];
+  const visit = (candidate: TreeNode) => {
+    if (candidate.type === "pose") {
+      const pose = candidate.data as PoseDefinition | undefined;
+      if (pose?.id) {
+        ids.push(pose.id);
+      }
+      return;
+    }
+    candidate.children.forEach((child) => visit(child));
+  };
+  visit(node);
+  return ids;
+}
+
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
@@ -83,7 +129,7 @@ interface TreeRowWrapperProps {
   onToggle: (id: string) => void;
   onAction?: (node: TreeNode, action: string) => void;
   onSelect?: (node: TreeNode) => void;
-  selection?: { type: "pose" | "rig"; id: string } | null;
+  selection?: { type: "pose" | "rig" | "pose-group"; id: string } | null;
   searchQuery: string;
 }
 
@@ -99,6 +145,9 @@ function TreeRowWrapper({
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children.size > 0;
+  const isPoseGroupFolder =
+    node.type === "folder" &&
+    (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
 
   // Check selection
   const isSelected =
@@ -108,7 +157,10 @@ function TreeRowWrapper({
       (node.data as PoseDefinition)?.id === selection.id) ||
       (node.type === "rig" &&
         selection.type === "rig" &&
-        (node.data as ManagedStandardInput)?.input?.id === selection.id));
+        (node.data as RigNodeData)?.input?.id === selection.id) ||
+      (isPoseGroupFolder &&
+        selection.type === "pose-group" &&
+        node.id === selection.id));
 
   // Determine Icon
   let Icon = Folder;
@@ -119,6 +171,11 @@ function TreeRowWrapper({
   let iconClass = "text-text-muted";
   if (node.type === "pose") iconClass = "text-purple-400";
   else if (node.type === "rig") iconClass = "text-yellow-400";
+  else if (
+    node.type === "folder" &&
+    (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
+  )
+    iconClass = "text-purple-300";
 
   return (
     <TreeRow
@@ -128,7 +185,9 @@ function TreeRowWrapper({
       isExpanded={isExpanded}
       isSelected={!!isSelected}
       onToggle={() => onToggle(node.id)}
-      onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
+      onSelect={
+        !hasChildren || isPoseGroupFolder ? () => onSelect?.(node) : undefined
+      }
       highlightQuery={searchQuery}
       icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
       actions={
@@ -148,9 +207,30 @@ function TreeRowWrapper({
             </Button>
           )}
 
+          {node.type === "folder" &&
+            (node.data as PoseGroupNodeData | undefined)?.kind ===
+              "pose-group" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "inspect-pose-group");
+                }}
+                title="Inspect Pose Group"
+              >
+                <Sliders size={10} />
+              </Button>
+            )}
+
           {node.type === "rig" && node.data && (
-            <span className="text-[9px] font-mono bg-bg-panel px-1 rounded text-text-muted">
-              Rig
+            <span
+              className={`text-[9px] font-mono px-1 rounded ${
+                SOURCE_BADGE_CLASS[(node.data as RigNodeData).source]
+              }`}
+            >
+              {(node.data as RigNodeData).source}
             </span>
           )}
         </>
@@ -188,25 +268,69 @@ interface VariablesPanelProps {
   selectedRigId?: string | null;
   onSelectRig?: (id: string | null) => void;
   onSelectPose?: (id: string) => void;
+  selectedPoseGroup?: PoseGroupInspectorSelection | null;
+  onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
 }
 
 export function VariablesPanel({
   selectedRigId,
   onSelectRig,
   onSelectPose,
+  selectedPoseGroup,
+  onSelectPoseGroup,
 }: VariablesPanelProps) {
-  const { poses, applyPose, selectPose, selectedPoseId } = usePoseRig();
+  const { poses, applyPose, selectPose, selectedPoseId, createPose } =
+    usePoseRig();
   const { managedStandardInputs, handleCreateCustomStandardInput } =
     useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
+  const pendingPoseSelectionRef = useRef(false);
 
   // State for search
   const [search, setSearch] = useState("");
+  const [enabledSources, setEnabledSources] = useState<Set<RigNodeSource>>(
+    () => new Set(["auto", "preset", "custom", "reference"]),
+  );
 
   // State for tree expansion
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(["root"]),
   );
+
+  const mainFaceRigEntries = useMemo(() => {
+    return managedStandardInputs
+      .filter((entry) => Boolean(entry.input.path?.trim()))
+      .map((entry) => ({
+        input: entry.input,
+        source: resolveManagedSource(entry),
+        disabled: entry.disabled,
+      }));
+  }, [managedStandardInputs]);
+
+  const referenceRigEntries = useMemo(
+    () =>
+      referenceFace.standardInputs
+        .filter((entry) => Boolean(entry.path?.trim()))
+        .map((entry) => ({
+          input: entry,
+          source: "reference" as const,
+        })),
+    [referenceFace.standardInputs],
+  );
+
+  const sourceCounts = useMemo(() => {
+    const counts: Record<RigNodeSource, number> = {
+      auto: 0,
+      preset: 0,
+      custom: 0,
+      reference: 0,
+    };
+    mainFaceRigEntries.forEach((entry) => {
+      counts[entry.source] += 1;
+    });
+    counts.reference = referenceRigEntries.length;
+    return counts;
+  }, [mainFaceRigEntries, referenceRigEntries.length]);
 
   // Build Tree
   const rootNode = useMemo(() => {
@@ -242,8 +366,22 @@ export function VariablesPanel({
       let current = targetRoot;
 
       // Traverse/Create groups
+      const groupPathParts: string[] = [];
       for (const part of groupParts) {
+        groupPathParts.push(part);
+        const groupPath = groupPathParts.join("/");
         current = getOrCreateChild(current, part, part);
+        if (
+          current.type === "folder" &&
+          (!(current.data as PoseGroupNodeData | undefined) ||
+            (current.data as PoseGroupNodeData | undefined)?.kind !==
+              "pose-group")
+        ) {
+          current.data = {
+            kind: "pose-group",
+            groupPath,
+          };
+        }
       }
 
       // Add Pose Node
@@ -258,12 +396,12 @@ export function VariablesPanel({
       });
     });
 
-    // 2. Process Custom Rigs (Main Face)
-    const customRigs = managedStandardInputs.filter(
-      (m) => m.source === "custom",
-    );
-    customRigs.forEach((managed) => {
-      const input = managed.input;
+    // 2. Process path-backed Rigs (Main Face)
+    mainFaceRigEntries.forEach((entry) => {
+      if (!enabledSources.has(entry.source)) {
+        return;
+      }
+      const input = entry.input;
       const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
 
       let current = targetRoot;
@@ -278,7 +416,7 @@ export function VariablesPanel({
         type: "rig",
         children: new Map(),
         showChildren: false,
-        data: managed,
+        data: entry,
       });
     });
 
@@ -295,7 +433,11 @@ export function VariablesPanel({
 
       if (referenceFace.isLoaded) {
         // Add standard inputs from Reference Face
-        referenceFace.standardInputs.forEach((input) => {
+        referenceRigEntries.forEach((entry) => {
+          if (!enabledSources.has("reference")) {
+            return;
+          }
+          const input = entry.input;
           const pathParts = input.path
             ? input.path.split("/").filter(Boolean)
             : [];
@@ -311,7 +453,7 @@ export function VariablesPanel({
             type: "rig",
             children: new Map(),
             showChildren: false,
-            data: { input, source: "reference" } as any,
+            data: entry,
           });
         });
       } else {
@@ -335,8 +477,9 @@ export function VariablesPanel({
     return root;
   }, [
     poses,
-    managedStandardInputs,
-    referenceFace.standardInputs,
+    enabledSources,
+    mainFaceRigEntries,
+    referenceRigEntries,
     referenceFace.isLoaded,
     referenceFace.isLoading,
     referenceFace.file,
@@ -414,6 +557,22 @@ export function VariablesPanel({
     });
   }, [visibleRoot, search]);
 
+  useEffect(() => {
+    if (!pendingPoseSelectionRef.current || !selectedPoseId) {
+      return;
+    }
+    if (selectedPoseId === "__pose_rig_neutral__") {
+      return;
+    }
+    pendingPoseSelectionRef.current = false;
+    if (onSelectPose) {
+      onSelectPose(selectedPoseId);
+    } else {
+      selectPose(selectedPoseId);
+    }
+    onSelectRig?.(null);
+  }, [onSelectPose, onSelectRig, selectPose, selectedPoseId]);
+
   const handleToggle = (id: string) => {
     const newExpanded = new Set(expandedIds);
     if (newExpanded.has(id)) {
@@ -424,16 +583,38 @@ export function VariablesPanel({
     setExpandedIds(newExpanded);
   };
 
+  const openPoseGroupInspector = (node: TreeNode) => {
+    const folderData = node.data as PoseGroupNodeData | undefined;
+    if (!folderData || folderData.kind !== "pose-group") {
+      return;
+    }
+    const poseIds = collectPoseIds(node);
+    if (poseIds.length === 0) {
+      return;
+    }
+    onSelectPoseGroup?.({
+      groupPath: folderData.groupPath,
+      label: node.label,
+      poseIds,
+      nodeId: node.id,
+    });
+  };
+
   const handleAction = (node: TreeNode, action: string) => {
     if (node.type === "pose" && action === "play") {
       const poseData = node.data as PoseDefinition;
       applyPose(poseData.id);
+      return;
+    }
+    if (node.type === "folder" && action === "inspect-pose-group") {
+      openPoseGroupInspector(node);
     }
   };
 
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
       const poseData = node.data as PoseDefinition;
+      onSelectPoseGroup?.(null);
       if (onSelectPose) {
         onSelectPose(poseData.id);
       } else {
@@ -443,8 +624,15 @@ export function VariablesPanel({
       // When selecting logic, we might also want to clear rig selection?
       onSelectRig?.(null);
     } else if (node.type === "rig") {
-      const rigData = node.data as ManagedStandardInput;
+      const rigData = node.data as RigNodeData;
       onSelectRig?.(rigData.input.id);
+      onSelectPoseGroup?.(null);
+    } else if (
+      node.type === "folder" &&
+      (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
+    ) {
+      openPoseGroupInspector(node);
+      onSelectRig?.(null);
     }
   };
 
@@ -457,6 +645,11 @@ export function VariablesPanel({
     }
   };
 
+  const handleCreatePose = () => {
+    pendingPoseSelectionRef.current = true;
+    createPose();
+  };
+
   const showCreateOption =
     search.trim().length > 0 &&
     !managedStandardInputs.some(
@@ -465,17 +658,22 @@ export function VariablesPanel({
 
   // Calculate total count
   const totalCount =
-    poses.length +
-    managedStandardInputs.filter((m) => m.source === "custom").length;
+    poses.length + mainFaceRigEntries.length + referenceRigEntries.length;
 
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const activeSelection = useMemo(() => {
+    if (selectedPoseGroup?.nodeId) {
+      return {
+        type: "pose-group" as const,
+        id: selectedPoseGroup.nodeId,
+      };
+    }
     if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
     if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
     return null;
-  }, [selectedPoseId, selectedRigId]);
+  }, [selectedPoseGroup?.nodeId, selectedPoseId, selectedRigId]);
 
   const actions = (
     <Button
@@ -498,8 +696,7 @@ export function VariablesPanel({
       actions={actions}
       badge={`${totalCount}`}
     >
-      <div className="flex flex-col h-full gap-1 p-2">
-        {/* Search Input */}
+      <div className="flex flex-col h-full min-h-0 gap-1 p-2">
         <div className="flex items-center gap-2 px-1 mb-1">
           <PanelSearch
             ref={searchInputRef}
@@ -508,9 +705,67 @@ export function VariablesPanel({
             placeholder={search ? "Filter..." : "Search or create variable..."}
           />
         </div>
+        <div className="flex items-center gap-1 px-1 mb-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1"
+            onClick={handleCreatePose}
+            title="Create a new pose and inspect it"
+          >
+            <Activity size={11} className="text-purple-400" />
+            New Pose
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+            onClick={() => searchInputRef.current?.focus()}
+            title="Create a new variable"
+          >
+            <Plus size={11} />
+            New Variable
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+          {(
+            [
+              ["auto", "Auto"],
+              ["preset", "Preset"],
+              ["custom", "Custom"],
+              ["reference", "Reference"],
+            ] as Array<[RigNodeSource, string]>
+          ).map(([source, label]) => {
+            const isActive = enabledSources.has(source);
+            const count = sourceCounts[source];
+            return (
+              <button
+                key={source}
+                type="button"
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  isActive
+                    ? "border-border-hover bg-bg-panel text-text-primary"
+                    : "border-border-default text-text-muted hover:text-text-primary"
+                }`}
+                onClick={() => {
+                  setEnabledSources((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(source)) {
+                      next.delete(source);
+                    } else {
+                      next.add(source);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* Create Option */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {showCreateOption && (
             <div
               className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"

@@ -489,6 +489,40 @@ export function useBindingManager(options: BindingManagerOptions) {
     });
   }, []);
 
+  const handleEnableParentLocalControl = useCallback(
+    (targetId: string) => {
+      updateInputBinding(
+        targetId,
+        createDefaultParentBinding,
+        (binding, target) => {
+          const ensured = ensureBindingStructure(binding, target);
+          const primarySlotId = ensured.slots[0]?.id ?? PRIMARY_SLOT_ID;
+          const clearedPrimary = updateBindingWithInput(
+            ensured,
+            target,
+            undefined,
+            primarySlotId,
+          );
+          const slots = clearedPrimary.slots.map((slot, index) =>
+            index === 0
+              ? {
+                  ...slot,
+                  alias: "self",
+                  inputId: SELF_BINDING_ID,
+                }
+              : slot,
+          );
+          return {
+            ...clearedPrimary,
+            inputId: SELF_BINDING_ID,
+            slots,
+          };
+        },
+      );
+    },
+    [updateInputBinding],
+  );
+
   const handleCreateParentDriverBinding = useCallback(
     (targetId: string, upstreamId: string) => {
       const upstreamInput =
@@ -596,6 +630,7 @@ export function useBindingManager(options: BindingManagerOptions) {
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
     handleParentResetBinding,
+    handleEnableParentLocalControl,
     handleCreateParentDriverBinding,
   };
 }

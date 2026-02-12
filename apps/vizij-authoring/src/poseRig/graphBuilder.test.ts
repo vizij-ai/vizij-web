@@ -16,6 +16,16 @@ function findNode(specNodes: any[] | undefined, id: string) {
   return specNodes?.find((node) => node.id === id);
 }
 
+function findNodeByPrefix(
+  specNodes: any[] | undefined,
+  prefix: string,
+  type?: string,
+) {
+  return specNodes?.find(
+    (node) => node.id?.startsWith(prefix) && (type ? node.type === type : true),
+  );
+}
+
 function findEdge(
   edges: any[] | undefined,
   from: string,
@@ -71,39 +81,52 @@ describe("buildPoseGraphSpec", () => {
       standardInputs,
     });
 
-    const mouthWs = findNode(spec.nodes, "pose_ws_mouth_open");
+    const mouthWs = findNodeByPrefix(
+      spec.nodes,
+      "pose_group_ws_mouth_open",
+      "weightedsumvector",
+    );
     expect(mouthWs?.type).toBe("weightedsumvector");
-    const mouthOverlay = findNode(spec.nodes, "pose_overlay_mouth_open");
+    const mouthOverlay = findNodeByPrefix(
+      spec.nodes,
+      "pose_group_overlay_mouth_open",
+      "blendweightedaverageoverlay",
+    );
     expect(mouthOverlay?.type).toBe("blendweightedaverageoverlay");
-    const mouthMask = findNode(spec.nodes, "pose_mask_mouth_open");
+    const mouthMask = findNodeByPrefix(
+      spec.nodes,
+      "pose_group_mask_mouth_open",
+    );
     expect(mouthMask?.params?.value?.vector).toEqual([1, 0]);
 
-    // weights join feeds weighted-sum
+    const weightsJoin = findNodeByPrefix(spec.nodes, "pose_weights_group_");
+    expect(weightsJoin?.type).toBe("join");
+
+    // group weights join feeds weighted-sum
     expect(
-      findEdge(
-        spec.edges,
-        "pose_weights_join",
-        "pose_ws_mouth_open",
-        "weights",
-      ),
+      findEdge(spec.edges, weightsJoin!.id, mouthWs!.id, "weights"),
     ).toBeTruthy();
     // overlay feeds output
     expect(
-      findEdge(spec.edges, "pose_overlay_mouth_open", "out_mouth_open", "in"),
+      findEdge(spec.edges, mouthOverlay!.id, "out_mouth_open", "in"),
     ).toBeTruthy();
     // base comes from neutral record selector
     expect(
       findEdge(
         spec.edges,
         "pose_neutral_record",
-        "pose_overlay_mouth_open",
+        mouthOverlay!.id,
         "base",
         "mouth_open",
       ),
     ).toBeTruthy();
 
     // Brow has its own chain
-    const browWs = findNode(spec.nodes, "pose_ws_brow_raise");
+    const browWs = findNodeByPrefix(
+      spec.nodes,
+      "pose_group_ws_brow_raise",
+      "weightedsumvector",
+    );
     expect(browWs?.type).toBe("weightedsumvector");
   });
 
@@ -116,16 +139,69 @@ describe("buildPoseGraphSpec", () => {
       blendMode: "additive",
     });
 
-    expect(findNode(spec.nodes, "pose_add_mouth_open")?.type).toBe("add");
-    expect(findNode(spec.nodes, "pose_overlay_mouth_open")).toBeUndefined();
+    const addNode = findNodeByPrefix(
+      spec.nodes,
+      "pose_group_add_mouth_open",
+      "add",
+    );
+    expect(addNode?.type).toBe("add");
+    expect(findNodeByPrefix(spec.nodes, "pose_group_overlay_mouth_open")).toBe(
+      undefined,
+    );
     expect(
       findEdge(
         spec.edges,
         "pose_neutral_record",
-        "pose_add_mouth_open",
+        addNode!.id,
         "b",
         "mouth_open",
       ),
     ).toBeTruthy();
+  });
+
+  it("builds cross-group additive blend nodes for shared targets", () => {
+    const groupedPoses = [
+      { ...poses[0], group: "emotion" },
+      {
+        ...poses[1],
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+    });
+
+    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")?.type).toBe(
+      "add",
+    );
+  });
+
+  it("builds cross-group average overlay nodes when requested", () => {
+    const groupedPoses = [
+      { ...poses[0], group: "emotion" },
+      {
+        ...poses[1],
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "average",
+    });
+
+    expect(findNode(spec.nodes, "pose_cross_overlay_mouth_open")?.type).toBe(
+      "blendweightedaverageoverlay",
+    );
   });
 });

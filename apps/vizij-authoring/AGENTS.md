@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without relying on rig or orchestrator components.
+Build and maintain a runtime-truthful Vizij authoring surface: import assets/graphs, author rig bindings and poses, validate runtime behavior, and export reliable Vizij bundles.
 
 ## Runbook
 

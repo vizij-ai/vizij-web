@@ -37,6 +37,8 @@ export interface UsePoseRigAuthoringResult {
   setRigKind: (kind: "generic" | "face-specific") => void;
   blendMode: "average" | "additive";
   setBlendMode: (mode: "average" | "additive") => void;
+  crossGroupBlendMode: "average" | "additive";
+  setCrossGroupBlendMode: (mode: "average" | "additive") => void;
   standardInputs: StandardRigInput[];
   poses: PoseDefinition[];
   selectedPoseId: string | null;
@@ -117,6 +119,8 @@ export function usePoseRigAuthoring(
   const selectedPoseId = store.selectedPoseId;
   const rigName = store.rigName;
   const rigKind = store.rigKind;
+  const blendMode = store.blendMode;
+  const crossGroupBlendMode = store.crossGroupBlendMode;
   const poseGraphSpec = store.poseGraphSpec;
   const poseGraphSummary = store.poseGraphSummary;
   const poseConfigDraft = store.poseConfigDraft;
@@ -169,6 +173,7 @@ export function usePoseRigAuthoring(
   }, [store, applyInputBatch]);
   const resetPoseState = store.reset;
   const setBlendMode = store.setBlendMode;
+  const setCrossGroupBlendMode = store.setCrossGroupBlendMode;
   const setRigKind = store.setRigKind;
 
   // Derived actions
@@ -190,7 +195,11 @@ export function usePoseRigAuthoring(
 
   const updatePoseGroup = useCallback(
     (poseId: string, group: string | null | undefined) => {
-      store.updatePose(poseId, (p) => ({ ...p, group: group ?? null }));
+      store.updatePose(poseId, (p) => ({
+        ...p,
+        group: group ?? null,
+        groupId: null,
+      }));
     },
     [store],
   );
@@ -199,7 +208,11 @@ export function usePoseRigAuthoring(
     (poseIds: Iterable<string>, group: string | null | undefined) => {
       const ids = new Set(poseIds);
       ids.forEach((id) =>
-        store.updatePose(id, (p) => ({ ...p, group: group ?? null })),
+        store.updatePose(id, (p) => ({
+          ...p,
+          group: group ?? null,
+          groupId: null,
+        })),
       );
     },
     [store],
@@ -370,8 +383,10 @@ export function usePoseRigAuthoring(
     neutralInputs,
     savedNeutral: neutralInputs,
     currentValues,
-    blendMode: "average", // TODO: Add to store/state
+    blendMode,
     setBlendMode,
+    crossGroupBlendMode,
+    setCrossGroupBlendMode,
     rigKind,
     setRigKind,
     standardInputs: visibleStandardInputs,

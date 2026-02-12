@@ -12,14 +12,8 @@ interface TrackRowProps {
 
 export function TrackRow({ track, duration }: TrackRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const {
-    selectKeyframe,
-    selectedKeyframeId,
-    updateKeyframe,
-    removeKeyframe,
-    selectTrack,
-    selectedTrackId,
-  } = useAnimationStore();
+  const { selectKeyframe, selectedKeyframeId, selectTrack, selectedTrackId } =
+    useAnimationStore();
 
   const handleTrackClick = (e: React.MouseEvent) => {
     e.stopPropagation();

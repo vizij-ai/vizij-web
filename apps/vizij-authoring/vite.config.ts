@@ -17,12 +17,25 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   assetsInclude: ["**/*.glb"],
   resolve: {
-    dedupe: ["react", "react-dom"],
+    dedupe: ["react", "react-dom", "three"],
     alias: {
       "@vizij/node-graph-authoring": path.resolve(
         workspaceRoot,
         "packages/@vizij/node-graph-authoring/src",
       ),
+      "@vizij/node-graph-react": path.resolve(
+        workspaceRoot,
+        "packages/@vizij/node-graph-react/src",
+      ),
+      "@vizij/runtime-react": path.resolve(
+        workspaceRoot,
+        "packages/@vizij/runtime-react/src",
+      ),
+      "@vizij/render": path.resolve(
+        workspaceRoot,
+        "packages/@vizij/render/src",
+      ),
+      "@vizij/utils": path.resolve(workspaceRoot, "packages/@vizij/utils/src"),
       "@vizij/authoring-shared": path.resolve(__dirname, "src/shared/index.ts"),
       react: reactPath,
       "react-dom": reactDomPath,
@@ -66,5 +79,6 @@ export default defineConfig({
   test: {
     pool: "threads",
     environment: "jsdom",
+    setupFiles: ["./src/test/setupVitest.ts"],
   },
 });

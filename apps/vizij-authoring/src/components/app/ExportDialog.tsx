@@ -19,7 +19,7 @@ import {
 import { cn } from "../../utils/cn";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
-import { PoseRigExportPanel } from "./PoseRigPanels";
+import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
 
 interface ExportDialogProps {
@@ -79,13 +79,6 @@ export function ExportDialog({
   const { alert: showAlert } = useDialogQueue();
   const poseRig = usePoseRig();
 
-  const handleImportPoseConfig = useCallback(
-    async (file: File) => {
-      await poseRig.importPoseConfig(file);
-    },
-    [poseRig],
-  );
-
   const {
     exportGraph,
     exportGlb,
@@ -117,7 +110,9 @@ export function ExportDialog({
       poseGraphFileName: poseRig.poseGraphFileName,
       poseConfigDraft: poseRig.poseConfigDraft,
       poseConfigFileName: poseRig.poseConfigFileName,
-      importPoseConfig: handleImportPoseConfig,
+      importPoseConfig: poseRig.importPoseConfig,
+      blendMode: poseRig.blendMode,
+      crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
   });
 
@@ -198,6 +193,8 @@ export function ExportDialog({
             onIncludeAnimationsChange={handleIncludeAnimationsChange}
             blendMode={poseRig.blendMode}
             onBlendModeChange={poseRig.setBlendMode}
+            crossGroupBlendMode={poseRig.crossGroupBlendMode}
+            onCrossGroupBlendModeChange={poseRig.setCrossGroupBlendMode}
           />
         </div>
 
@@ -242,6 +239,15 @@ export function ExportDialog({
                 onGraphFileNameChange={handleGraphFileNameChange}
                 canExport={canExport}
                 onExportGraph={exportGraph}
+              />
+
+              <div className="h-px bg-border-default/50" />
+
+              <PoseRigImportPanel
+                onImportPoseConfig={(file) => importPoseConfigFile(file)}
+                onImportPoseGraph={(file) => onImportPoseGraph(file)}
+                poseConfigWarnings={poseRig.poseConfigWarnings}
+                disabled={!poseRig.ready}
               />
 
               <div className="h-px bg-border-default/50" />

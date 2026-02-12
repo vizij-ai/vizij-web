@@ -2,10 +2,11 @@ import { Switch as BaseSwitch } from "@base-ui/react";
 import type { ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
-export interface SwitchProps extends Omit<
-  React.InputHTMLAttributes<HTMLInputElement>,
-  "type" | "size" | "onChange"
-> {
+export interface SwitchProps
+  extends Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    "type" | "size" | "onChange"
+  > {
   onChange?: (checked: boolean) => void;
   label?: ReactNode;
   hint?: ReactNode;
