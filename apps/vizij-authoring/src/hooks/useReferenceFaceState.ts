@@ -80,7 +80,17 @@ export function useReferenceFaceState(
         );
         return;
       }
-      setInputValues((prev) => ({ ...prev, [inputId]: value }));
+      setInputValues((prev) => {
+        const current = prev[inputId];
+        if (
+          typeof current === "number" &&
+          Number.isFinite(current) &&
+          Math.abs(current - value) < 1e-6
+        ) {
+          return prev;
+        }
+        return { ...prev, [inputId]: value };
+      });
       animateValueRef.current?.(input.path, value);
     },
     [standardInputsById],
@@ -97,7 +107,18 @@ export function useReferenceFaceState(
 
   const onStandardInputChange = useCallback(
     (inputId: string, value: number) => {
-      // This is called when the reference face inputs change, we want to propagate to main face
+      setInputValues((prev) => {
+        const current = prev[inputId];
+        if (
+          typeof current === "number" &&
+          Number.isFinite(current) &&
+          Math.abs(current - value) < 1e-6
+        ) {
+          return prev;
+        }
+        return { ...prev, [inputId]: value };
+      });
+      // Propagate runtime-originated reference input edits when a bridge is configured.
       if (onStandardInputChangeProp) {
         onStandardInputChangeProp(inputId, value);
       }

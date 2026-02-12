@@ -6,7 +6,6 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
-import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -39,6 +38,8 @@ import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
+import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
+import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -122,9 +123,7 @@ function AppContent({ loader }: AppContentProps) {
     (state) => state.standardInputsById,
   );
 
-  const referenceFaceContextValue = useReferenceFaceState(
-    mainFaceHandleInputValueChange,
-  );
+  const referenceFaceContextValue = useReferenceFaceState();
 
   // Graph Runtime Hook
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
@@ -216,50 +215,15 @@ function AppContent({ loader }: AppContentProps) {
     handleClearSelection,
   } = useUnifiedSelection();
 
-  // Shared-variable parity bridge:
-  // When a main-face variable is selected and a reference-face variable with the
-  // same normalized path exists, mirror the edited value into the reference face.
-  useEffect(() => {
-    if (!selectedRigId || !referenceFaceContextValue.isLoaded) {
-      return;
-    }
-    const mainInput = mainFaceInputsById.get(selectedRigId);
-    if (!mainInput?.path) {
-      return;
-    }
-    const normalizedPath = normalizeStandardRigInputPath(mainInput.path);
-    const matchingReferenceInput =
-      referenceFaceContextValue.standardInputs.find(
-        (input) => normalizeStandardRigInputPath(input.path) === normalizedPath,
-      );
-    if (!matchingReferenceInput) {
-      return;
-    }
-    const nextValue = mainFaceInputValues[selectedRigId];
-    if (typeof nextValue !== "number" || !Number.isFinite(nextValue)) {
-      return;
-    }
-    const currentReferenceValue =
-      referenceFaceContextValue.inputValues[matchingReferenceInput.id];
-    if (
-      typeof currentReferenceValue === "number" &&
-      Math.abs(currentReferenceValue - nextValue) < 1e-6
-    ) {
-      return;
-    }
-    referenceFaceContextValue.handleInputValueChange(
-      matchingReferenceInput.id,
-      nextValue,
-    );
-  }, [
-    selectedRigId,
-    mainFaceInputValues,
-    mainFaceInputsById,
-    referenceFaceContextValue.isLoaded,
-    referenceFaceContextValue.standardInputs,
-    referenceFaceContextValue.inputValues,
-    referenceFaceContextValue.handleInputValueChange,
-  ]);
+  const sharedVariableSync = useSharedVariableSync({
+    mainInputsById: mainFaceInputsById,
+    mainInputValues: mainFaceInputValues,
+    referenceInputs: referenceFaceContextValue.standardInputs,
+    referenceInputValues: referenceFaceContextValue.inputValues,
+    onMainInputValueChange: mainFaceHandleInputValueChange,
+    onReferenceInputValueChange:
+      referenceFaceContextValue.handleInputValueChange,
+  });
 
   // Reference Face Import
   const refFaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -397,54 +361,56 @@ function AppContent({ loader }: AppContentProps) {
 
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
-      <WorkspaceLayout
-        menuBar={menuBar}
-        // Left
-        leftTopVisible={panels.hierarchy.isVisible}
-        leftTopPanel={
-          <HierarchyPanel
-            showSelectionGlow={showSelectionGlow}
-            onToggleSelectionGlow={setShowSelectionGlow}
-            onSelectObject={handleSelectObject}
-          />
-        }
-        leftBottomVisible={panels.variables.isVisible}
-        leftBottomPanel={
-          <VariablesPanel
-            selectedRigId={selectedRigId}
-            onSelectRig={handleSelectRig}
-            onSelectPose={handleSelectPose}
-            selectedPoseGroup={selectedPoseGroup}
-            onSelectPoseGroup={setSelectedPoseGroup}
-          />
-        }
-        leftMiddleVisible={panels.materials.isVisible}
-        leftMiddlePanel={<MaterialsPanel />}
-        // Center
-        topPanel={
-          <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
-        }
-        viewport={viewerContent}
-        bottomVisible={panels.animation.isVisible}
-        bottomPanel={<AnimationPanel />}
-        // Right
-        rightTopVisible={panels.inspector.isVisible}
-        rightTopPanel={
-          <InspectorPanel
-            selectedPoseGroup={selectedPoseGroup}
-            onSelectPoseGroup={setSelectedPoseGroup}
-          />
-        }
-        rightBottomVisible={panels.debug.isVisible}
-        rightBottomPanel={
-          <DebugPanel
-            rootId={loader.rootId}
-            loadedBundle={loader.bundle}
-            updateBundle={loader.updateBundle}
-            isLoading={loader.isLoading}
-          />
-        }
-      />
+      <SharedVariableSyncProvider value={sharedVariableSync}>
+        <WorkspaceLayout
+          menuBar={menuBar}
+          // Left
+          leftTopVisible={panels.hierarchy.isVisible}
+          leftTopPanel={
+            <HierarchyPanel
+              showSelectionGlow={showSelectionGlow}
+              onToggleSelectionGlow={setShowSelectionGlow}
+              onSelectObject={handleSelectObject}
+            />
+          }
+          leftBottomVisible={panels.variables.isVisible}
+          leftBottomPanel={
+            <VariablesPanel
+              selectedRigId={selectedRigId}
+              onSelectRig={handleSelectRig}
+              onSelectPose={handleSelectPose}
+              selectedPoseGroup={selectedPoseGroup}
+              onSelectPoseGroup={setSelectedPoseGroup}
+            />
+          }
+          leftMiddleVisible={panels.materials.isVisible}
+          leftMiddlePanel={<MaterialsPanel />}
+          // Center
+          topPanel={
+            <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
+          }
+          viewport={viewerContent}
+          bottomVisible={panels.animation.isVisible}
+          bottomPanel={<AnimationPanel />}
+          // Right
+          rightTopVisible={panels.inspector.isVisible}
+          rightTopPanel={
+            <InspectorPanel
+              selectedPoseGroup={selectedPoseGroup}
+              onSelectPoseGroup={setSelectedPoseGroup}
+            />
+          }
+          rightBottomVisible={panels.debug.isVisible}
+          rightBottomPanel={
+            <DebugPanel
+              rootId={loader.rootId}
+              loadedBundle={loader.bundle}
+              updateBundle={loader.updateBundle}
+              isLoading={loader.isLoading}
+            />
+          }
+        />
+      </SharedVariableSyncProvider>
 
       <AppWizards
         showExportDialog={showExportDialog}

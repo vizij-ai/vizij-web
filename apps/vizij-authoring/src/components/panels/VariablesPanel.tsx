@@ -20,9 +20,14 @@ import { PanelSearch, TreeRow } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
+import type {
+  SharedVariableConflict,
+  SharedVariableSyncPolicy,
+} from "../../hooks/useSharedVariableSync";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -312,6 +317,14 @@ export function VariablesPanel({
     handleUpdateStandardInput,
   } = useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
+  const {
+    policy: sharedSyncPolicy,
+    setPolicy: setSharedSyncPolicy,
+    conflicts: sharedSyncConflicts,
+    resolveConflict: resolveSharedSyncConflict,
+    dismissConflict: dismissSharedSyncConflict,
+    outOfSyncCount: sharedOutOfSyncCount,
+  } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
 
   // State for search
@@ -405,6 +418,17 @@ export function VariablesPanel({
     counts.shared = sharedRigEntries.length;
     return counts;
   }, [mainFaceRigEntries, referenceRigEntries.length, sharedRigEntries.length]);
+
+  const applySharedSyncPolicy = (nextPolicy: SharedVariableSyncPolicy) => {
+    setSharedSyncPolicy(nextPolicy);
+  };
+
+  const resolveConflict = (
+    conflict: SharedVariableConflict,
+    winner: "main" | "reference",
+  ) => {
+    resolveSharedSyncConflict(conflict.path, winner);
+  };
 
   const copyReferenceVariableToMain = (
     referenceEntry: RigNodeData,
@@ -925,6 +949,40 @@ export function VariablesPanel({
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+          {referenceFace.file && (
+            <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
+                Shared Sync
+              </span>
+              {(
+                [
+                  ["off", "Off"],
+                  ["bidirectional", "Both"],
+                  ["main-to-reference", "Main→Ref"],
+                  ["reference-to-main", "Ref→Main"],
+                ] as Array<[SharedVariableSyncPolicy, string]>
+              ).map(([mode, label]) => {
+                const isActive = sharedSyncPolicy === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                      isActive
+                        ? "border-accent/50 bg-accent/10 text-accent"
+                        : "border-border-default text-text-muted hover:text-text-primary"
+                    }`}
+                    onClick={() => applySharedSyncPolicy(mode)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              <span className="text-[10px] text-text-muted font-mono ml-1">
+                Drift {sharedOutOfSyncCount}
+              </span>
+            </div>
+          )}
           {(
             [
               ["auto", "Auto"],
@@ -979,6 +1037,58 @@ export function VariablesPanel({
             </Button>
           )}
         </div>
+        {referenceFace.file && sharedSyncConflicts.length > 0 && (
+          <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
+                Shared Sync Conflicts ({sharedSyncConflicts.length})
+              </span>
+              <span className="text-[10px] text-amber-100/80">
+                Different edits detected across faces
+              </span>
+            </div>
+            {sharedSyncConflicts.slice(0, 4).map((conflict) => (
+              <div
+                key={`${conflict.path}:${conflict.detectedAt}`}
+                className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
+              >
+                <div className="text-[10px] font-mono text-amber-100 truncate">
+                  {conflict.path}
+                </div>
+                <div className="text-[10px] text-text-muted">
+                  {conflict.firstSource} {conflict.firstValue.toFixed(3)} →{" "}
+                  {conflict.secondSource} {conflict.secondValue.toFixed(3)}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => resolveConflict(conflict, "main")}
+                  >
+                    Keep Main
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => resolveConflict(conflict, "reference")}
+                  >
+                    Keep Ref
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] ml-auto"
+                    onClick={() => dismissSharedSyncConflict(conflict.path)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {showCreateOption && (

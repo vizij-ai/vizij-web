@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import { VariablesPanel } from "./VariablesPanel";
@@ -155,5 +155,64 @@ describe("VariablesPanel", () => {
       },
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
+  });
+
+  it("routes reference variable selection to linked main variable", () => {
+    const linkedMain = makeInput("main_brow", "/standard/brow/up", {
+      label: "Main Brow Up",
+    });
+    const referenceLinked = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Ref Brow Up",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: linkedMain,
+        source: "custom",
+      },
+    ];
+    referenceFaceState.standardInputs = [referenceLinked];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceLinked.id, referenceLinked],
+    ]);
+
+    const onSelectRig = vi.fn();
+    const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
+
+    fireEvent.change(
+      within(view.container).getByPlaceholderText(
+        "Search or create variable...",
+      ),
+      {
+        target: { value: "Ref Brow Up" },
+      },
+    );
+    fireEvent.click(within(view.container).getByTitle("Ref Brow Up"));
+
+    expect(onSelectRig).toHaveBeenCalledWith(linkedMain.id);
+  });
+
+  it("clears rig selection when selecting unlinked reference variable", () => {
+    const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Ref Brow Up",
+    });
+    referenceFaceState.standardInputs = [referenceOnly];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceOnly.id, referenceOnly],
+    ]);
+
+    const onSelectRig = vi.fn();
+    const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
+
+    fireEvent.change(
+      within(view.container).getByPlaceholderText(
+        "Search or create variable...",
+      ),
+      {
+        target: { value: "Ref Brow Up" },
+      },
+    );
+    fireEvent.click(within(view.container).getByTitle("Ref Brow Up"));
+
+    expect(onSelectRig).toHaveBeenCalledWith(null);
   });
 });

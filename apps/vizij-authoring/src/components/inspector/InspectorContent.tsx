@@ -22,6 +22,8 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
+import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import type {
   SceneFeatureComponent,
@@ -182,6 +184,14 @@ export function InspectorContent() {
     standardInputs,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
+  const referenceFace = useReferenceFace();
+  const {
+    policy: sharedSyncPolicy,
+    linksByMainInputId,
+    conflictsByPath: sharedSyncConflictsByPath,
+    resolveConflict: resolveSharedSyncConflict,
+    dismissConflict: dismissSharedSyncConflict,
+  } = useSharedVariableSyncContext();
 
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphError = useGraphRuntime((state) => state.graphError);
@@ -1473,6 +1483,10 @@ export function InspectorContent() {
         inputBindings,
         objects,
       });
+      const sharedLink = linksByMainInputId.get(input.id) ?? null;
+      const sharedConflict = sharedLink
+        ? (sharedSyncConflictsByPath.get(sharedLink.path) ?? null)
+        : null;
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
@@ -1571,6 +1585,96 @@ export function InspectorContent() {
 
           {rigInspectorView === "quick" ? (
             <>
+              {sharedLink && (
+                <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                      Shared Variable Link
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                        sharedLink.inSync
+                          ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
+                          : "border-amber-500/40 text-amber-200 bg-amber-500/10",
+                      )}
+                    >
+                      {sharedLink.inSync
+                        ? "in sync"
+                        : `drift ${sharedLink.delta.toFixed(3)}`}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-text-muted truncate">
+                    {sharedLink.path}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="text-text-secondary">
+                      Main:{" "}
+                      <span className="font-mono text-text-primary">
+                        {sharedLink.mainValue.toFixed(3)}
+                      </span>
+                    </span>
+                    <span className="text-text-secondary">
+                      Ref:{" "}
+                      <span className="font-mono text-text-primary">
+                        {sharedLink.referenceValue.toFixed(3)}
+                      </span>
+                    </span>
+                    <span className="text-text-muted ml-auto">
+                      Policy:{" "}
+                      <span className="font-mono text-text-secondary">
+                        {sharedSyncPolicy}
+                      </span>
+                    </span>
+                  </div>
+                  {sharedConflict && (
+                    <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex items-center gap-1">
+                      <span className="text-[10px] text-amber-100 flex-1">
+                        Conflict: {sharedConflict.firstSource} →{" "}
+                        {sharedConflict.secondSource}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() =>
+                          resolveSharedSyncConflict(sharedConflict.path, "main")
+                        }
+                      >
+                        Keep Main
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() =>
+                          resolveSharedSyncConflict(
+                            sharedConflict.path,
+                            "reference",
+                          )
+                        }
+                      >
+                        Keep Ref
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() =>
+                          dismissSharedSyncConflict(sharedConflict.path)
+                        }
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+                  {!referenceFace.file && (
+                    <span className="text-[10px] text-text-muted">
+                      Load a reference face to activate shared sync.
+                    </span>
+                  )}
+                </div>
+              )}
               <RiggingPropertyRow
                 label="Current Value"
                 onScrubStart={() => {
