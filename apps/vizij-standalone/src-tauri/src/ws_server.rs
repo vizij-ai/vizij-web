@@ -26,8 +26,10 @@ pub struct WsServer {
 
 impl WsServer {
     /// Create a new WebSocket server on the specified port.
-    pub fn new(port: u16) -> Self {
-        let config = ServerConfig::with_port(port).validate_paths(true);
+    pub fn new(port: u16, serve_control_panel: bool) -> Self {
+        let config = ServerConfig::with_port(port)
+            .validate_paths(true)
+            .serve_control_panel(serve_control_panel);
         Self {
             server: Arc::new(AroraWSServer::new(config)),
         }

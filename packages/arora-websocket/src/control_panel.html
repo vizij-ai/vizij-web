@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Vizij Control</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%237c4dff'/></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,BlinkMacSystemFont,sans-serif;background:#111;color:#e0e0e0;overflow-x:hidden}
+header{position:sticky;top:0;background:#1a1a2e;padding:10px 12px;z-index:10;border-bottom:1px solid #333}
+.status-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.off{background:#f44336}.dot.on{background:#4caf50}.dot.wait{background:#ff9800}
+.conn-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+input[type=text]{background:#252540;color:#eee;border:1px solid #444;padding:7px 10px;border-radius:6px;font-size:15px;flex:1;min-width:100px}
+.port{color:#777;font-size:14px;flex-shrink:0}
+button{padding:7px 14px;border-radius:6px;border:none;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
+button:disabled{opacity:.4;cursor:default}
+.btn-on{background:#4caf50;color:#fff}.btn-off{background:#f44336;color:#fff}.btn-warn{background:#ff9800;color:#fff}
+nav{display:flex;background:#16162b;overflow-x:auto;border-bottom:2px solid #333}
+.tab{padding:10px 18px;cursor:pointer;white-space:nowrap;color:#777;border-bottom:2px solid transparent;font-size:14px;user-select:none;transition:color .15s}
+.tab.active{color:#eee;border-bottom-color:#7c4dff}
+main{padding:10px;max-width:560px;margin:0 auto}
+.tab-pane{display:none}.tab-pane.active{display:block}
+.panel{margin-bottom:6px;background:#1a1a30;border-radius:8px;overflow:hidden}
+.panel-hdr{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;font-size:14px}
+.panel-hdr:active{background:#252545}
+.arrow{transition:transform .15s;font-size:10px;color:#666}
+.panel-hdr.shut .arrow{transform:rotate(-90deg)}
+.panel-body{padding:4px 14px 12px}
+.panel-body.shut{display:none}
+.slider-row{display:flex;align-items:center;gap:6px;margin:6px 0}
+.slider-label{font-size:12px;color:#999;min-width:70px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slider-val{font-size:12px;color:#7c4dff;min-width:44px;text-align:right;font-family:monospace}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;background:#333;border-radius:3px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#7c4dff;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#7c4dff;border:none;cursor:pointer}
+.empty{text-align:center;color:#555;padding:40px 16px;font-size:14px}
+</style>
+</head><body>
+<header>
+  <div class="status-row">
+    <span class="dot off" id="dot"></span>
+    <span id="stxt">Disconnected</span>
+  </div>
+  <div class="conn-row">
+    <input type="text" id="ip" placeholder="IP address">
+    <span class="port" id="port"></span>
+    <button class="btn-on" id="cbtn" onclick="toggle()">Connect</button>
+    <button class="btn-warn" id="rbtn" onclick="doReset()" disabled>Reset</button>
+  </div>
+</header>
+<nav id="tabs"></nav>
+<main id="main"></main>
+<script>
+let ws = null, slots = [];
+const $ = id => document.getElementById(id);
+const ip = $('ip'), dot = $('dot'), stxt = $('stxt'), cbtn = $('cbtn'), rbtn = $('rbtn');
+
+// Auto-fill from current page origin
+ip.value = location.hostname || '';
+const wsPort = location.port || '9000';
+$('port').textContent = ':' + wsPort;
+
+function status(s, t) { dot.className = 'dot ' + s; stxt.textContent = t; }
+
+function toggle() {
+  if (ws && ws.readyState < 2) ws.close();
+  else connect();
+}
+
+let connectTimeout = null;
+function connect() {
+  const host = ip.value.trim();
+  if (!host) { ip.focus(); return; }
+  status('wait', 'Connecting...');
+  cbtn.disabled = true;
+  const url = 'ws://' + host + ':' + wsPort;
+  console.log('[vizij] Connecting to', url);
+  ws = new WebSocket(url);
+  connectTimeout = setTimeout(() => {
+    if (ws && ws.readyState === 0) {
+      console.warn('[vizij] Connection timed out');
+      ws.close();
+    }
+  }, 10000);
+  ws.onopen = () => {
+    clearTimeout(connectTimeout);
+    console.log('[vizij] Connected');
+    status('on', 'Connected');
+    cbtn.textContent = 'Disconnect'; cbtn.className = 'btn-off'; cbtn.disabled = false;
+    rbtn.disabled = false;
+    ws.send(JSON.stringify({ type: 'list_slots' }));
+  };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'list_slots_resp') buildUI(m.slots || []);
+  };
+  ws.onclose = e => {
+    clearTimeout(connectTimeout);
+    console.log('[vizij] Connection closed, code:', e.code, 'reason:', e.reason);
+    status('off', 'Disconnected');
+    cbtn.textContent = 'Connect'; cbtn.className = 'btn-on'; cbtn.disabled = false;
+    rbtn.disabled = true; ws = null;
+  };
+  ws.onerror = e => {
+    console.error('[vizij] WebSocket error:', e);
+  };
+}
+
+function buildUI(list) {
+  slots = list;
+  // Group: standard/<stdname>/<channel>/<track...>
+  const tree = {};
+  for (const s of slots) {
+    const p = s.path.split('/');
+    if (p[0] !== 'standard' || p.length < 4) continue;
+    const std = p[1], ch = p[2], tr = p.slice(3).join('/');
+    if (!tree[std]) tree[std] = {};
+    if (!tree[std][ch]) tree[std][ch] = [];
+    tree[std][ch].push({ ...s, track: tr });
+  }
+  const names = Object.keys(tree).sort();
+  if (!names.length) {
+    $('tabs').innerHTML = '';
+    $('main').innerHTML = '<div class="empty">No standard slots found.<br>Make sure a model is loaded.</div>';
+    return;
+  }
+  let tabsH = '', mainH = '';
+  for (const n of names) {
+    tabsH += '<div class="tab" data-t="' + n + '" onclick="selTab(\'' + n + '\')">' + n + '</div>';
+    let panels = '';
+    for (const ch of Object.keys(tree[n]).sort()) {
+      const items = tree[n][ch].sort((a, b) => a.track.localeCompare(b.track));
+      let rows = '';
+      for (const s of items) {
+        const mn = s.min != null ? s.min : 0, mx = s.max != null ? s.max : 1;
+        const dv = defVal(s), step = (mx - mn) / 200;
+        rows += '<div class="slider-row">'
+          + '<span class="slider-label" title="' + s.track + '">' + s.track + '</span>'
+          + '<input type="range" min="' + mn + '" max="' + mx + '" step="' + step
+          + '" value="' + dv + '" data-p="' + s.path + '" oninput="onSlide(this)">'
+          + '<span class="slider-val">' + (+dv).toFixed(2) + '</span></div>';
+      }
+      panels += '<div class="panel"><div class="panel-hdr" onclick="togglePanel(this)">'
+        + '<span>' + ch.replace(/_/g, ' ') + '</span><span class="arrow">&#9662;</span></div>'
+        + '<div class="panel-body">' + rows + '</div></div>';
+    }
+    mainH += '<div class="tab-pane" id="tp-' + n + '">' + panels + '</div>';
+  }
+  $('tabs').innerHTML = tabsH;
+  $('main').innerHTML = mainH;
+  selTab(names[0]);
+}
+
+function selTab(n) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.t === n));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tp-' + n));
+}
+
+function togglePanel(hdr) {
+  hdr.classList.toggle('shut');
+  hdr.nextElementSibling.classList.toggle('shut');
+}
+
+function defVal(s) {
+  const d = s.default_value;
+  if (d != null) {
+    if (typeof d === 'object') {
+      if ('f64' in d) return d.f64;
+      if ('f32' in d) return d.f32;
+      if ('i32' in d) return d.i32;
+    }
+    if (typeof d === 'number') return d;
+  }
+  return s.min != null ? s.min : 0;
+}
+
+// Batched + throttled value sends
+let pending = {}, timer = null;
+function onSlide(el) {
+  el.nextElementSibling.textContent = (+el.value).toFixed(2);
+  pending[el.dataset.p] = { f64: +el.value };
+  if (!timer) timer = setTimeout(flush, 25);
+}
+function flush() {
+  timer = null;
+  if (!ws || ws.readyState !== 1 || !Object.keys(pending).length) return;
+  ws.send(JSON.stringify({ type: 'set_slot_values', values: pending }));
+  pending = {};
+}
+
+function doReset() {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'invoke', method: 'reset', args: {} }));
+  // Reset all sliders to defaults
+  document.querySelectorAll('input[type=range]').forEach(el => {
+    const s = slots.find(x => x.path === el.dataset.p);
+    if (s) {
+      const v = defVal(s);
+      el.value = v;
+      el.nextElementSibling.textContent = (+v).toFixed(2);
+    }
+  });
+}
+</script>
+</body></html>

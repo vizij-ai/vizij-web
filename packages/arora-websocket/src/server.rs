@@ -41,6 +41,8 @@ pub struct ServerConfig {
     pub bind_address: String,
     /// Whether to validate update paths against registered input slots.
     pub validate_paths: bool,
+    /// Whether to serve the built-in control panel on plain HTTP requests.
+    pub serve_control_panel: bool,
 }
 
 impl Default for ServerConfig {
@@ -49,6 +51,7 @@ impl Default for ServerConfig {
             port: 9000,
             bind_address: "0.0.0.0".to_string(),
             validate_paths: true,
+            serve_control_panel: false,
         }
     }
 }
@@ -71,6 +74,12 @@ impl ServerConfig {
     /// Set whether to validate update paths.
     pub fn validate_paths(mut self, validate: bool) -> Self {
         self.validate_paths = validate;
+        self
+    }
+
+    /// Enable or disable the built-in control panel served on plain HTTP requests.
+    pub fn serve_control_panel(mut self, enable: bool) -> Self {
+        self.serve_control_panel = enable;
         self
     }
 }
@@ -165,37 +174,88 @@ impl AroraWSServer {
             .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
 
         info!("Arora WebSocket server listening on ws://{}", addr);
+        if self.config.serve_control_panel {
+            info!("Control panel available at http://{}", addr);
+        }
         *self.is_running.write().await = true;
+
+        let serve_control_panel = self.config.serve_control_panel;
+        let validate_paths = self.config.validate_paths;
+        let conn_id = self.connection_id();
+        let bind_addr = self.config.bind_address.clone();
+        let port = self.config.port;
+
+        // Snapshot handlers once -- they are set during setup_all() and never change.
+        let set_handler = self.set_slot_values_handler.read().await.clone();
+        let get_handler = self.get_slot_values_handler.read().await.clone();
+        let on_connected = self.on_client_connected_handler.read().await.clone();
 
         loop {
             tokio::select! {
                 result = listener.accept() => {
                     match result {
-                        Ok((stream, addr)) => {
-                            // Disconnect previous client (exclusive client policy)
-                            self.disconnect_client().await;
-
-                            // Create a per-client cancel token (child of the server's token)
-                            let client_token = cancel_token.child_token();
-                            *self.active_client.write().await = Some(client_token.clone());
-
-                            // Notify the on_client_connected handler
-                            let handler = self.on_client_connected_handler.read().await.clone();
-                            if let Some(handler) = handler {
-                                let conn_id = self.connection_id();
-                                handler(conn_id);
-                            }
-
-                            let registry = self.registry.clone();
-                            let set_slot_values_handler = self.set_slot_values_handler.read().await.clone();
-                            let get_slot_values_handler = self.get_slot_values_handler.read().await.clone();
-                            let validate_paths = self.config.validate_paths;
+                        Ok((stream, peer_addr)) => {
+                            // Spawn a task per connection so the accept loop never blocks.
+                            // (peek can block if a client connects without sending data.)
                             let active_client = self.active_client.clone();
+                            let registry = self.registry.clone();
+                            let set_handler = set_handler.clone();
+                            let get_handler = get_handler.clone();
+                            let on_connected = on_connected.clone();
+                            let conn_id = conn_id.clone();
+                            let bind_addr = bind_addr.clone();
+                            let parent_token = cancel_token.clone();
 
                             tokio::spawn(async move {
+                                // Peek with timeout to classify the connection
+                                let is_ws_upgrade = {
+                                    let mut peek_buf = [0u8; 4096];
+                                    match tokio::time::timeout(
+                                        std::time::Duration::from_secs(5),
+                                        stream.peek(&mut peek_buf),
+                                    ).await {
+                                        Ok(Ok(n)) => {
+                                            let req = String::from_utf8_lossy(&peek_buf[..n]);
+                                            let lower = req.to_ascii_lowercase();
+                                            lower.contains("upgrade") && lower.contains("websocket")
+                                        }
+                                        Ok(Err(e)) => {
+                                            error!("Failed to peek connection from {}: {}", peer_addr, e);
+                                            return;
+                                        }
+                                        Err(_) => {
+                                            debug!("Connection from {} sent no data within timeout", peer_addr);
+                                            return;
+                                        }
+                                    }
+                                };
+
+                                if !is_ws_upgrade {
+                                    if serve_control_panel {
+                                        serve_control_panel_http(stream).await;
+                                    }
+                                    return;
+                                }
+
+                                // WebSocket: enforce exclusive client policy
+                                let client_token = parent_token.child_token();
+                                {
+                                    let mut guard = active_client.write().await;
+                                    if let Some(old) = guard.take() {
+                                        old.cancel();
+                                        info!("Disconnected active client on ws://{}:{}", bind_addr, port);
+                                    }
+                                    *guard = Some(client_token.clone());
+                                }
+
+                                // Notify the on_client_connected handler
+                                if let Some(ref handler) = on_connected {
+                                    handler(conn_id);
+                                }
+
                                 handle_connection(
-                                    stream, addr, registry,
-                                    set_slot_values_handler, get_slot_values_handler,
+                                    stream, peer_addr, registry,
+                                    set_handler, get_handler,
                                     validate_paths, client_token, active_client,
                                 ).await;
                             });
@@ -319,6 +379,30 @@ async fn handle_connection(
     info!("Connection closed for: {}", addr);
 }
 
+/// Serve the built-in control panel HTML over a plain HTTP response.
+async fn serve_control_panel_http(mut stream: TcpStream) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    const HTML: &str = include_str!("control_panel.html");
+
+    // Read and consume the HTTP request from the buffer
+    let mut buf = vec![0u8; 4096];
+    let _ = stream.read(&mut buf).await;
+
+    let body = HTML.as_bytes();
+    let header = format!(
+        "HTTP/1.1 200 OK\r\n\
+         Content-Type: text/html; charset=utf-8\r\n\
+         Content-Length: {}\r\n\
+         Connection: close\r\n\
+         \r\n",
+        body.len()
+    );
+
+    let _ = stream.write_all(header.as_bytes()).await;
+    let _ = stream.write_all(body).await;
+}
+
 /// Process an incoming message and return the response.
 ///
 /// This function is public so it can be reused by other connection types
@@ -428,16 +512,19 @@ mod tests {
         assert_eq!(config.port, 9000);
         assert_eq!(config.bind_address, "0.0.0.0");
         assert!(config.validate_paths);
+        assert!(!config.serve_control_panel);
     }
 
     #[test]
     fn test_server_config_builder() {
         let config = ServerConfig::with_port(8080)
             .bind_address("127.0.0.1")
-            .validate_paths(false);
+            .validate_paths(false)
+            .serve_control_panel(true);
 
         assert_eq!(config.port, 8080);
         assert_eq!(config.bind_address, "127.0.0.1");
         assert!(!config.validate_paths);
+        assert!(config.serve_control_panel);
     }
 }

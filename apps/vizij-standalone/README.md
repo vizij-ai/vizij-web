@@ -10,6 +10,43 @@ A standalone desktop application that renders Vizij avatars and accepts real-tim
 - Cross-platform (Windows, macOS, Linux)
 - Fullscreen and multi-monitor support
 - Kiosk mode for installations
+- Built-in web control panel for remote control from a phone or tablet
+
+---
+
+## Web Control Panel
+
+The app includes a built-in web control panel served on the same port as the WebSocket server. This lets you control the avatar from any device with a browser (e.g., your phone) without installing anything.
+
+### How to Use
+
+1. Start the app on your computer (e.g., `vizij-standalone.exe --glb avatar.glb`)
+2. Find your computer's local IP address (e.g., `192.168.1.5`)
+3. On your phone, open a browser and navigate to `http://<IP>:9000/` (use your configured port if not 9000)
+4. Enter the IP address and tap **Connect**
+5. Use the sliders to control the avatar in real-time
+
+### Features
+
+- **Auto-discovery**: On connect, the panel fetches all available slots and builds the UI dynamically
+- **Tabbed layout**: Slots are organized by standard (e.g., "vizij"), with collapsible panels for each channel (e.g., "left eye", "mouth")
+- **Real-time control**: Slider changes are batched and sent over WebSocket with minimal latency
+- **Reset button**: Invokes the "reset" method to return all values to defaults
+- **Mobile-friendly**: Designed for touch interaction with large slider targets
+
+### Architecture
+
+The control panel is served as a single self-contained HTML page (no external dependencies) directly from the WebSocket server port. When a browser makes a regular HTTP request, the server serves the HTML page. When the page establishes a WebSocket connection, it uses the same arora protocol as any other client.
+
+This means the control panel is treated as a regular WebSocket client and the exclusive client policy applies: connecting from the control panel will disconnect any other active client, and vice versa.
+
+### Disabling
+
+To disable the web control panel, use `--no-web-control`:
+
+```bash
+vizij-standalone.exe --glb avatar.glb --no-web-control
+```
 
 ---
 
@@ -44,6 +81,7 @@ vizij-standalone <COMMAND>
 | ------------------- | ----- | ----------------------------------- | ------------------------ |
 | `--glb <PATH>`      | `-g`  | Path or URL to GLB/GLTF avatar file | None (shows file picker) |
 | `--port <PORT>`     | `-p`  | WebSocket server port               | 9000                     |
+| `--no-web-control`  |       | Disable the web control panel       | false (panel enabled)    |
 | `--fullscreen`      | `-f`  | Launch in fullscreen mode           | false                    |
 | `--display <INDEX>` | `-d`  | Monitor index (0 = primary)         | Primary monitor          |
 | `--width <PIXELS>`  | `-W`  | Window width                        | 800                      |
@@ -109,10 +147,10 @@ cd vizij-web
 pnpm install
 
 # Run in dev mode
-pnpm run dev:vizij-standalone-app
+pnpm run dev:vizij-standalone
 
 # Pass CLI arguments
-pnpm run dev:vizij-standalone-app -- -- -- --glb /path/to/avatar.glb --fullscreen
+pnpm run dev:vizij-standalone -- -- -- --glb /path/to/avatar.glb --fullscreen
 ```
 
 ---
@@ -122,7 +160,7 @@ pnpm run dev:vizij-standalone-app -- -- -- --glb /path/to/avatar.glb --fullscree
 ### Building
 
 ```bash
-cd apps/vizij-standalone-app
+cd apps/vizij-standalone
 pnpm install
 pnpm tauri build
 ```

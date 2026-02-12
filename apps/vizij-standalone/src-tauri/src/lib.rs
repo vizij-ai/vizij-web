@@ -36,11 +36,7 @@ struct Cli {
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
 
-    /// Web control server port
-    #[arg(short = 'w', long, default_value_t = 8080)]
-    web_port: u16,
-
-    /// Disable web-based remote control
+    /// Disable web-based remote control panel (served on the same port as the WebSocket server)
     #[arg(long, default_value_t = false)]
     no_web_control: bool,
 
@@ -308,12 +304,12 @@ pub fn run() {
             });
 
             // Set up connection manager with all connection interfaces
+            let serve_web_control = !cli.no_web_control;
             let mut manager = ConnectionManager::new();
-            manager.add_connection(Arc::new(WsServer::new(port)));
+            manager.add_connection(Arc::new(WsServer::new(port, serve_web_control)));
 
-            let web_port = if !cli.no_web_control {
-                // WebAppServer will be added here in a future task
-                None
+            let web_port = if serve_web_control {
+                Some(port)
             } else {
                 None
             };
@@ -327,6 +323,9 @@ pub fn run() {
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
+            if serve_web_control {
+                info!("Web control panel will be available at http://<ip>:{}", port);
+            }
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
             }
