@@ -1,275 +1,251 @@
-use futures_util::{SinkExt, StreamExt};
-use log::{debug, error, info, warn};
-use serde::{Deserialize, Serialize};
+//! WebSocket server implementation of AroraConnection.
+//!
+//! This module provides a WebSocket-based implementation of the AroraConnection
+//! trait, wrapping `arora_websocket::AroraWSServer` and integrating with Tauri's
+//! event system.
+
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use arora_websocket::{AroraWSServer, ServerConfig};
+use log::{debug, info, warn};
+use serde::Serialize;
+use std::sync::mpsc::{channel, Sender};
 use tauri::{AppHandle, Emitter};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Mutex, RwLock};
-use tokio_tungstenite::tungstenite::Message;
 
-/// Messages received from WebSocket clients
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum IncomingMessage {
-    /// Update values on the 3D model
-    Update { values: HashMap<String, f64> },
-    /// Reset the model to default state
-    Reset,
-    /// Request the list of available tracks
-    GetTracks,
-    /// Request the list of available nodes (with optional path filter)
-    ListNodes { path: Option<String> },
+use crate::connection::{
+    AroraConnection, AroraConnectionTauriExt, CancellationToken, GetSlotValuesHandler,
+    InvokeResult, MethodHandler, MethodInfo, SetSlotValuesHandler, SlotInfo, Value,
+};
+
+/// WebSocket implementation of AroraConnection.
+///
+/// Wraps `arora_websocket::AroraWSServer` and provides integration with
+/// Tauri's event system for frontend communication.
+pub struct WsServer {
+    server: Arc<AroraWSServer>,
+    /// Pending GetSlotValues responses keyed by request ID.
+    pending_slot_value_requests: Arc<Mutex<HashMap<String, Sender<HashMap<String, Value>>>>>,
+    /// Monotonic counter used to generate request IDs.
+    next_request_id: Arc<AtomicU64>,
 }
 
-/// Node metadata returned in list_nodes response
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeInfo {
-    pub path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub min: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub default_value: Option<f64>,
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GetSlotValuesRequestPayload {
+    request_id: String,
+    slots: Vec<String>,
 }
 
-/// Messages sent to WebSocket clients
-#[derive(Debug, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum OutgoingMessage {
-    /// List of available tracks
-    Tracks { tracks: Vec<String> },
-    /// List of available nodes
-    Nodes { nodes: Vec<NodeInfo> },
-    /// Acknowledgment
-    Ack { success: bool, message: Option<String> },
-}
-
-/// Shared state for the WebSocket server
-pub struct WsServerState {
-    pub tracks: RwLock<Vec<String>>,
-    pub nodes: RwLock<Vec<NodeInfo>>,
-    pub is_running: RwLock<bool>,
-}
-
-impl Default for WsServerState {
-    fn default() -> Self {
+impl WsServer {
+    /// Create a new WebSocket server on the specified port.
+    pub fn new(port: u16) -> Self {
+        let config = ServerConfig::with_port(port).validate_paths(true);
         Self {
-            tracks: RwLock::new(vec![]),
-            nodes: RwLock::new(vec![]),
-            is_running: RwLock::new(false),
+            server: Arc::new(AroraWSServer::new(config)),
+            pending_slot_value_requests: Arc::new(Mutex::new(HashMap::new())),
+            next_request_id: Arc::new(AtomicU64::new(1)),
+        }
+    }
+
+    pub fn respond_slot_values_with_id(&self, request_id: &str, values: HashMap<String, Value>) {
+        let mut guard = self.pending_slot_value_requests.lock().unwrap();
+        if let Some(tx) = guard.remove(request_id) {
+            if tx.send(values).is_err() {
+                warn!(
+                    "Failed to send slot values response for request {} - receiver dropped",
+                    request_id
+                );
+            }
+        } else {
+            warn!(
+                "respond_slot_values_with_id called for unknown request ID: {}",
+                request_id
+            );
         }
     }
 }
 
-/// Handle a single WebSocket connection
-async fn handle_connection(
-    stream: TcpStream,
-    addr: SocketAddr,
-    app_handle: AppHandle,
-    state: Arc<Mutex<WsServerState>>,
-) {
-    info!("New WebSocket connection from: {}", addr);
+impl AroraConnection for WsServer {
+    fn set_slots(
+        &self,
+        slots: Vec<SlotInfo>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            self.server.registry().set_slots(slots).await;
+        })
+    }
 
-    let ws_stream = match tokio_tungstenite::accept_async(stream).await {
-        Ok(ws) => ws,
-        Err(e) => {
-            error!("Error during WebSocket handshake: {}", e);
-            return;
-        }
-    };
+    fn set_set_slot_values_handler(
+        &self,
+        handler: SetSlotValuesHandler,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            self.server
+                .set_set_slot_values_handler(move |values| handler(values))
+                .await;
+        })
+    }
 
-    let (mut write, mut read) = ws_stream.split();
+    fn set_get_slot_values_handler(
+        &self,
+        handler: GetSlotValuesHandler,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            self.server
+                .set_get_slot_values_handler(move |slots| handler(slots))
+                .await;
+        })
+    }
 
-    while let Some(msg) = read.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("Received message: {}", text);
+    fn register_method(
+        &self,
+        info: MethodInfo,
+        handler: MethodHandler,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
+            self.server
+                .registry()
+                .register_method_fn(info, move |args| handler(args))
+                .await;
+        })
+    }
 
-                match serde_json::from_str::<IncomingMessage>(&text) {
-                    Ok(incoming) => {
-                        let response = match incoming {
-                            IncomingMessage::Update { values } => {
-                                // Validate paths against known input nodes
-                                let known_paths: Vec<String> = {
-                                    let state_guard = state.lock().await;
-                                    let known_nodes = state_guard.nodes.read().await;
-                                    known_nodes
-                                        .iter()
-                                        .filter(|n| n.kind.as_deref() == Some("input"))
-                                        .map(|n| n.path.clone())
-                                        .collect()
-                                };
-
-                                // Check for invalid paths
-                                let invalid_paths: Vec<&str> = values
-                                    .keys()
-                                    .filter(|path| !known_paths.iter().any(|p| p == *path))
-                                    .map(|s| s.as_str())
-                                    .collect();
-
-                                if !invalid_paths.is_empty() {
-                                    warn!("Invalid paths in update: {:?}", invalid_paths);
-                                    OutgoingMessage::Ack {
-                                        success: false,
-                                        message: Some(format!(
-                                            "Unknown input path(s): {}",
-                                            invalid_paths.join(", ")
-                                        )),
-                                    }
-                                } else if let Err(e) = app_handle.emit("update-values", &values) {
-                                    error!("Failed to emit update-values: {}", e);
-                                    OutgoingMessage::Ack {
-                                        success: false,
-                                        message: Some(format!("Failed to emit: {}", e)),
-                                    }
-                                } else {
-                                    debug!("Emitted update-values with {} values", values.len());
-                                    OutgoingMessage::Ack {
-                                        success: true,
-                                        message: None,
-                                    }
-                                }
-                            }
-                            IncomingMessage::Reset => {
-                                // Emit reset event to frontend
-                                if let Err(e) = app_handle.emit("reset", ()) {
-                                    error!("Failed to emit reset: {}", e);
-                                    OutgoingMessage::Ack {
-                                        success: false,
-                                        message: Some(format!("Failed to emit: {}", e)),
-                                    }
-                                } else {
-                                    debug!("Emitted reset event");
-                                    OutgoingMessage::Ack {
-                                        success: true,
-                                        message: None,
-                                    }
-                                }
-                            }
-                            IncomingMessage::GetTracks => {
-                                let state = state.lock().await;
-                                let tracks = state.tracks.read().await.clone();
-                                OutgoingMessage::Tracks { tracks }
-                            }
-                            IncomingMessage::ListNodes { path } => {
-                                let state = state.lock().await;
-                                let all_nodes = state.nodes.read().await.clone();
-
-                                // Filter nodes by path prefix if provided
-                                let filtered_nodes = match path {
-                                    Some(prefix) => {
-                                        let prefix = prefix.trim_end_matches('/');
-                                        all_nodes
-                                            .into_iter()
-                                            .filter(|node| {
-                                                node.path.starts_with(prefix)
-                                                    || node.path.starts_with(&format!("{}/", prefix))
-                                            })
-                                            .collect()
-                                    }
-                                    None => all_nodes,
-                                };
-
-                                OutgoingMessage::Nodes { nodes: filtered_nodes }
-                            }
-                        };
-
-                        let response_text = serde_json::to_string(&response).unwrap();
-                        if let Err(e) = write.send(Message::Text(response_text.into())).await {
-                            error!("Failed to send response: {}", e);
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Failed to parse message: {}", e);
-                        let response = OutgoingMessage::Ack {
-                            success: false,
-                            message: Some(format!("Invalid message format: {}", e)),
-                        };
-                        let response_text = serde_json::to_string(&response).unwrap();
-                        if let Err(e) = write.send(Message::Text(response_text.into())).await {
-                            error!("Failed to send error response: {}", e);
-                            break;
-                        }
-                    }
-                }
+    fn respond_slot_values(&self, values: HashMap<String, Value>) {
+        // Fallback path for callers that don't pass a request ID.
+        // This keeps compatibility while warning when routing is ambiguous.
+        let request_id = {
+            let guard = self.pending_slot_value_requests.lock().unwrap();
+            if guard.len() > 1 {
+                warn!(
+                    "respond_slot_values called without request ID while {} requests are pending",
+                    guard.len()
+                );
             }
-            Ok(Message::Close(_)) => {
-                info!("Client {} disconnected", addr);
-                break;
-            }
-            Ok(Message::Ping(data)) => {
-                if let Err(e) = write.send(Message::Pong(data)).await {
-                    error!("Failed to send pong: {}", e);
-                    break;
-                }
-            }
-            Ok(_) => {
-                // Ignore other message types (Binary, Pong, Frame)
-            }
-            Err(e) => {
-                error!("Error reading message: {}", e);
-                break;
-            }
+            guard.keys().next().cloned()
+        };
+
+        if let Some(request_id) = request_id {
+            self.respond_slot_values_with_id(&request_id, values);
+        } else {
+            warn!("respond_slot_values called but no pending request");
         }
     }
 
-    info!("Connection closed for: {}", addr);
+    fn run(
+        &self,
+        cancel_token: CancellationToken,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>> {
+        Box::pin(async move { self.server.run(cancel_token).await })
+    }
+
+    fn is_running(&self) -> Pin<Box<dyn Future<Output = bool> + Send + '_>> {
+        Box::pin(async move { self.server.is_running().await })
+    }
+
+    fn connection_id(&self) -> String {
+        format!("ws://127.0.0.1:{}", self.server.port())
+    }
 }
 
-/// Start the WebSocket server
-pub async fn run_server(
-    port: u16,
-    app_handle: AppHandle,
-    state: Arc<Mutex<WsServerState>>,
-    cancel_token: tokio_util::sync::CancellationToken,
-) -> Result<(), String> {
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = TcpListener::bind(&addr)
-        .await
-        .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
+impl AroraConnectionTauriExt for WsServer {
+    fn setup_tauri_integration(
+        &self,
+        app_handle: AppHandle,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        let pending_requests = self.pending_slot_value_requests.clone();
+        let next_request_id = self.next_request_id.clone();
 
-    info!("WebSocket server listening on ws://localhost:{}", port);
+        Box::pin(async move {
+            // Handler for SetSlotValues: emit to frontend
+            let app = app_handle.clone();
+            let set_handler: SetSlotValuesHandler = Arc::new(move |values| {
+                match app.emit("update-values", &values) {
+                    Ok(()) => Ok(()),
+                    Err(e) => Err(format!("Failed to emit: {}", e)),
+                }
+            });
+            self.set_set_slot_values_handler(set_handler).await;
 
-    // Mark server as running
-    {
-        let state = state.lock().await;
-        *state.is_running.write().await = true;
-    }
+            // Handler for GetSlotValues: request from frontend via event/command pattern
+            let app = app_handle.clone();
+            let pending_requests_clone = pending_requests.clone();
+            let next_request_id_clone = next_request_id.clone();
+            let get_handler: GetSlotValuesHandler = Arc::new(move |slots| {
+                debug!("GetSlotValues request for {} slots", slots.len());
 
-    loop {
-        tokio::select! {
-            result = listener.accept() => {
-                match result {
-                    Ok((stream, addr)) => {
-                        let app_handle = app_handle.clone();
-                        let state = state.clone();
-                        tokio::spawn(async move {
-                            handle_connection(stream, addr, app_handle, state).await;
-                        });
+                // Create a channel for the response
+                let (tx, rx) = channel();
+                let request_id = format!(
+                    "get-slot-values-{}",
+                    next_request_id_clone.fetch_add(1, Ordering::Relaxed)
+                );
+
+                // Store sender keyed by request ID so concurrent requests are safe.
+                {
+                    let mut guard = pending_requests_clone.lock().unwrap();
+                    guard.insert(request_id.clone(), tx);
+                }
+
+                let payload = GetSlotValuesRequestPayload { request_id, slots };
+
+                // Emit event to frontend with request ID and requested slots.
+                if let Err(e) = app.emit("get-slot-values-request", &payload) {
+                    warn!("Failed to emit get-slot-values-request: {}", e);
+
+                    // Clean up pending entry since no response can arrive.
+                    let mut guard = pending_requests_clone.lock().unwrap();
+                    guard.remove(&payload.request_id);
+                    return HashMap::new();
+                }
+
+                // Wait for response with timeout
+                match rx.recv_timeout(Duration::from_secs(5)) {
+                    Ok(values) => {
+                        debug!("Received {} slot values from frontend", values.len());
+                        values
                     }
                     Err(e) => {
-                        error!("Failed to accept connection: {}", e);
+                        // Clean up pending entry on timeout/error.
+                        let mut guard = pending_requests_clone.lock().unwrap();
+                        guard.remove(&payload.request_id);
+                        warn!(
+                            "Timeout or error waiting for slot values for request {}: {}",
+                            payload.request_id, e
+                        );
+                        HashMap::new()
                     }
                 }
-            }
-            _ = cancel_token.cancelled() => {
-                info!("WebSocket server shutting down");
-                break;
-            }
+            });
+            self.set_get_slot_values_handler(get_handler).await;
+        })
+    }
+}
+
+/// Register the default "reset" method that emits a Tauri event.
+pub async fn register_reset_method<C: AroraConnection>(connection: &C, app_handle: AppHandle) {
+    let app = app_handle.clone();
+    let handler: MethodHandler = Arc::new(move |_args| match app.emit("reset", ()) {
+        Ok(()) => {
+            info!("Emitted reset event");
+            InvokeResult::ok()
         }
-    }
+        Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
+    });
 
-    // Mark server as not running
-    {
-        let state = state.lock().await;
-        *state.is_running.write().await = false;
-    }
-
-    Ok(())
+    connection
+        .register_method(
+            MethodInfo {
+                path: "reset".to_string(),
+                params: vec![],
+                return_type: None,
+                description: Some("Reset all values to defaults".to_string()),
+            },
+            handler,
+        )
+        .await;
 }

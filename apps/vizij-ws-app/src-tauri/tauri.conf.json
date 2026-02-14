@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.vizij.ws.app",
   "build": {
-    "beforeDevCommand": "npm run vite",
+    "beforeDevCommand": "pnpm run vite",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {

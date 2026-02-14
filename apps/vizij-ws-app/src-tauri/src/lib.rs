@@ -5,14 +5,19 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
 
+use std::collections::HashMap;
+
+mod connection;
 mod ws_server;
-use ws_server::{NodeInfo, WsServerState};
+
+use connection::{AroraConnection, AroraConnectionTauriExt, CancellationToken, SlotInfo, Value};
+use ws_server::WsServer;
 
 /// Application state
 struct AppState {
-    ws_state: Arc<Mutex<WsServerState>>,
+    ws_server: Arc<WsServer>,
+    ws_start_lock: Mutex<()>,
     ws_cancel_token: Mutex<Option<CancellationToken>>,
     port: u16,
     glb_source: Option<String>,
@@ -93,7 +98,10 @@ fn list_displays() {
         let pos = monitor.position();
         let scale = monitor.scale_factor();
         let name = monitor.name().unwrap_or_else(|| "Unknown".to_string());
-        let is_primary = primary.as_ref().map(|p| p.name() == monitor.name()).unwrap_or(false);
+        let is_primary = primary
+            .as_ref()
+            .map(|p| p.name() == monitor.name())
+            .unwrap_or(false);
 
         println!(
             "  Display {}: {}{}",
@@ -130,14 +138,20 @@ fn warn_if_snap_env() {
 #[tauri::command]
 async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
+    let _start_guard = state.ws_start_lock.lock().await;
     let port = state.port;
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("0.0.0.0:{}", port);
 
-    // Check if already running
+    // Check running state from the server itself (single source of truth).
+    if AroraConnection::is_running(state.ws_server.as_ref()).await {
+        return Err("WebSocket server is already running".to_string());
+    }
+
+    // Clear any stale token left from a previous run.
     {
-        let cancel_token = state.ws_cancel_token.lock().await;
+        let mut cancel_token = state.ws_cancel_token.lock().await;
         if cancel_token.is_some() {
-            return Err("WebSocket server is already running".to_string());
+            *cancel_token = None;
         }
     }
 
@@ -154,20 +168,36 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
         *token_guard = Some(cancel_token);
     }
 
-    let ws_state = state.ws_state.clone();
+    let ws_server = state.ws_server.clone();
     let app_handle_clone = app_handle.clone();
+
+    // Setup Tauri integration (update handler emits events)
+    AroraConnectionTauriExt::setup_tauri_integration(ws_server.as_ref(), app_handle.clone()).await;
+
+    // Register the reset method
+    ws_server::register_reset_method(ws_server.as_ref(), app_handle.clone()).await;
 
     // Spawn the server task
     tokio::spawn(async move {
-        if let Err(e) = ws_server::run_server(port, app_handle_clone.clone(), ws_state, child_token).await {
+        if let Err(e) = AroraConnection::run(ws_server.as_ref(), child_token).await {
             log::error!("WebSocket server error: {}", e);
         }
+
+        // Clear cancellation token on task exit so start/stop state remains consistent.
+        let state = app_handle_clone.state::<AppState>();
+        {
+            let mut token_guard = state.ws_cancel_token.lock().await;
+            *token_guard = None;
+        }
+
         // Emit server stopped event
         let _ = app_handle_clone.emit("ws:stopped", ());
     });
 
     // Emit server started event with port
-    app_handle.emit("ws:started", port).map_err(|e| e.to_string())?;
+    app_handle
+        .emit("ws:started", port)
+        .map_err(|e| e.to_string())?;
 
     info!("WebSocket server started on port {}", port);
     Ok(())
@@ -177,6 +207,13 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn stop_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
+
+    // If server is already stopped, also clear any stale token.
+    if !AroraConnection::is_running(state.ws_server.as_ref()).await {
+        let mut cancel_token = state.ws_cancel_token.lock().await;
+        *cancel_token = None;
+        return Err("WebSocket server is not running".to_string());
+    }
 
     let mut cancel_token = state.ws_cancel_token.lock().await;
     if let Some(token) = cancel_token.take() {
@@ -195,33 +232,13 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
     state.port
 }
 
-/// Get available tracks (placeholder)
+/// Set available slots (called by frontend when model loads)
 #[tauri::command]
-async fn get_tracks(app_handle: tauri::AppHandle) -> Vec<String> {
+async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    let tracks = ws_state.tracks.read().await.clone();
-    tracks
-}
-
-/// Set available tracks (for external integration)
-#[tauri::command]
-async fn set_tracks(app_handle: tauri::AppHandle, tracks: Vec<String>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    *ws_state.tracks.write().await = tracks;
-    info!("Tracks updated");
-    Ok(())
-}
-
-/// Set available nodes (called by frontend when model loads)
-#[tauri::command]
-async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<NodeInfo>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    let count = nodes.len();
-    *ws_state.nodes.write().await = nodes;
-    info!("Nodes updated: {} available", count);
+    let count = slots.len();
+    AroraConnection::set_slots(state.ws_server.as_ref(), slots).await;
+    info!("Slots updated: {} available", count);
     Ok(())
 }
 
@@ -236,8 +253,7 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
 #[tauri::command]
 async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
     let state = app_handle.state::<AppState>();
-    let cancel_token = state.ws_cancel_token.lock().await;
-    cancel_token.is_some()
+    AroraConnection::is_running(state.ws_server.as_ref()).await
 }
 
 /// Read a local GLB file and return as base64
@@ -247,6 +263,20 @@ async fn read_glb_file(path: String) -> Result<String, String> {
         .await
         .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
     Ok(STANDARD.encode(&contents))
+}
+
+/// Respond to a GetSlotValues request from the connection.
+/// Called by the frontend after receiving a "get-slot-values-request" event.
+#[tauri::command]
+fn respond_slot_values(
+    app_handle: tauri::AppHandle,
+    request_id: String,
+    values: HashMap<String, Value>,
+) {
+    let state = app_handle.state::<AppState>();
+    state
+        .ws_server
+        .respond_slot_values_with_id(&request_id, values);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -291,7 +321,8 @@ pub fn run() {
 
             // Set up the application state
             app.manage(AppState {
-                ws_state: Arc::new(Mutex::new(WsServerState::default())),
+                ws_server: Arc::new(WsServer::new(port)),
+                ws_start_lock: Mutex::new(()),
                 ws_cancel_token: Mutex::new(None),
                 port,
                 glb_source: glb_source.clone(),
@@ -339,7 +370,10 @@ pub fn run() {
                         )) {
                             log::error!("Failed to set window size: {}", e);
                         } else {
-                            info!("Window size set to monitor resolution: {}x{}", size.width, size.height);
+                            info!(
+                                "Window size set to monitor resolution: {}x{}",
+                                size.width, size.height
+                            );
                         }
                     }
 
@@ -364,7 +398,8 @@ pub fn run() {
                         let monitor_pos = monitor.position();
                         let monitor_size = monitor.size();
                         let x = monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
-                        let y = monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
+                        let y =
+                            monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
                         if let Err(e) = window.set_position(tauri::Position::Physical(
                             tauri::PhysicalPosition::new(x, y),
                         )) {
@@ -401,11 +436,10 @@ pub fn run() {
             stop_ws_server,
             is_ws_running,
             get_port,
-            get_tracks,
-            set_tracks,
-            set_nodes,
+            set_slots,
             get_glb_source,
             read_glb_file,
+            respond_slot_values,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

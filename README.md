@@ -137,6 +137,7 @@ From the repo root:
 | `pnpm run dev:<workspace>`               | Start a specific app (e.g. `dev:demo-vizij-player`, `dev:minimal-demo-graph`).                   |
 | `pnpm run build`                         | Build packages then apps in dependency order.                                                    |
 | `pnpm run build:packages` / `build:apps` | Run just the package builds or just the app builds.                                              |
+| `pnpm smoke:ws-app`                      | Run a smoke test against a running `vizij-ws-app` instance (default `ws://127.0.0.1:9000`).      |
 | `pnpm run prep`                          | Format, then lint, then run `typecheck:all` across the workspace.                                |
 | `pnpm run prep:push`                     | Full validation: format → clean → build → lint → `typecheck:all` → test (CI-friendly).           |
 | `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.                                        |
@@ -146,6 +147,28 @@ From the repo root:
 | `pnpm run reset` / `reset:hard`          | Drop `node_modules` (and lockfiles via `reset:hard`) to rebuild the workspace from scratch.      |
 
 Use `pnpm --filter "<workspace>" <script>` when you want to target a specific package/app.
+
+### Standalone WS App Smoke Test
+
+Run against a live `vizij-ws-app` instance after starting the app:
+
+```bash
+pnpm smoke:ws-app --url ws://127.0.0.1:9000 --timeout 8000
+```
+
+Useful for manual smoke checks with `wscat`:
+
+```bash
+npx wscat -c ws://127.0.0.1:9000
+```
+
+Send each JSON message as a **single line** and press Enter:
+
+```json
+{"type":"list_slots"}
+{"type":"set_slot_values","values":{"standard/vizij/left_eye/pos/x":{"f64":0.5}}}
+{"type":"get_slot_values","slots":["standard/vizij/left_eye/pos/x"]}
+```
 
 ---
 

@@ -20,3 +20,5 @@
 .eslintcache
 .claude/settings.local.json
 .worktrees/
+/packages/arora-websocket/target
+/packages/arora-connection/target
