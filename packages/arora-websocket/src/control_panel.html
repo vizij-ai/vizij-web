@@ -317,9 +317,9 @@
     <script>
       let ws = null;
       let controls = [];
+      let controlByPath = new Map();
       let namespaceFilter = "all";
       let searchFilter = "";
-      let latestSlots = [];
       let pending = {};
       let flushTimer = null;
       let connectTimeout = null;
@@ -332,6 +332,8 @@
       const cbtn = $("cbtn");
       const rbtn = $("rbtn");
       const searchInput = $("search");
+      const mainEl = $("main");
+      const tabsEl = $("tabs");
 
       const numberSuffixes = ["f64", "f32", "i64", "i32", "u64", "u32"];
 
@@ -391,6 +393,51 @@
           score += 1;
         }
         return score;
+      }
+
+      function setControls(nextControls) {
+        controls = nextControls;
+        controlByPath = new Map(
+          controls.map((control) => [control.path, control]),
+        );
+      }
+
+      function getControlByPath(path) {
+        return controlByPath.get(normalizePath(path));
+      }
+
+      function getRangeInput(path) {
+        return mainEl.querySelector(
+          'input[type="range"][data-p="' + cssEscape(path) + '"]',
+        );
+      }
+
+      function getNumberInput(path) {
+        return mainEl.querySelector(
+          'input[type="number"][data-p="' + cssEscape(path) + '"]',
+        );
+      }
+
+      function applyControlValue(path, value) {
+        const control = getControlByPath(path);
+        if (!control) {
+          return null;
+        }
+        const clamped = clampValue(value, control.min, control.max);
+        control.currentValue = clamped;
+        const rangeInput = getRangeInput(control.path);
+        if (rangeInput) {
+          rangeInput.value = String(clamped);
+          const valueText = rangeInput.nextElementSibling.nextElementSibling;
+          if (valueText && valueText.classList.contains("slider-val")) {
+            valueText.textContent = clamped.toFixed(2);
+          }
+        }
+        const numberInput = getNumberInput(control.path);
+        if (numberInput) {
+          numberInput.value = clamped;
+        }
+        return clamped;
       }
 
       function shouldReplaceCanonical(existingSlot, newSlot) {
@@ -496,6 +543,10 @@
 
       function buildNamespaceTabs(namespaces) {
         const names = ["all", ...namespaces];
+        const namespaceCounts = controls.reduce((counts, control) => {
+          counts[control.namespace] = (counts[control.namespace] || 0) + 1;
+          return counts;
+        }, {});
         let tabs = "";
         names.forEach((name) => {
           const label = name === "all" ? "All" : name;
@@ -509,12 +560,10 @@
             "')\">" +
             label +
             " (" +
-            (name === "all"
-              ? controls.length
-              : controls.filter((c) => c.namespace === name).length) +
+            (name === "all" ? controls.length : namespaceCounts[name] || 0) +
             ")</div>";
         });
-        $("tabs").innerHTML = names.length > 1 ? tabs : "";
+        tabsEl.innerHTML = names.length > 1 ? tabs : "";
       }
 
       function setNamespace(name) {
@@ -526,27 +575,6 @@
         searchFilter = value || "";
         searchInput.value = searchFilter;
         rebuildUI();
-      }
-
-      function setControlValue(path, value) {
-        const clamped = Number.isFinite(Number.parseFloat(value))
-          ? Number.parseFloat(value)
-          : 0;
-        const row = $("main").querySelector(
-          'input[data-p="' + cssEscape(path) + '"]',
-        );
-        if (!row) {
-          return;
-        }
-        const slider = row.parentElement.parentElement.querySelector(
-          'input[type="range"]',
-        );
-        const val = clamped.toString();
-        if (slider) {
-          slider.value = String(clamped);
-        }
-        row.value = val;
-        row.previousElementSibling.textContent = clamped.toFixed(2);
       }
 
       function cssEscape(value) {
@@ -562,12 +590,12 @@
         buildNamespaceTabs(namespaces);
 
         if (!controls.length) {
-          $("main").innerHTML =
+          mainEl.innerHTML =
             '<div class="empty">No input controls found.<br/>Make sure a model is loaded and published.</div>';
           return;
         }
         if (!visible.length) {
-          $("main").innerHTML =
+          mainEl.innerHTML =
             '<div class="empty">No matching controls. Try a different filter.</div>';
           return;
         }
@@ -650,7 +678,7 @@
           mainHTML += "</section>";
         });
 
-        $("main").innerHTML = mainHTML;
+        mainEl.innerHTML = mainHTML;
         document.querySelectorAll(".tab-pane").forEach((pane) => {
           pane.classList.toggle(
             "active",
@@ -684,17 +712,15 @@
 
       function refreshCurrentValues() {
         for (const control of controls) {
-          const el = document.querySelector(
-            'input[data-p="' + cssEscape(control.path) + '"][type="range"]',
-          );
+          const el = getRangeInput(control.path);
           if (el) {
             el.value = control.currentValue;
             const valEl = el.nextElementSibling.nextElementSibling;
             if (valEl && valEl.classList.contains("slider-val")) {
               valEl.textContent = Number(control.currentValue).toFixed(2);
             }
-            const numEl = el.nextElementSibling;
-            if (numEl && numEl.classList.contains("num-input")) {
+            const numEl = getNumberInput(control.path);
+            if (numEl) {
               numEl.value = control.currentValue;
             }
           }
@@ -728,23 +754,9 @@
         if (!Number.isFinite(numeric)) {
           return;
         }
-        const control = controls.find(
-          (candidate) => candidate.path === controlPath,
-        );
-        if (!control) {
+        const clamped = applyControlValue(controlPath, numeric);
+        if (clamped === null) {
           return;
-        }
-        const clamped = clampValue(numeric, control.min, control.max);
-        control.currentValue = clamped;
-        const rangeInput = document.querySelector(
-          'input[type="range"][data-p="' + cssEscape(controlPath) + '"]',
-        );
-        if (rangeInput) {
-          rangeInput.value = String(clamped);
-          const valText = rangeInput.nextElementSibling.nextElementSibling;
-          if (valText && valText.classList.contains("slider-val")) {
-            valText.textContent = clamped.toFixed(2);
-          }
         }
         pending[controlPath] = clamped;
         scheduleFlush();
@@ -756,21 +768,7 @@
         if (!path || !Number.isFinite(value)) {
           return;
         }
-        const control = controls.find((entry) => entry.path === path);
-        if (!control) {
-          return;
-        }
-        const numEl = el.nextElementSibling;
-        const valText = numEl.nextElementSibling;
-        const clamped = clampValue(value, control.min, control.max);
-        control.currentValue = clamped;
-        el.value = String(clamped);
-        numEl.value = clamped;
-        if (valText && valText.classList.contains("slider-val")) {
-          valText.textContent = clamped.toFixed(2);
-        }
-        pending[path] = clamped;
-        scheduleFlush();
+        setControlNumeric(path, value);
       }
 
       function onNumber(el) {
@@ -779,46 +777,16 @@
         if (!path || !Number.isFinite(value)) {
           return;
         }
-        const control = controls.find((entry) => entry.path === path);
-        if (!control) {
-          return;
-        }
-        const clamped = clampValue(value, control.min, control.max);
-        control.currentValue = clamped;
-        const sliderEl = document.querySelector(
-          'input[type="range"][data-p="' + cssEscape(path) + '"]',
-        );
-        if (sliderEl) {
-          sliderEl.value = String(clamped);
-          const valText = sliderEl.nextElementSibling.nextElementSibling;
-          if (valText && valText.classList.contains("slider-val")) {
-            valText.textContent = clamped.toFixed(2);
-          }
-        }
-        el.value = clamped;
-        pending[path] = clamped;
-        scheduleFlush();
+        setControlNumeric(path, value);
       }
 
       function resetOne(rawPath) {
         const path = normalizePath(rawPath);
-        const control = controls.find((entry) => entry.path === path);
+        const control = getControlByPath(path);
         if (!control) {
           return;
         }
         setControlNumeric(path, control.defaultValue);
-        const row = $("main").querySelector(
-          'input[type="range"][data-p="' + cssEscape(path) + '"]',
-        );
-        if (row) {
-          row.parentElement.querySelector(".slider-val").textContent = Number(
-            control.defaultValue,
-          ).toFixed(2);
-          const numInput = row.parentElement.querySelector(".num-input");
-          if (numInput) {
-            numInput.value = control.defaultValue;
-          }
-        }
       }
 
       function invokeReset() {
@@ -834,20 +802,6 @@
         );
         controls.forEach((control) => {
           setControlNumeric(control.path, control.defaultValue);
-          const row = $("main").querySelector(
-            'input[type="range"][data-p="' + cssEscape(control.path) + '"]',
-          );
-          if (row) {
-            row.value = control.defaultValue;
-            const numInput = row.parentElement.querySelector(".num-input");
-            if (numInput) {
-              numInput.value = control.defaultValue;
-            }
-            const valEl = row.parentElement.querySelector(".slider-val");
-            if (valEl) {
-              valEl.textContent = Number(control.defaultValue).toFixed(2);
-            }
-          }
         });
         ws.send(
           JSON.stringify({
@@ -900,17 +854,22 @@
           requestValuesForCurrentControls();
         };
         ws.onmessage = (event) => {
-          const message = JSON.parse(event.data);
+          let message = null;
+          try {
+            message = JSON.parse(event.data);
+          } catch (error) {
+            console.error("[vizij] Failed to parse websocket message:", error);
+            return;
+          }
           if (message.type === "list_slots_resp") {
-            latestSlots = message.slots || [];
-            controls = deriveControls(latestSlots);
+            setControls(deriveControls(message.slots || []));
             rebuildUI();
             requestValuesForCurrentControls();
           } else if (message.type === "get_slot_values_resp") {
             const values = message.values || {};
             Object.entries(values).forEach(([path, value]) => {
               const numeric = extractNumeric(value);
-              const control = controls.find((entry) => entry.path === path);
+              const control = getControlByPath(path);
               if (!control || !Number.isFinite(numeric)) {
                 return;
               }
@@ -928,7 +887,7 @@
           rbtn.disabled = true;
           ws = null;
           controls = [];
-          latestSlots = [];
+          controlByPath = new Map();
           rebuildUI();
         };
         ws.onerror = (err) => {
@@ -946,7 +905,7 @@
         namespaceFilter = "all";
         searchFilter = "";
         searchInput.value = "";
-        latestSlots = [];
+        controlByPath = new Map();
         pending = {};
         rebuildUI();
       }
