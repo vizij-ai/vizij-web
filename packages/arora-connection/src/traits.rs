@@ -28,7 +28,11 @@ pub type SetSlotValuesHandler =
 /// Handler function type for GetSlotValues messages.
 /// Called when an external client wants to read current slot values.
 /// Returns a map of slot paths to their current values.
-pub type GetSlotValuesHandler = Arc<dyn Fn(Vec<String>) -> HashMap<String, Value> + Send + Sync>;
+pub type GetSlotValuesHandler = Arc<
+    dyn Fn(Vec<String>) -> Pin<Box<dyn Future<Output = HashMap<String, Value>> + Send>>
+        + Send
+        + Sync,
+>;
 
 /// Handler function type for method invocations.
 pub type MethodHandler = Arc<dyn Fn(HashMap<String, Value>) -> InvokeResult + Send + Sync>;
@@ -58,10 +62,7 @@ pub trait AroraConnection: Send + Sync {
     ///
     /// This is typically called when a model is loaded and we know
     /// what input paths are available.
-    fn set_slots(
-        &self,
-        slots: Vec<SlotInfo>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+    fn set_slots(&self, slots: Vec<SlotInfo>) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
 
     /// Set the handler for SetSlotValues messages.
     ///

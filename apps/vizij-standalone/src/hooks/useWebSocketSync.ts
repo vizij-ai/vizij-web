@@ -44,36 +44,66 @@ export function useWebSocketSync() {
 
   const nodesSyncedRef = useRef(false);
   const lastLoggedPathsRef = useRef(false);
+  const constraintsFingerprintRef = useRef("");
 
   // Local input values state - tracks values we've set
   // Keyed by the short path (e.g., "standard/vizij/mouth/morph/jaw_open")
   const inputValuesRef = useRef<Record<string, number>>({});
-  const inputValuesInitializedRef = useRef(false);
+
+  const normalizeSlotPath = useCallback(
+    (path: string): string => {
+      const removedSlashes = path.replace(/^\/+/, "").replace(/\/+/g, "/");
+      if (!namespace) return removedSlashes;
+      return removedSlashes.startsWith(`${namespace}/`)
+        ? removedSlashes.slice(namespace.length + 1)
+        : removedSlashes;
+    },
+    [namespace],
+  );
 
   // Initialize input values from defaults when constraints are loaded
   useEffect(() => {
-    if (!ready || inputValuesInitializedRef.current) return;
+    if (!ready) return;
 
     const constraintKeys = Object.keys(inputConstraints);
-    if (constraintKeys.length === 0) return;
+    if (constraintKeys.length === 0) {
+      inputValuesRef.current = {};
+      constraintsFingerprintRef.current = "";
+      return;
+    }
+
+    const normalizedConstraintEntries = constraintKeys.map((path) => ({
+      path: normalizeSlotPath(path),
+      constraint: inputConstraints[path],
+    }));
+
+    const fingerprint = normalizedConstraintEntries
+      .slice()
+      .sort((left, right) => left.path.localeCompare(right.path))
+      .map(({ path, constraint }) => {
+        if (!constraint || constraint.defaultValue == null) return path;
+        return `${path}:${constraint.defaultValue}`;
+      })
+      .join("|");
+
+    if (constraintsFingerprintRef.current === fingerprint) return;
 
     // Initialize local state with default values (like vizij-authoring does)
     const defaults: Record<string, number> = {};
-    constraintKeys.forEach((path) => {
-      const constraint = inputConstraints[path];
+    normalizedConstraintEntries.forEach(({ path, constraint }) => {
       if (constraint?.defaultValue !== undefined) {
         defaults[path] = constraint.defaultValue;
       }
     });
     inputValuesRef.current = defaults;
-    inputValuesInitializedRef.current = true;
+    constraintsFingerprintRef.current = fingerprint;
 
     console.log(
       "[vizij-standalone] Initialized",
       Object.keys(defaults).length,
       "input values from defaults",
     );
-  }, [ready, inputConstraints]);
+  }, [ready, inputConstraints, normalizeSlotPath]);
 
   // Log available paths once when ready
   useEffect(() => {
@@ -84,7 +114,10 @@ export function useWebSocketSync() {
     console.log("[vizij-standalone] Runtime ready!");
     console.log("[vizij-standalone] Namespace:", namespace);
     console.log("[vizij-standalone] Face ID:", faceId);
-    console.log("[vizij-standalone] Total input constraints:", constraintKeys.length);
+    console.log(
+      "[vizij-standalone] Total input constraints:",
+      constraintKeys.length,
+    );
 
     // Show sample paths to help debug path format
     const samples = constraintKeys.slice(0, 10);
@@ -100,7 +133,10 @@ export function useWebSocketSync() {
         patterns.add(parts.slice(0, 2).join("/") + "/...");
       }
     });
-    console.log("[vizij-standalone] Path patterns:", Array.from(patterns).slice(0, 10));
+    console.log(
+      "[vizij-standalone] Path patterns:",
+      Array.from(patterns).slice(0, 10),
+    );
   }, [ready, inputConstraints, namespace, faceId]);
 
   // Get a rig input value - tries orchestrator cache first, then local state
@@ -110,14 +146,7 @@ export function useWebSocketSync() {
       if (!ready) return undefined;
 
       // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
-      let normalizedPath = path
-        .replace(/^\/+/, "") // Remove leading slashes
-        .replace(/\/+/g, "/"); // Replace multiple slashes with single
-
-      // Strip namespace prefix if the path starts with it (e.g., "vizij-standalone/standard/..." -> "standard/...")
-      if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
-        normalizedPath = normalizedPath.slice(namespace.length + 1);
-      }
+      const normalizedPath = normalizeSlotPath(path);
 
       // Build the namespaced path that the orchestrator uses
       // Format: namespace/rig/faceId/path (e.g., "vizij-standalone/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
@@ -134,20 +163,31 @@ export function useWebSocketSync() {
       }
 
       // Fall back to local state (values we've set via WebSocket)
-      const localValue = inputValuesRef.current[path];
+      const localValue = inputValuesRef.current[normalizedPath];
       if (localValue !== undefined) {
         return localValue;
       }
 
       // Fall back to default value from constraints
-      const constraint = inputConstraints[path];
+      const constraint =
+        inputConstraints[normalizedPath] ??
+        (namespace
+          ? inputConstraints[`${namespace}/${normalizedPath}`]
+          : undefined);
       if (constraint?.defaultValue !== undefined) {
         return constraint.defaultValue;
       }
 
       return undefined;
     },
-    [ready, inputConstraints, faceId, namespace, getPathSnapshot],
+    [
+      ready,
+      inputConstraints,
+      faceId,
+      namespace,
+      getPathSnapshot,
+      normalizeSlotPath,
+    ],
   );
 
   // Set a rig input value - same pattern as useMouseGaze
@@ -159,18 +199,10 @@ export function useWebSocketSync() {
         return;
       }
 
-      // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
-      let normalizedPath = path
-        .replace(/^\/+/, "") // Remove leading slashes
-        .replace(/\/+/g, "/"); // Replace multiple slashes with single
-
-      // Strip namespace prefix if the path starts with it (e.g., "vizij-standalone/standard/..." -> "standard/...")
-      if (namespace && normalizedPath.startsWith(`${namespace}/`)) {
-        normalizedPath = normalizedPath.slice(namespace.length + 1);
-      }
+      const normalizedPath = normalizeSlotPath(path);
 
       // Update local state (source of truth for GetSlotValues)
-      inputValuesRef.current[path] = value;
+      inputValuesRef.current[normalizedPath] = value;
 
       // Build full path like useMouseGaze: rig/${faceId}/${path}
       const fullPath = `rig/${faceId}/${normalizedPath}`;
@@ -179,7 +211,7 @@ export function useWebSocketSync() {
 
       // No step() needed - driveOrchestrator handles the animation loop
     },
-    [ready, setInput, faceId, namespace],
+    [ready, setInput, faceId, normalizeSlotPath],
   );
 
   // Sync nodes to backend
@@ -206,7 +238,9 @@ export function useWebSocketSync() {
 
     invoke("set_slots", { slots: nodes })
       .then(() => {
-        console.log(`[vizij-standalone] Synced ${nodes.length} slots to backend`);
+        console.log(
+          `[vizij-standalone] Synced ${nodes.length} slots to backend`,
+        );
         nodesSyncedRef.current = true;
       })
       .catch((err) => {
@@ -222,7 +256,9 @@ export function useWebSocketSync() {
     }
 
     console.log("[vizij-standalone] Setting up WebSocket listeners");
-    console.log("[vizij-standalone] Will use path format: rig/" + faceId + "/<path>");
+    console.log(
+      "[vizij-standalone] Will use path format: rig/" + faceId + "/<path>",
+    );
 
     // Listen for arora-types Value updates from the WebSocket server
     const unlistenUpdates = listen<Record<string, AroraValue>>(
@@ -262,8 +298,9 @@ export function useWebSocketSync() {
       // Also clear local state and reinitialize from defaults
       const defaults: Record<string, number> = {};
       Object.entries(inputConstraints).forEach(([path, constraint]) => {
+        const normalizedPath = normalizeSlotPath(path);
         if (constraint?.defaultValue !== undefined) {
-          defaults[path] = constraint.defaultValue;
+          defaults[normalizedPath] = constraint.defaultValue;
         }
       });
       inputValuesRef.current = defaults;
@@ -288,7 +325,12 @@ export function useWebSocketSync() {
         const values: Record<string, AroraValue> = {};
         for (const slot of requestedSlots) {
           const currentValue = getRigValue(slot);
-          console.log("[vizij-standalone] getRigValue for", slot, "=", currentValue);
+          console.log(
+            "[vizij-standalone] getRigValue for",
+            slot,
+            "=",
+            currentValue,
+          );
           if (currentValue !== undefined) {
             values[slot] = f64(currentValue);
           }
@@ -304,7 +346,10 @@ export function useWebSocketSync() {
         try {
           await invoke("respond_slot_values", { requestId, values });
         } catch (err) {
-          console.error("[vizij-standalone] Failed to respond with slot values:", err);
+          console.error(
+            "[vizij-standalone] Failed to respond with slot values:",
+            err,
+          );
         }
       },
     );

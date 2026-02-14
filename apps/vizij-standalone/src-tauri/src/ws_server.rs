@@ -67,9 +67,7 @@ impl AroraConnection for WsServer {
         handler: GetSlotValuesHandler,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
-            self.server
-                .set_get_slot_values_handler(move |slots| handler(slots))
-                .await;
+            self.server.set_get_slot_values_handler(handler).await;
         })
     }
 

@@ -6,10 +6,10 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use log::{debug, info, warn};
-use std::sync::mpsc::{channel, Sender};
+use tokio::sync::oneshot;
+use tokio::time::{timeout, Duration};
 use tauri::{AppHandle, Emitter};
 
 use crate::connection::{
@@ -27,7 +27,7 @@ pub struct ConnectionManager {
     /// Shared channel sender for pending GetSlotValues responses.
     /// Only one get-slot-values request can be in flight at a time
     /// (since only one client is active).
-    slot_values_responder: Arc<Mutex<Option<Sender<HashMap<String, Value>>>>>,
+    slot_values_responder: Arc<Mutex<Option<oneshot::Sender<HashMap<String, Value>>>>>,
 }
 
 impl ConnectionManager {
@@ -69,29 +69,45 @@ impl ConnectionManager {
             let app = app_handle.clone();
             let responder_clone = responder.clone();
             let get_handler: GetSlotValuesHandler = Arc::new(move |slots| {
-                debug!("GetSlotValues request for {} slots", slots.len());
+                let responder_clone = responder_clone.clone();
+                let app = app.clone();
+                Box::pin(async move {
+                    debug!("GetSlotValues request for {} slots", slots.len());
 
-                let (tx, rx) = channel();
-                {
-                    let mut guard = responder_clone.lock().unwrap();
-                    *guard = Some(tx);
-                }
-
-                if let Err(e) = app.emit("get-slot-values-request", &slots) {
-                    warn!("Failed to emit get-slot-values-request: {}", e);
-                    return HashMap::new();
-                }
-
-                match rx.recv_timeout(Duration::from_secs(5)) {
-                    Ok(values) => {
-                        debug!("Received {} slot values from frontend", values.len());
-                        values
+                    let (tx, rx) = oneshot::channel();
+                    {
+                        let mut guard = responder_clone.lock().unwrap();
+                        *guard = Some(tx);
                     }
-                    Err(e) => {
-                        warn!("Timeout or error waiting for slot values: {}", e);
-                        HashMap::new()
+
+                    if let Err(e) = app.emit("get-slot-values-request", &slots) {
+                        warn!("Failed to emit get-slot-values-request: {}", e);
+                        let mut guard = responder_clone.lock().unwrap();
+                        guard.take();
+                        return HashMap::new();
                     }
-                }
+
+                    match timeout(Duration::from_secs(5), rx).await {
+                        Ok(Ok(values)) => {
+                            debug!("Received {} slot values from frontend", values.len());
+                            let mut guard = responder_clone.lock().unwrap();
+                            guard.take();
+                            values
+                        }
+                        Ok(Err(_)) => {
+                            warn!("Frontend failed to respond with slot values");
+                            let mut guard = responder_clone.lock().unwrap();
+                            guard.take();
+                            HashMap::new()
+                        }
+                        Err(_) => {
+                            warn!("Timeout waiting for slot values");
+                            let mut guard = responder_clone.lock().unwrap();
+                            guard.take();
+                            HashMap::new()
+                        }
+                    }
+                })
             });
             conn.set_get_slot_values_handler(get_handler).await;
 

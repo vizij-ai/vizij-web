@@ -16,7 +16,7 @@ use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
 
-use arora_connection::{OnClientConnectedHandler, Value};
+use arora_connection::{GetSlotValuesHandler, OnClientConnectedHandler, Value};
 
 use crate::messages::{Incoming, Outgoing};
 use crate::registry::Registry;
@@ -26,11 +26,6 @@ use crate::registry::Registry;
 /// Called when a valid SetSlotValues message is received.
 /// Return `Ok(())` to acknowledge success, or `Err(message)` to reject.
 pub type SetSlotValuesHandler = Arc<dyn Fn(HashMap<String, Value>) -> Result<(), String> + Send + Sync>;
-
-/// Callback for handling GetSlotValues messages.
-/// Called when a valid GetSlotValues message is received.
-/// Returns a map of slot paths to their current values.
-pub type GetSlotValuesHandler = Arc<dyn Fn(Vec<String>) -> HashMap<String, Value> + Send + Sync>;
 
 /// Configuration for the WebSocket server.
 #[derive(Clone)]
@@ -135,11 +130,8 @@ impl AroraWSServer {
 
     /// Set the get slot values handler callback.
     /// This is called whenever a valid get slot values message is received.
-    pub async fn set_get_slot_values_handler<F>(&self, handler: F)
-    where
-        F: Fn(Vec<String>) -> HashMap<String, Value> + Send + Sync + 'static,
-    {
-        *self.get_slot_values_handler.write().await = Some(Arc::new(handler));
+    pub async fn set_get_slot_values_handler(&self, handler: GetSlotValuesHandler) {
+        *self.get_slot_values_handler.write().await = Some(handler);
     }
 
     /// Set the handler called when a new client connects.
@@ -465,7 +457,7 @@ pub async fn process_message(
         Incoming::GetSlotValues { slots } => {
             // Call GetSlotValues handler if registered
             if let Some(handler) = get_slot_values_handler {
-                let values = handler(slots);
+                let values = handler(slots).await;
                 Outgoing::GetSlotValuesResp { values }
             } else {
                 // No handler registered, return empty values
