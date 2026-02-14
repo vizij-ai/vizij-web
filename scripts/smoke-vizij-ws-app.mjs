@@ -3,6 +3,9 @@ import WebSocket from "ws";
 
 const DEFAULT_URL = "ws://127.0.0.1:9000";
 const DEFAULT_TIMEOUT_MS = 6000;
+const DOUBLE_PULSE_DELAY_MS = 1000;
+const SLOT_VALUE_TIMEOUT_MS = 4000;
+const SLOT_VALUE_POLL_MS = 150;
 
 function printUsage() {
   console.log(`Usage:
@@ -60,6 +63,12 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 class WsClient {
@@ -196,6 +205,68 @@ function hasSlotValue(valueObj) {
   return valueObj && (valueObj.f64 !== undefined || valueObj.f32 !== undefined);
 }
 
+function aroraValueToNumber(valueObj) {
+  if (!valueObj) {
+    return undefined;
+  }
+  if (typeof valueObj.f64 === "number") {
+    return valueObj.f64;
+  }
+  if (typeof valueObj.f32 === "number") {
+    return valueObj.f32;
+  }
+  return undefined;
+}
+
+function areNumbersEqual(expected, observed) {
+  const tolerance = 1e-9;
+  return Math.abs(expected - observed) <= tolerance;
+}
+
+async function sendSetSlotValue(client, slotPath, value) {
+  const resp = await client.sendAndWait(
+    { type: "set_slot_values", values: { [slotPath]: { f64: value } } },
+    (msg) => msg.type === "set_slot_values_resp",
+    "set_slot_values_resp",
+  );
+  assert(
+    resp.success === true,
+    `set_slot_values did not succeed for value ${value}`,
+  );
+  return resp;
+}
+
+async function waitForSlotValue(client, slotPath, expectedValue, label) {
+  const timeoutDeadline = Date.now() + SLOT_VALUE_TIMEOUT_MS;
+  let lastObserved;
+
+  while (Date.now() <= timeoutDeadline) {
+    const resp = await client.sendAndWait(
+      { type: "get_slot_values", slots: [slotPath] },
+      (msg) => msg.type === "get_slot_values_resp",
+      "get_slot_values_resp",
+    );
+
+    lastObserved = aroraValueToNumber(resp.values?.[slotPath]);
+    if (
+      hasSlotValue(resp.values?.[slotPath]) &&
+      areNumbersEqual(expectedValue, lastObserved)
+    ) {
+      return resp;
+    }
+    await sleep(SLOT_VALUE_POLL_MS);
+  }
+
+  assert(
+    hasSlotValue(lastObserved && { f64: lastObserved }),
+    `${label}: get_slot_values did not return a value for slot ${slotPath}`,
+  );
+
+  throw new Error(
+    `${label}: value for ${slotPath} did not match expected ${expectedValue} after ${SLOT_VALUE_TIMEOUT_MS}ms, last seen ${lastObserved}`,
+  );
+}
+
 async function run() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -233,19 +304,36 @@ async function run() {
     const slotPath = pickFirstSlot(slotsResp);
     console.log(`[smoke] selected slot: ${slotPath}`);
 
-    const setResp = await client.sendAndWait(
-      {
-        type: "set_slot_values",
-        values: { [slotPath]: { f64: options.slotValue } },
-      },
-      (msg) => msg.type === "set_slot_values_resp",
-      "set_slot_values_resp",
-    );
-    assert(
-      setResp.success === true,
-      "set_slot_values did not succeed for a valid slot path",
+    const baseSlotValue = options.slotValue;
+    const doubledSlotValue = options.slotValue * 2;
+
+    await sendSetSlotValue(client, slotPath, baseSlotValue);
+    await waitForSlotValue(
+      client,
+      slotPath,
+      baseSlotValue,
+      "initial set_slot_values",
     );
     console.log("[smoke] set_slot_values valid path succeeded");
+
+    await sendSetSlotValue(client, slotPath, doubledSlotValue);
+    await waitForSlotValue(
+      client,
+      slotPath,
+      doubledSlotValue,
+      "double set_slot_values",
+    );
+    console.log("[smoke] set_slot_values doubled value succeeded");
+    await sleep(DOUBLE_PULSE_DELAY_MS);
+
+    await sendSetSlotValue(client, slotPath, baseSlotValue);
+    await waitForSlotValue(
+      client,
+      slotPath,
+      baseSlotValue,
+      "restore set_slot_values",
+    );
+    console.log("[smoke] set_slot_values restored original value");
 
     const badSetResp = await client.sendAndWait(
       {
