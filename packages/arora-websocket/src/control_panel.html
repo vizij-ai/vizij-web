@@ -17,26 +17,51 @@
         margin: 0;
         padding: 0;
       }
+      :root {
+        --bg-main: #0b0d18;
+        --bg-panel: #14162a;
+        --text: #ecedff;
+        --text-dim: #9ea3ba;
+        --accent: #7c4dff;
+        --accent-soft: #a78bff;
+        --ok: #4caf50;
+        --warn: #ff9800;
+        --err: #f44336;
+        --muted-line: #2a2e4c;
+      }
       body {
         font-family: -apple-system, system-ui, BlinkMacSystemFont, sans-serif;
-        background: #111;
-        color: #e0e0e0;
+        background: radial-gradient(
+          circle at 0% 0%,
+          #171a2f 0%,
+          var(--bg-main) 45%,
+          #090b14 100%
+        );
+        color: var(--text);
         overflow-x: hidden;
       }
       header {
         position: sticky;
         top: 0;
-        background: #1a1a2e;
-        padding: 10px 12px;
+        background: rgba(13, 16, 33, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 10px 12px 12px;
         z-index: 10;
-        border-bottom: 1px solid #333;
+        border-bottom: 1px solid var(--muted-line);
       }
       .status-row {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 6px;
         margin-bottom: 8px;
         font-size: 13px;
+      }
+      .brand {
+        color: #f3f3ff;
+        letter-spacing: 0.02em;
+        font-size: 12px;
+        text-transform: uppercase;
       }
       .dot {
         width: 8px;
@@ -45,13 +70,13 @@
         flex-shrink: 0;
       }
       .dot.off {
-        background: #f44336;
+        background: var(--err);
       }
       .dot.on {
-        background: #4caf50;
+        background: var(--ok);
       }
       .dot.wait {
-        background: #ff9800;
+        background: var(--warn);
       }
       .conn-row {
         display: flex;
@@ -68,20 +93,23 @@
       }
       input[type="text"],
       input[type="search"] {
-        background: #252540;
-        color: #eee;
-        border: 1px solid #444;
+        background: #252845;
+        color: var(--text);
+        border: 1px solid #3a3f67;
         padding: 7px 10px;
         border-radius: 6px;
         font-size: 15px;
         flex: 1;
         min-width: 100px;
       }
+      input::placeholder {
+        color: #7580a0;
+      }
       input[type="search"] {
         min-width: 140px;
       }
       .port {
-        color: #777;
+        color: #7d86ad;
         font-size: 14px;
         flex-shrink: 0;
       }
@@ -91,40 +119,44 @@
         border: none;
         font-size: 13px;
         font-weight: 600;
+        transition: opacity 0.15s ease;
         cursor: pointer;
         flex-shrink: 0;
+      }
+      button:hover:not(:disabled) {
+        opacity: 0.92;
       }
       button:disabled {
         opacity: 0.4;
         cursor: default;
       }
       .btn-on {
-        background: #4caf50;
+        background: var(--ok);
         color: #fff;
       }
       .btn-off {
-        background: #f44336;
+        background: var(--err);
         color: #fff;
       }
       .btn-warn {
-        background: #ff9800;
+        background: var(--warn);
         color: #fff;
       }
       .btn-muted {
-        background: #263238;
-        color: #e0e0e0;
+        background: #2a3049;
+        color: var(--text);
       }
       nav {
         display: flex;
-        background: #16162b;
+        background: #161a33;
         overflow-x: auto;
-        border-bottom: 2px solid #333;
+        border-bottom: 2px solid var(--muted-line);
       }
       .tab {
         padding: 10px 18px;
         cursor: pointer;
         white-space: nowrap;
-        color: #777;
+        color: #8a91b2;
         border-bottom: 2px solid transparent;
         font-size: 14px;
         user-select: none;
@@ -133,8 +165,9 @@
           background-color 0.15s;
       }
       .tab.active {
-        color: #eee;
-        border-bottom-color: #7c4dff;
+        color: var(--text);
+        border-bottom-color: var(--accent);
+        background: #1a1f39;
       }
       main {
         padding: 10px;
@@ -149,9 +182,11 @@
       }
       .panel {
         margin-bottom: 6px;
-        background: #1a1a30;
+        background: var(--bg-panel);
         border-radius: 8px;
         overflow: hidden;
+        border: 1px solid #2d3356;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
       .panel-hdr {
         padding: 10px 14px;
@@ -159,22 +194,23 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: #191f3c;
         user-select: none;
         font-size: 14px;
       }
       .panel-hdr:active {
-        background: #252545;
+        background: #1e2546;
       }
       .arrow {
         transition: transform 0.15s;
         font-size: 10px;
-        color: #666;
+        color: #7981a7;
       }
       .panel-hdr.shut .arrow {
         transform: rotate(-90deg);
       }
       .panel-body {
-        padding: 4px 14px 12px;
+        padding: 6px 14px 10px;
       }
       .panel-body.shut {
         display: none;
@@ -187,7 +223,7 @@
       }
       .slider-label {
         font-size: 12px;
-        color: #999;
+        color: #a2a8c2;
         min-width: 72px;
         text-align: right;
         overflow: hidden;
@@ -196,16 +232,16 @@
       }
       .slider-val {
         font-size: 12px;
-        color: #7c4dff;
+        color: var(--accent);
         min-width: 48px;
         text-align: right;
         font-family: monospace;
       }
       .num-input {
         width: 74px;
-        background: #1f1f3a;
-        color: #fff;
-        border: 1px solid #3f3f66;
+        background: #212850;
+        color: var(--text);
+        border: 1px solid #333961;
         border-radius: 4px;
         padding: 2px 4px;
         font-size: 11px;
@@ -215,7 +251,7 @@
         -webkit-appearance: none;
         appearance: none;
         height: 6px;
-        background: #333;
+        background: #33395f;
         border-radius: 3px;
         outline: none;
       }
@@ -224,25 +260,25 @@
         width: 28px;
         height: 28px;
         border-radius: 50%;
-        background: #7c4dff;
+        background: var(--accent);
         cursor: pointer;
       }
       input[type="range"]::-moz-range-thumb {
         width: 28px;
         height: 28px;
         border-radius: 50%;
-        background: #7c4dff;
+        background: var(--accent);
         border: none;
         cursor: pointer;
       }
       .empty {
         text-align: center;
-        color: #555;
+        color: #6f789a;
         padding: 40px 16px;
         font-size: 14px;
       }
       .muted {
-        color: #666;
+        color: var(--text-dim);
         font-size: 12px;
       }
     </style>
@@ -250,6 +286,7 @@
   <body>
     <header>
       <div class="status-row">
+        <div class="brand">Vizij Control</div>
         <span class="dot off" id="dot"></span>
         <span id="stxt">Disconnected</span>
       </div>
@@ -335,6 +372,42 @@
         return fallback;
       }
 
+      function hasMeaningfulNumber(obj) {
+        return Number.isFinite(extractNumeric(obj, Number.NaN));
+      }
+
+      function metadataScore(slot) {
+        let score = 0;
+        if (hasMeaningfulNumber(slot?.min)) {
+          score += 4;
+        }
+        if (hasMeaningfulNumber(slot?.max)) {
+          score += 4;
+        }
+        if (slot?.default_value !== undefined) {
+          score += 3;
+        }
+        if (typeof slot?.path === "string" && slot.path.trim().length) {
+          score += 1;
+        }
+        return score;
+      }
+
+      function shouldReplaceCanonical(existingSlot, newSlot) {
+        const existingScore = metadataScore(existingSlot);
+        const newScore = metadataScore(newSlot);
+        if (newScore !== existingScore) {
+          return newScore > existingScore;
+        }
+        if (newSlot?.path && existingSlot?.path) {
+          return (
+            normalizePath(newSlot.path).length <
+            normalizePath(existingSlot.path).length
+          );
+        }
+        return false;
+      }
+
       function clampValue(v, min, max) {
         const value = Number.parseFloat(v);
         if (!Number.isFinite(value)) {
@@ -357,7 +430,6 @@
           return kind === "input" && typeof s.path === "string";
         });
 
-        const out = [];
         const byCanonicalPath = new Map();
 
         for (const s of normalized) {
@@ -386,14 +458,13 @@
             currentValue: fallback,
             slot: s,
           };
-          // Keep one canonical entry per slot path to avoid duplicate controls
-          // when the backend returns equivalent paths in different forms.
-          if (!byCanonicalPath.has(path)) {
+          const existing = byCanonicalPath.get(path);
+          if (!existing || shouldReplaceCanonical(existing.slot, s)) {
             byCanonicalPath.set(path, control);
-            out.push(control);
           }
         }
 
+        const out = Array.from(byCanonicalPath.values());
         out.sort((left, right) =>
           left.namespace === right.namespace
             ? left.group === right.group
