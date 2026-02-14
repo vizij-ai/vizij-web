@@ -12,8 +12,8 @@ import {
 } from "@vizij/arora-types";
 
 type GetSlotValuesRequestPayload = {
-  requestId: string;
-  slots: string[];
+  requestId?: string;
+  slots?: string[];
 };
 
 /**
@@ -313,7 +313,10 @@ export function useWebSocketSync() {
     const unlistenGetSlots = listen<GetSlotValuesRequestPayload>(
       "get-slot-values-request",
       async (event) => {
-        const { requestId, slots: requestedSlots } = event.payload;
+        const payload = event.payload;
+        const requestedSlots = Array.isArray(payload)
+          ? payload
+          : (payload.slots ?? []);
         console.log(
           "[vizij-standalone] GetSlotValues request for",
           requestedSlots.length,
@@ -344,7 +347,7 @@ export function useWebSocketSync() {
 
         // Send response back to Rust
         try {
-          await invoke("respond_slot_values", { requestId, values });
+          await invoke("respond_slot_values", { values });
         } catch (err) {
           console.error(
             "[vizij-standalone] Failed to respond with slot values:",
