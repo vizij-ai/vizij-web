@@ -11,6 +11,11 @@ import {
   f64,
 } from "@vizij/arora-types";
 
+type GetSlotValuesRequestPayload = {
+  requestId: string;
+  slots: string[];
+};
+
 /**
  * Hook that syncs WebSocket updates to the runtime.
  * Uses the same pattern as useMouseGaze from vizij-showcase:
@@ -268,10 +273,10 @@ export function useWebSocketSync() {
     });
 
     // Listen for GetSlotValues requests from the WebSocket server
-    const unlistenGetSlots = listen<string[]>(
+    const unlistenGetSlots = listen<GetSlotValuesRequestPayload>(
       "get-slot-values-request",
       async (event) => {
-        const requestedSlots = event.payload;
+        const { requestId, slots: requestedSlots } = event.payload;
         console.log(
           "[vizij-ws] GetSlotValues request for",
           requestedSlots.length,
@@ -297,7 +302,7 @@ export function useWebSocketSync() {
 
         // Send response back to Rust
         try {
-          await invoke("respond_slot_values", { values });
+          await invoke("respond_slot_values", { requestId, values });
         } catch (err) {
           console.error("[vizij-ws] Failed to respond with slot values:", err);
         }

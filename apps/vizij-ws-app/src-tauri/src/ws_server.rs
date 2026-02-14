@@ -7,11 +7,13 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use arora_websocket::{AroraWSServer, ServerConfig};
 use log::{debug, info, warn};
+use serde::Serialize;
 use std::sync::mpsc::{channel, Sender};
 use tauri::{AppHandle, Emitter};
 
@@ -26,10 +28,17 @@ use crate::connection::{
 /// Tauri's event system for frontend communication.
 pub struct WsServer {
     server: Arc<AroraWSServer>,
-    /// Channel sender for pending GetSlotValues responses.
-    /// When a GetSlotValues request comes in, we store a sender here,
-    /// emit an event to the frontend, and wait for the response.
-    slot_values_responder: Arc<Mutex<Option<Sender<HashMap<String, Value>>>>>,
+    /// Pending GetSlotValues responses keyed by request ID.
+    pending_slot_value_requests: Arc<Mutex<HashMap<String, Sender<HashMap<String, Value>>>>>,
+    /// Monotonic counter used to generate request IDs.
+    next_request_id: Arc<AtomicU64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GetSlotValuesRequestPayload {
+    request_id: String,
+    slots: Vec<String>,
 }
 
 impl WsServer {
@@ -38,18 +47,26 @@ impl WsServer {
         let config = ServerConfig::with_port(port).validate_paths(true);
         Self {
             server: Arc::new(AroraWSServer::new(config)),
-            slot_values_responder: Arc::new(Mutex::new(None)),
+            pending_slot_value_requests: Arc::new(Mutex::new(HashMap::new())),
+            next_request_id: Arc::new(AtomicU64::new(1)),
         }
     }
 
-    /// Get a reference to the underlying server.
-    pub fn server(&self) -> &Arc<AroraWSServer> {
-        &self.server
-    }
-
-    /// Get the configured port.
-    pub fn port(&self) -> u16 {
-        self.server.port()
+    pub fn respond_slot_values_with_id(&self, request_id: &str, values: HashMap<String, Value>) {
+        let mut guard = self.pending_slot_value_requests.lock().unwrap();
+        if let Some(tx) = guard.remove(request_id) {
+            if tx.send(values).is_err() {
+                warn!(
+                    "Failed to send slot values response for request {} - receiver dropped",
+                    request_id
+                );
+            }
+        } else {
+            warn!(
+                "respond_slot_values_with_id called for unknown request ID: {}",
+                request_id
+            );
+        }
     }
 }
 
@@ -99,11 +116,21 @@ impl AroraConnection for WsServer {
     }
 
     fn respond_slot_values(&self, values: HashMap<String, Value>) {
-        let mut guard = self.slot_values_responder.lock().unwrap();
-        if let Some(tx) = guard.take() {
-            if tx.send(values).is_err() {
-                warn!("Failed to send slot values response - receiver dropped");
+        // Fallback path for callers that don't pass a request ID.
+        // This keeps compatibility while warning when routing is ambiguous.
+        let request_id = {
+            let guard = self.pending_slot_value_requests.lock().unwrap();
+            if guard.len() > 1 {
+                warn!(
+                    "respond_slot_values called without request ID while {} requests are pending",
+                    guard.len()
+                );
             }
+            guard.keys().next().cloned()
+        };
+
+        if let Some(request_id) = request_id {
+            self.respond_slot_values_with_id(&request_id, values);
         } else {
             warn!("respond_slot_values called but no pending request");
         }
@@ -130,7 +157,8 @@ impl AroraConnectionTauriExt for WsServer {
         &self,
         app_handle: AppHandle,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
-        let responder = self.slot_values_responder.clone();
+        let pending_requests = self.pending_slot_value_requests.clone();
+        let next_request_id = self.next_request_id.clone();
 
         Box::pin(async move {
             // Handler for SetSlotValues: emit to frontend
@@ -145,22 +173,33 @@ impl AroraConnectionTauriExt for WsServer {
 
             // Handler for GetSlotValues: request from frontend via event/command pattern
             let app = app_handle.clone();
-            let responder_clone = responder.clone();
+            let pending_requests_clone = pending_requests.clone();
+            let next_request_id_clone = next_request_id.clone();
             let get_handler: GetSlotValuesHandler = Arc::new(move |slots| {
                 debug!("GetSlotValues request for {} slots", slots.len());
 
                 // Create a channel for the response
                 let (tx, rx) = channel();
+                let request_id = format!(
+                    "get-slot-values-{}",
+                    next_request_id_clone.fetch_add(1, Ordering::Relaxed)
+                );
 
-                // Store the sender so respond_slot_values can use it
+                // Store sender keyed by request ID so concurrent requests are safe.
                 {
-                    let mut guard = responder_clone.lock().unwrap();
-                    *guard = Some(tx);
+                    let mut guard = pending_requests_clone.lock().unwrap();
+                    guard.insert(request_id.clone(), tx);
                 }
 
-                // Emit event to frontend with the requested slots
-                if let Err(e) = app.emit("get-slot-values-request", &slots) {
+                let payload = GetSlotValuesRequestPayload { request_id, slots };
+
+                // Emit event to frontend with request ID and requested slots.
+                if let Err(e) = app.emit("get-slot-values-request", &payload) {
                     warn!("Failed to emit get-slot-values-request: {}", e);
+
+                    // Clean up pending entry since no response can arrive.
+                    let mut guard = pending_requests_clone.lock().unwrap();
+                    guard.remove(&payload.request_id);
                     return HashMap::new();
                 }
 
@@ -171,7 +210,13 @@ impl AroraConnectionTauriExt for WsServer {
                         values
                     }
                     Err(e) => {
-                        warn!("Timeout or error waiting for slot values: {}", e);
+                        // Clean up pending entry on timeout/error.
+                        let mut guard = pending_requests_clone.lock().unwrap();
+                        guard.remove(&payload.request_id);
+                        warn!(
+                            "Timeout or error waiting for slot values for request {}: {}",
+                            payload.request_id, e
+                        );
                         HashMap::new()
                     }
                 }

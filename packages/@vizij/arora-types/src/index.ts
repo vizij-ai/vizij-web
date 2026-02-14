@@ -43,6 +43,7 @@ export {
 
 // Protocol message types
 export type {
+  SlotInfo,
   NodeInfo,
   MethodParam,
   MethodInfo,
@@ -52,12 +53,18 @@ export type {
 
 export {
   // Type guards
+  isSetSlotValuesResp,
+  isGetSlotValuesResp,
+  isListSlotsResp,
   isUpdateResp,
   isListNodesResp,
   isListMethodsResp,
   isInvokeResp,
   isError,
   // Message constructors
+  createSetSlotValues,
+  createGetSlotValues,
+  createListSlots,
   createUpdate,
   createListNodes,
   createListMethods,

@@ -104,7 +104,7 @@ For testing and development within the monorepo:
 
 ```bash
 # Clone and install
-git clone https://github.com/anthropics/vizij-web.git
+git clone https://github.com/vizij-ai/vizij-web.git
 cd vizij-web
 pnpm install
 
@@ -165,6 +165,7 @@ On Linux/macOS:
 ## WebSocket Protocol
 
 Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
+The server binds to `0.0.0.0` by default, so it accepts connections from other devices on your LAN/Wi-Fi.
 
 Messages use **arora-types** format for type-safe value serialization. This format ensures compatibility with the Rust backend and provides explicit type information for each value.
 
@@ -176,11 +177,17 @@ npx wscat -c ws://localhost:9000
 
 Then paste one of the JSON payloads below and press Enter.
 
+Note: `wscat` sends one WebSocket message per line. The JSON examples below are formatted across multiple lines for readability, so you’ll need to paste them as a single line (no newlines) when sending from the terminal.
+
 ### Test with Websocketking
 
-Send JSON messages using e.g. https://websocketking.com/. The server binds to `127.0.0.1`, so it only accepts localhost connections.
+Send JSON messages using e.g. https://websocketking.com/.
+
+- Local machine: `ws://localhost:9000`
+- Another device on the same Wi-Fi: `ws://<HOST_LAN_IP>:9000` (example: `ws://192.168.1.42:9000`)
 
 Note: browser-based clients served over `https://` may fail to connect to `ws://` due to mixed-content rules.
+If you expose this on Wi-Fi/LAN, treat it as a control endpoint: use trusted networks and firewall rules.
 
 ---
 
@@ -206,13 +213,13 @@ For animation control, most values are `f64` (64-bit floats).
 
 ### Message Types
 
-#### Update Values
+#### Set Slot Values
 
 Send new values to control avatar features:
 
 ```json
 {
-  "type": "update",
+  "type": "set_slot_values",
   "values": {
     "standard/vizij/left_eye/pos/x": { "f64": 0.5 },
     "standard/vizij/left_eye/pos/y": { "f64": 0.3 },
@@ -225,42 +232,48 @@ Send new values to control avatar features:
 **Response:**
 
 ```json
-{ "type": "ack", "success": true }
+{ "type": "set_slot_values_resp", "success": true }
 ```
 
 If a path is invalid:
 
 ```json
 {
-  "type": "ack",
+  "type": "set_slot_values_resp",
   "success": false,
   "message": "Unknown input path: invalid/path"
 }
 ```
 
-#### Reset
+#### Invoke Reset Method
 
-Reset all values to their defaults:
+Reset all values to their defaults using method invocation:
 
 ```json
 {
-  "type": "reset"
+  "type": "invoke",
+  "method": "reset",
+  "request_id": "req-1"
 }
 ```
 
 **Response:**
 
 ```json
-{ "type": "ack", "success": true }
+{
+  "type": "invoke_resp",
+  "success": true,
+  "request_id": "req-1"
+}
 ```
 
-#### List Nodes
+#### List Slots
 
-Query available input nodes (optionally filtered by path prefix):
+Query available input slots (optionally filtered by path prefix):
 
 ```json
 {
-  "type": "list_nodes",
+  "type": "list_slots",
   "path": "standard/vizij/left_eye"
 }
 ```
@@ -269,8 +282,8 @@ Query available input nodes (optionally filtered by path prefix):
 
 ```json
 {
-  "type": "nodes",
-  "nodes": [
+  "type": "list_slots_resp",
+  "slots": [
     {
       "path": "standard/vizij/left_eye/pos/x",
       "kind": "input",
@@ -406,13 +419,13 @@ npm install @vizij/arora-types
 ```typescript
 import {
   f64,
-  createUpdate,
+  createSetSlotValues,
   createInvoke,
-  createListNodes,
+  createListSlots,
   extractNumericValue,
   type Incoming,
   type Outgoing,
-  type NodeInfo,
+  type SlotInfo,
 } from "@vizij/arora-types";
 
 // Connect to WebSocket
@@ -420,7 +433,7 @@ const ws = new WebSocket("ws://localhost:9000");
 
 // Send update using helper functions
 function sendEyeGaze(x: number, y: number) {
-  const msg: Incoming = createUpdate({
+  const msg: Incoming = createSetSlotValues({
     "standard/vizij/left_eye/pos/x": f64(x),
     "standard/vizij/left_eye/pos/y": f64(y),
     "standard/vizij/right_eye/pos/x": f64(x),
@@ -439,17 +452,17 @@ function reset() {
 ws.onmessage = (event) => {
   const response: Outgoing = JSON.parse(event.data);
 
-  if (response.type === "list_nodes_resp") {
-    console.log("Available nodes:", response.nodes);
+  if (response.type === "list_slots_resp") {
+    console.log("Available slots:", response.slots);
   } else if (response.type === "invoke_resp") {
     console.log("Invoke result:", response.success, response.message);
   }
 };
 
-// Extract values from node info
-function handleNodeInfo(node: NodeInfo) {
-  if (node.default_value) {
-    const value = extractNumericValue(node.default_value);
+// Extract values from slot info
+function handleSlotInfo(slot: SlotInfo) {
+  if (slot.default_value) {
+    const value = extractNumericValue(slot.default_value);
     console.log("Default:", value); // e.g., 0.0
   }
 }
@@ -471,15 +484,17 @@ function handleNodeInfo(node: NodeInfo) {
 
 **Message Constructors:**
 
-- `createUpdate(values)` — Create an update message
-- `createListNodes(path?)` — Create a list nodes query
+- `createSetSlotValues(values)` — Create a slot update message
+- `createGetSlotValues(slots)` — Create a slot value query
+- `createListSlots(path?)` — Create a list slots query
 - `createListMethods(path?)` — Create a list methods query
 - `createInvoke(method, args?, request_id?)` — Create a method invocation
 
 **Response Type Guards:**
 
-- `isUpdateResp(msg)` — Check if response is an update acknowledgment
-- `isListNodesResp(msg)` — Check if response is a node list
+- `isSetSlotValuesResp(msg)` — Check if response is a slot update acknowledgment
+- `isGetSlotValuesResp(msg)` — Check if response is a slot values response
+- `isListSlotsResp(msg)` — Check if response is a slot list
 - `isListMethodsResp(msg)` — Check if response is a method list
 - `isInvokeResp(msg)` — Check if response is an invocation result
 - `isError(msg)` — Check if response is an error

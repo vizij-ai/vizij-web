@@ -38,7 +38,7 @@ where
 #[cfg(feature = "server")]
 pub struct Registry {
     slots: RwLock<Vec<SlotInfo>>,
-    methods: RwLock<Vec<MethodInfo>>,
+    methods: RwLock<HashMap<String, MethodInfo>>,
     handlers: RwLock<HashMap<String, Arc<dyn RegistryMethodHandler>>>,
 }
 
@@ -55,7 +55,7 @@ impl Registry {
     pub fn new() -> Self {
         Self {
             slots: RwLock::new(Vec::new()),
-            methods: RwLock::new(Vec::new()),
+            methods: RwLock::new(HashMap::new()),
             handlers: RwLock::new(HashMap::new()),
         }
     }
@@ -105,7 +105,7 @@ impl Registry {
         H: RegistryMethodHandler + 'static,
     {
         let path = info.path.clone();
-        self.methods.write().await.push(info);
+        self.methods.write().await.insert(path.clone(), info);
         self.handlers.write().await.insert(path, Arc::new(handler));
     }
 
@@ -119,7 +119,7 @@ impl Registry {
 
     /// Get all registered methods.
     pub async fn get_methods(&self) -> Vec<MethodInfo> {
-        self.methods.read().await.clone()
+        self.methods.read().await.values().cloned().collect()
     }
 
     /// Get methods filtered by path prefix.
@@ -129,14 +129,14 @@ impl Registry {
             Some(prefix) => {
                 let prefix = prefix.trim_end_matches('/');
                 methods
-                    .iter()
+                    .values()
                     .filter(|m| {
                         m.path.starts_with(prefix) || m.path.starts_with(&format!("{}/", prefix))
                     })
                     .cloned()
                     .collect()
             }
-            None => methods.clone(),
+            None => methods.values().cloned().collect(),
         }
     }
 
