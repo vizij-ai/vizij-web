@@ -868,6 +868,10 @@ export function VariablesPanel({
         objects,
       });
       dependents.forEach((entry) => {
+        const ownerId = sceneTargetObjectLabelById.owners.get(entry.targetId);
+        if (!ownerId) {
+          return;
+        }
         rows.push({
           id: entry.targetId,
           label: entry.name,
@@ -875,7 +879,7 @@ export function VariablesPanel({
           detail: `Scene property`,
           route: {
             kind: "scene-object",
-            id: sceneTargetObjectLabelById.owners.get(entry.targetId) ?? "",
+            id: ownerId,
           },
         });
       });
