@@ -12,7 +12,7 @@ This file is the relevance filter for all authoring notes. Use this before actin
    - aggregate pose-source surfacing in inspector/binding flows,
    - rig boundary enforcement for animatable writes,
    - grouping/import strategy controls and diagnostics completeness,
-   - dedicated Variables/Poses/Pose Groups/Drivers control-surface split is still partial (shared panel reuse in progress),
+   - dedicated control-surface split (Face Elements, Variables, Poses, Pose Groups, Drivers) is now implemented via dedicated left panes,
    - exclusion of auto-generated `/rig/element` paths from variable and Drivers edit surfaces,
    - primary-face pose pane behavior while secondary-face pose workflows are deferred.
 
@@ -34,11 +34,11 @@ This file is the relevance filter for all authoring notes. Use this before actin
 
 1. Inspector semantics should distinguish pose entry vs group output vs aggregate output explicitly.
 2. Rig boundary constraints still need strict enforcement and diagnostics for invalid higher-order animatable writes.
-3. Group lifecycle editing is still path-first and needs explicit group create/rename/delete UX.
+3. `/rig/element` alias behavior in rig-inspection context is still the remaining namespace hardening item; group lifecycle creation/rename/delete UX is now available.
 4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
 5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
-6. Variables/Poses/Drivers are still surfaced inside `VariablesPanel` tabs; left column still needs dedicated Face Elements + dedicated Pose Groups + dedicated Drivers panel selection semantics.
-7. One globally selected item across panes (and deterministic inspector routing) is still pending.
+6. `VariablesPanel` now runs as dedicated surface instances for Variables, Poses, and Drivers, with Pose Groups in a separate dedicated pane.
+7. One globally selected item across panes is now enforced by `useUnifiedSelection`; remaining work is richer alias/aggregate semantics.
 8. `/rig/element` handling is now filtered from Variables and Drivers, and the remaining work is surfacing them as explicit face-property aliases in rig-focused inspection context.
 
 ## Notes Relevance Matrix

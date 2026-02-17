@@ -11,7 +11,7 @@ This directory is the source of truth for authoring-app planning, status, and re
    - inspector chain clickthrough + binding parity,
    - first-class pose-group config and two-layer pose blending compile path,
    - pose creation/play tooling and sidebar pose-group inspector.
-3. P1 remaining focus:
+3. P1 completed in this tranche:
    - dedicated left-column control-surface split into Face Elements, Variables, Poses, Pose Groups, Drivers,
    - one globally selected item between panes with deterministic inspector routing,
    - Variables pane exposes true external inputs only, path-grouped, and opening directly to slider controls,
@@ -22,7 +22,7 @@ This directory is the source of truth for authoring-app planning, status, and re
 4. P1 remaining focus:
    - aggregate pose-output binding surfacing in inspector/binding flows,
    - strict rig-boundary enforcement + diagnostics,
-   - import/group strategy controls and group lifecycle polish.
+   - import/group strategy controls and diagnostics completeness.
 
 ## Canonical plans
 

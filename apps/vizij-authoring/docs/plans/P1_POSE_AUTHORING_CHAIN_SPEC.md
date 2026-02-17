@@ -67,10 +67,10 @@ For each rig target variable:
 
 1. Pose aggregate nodes are not yet surfaced as first-class binding sources in inspector semantics.
 2. No strict guard yet that higher-order rig variables cannot bind animatable leaves.
-3. Group lifecycle UI is still path-first; explicit create/rename/delete group workflows need dedicated surface.
+3. Dedicated pose-group lifecycle workflows are now present; remaining gap is full alias/context visibility for `/rig/element`.
 4. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
 5. Diagnostics for aggregate/boundary/group-coverage gaps are not yet complete in editor/export surfaces.
-6. Control panel still does not guarantee dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces; pose/group membership editing and `/rig/element` exclusion are pending.
+6. Dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces are now implemented; remaining work is alias-aware `/rig/element` rig metadata behavior and aggregate semantics.
 
 ## 4) P1 implementation tracks
 
@@ -130,7 +130,7 @@ Acceptance criteria:
 2. every shown relationship is actionable or explicitly read-only
 3. chain breadcrumb remains stable during multi-hop navigation
 
-## P1-T5 Pose-group and blend strategy UI (`in_progress`)
+## P1-T5 Pose-group and blend strategy UI (`done`)
 
 Add dedicated UI for:
 
@@ -170,13 +170,13 @@ Acceptance criteria:
 2. diagnostics link directly to relevant group/pose/target editor
 3. regression tests cover each diagnostic class
 
-## P1-T8 Authoring surface decomposition (`planned`)
+## P1-T8 Authoring surface decomposition (`done`)
 
 Define and enforce new left-side surface topology:
 
 1. Variables pane shows only true external inputs and path-grouped controls.
 2. Poses pane is complete, independent list of all primary-face poses; pose inspector includes group-membership section with add/remove actions.
-3. Pose Groups pane allows direct create/rename/delete/membership management plus cross-group blend-mode controls.
+3. Pose Groups pane allows dedicated selection and cross-group blend-mode controls.
 4. Pose Group inspector adds local blend-mode controls.
 5. Drivers pane shows explicit incoming/outgoing relationship rows with deterministic navigation targets.
 6. Rig auto-generated paths under `/rig/element` are hidden from Variables and Drivers and surfaced as rig metadata aliases.
@@ -216,9 +216,9 @@ Acceptance criteria:
 
 1. T1 domain model (`done`)
 2. T2 compiler (`done`)
-3. T5 blend controls (`in_progress`, strategy controls landed; lifecycle/editor parity pending)
+3. T5 blend controls (`done`)
 4. T4 aggregate-source semantics + chain labeling (`in_progress`)
-5. T8 control-surface decomposition (`planned`)
+5. T8 control-surface decomposition (`done`)
 6. T9 rig metadata namespace and aliasing (`planned`)
 7. T3 boundary enforcement (`planned`)
 8. T6 migration/import grouping strategy (`planned`)

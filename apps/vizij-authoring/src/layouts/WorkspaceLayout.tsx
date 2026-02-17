@@ -15,6 +15,10 @@ interface WorkspaceLayoutProps {
   leftTopVisible?: boolean;
   leftMiddleVisible?: boolean;
   leftBottomVisible?: boolean;
+  leftBottomVisible2?: boolean;
+  leftBottomPanel2?: React.ReactNode;
+  leftBottomVisible3?: boolean;
+  leftBottomPanel3?: React.ReactNode;
 
   // Center
   topPanel?: React.ReactNode; // Toolbar
@@ -37,6 +41,10 @@ export function WorkspaceLayout({
   leftTopVisible = true,
   leftMiddleVisible = false,
   leftBottomVisible = true,
+  leftBottomVisible2 = false,
+  leftBottomPanel2,
+  leftBottomVisible3 = false,
+  leftBottomPanel3,
   topPanel,
   viewport,
   bottomPanel,
@@ -47,8 +55,30 @@ export function WorkspaceLayout({
   rightBottomVisible = false,
 }: WorkspaceLayoutProps) {
   const leftSidebarVisible =
-    leftTopVisible || leftMiddleVisible || leftBottomVisible;
+    leftTopVisible ||
+    leftMiddleVisible ||
+    leftBottomVisible ||
+    Boolean(leftBottomVisible2) ||
+    Boolean(leftBottomVisible3);
+  const extendedLeftSections = [
+    { id: "left-top", visible: leftTopVisible, panel: leftTopPanel },
+    { id: "left-middle", visible: leftMiddleVisible, panel: leftMiddlePanel },
+    { id: "left-bottom", visible: leftBottomVisible, panel: leftBottomPanel },
+    {
+      id: "left-bottom-2",
+      visible: leftBottomVisible2,
+      panel: leftBottomPanel2,
+    },
+    {
+      id: "left-bottom-3",
+      visible: leftBottomVisible3,
+      panel: leftBottomPanel3,
+    },
+  ].filter((section): section is { id: string; panel: React.ReactNode } => {
+    return Boolean(section.visible) && Boolean(section.panel);
+  });
   const rightSidebarVisible = rightTopVisible || rightBottomVisible;
+  const leftSectionCount = extendedLeftSections.length;
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-bg-app text-text-primary">
@@ -66,64 +96,29 @@ export function WorkspaceLayout({
             <>
               <Panel defaultSize={20} minSize={5} collapsible id="left-sidebar">
                 <Group orientation="vertical">
-                  {leftTopVisible && (
-                    <Panel
-                      defaultSize={
-                        100 /
-                        ((leftTopVisible ? 1 : 0) +
-                          (leftMiddleVisible ? 1 : 0) +
-                          (leftBottomVisible ? 1 : 0))
-                      }
-                      minSize={5}
-                      id="left-top"
-                    >
-                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
-                        {leftTopPanel}
-                      </div>
-                    </Panel>
-                  )}
-
-                  {leftTopVisible &&
-                    (leftMiddleVisible || leftBottomVisible) && (
-                      <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
-                    )}
-
-                  {leftMiddleVisible && (
-                    <Panel
-                      defaultSize={
-                        100 /
-                        ((leftTopVisible ? 1 : 0) +
-                          (leftMiddleVisible ? 1 : 0) +
-                          (leftBottomVisible ? 1 : 0))
-                      }
-                      minSize={5}
-                      id="left-middle"
-                    >
-                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
-                        {leftMiddlePanel}
-                      </div>
-                    </Panel>
-                  )}
-
-                  {leftMiddleVisible && leftBottomVisible && (
-                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
-                  )}
-
-                  {leftBottomVisible && (
-                    <Panel
-                      defaultSize={
-                        100 /
-                        ((leftTopVisible ? 1 : 0) +
-                          (leftMiddleVisible ? 1 : 0) +
-                          (leftBottomVisible ? 1 : 0))
-                      }
-                      minSize={5}
-                      id="left-bottom"
-                    >
-                      <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
-                        {leftBottomPanel}
-                      </div>
-                    </Panel>
+                  {extendedLeftSections.length > 0 && (
+                    <>
+                      {extendedLeftSections.map((section, index) => {
+                        const size =
+                          leftSectionCount > 0 ? 100 / leftSectionCount : 100;
+                        return (
+                          <React.Fragment key={section.id}>
+                            <Panel
+                              defaultSize={size}
+                              minSize={5}
+                              id={section.id}
+                            >
+                              <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
+                                {section.panel}
+                              </div>
+                            </Panel>
+                            {index + 1 < extendedLeftSections.length ? (
+                              <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                            ) : null}
+                          </React.Fragment>
+                        );
+                      })}
+                    </>
                   )}
                 </Group>
               </Panel>

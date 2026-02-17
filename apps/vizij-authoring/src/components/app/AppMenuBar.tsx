@@ -69,6 +69,18 @@ export function AppMenuBar({
           Variables
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          checked={panels.poses.isVisible}
+          onCheckedChange={() => togglePanel("poses")}
+        >
+          Poses
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={panels.drivers.isVisible}
+          onCheckedChange={() => togglePanel("drivers")}
+        >
+          Drivers
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
           checked={panels.materials.isVisible}
           onCheckedChange={() => togglePanel("materials")}
         >

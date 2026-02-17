@@ -10,8 +10,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
 4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. The active implementation item is R0 surface decomposition: `VariablesPanel` now carries Variables, Poses, and Drivers surfaces, but left-column dedicated Face Elements / Variables / Poses / Pose Groups / Drivers pane separation is still incomplete.
-6. Remaining P1 focus is on aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
+5. Surface decomposition is now implemented as dedicated left-side panes for Face Elements, Variables, Poses, Pose Groups, and Drivers; remaining focus is aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
+6. `/rig/element` filtering is implemented in variable/driver surfaces; alias-safe rig-context behavior remains the remaining namespace work.
 
 ## Deliverables
 
@@ -39,12 +39,13 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Evidence: GraphSpec/pose compile gating and warnings in `apps/vizij-authoring/src/hooks/useVizijExport.ts`; coverage in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
    Open: none.
 
-6. D6 Authoring control-surface decomposition and rig metadata normalization: `in_progress`
-   Scope: split Face Elements / Variables / Poses / Pose Groups / Drivers and normalize auto-generated rig inputs under `/rig/element`.
-   Evidence: pending implementation.
-   Open:
-   - control-surface decomposition and pose-group UX tasks in `apps/vizij-authoring/docs/plans/BACKLOG.md`.
-   - `/rig/element` namespace behavior in `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+6. D6 Authoring control-surface decomposition and rig metadata normalization: `done`
+   Evidence:
+   - dedicated pane separation for Face Elements, Variables, Poses, Pose Groups, and Drivers in `apps/vizij-authoring/src/App.tsx` and `apps/vizij-authoring/src/layouts/WorkspaceLayout.tsx`.
+   - panel visibility and toggles for the five control panes in `apps/vizij-authoring/src/state/workspaceStore.ts` and `apps/vizij-authoring/src/components/app/AppMenuBar.tsx`.
+   - `/rig/element` filtering for Variables/Drivers and alias-safe selection flow in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
+     Open:
+   - `/rig/element` namespace behavior in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx` and `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
 ## Regression Follow-ups (Deep Review + Quori Smoke)
 
@@ -90,11 +91,11 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## P1 Remaining Queue
 
-1. R0 Dedicated authoring surfaces for Variables, Poses, Pose Groups, and Drivers: `in_progress`
+1. R0 Dedicated authoring surfaces for Variables, Poses, Pose Groups, and Drivers: `done`
    Scope:
    - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Drivers.
    - one globally selected item is shared between panes.
-   - Variables and Poses tabbed decomposition plus Drivers surface are implemented in `VariablesPanel`; next step is dedicated Face Elements + dedicated Pose Groups + dedicated Drivers panes in `WorkspaceLayout`.
+   - dedicated pane separation is implemented in `WorkspaceLayout` and `App`.
    - Variables pane supports true external inputs only, path-grouped key-value controls, and opens sliders directly for selected leaf values.
    - Poses pane shows all defined poses, with inspector affordance to see group membership and add/remove group membership.
    - Pose Groups pane supports list/inspect/edit for group membership plus cross-group blend-mode selection.
@@ -119,7 +120,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - enforce low-level-only animatable write boundary for rig variables.
    - block/report invalid higher-order direct animatable writes with migration guidance.
 
-5. R4 First-class pose-group lifecycle editor: `planned`
+5. R4 First-class pose-group lifecycle editor: `done`
    Scope:
    - create/rename/delete group entities directly (not only through pose path edits).
    - keep deterministic membership + conflict handling in UI.
@@ -148,7 +149,7 @@ Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`
 ## Active Blockers
 
 1. No hard runtime blockers.
-2. Remaining work is semantic/editor completeness in P1 queue (R0-R6).
+2. Remaining work is semantic/editor completeness in P1 queue (R1-R6).
 
 ## Exit Criteria for P1 Wrap
 

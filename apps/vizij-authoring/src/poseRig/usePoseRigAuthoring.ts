@@ -39,6 +39,13 @@ export interface UsePoseRigAuthoringResult {
   setBlendMode: (mode: "average" | "additive") => void;
   crossGroupBlendMode: "average" | "additive";
   setCrossGroupBlendMode: (mode: "average" | "additive") => void;
+  createPoseGroup: (groupPath: string) => void;
+  renamePoseGroup: (groupId: string, nextPath: string) => void;
+  deletePoseGroup: (groupId: string) => void;
+  setPoseGroupBlendMode: (
+    groupId: string,
+    mode: "average" | "additive",
+  ) => void;
   standardInputs: StandardRigInput[];
   poses: PoseDefinition[];
   selectedPoseId: string | null;
@@ -195,25 +202,42 @@ export function usePoseRigAuthoring(
 
   const updatePoseGroup = useCallback(
     (poseId: string, group: string | null | undefined) => {
-      store.updatePose(poseId, (p) => ({
-        ...p,
-        group: group ?? null,
-        groupId: null,
-      }));
+      store.updatePoseGroup(poseId, group ?? null);
     },
     [store],
   );
 
   const updatePoseGroupBatch = useCallback(
     (poseIds: Iterable<string>, group: string | null | undefined) => {
-      const ids = new Set(poseIds);
-      ids.forEach((id) =>
-        store.updatePose(id, (p) => ({
-          ...p,
-          group: group ?? null,
-          groupId: null,
-        })),
-      );
+      store.updatePoseGroupBatch(poseIds, group ?? null);
+    },
+    [store],
+  );
+
+  const createPoseGroup = useCallback(
+    (groupPath: string) => {
+      store.createPoseGroup(groupPath);
+    },
+    [store],
+  );
+
+  const renamePoseGroup = useCallback(
+    (groupId: string, nextPath: string) => {
+      store.renamePoseGroup(groupId, nextPath);
+    },
+    [store],
+  );
+
+  const deletePoseGroup = useCallback(
+    (groupId: string) => {
+      store.deletePoseGroup(groupId);
+    },
+    [store],
+  );
+
+  const setPoseGroupBlendMode = useCallback(
+    (groupId: string, mode: "average" | "additive") => {
+      store.setPoseGroupBlendMode(groupId, mode);
     },
     [store],
   );
@@ -391,6 +415,10 @@ export function usePoseRigAuthoring(
     setRigKind,
     standardInputs: visibleStandardInputs,
     poses,
+    createPoseGroup,
+    renamePoseGroup,
+    deletePoseGroup,
+    setPoseGroupBlendMode,
     selectedPoseId,
     selectedPose,
     isNeutralSelected,

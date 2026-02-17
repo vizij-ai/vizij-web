@@ -215,6 +215,7 @@ function AppContent({ loader }: AppContentProps) {
     handleSelectRig,
     handleClearSelection,
   } = useUnifiedSelection();
+  const selectedSceneId = selectedId;
 
   const sharedVariableSync = useSharedVariableSync({
     mainInputsById: mainFaceInputsById,
@@ -379,11 +380,41 @@ function AppContent({ loader }: AppContentProps) {
             <VariablesPanel
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedId}
+              selectedSceneId={selectedSceneId}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
               onSelectScene={handleSelectObject}
-              availableSurfaces={["variables", "poses", "drivers"]}
+              availableSurfaces={["variables"]}
+              selectedPoseGroup={selectedPoseGroup}
+              onSelectPoseGroup={setSelectedPoseGroup}
+            />
+          }
+          leftBottomVisible2={panels.poses.isVisible}
+          leftBottomPanel2={
+            <VariablesPanel
+              selectedRigId={selectedRigId}
+              selectedPoseId={selectedPoseId}
+              selectedSceneId={selectedSceneId}
+              onSelectRig={handleSelectRig}
+              onSelectPose={handleSelectPose}
+              onSelectScene={handleSelectObject}
+              availableSurfaces={["poses"]}
+              activeSurfaceOverride="poses"
+              selectedPoseGroup={selectedPoseGroup}
+              onSelectPoseGroup={setSelectedPoseGroup}
+            />
+          }
+          leftBottomVisible3={panels.drivers.isVisible}
+          leftBottomPanel3={
+            <VariablesPanel
+              selectedRigId={selectedRigId}
+              selectedPoseId={selectedPoseId}
+              selectedSceneId={selectedSceneId}
+              onSelectRig={handleSelectRig}
+              onSelectPose={handleSelectPose}
+              onSelectScene={handleSelectObject}
+              availableSurfaces={["drivers"]}
+              activeSurfaceOverride="drivers"
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
             />

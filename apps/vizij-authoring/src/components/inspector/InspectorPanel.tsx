@@ -30,7 +30,9 @@ export function InspectorPanel({
   const {
     poses,
     neutralInputs,
+    poseConfigDraft,
     blendMode,
+    setPoseGroupBlendMode,
     applyPose,
     selectPose,
     selectedPoseId,
@@ -55,6 +57,16 @@ export function InspectorPanel({
       .map((poseId) => poseLookup.get(poseId))
       .filter((pose): pose is PoseDefinition => Boolean(pose));
   }, [selectedPoseGroup, poseLookup]);
+
+  const activePoseGroupBlendMode = useMemo(() => {
+    if (!selectedPoseGroup?.groupId || !poseConfigDraft?.poseGroups) {
+      return blendMode;
+    }
+    const configuredGroup = poseConfigDraft.poseGroups.find(
+      (group) => group.id === selectedPoseGroup.groupId,
+    );
+    return configuredGroup?.blendMode ?? blendMode;
+  }, [blendMode, poseConfigDraft?.poseGroups, selectedPoseGroup?.groupId]);
 
   useEffect(() => {
     if (!selectedPoseGroup) {
@@ -130,7 +142,7 @@ export function InspectorPanel({
       });
 
       let nextValue = neutral;
-      if (blendMode === "additive") {
+      if (activePoseGroupBlendMode === "additive") {
         nextValue = neutral + totalWeightedDelta;
       } else if (totalWeight > 0) {
         nextValue = neutral + totalWeightedDelta / Math.max(totalWeight, 1);
@@ -213,9 +225,47 @@ export function InspectorPanel({
             </div>
             <div className="flex items-center justify-between gap-2 rounded border border-border-default/60 bg-bg-panel/40 px-2 py-1.5">
               <span className="text-[10px] text-text-muted">
-                Blend mode: <span className="font-mono">{blendMode}</span>
+                Blend mode:{" "}
+                <span className="font-mono">
+                  {activePoseGroupBlendMode}
+                  {!selectedPoseGroup?.groupId ? " (global fallback)" : ""}
+                </span>
               </span>
               <div className="flex items-center gap-2">
+                <Button
+                  variant={
+                    activePoseGroupBlendMode === "average" &&
+                    selectedPoseGroup?.groupId
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup?.groupId}
+                  onClick={() =>
+                    selectedPoseGroup?.groupId &&
+                    setPoseGroupBlendMode(selectedPoseGroup.groupId, "average")
+                  }
+                >
+                  Average
+                </Button>
+                <Button
+                  variant={
+                    activePoseGroupBlendMode === "additive" &&
+                    selectedPoseGroup?.groupId
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup?.groupId}
+                  onClick={() =>
+                    selectedPoseGroup?.groupId &&
+                    setPoseGroupBlendMode(selectedPoseGroup.groupId, "additive")
+                  }
+                >
+                  Additive
+                </Button>
                 <span className="text-[10px] text-text-muted font-mono">
                   Weight: {groupTotalWeight.toFixed(2)}
                 </span>

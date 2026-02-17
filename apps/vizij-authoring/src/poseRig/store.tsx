@@ -13,6 +13,168 @@ import { PoseGraphService } from "./services/poseGraphService";
 import { PoseSnapshotService } from "./services/poseSnapshotService";
 import { createNeutralInputs } from "./utils";
 
+function normalizePoseGroupPath(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
+}
+
+function sanitizeGroupId(value: string | null | undefined, fallback: string) {
+  const normalized = (value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_/-]+/g, "_")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/+/g, "_");
+  if (!normalized) {
+    return fallback.replace(/\//g, "_");
+  }
+  return normalized;
+}
+
+function nextPoseGroupId(base: string, existing: Set<string>): string {
+  const sanitized = sanitizeGroupId(base, base);
+  if (!existing.has(sanitized)) {
+    return sanitized;
+  }
+  let counter = 1;
+  while (existing.has(`${sanitized}_${counter}`)) {
+    counter += 1;
+  }
+  return `${sanitized}_${counter}`;
+}
+
+function humanizeGroupName(path: string): string {
+  const leaf = path.split("/").filter(Boolean).pop() ?? path;
+  return leaf
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function normalizePoseGroupsForState(source: unknown): Array<{
+  id: string;
+  path: string;
+  name: string;
+  blendMode?: "average" | "additive";
+}> {
+  const groups = Array.isArray(source) ? source : [];
+  const normalized = groups
+    .filter(
+      (
+        group,
+      ): group is {
+        id: string;
+        path: string;
+        name: string;
+        blendMode?: "average" | "additive";
+      } =>
+        Boolean(
+          group && typeof group === "object" && typeof group.name === "string",
+        ),
+    )
+    .map((group) => {
+      const path = normalizePoseGroupPath(group.path) ?? "default";
+      return {
+        ...group,
+        id: sanitizeGroupId(group.id, path),
+        path,
+        blendMode:
+          group.blendMode === "additive" || group.blendMode === "average"
+            ? group.blendMode
+            : undefined,
+      };
+    });
+  return normalized;
+}
+
+function getConfiguredPoseGroups(
+  state: Pick<PoseRigState, "poseConfigDraft" | "lastImportedConfig">,
+) {
+  const draftGroups = normalizePoseGroupsForState(
+    state.poseConfigDraft?.poseGroups,
+  );
+  if (draftGroups.length > 0) {
+    return draftGroups;
+  }
+  return normalizePoseGroupsForState(state.lastImportedConfig?.poseGroups);
+}
+
+function applyConfiguredPoseGroups(
+  prev: PoseRigState,
+  nextGroups: ReturnType<typeof normalizePoseGroupsForState>,
+) {
+  if (prev.poseConfigDraft) {
+    return {
+      ...prev.poseConfigDraft,
+      poseGroups: nextGroups.map((group) => ({ ...group })),
+    };
+  }
+  return PoseConfigService.create(
+    prev.poses,
+    prev.neutralInputs,
+    prev.rigName,
+    prev.faceId,
+    prev.rigKind,
+    prev.standardInputSchema,
+    {
+      poseGroups: nextGroups,
+      defaultGroupBlendMode: prev.blendMode,
+      crossGroupBlendMode: prev.crossGroupBlendMode,
+    },
+  );
+}
+
+function ensurePoseGroupFromPath(
+  prev: PoseRigState,
+  targetGroup: string | null,
+) {
+  const normalizedTarget = normalizePoseGroupPath(targetGroup);
+  if (!normalizedTarget) {
+    return {
+      groupPath: null,
+      groupId: null,
+      groups: getConfiguredPoseGroups(prev),
+      groupsChanged: false,
+    };
+  }
+  const normalizedGroups = getConfiguredPoseGroups(prev);
+  const byPath = new Map(
+    normalizedGroups.map((group) => [group.path, group.id]),
+  );
+  const existingId = byPath.get(normalizedTarget);
+  if (existingId) {
+    return {
+      groupPath: normalizedTarget,
+      groupId: existingId,
+      groups: normalizedGroups,
+      groupsChanged: false,
+    };
+  }
+
+  const nextGroups = [...normalizedGroups];
+  const nextId = nextPoseGroupId(
+    normalizedTarget,
+    new Set(nextGroups.map((group) => group.id)),
+  );
+  nextGroups.push({
+    id: nextId,
+    path: normalizedTarget,
+    name: humanizeGroupName(normalizedTarget),
+    blendMode: prev.blendMode,
+  });
+  return {
+    groupPath: normalizedTarget,
+    groupId: nextId,
+    groups: nextGroups,
+    groupsChanged: true,
+  };
+}
+
 export interface PoseRigState {
   // Core Data
   faceId: string | null;
@@ -70,6 +232,13 @@ export interface PoseRigState {
   setBlendMode: (mode: "average" | "additive") => void;
   setCrossGroupBlendMode: (mode: "average" | "additive") => void;
   updatePoseName: (poseId: string, name: string) => void;
+  createPoseGroup: (groupPath: string) => void;
+  renamePoseGroup: (groupId: string, nextPath: string) => void;
+  deletePoseGroup: (groupId: string) => void;
+  setPoseGroupBlendMode: (
+    groupId: string,
+    mode: "average" | "additive",
+  ) => void;
   updatePoseGroup: (poseId: string, group: string | null) => void;
   updatePoseGroupBatch: (
     poseIds: Iterable<string>,
@@ -116,6 +285,10 @@ const defaultState: Omit<
   | "setBlendMode"
   | "setCrossGroupBlendMode"
   | "updatePoseName"
+  | "createPoseGroup"
+  | "renamePoseGroup"
+  | "deletePoseGroup"
+  | "setPoseGroupBlendMode"
   | "updatePoseGroup"
   | "updatePoseGroupBatch"
   | "clearPose"
@@ -177,16 +350,7 @@ export function createPoseRigStore(
         nextState.lastImportedConfig?.standardInputSchema ??
         nextState.standardInputSchema ??
         undefined;
-      const basePoseGroups =
-        nextState.poseConfigDraft?.poseGroups ??
-        nextState.lastImportedConfig?.poseGroups;
-      const poseGroups =
-        patch.blendMode && basePoseGroups
-          ? basePoseGroups.map((group) => ({
-              ...group,
-              blendMode: nextState.blendMode,
-            }))
-          : basePoseGroups;
+      const poseGroups = getConfiguredPoseGroups(nextState);
 
       nextState.poseConfigDraft = PoseConfigService.create(
         nextState.poses,
@@ -250,6 +414,10 @@ export function createPoseRigStore(
     | "setBlendMode"
     | "setCrossGroupBlendMode"
     | "updatePoseName"
+    | "createPoseGroup"
+    | "renamePoseGroup"
+    | "deletePoseGroup"
+    | "setPoseGroupBlendMode"
     | "updatePoseGroup"
     | "updatePoseGroupBatch"
     | "clearPose"
@@ -338,20 +506,274 @@ export function createPoseRigStore(
         poses: prev.poses.map((p) => (p.id === poseId ? { ...p, name } : p)),
       }));
     },
+    createPoseGroup: (groupPath) => {
+      setState((prev) => {
+        const { groupsChanged, groups } = ensurePoseGroupFromPath(
+          prev,
+          groupPath,
+        );
+        if (!groupsChanged) {
+          return;
+        }
+        return {
+          poseConfigDraft: PoseConfigService.create(
+            prev.poses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: groups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
+    },
+    renamePoseGroup: (groupId, nextPath) => {
+      const normalized = normalizePoseGroupPath(nextPath);
+      if (!normalized) {
+        return;
+      }
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetIndex = configured.findIndex(
+          (group) => group.id === groupId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = configured[targetIndex];
+        if (target.path === normalized) {
+          return;
+        }
+        if (
+          configured.some(
+            (group) => group.id !== groupId && group.path === normalized,
+          )
+        ) {
+          return;
+        }
+        const nextGroups = configured.map((group, index) =>
+          index === targetIndex
+            ? {
+                ...group,
+                path: normalized,
+                name: humanizeGroupName(normalized),
+              }
+            : group,
+        );
+        const oldPath = target.path;
+        const nextPoses = prev.poses.map((pose) => {
+          if (pose.groupId === groupId) {
+            return { ...pose, group: normalized, groupId };
+          }
+          if (!pose.groupId && normalizePoseGroupPath(pose.group) === oldPath) {
+            return { ...pose, group: normalized, groupId };
+          }
+          return pose;
+        });
+        return {
+          poses: nextPoses,
+          poseConfigDraft: PoseConfigService.create(
+            nextPoses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: nextGroups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
+    },
+    deletePoseGroup: (groupId) => {
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetIndex = configured.findIndex(
+          (group) => group.id === groupId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = configured[targetIndex];
+        if (!target) {
+          return;
+        }
+        const nextGroups = configured.filter((group) => group.id !== groupId);
+        const nextPoses = prev.poses.map((pose) => {
+          if (pose.groupId === groupId) {
+            return { ...pose, group: null, groupId: null };
+          }
+          if (
+            !pose.groupId &&
+            normalizePoseGroupPath(pose.group) === target.path
+          ) {
+            return { ...pose, group: null, groupId: null };
+          }
+          return pose;
+        });
+        return {
+          poses: nextPoses,
+          poseConfigDraft: PoseConfigService.create(
+            nextPoses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: nextGroups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
+    },
+    setPoseGroupBlendMode: (groupId, mode) => {
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetIndex = configured.findIndex(
+          (group) => group.id === groupId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = configured[targetIndex];
+        if (!target || target.blendMode === mode) {
+          return;
+        }
+        const nextGroups = configured.map((group, index) =>
+          index === targetIndex ? { ...group, blendMode: mode } : group,
+        );
+        return {
+          poseConfigDraft: PoseConfigService.create(
+            prev.poses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: nextGroups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
+    },
     updatePoseGroup: (poseId, group) => {
-      setState((prev) => ({
-        poses: prev.poses.map((p) =>
-          p.id === poseId ? { ...p, group, groupId: null } : p,
-        ),
-      }));
+      const nextGroup = group ?? null;
+      if (!nextGroup) {
+        setState((prev) => ({
+          poses: prev.poses.map((p) =>
+            p.id === poseId ? { ...p, group: null, groupId: null } : p,
+          ),
+        }));
+        return;
+      }
+      const normalizedGroup = normalizePoseGroupPath(nextGroup);
+      if (!normalizedGroup) {
+        setState((prev) => ({
+          poses: prev.poses.map((p) =>
+            p.id === poseId ? { ...p, group: null, groupId: null } : p,
+          ),
+        }));
+        return;
+      }
+      setState((prev) => {
+        const { groupsChanged, groups, groupId } = ensurePoseGroupFromPath(
+          prev,
+          normalizedGroup,
+        );
+        if (!groupId) {
+          return;
+        }
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId ? { ...p, group: normalizedGroup, groupId } : p,
+        );
+        if (!groupsChanged) {
+          return { poses: nextPoses };
+        }
+        return {
+          poses: nextPoses,
+          poseConfigDraft: PoseConfigService.create(
+            nextPoses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: groups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
     },
     updatePoseGroupBatch: (poseIds, group) => {
       const ids = new Set(poseIds);
-      setState((prev) => ({
-        poses: prev.poses.map((p) =>
-          ids.has(p.id) ? { ...p, group, groupId: null } : p,
-        ),
-      }));
+      const nextGroup = group ?? null;
+      if (!nextGroup) {
+        setState((prev) => ({
+          poses: prev.poses.map((p) =>
+            ids.has(p.id) ? { ...p, group: null, groupId: null } : p,
+          ),
+        }));
+        return;
+      }
+      const normalizedGroup = normalizePoseGroupPath(nextGroup);
+      if (!normalizedGroup) {
+        setState((prev) => ({
+          poses: prev.poses.map((p) =>
+            ids.has(p.id) ? { ...p, group: null, groupId: null } : p,
+          ),
+        }));
+        return;
+      }
+      setState((prev) => {
+        const { groupsChanged, groups, groupId } = ensurePoseGroupFromPath(
+          prev,
+          normalizedGroup,
+        );
+        const nextPoses = prev.poses.map((p) =>
+          ids.has(p.id)
+            ? { ...p, group: normalizedGroup, groupId: groupId ?? null }
+            : p,
+        );
+        if (!groupId) {
+          return { poses: nextPoses };
+        }
+        if (!groupsChanged) {
+          return { poses: nextPoses };
+        }
+        return {
+          poses: nextPoses,
+          poseConfigDraft: PoseConfigService.create(
+            nextPoses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema,
+            {
+              poseGroups: groups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
     },
     clearPose: (poseId) => {
       setState((prev) => ({

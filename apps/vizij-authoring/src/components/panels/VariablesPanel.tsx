@@ -441,6 +441,9 @@ export function VariablesPanel({
     selectPose,
     selectedPoseId: selectedPoseIdFromAuthoring,
     createPose,
+    createPoseGroup,
+    renamePoseGroup,
+    deletePoseGroup,
     crossGroupBlendMode,
     blendMode,
     setCrossGroupBlendMode,
@@ -450,6 +453,7 @@ export function VariablesPanel({
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
   const { objects, getNode } = useSceneComposer();
+  const [search, setSearch] = useState("");
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
     blendMode ??
@@ -497,7 +501,7 @@ export function VariablesPanel({
         path,
         poseGroupDisplayLabel(path),
         "configured",
-        `configured:${group.id || group.path || group.name}`,
+        group.id || `configured:${path}`,
       );
       const entry = groupsByPath.get(path);
       if (entry) {
@@ -554,9 +558,6 @@ export function VariablesPanel({
   const selectedPoseGroupPath = selectedPoseId
     ? (poseGroupByPoseId.get(selectedPoseId) ?? null)
     : null;
-
-  // State for search
-  const [search, setSearch] = useState("");
 
   const visiblePoseGroups = useMemo(() => {
     const trimmed = search.trim().toLowerCase();
@@ -1291,6 +1292,7 @@ export function VariablesPanel({
     onSelectPoseGroup?.({
       groupPath: folderData.groupPath,
       label: node.label,
+      groupId: matchingGroup?.source === "configured" ? matchingGroup.id : null,
       poseIds,
       nodeId,
     });
@@ -1300,6 +1302,7 @@ export function VariablesPanel({
     onSelectPoseGroup?.({
       groupPath: group.path,
       label: group.label,
+      groupId: group.source === "configured" ? group.id : null,
       poseIds: group.poseIds,
       nodeId: group.id,
     });
@@ -1401,6 +1404,55 @@ export function VariablesPanel({
       onSelectRig?.(firstCopied);
       onSelectPoseGroup?.(null);
     }
+  };
+
+  const handleCreatePoseGroup = () => {
+    const value = window.prompt("Create pose group", "");
+    if (!value) {
+      return;
+    }
+    const normalized = normalizePoseGroupPath(value);
+    if (!normalized) {
+      return;
+    }
+    createPoseGroup(normalized);
+  };
+
+  const handleRenameSelectedPoseGroup = () => {
+    const current = selectedPoseGroup;
+    if (!current?.groupId) {
+      return;
+    }
+    const normalizedCurrent = normalizePoseGroupPath(current.groupPath);
+    const value = window.prompt("Rename pose group", normalizedCurrent || "");
+    if (!value) {
+      return;
+    }
+    const nextPath = normalizePoseGroupPath(value);
+    if (!nextPath) {
+      return;
+    }
+    renamePoseGroup(current.groupId, nextPath);
+    onSelectPoseGroup?.({
+      ...current,
+      groupPath: nextPath,
+      label: poseGroupDisplayLabel(nextPath),
+    });
+  };
+
+  const handleDeleteSelectedPoseGroup = () => {
+    const current = selectedPoseGroup;
+    if (!current?.groupId) {
+      return;
+    }
+    const ok = window.confirm(
+      `Delete pose group "${current.label}" and unassign its poses?`,
+    );
+    if (!ok) {
+      return;
+    }
+    deletePoseGroup(current.groupId);
+    onSelectPoseGroup?.(null);
   };
 
   const showCreateOption =
@@ -1583,6 +1635,10 @@ export function VariablesPanel({
                 onSelectPoseGroup?.({
                   groupPath: matchingGroup.path,
                   label: matchingGroup.label,
+                  groupId:
+                    matchingGroup.source === "configured"
+                      ? matchingGroup.id
+                      : null,
                   poseIds: matchingGroup.poseIds,
                   nodeId: matchingGroup.id,
                 });
@@ -1651,6 +1707,47 @@ export function VariablesPanel({
                     <Copy size={11} />
                     Copy Ref ({uncopiedReferenceCount})
                   </Button>
+                )}
+                {isPoseGroups && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCreatePoseGroup}
+                    >
+                      <Plus size={11} />
+                      New Group
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      disabled={!selectedPoseGroup?.groupId}
+                      onClick={handleRenameSelectedPoseGroup}
+                      title={
+                        selectedPoseGroup?.groupId
+                          ? "Rename selected pose group"
+                          : "Select a configured pose group first"
+                      }
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+                      disabled={!selectedPoseGroup?.groupId}
+                      onClick={handleDeleteSelectedPoseGroup}
+                      title={
+                        selectedPoseGroup?.groupId
+                          ? "Delete selected pose group"
+                          : "Select a configured pose group first"
+                      }
+                    >
+                      Delete
+                    </Button>
+                  </>
                 )}
                 {isPoseGroups && (
                   <span className="text-[10px] uppercase tracking-wider text-text-muted">
