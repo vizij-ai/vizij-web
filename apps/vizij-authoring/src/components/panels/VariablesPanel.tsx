@@ -8,6 +8,7 @@ import {
   Play,
   Search,
   Sliders,
+  Users,
 } from "lucide-react";
 import {
   normalizeStandardRigInputPath,
@@ -22,7 +23,7 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
-import type { PoseDefinition } from "../../poseRig/types";
+import type { PoseBlendMode, PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 import type {
@@ -36,7 +37,33 @@ import type {
 
 type NodeType = "folder" | "pose" | "rig";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
-type SurfaceTab = "variables" | "poses";
+type SurfaceTab = "variables" | "poses" | "pose-groups";
+
+const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
+const UNASSIGNED_POSE_GROUP_LABEL = "Unassigned";
+
+interface PoseGroupSummary {
+  id: string;
+  path: string;
+  label: string;
+  blendMode: PoseBlendMode;
+  source: "configured" | "auto";
+  poseIds: string[];
+}
+
+function normalizePoseGroupPath(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.replace(/^\/+|\/+$/g, "");
+}
+
+function poseGroupDisplayLabel(path: string): string {
+  return path === UNASSIGNED_POSE_GROUP_PATH
+    ? UNASSIGNED_POSE_GROUP_LABEL
+    : path;
+}
 
 interface RigNodeData {
   input: StandardRigInput;
@@ -342,6 +369,7 @@ function TreeRowWrapper({
 
 interface VariablesPanelProps {
   selectedRigId?: string | null;
+  selectedPoseId?: string | null;
   onSelectRig?: (id: string | null) => void;
   onSelectPose?: (id: string) => void;
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
@@ -350,13 +378,153 @@ interface VariablesPanelProps {
 
 export function VariablesPanel({
   selectedRigId,
+  selectedPoseId: selectedPoseIdFromParent,
   onSelectRig,
   onSelectPose,
   selectedPoseGroup,
   onSelectPoseGroup,
 }: VariablesPanelProps) {
-  const { poses, applyPose, selectPose, selectedPoseId, createPose } =
-    usePoseRig();
+  const {
+    poses,
+    applyPose,
+    selectPose,
+    selectedPoseId: selectedPoseIdFromAuthoring,
+    createPose,
+    crossGroupBlendMode,
+    blendMode,
+    setCrossGroupBlendMode,
+    updatePoseGroup,
+    poseConfigDraft,
+  } = usePoseRig();
+  const selectedPoseId =
+    selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
+  const poseGroupBlendModeFallback =
+    poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
+    blendMode ??
+    "average";
+  const poseGroupsFromConfig = poseConfigDraft?.poseGroups ?? [];
+
+  const poseNameById = useMemo(
+    () => new Map(poses.map((pose) => [pose.id, pose.name])),
+    [poses],
+  );
+
+  const poseGroups = useMemo(() => {
+    const byId = new Map<string, string>();
+    const groupsByPath = new Map<string, PoseGroupSummary>();
+
+    const declareGroup = (
+      path: string,
+      label: string,
+      source: "configured" | "auto",
+      id: string,
+    ) => {
+      if (groupsByPath.has(path)) {
+        return;
+      }
+      groupsByPath.set(path, {
+        id,
+        path,
+        label,
+        blendMode: poseGroupBlendModeFallback,
+        source,
+        poseIds: [],
+      });
+      if (path !== UNASSIGNED_POSE_GROUP_PATH) {
+        byId.set(id, path);
+      }
+    };
+
+    poseGroupsFromConfig.forEach((group) => {
+      const candidatePath =
+        normalizePoseGroupPath(group.path) ||
+        normalizePoseGroupPath(group.name) ||
+        normalizePoseGroupPath(group.id);
+      const path = candidatePath || UNASSIGNED_POSE_GROUP_PATH;
+      declareGroup(
+        path,
+        poseGroupDisplayLabel(path),
+        "configured",
+        `configured:${group.id || group.path || group.name}`,
+      );
+      const entry = groupsByPath.get(path);
+      if (entry) {
+        entry.blendMode =
+          group.blendMode === "additive" || group.blendMode === "average"
+            ? group.blendMode
+            : poseGroupBlendModeFallback;
+      }
+      if (group.id) {
+        byId.set(group.id, path);
+      }
+    });
+
+    const resolvePoseGroupPath = (pose: PoseDefinition): string => {
+      if (pose.groupId && byId.has(pose.groupId)) {
+        return byId.get(pose.groupId)!;
+      }
+      const normalized = normalizePoseGroupPath(pose.group);
+      return normalized || UNASSIGNED_POSE_GROUP_PATH;
+    };
+
+    poses.forEach((pose) => {
+      const path = resolvePoseGroupPath(pose);
+      let group = groupsByPath.get(path);
+      if (!group) {
+        group = {
+          id: `auto:${path}`,
+          path,
+          label: poseGroupDisplayLabel(path),
+          blendMode: poseGroupBlendModeFallback,
+          source: "auto",
+          poseIds: [],
+        };
+        groupsByPath.set(path, group);
+      }
+      group.poseIds.push(pose.id);
+    });
+
+    return Array.from(groupsByPath.values()).filter(
+      (group) => group.poseIds.length > 0,
+    );
+  }, [blendMode, poseGroupBlendModeFallback, poseGroupsFromConfig, poses]);
+
+  const poseGroupByPoseId = useMemo(() => {
+    const next = new Map<string, string>();
+    poseGroups.forEach((group) => {
+      group.poseIds.forEach((poseId) => {
+        next.set(poseId, group.path);
+      });
+    });
+    return next;
+  }, [poseGroups]);
+
+  const selectedPoseGroupPath = selectedPoseId
+    ? (poseGroupByPoseId.get(selectedPoseId) ?? null)
+    : null;
+
+  const visiblePoseGroups = useMemo(() => {
+    const trimmed = search.trim().toLowerCase();
+    if (!trimmed) {
+      return poseGroups;
+    }
+    return poseGroups.filter((group) => {
+      if (
+        poseGroupDisplayLabel(group.path).toLowerCase().includes(trimmed) ||
+        group.path.toLowerCase().includes(trimmed) ||
+        group.poseIds.some(
+          (poseId) =>
+            poseId.toLowerCase().includes(trimmed) ||
+            (poseNameById.get(poseId)?.toLowerCase().includes(trimmed) ??
+              false),
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+  }, [poseGroups, poseNameById, search]);
+
   const {
     managedStandardInputs,
     standardInputsByPath,
@@ -744,11 +912,11 @@ export function VariablesPanel({
     [posesRootNode, search],
   );
   const visibleRoot =
-    activeSurface === "variables" ? visibleVariablesRoot : visiblePosesRoot;
+    activeSurface === "poses" ? visiblePosesRoot : visibleVariablesRoot;
 
   // Auto-expand folders when searching
   useEffect(() => {
-    if (!search.trim()) return;
+    if (activeSurface === "pose-groups" || !search.trim()) return;
 
     const idsToExpand = new Set<string>();
     const visit = (node: TreeNode) => {
@@ -766,7 +934,7 @@ export function VariablesPanel({
       idsToExpand.forEach((id) => next.add(id));
       return next;
     });
-  }, [visibleRoot, search]);
+  }, [activeSurface, visibleRoot, search]);
 
   useEffect(() => {
     if (!pendingPoseSelectionRef.current || !selectedPoseId) {
@@ -803,12 +971,41 @@ export function VariablesPanel({
     if (poseIds.length === 0) {
       return;
     }
+    const matchingGroup = poseGroups.find(
+      (group) => group.path === folderData.groupPath,
+    );
+    const nodeId = matchingGroup?.id ?? node.id;
     onSelectPoseGroup?.({
       groupPath: folderData.groupPath,
       label: node.label,
       poseIds,
-      nodeId: node.id,
+      nodeId,
     });
+  };
+
+  const selectPoseGroup = (group: PoseGroupSummary) => {
+    onSelectPoseGroup?.({
+      groupPath: group.path,
+      label: group.label,
+      poseIds: group.poseIds,
+      nodeId: group.id,
+    });
+    onSelectRig?.(null);
+  };
+
+  const handlePoseGroupMembershipToggle = (group: PoseGroupSummary) => {
+    if (!selectedPoseId || selectedPoseId === "__pose_rig_neutral__") {
+      return;
+    }
+    const isMember = selectedPoseGroupPath === group.path;
+    if (isMember) {
+      updatePoseGroup(selectedPoseId, null);
+      return;
+    }
+    updatePoseGroup(
+      selectedPoseId,
+      group.path === UNASSIGNED_POSE_GROUP_PATH ? null : group.path,
+    );
   };
 
   const handleAction = (node: TreeNode, action: string) => {
@@ -905,8 +1102,25 @@ export function VariablesPanel({
     referenceRigEntries.length +
     sharedRigEntries.length;
   const poseItemCount = poses.length;
+  const poseGroupItemCount = poseGroups.length;
+  const poseGroupsForSurface = useMemo(() => {
+    const list = [...visiblePoseGroups];
+    list.sort((a, b) => {
+      if (a.source !== b.source) {
+        return a.source === "configured" ? -1 : 1;
+      }
+      return poseGroupDisplayLabel(a.path).localeCompare(
+        poseGroupDisplayLabel(b.path),
+      );
+    });
+    return list;
+  }, [visiblePoseGroups]);
   const totalCount =
-    activeSurface === "variables" ? variableItemCount : poseItemCount;
+    activeSurface === "variables"
+      ? variableItemCount
+      : activeSurface === "poses"
+        ? poseItemCount
+        : poseGroupItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -916,6 +1130,12 @@ export function VariablesPanel({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const activeSelection = useMemo(() => {
+    if (activeSurface === "pose-groups" && selectedPoseGroup?.nodeId) {
+      return {
+        type: "pose-group" as const,
+        id: selectedPoseGroup.nodeId,
+      };
+    }
     if (activeSurface === "poses") {
       if (selectedPoseGroup?.nodeId) {
         return {
@@ -953,18 +1173,39 @@ export function VariablesPanel({
   const surfaceTabs = [
     { id: "variables" as const, label: "Variables", badge: variableItemCount },
     { id: "poses" as const, label: "Poses", badge: poseItemCount },
+    {
+      id: "pose-groups" as const,
+      label: "Pose Groups",
+      badge: poseGroupItemCount,
+    },
   ];
 
   const surfaceForTab = (id: string): SurfaceTab =>
-    id === "poses" ? "poses" : "variables";
+    id === "poses"
+      ? "poses"
+      : id === "pose-groups"
+        ? "pose-groups"
+        : "variables";
+
+  const selectedPoseName = selectedPoseId
+    ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
+    : null;
 
   return (
     <Panel
-      title={activeSurface === "variables" ? "Variables" : "Poses"}
+      title={
+        activeSurface === "variables"
+          ? "Variables"
+          : activeSurface === "poses"
+            ? "Poses"
+            : "Pose Groups"
+      }
       description={
         activeSurface === "variables"
           ? "Manage rig variables and references."
-          : "Manage pose entries."
+          : activeSurface === "poses"
+            ? "Manage pose entries."
+            : "Review pose groups and move selected poses."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
@@ -976,6 +1217,8 @@ export function VariablesPanel({
         onValueChange={(id) => setActiveSurface(surfaceForTab(id))}
         renderPanel={(id) => {
           const isVariables = id === "variables";
+          const isPoseGroups = id === "pose-groups";
+          const isPoses = id === "poses";
           return (
             <div className="flex flex-col h-full min-h-0 gap-1 p-2">
               <div className="flex items-center gap-2 px-1 mb-1">
@@ -988,7 +1231,9 @@ export function VariablesPanel({
                       ? "Filter..."
                       : isVariables
                         ? "Search or create variable..."
-                        : "Search poses..."
+                        : isPoses
+                          ? "Search poses..."
+                          : "Search pose groups..."
                   }
                 />
               </div>
@@ -1005,7 +1250,7 @@ export function VariablesPanel({
                     New Variable
                   </Button>
                 )}
-                {!isVariables && (
+                {!isVariables && !isPoseGroups && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -1030,7 +1275,50 @@ export function VariablesPanel({
                     Copy Ref ({uncopiedReferenceCount})
                   </Button>
                 )}
+                {isPoseGroups && (
+                  <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                    Cross-group blend
+                  </span>
+                )}
               </div>
+              {isPoseGroups && (
+                <div className="flex flex-wrap items-center gap-1 px-1">
+                  <span className="text-[10px] text-text-muted">
+                    {selectedPoseName
+                      ? `Selected pose: ${selectedPoseName}`
+                      : "Select a pose to edit membership"}
+                  </span>
+                  {selectedPoseName && (
+                    <span className="text-[10px] text-text-muted font-mono">
+                      ({selectedPoseGroupPath || "unassigned"})
+                    </span>
+                  )}
+                  <div className="ml-auto flex items-center gap-1">
+                    <Button
+                      variant={
+                        crossGroupBlendMode === "average" ? "primary" : "subtle"
+                      }
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setCrossGroupBlendMode("average")}
+                    >
+                      Average
+                    </Button>
+                    <Button
+                      variant={
+                        crossGroupBlendMode === "additive"
+                          ? "primary"
+                          : "subtle"
+                      }
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setCrossGroupBlendMode("additive")}
+                    >
+                      Additive
+                    </Button>
+                  </div>
+                </div>
+              )}
               {isVariables && (
                 <>
                   <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
@@ -1175,7 +1463,7 @@ export function VariablesPanel({
                 </>
               )}
               <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                {showCreateOption && (
+                {showCreateOption && !isPoseGroups && (
                   <div
                     className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
                     onClick={handleCreate}
@@ -1194,7 +1482,93 @@ export function VariablesPanel({
                   </div>
                 )}
 
-                {visibleRoot.children.size === 0 && !showCreateOption ? (
+                {isPoseGroups ? (
+                  poseGroupsForSurface.length === 0 ? (
+                    <EmptyState
+                      icon={Search}
+                      iconSize={18}
+                      title={
+                        search.trim().length > 0
+                          ? "No pose groups found"
+                          : "No pose groups yet"
+                      }
+                      description={
+                        search.trim().length > 0
+                          ? `No items found matching "${search}"`
+                          : "Assign a pose to a group to populate this list."
+                      }
+                      action={
+                        search.trim().length > 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSearch("")}
+                            className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                          >
+                            Clear Search
+                          </Button>
+                        ) : undefined
+                      }
+                      className="py-12"
+                    />
+                  ) : (
+                    <div className="flex flex-col">
+                      {poseGroupsForSurface.map((group) => {
+                        const isMember = selectedPoseId
+                          ? selectedPoseGroupPath === group.path
+                          : false;
+                        return (
+                          <TreeRow
+                            key={group.id}
+                            depth={0}
+                            label={group.label}
+                            hasChildren={false}
+                            isExpanded={false}
+                            isSelected={
+                              activeSelection?.type === "pose-group" &&
+                              activeSelection.id === group.id
+                            }
+                            onToggle={() => {}}
+                            onSelect={() => selectPoseGroup(group)}
+                            highlightQuery={search}
+                            icon={
+                              <Users size={12} className="text-purple-300" />
+                            }
+                            actions={
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {group.source}
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {group.poseIds.length}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px]"
+                                  disabled={!selectedPoseId}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handlePoseGroupMembershipToggle(group);
+                                  }}
+                                  title={
+                                    !selectedPoseId
+                                      ? "Select a pose first"
+                                      : isMember
+                                        ? "Unassign selected pose"
+                                        : "Assign selected pose"
+                                  }
+                                >
+                                  {isMember ? "Unassign" : "Assign"}
+                                </Button>
+                              </div>
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  )
+                ) : visibleRoot.children.size === 0 && !showCreateOption ? (
                   <EmptyState
                     icon={Search}
                     iconSize={18}

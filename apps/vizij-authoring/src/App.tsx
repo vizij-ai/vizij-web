@@ -209,6 +209,7 @@ function AppContent({ loader }: AppContentProps) {
   const { panels } = useWorkspaceStore();
   const {
     selectedRigId,
+    selectedPoseId,
     handleSelectObject,
     handleSelectPose,
     handleSelectRig,
@@ -377,6 +378,7 @@ function AppContent({ loader }: AppContentProps) {
           leftBottomPanel={
             <VariablesPanel
               selectedRigId={selectedRigId}
+              selectedPoseId={selectedPoseId}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
               selectedPoseGroup={selectedPoseGroup}
