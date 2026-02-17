@@ -4,7 +4,10 @@ import type {
   InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
-import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
+import {
+  isAutorigStandardInputPath,
+  resolveRigMetadataInputId,
+} from "../../utils/rigElementInputs";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 
@@ -229,6 +232,10 @@ export function collectDirectDownstreamRigInputs(params: {
 
   Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
     if (isMatch(targetInputId)) {
+      return;
+    }
+    const targetInput = standardInputsById.get(targetInputId);
+    if (isAutorigStandardInputPath(targetInput?.path)) {
       return;
     }
     const inputIds = collectBindingInputIds(binding);

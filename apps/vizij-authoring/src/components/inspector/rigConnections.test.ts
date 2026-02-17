@@ -162,6 +162,49 @@ describe("collectDirectDownstreamRigInputs", () => {
       { id: "rig/child/mouth_open", label: "Mouth Open" },
     ]);
   });
+
+  it("omits direct child autorig inputs from downstream variable list", () => {
+    const inputBindings: InputBindingMap = {
+      "autorig/eye/open": {
+        targetId: "autorig/eye/open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+    };
+    const standardInputsById = new Map<string, StandardRigInput>([
+      [
+        "autorig/eye/open",
+        {
+          id: "autorig/eye/open",
+          path: "/autorig/eye/open",
+          label: "Eye Open",
+          group: "autorig",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+      [
+        "rig/parent/jaw_open",
+        {
+          id: "rig/parent/jaw_open",
+          path: "/standard/face/jaw/open",
+          label: "Jaw Open",
+          group: "standard",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+    ]);
+
+    const dependents = collectDirectDownstreamRigInputs({
+      selectedRigId: "rig/parent/jaw_open",
+      inputBindings,
+      standardInputsById,
+    });
+
+    expect(dependents).toEqual([]);
+  });
 });
 
 describe("buildPoseRigFaceTrace", () => {
