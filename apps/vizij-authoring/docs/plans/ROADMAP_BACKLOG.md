@@ -34,7 +34,7 @@ Status (2026-02-17): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-Status (2026-02-17): pose-group authoring controls are now implemented; remaining P1 focus is aggregate semantics, rig-boundary enforcement, and import/diagnostic completeness before full P2.
+Status (2026-02-17): pose-group authoring controls are now implemented; remaining P1 focus is aggregate semantics, import/diagnostic completeness, and import strategy controls before full P2.
 
 1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
 2. Done: routing-contract and chain regression coverage additions.
@@ -49,9 +49,9 @@ Status (2026-02-17): pose-group authoring controls are now implemented; remainin
 11. Done: split primary left panel into dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces.
 12. Done: finalize pose inspector + pose membership editing consistency in the dedicated Poses/Groups surfaces.
 13. Done: implement Pose Group lifecycle editor with cross-group blend-mode controls in the Pose Groups pane and local blend-mode controls in the pose-group inspector.
-14. Next: alias `/rig/element` rig inputs as metadata and keep them out of variable/driver chain edit surfaces.
+14. Done: alias `/rig/element` rig inputs as metadata and keep them out of variable/driver chain edit surfaces.
 15. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
-16. Next: enforce rig boundary where only low-level rig variables can write animatable leaves.
+16. Done: enforce rig boundary where only low-level rig variables can write animatable leaves.
 17. Done: finalize lifecycle operations for pose groups (rename/delete/edit) in dedicated Pose Group pane.
 18. Next: add explicit import grouping strategy controls and group-level conflict handling.
 19. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.

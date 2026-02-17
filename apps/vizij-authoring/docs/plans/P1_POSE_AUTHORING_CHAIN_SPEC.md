@@ -62,15 +62,14 @@ For each rig target variable:
 5. Compiler emits two-layer pose blending (group-local + cross-group).
 6. Authoring UI exposes default group and cross-group blend strategy selection.
 7. Sidebar pose-group inspector allows group-level previewing (weights/solo/reset) against neutral baseline.
+8. Rig metadata aliases under `/rig/element` are hidden from Variables/Drivers and resolved in rig inspector via canonical mapping.
 
 ## 3.2 Not aligned (must change)
 
 1. Pose aggregate nodes are not yet surfaced as first-class binding sources in inspector semantics.
-2. No strict guard yet that higher-order rig variables cannot bind animatable leaves.
-3. Dedicated pose-group lifecycle workflows are now present; remaining gap is full alias/context visibility for `/rig/element`.
-4. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
-5. Diagnostics for aggregate/boundary/group-coverage gaps are not yet complete in editor/export surfaces.
-6. Dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces are now implemented; remaining work is alias-aware `/rig/element` rig metadata behavior and aggregate semantics.
+2. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
+3. Diagnostics for aggregate/group-coverage gaps are not yet complete in editor/export surfaces.
+4. Dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces are now implemented; remaining work is aggregate semantics in click-through and explicit target routing.
 
 ## 4) P1 implementation tracks
 
@@ -102,7 +101,7 @@ Acceptance criteria:
 2. strategy can differ at group-local and cross-group layers
 3. export/import roundtrip preserves equivalent graph behavior
 
-## P1-T3 Rig boundary enforcement (`planned`)
+## P1-T3 Rig boundary enforcement (`done`)
 
 Enforce low-level-only animatable write boundary:
 
@@ -112,8 +111,8 @@ Enforce low-level-only animatable write boundary:
 
 Acceptance criteria:
 
-1. invalid higher-order-to-animatable mappings are blocked or auto-migrated with explicit diagnostics
-2. inspector clearly explains boundary violations
+1. invalid higher-order-to-animatable mappings are blocked with explicit diagnostics
+2. inspector can route boundary violation diagnostics to relevant contexts
 3. tests cover valid and invalid boundary scenarios
 
 ## P1-T4 Pose/rig binding semantics in UI (`in_progress`)
@@ -190,7 +189,7 @@ Acceptance criteria:
 5. No `/rig/element` path is selectable from Variables for binding edits.
 6. `/rig/element`-scoped rig variables still resolve to their corresponding runtime effect during rig-level inspection.
 
-## P1-T9 Rig metadata namespace and aliasing (`planned`)
+## P1-T9 Rig metadata namespace and aliasing (`done`)
 
 Standardize generated rig variable namespaces:
 
@@ -219,8 +218,8 @@ Acceptance criteria:
 3. T5 blend controls (`done`)
 4. T4 aggregate-source semantics + chain labeling (`in_progress`)
 5. T8 control-surface decomposition (`done`)
-6. T9 rig metadata namespace and aliasing (`planned`)
-7. T3 boundary enforcement (`planned`)
+6. T9 rig metadata namespace and aliasing (`done`)
+7. T3 boundary enforcement (`done`)
 8. T6 migration/import grouping strategy (`planned`)
 9. T7 diagnostics and full validation pass (`planned`)
 

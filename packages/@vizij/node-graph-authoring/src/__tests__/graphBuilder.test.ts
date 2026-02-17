@@ -1245,6 +1245,111 @@ describe("buildRigGraphSpec issues", () => {
       expect(derivedBIssues.length).toBeGreaterThan(0);
     }
   });
+
+  it("flags higher-order rig inputs that drive animatable components directly", () => {
+    const derivedInput: StandardRigInput = {
+      id: "derived_input",
+      path: "/controls/derived",
+      label: "Derived Input",
+      group: "controls",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(derivedInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(derivedInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      derivedInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [derivedInput.id, derivedInput],
+      ]),
+      inputBindings: {
+        [derivedInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(issues).toBeDefined();
+    expect(
+      issues?.some(
+        (issue) =>
+          issue.includes("higher-order rig input") &&
+          issue.includes(derivedInput.id),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows /rig/element metadata alias inputs to drive animatable components", () => {
+    const metadataInput: StandardRigInput = {
+      id: "rig_element_input",
+      path: "/rig/element/jaw/open",
+      label: "Jaw Open",
+      group: "rig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(metadataInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(metadataInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      metadataInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [metadataInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      issues?.some((issue) => issue.includes("higher-order rig input")),
+    ).toBe(false);
+  });
 });
 it("creates scalar math nodes like abs/min/max/modulo/round", () => {
   const binding = createDefaultBinding(COMPONENT);

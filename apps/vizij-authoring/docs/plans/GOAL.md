@@ -40,4 +40,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-17)
 
-P0 is complete and prior P1 routing/parity tranche is complete. P1 now includes a user-experience refactor for control-surface decomposition (Variables, Poses, Pose Groups, Drivers) plus rig metadata aliasing (`/rig/element`) so face control editing stays focused. Remaining scope is still aggregate pose-output binding surfacing, rig boundary enforcement, and import/diagnostic completeness before moving fully into P2.
+P0 is complete and prior P1 routing/parity tranche is complete. P1 now includes a user-experience refactor for control-surface decomposition (Variables, Poses, Pose Groups, Drivers) plus rig metadata aliasing (`/rig/element`) so face control editing stays focused. Remaining scope is still aggregate pose-output binding surfacing, import/diagnostic completeness, and import grouping controls before moving fully into P2.

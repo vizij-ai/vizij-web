@@ -53,6 +53,8 @@ type GraphEdge = IrEdge;
 interface BindingGraphContext {
   nodes: IrNode[];
   edges: IrEdge[];
+  inputsById: Map<string, StandardRigInput>;
+  inputBindings: InputBindingMap;
   ensureInputNode: (
     inputId: string,
   ) => { nodeId: string; input: StandardRigInput } | null;
@@ -73,6 +75,33 @@ interface EvaluateBindingArgs {
   selfNodeId?: string;
 }
 
+const RIG_ELEMENT_PATH_PREFIX = "/rig/element";
+
+function isRigElementAliasInput(
+  inputId: string,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  const input = inputsById.get(inputId);
+  if (!input?.path) {
+    return false;
+  }
+  return input.path.startsWith(RIG_ELEMENT_PATH_PREFIX);
+}
+
+function isHigherOrderRigBindingInput(
+  inputId: string,
+  inputBindings: InputBindingMap,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  if (!inputBindings[inputId]) {
+    return false;
+  }
+  if (isRigElementAliasInput(inputId, inputsById)) {
+    return false;
+  }
+  return true;
+}
+
 function evaluateBinding({
   binding,
   target,
@@ -86,8 +115,15 @@ function evaluateBinding({
   valueNodeId: string | null;
   hasActiveSlot: boolean;
 } {
-  const { nodes, edges, ensureInputNode, bindingIssues, summaryBindings } =
-    context;
+  const {
+    nodes,
+    edges,
+    ensureInputNode,
+    bindingIssues,
+    summaryBindings,
+    inputsById,
+    inputBindings,
+  } = context;
   const exprContext: ExpressionBuildContext = {
     componentSafeId: safeId,
     nodes,
@@ -131,18 +167,30 @@ function evaluateBinding({
         slotOutputId = getConstantNodeId(exprContext, target.defaultValue);
       }
     } else if (slot.inputId) {
-      const inputNode = ensureInputNode(slot.inputId);
-      if (inputNode) {
-        slotOutputId = inputNode.nodeId;
-        hasActiveSlot = true;
-        setNodeValueType(
-          exprContext,
-          slotOutputId,
-          slotValueType === "vector" ? "vector" : "scalar",
+      const inputId = slot.inputId;
+      if (
+        isHigherOrderRigBindingInput(inputId, inputBindings, inputsById) &&
+        inputId !== SELF_BINDING_ID
+      ) {
+        expressionIssues.push(
+          `Input "${inputId}" is a higher-order rig input and cannot directly drive animatable "${target.id}".`,
         );
-      } else {
-        expressionIssues.push(`Missing standard input "${slot.inputId}".`);
         slotOutputId = getConstantNodeId(exprContext, 0);
+        hasActiveSlot = true;
+      } else {
+        const inputNode = ensureInputNode(inputId);
+        if (inputNode) {
+          slotOutputId = inputNode.nodeId;
+          hasActiveSlot = true;
+          setNodeValueType(
+            exprContext,
+            slotOutputId,
+            slotValueType === "vector" ? "vector" : "scalar",
+          );
+        } else {
+          expressionIssues.push(`Missing standard input "${slot.inputId}".`);
+          slotOutputId = getConstantNodeId(exprContext, 0);
+        }
       }
     } else {
       slotOutputId = getConstantNodeId(exprContext, 0);
@@ -1390,6 +1438,8 @@ export function buildRigGraphSpec({
           component: undefined,
           safeId: sanitizeNodeId(inputId),
           context: {
+            inputsById,
+            inputBindings,
             nodes,
             edges,
             ensureInputNode,
@@ -1483,6 +1533,8 @@ export function buildRigGraphSpec({
           component: component.component,
           safeId: component.safeId,
           context: {
+            inputsById,
+            inputBindings,
             nodes,
             edges,
             ensureInputNode,

@@ -109,7 +109,7 @@ Use this file for app-local implementation backlog only.
       Goal: make driver introspection explicit for each selected item: - what the item drives - what drives the item
       Exit criteria: 1. both incoming/outgoing drive links are inspectable. 2. each entry supports clickthrough to the linked item editor. 3. empty/ambiguous relationships are explicitly explained.
 
-- [ ] Treat auto-generated animatable-driven rig paths as metadata under `/rig/element`.
+- [x] Treat auto-generated animatable-driven rig paths as metadata under `/rig/element`.
       Context: these lower-level rig drivers should be treated as implementation details and not exposed as user-editable variables.
       Goal: prefix generated rig bindings with `/rig/element` and hide them from Variables and Drivers.
       Exit criteria: 1. no `/rig/element` paths appear in Variables panel inputs. 2. no `/rig/element` paths appear in Drivers outputs. 3. the same underlying control still appears in rig inspector as aliased ownership to its target property.
@@ -142,7 +142,7 @@ Use this file for app-local implementation backlog only.
       Context: UI currently implies pose-to-variable links directly from individual poses, but target binding semantics are aggregate outputs.
       Goal: make rig target binding semantics explicit: aggregate pose layer -> rig variable target.
       Exit criteria: 1. Inspector can show and navigate pose entry vs group output vs aggregate output. 2. Binding editor targets aggregate pose-layer sources where appropriate. 3. Chain labels are unambiguous and typed.
-- [ ] Enforce rig-layer boundary: only low-level rig variables may write animatable leaves.
+- [x] Enforce rig-layer boundary: only low-level rig variables may write animatable leaves.
       Context: target architecture requires higher-order variables to compose through rig bindings, not direct animatable writes.
       Goal: prevent invalid higher-order-to-animatable wiring and provide migration guidance for legacy assets.
       Exit criteria: 1. Compiler blocks or migrates invalid boundary-crossing bindings with diagnostics. 2. UI prevents creating new invalid direct mappings. 3. Tests cover valid and invalid boundary cases.
