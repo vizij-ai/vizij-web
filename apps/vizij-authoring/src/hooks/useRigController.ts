@@ -2073,29 +2073,57 @@ export function useRigController(
     const unmatchedGraphInputs: string[] = [];
 
     summaryInputPaths.forEach((graphPath) => {
-      let remainder = graphPath;
-      if (graphPath.startsWith(facePrefix)) {
-        remainder = graphPath.slice(facePrefix.length);
-      } else if (graphPath.startsWith("rig/")) {
-        const segments = graphPath.split("/");
-        if (segments.length >= 3) {
-          remainder = segments.slice(2).join("/");
-        } else {
-          remainder = segments.slice(1).join("/");
-        }
-      }
-      remainder = remainder.replace(/^\/+/g, "");
-      const candidatePaths = [
-        `/${remainder}`,
-        stripStandardInputPathPrefix(`/${remainder}`),
-      ];
       let matched: StandardRigInput | undefined;
-      for (const candidatePath of candidatePaths) {
-        const normalizedCandidate =
-          normalizeStandardRigInputPath(candidatePath);
-        matched = standardInputsByPath.get(normalizedCandidate);
-        if (matched) {
-          break;
+      let remainder = graphPath;
+      const normalizedGraphPath = normalizeGraphPath(graphPath);
+      if (normalizedGraphPath) {
+        matched = rigOutputLookup.get(normalizedGraphPath);
+      }
+      if (!matched) {
+        // Handle legacy/alternate graph path shapes when a direct
+        // canonical lookup does not apply.
+        if (graphPath.startsWith(facePrefix)) {
+          remainder = graphPath.slice(facePrefix.length);
+        } else if (graphPath.startsWith("rig/")) {
+          const segments = graphPath.split("/");
+          if (segments.length >= 3) {
+            remainder = segments.slice(2).join("/");
+          } else {
+            remainder = segments.slice(1).join("/");
+          }
+        }
+        remainder = remainder.replace(/^\/+/g, "");
+        const candidatePaths = new Set<string>([
+          `/${remainder}`,
+          stripStandardInputPathPrefix(`/${remainder}`),
+        ]);
+        if (remainder.startsWith("autorig/")) {
+          candidatePaths.add(
+            `/rig/element/${remainder.slice("autorig/".length)}`,
+          );
+        }
+        if (remainder.startsWith("rig/element/")) {
+          candidatePaths.add(
+            `/autorig/${remainder.slice("rig/element/".length)}`,
+          );
+        }
+        if (remainder.startsWith("pose/control/")) {
+          candidatePaths.add(
+            `/autorig/${remainder.slice("pose/control/".length)}`,
+          );
+        }
+        if (remainder.startsWith("rig/control/")) {
+          candidatePaths.add(
+            `/autorig/${remainder.slice("rig/control/".length)}`,
+          );
+        }
+        for (const candidatePath of Array.from(candidatePaths)) {
+          const normalizedCandidate =
+            normalizeStandardRigInputPath(candidatePath);
+          matched = standardInputsByPath.get(normalizedCandidate);
+          if (matched) {
+            break;
+          }
         }
       }
       if (!matched) {
@@ -2152,6 +2180,7 @@ export function useRigController(
     resetDrivenAnimatables,
     standardInputsById,
     standardInputsByPath,
+    rigOutputLookup,
   ]);
 
   useEffect(() => {
