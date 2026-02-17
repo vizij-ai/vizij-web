@@ -37,7 +37,7 @@ This file is the relevance filter for all authoring notes. Use this before actin
 3. Group lifecycle editing is still path-first and needs explicit group create/rename/delete UX.
 4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
 5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
-6. Poses/Pose Groups/Drivers panes are not yet implemented in the target topology.
+6. Poses surface tabs now share with dedicated Pose Groups/Drivers wiring in progress; left column still needs final Face Elements + dedicated Drivers panel selection semantics.
 7. One globally selected item across panes (and deterministic inspector routing) is still pending.
 8. `/rig/element` path handling needs implementation for metadata-only rig auto-generated paths and exclusion from face/variable editing paths.
 

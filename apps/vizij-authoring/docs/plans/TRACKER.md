@@ -10,7 +10,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
 4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. The first active implementation item is R0 surface decomposition (Variables + Poses tabs in `VariablesPanel`), followed by aggregate-source and boundary tasks.
+5. The active implementation item is R0 surface decomposition: `VariablesPanel` now carries Variables, Poses, and Drivers surfaces with dedicated left-pane wiring in progress.
 6. Remaining P1 focus is on aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
 
 ## Deliverables
@@ -94,7 +94,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Scope:
    - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Drivers.
    - one globally selected item is shared between panes.
-   - Variables and Poses tabbed decomposition is complete in `VariablesPanel`; next step is dedicated Pose Groups and Drivers panes.
+   - Variables and Poses tabbed decomposition and Drivers surface are implemented in `VariablesPanel`; next step is dedicated Pose Groups and Drivers panes.
    - Variables pane supports true external inputs only, path-grouped key-value controls, and opens sliders directly for selected leaf values.
    - Poses pane shows all defined poses, with inspector affordance to see group membership and add/remove group membership.
    - Pose Groups pane supports list/inspect/edit for group membership plus cross-group blend-mode selection.
