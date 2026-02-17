@@ -64,6 +64,20 @@ export interface RehydratedRigData {
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   inputMetadata: Map<string, { source?: string; root?: string }>;
+  legacyAutorigInputPaths: string[];
+}
+
+const LEGACY_AUTORIG_PREFIX = "/rig/element";
+
+function isLegacyAutorigPath(path: string | undefined | null): boolean {
+  if (!path) {
+    return false;
+  }
+  const trimmed = path.trim();
+  return (
+    trimmed.startsWith(`${LEGACY_AUTORIG_PREFIX}/`) ||
+    trimmed.startsWith(`${LEGACY_AUTORIG_PREFIX}`)
+  );
 }
 
 function resolveImportedInputGroup(
@@ -280,6 +294,14 @@ export function rehydrateRigDataFromGraph(
     return created;
   });
 
+  const legacyAutorigInputPaths = new Set<string>();
+
+  vizij.inputs.forEach((input) => {
+    if (isLegacyAutorigPath(input.path)) {
+      legacyAutorigInputPaths.add(input.path);
+    }
+  });
+
   const standardInputsById = new Map(
     standardInputs.map((input) => [input.id, input]),
   );
@@ -298,5 +320,6 @@ export function rehydrateRigDataFromGraph(
     bindings,
     inputBindings,
     inputMetadata,
+    legacyAutorigInputPaths: Array.from(legacyAutorigInputPaths),
   };
 }
