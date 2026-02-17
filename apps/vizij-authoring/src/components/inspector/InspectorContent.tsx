@@ -91,6 +91,23 @@ type InspectorChainNode = {
   targetId?: string;
 };
 
+function extractComponentIdFromInputSourceId(
+  sourceId: string | null | undefined,
+): string | null {
+  if (!sourceId) {
+    return null;
+  }
+  const parts = sourceId.split(":");
+  if (parts[0] !== "component" || parts.length < 5) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(parts[4]);
+  } catch {
+    return parts[4] ?? null;
+  }
+}
+
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
   const [rigAddMode, setRigAddMode] = useState<"property" | "variable">(
@@ -190,6 +207,22 @@ export function InspectorContent() {
     () => resolveRigMetadataInputId(selectedRigId, standardInputsById),
     [selectedRigId, standardInputsById],
   );
+  const autorigInputIdByComponentId = useMemo(() => {
+    const resolved = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const componentId =
+        entry.metadata?.componentId ??
+        extractComponentIdFromInputSourceId(entry.input.sourceId);
+      if (!componentId) {
+        return;
+      }
+      if (resolved.has(componentId)) {
+        return;
+      }
+      resolved.set(componentId, entry.input.id);
+    });
+    return resolved;
+  }, [managedStandardInputs]);
   const referenceFace = useReferenceFace();
   const {
     policy: sharedSyncPolicy,
@@ -1562,9 +1595,33 @@ export function InspectorContent() {
           if (!shouldApplyBulk) {
             return;
           }
+          const missingTargetIds: string[] = [];
+          let linkedCount = 0;
           resolvedSelection.targetIds.forEach((targetId) => {
-            handleBindingInputChange(targetId, resolvedSelectedRigId);
+            const autorigInputId = autorigInputIdByComponentId.get(targetId);
+            if (!autorigInputId) {
+              missingTargetIds.push(targetId);
+              return;
+            }
+            const existingInputBinding = inputBindings[autorigInputId];
+            const alreadyLinked = hasParentBindingInput(
+              existingInputBinding,
+              resolvedSelectedRigId,
+            );
+            if (alreadyLinked) {
+              return;
+            }
+            handleCreateParentDriverBinding(
+              autorigInputId,
+              resolvedSelectedRigId,
+            );
+            linkedCount += 1;
           });
+          if (missingTargetIds.length > 0 && linkedCount === 0) {
+            alertDialog(
+              "Some selected properties are not currently mapped to autorig inputs.",
+            );
+          }
           return;
         }
       };
