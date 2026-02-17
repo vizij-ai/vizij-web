@@ -6,6 +6,7 @@ import {
   Zap,
   Activity,
   Play,
+  Trash2,
   Search,
   Sliders,
   Users,
@@ -36,10 +37,7 @@ import type {
   SharedVariableConflict,
   SharedVariableSyncPolicy,
 } from "../../hooks/useSharedVariableSync";
-import {
-  collectDirectDownstreamRigInputs,
-  collectRigDependents,
-} from "../inspector/rigConnections";
+import { collectDirectDownstreamRigInputs } from "../inspector/rigConnections";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -72,6 +70,11 @@ interface DriverListRow {
   direction: "incoming" | "outgoing";
   detail?: string;
   route: DriverNavigationTarget;
+  bindingTargets?: Array<{
+    targetId: string;
+    sourceId: string;
+    slotId?: string;
+  }>;
 }
 
 function normalizePoseGroupPath(value: string | null | undefined): string {
@@ -82,25 +85,28 @@ function normalizePoseGroupPath(value: string | null | undefined): string {
   return trimmed.replace(/^\/+|\/+$/g, "");
 }
 
-function collectBindingInputIds(binding: AnimatableBinding): string[] {
-  const ids = new Set<string>();
-  if (
-    binding.inputId &&
-    binding.inputId !== SELF_BINDING_ID &&
-    binding.inputId.trim().length > 0
-  ) {
-    ids.add(binding.inputId);
-  }
-  (binding.slots ?? []).forEach((slot) => {
-    if (
-      slot.inputId &&
-      slot.inputId !== SELF_BINDING_ID &&
-      slot.inputId.trim().length > 0
-    ) {
-      ids.add(slot.inputId);
+function collectBindingSourceSlots(
+  binding: AnimatableBinding,
+): Array<{ sourceId: string; slotId?: string }> {
+  const links: Array<{ sourceId: string; slotId?: string }> = [];
+  const seen = new Set<string>();
+  const add = (sourceId: string | null | undefined, slotId?: string) => {
+    if (!sourceId) return;
+    const trimmed = sourceId.trim();
+    if (!trimmed || trimmed === SELF_BINDING_ID) return;
+    const key = `${trimmed}|${slotId ?? ""}`;
+    if (seen.has(key)) {
+      return;
     }
+    seen.add(key);
+    links.push({ sourceId: trimmed, slotId });
+  };
+
+  add(binding.inputId, binding.slots[0]?.id);
+  binding.slots.forEach((slot) => {
+    add(slot.inputId, slot.id);
   });
-  return Array.from(ids);
+  return links;
 }
 
 function poseGroupDisplayLabel(path: string): string {
@@ -324,18 +330,32 @@ function TreeRowWrapper({
       actions={
         <>
           {node.type === "pose" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 hover:text-accent"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAction?.(node, "play");
-              }}
-              title="Apply Pose"
-            >
-              <Play size={10} fill="currentColor" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "play");
+                }}
+                title="Apply Pose"
+              >
+                <Play size={10} fill="currentColor" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-amber-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "delete-pose");
+                }}
+                title="Delete Pose"
+              >
+                <Trash2 size={10} />
+              </Button>
+            </>
           )}
 
           {node.type === "rig" &&
@@ -351,6 +371,22 @@ function TreeRowWrapper({
                 title="Copy variable to main face"
               >
                 <Copy size={10} />
+              </Button>
+            )}
+          {node.type === "rig" &&
+            (node.data as RigNodeData | undefined)?.source === "custom" &&
+            !(node.data as RigNodeData | undefined)?.disabled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-amber-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "delete-variable");
+                }}
+                title="Delete variable"
+              >
+                <Trash2 size={10} />
               </Button>
             )}
 
@@ -445,6 +481,7 @@ export function VariablesPanel({
     createPoseGroup,
     renamePoseGroup,
     deletePoseGroup,
+    deletePose,
     crossGroupBlendMode,
     blendMode,
     setCrossGroupBlendMode,
@@ -590,6 +627,9 @@ export function VariablesPanel({
     inputBindings,
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
+    handleDeleteCustomStandardInput,
+    handleUnlinkChildInput,
+    handleBindingInputChange,
   } = useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
   const {
@@ -724,6 +764,11 @@ export function VariablesPanel({
     return { labels, owners };
   }, [objects]);
 
+  const sceneObjectLabelById = useMemo(
+    () => new Map(objects.map((node) => [node.id, node.name])),
+    [objects],
+  );
+
   const selectedSceneNode = selectedSceneId ? getNode(selectedSceneId) : null;
 
   const resolvedSelectedRigId = useMemo(() => {
@@ -772,20 +817,40 @@ export function VariablesPanel({
         if (isSelectedRigMatch(targetInputId)) {
           return;
         }
-        const inputIds = collectBindingInputIds(binding);
-        if (!inputIds.some((inputId) => isSelectedRigMatch(inputId))) {
+        const sourceBindings = new Map<string, Array<{ slotId?: string }>>();
+        collectBindingSourceSlots(binding).forEach(({ sourceId, slotId }) => {
+          if (!isSelectedRigMatch(sourceId)) {
+            return;
+          }
+          const existing = sourceBindings.get(sourceId);
+          if (existing) {
+            existing.push({ slotId });
+            return;
+          }
+          sourceBindings.set(sourceId, [{ slotId }]);
+        });
+        if (sourceBindings.size === 0) {
           return;
         }
         const input = standardInputsById.get(targetInputId);
         if (isRigElementStandardInputPath(input?.path)) {
           return;
         }
-        rows.push({
-          id: targetInputId,
-          label: input?.label || input?.path || targetInputId,
-          direction: "incoming",
-          detail: input?.path || targetInputId,
-          route: { kind: "rig", id: targetInputId },
+        const sourceEntries = Array.from(sourceBindings.entries());
+        sourceEntries.forEach(([sourceId, sourceSlots]) => {
+          const sourceInput = standardInputsById.get(sourceId);
+          rows.push({
+            id: `${targetInputId}->${sourceId}`,
+            label: sourceInput?.label || sourceInput?.path || sourceId,
+            direction: "incoming",
+            detail: input?.path || targetInputId,
+            route: { kind: "rig", id: sourceId },
+            bindingTargets: sourceSlots.map((entry) => ({
+              targetId: targetInputId,
+              sourceId,
+              slotId: entry.slotId,
+            })),
+          });
         });
       });
       return rows;
@@ -818,43 +883,58 @@ export function VariablesPanel({
       );
       const incomingMap = new Map<
         string,
-        { detail: string; source: string; row: DriverListRow }
+        {
+          detailLabels: Set<string>;
+          row: DriverListRow;
+        }
       >();
       targetIds.forEach((targetId) => {
         const binding = bindings[targetId];
         if (!binding) {
           return;
         }
-        const inputIds = collectBindingInputIds(binding);
-        for (const sourceId of inputIds) {
+        collectBindingSourceSlots(binding).forEach(({ sourceId, slotId }) => {
           const sourceInput = standardInputsById.get(sourceId);
-          if (!sourceInput) {
-            continue;
-          }
-          if (isRigElementStandardInputPath(sourceInput.path)) {
-            continue;
+          if (!sourceInput || isRigElementStandardInputPath(sourceInput.path)) {
+            return;
           }
           const existing = incomingMap.get(sourceId);
           const targetLabel =
             sceneTargetObjectLabelById.labels.get(targetId) ?? targetId;
           if (existing) {
-            existing.detail = `${existing.detail} + ${targetLabel}`;
-            continue;
+            existing.detailLabels.add(targetLabel);
+            existing.row.bindingTargets?.push({
+              targetId,
+              sourceId,
+              slotId,
+            });
+            return;
           }
           incomingMap.set(sourceId, {
-            detail: targetLabel,
-            source: sourceId,
+            detailLabels: new Set([targetLabel]),
             row: {
-              id: sourceId,
+              id: `incoming-${sourceId}`,
               label: sourceInput.label || sourceInput.path || sourceId,
               direction: "incoming",
               detail: targetLabel,
               route: { kind: "rig", id: sourceId },
+              bindingTargets: [
+                {
+                  targetId,
+                  sourceId,
+                  slotId,
+                },
+              ],
             },
           });
-        }
+        });
       });
-      return Array.from(incomingMap.values()).map((entry) => entry.row);
+      const incomingRows = Array.from(incomingMap.values()).map((entry) => ({
+        ...entry.row,
+        detail: Array.from(entry.detailLabels).join(" + "),
+      }));
+      incomingRows.sort((left, right) => left.label.localeCompare(right.label));
+      return incomingRows;
     }
 
     return rows;
@@ -870,6 +950,7 @@ export function VariablesPanel({
     selectedSceneNode,
     standardInputsById,
     selectedSceneId,
+    isSelectedRigMatch,
     sceneTargetObjectLabelById.labels,
   ]);
 
@@ -891,38 +972,89 @@ export function VariablesPanel({
           return;
         }
         const source = standardInputsById.get(entry.id);
+        const binding = inputBindings[entry.id];
+        if (!binding) {
+          return;
+        }
+        const sourceSlots = collectBindingSourceSlots(binding).filter(
+          ({ sourceId }) => isSelectedRigMatch(sourceId),
+        );
+        if (sourceSlots.length === 0) {
+          return;
+        }
         rows.push({
           id: entry.id,
           label: entry.label,
           direction: "outgoing",
           detail: source?.path || entry.id,
           route: { kind: "rig", id: entry.id },
+          bindingTargets: sourceSlots.map(({ sourceId, slotId }) => ({
+            targetId: entry.id,
+            sourceId,
+            slotId,
+          })),
         });
       });
 
-      const dependents = collectRigDependents({
-        selectedRigId: effectiveSelectedRigId,
-        bindings,
-        inputBindings,
-        objects,
-        standardInputsById,
-      });
-      dependents.forEach((entry) => {
-        const ownerId = sceneTargetObjectLabelById.owners.get(entry.targetId);
+      const dependentsByObject = new Map<
+        string,
+        {
+          detailLabels: Set<string>;
+          row: DriverListRow;
+        }
+      >();
+      Object.entries(bindings).forEach(([targetId, binding]) => {
+        const ownerId = sceneTargetObjectLabelById.owners.get(targetId);
         if (!ownerId) {
           return;
         }
-        rows.push({
-          id: entry.targetId,
-          label: entry.name,
-          direction: "outgoing",
-          detail: `Scene property`,
-          route: {
-            kind: "scene-object",
-            id: ownerId,
+        const sourceSlots = collectBindingSourceSlots(binding).filter(
+          ({ sourceId }) => isSelectedRigMatch(sourceId),
+        );
+        if (sourceSlots.length === 0) {
+          return;
+        }
+        const targetLabel =
+          sceneTargetObjectLabelById.labels.get(targetId) ?? targetId;
+        const existing = dependentsByObject.get(ownerId);
+        if (existing) {
+          existing.detailLabels.add(targetLabel);
+          sourceSlots.forEach(({ sourceId, slotId }) => {
+            existing.row.bindingTargets?.push({
+              targetId,
+              sourceId,
+              slotId,
+            });
+          });
+          return;
+        }
+        dependentsByObject.set(ownerId, {
+          detailLabels: new Set([targetLabel]),
+          row: {
+            id: `outgoing-scene-${ownerId}`,
+            label: sceneObjectLabelById.get(ownerId) ?? ownerId,
+            direction: "outgoing",
+            detail: targetLabel,
+            route: {
+              kind: "scene-object",
+              id: ownerId,
+            },
+            bindingTargets: sourceSlots.map(({ sourceId, slotId }) => ({
+              targetId,
+              sourceId,
+              slotId,
+            })),
           },
         });
       });
+      const dependents = Array.from(dependentsByObject.values()).map(
+        (entry) => ({
+          ...entry.row,
+          detail: Array.from(entry.detailLabels).join(" + "),
+        }),
+      );
+      dependents.sort((left, right) => left.label.localeCompare(right.label));
+      rows.push(...dependents);
       return rows;
     }
 
@@ -952,8 +1084,10 @@ export function VariablesPanel({
     effectiveSelectedRigId,
     inputBindings,
     standardInputsById,
-    objects,
+    isSelectedRigMatch,
+    sceneObjectLabelById,
     sceneTargetObjectLabelById.owners,
+    sceneTargetObjectLabelById.labels,
   ]);
 
   const sourceCounts = useMemo(() => {
@@ -1356,6 +1490,18 @@ export function VariablesPanel({
       applyPose(poseData.id);
       return;
     }
+    if (node.type === "pose" && action === "delete-pose") {
+      const poseData = node.data as PoseDefinition;
+      if (poseData.id === "__pose_rig_neutral__") {
+        return;
+      }
+      const ok = window.confirm(`Delete pose "${poseData.name}"?`);
+      if (!ok) {
+        return;
+      }
+      deletePose(poseData.id);
+      return;
+    }
     if (node.type === "rig" && action === "copy-to-main") {
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
@@ -1363,9 +1509,43 @@ export function VariablesPanel({
       }
       return;
     }
+    if (node.type === "rig" && action === "delete-variable") {
+      const rigData = node.data as RigNodeData;
+      if (rigData.source !== "custom") {
+        return;
+      }
+      const label =
+        rigData.input.label || rigData.input.path || rigData.input.id;
+      const ok = window.confirm(`Delete custom variable "${label}"?`);
+      if (!ok) {
+        return;
+      }
+      handleDeleteCustomStandardInput(rigData.input.id);
+      onSelectRig?.(null);
+      return;
+    }
     if (node.type === "folder" && action === "inspect-pose-group") {
       openPoseGroupInspector(node);
     }
+  };
+
+  const handleDeleteDriverRow = (row: DriverListRow) => {
+    if (!row.bindingTargets?.length) {
+      return;
+    }
+    const ok = window.confirm(`Remove driver "${row.label}"?`);
+    if (!ok) {
+      return;
+    }
+    if (row.route.kind === "scene-object") {
+      row.bindingTargets.forEach(({ targetId, slotId }) => {
+        handleBindingInputChange(targetId, null, slotId);
+      });
+      return;
+    }
+    row.bindingTargets.forEach(({ targetId, sourceId }) => {
+      handleUnlinkChildInput(sourceId, targetId);
+    });
   };
 
   const handleSelect = (node: TreeNode) => {
@@ -2040,28 +2220,46 @@ export function VariablesPanel({
                               Incoming
                             </div>
                             {visibleIncomingDrivers.map((row) => (
-                              <button
+                              <div
                                 key={`incoming-${row.id}`}
-                                type="button"
-                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 text-left flex items-center gap-2 text-xs"
-                                onClick={() => handleOpenDriverTarget(row)}
+                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 flex items-center gap-2 text-xs"
                               >
-                                <ArrowRight
-                                  size={12}
-                                  className="text-text-muted rotate-180"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium truncate">
-                                    {row.label}
-                                  </div>
-                                  {row.detail && (
-                                    <div className="text-[10px] text-text-muted truncate">
-                                      {row.detail}
+                                <button
+                                  type="button"
+                                  className="flex-1 text-left flex items-center gap-2"
+                                  onClick={() => handleOpenDriverTarget(row)}
+                                >
+                                  <ArrowRight
+                                    size={12}
+                                    className="text-text-muted rotate-180"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate">
+                                      {row.label}
                                     </div>
-                                  )}
-                                </div>
-                                <ChevronRight size={10} />
-                              </button>
+                                    {row.detail && (
+                                      <div className="text-[10px] text-text-muted truncate">
+                                        {row.detail}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <ChevronRight size={10} />
+                                </button>
+                                {row.bindingTargets?.length ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-text-secondary hover:text-amber-300"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteDriverRow(row);
+                                    }}
+                                    title="Remove driver"
+                                  >
+                                    <Trash2 size={10} />
+                                  </Button>
+                                ) : null}
+                              </div>
                             ))}
                           </div>
                         )}
@@ -2072,28 +2270,46 @@ export function VariablesPanel({
                               Outgoing
                             </div>
                             {visibleOutgoingDrivers.map((row) => (
-                              <button
+                              <div
                                 key={`outgoing-${row.id}`}
-                                type="button"
-                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 text-left flex items-center gap-2 text-xs"
-                                onClick={() => handleOpenDriverTarget(row)}
+                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 flex items-center gap-2 text-xs"
                               >
-                                <ArrowRight
-                                  size={12}
-                                  className="text-text-muted"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium truncate">
-                                    {row.label}
-                                  </div>
-                                  {row.detail && (
-                                    <div className="text-[10px] text-text-muted truncate">
-                                      {row.detail}
+                                <button
+                                  type="button"
+                                  className="flex-1 text-left flex items-center gap-2"
+                                  onClick={() => handleOpenDriverTarget(row)}
+                                >
+                                  <ArrowRight
+                                    size={12}
+                                    className="text-text-muted"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate">
+                                      {row.label}
                                     </div>
-                                  )}
-                                </div>
-                                <ChevronRight size={10} />
-                              </button>
+                                    {row.detail && (
+                                      <div className="text-[10px] text-text-muted truncate">
+                                        {row.detail}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <ChevronRight size={10} />
+                                </button>
+                                {row.bindingTargets?.length ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-text-secondary hover:text-amber-300"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteDriverRow(row);
+                                    }}
+                                    title="Remove driver"
+                                  >
+                                    <Trash2 size={10} />
+                                  </Button>
+                                ) : null}
+                              </div>
                             ))}
                           </div>
                         )}

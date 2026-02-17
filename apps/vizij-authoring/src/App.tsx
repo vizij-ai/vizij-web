@@ -207,7 +207,7 @@ function AppContent({ loader }: AppContentProps) {
 
   const { panels } = useWorkspaceStore();
   const {
-    selectedId: selectedSceneId,
+    selectedId,
     selectedRigId,
     selectedPoseId,
     handleSelectObject,
@@ -215,6 +215,7 @@ function AppContent({ loader }: AppContentProps) {
     handleSelectRig,
     handleClearSelection,
   } = useUnifiedSelection();
+  const selectedSceneId = selectedId;
 
   const sharedVariableSync = useSharedVariableSync({
     mainInputsById: mainFaceInputsById,

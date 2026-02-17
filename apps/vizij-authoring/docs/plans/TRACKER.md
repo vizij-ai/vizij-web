@@ -137,6 +137,11 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - add diagnostics for empty groups, missing aggregate contributors, boundary violations, and unresolved target coverage.
    - route each diagnostic to the owning editor context.
 
+8. R7 Drivers relationship lifecycle in dedicated Drivers pane: `done`
+   Scope:
+   - provide explicit unlink/delete actions for rig-to-rig and rig-to-scene driver links from the Drivers list.
+   - preserve chain-safe routing when removing a relationship.
+
 Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
 ## Validation Health
