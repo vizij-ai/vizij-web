@@ -31,6 +31,9 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === "--") {
+      continue;
+    }
     switch (arg) {
       case "--url":
         options.url = argv[i + 1];

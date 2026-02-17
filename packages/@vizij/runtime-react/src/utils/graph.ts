@@ -3,10 +3,20 @@ import type { GraphRegistrationConfig } from "@vizij/orchestrator-react";
 type GraphLikeNode = {
   id?: string;
   type?: string;
+  kind?: string;
   params?: {
     path?: string;
   };
+  path?: string;
 };
+
+function getNodeKind(node: GraphLikeNode): string {
+  return String(node.type ?? node.kind ?? "").toLowerCase();
+}
+
+function getNodePath(node: GraphLikeNode): string {
+  return String(node.params?.path ?? node.path ?? "").trim();
+}
 
 function getNodes(spec: GraphRegistrationConfig["spec"]): GraphLikeNode[] {
   if (!spec || typeof spec !== "object") {
@@ -28,11 +38,11 @@ export function collectOutputPaths(
     if (typeof node !== "object" || !node) {
       return;
     }
-    if (String(node.type ?? "").toLowerCase() !== "output") {
+    if (getNodeKind(node) !== "output") {
       return;
     }
-    const path = node.params?.path;
-    if (typeof path === "string" && path.trim()) {
+    const path = getNodePath(node);
+    if (path) {
       outputs.add(path.trim());
     }
   });
@@ -45,11 +55,11 @@ export function collectInputPaths(
   const nodes = getNodes(spec);
   const inputs = new Set<string>();
   nodes.forEach((node) => {
-    if (String(node.type ?? "").toLowerCase() !== "input") {
+    if (getNodeKind(node) !== "input") {
       return;
     }
-    const path = node.params?.path;
-    if (typeof path === "string" && path.trim()) {
+    const path = getNodePath(node);
+    if (path) {
       inputs.add(path.trim());
     }
   });
@@ -62,11 +72,11 @@ export function collectInputPathMap(
   const map: Record<string, string> = {};
   const nodes = getNodes(spec);
   nodes.forEach((node) => {
-    if (String(node.type ?? "").toLowerCase() !== "input") {
+    if (getNodeKind(node) !== "input") {
       return;
     }
-    const path = node.params?.path;
-    if (typeof path !== "string" || !path.trim()) {
+    const path = getNodePath(node);
+    if (!path) {
       return;
     }
     const id = String(node.id ?? "");

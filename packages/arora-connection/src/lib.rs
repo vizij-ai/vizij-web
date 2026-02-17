@@ -39,8 +39,8 @@ pub use method::{InvokeResult, MethodInfo, MethodParam};
 // Connection trait and handler types
 #[cfg(feature = "async")]
 pub use traits::{
-    AroraConnection, GetSlotValuesHandler, MethodHandler, SetSlotValuesHandler,
-    SetSlotValuesResult,
+    AroraConnection, GetSlotValuesHandler, MethodHandler, OnClientConnectedHandler,
+    SetSlotValuesHandler, SetSlotValuesResult,
 };
 
 // Re-export cancellation token for convenience

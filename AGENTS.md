@@ -14,7 +14,7 @@ This note keeps coding agents aligned with the current `vizij-web` monorepo. Rea
 
 ## Documentation
 
-The codebase lives in `vizij-web` and `vizij-rs`, but project plans, specs, and design docs live in the sibling `vizij_docs` repository. Always check `vizij_docs` for the latest context before starting a task.
+The codebase lives in `vizij-web` and `vizij-rs`, but project plans, specs, and design docs live in the sibling `vizij-docs` repository. Always check `vizij-docs` for the latest context before starting a task.
 
 ## Workspace Map
 
