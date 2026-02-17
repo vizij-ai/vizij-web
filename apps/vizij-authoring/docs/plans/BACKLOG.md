@@ -90,8 +90,8 @@ Use this file for app-local implementation backlog only.
 ## P1 (next up)
 
 - [x] Build dedicated authoring side-surface taxonomy for the left panel.
-      Context: left-side authoring surfaces are now split into dedicated Face Elements, Variables, Poses, Pose Groups, and Drivers panes (panel visibility remains configurable).
-      Goal: split the left sidebar into explicit sections: 1) Face Elements, 2) Variables, 3) Poses, 4) Pose Groups, 5) Drivers.
+      Context: left-side authoring surfaces are now split into dedicated Face Elements, Variables, Poses, Pose Groups, and Inputs panes (panel visibility remains configurable).
+      Goal: split the left sidebar into explicit sections: 1) Face Elements, 2) Variables, 3) Poses, 4) Pose Groups, 5) Inputs.
       Exit criteria: 1. each section has independent selection context with one globally selected inspector target. 2. selecting any item routes one deterministic inspector state. 3. variable selection opens a slider-only editor for the selected leaf.
 
 - [x] Expose a consolidated Poses panel showing all poses and pose-group membership.
@@ -104,15 +104,15 @@ Use this file for app-local implementation backlog only.
       Goal: add explicit create/rename/delete/select/persist UI for pose groups, with cross-group blend mode controls in the pane and group-local blend controls in the inspector.
       Exit criteria: 1. users can create/rename/delete groups directly. 2. users can add/remove poses from groups. 3. users can set group-local blend modes from the pose group inspector. 4. users can set cross-group blend modes from the pose groups pane.
 
-- [x] Keep Drivers as a dedicated inspection surface for drive relationships.
+- [x] Keep Inputs as a dedicated inspection surface for drive relationships.
       Context: driver graph currently mixes with other content and can hide what drives what.
       Goal: make driver introspection explicit for each selected item: - what the item drives - what drives the item
       Exit criteria: 1. both incoming/outgoing drive links are inspectable. 2. each entry supports clickthrough to the linked item editor. 3. empty/ambiguous relationships are explicitly explained.
 
-- [x] Treat auto-generated animatable-driven rig paths as metadata under `/rig/element`.
+- [x] Treat auto-generated animatable-driven rig paths as metadata under `/autorig`.
       Context: these lower-level rig drivers should be treated as implementation details and not exposed as user-editable variables.
-      Goal: prefix generated rig bindings with `/rig/element` and hide them from Variables and Drivers.
-      Exit criteria: 1. no `/rig/element` paths appear in Variables panel inputs. 2. no `/rig/element` paths appear in Drivers outputs. 3. the same underlying control still appears in rig inspector as aliased ownership to its target property.
+      Goal: prefix generated rig bindings with `/autorig` and hide them from Variables as primary user-editables.
+      Exit criteria: 1. no `/autorig` paths appear in Variables panel inputs. 2. no `/autorig` paths appear in Inputs outputs unless in metadata mode. 3. the same underlying control still appears in rig inspector as aliased ownership to its target property.
 
 - [x] Implement first-class pose-group domain model (not just `pose.group` labels).
       Context: current pose compiler treats groups primarily as naming/path metadata, but target behavior requires group entities with own blend semantics.
@@ -143,8 +143,8 @@ Use this file for app-local implementation backlog only.
       Goal: make rig target binding semantics explicit: aggregate pose layer -> rig variable target.
       Exit criteria: 1. Inspector can show and navigate pose entry vs group output vs aggregate output. 2. Binding editor targets aggregate pose-layer sources where appropriate. 3. Chain labels are unambiguous and typed.
 - [x] Enforce rig-layer boundary: only low-level rig variables may write animatable leaves.
-      Context: target architecture requires higher-order variables to compose through rig bindings, not direct animatable writes.
-      Goal: prevent invalid higher-order-to-animatable wiring and provide migration guidance for legacy assets.
+      Context: target architecture requires abstract-rig variables to compose through rig bindings, not direct animatable writes.
+      Goal: prevent invalid abstract-rig-to-animatable wiring and provide migration guidance for legacy assets.
       Exit criteria: 1. Compiler blocks or migrates invalid boundary-crossing bindings with diagnostics. 2. UI prevents creating new invalid direct mappings. 3. Tests cover valid and invalid boundary cases.
 - [x] Add pose-group and blend-strategy authoring UI.
       Context: no first-class editor exists for group-local and cross-group blend strategy configuration.

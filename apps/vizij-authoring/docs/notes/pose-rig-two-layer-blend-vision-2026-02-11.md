@@ -11,16 +11,16 @@ Compile must build a full chain:
 
 1. blend poses inside each pose group
 2. blend group outputs per rig target
-3. combine those pose-layer outputs with non-pose drivers for the same rig target
+3. combine those pose-layer outputs with non-pose rig inputs for the same rig target
 4. propagate through rig-variable chains until low-level rig variables write animatable leaves
 
-Runtime should execute this as one coherent graph contract, regardless of whether control comes from sliders, parent rig drivers, or pose groups.
+Runtime should execute this as one coherent graph contract, regardless of whether control comes from sliders, parent rig inputs, or pose groups.
 
 ## 2) Terminology (target)
 
 1. Animatable leaf: renderer-facing property component (for example morph value or transform axis).
 2. Low-level rig variable: leaf rig input that can write to animatable leaves.
-3. Higher-order rig variable: drives other rig variables; must not write animatables directly.
+3. Abstract-rig variable: drives other rig variables; must not write animatables directly.
 4. Pose: named set of desired rig-variable values.
 5. Pose group: set of sibling poses with a local blend strategy (for example `emotion`, `viseme`).
 6. Pose-group output: per-rig-target aggregate result from one pose group.
@@ -30,12 +30,12 @@ Runtime should execute this as one coherent graph contract, regardless of whethe
 
 1. Import face and discover animatables.
 2. Auto-create low-level rig variables for animatable leaves, with self slider handles.
-3. Add higher-order rig variables that target rig variables only.
+3. Add abstract-rig variables that target rig variables only.
 4. Create pose groups (for example `emotion`, `viseme`) and define poses within each group.
 5. Configure blend strategy per pose group and across pose groups.
 6. Compile to graph where pose-layer outputs bind into rig-variable targets (default additive), then resolve through rig bindings to animatables.
 
-Neutral is the default value baseline for rig variables across low-level and higher-order layers.
+Neutral is the default value baseline for rig variables across abstract-rig and low-level layers.
 
 ## 4) Group/path semantics (target clarification)
 
@@ -118,8 +118,8 @@ Default cross-group strategy: additive.
 
 Enforce low-level-only animatable writes:
 
-1. higher-order rig variables can target rig variables only
-2. compiler validates and rejects direct higher-order-to-animatable writes
+1. abstract-rig variables can target rig variables only
+2. compiler validates and rejects direct abstract-rig-to-animatable writes
 3. migration path auto-fixes or flags invalid legacy patterns
 
 ## P1-D UI
@@ -148,7 +148,7 @@ Add first-class pose-group authoring:
 1. A pose group can be created and assigned a local blend strategy.
 2. Two groups can target the same rig variable and blend deterministically via configured cross-group strategy.
 3. The inspector shows that the rig variable is driven by pose-layer aggregate outputs, not just single pose rows.
-4. Higher-order rig variables cannot directly bind animatables.
+4. abstract-rig variables cannot directly bind animatables.
 5. Exported graph reproduces equivalent runtime behavior when re-imported.
 
 ## 9) Notes on timestamps

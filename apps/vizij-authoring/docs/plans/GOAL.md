@@ -25,10 +25,10 @@ Deliver a fast, correct end-to-end loop:
 4. Pose authoring and blending produce runtime-valid pose graph behavior.
 5. Bundled export is blocked on invalid GraphSpec and includes runtime-required graph metadata.
 6. `pnpm --filter vizij-authoring typecheck` and target regression tests pass.
-7. Face Variables are separated from rig metadata (`/rig/element`) and exposed in dedicated control panes.
+7. Face Variables are separated from rig metadata (`/autorig`) and exposed in dedicated control panes.
 8. Pose authors can inspect all poses independently of groups, edit pose/group membership, and configure group blend modes without leaving the main authoring flow.
-9. Drivers are a dedicated inspector surface for what each item drives and what drives it.
-10. Variables pane targets true external inputs only (not generated `/rig/element` controls), and pose editing is centered on primary-face pose definitions first.
+9. Inputs are a dedicated inspector-adjacent surface for what each item drives and what drives it.
+10. Variables pane targets true external inputs only (not generated `/autorig` controls), and pose editing is centered on primary-face pose definitions first.
 
 ## Non-Goals (Current Phase)
 
@@ -40,4 +40,4 @@ Deliver a fast, correct end-to-end loop:
 
 ## Current Phase (2026-02-17)
 
-P0 is complete and prior P1 routing/parity tranche is complete. P1 now includes a user-experience refactor for control-surface decomposition (Variables, Poses, Pose Groups, Drivers) plus rig metadata aliasing (`/rig/element`) so face control editing stays focused. Remaining scope is still aggregate pose-output binding surfacing, import/diagnostic completeness, and import grouping controls before moving fully into P2.
+P0 is complete and prior P1 routing/parity tranche is complete. P1 now includes a user-experience refactor for control-surface decomposition (Variables, Poses, Pose Groups, Inputs) plus rig metadata aliasing (`/autorig`) so face control editing stays focused. Remaining scope is still aggregate pose-output binding surfacing, input-surface contract finalization, import/diagnostic completeness, and import grouping controls before moving fully into P2.

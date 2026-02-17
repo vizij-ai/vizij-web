@@ -12,13 +12,13 @@ This directory is the source of truth for authoring-app planning, status, and re
    - first-class pose-group config and two-layer pose blending compile path,
    - pose creation/play tooling and sidebar pose-group inspector.
 3. P1 completed in this tranche:
-   - dedicated left-column control-surface split into Face Elements, Variables, Poses, Pose Groups, Drivers,
+   - dedicated left-column control-surface split into Face Elements, Variables, Poses, Pose Groups, Inputs,
    - one globally selected item between panes with deterministic inspector routing,
    - Variables pane exposes true external inputs only, path-grouped, and opening directly to slider controls,
    - Poses pane lists primary-face pose definitions only (secondary-face pose workflow deferred),
    - all defined poses exposed in a dedicated pose pane with add/remove-to-group controls and membership visibility,
    - pose groups exposed as first-class entities with cross-group blend-mode controls in the pose-group pane and local blend-mode controls in the pose group inspector,
-   - `/rig/element` generated rig inputs are excluded from variable controls and Drivers and treated as face-graph aliases.
+   - `/autorig` generated rig inputs are excluded from Variables as user-facing controls and surfaced as face-graph aliases where needed.
 4. P1 remaining focus:
    - aggregate pose-output binding surfacing in inspector/binding flows,
    - strict rig-boundary enforcement + diagnostics,

@@ -9,9 +9,9 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 1. P0 stabilization is complete and still green.
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
-4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. Surface decomposition is now implemented as dedicated left-side panes for Face Elements, Variables, Poses, Pose Groups, and Drivers; remaining focus is diagnostics/import strategy completeness.
-6. `/rig/element` filtering is implemented in variable/driver surfaces, and alias-safe rig-context behavior is implemented via canonical rig selection matching.
+4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Inputs) plus `/autorig` handling for auto-generated rig inputs.
+5. Surface decomposition is now implemented as dedicated left-side panes for Face Elements, Variables, Poses, Pose Groups, and Inputs; remaining focus is diagnostics/import strategy completeness.
+6. `/autorig` entries are filtered from user-facing variable inputs, and alias-safe rig-context behavior is implemented via canonical rig selection matching.
 
 ## Deliverables
 
@@ -39,12 +39,12 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Evidence: GraphSpec/pose compile gating and warnings in `apps/vizij-authoring/src/hooks/useVizijExport.ts`; coverage in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
    Open: none.
 
-6. D6 Authoring control-surface decomposition and rig metadata normalization: `done`
+6. D6 Authoring control-surface decomposition and rig metadata normalization: `in_progress`
    Evidence:
-   - dedicated pane separation for Face Elements, Variables, Poses, Pose Groups, and Drivers in `apps/vizij-authoring/src/App.tsx` and `apps/vizij-authoring/src/layouts/WorkspaceLayout.tsx`.
+   - dedicated pane separation for Face Elements, Variables, Poses, Pose Groups, and Inputs in `apps/vizij-authoring/src/App.tsx` and `apps/vizij-authoring/src/layouts/WorkspaceLayout.tsx`.
    - panel visibility and toggles for the five control panes in `apps/vizij-authoring/src/state/workspaceStore.ts` and `apps/vizij-authoring/src/components/app/AppMenuBar.tsx`.
-   - `/rig/element` filtering for Variables/Drivers and alias-safe selection flow in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
-   - `/rig/element` namespace behavior is resolved during rig inspection and trace navigation in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - `/autorig` filtering for user-facing variable inputs and alias-safe selection flow in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
+   - `/autorig` namespace behavior is resolved during rig inspection and trace navigation in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
    - source-kind-aware rig routing is implemented in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx` and `InspectorContent.tsx`.
 
 ## Regression Follow-ups (Deep Review + Quori Smoke)
@@ -91,16 +91,16 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 ## P1 Remaining Queue
 
-1. R0 Dedicated authoring surfaces for Variables, Poses, Pose Groups, and Drivers: `done`
+1. R0 Dedicated authoring surfaces for Variables, Poses, Pose Groups, and Inputs: `done`
    Scope:
-   - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Drivers.
+   - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Inputs.
    - one globally selected item is shared between panes.
    - dedicated pane separation is implemented in `WorkspaceLayout` and `App`.
    - Variables pane supports true external inputs only, path-grouped key-value controls, and opens sliders directly for selected leaf values.
    - Poses pane shows all defined poses, with inspector affordance to see group membership and add/remove group membership.
    - Pose Groups pane supports list/inspect/edit for group membership plus cross-group blend-mode selection.
    - Pose Group inspector supports local blend-mode selection.
-   - Drivers pane makes explicit what each selected item drives and what drives it.
+   - Inputs pane makes explicit what each selected item drives and what drives it.
 
 2. R1 Aggregate-source semantics in inspector/binding UI: `done`
    Scope:
@@ -109,10 +109,10 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - align with new Poses/Pose Groups panes for consistent click-through behavior.
    - completed: `rigConnections` now tags chain entries with source kinds, `BindingConnections` surfaces those tags, and rig navigation routes `pose-aggregate-output` / `pose-group-output` to bindings view.
 
-3. R2 Rig metadata namespace + exclusion (`/rig/element`): `done`
+3. R2 Rig metadata namespace + exclusion (`/autorig`): `done`
    Scope:
-   - auto-generated animatable-driven rig inputs are normalized under the `rig/element` path prefix.
-   - hide `/rig/element` entries from Variables panel + Drivers.
+   - auto-generated animatable-driven rig inputs are normalized under the `autorig` path prefix.
+   - hide `/autorig` entries from Variables panel and expose them as metadata inputs in Inputs surface.
    - preserve behavior by treating these entries as aliases to their corresponding face properties in rig contexts.
    - update migration/import behavior if required to preserve existing references.
    - implemented status: namespace alias matching flows through `VariablesPanel`, `InspectorContent`, and `rigConnections`.
@@ -120,7 +120,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 4. R3 Rig boundary enforcement and diagnostics: `done`
    Scope:
    - enforce low-level-only animatable write boundary for rig variables.
-   - block/report invalid higher-order direct animatable writes with migration guidance.
+   - block/report invalid abstract-rig direct animatable writes with migration guidance.
 
 5. R4 First-class pose-group lifecycle editor: `done`
    Scope:
@@ -137,9 +137,9 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - add diagnostics for empty groups, missing aggregate contributors, boundary violations, and unresolved target coverage.
    - route each diagnostic to the owning editor context.
 
-8. R7 Drivers relationship lifecycle in dedicated Drivers pane: `done`
+8. R7 Inputs relationship lifecycle in dedicated Inputs pane: `done`
    Scope:
-   - provide explicit unlink/delete actions for rig-to-rig and rig-to-scene driver links from the Drivers list.
+   - provide explicit unlink/delete actions for rig-to-rig and rig-to-scene links from the Inputs list.
    - preserve chain-safe routing when removing a relationship.
 
 Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.

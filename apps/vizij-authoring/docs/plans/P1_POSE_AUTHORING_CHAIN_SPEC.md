@@ -12,7 +12,7 @@ This spec defines the next P1 tranche for pose authoring correctness:
 2. two-layer pose blending in compile output
 3. explicit pose-layer aggregate binding into rig variables
 4. strict rig-layer boundaries and corresponding UI/diagnostics
-5. control-surface decomposition for Face Elements / Variables / Poses / Pose Groups / Drivers and `/rig/element` metadata handling
+5. control-surface decomposition for Face Elements / Variables / Poses / Pose Groups / Inputs and `/autorig` metadata handling
 
 Reference vision note:
 
@@ -23,11 +23,11 @@ Reference vision note:
 ## 2.1 Authoring layers
 
 1. Animatable layer: renderer-facing leaves.
-2. Low-level rig layer: only layer that writes animatables.
-3. Higher-order rig layer: drives rig variables only.
+2. Abstract rig layer: drives rig variables only.
+3. Low-level rig layer: only layer that writes animatables.
 4. Pose group layer: blends poses inside each group.
 5. Pose aggregate layer: blends pose-group outputs per rig target.
-6. Rig metadata alias layer: auto-generated animatable-driven rig bindings with stable path namespaces (`/rig/element/...`) that are represented as metadata aliases in authoring UI.
+6. Rig metadata alias layer: auto-generated animatable-driven rig inputs with stable path namespaces (`/autorig/...`) that are represented as metadata aliases in authoring UI.
 
 ## 2.2 Pose semantics
 
@@ -62,7 +62,7 @@ For each rig target variable:
 5. Compiler emits two-layer pose blending (group-local + cross-group).
 6. Authoring UI exposes default group and cross-group blend strategy selection.
 7. Sidebar pose-group inspector allows group-level previewing (weights/solo/reset) against neutral baseline.
-8. Rig metadata aliases under `/rig/element` are hidden from Variables/Drivers and resolved in rig inspector via canonical mapping.
+8. Rig metadata aliases under `/autorig` are hidden from Variables and resolved in rig inspector via canonical mapping.
 
 ## 3.2 Not aligned (must change)
 
@@ -103,13 +103,13 @@ Acceptance criteria:
 
 Enforce low-level-only animatable write boundary:
 
-1. higher-order rig variables cannot target animatable components directly
+1. abstract-rig variables cannot target animatable components directly
 2. compiler diagnostics for invalid boundary crossings
 3. migration helper for legacy direct bindings
 
 Acceptance criteria:
 
-1. invalid higher-order-to-animatable mappings are blocked with explicit diagnostics
+1. invalid abstract-rig-to-animatable mappings are blocked with explicit diagnostics
 2. inspector can route boundary violation diagnostics to relevant contexts
 3. tests cover valid and invalid boundary scenarios
 
@@ -175,31 +175,31 @@ Define and enforce new left-side surface topology:
 2. Poses pane is complete, independent list of all primary-face poses; pose inspector includes group-membership section with add/remove actions.
 3. Pose Groups pane allows dedicated selection and cross-group blend-mode controls.
 4. Pose Group inspector adds local blend-mode controls.
-5. Drivers pane shows explicit incoming/outgoing relationship rows with deterministic navigation targets.
-6. Rig auto-generated paths under `/rig/element` are hidden from Variables and Drivers and surfaced as rig metadata aliases.
+5. Inputs surface shows explicit incoming/outgoing relationship rows with deterministic navigation targets.
+6. Rig auto-generated paths under `/autorig` are hidden from Variables and surfaced as rig metadata aliases.
 
 Acceptance criteria:
 
-1. A primary user flow can move between Variables, Poses, Pose Groups, and Drivers without reopening panels.
+1. A primary user flow can move between Variables, Poses, Pose Groups, and Inputs without reopening panels.
 2. Inspecting a pose from Poses pane reveals all groups the pose belongs to and allows membership edits.
 3. Inspecting a pose group exposes local blend-mode selector.
 4. Inspecting a pose group in the Pose Groups pane exposes cross-group blend mode.
-5. No `/rig/element` path is selectable from Variables for binding edits.
-6. `/rig/element`-scoped rig variables still resolve to their corresponding runtime effect during rig-level inspection.
+5. No `/autorig` path is selectable from Variables for binding edits.
+6. `/autorig`-scoped rig variables still resolve to their corresponding runtime effect during rig-level inspection.
 
 ## P1-T9 Rig metadata namespace and aliasing (`done`)
 
 Standardize generated rig variable namespaces:
 
-1. Lower-level generated rig inputs for animatable-driven paths are prefixed with `/rig/element`.
+1. Lower-level generated rig inputs for animatable-driven paths are prefixed with `/autorig`.
 2. Those entries are treated as metadata aliases for face-property control, not direct variables.
 3. Normalization logic for import/export/migration handles historical references consistently.
 
 Acceptance criteria:
 
-1. Authoring state emits `/rig/element`-prefixed rig paths for generated inputs.
-2. Variables panel and Drivers filtering exclude these entries by default.
-3. Rig inspector can trace the underlying face-property target for a `/rig/element` entry without exposing it as a user-edit variable.
+1. Authoring state emits `/autorig`-prefixed rig paths for generated inputs.
+2. Inputs/Variables filtering behavior excludes these entries from user-authored layers by default.
+3. Rig inspector can trace the underlying face-property target for a `/autorig` entry without exposing it as a user-edit variable.
 4. Existing assets import with clear diagnostics if references are missing or ambiguous.
 
 ## 5) Test requirements

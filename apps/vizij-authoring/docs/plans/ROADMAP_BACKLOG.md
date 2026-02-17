@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-17 (P1 control-surface and rig metadata refactor queued)
+Last updated: 2026-02-17 (P1 Inputs/control-surface finalization queued)
 
 ## Priority Bands
 
@@ -34,7 +34,7 @@ Status (2026-02-17): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-Status (2026-02-17): pose-group authoring controls are now implemented; remaining P1 focus is aggregate semantics, import/diagnostic completeness, and import strategy controls before full P2.
+Status (2026-02-17): pose-group authoring controls are now implemented; remaining P1 focus is Inputs finalization, aggregate diagnostics completeness, and import strategy controls before full P2.
 
 1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
 2. Done: routing-contract and chain regression coverage additions.
@@ -46,14 +46,14 @@ Status (2026-02-17): pose-group authoring controls are now implemented; remainin
 8. Done: two-layer pose blending compile topology (within-group, then cross-group).
 9. Done: blend strategy controls surfaced for authoring/export flow.
 10. Done: pose creation + pose-group inspection UI for hands-on chain validation.
-11. Done: split primary left panel into dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces.
+11. Done: split primary left panel into dedicated Face Elements / Variables / Poses / Pose Groups / Inputs surfaces.
 12. Done: finalize pose inspector + pose membership editing consistency in the dedicated Poses/Groups surfaces.
 13. Done: implement Pose Group lifecycle editor with cross-group blend-mode controls in the Pose Groups pane and local blend-mode controls in the pose-group inspector.
-14. Done: alias `/rig/element` rig inputs as metadata and keep them out of variable/driver chain edit surfaces.
+14. Done: alias `/autorig` rig inputs as metadata and keep them out of user-edit input variables.
 15. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
 16. Done: enforce rig boundary where only low-level rig variables can write animatable leaves.
 17. Done: finalize lifecycle operations for pose groups (rename/delete/edit) in dedicated Pose Group pane.
-18. Done: add explicit drivers relationship edit and removal actions in the dedicated Drivers surface (per-rig/scene link unlink + route-safe deletion).
+18. Done: add explicit Inputs relationship edit and removal actions in the dedicated Inputs surface (per-rig/scene link unlink + route-safe deletion).
 19. Next: add explicit import grouping strategy controls and group-level conflict handling.
 20. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
 21. Next: preserve deterministic group strategy and import behavior in migration/export docs.

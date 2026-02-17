@@ -79,7 +79,7 @@ Impact: chain readability is weaker than required for migration debugging.
 ## Implementation Plan (Ready for Fixes)
 
 1. Inspector terminology and IA pass:
-   - rename tabs/buttons to perspective-first language (`My Drivers`, `What I Drive`, etc.).
+   - rename tabs/buttons to perspective-first language (`My Inputs`, `What I Influence`, etc.).
    - split rig quick action into `Add Driven Property` and `Add Driven Variable`.
    - add explicit grouped headers and counts for downstream variable/property sections.
 
