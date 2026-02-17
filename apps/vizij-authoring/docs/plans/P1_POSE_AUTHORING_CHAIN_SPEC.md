@@ -1,6 +1,6 @@
 # P1 Pose Authoring Chain Spec
 
-Last updated: 2026-02-11
+Last updated: 2026-02-17
 Owner: Vizij Authoring
 Status: in_progress (top-priority P1, partial implementation landed)
 
@@ -12,6 +12,7 @@ This spec defines the next P1 tranche for pose authoring correctness:
 2. two-layer pose blending in compile output
 3. explicit pose-layer aggregate binding into rig variables
 4. strict rig-layer boundaries and corresponding UI/diagnostics
+5. control-surface decomposition for Face Elements / Variables / Poses / Pose Groups / Drivers and `/rig/element` metadata handling
 
 Reference vision note:
 
@@ -26,12 +27,14 @@ Reference vision note:
 3. Higher-order rig layer: drives rig variables only.
 4. Pose group layer: blends poses inside each group.
 5. Pose aggregate layer: blends pose-group outputs per rig target.
+6. Rig metadata alias layer: auto-generated animatable-driven rig bindings with stable path namespaces (`/rig/element/...`) that are represented as metadata aliases in authoring UI.
 
 ## 2.2 Pose semantics
 
 1. A pose is a set of desired rig-variable values.
 2. A pose is authored relative to neutral defaults.
 3. A pose does not directly bind to animatables.
+4. Poses are surfaced as primary-face authoring constructs first; secondary-face workflows are deferred.
 
 ## 2.3 Group semantics
 
@@ -67,6 +70,7 @@ For each rig target variable:
 3. Group lifecycle UI is still path-first; explicit create/rename/delete group workflows need dedicated surface.
 4. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
 5. Diagnostics for aggregate/boundary/group-coverage gaps are not yet complete in editor/export surfaces.
+6. Control panel still does not guarantee dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces; pose/group membership editing and `/rig/element` exclusion are pending.
 
 ## 4) P1 implementation tracks
 
@@ -131,8 +135,8 @@ Acceptance criteria:
 Add dedicated UI for:
 
 1. pose group lifecycle
-2. group-local blend strategy editing
-3. cross-group strategy editing and preview
+2. group-local blend strategy editing (inspector-level)
+3. cross-group strategy editing and preview (Pose Groups pane-level)
 
 Acceptance criteria:
 
@@ -166,6 +170,41 @@ Acceptance criteria:
 2. diagnostics link directly to relevant group/pose/target editor
 3. regression tests cover each diagnostic class
 
+## P1-T8 Authoring surface decomposition (`planned`)
+
+Define and enforce new left-side surface topology:
+
+1. Variables pane shows only true external inputs and path-grouped controls.
+2. Poses pane is complete, independent list of all primary-face poses; pose inspector includes group-membership section with add/remove actions.
+3. Pose Groups pane allows direct create/rename/delete/membership management plus cross-group blend-mode controls.
+4. Pose Group inspector adds local blend-mode controls.
+5. Drivers pane shows explicit incoming/outgoing relationship rows with deterministic navigation targets.
+6. Rig auto-generated paths under `/rig/element` are hidden from Variables and Drivers and surfaced as rig metadata aliases.
+
+Acceptance criteria:
+
+1. A primary user flow can move between Variables, Poses, Pose Groups, and Drivers without reopening panels.
+2. Inspecting a pose from Poses pane reveals all groups the pose belongs to and allows membership edits.
+3. Inspecting a pose group exposes local blend-mode selector.
+4. Inspecting a pose group in the Pose Groups pane exposes cross-group blend mode.
+5. No `/rig/element` path is selectable from Variables for binding edits.
+6. `/rig/element`-scoped rig variables still resolve to their corresponding runtime effect during rig-level inspection.
+
+## P1-T9 Rig metadata namespace and aliasing (`planned`)
+
+Standardize generated rig variable namespaces:
+
+1. Lower-level generated rig inputs for animatable-driven paths are prefixed with `/rig/element`.
+2. Those entries are treated as metadata aliases for face-property control, not direct variables.
+3. Normalization logic for import/export/migration handles historical references consistently.
+
+Acceptance criteria:
+
+1. Authoring state emits `/rig/element`-prefixed rig paths for generated inputs.
+2. Variables panel and Drivers filtering exclude these entries by default.
+3. Rig inspector can trace the underlying face-property target for a `/rig/element` entry without exposing it as a user-edit variable.
+4. Existing assets import with clear diagnostics if references are missing or ambiguous.
+
 ## 5) Test requirements
 
 1. compiler tests for two-layer blend topology and output equivalence
@@ -179,8 +218,10 @@ Acceptance criteria:
 2. T2 compiler (`done`)
 3. T5 blend controls (`in_progress`, strategy controls landed; lifecycle/editor parity pending)
 4. T4 aggregate-source semantics + chain labeling (`in_progress`)
-5. T3 boundary enforcement (`planned`)
-6. T6 migration/import grouping strategy (`planned`)
-7. T7 diagnostics and full validation pass (`planned`)
+5. T8 control-surface decomposition (`planned`)
+6. T9 rig metadata namespace and aliasing (`planned`)
+7. T3 boundary enforcement (`planned`)
+8. T6 migration/import grouping strategy (`planned`)
+9. T7 diagnostics and full validation pass (`planned`)
 
 All steps must keep `pnpm --filter vizij-authoring run validate` green and include focused tests for changed semantics.

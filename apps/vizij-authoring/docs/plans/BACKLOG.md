@@ -89,6 +89,31 @@ Use this file for app-local implementation backlog only.
 
 ## P1 (next up)
 
+- [ ] Build dedicated authoring side-surface taxonomy for the left panel.
+      Context: current UI mixes variables, poses, and rig/drivers in one pathway, and users need predictable navigation for primary face workflows.
+      Goal: split the left sidebar into explicit sections: 1) Face Elements, 2) Variables, 3) Poses, 4) Pose Groups, 5) Drivers.
+      Exit criteria: 1. each section has independent selection context with one globally selected inspector target. 2. selecting any item routes one deterministic inspector state. 3. variable selection opens a slider-only editor for the selected leaf.
+
+- [ ] Expose a consolidated Poses panel showing all poses and pose-group membership.
+      Context: poses should be discoverable regardless of pose-group assignment.
+      Goal: show all primary-face pose definitions in one pane and surface group membership within pose inspect views.
+      Exit criteria: 1. pose inspector shows a list of all groups containing the pose. 2. users can add/remove pose membership in one action. 3. pose inspection and target editing remains functional without path-first edits.
+
+- [ ] Implement dedicated Pose Groups editor for lifecycle and blending strategy controls.
+      Context: blend strategy and group membership editing currently feels path-first and fragmented.
+      Goal: add explicit create/rename/delete/select/persist UI for pose groups, with cross-group blend mode controls in the pane and group-local blend controls in the inspector.
+      Exit criteria: 1. users can create/rename/delete groups directly. 2. users can add/remove poses from groups. 3. users can set group-local blend modes from the pose group inspector. 4. users can set cross-group blend modes from the pose groups pane.
+
+- [ ] Keep Drivers as a dedicated inspection surface for drive relationships.
+      Context: driver graph currently mixes with other content and can hide what drives what.
+      Goal: make driver introspection explicit for each selected item: - what the item drives - what drives the item
+      Exit criteria: 1. both incoming/outgoing drive links are inspectable. 2. each entry supports clickthrough to the linked item editor. 3. empty/ambiguous relationships are explicitly explained.
+
+- [ ] Treat auto-generated animatable-driven rig paths as metadata under `/rig/element`.
+      Context: these lower-level rig drivers should be treated as implementation details and not exposed as user-editable variables.
+      Goal: prefix generated rig bindings with `/rig/element` and hide them from Variables and Drivers.
+      Exit criteria: 1. no `/rig/element` paths appear in Variables panel inputs. 2. no `/rig/element` paths appear in Drivers outputs. 3. the same underlying control still appears in rig inspector as aliased ownership to its target property.
+
 - [x] Implement first-class pose-group domain model (not just `pose.group` labels).
       Context: current pose compiler treats groups primarily as naming/path metadata, but target behavior requires group entities with own blend semantics.
       Goal: represent pose groups explicitly in authoring state and compile contracts.

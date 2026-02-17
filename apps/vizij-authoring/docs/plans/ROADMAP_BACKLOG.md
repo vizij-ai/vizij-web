@@ -1,12 +1,12 @@
 # Vizij Authoring Roadmap and Backlog
 
-Last updated: 2026-02-11 (P1 pose architecture tranche in progress)
+Last updated: 2026-02-17 (P1 control-surface and rig metadata refactor queued)
 
 ## Priority Bands
 
 ### P0 (correctness and runtime-truthful behavior)
 
-Status (2026-02-11): complete in current branch; move focus to P1 expansion work.
+Status (2026-02-17): complete in current branch; move focus to P1 expansion work.
 
 1. Done: Restore leaf-accurate chain authoring and visibility:
    - add-driven selection must support leaf components (no implicit xyz bulk binding).
@@ -34,7 +34,7 @@ Status (2026-02-11): complete in current branch; move focus to P1 expansion work
 
 ### P1 (integration hardening and confidence)
 
-Status (2026-02-11): chain/parity + pose-group compiler tranches complete; remaining scope is semantic surfacing and boundary/diagnostic hardening.
+Status (2026-02-17): control-surface decomposition and rig metadata normalization are the next tranche before full P2.
 
 1. Done: inspector chain traversal + binding parity across Pose/Rig/Animatable.
 2. Done: routing-contract and chain regression coverage additions.
@@ -46,12 +46,17 @@ Status (2026-02-11): chain/parity + pose-group compiler tranches complete; remai
 8. Done: two-layer pose blending compile topology (within-group, then cross-group).
 9. Done: blend strategy controls surfaced for authoring/export flow.
 10. Done: pose creation + pose-group inspection UI for hands-on chain validation.
-11. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
-12. Next: enforce rig boundary where only low-level rig variables can write animatable leaves.
-13. Next: add explicit pose-group lifecycle UI (create/rename/delete independent of path edits).
-14. Next: add explicit import grouping strategy controls and group-level conflict handling.
-15. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
-16. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+11. Next: split primary left panel into dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces.
+12. Next: expose all primary-face poses independent of group and support pose-group membership editing in pose inspector.
+13. Next: implement Pose Group lifecycle editor with cross-group blend-mode controls in the Pose Groups pane and local blend-mode controls in the pose-group inspector.
+14. Next: alias `/rig/element` rig inputs as metadata and keep them out of variable/driver chain edit surfaces.
+15. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
+16. Next: enforce rig boundary where only low-level rig variables can write animatable leaves.
+17. Next: finalize lifecycle operations for pose groups (rename/delete/edit) in dedicated Pose Group pane.
+18. Next: add explicit import grouping strategy controls and group-level conflict handling.
+19. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
+20. Next: preserve deterministic group strategy and import behavior in migration/export docs.
+21. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
 ### P2 (architecture and scale-readiness)
 

@@ -1,6 +1,6 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-11 (post pose-group inspector tranche)
+Last updated: 2026-02-17 (control-surface refactor added)
 
 This file is the relevance filter for all authoring notes. Use this before acting on older findings.
 
@@ -11,7 +11,10 @@ This file is the relevance filter for all authoring notes. Use this before actin
 3. Active P1 work has shifted to pose architecture semantics:
    - aggregate pose-source surfacing in inspector/binding flows,
    - rig boundary enforcement for animatable writes,
-   - grouping/import strategy controls and diagnostics completeness.
+   - grouping/import strategy controls and diagnostics completeness,
+   - dedicated Variables/Poses/Pose Groups/Drivers control-surface split,
+   - exclusion of auto-generated `/rig/element` paths from variable and Drivers edit surfaces,
+   - primary-face pose pane behavior while secondary-face pose workflows are deferred.
 
 ## Resolved Findings Since Initial Reviews
 
@@ -25,6 +28,7 @@ This file is the relevance filter for all authoring notes. Use this before actin
    - pose creation and target editing,
    - neutral-safe single-pose preview semantics,
    - sidebar pose-group inspector controls.
+8. Primary/secondary face workflow requested explicit sidebar decomposition: face-elements, variables, poses, pose-groups, drivers.
 
 ## Active Findings That Still Matter
 
@@ -33,6 +37,9 @@ This file is the relevance filter for all authoring notes. Use this before actin
 3. Group lifecycle editing is still path-first and needs explicit group create/rename/delete UX.
 4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
 5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
+6. Poses/Pose Groups/Drivers panes are not yet implemented in the target topology.
+7. One globally selected item across panes (and deterministic inspector routing) is still pending.
+8. `/rig/element` path handling needs implementation for metadata-only rig auto-generated paths and exclusion from face/variable editing paths.
 
 ## Notes Relevance Matrix
 

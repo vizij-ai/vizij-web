@@ -1,6 +1,6 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-11 (P1 pose architecture tranche in progress)
+Last updated: 2026-02-17 (P1 UI control-surface refactor added)
 
 This directory is the source of truth for authoring-app planning, status, and review notes.
 
@@ -12,6 +12,14 @@ This directory is the source of truth for authoring-app planning, status, and re
    - first-class pose-group config and two-layer pose blending compile path,
    - pose creation/play tooling and sidebar pose-group inspector.
 3. P1 remaining focus:
+   - dedicated left-column control-surface split into Face Elements, Variables, Poses, Pose Groups, Drivers,
+   - one globally selected item between panes with deterministic inspector routing,
+   - Variables pane exposes true external inputs only, path-grouped, and opening directly to slider controls,
+   - Poses pane lists primary-face pose definitions only (secondary-face pose workflow deferred),
+   - all defined poses exposed in a dedicated pose pane with add/remove-to-group controls and membership visibility,
+   - pose groups exposed as first-class entities with cross-group blend-mode controls in the pose-group pane and local blend-mode controls in the pose group inspector,
+   - `/rig/element` generated rig inputs are excluded from variable controls and Drivers and treated as face-graph aliases.
+4. P1 remaining focus:
    - aggregate pose-output binding surfacing in inspector/binding flows,
    - strict rig-boundary enforcement + diagnostics,
    - import/group strategy controls and group lifecycle polish.
