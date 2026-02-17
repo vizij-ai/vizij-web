@@ -483,6 +483,86 @@ function extractVizijInputMetadata(
     .filter(Boolean) as VizijInputMetadata[];
 }
 
+type InputNodeLike = {
+  type?: unknown;
+  kind?: unknown;
+  id?: unknown;
+  path?: unknown;
+  params?: Record<string, unknown>;
+};
+
+function extractInputMetadataFromInputNodes(
+  spec: GraphRegistrationConfig["spec"] | null,
+): VizijInputMetadata[] {
+  if (!spec || !Array.isArray(spec.nodes) || spec.nodes.length === 0) {
+    return [];
+  }
+
+  return (spec.nodes as Array<InputNodeLike | undefined | null>)
+    .map((node: InputNodeLike | undefined | null) => {
+      if (!node || typeof node !== "object") return null;
+      const rawType =
+        typeof (node as { type?: unknown }).type === "string"
+          ? (node as { type?: unknown }).type
+          : typeof (node as { kind?: unknown }).kind === "string"
+            ? (node as { kind?: unknown }).kind
+            : undefined;
+      if (typeof rawType !== "string") return null;
+      const type = rawType.toLowerCase();
+      if (type !== "input") return null;
+
+      const params = (node as { params?: Record<string, unknown> }).params;
+      const directPath =
+        typeof (node as { path?: unknown }).path === "string"
+          ? (node as { path?: unknown }).path
+          : undefined;
+      const path =
+        typeof directPath === "string"
+          ? directPath
+          : typeof (params as { path?: unknown })?.path === "string"
+            ? (params as { path?: unknown }).path
+            : undefined;
+      if (!path) return null;
+
+      const rawValue =
+        params && typeof params === "object"
+          ? (params as { value?: unknown }).value
+          : undefined;
+      let defaultValue: number | undefined;
+      if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+        defaultValue = rawValue;
+      } else if (
+        rawValue &&
+        typeof rawValue === "object" &&
+        (rawValue as { float?: unknown }).float !== undefined
+      ) {
+        const floatValue = (rawValue as { float?: unknown }).float;
+        if (typeof floatValue === "number" && Number.isFinite(floatValue)) {
+          defaultValue = floatValue;
+        }
+      } else if (
+        rawValue &&
+        typeof rawValue === "object" &&
+        (rawValue as { int?: unknown }).int !== undefined
+      ) {
+        const intValue = (rawValue as { int?: unknown }).int;
+        if (typeof intValue === "number" && Number.isFinite(intValue)) {
+          defaultValue = intValue;
+        }
+      }
+
+      return {
+        path,
+        defaultValue,
+        id:
+          typeof (node as { id?: unknown }).id === "string"
+            ? (node.id as string)
+            : undefined,
+      };
+    })
+    .filter(Boolean) as VizijInputMetadata[];
+}
+
 function convertBundleAnimations(
   entries: VizijBundleAnimationEntry[] | undefined | null,
 ): VizijAnimationAsset[] {
@@ -1024,10 +1104,56 @@ function VizijRuntimeProviderInner({
       rigAsset,
       `${rigAsset.id ?? "rig"} graph (constraints)`,
     );
+    const rigInputNodeMetadata = extractInputMetadataFromInputNodes(rigSpec);
+
+    const poseGraphAsset = assetBundle.pose?.graph;
+    const poseSpec = poseGraphAsset
+      ? resolveGraphSpec(poseGraphAsset, `${poseGraphAsset.id ?? "pose"} graph`)
+      : null;
+    const poseInputNodeMetadata = extractInputMetadataFromInputNodes(poseSpec);
+    const poseInputMetadata = assetBundle.pose?.graph?.inputMetadata;
+    const combinedInputMetadata = [
+      ...(rigAsset.inputMetadata ?? []),
+      ...(poseInputMetadata ?? []),
+      ...rigInputNodeMetadata,
+      ...poseInputNodeMetadata,
+    ];
+    if (
+      typeof globalThis !== "undefined" &&
+      Boolean((globalThis as any)?.process?.env?.NODE_ENV !== "production")
+    ) {
+      console.log("[vizij-runtime] input metadata sources", {
+        rig: (rigAsset.inputMetadata ?? []).length,
+        pose: (poseInputMetadata ?? []).length,
+        rigNodes: rigInputNodeMetadata.length,
+        poseNodes: poseInputNodeMetadata.length,
+        combined: combinedInputMetadata.length,
+        hasPoseGraph: Boolean(assetBundle.pose?.graph),
+      });
+      const poseGraphSamples = [
+        ...(poseInputMetadata ?? []),
+        ...poseInputNodeMetadata,
+      ];
+      if (poseGraphSamples.length > 0) {
+        console.log(
+          "[vizij-runtime] pose metadata samples",
+          poseGraphSamples
+            .slice(0, 20)
+            .map((entry) => entry?.path)
+            .filter((path): path is string => typeof path === "string"),
+        );
+      } else if (assetBundle.pose?.graph) {
+        console.warn(
+          "[vizij-runtime] Pose graph is present but has no inputMetadata",
+          "graph id:",
+          assetBundle.pose?.graph?.id,
+        );
+      }
+    }
 
     const constraints = extractInputConstraints(
       rigSpec as GraphRegistrationConfig["spec"],
-      rigAsset.inputMetadata,
+      combinedInputMetadata,
       namespace,
     );
     setInputConstraints(constraints);
@@ -1042,7 +1168,13 @@ function VizijRuntimeProviderInner({
         rigId: rigAsset.id,
       });
     }
-  }, [assetBundle.rig, namespace]);
+  }, [
+    assetBundle.rig,
+    assetBundle.pose?.graph,
+    assetBundle.pose?.graph?.inputMetadata,
+    assetBundle.pose?.graph?.id,
+    namespace,
+  ]);
 
   const requestLoopMode = useCallback((mode: LoopMode) => {
     if (!runtimeMountedRef.current) {
