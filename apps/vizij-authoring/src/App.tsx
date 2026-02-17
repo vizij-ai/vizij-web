@@ -207,6 +207,7 @@ function AppContent({ loader }: AppContentProps) {
 
   const { panels } = useWorkspaceStore();
   const {
+    selectedId,
     selectedRigId,
     selectedPoseId,
     handleSelectObject,
