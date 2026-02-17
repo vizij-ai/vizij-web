@@ -117,6 +117,22 @@ describe("VariablesPanel", () => {
     expect(screen.getByText(/Shared \(1\)/)).toBeTruthy();
   });
 
+  it("filters out /rig/element variables from the variables panel", () => {
+    const metadataInput = makeInput("rig_jaw", "/rig/element/jaw/open", {
+      label: "Rig Element Jaw",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: metadataInput,
+        source: "custom",
+      },
+    ];
+
+    render(<VariablesPanel />);
+
+    expect(screen.queryByText("Rig Element Jaw")).toBeNull();
+  });
+
   it("copies a reference variable into main-face variables from toolbar action", () => {
     const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
       label: "Brow Up",

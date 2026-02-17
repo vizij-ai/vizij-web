@@ -20,6 +20,37 @@ vi.mock("../../scene/useSceneComposer", () => ({
 }));
 
 describe("VariableSelector scene property selection", () => {
+  it("excludes /rig/element paths from variable list", () => {
+    mockedUseBindingAuthoring.mockReturnValue({
+      managedStandardInputs: [
+        {
+          input: {
+            id: "jaw_open",
+            path: "/standard/jaw/open",
+            label: "Jaw Open",
+          },
+        },
+        {
+          input: {
+            id: "rig_jaw_open",
+            path: "/rig/element/jaw/open",
+            label: "Rig Element Jaw Open",
+          },
+        },
+      ],
+      bindings: {},
+    });
+    mockedUseSceneComposer.mockReturnValue({
+      objects: [],
+      rootIds: [],
+      getChildren: () => [],
+    });
+    render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
+
+    expect(screen.getByText("Jaw Open")).toBeTruthy();
+    expect(screen.queryByText("Rig Element Jaw Open")).toBeNull();
+  });
+
   it("returns leaf target selection and explicit bulk selection", () => {
     mockedUseBindingAuthoring.mockReturnValue({
       managedStandardInputs: [],

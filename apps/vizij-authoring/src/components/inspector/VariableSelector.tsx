@@ -3,6 +3,7 @@ import { Folder, Box, Zap, Activity } from "lucide-react";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
+import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -110,8 +111,11 @@ function VariablesList({
   const { objects } = useSceneComposer();
 
   const groupedVariables = useMemo(() => {
+    const visibleInputs = managedStandardInputs.filter(
+      (entry) => !isRigElementStandardInputPath(entry.input.path),
+    );
     const q = search.toLowerCase();
-    const filtered = managedStandardInputs.filter(
+    const filtered = visibleInputs.filter(
       (m) =>
         m.input.id.toLowerCase().includes(q) ||
         (m.input.label && m.input.label.toLowerCase().includes(q)),
@@ -119,7 +123,7 @@ function VariablesList({
 
     const groups: Record<
       string,
-      { label: string; vars: typeof managedStandardInputs }
+      { label: string; vars: typeof visibleInputs }
     > = {};
 
     filtered.forEach((mInput) => {

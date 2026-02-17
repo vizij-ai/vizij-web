@@ -21,6 +21,7 @@ import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
+import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
@@ -341,6 +342,7 @@ export function VariablesPanel({
   const mainFaceRigEntries = useMemo(() => {
     return managedStandardInputs
       .filter((entry) => Boolean(entry.input.path?.trim()))
+      .filter((entry) => !isRigElementStandardInputPath(entry.input.path))
       .map((entry) => ({
         input: entry.input,
         source: resolveManagedSource(entry),
@@ -356,6 +358,7 @@ export function VariablesPanel({
     });
     return referenceFace.standardInputs
       .filter((entry) => Boolean(entry.path?.trim()))
+      .filter((entry) => !isRigElementStandardInputPath(entry.path))
       .map((entry) => {
         const normalizedPath = normalizeStandardRigInputPath(entry.path);
         const linkedMain = mainByPath.get(normalizedPath);
