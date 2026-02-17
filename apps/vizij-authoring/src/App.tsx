@@ -378,9 +378,11 @@ function AppContent({ loader }: AppContentProps) {
             <VariablesPanel
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
+              selectedSceneId={selectedId}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
-              availableSurfaces={["variables", "poses"]}
+              onSelectScene={handleSelectObject}
+              availableSurfaces={["variables", "poses", "drivers"]}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
             />
@@ -392,6 +394,7 @@ function AppContent({ loader }: AppContentProps) {
               selectedPoseId={selectedPoseId}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
+              availableSurfaces={["pose-groups"]}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
               activeSurfaceOverride="pose-groups"
