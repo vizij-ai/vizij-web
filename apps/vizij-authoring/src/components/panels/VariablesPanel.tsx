@@ -16,7 +16,7 @@ import {
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
-import { PanelSearch, TreeRow } from "../ui";
+import { PanelSearch, TreeRow, Tabs } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
@@ -36,6 +36,7 @@ import type {
 
 type NodeType = "folder" | "pose" | "rig";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
+type SurfaceTab = "variables" | "poses";
 
 interface RigNodeData {
   input: StandardRigInput;
@@ -130,6 +131,51 @@ function collectPoseIds(node: TreeNode): string[] {
   };
   visit(node);
   return ids;
+}
+
+function filterTreeBySearch(rootNode: TreeNode, search: string): TreeNode {
+  const trimmed = search.trim().toLowerCase();
+  if (!trimmed) {
+    return rootNode;
+  }
+
+  const visit = (node: TreeNode): TreeNode | null => {
+    const label = node.label.toLowerCase();
+    const matches = label.includes(trimmed);
+
+    const filteredChildren = new Map<string, TreeNode>();
+    let hasMatchingChild = false;
+
+    for (const [key, child] of node.children) {
+      const filteredChild = visit(child);
+      if (filteredChild) {
+        filteredChildren.set(key, filteredChild);
+        hasMatchingChild = true;
+      }
+    }
+
+    if (!matches && !hasMatchingChild) {
+      return null;
+    }
+
+    return {
+      ...node,
+      children: filteredChildren,
+    };
+  };
+
+  const filteredRootChildren = new Map<string, TreeNode>();
+  for (const [key, child] of rootNode.children) {
+    const filteredChild = visit(child);
+    if (filteredChild) {
+      filteredRootChildren.set(key, filteredChild);
+    }
+  }
+
+  return {
+    ...rootNode,
+    children: filteredRootChildren,
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -327,6 +373,7 @@ export function VariablesPanel({
     outOfSyncCount: sharedOutOfSyncCount,
   } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
+  const [activeSurface, setActiveSurface] = useState<SurfaceTab>("variables");
 
   // State for search
   const [search, setSearch] = useState("");
@@ -479,8 +526,8 @@ export function VariablesPanel({
     return created.id;
   };
 
-  // Build Tree
-  const rootNode = useMemo(() => {
+  // Build Variables tree
+  const variablesRootNode = useMemo(() => {
     const root: TreeNode = {
       id: "root",
       label: "Variables",
@@ -543,44 +590,7 @@ export function VariablesPanel({
     }
 
     // 1. Process Poses (Main Face)
-    poses.forEach((pose) => {
-      const groupParts = pose.group
-        ? pose.group.split("/").filter(Boolean)
-        : [];
-      let current = targetRoot;
-
-      // Traverse/Create groups
-      const groupPathParts: string[] = [];
-      for (const part of groupParts) {
-        groupPathParts.push(part);
-        const groupPath = groupPathParts.join("/");
-        current = getOrCreateChild(current, part, part);
-        if (
-          current.type === "folder" &&
-          (!(current.data as PoseGroupNodeData | undefined) ||
-            (current.data as PoseGroupNodeData | undefined)?.kind !==
-              "pose-group")
-        ) {
-          current.data = {
-            kind: "pose-group",
-            groupPath,
-          };
-        }
-      }
-
-      // Add Pose Node
-      const poseKey = `pose_${pose.id}`;
-      current.children.set(poseKey, {
-        id: `${current.id}/${poseKey}`,
-        label: pose.name,
-        type: "pose",
-        children: new Map(),
-        showChildren: false,
-        data: pose,
-      });
-    });
-
-    // 2. Process path-backed Rigs (Main Face)
+    // 1. Process path-backed Rigs (Main Face)
     mainFaceRigEntries.forEach((entry) => {
       if (!enabledSources.has(entry.source)) {
         return;
@@ -660,7 +670,6 @@ export function VariablesPanel({
 
     return root;
   }, [
-    poses,
     enabledSources,
     mainFaceRigEntries,
     sharedRigEntries,
@@ -670,55 +679,72 @@ export function VariablesPanel({
     referenceFace.file,
   ]);
 
-  // Filter tree based on search
-  const visibleRoot = useMemo(() => {
-    if (!search.trim()) return rootNode;
+  // Build Poses tree
+  const posesRootNode = useMemo(() => {
+    const root: TreeNode = {
+      id: "root",
+      label: "Poses",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
 
-    const query = search.trim().toLowerCase();
+    const targetRoot: TreeNode = root;
 
-    const visit = (node: TreeNode): TreeNode | null => {
-      const label = node.label.toLowerCase();
-      const nodeMatches = label.includes(query);
+    poses.forEach((pose) => {
+      const groupParts = pose.group
+        ? pose.group.split("/").filter(Boolean)
+        : [];
+      let current = targetRoot;
 
-      const filteredChildren = new Map<string, TreeNode>();
-      let hasMatchingChild = false;
-
-      for (const [key, child] of node.children) {
-        const filteredChild = visit(child);
-        if (filteredChild) {
-          filteredChildren.set(key, filteredChild);
-          hasMatchingChild = true;
+      const groupPathParts: string[] = [];
+      for (const part of groupParts) {
+        groupPathParts.push(part);
+        const groupPath = groupPathParts.join("/");
+        current = getOrCreateChild(current, part, part);
+        if (
+          current.type === "folder" &&
+          (!(current.data as PoseGroupNodeData | undefined) ||
+            (current.data as PoseGroupNodeData | undefined)?.kind !==
+              "pose-group")
+        ) {
+          current.data = {
+            kind: "pose-group",
+            groupPath,
+          };
         }
       }
 
-      if (nodeMatches || hasMatchingChild) {
-        // If it's a folder, we need to clone it to update children map.
-        // We also want to ensure it's expanded if it has matching children.
-        return {
-          ...node,
-          children: filteredChildren,
-          // When searching, we generally want to see the results, so effectively treated as expanded
-          // But tree expansion state is managed separately.
-        };
-      }
+      const poseKey = `pose_${pose.id}`;
+      current.children.set(poseKey, {
+        id: `${current.id}/${poseKey}`,
+        label: pose.name,
+        type: "pose",
+        children: new Map(),
+        showChildren: false,
+        data: pose,
+      });
+    });
 
-      return null;
-    };
-
-    // Filter children of root
-    const filteredRootChildren = new Map<string, TreeNode>();
-    for (const [key, child] of rootNode.children) {
-      const filteredChild = visit(child);
-      if (filteredChild) {
-        filteredRootChildren.set(key, filteredChild);
-      }
+    const simplifiedChildren = new Map<string, TreeNode>();
+    for (const [key, child] of root.children) {
+      simplifiedChildren.set(key, simplifyNode(child));
     }
+    root.children = simplifiedChildren;
 
-    return {
-      ...rootNode,
-      children: filteredRootChildren,
-    };
-  }, [rootNode, search]);
+    return root;
+  }, [poses]);
+
+  const visibleVariablesRoot = useMemo(
+    () => filterTreeBySearch(variablesRootNode, search),
+    [variablesRootNode, search],
+  );
+  const visiblePosesRoot = useMemo(
+    () => filterTreeBySearch(posesRootNode, search),
+    [posesRootNode, search],
+  );
+  const visibleRoot =
+    activeSurface === "variables" ? visibleVariablesRoot : visiblePosesRoot;
 
   // Auto-expand folders when searching
   useEffect(() => {
@@ -868,17 +894,19 @@ export function VariablesPanel({
   };
 
   const showCreateOption =
+    activeSurface === "variables" &&
     search.trim().length > 0 &&
     !managedStandardInputs.some(
       (m) => m.input.id.toLowerCase() === search.trim().toLowerCase(),
     );
 
-  // Calculate total count
-  const totalCount =
-    poses.length +
+  const variableItemCount =
     mainFaceRigEntries.length +
     referenceRigEntries.length +
     sharedRigEntries.length;
+  const poseItemCount = poses.length;
+  const totalCount =
+    activeSurface === "variables" ? variableItemCount : poseItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -888,6 +916,16 @@ export function VariablesPanel({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const activeSelection = useMemo(() => {
+    if (activeSurface === "poses") {
+      if (selectedPoseGroup?.nodeId) {
+        return {
+          type: "pose-group" as const,
+          id: selectedPoseGroup.nodeId,
+        };
+      }
+      if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
+      return null;
+    }
     if (selectedPoseGroup?.nodeId) {
       return {
         type: "pose-group" as const,
@@ -897,7 +935,7 @@ export function VariablesPanel({
     if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
     if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
     return null;
-  }, [selectedPoseGroup?.nodeId, selectedPoseId, selectedRigId]);
+  }, [activeSurface, selectedPoseGroup?.nodeId, selectedPoseId, selectedRigId]);
 
   const actions = (
     <Button
@@ -912,256 +950,308 @@ export function VariablesPanel({
     </Button>
   );
 
+  const surfaceTabs = [
+    { id: "variables" as const, label: "Variables", badge: variableItemCount },
+    { id: "poses" as const, label: "Poses", badge: poseItemCount },
+  ];
+
+  const surfaceForTab = (id: string): SurfaceTab =>
+    id === "poses" ? "poses" : "variables";
+
   return (
     <Panel
-      title="Variables"
-      description="Manage poses and rig variables."
+      title={activeSurface === "variables" ? "Variables" : "Poses"}
+      description={
+        activeSurface === "variables"
+          ? "Manage rig variables and references."
+          : "Manage pose entries."
+      }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
       badge={`${totalCount}`}
     >
-      <div className="flex flex-col h-full min-h-0 gap-1 p-2">
-        <div className="flex items-center gap-2 px-1 mb-1">
-          <PanelSearch
-            ref={searchInputRef}
-            value={search}
-            onChange={setSearch}
-            placeholder={search ? "Filter..." : "Search or create variable..."}
-          />
-        </div>
-        <div className="flex items-center gap-1 px-1 mb-1">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-6 px-2 text-[10px] gap-1"
-            onClick={handleCreatePose}
-            title="Create a new pose and inspect it"
-          >
-            <Activity size={11} className="text-purple-400" />
-            New Pose
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-            onClick={() => searchInputRef.current?.focus()}
-            title="Create a new variable"
-          >
-            <Plus size={11} />
-            New Variable
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-          {referenceFace.file && (
-            <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
-                Shared Sync
-              </span>
-              {(
-                [
-                  ["off", "Off"],
-                  ["bidirectional", "Both"],
-                  ["main-to-reference", "Main→Ref"],
-                  ["reference-to-main", "Ref→Main"],
-                ] as Array<[SharedVariableSyncPolicy, string]>
-              ).map(([mode, label]) => {
-                const isActive = sharedSyncPolicy === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                      isActive
-                        ? "border-accent/50 bg-accent/10 text-accent"
-                        : "border-border-default text-text-muted hover:text-text-primary"
-                    }`}
-                    onClick={() => applySharedSyncPolicy(mode)}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              <span className="text-[10px] text-text-muted font-mono ml-1">
-                Drift {sharedOutOfSyncCount}
-              </span>
-            </div>
-          )}
-          {(
-            [
-              ["auto", "Auto"],
-              ["preset", "Preset"],
-              ["custom", "Custom"],
-              ...(referenceFace.file ? ([["shared", "Shared"]] as const) : []),
-              ["reference", "Reference"],
-            ] as Array<[RigNodeSource, string]>
-          )
-            .filter(([source]) =>
-              source === "reference" ? Boolean(referenceFace.file) : true,
-            )
-            .map(([source, label]) => {
-              const isActive = enabledSources.has(source);
-              const count = sourceCounts[source];
-              return (
-                <button
-                  key={source}
-                  type="button"
-                  className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                    isActive
-                      ? "border-border-hover bg-bg-panel text-text-primary"
-                      : "border-border-default text-text-muted hover:text-text-primary"
-                  }`}
-                  onClick={() => {
-                    setEnabledSources((previous) => {
-                      const next = new Set(previous);
-                      if (next.has(source)) {
-                        next.delete(source);
-                      } else {
-                        next.add(source);
-                      }
-                      return next;
-                    });
-                  }}
-                >
-                  {label} ({count})
-                </button>
-              );
-            })}
-          {referenceFace.file && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-              onClick={handleCopyReferenceToMain}
-              disabled={uncopiedReferenceCount === 0}
-              title="Copy reference-only variables to main face"
-            >
-              <Copy size={11} />
-              Copy Ref ({uncopiedReferenceCount})
-            </Button>
-          )}
-        </div>
-        {referenceFace.file && sharedSyncConflicts.length > 0 && (
-          <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
-                Shared Sync Conflicts ({sharedSyncConflicts.length})
-              </span>
-              <span className="text-[10px] text-amber-100/80">
-                Different edits detected across faces
-              </span>
-            </div>
-            {sharedSyncConflicts.slice(0, 4).map((conflict) => (
-              <div
-                key={`${conflict.path}:${conflict.detectedAt}`}
-                className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
-              >
-                <div className="text-[10px] font-mono text-amber-100 truncate">
-                  {conflict.path}
-                </div>
-                <div className="text-[10px] text-text-muted">
-                  {conflict.firstSource} {conflict.firstValue.toFixed(3)} →{" "}
-                  {conflict.secondSource} {conflict.secondValue.toFixed(3)}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() => resolveConflict(conflict, "main")}
-                  >
-                    Keep Main
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() => resolveConflict(conflict, "reference")}
-                  >
-                    Keep Ref
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] ml-auto"
-                    onClick={() => dismissSharedSyncConflict(conflict.path)}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-          {showCreateOption && (
-            <div
-              className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
-              onClick={handleCreate}
-            >
-              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
-                <Plus size={12} strokeWidth={2.5} />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-medium truncate">
-                  Create "<span className="text-accent">{search}</span>"
-                </span>
-                <span className="text-[10px] text-text-muted">
-                  Create and select new variable
-                </span>
-              </div>
-            </div>
-          )}
-
-          {visibleRoot.children.size === 0 && !showCreateOption ? (
-            <EmptyState
-              icon={Search}
-              iconSize={18}
-              title={
-                search.trim().length > 0 ? "No results" : "No variables defined"
-              }
-              description={
-                search.trim().length > 0
-                  ? `No variables found matching "${search}"`
-                  : "Create new variables or import a model with poses."
-              }
-              action={
-                search.trim().length > 0 ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearch("")}
-                    className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                  >
-                    Clear Search
-                  </Button>
-                ) : undefined
-              }
-              className="py-12"
-            />
-          ) : (
-            Array.from(visibleRoot.children.values())
-              .sort((a, b) => {
-                if (a.type === "folder" && b.type !== "folder") return -1;
-                if (a.type !== "folder" && b.type === "folder") return 1;
-                return a.label.localeCompare(b.label);
-              })
-              .map((child) => (
-                <TreeRowWrapper
-                  key={child.id}
-                  node={child}
-                  depth={0}
-                  expanded={expandedIds}
-                  onToggle={handleToggle}
-                  onAction={handleAction}
-                  onSelect={handleSelect}
-                  selection={activeSelection}
-                  searchQuery={search}
+      <Tabs
+        items={surfaceTabs}
+        value={activeSurface}
+        onValueChange={(id) => setActiveSurface(surfaceForTab(id))}
+        renderPanel={(id) => {
+          const isVariables = id === "variables";
+          return (
+            <div className="flex flex-col h-full min-h-0 gap-1 p-2">
+              <div className="flex items-center gap-2 px-1 mb-1">
+                <PanelSearch
+                  ref={searchInputRef}
+                  value={search}
+                  onChange={setSearch}
+                  placeholder={
+                    search
+                      ? "Filter..."
+                      : isVariables
+                        ? "Search or create variable..."
+                        : "Search poses..."
+                  }
                 />
-              ))
-          )}
-        </div>
-      </div>
+              </div>
+              <div className="flex items-center gap-1 px-1 mb-1">
+                {isVariables && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                    onClick={() => searchInputRef.current?.focus()}
+                    title="Create a new variable"
+                  >
+                    <Plus size={11} />
+                    New Variable
+                  </Button>
+                )}
+                {!isVariables && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] gap-1"
+                    onClick={handleCreatePose}
+                    title="Create a new pose and inspect it"
+                  >
+                    <Activity size={11} className="text-purple-400" />
+                    New Pose
+                  </Button>
+                )}
+                {isVariables && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                    onClick={handleCopyReferenceToMain}
+                    disabled={uncopiedReferenceCount === 0}
+                    title="Copy reference-only variables to main face"
+                  >
+                    <Copy size={11} />
+                    Copy Ref ({uncopiedReferenceCount})
+                  </Button>
+                )}
+              </div>
+              {isVariables && (
+                <>
+                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                    {referenceFace.file && (
+                      <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
+                          Shared Sync
+                        </span>
+                        {(
+                          [
+                            ["off", "Off"],
+                            ["bidirectional", "Both"],
+                            ["main-to-reference", "Main→Ref"],
+                            ["reference-to-main", "Ref→Main"],
+                          ] as Array<[SharedVariableSyncPolicy, string]>
+                        ).map(([mode, label]) => {
+                          const isActive = sharedSyncPolicy === mode;
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                isActive
+                                  ? "border-accent/50 bg-accent/10 text-accent"
+                                  : "border-border-default text-text-muted hover:text-text-primary"
+                              }`}
+                              onClick={() => applySharedSyncPolicy(mode)}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <span className="text-[10px] text-text-muted font-mono ml-1">
+                          Drift {sharedOutOfSyncCount}
+                        </span>
+                      </div>
+                    )}
+                    {(
+                      [
+                        ["auto", "Auto"],
+                        ["preset", "Preset"],
+                        ["custom", "Custom"],
+                        ...(referenceFace.file
+                          ? ([["shared", "Shared"]] as const)
+                          : []),
+                        ["reference", "Reference"],
+                      ] as Array<[RigNodeSource, string]>
+                    )
+                      .filter(([source]) =>
+                        source === "reference"
+                          ? Boolean(referenceFace.file)
+                          : true,
+                      )
+                      .map(([source, label]) => {
+                        const isActive = enabledSources.has(source);
+                        const count = sourceCounts[source];
+                        return (
+                          <button
+                            key={source}
+                            type="button"
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                              isActive
+                                ? "border-border-hover bg-bg-panel text-text-primary"
+                                : "border-border-default text-text-muted hover:text-text-primary"
+                            }`}
+                            onClick={() => {
+                              setEnabledSources((previous) => {
+                                const next = new Set(previous);
+                                if (next.has(source)) {
+                                  next.delete(source);
+                                } else {
+                                  next.add(source);
+                                }
+                                return next;
+                              });
+                            }}
+                          >
+                            {label} ({count})
+                          </button>
+                        );
+                      })}
+                  </div>
+
+                  {referenceFace.file && sharedSyncConflicts.length > 0 && (
+                    <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
+                          Shared Sync Conflicts ({sharedSyncConflicts.length})
+                        </span>
+                        <span className="text-[10px] text-amber-100/80">
+                          Different edits detected across faces
+                        </span>
+                      </div>
+                      {sharedSyncConflicts.slice(0, 4).map((conflict) => (
+                        <div
+                          key={`${conflict.path}:${conflict.detectedAt}`}
+                          className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
+                        >
+                          <div className="text-[10px] font-mono text-amber-100 truncate">
+                            {conflict.path}
+                          </div>
+                          <div className="text-[10px] text-text-muted">
+                            {conflict.firstSource}{" "}
+                            {conflict.firstValue.toFixed(3)} →{" "}
+                            {conflict.secondSource}{" "}
+                            {conflict.secondValue.toFixed(3)}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => resolveConflict(conflict, "main")}
+                            >
+                              Keep Main
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() =>
+                                resolveConflict(conflict, "reference")
+                              }
+                            >
+                              Keep Ref
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px] ml-auto"
+                              onClick={() =>
+                                dismissSharedSyncConflict(conflict.path)
+                              }
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                {showCreateOption && (
+                  <div
+                    className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
+                    onClick={handleCreate}
+                  >
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
+                      <Plus size={12} strokeWidth={2.5} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-medium truncate">
+                        Create "<span className="text-accent">{search}</span>"
+                      </span>
+                      <span className="text-[10px] text-text-muted">
+                        Create and select new variable
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {visibleRoot.children.size === 0 && !showCreateOption ? (
+                  <EmptyState
+                    icon={Search}
+                    iconSize={18}
+                    title={
+                      search.trim().length > 0
+                        ? "No results"
+                        : isVariables
+                          ? "No variables defined"
+                          : "No poses defined"
+                    }
+                    description={
+                      search.trim().length > 0
+                        ? `No items found matching "${search}"`
+                        : isVariables
+                          ? "Create new variables or import a model with poses."
+                          : "Create a pose to get started."
+                    }
+                    action={
+                      search.trim().length > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSearch("")}
+                          className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                        >
+                          Clear Search
+                        </Button>
+                      ) : undefined
+                    }
+                    className="py-12"
+                  />
+                ) : (
+                  Array.from(visibleRoot.children.values())
+                    .sort((a, b) => {
+                      if (a.type === "folder" && b.type !== "folder") return -1;
+                      if (a.type !== "folder" && b.type === "folder") return 1;
+                      return a.label.localeCompare(b.label);
+                    })
+                    .map((child) => (
+                      <TreeRowWrapper
+                        key={child.id}
+                        node={child}
+                        depth={0}
+                        expanded={expandedIds}
+                        onToggle={handleToggle}
+                        onAction={handleAction}
+                        onSelect={handleSelect}
+                        selection={activeSelection}
+                        searchQuery={search}
+                      />
+                    ))
+                )}
+              </div>
+            </div>
+          );
+        }}
+      />
     </Panel>
   );
 }
