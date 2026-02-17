@@ -10,7 +10,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
 4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. Remaining P1 focus is on aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
+5. The first active implementation item is R0 surface decomposition (Variables + Poses tabs in `VariablesPanel`), followed by aggregate-source and boundary tasks.
+6. Remaining P1 focus is on aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
 
 ## Deliverables
 
