@@ -80,7 +80,14 @@ describe("BindingConnections routing", () => {
   it("routes pose/rig/target actions through provided callbacks", () => {
     mockSummary = {
       poses: [{ id: "pose_1", label: "Smile", features: ["mouth"] }],
-      rigs: [{ id: "rig_1", label: "Mouth Open", features: ["mouth_open"] }],
+      rigs: [
+        {
+          id: "rig_1",
+          label: "Mouth Open",
+          features: ["mouth_open"],
+          sourceKinds: ["pose-aggregate-output"],
+        },
+      ],
     };
     mockTrace = {
       targets: [

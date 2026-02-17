@@ -404,6 +404,14 @@ describe("summarizeTraceConnections", () => {
       "rig/parent/jaw_open",
       "rig/child/mouth_open",
     ]);
+    expect(
+      summary.rigs.find((entry) => entry.id === "rig/child/mouth_open")
+        ?.sourceKinds,
+    ).toEqual(["pose-entry"]);
+    expect(
+      summary.rigs.find((entry) => entry.id === "rig/parent/jaw_open")
+        ?.sourceKinds,
+    ).toEqual(["pose-aggregate-output"]);
     expect(summary.poses).toEqual([
       {
         id: "pose_1",

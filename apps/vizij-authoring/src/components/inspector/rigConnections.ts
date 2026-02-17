@@ -4,6 +4,7 @@ import type {
   InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
+import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 
@@ -17,8 +18,18 @@ export interface DirectRigInputDependent {
   label: string;
 }
 
+type PoseRigSourceKind =
+  | "pose-entry"
+  | "pose-group-output"
+  | "pose-aggregate-output";
+
 export interface TraceConnectionsSummary {
-  rigs: Array<{ id: string; label: string; features: string[] }>;
+  rigs: Array<{
+    id: string;
+    label: string;
+    features: string[];
+    sourceKinds: PoseRigSourceKind[];
+  }>;
   poses: Array<{ id: string; label: string; features: string[] }>;
 }
 
@@ -133,19 +144,60 @@ function collectBindingInputIds(binding: AnimatableBinding): string[] {
   return Array.from(ids);
 }
 
+function resolveRigGraphId(
+  selectedRigId: string,
+  standardInputsById: Map<string, StandardRigInput>,
+): string {
+  return resolveRigMetadataInputId(selectedRigId, standardInputsById);
+}
+
+function isRigGraphIdMatch(
+  candidateId: string,
+  selectedRigId: string,
+  standardInputsById: Map<string, StandardRigInput>,
+): boolean {
+  const canonicalSelected = resolveRigGraphId(
+    selectedRigId,
+    standardInputsById,
+  );
+  if (!canonicalSelected) {
+    return false;
+  }
+  if (candidateId === selectedRigId || candidateId === canonicalSelected) {
+    return true;
+  }
+  return (
+    resolveRigGraphId(candidateId, standardInputsById) === canonicalSelected
+  );
+}
+
 export function collectDownstreamRigInputIds(
   selectedRigId: string,
   inputBindings: InputBindingMap,
+  standardInputsById?: Map<string, StandardRigInput>,
 ): Set<string> {
-  const downstream = new Set<string>([selectedRigId]);
+  const canonicalSelectedRigId = standardInputsById
+    ? resolveRigGraphId(selectedRigId, standardInputsById)
+    : selectedRigId;
+  const downstream = new Set<string>(
+    canonicalSelectedRigId ? [canonicalSelectedRigId] : [selectedRigId],
+  );
   let changed = true;
 
   while (changed) {
     changed = false;
     Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
       const bindingInputIds = collectBindingInputIds(binding);
-      const dependsOnDownstream = bindingInputIds.some((inputId) =>
-        downstream.has(inputId),
+      const dependsOnDownstream = bindingInputIds.some(
+        (inputId) =>
+          downstream.has(inputId) ||
+          (standardInputsById
+            ? isRigGraphIdMatch(
+                inputId,
+                canonicalSelectedRigId,
+                standardInputsById,
+              )
+            : false),
       );
       if (dependsOnDownstream && !downstream.has(targetInputId)) {
         downstream.add(targetInputId);
@@ -163,14 +215,24 @@ export function collectDirectDownstreamRigInputs(params: {
   standardInputsById: Map<string, StandardRigInput>;
 }): DirectRigInputDependent[] {
   const { selectedRigId, inputBindings, standardInputsById } = params;
+  const canonicalSelectedRigId = resolveRigGraphId(
+    selectedRigId,
+    standardInputsById,
+  );
   const results = new Map<string, DirectRigInputDependent>();
+  const isMatch = (candidateId: string) => {
+    if (!canonicalSelectedRigId) {
+      return candidateId === selectedRigId;
+    }
+    return isRigGraphIdMatch(candidateId, selectedRigId, standardInputsById);
+  };
 
   Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
-    if (targetInputId === selectedRigId) {
+    if (isMatch(targetInputId)) {
       return;
     }
     const inputIds = collectBindingInputIds(binding);
-    if (!inputIds.includes(selectedRigId)) {
+    if (!inputIds.some(isMatch)) {
       return;
     }
     const input = standardInputsById.get(targetInputId);
@@ -206,11 +268,19 @@ export function collectRigDependents(params: {
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   objects: SceneObjectNode[];
+  standardInputsById?: Map<string, StandardRigInput>;
 }): RigDependentTarget[] {
-  const { selectedRigId, bindings, inputBindings, objects } = params;
+  const {
+    selectedRigId,
+    bindings,
+    inputBindings,
+    objects,
+    standardInputsById,
+  } = params;
   const drivenRigIds = collectDownstreamRigInputIds(
     selectedRigId,
     inputBindings,
+    standardInputsById,
   );
   const targets = new Map<string, RigDependentTarget>();
 
@@ -239,7 +309,12 @@ export function summarizeTraceConnections(
 ): TraceConnectionsSummary {
   const rigMap = new Map<
     string,
-    { id: string; label: string; features: Set<string> }
+    {
+      id: string;
+      label: string;
+      features: Set<string>;
+      sourceKinds: Set<PoseRigSourceKind>;
+    }
   >();
   const poseMap = new Map<
     string,
@@ -251,18 +326,44 @@ export function summarizeTraceConnections(
       target.upstreamRigInputIds.length > 0
         ? target.upstreamRigInputIds
         : target.directRigInputIds;
+    const directSet = new Set(target.directRigInputIds);
+    const upstreamSet = new Set(target.upstreamRigInputIds);
+    const aggregateRigInputId =
+      target.upstreamRigInputIds.length > 0
+        ? target.upstreamRigInputIds[target.upstreamRigInputIds.length - 1]
+        : null;
 
     chainInputIds.forEach((inputId) => {
       const input = standardInputsById.get(inputId);
       const label = input?.label || input?.path || inputId;
+      const sourceKinds = new Set<PoseRigSourceKind>();
+      if (directSet.has(inputId)) {
+        sourceKinds.add("pose-entry");
+      }
+      if (upstreamSet.has(inputId) && sourceKinds.size === 0) {
+        if (
+          inputId === aggregateRigInputId &&
+          target.directRigInputIds.length > 0
+        ) {
+          sourceKinds.add("pose-aggregate-output");
+        } else {
+          sourceKinds.add("pose-group-output");
+        }
+      }
+      if (sourceKinds.size === 0) {
+        sourceKinds.add("pose-group-output");
+      }
+
       const existing = rigMap.get(inputId);
       if (existing) {
         existing.features.add(target.targetLabel);
+        sourceKinds.forEach((kind) => existing.sourceKinds.add(kind));
       } else {
         rigMap.set(inputId, {
           id: inputId,
           label,
           features: new Set([target.targetLabel]),
+          sourceKinds,
         });
       }
     });
@@ -286,6 +387,9 @@ export function summarizeTraceConnections(
       id: entry.id,
       label: entry.label,
       features: Array.from(entry.features).sort((a, b) => a.localeCompare(b)),
+      sourceKinds: Array.from(entry.sourceKinds).sort((a, b) =>
+        a.localeCompare(b),
+      ),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 

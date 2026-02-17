@@ -36,6 +36,7 @@ import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
 import { BindingEditor } from "../binding";
 import { EmptyState } from "../ui/EmptyState";
+import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
@@ -184,6 +185,10 @@ export function InspectorContent() {
     standardInputs,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
+  const resolvedSelectedRigId = useMemo(
+    () => resolveRigMetadataInputId(selectedRigId, standardInputsById),
+    [selectedRigId, standardInputsById],
+  );
   const referenceFace = useReferenceFace();
   const {
     policy: sharedSyncPolicy,
@@ -222,7 +227,7 @@ export function InspectorContent() {
   }, [inspectorMode, selectedId, selectedMaterialId]);
 
   useEffect(() => {
-    if (inspectorMode !== "rig" || !selectedRigId) {
+    if (inspectorMode !== "rig" || !resolvedSelectedRigId) {
       setRigDrivenBindingTargetId(null);
       return;
     }
@@ -233,7 +238,7 @@ export function InspectorContent() {
       return;
     }
     setRigInspectorView("quick");
-  }, [inspectorMode, selectedRigId]);
+  }, [inspectorMode, resolvedSelectedRigId]);
 
   useEffect(() => {
     if (inspectorMode !== "pose" || !selectedPoseId) {
@@ -304,12 +309,12 @@ export function InspectorContent() {
         view: sceneInspectorView,
       };
     }
-    if (inspectorMode === "rig" && selectedRigId) {
-      const rig = rigInputById.get(selectedRigId);
+    if (inspectorMode === "rig" && resolvedSelectedRigId) {
+      const rig = rigInputById.get(resolvedSelectedRigId);
       return {
         mode: "rig" as const,
-        id: selectedRigId,
-        label: rig?.label || selectedRigId,
+        id: resolvedSelectedRigId,
+        label: rig?.label || resolvedSelectedRigId,
         view: rigInspectorView,
       };
     }
@@ -331,7 +336,7 @@ export function InspectorContent() {
     sceneNodeById,
     selectedId,
     selectedPoseId,
-    selectedRigId,
+    resolvedSelectedRigId,
   ]);
 
   useEffect(() => {
@@ -738,6 +743,7 @@ export function InspectorContent() {
               bindings,
               inputBindings,
               objects,
+              standardInputsById,
             }).length;
             const drivenVariableCount = collectDirectDownstreamRigInputs({
               selectedRigId: varId,
@@ -1362,6 +1368,7 @@ export function InspectorContent() {
                     bindings,
                     inputBindings,
                     objects,
+                    standardInputsById,
                   }).length;
                   const emptyStateKind = classifyPoseParentBindingEmptyState(
                     drivenVariableCount,
@@ -1447,9 +1454,9 @@ export function InspectorContent() {
   }
 
   // 3. Rig Mode
-  if (inspectorMode === "rig" && selectedRigId) {
+  if (inspectorMode === "rig" && resolvedSelectedRigId) {
     const rigInput = managedStandardInputs.find(
-      (m) => m.input.id === selectedRigId,
+      (m) => m.input.id === resolvedSelectedRigId,
     );
     if (rigInput) {
       const input = rigInput.input;
@@ -1473,15 +1480,16 @@ export function InspectorContent() {
         (entry) => entry.input,
       );
       const downstreamInputs = collectDirectDownstreamRigInputs({
-        selectedRigId,
+        selectedRigId: resolvedSelectedRigId,
         inputBindings,
         standardInputsById,
       });
       const dependents = collectRigDependents({
-        selectedRigId,
+        selectedRigId: resolvedSelectedRigId,
         bindings,
         inputBindings,
         objects,
+        standardInputsById,
       });
       const sharedLink = linksByMainInputId.get(input.id) ?? null;
       const sharedConflict = sharedLink
@@ -1492,7 +1500,7 @@ export function InspectorContent() {
         setShowSelector(false);
         const resolvedSelection = resolveRigDrivenSelection(
           selection,
-          selectedRigId,
+          resolvedSelectedRigId,
           objects,
         );
 
@@ -1505,7 +1513,7 @@ export function InspectorContent() {
           const existingBinding = inputBindings[resolvedSelection.childInputId];
           const alreadyLinked = hasParentBindingInput(
             existingBinding,
-            selectedRigId,
+            resolvedSelectedRigId,
           );
           if (alreadyLinked) {
             alertDialog(
@@ -1516,7 +1524,7 @@ export function InspectorContent() {
           }
           handleCreateParentDriverBinding(
             resolvedSelection.childInputId,
-            selectedRigId,
+            resolvedSelectedRigId,
           );
           openRigInspector(resolvedSelection.childInputId, "bindings");
           return;
@@ -1542,7 +1550,7 @@ export function InspectorContent() {
             return;
           }
           resolvedSelection.targetIds.forEach((targetId) => {
-            handleBindingInputChange(targetId, selectedRigId);
+            handleBindingInputChange(targetId, resolvedSelectedRigId);
           });
           return;
         }

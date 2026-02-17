@@ -28,6 +28,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
+import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import type { PoseBlendMode, PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
@@ -203,8 +204,8 @@ function collectPoseIds(node: TreeNode): string[] {
   return ids;
 }
 
-function filterTreeBySearch(rootNode: TreeNode, search: string): TreeNode {
-  const trimmed = search.trim().toLowerCase();
+function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
+  const trimmed = query.trim().toLowerCase();
   if (!trimmed) {
     return rootNode;
   }
@@ -453,7 +454,7 @@ export function VariablesPanel({
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
   const { objects, getNode } = useSceneComposer();
-  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
     blendMode ??
@@ -560,7 +561,7 @@ export function VariablesPanel({
     : null;
 
   const visiblePoseGroups = useMemo(() => {
-    const trimmed = search.trim().toLowerCase();
+    const trimmed = searchQuery.trim().toLowerCase();
     if (!trimmed) {
       return poseGroups;
     }
@@ -579,7 +580,7 @@ export function VariablesPanel({
       }
       return false;
     });
-  }, [poseGroups, poseNameById, search]);
+  }, [poseGroups, poseNameById, searchQuery]);
 
   const {
     managedStandardInputs,
@@ -725,6 +726,28 @@ export function VariablesPanel({
 
   const selectedSceneNode = selectedSceneId ? getNode(selectedSceneId) : null;
 
+  const resolvedSelectedRigId = useMemo(() => {
+    if (!selectedRigId) {
+      return null;
+    }
+    return resolveRigMetadataInputId(selectedRigId, standardInputsById);
+  }, [selectedRigId, standardInputsById]);
+  const effectiveSelectedRigId = resolvedSelectedRigId || selectedRigId || null;
+  const selectedRigInput = useMemo(
+    () => standardInputsById.get(effectiveSelectedRigId ?? ""),
+    [standardInputsById, effectiveSelectedRigId],
+  );
+
+  const isSelectedRigMatch = useMemo(() => {
+    if (!effectiveSelectedRigId) {
+      return () => false;
+    }
+    return (candidate: string) =>
+      candidate === effectiveSelectedRigId ||
+      resolveRigMetadataInputId(candidate, standardInputsById) ===
+        effectiveSelectedRigId;
+  }, [effectiveSelectedRigId, standardInputsById]);
+
   const selectedPoseEntry = useMemo(() => {
     if (!selectedPoseId) {
       return null;
@@ -738,17 +761,19 @@ export function VariablesPanel({
     }
 
     const rows: DriverListRow[] = [];
-
-    if (selectedRigId) {
-      if (isRigElementStandardInputPath(selectedRigId)) {
+    if (selectedRigInput || effectiveSelectedRigId) {
+      if (
+        effectiveSelectedRigId &&
+        isRigElementStandardInputPath(selectedRigInput?.path ?? "")
+      ) {
         return [];
       }
       Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
-        if (targetInputId === selectedRigId) {
+        if (isSelectedRigMatch(targetInputId)) {
           return;
         }
         const inputIds = collectBindingInputIds(binding);
-        if (!inputIds.includes(selectedRigId)) {
+        if (!inputIds.some((inputId) => isSelectedRigMatch(inputId))) {
           return;
         }
         const input = standardInputsById.get(targetInputId);
@@ -841,7 +866,7 @@ export function VariablesPanel({
     selectedPoseEntry,
     selectedPoseGroupPath,
     selectedPoseId,
-    selectedRigId,
+    effectiveSelectedRigId,
     selectedSceneNode,
     standardInputsById,
     selectedSceneId,
@@ -855,9 +880,9 @@ export function VariablesPanel({
 
     const rows: DriverListRow[] = [];
 
-    if (selectedRigId) {
+    if (selectedRigInput || effectiveSelectedRigId) {
       const directChildren = collectDirectDownstreamRigInputs({
-        selectedRigId,
+        selectedRigId: effectiveSelectedRigId,
         inputBindings,
         standardInputsById,
       });
@@ -876,10 +901,11 @@ export function VariablesPanel({
       });
 
       const dependents = collectRigDependents({
-        selectedRigId,
+        selectedRigId: effectiveSelectedRigId,
         bindings,
         inputBindings,
         objects,
+        standardInputsById,
       });
       dependents.forEach((entry) => {
         const ownerId = sceneTargetObjectLabelById.owners.get(entry.targetId);
@@ -923,7 +949,7 @@ export function VariablesPanel({
     bindings,
     selectedPoseEntry,
     selectedPoseId,
-    selectedRigId,
+    effectiveSelectedRigId,
     inputBindings,
     standardInputsById,
     objects,
@@ -1213,12 +1239,12 @@ export function VariablesPanel({
   }, [poses]);
 
   const visibleVariablesRoot = useMemo(
-    () => filterTreeBySearch(variablesRootNode, search),
-    [variablesRootNode, search],
+    () => filterTreeBySearch(variablesRootNode, searchQuery),
+    [variablesRootNode, searchQuery],
   );
   const visiblePosesRoot = useMemo(
-    () => filterTreeBySearch(posesRootNode, search),
-    [posesRootNode, search],
+    () => filterTreeBySearch(posesRootNode, searchQuery),
+    [posesRootNode, searchQuery],
   );
   const visibleRoot =
     activeSurface === "poses" ? visiblePosesRoot : visibleVariablesRoot;
@@ -1227,7 +1253,7 @@ export function VariablesPanel({
   useEffect(() => {
     if (
       (activeSurface !== "variables" && activeSurface !== "poses") ||
-      !search.trim()
+      !searchQuery.trim()
     ) {
       return;
     }
@@ -1248,7 +1274,7 @@ export function VariablesPanel({
       idsToExpand.forEach((id) => next.add(id));
       return next;
     });
-  }, [activeSurface, visibleRoot, search]);
+  }, [activeSurface, visibleRoot, searchQuery]);
 
   useEffect(() => {
     if (!pendingPoseSelectionRef.current || !selectedPoseId) {
@@ -1376,10 +1402,10 @@ export function VariablesPanel({
   };
 
   const handleCreate = () => {
-    const newInput = handleCreateCustomStandardInput(search);
+    const newInput = handleCreateCustomStandardInput(searchQuery);
     if (newInput) {
       onSelectRig?.(newInput.id);
-      setSearch(""); // clear search on create? or keep it? VariableSelector kept it but here maybe clear is better or select it.
+      setSearchQuery(""); // clear search on create? or keep it? VariableSelector kept it but here maybe clear is better or select it.
       // If we keep search, we see it.
     }
   };
@@ -1457,9 +1483,9 @@ export function VariablesPanel({
 
   const showCreateOption =
     activeSurface === "variables" &&
-    search.trim().length > 0 &&
+    searchQuery.trim().length > 0 &&
     !managedStandardInputs.some(
-      (m) => m.input.id.toLowerCase() === search.trim().toLowerCase(),
+      (m) => m.input.id.toLowerCase() === searchQuery.trim().toLowerCase(),
     );
 
   const variableItemCount =
@@ -1521,9 +1547,16 @@ export function VariablesPanel({
       };
     }
     if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
-    if (selectedRigId) return { type: "rig" as const, id: selectedRigId };
+    if (effectiveSelectedRigId) {
+      return { type: "rig" as const, id: effectiveSelectedRigId };
+    }
     return null;
-  }, [activeSurface, selectedPoseGroup?.nodeId, selectedPoseId, selectedRigId]);
+  }, [
+    activeSurface,
+    selectedPoseGroup?.nodeId,
+    selectedPoseId,
+    effectiveSelectedRigId,
+  ]);
 
   const actions = (
     <Button
@@ -1602,16 +1635,18 @@ export function VariablesPanel({
           const isPoseGroups = id === "pose-groups";
           const isPoses = id === "poses";
           const isDrivers = id === "drivers";
-          const searchQuery = search.trim().toLowerCase();
+          const filteredSearch = searchQuery.trim().toLowerCase();
 
           const driverQuery = (row: DriverListRow) => {
-            if (!searchQuery) {
+            if (!filteredSearch) {
               return true;
             }
-            const matchesLabel = row.label.toLowerCase().includes(searchQuery);
+            const matchesLabel = row.label
+              .toLowerCase()
+              .includes(filteredSearch);
             const matchesDetail = row.detail
               ?.toLowerCase()
-              .includes(searchQuery);
+              .includes(filteredSearch);
             return matchesLabel || !!matchesDetail;
           };
 
@@ -1655,10 +1690,10 @@ export function VariablesPanel({
               <div className="flex items-center gap-2 px-1 mb-1">
                 <PanelSearch
                   ref={searchInputRef}
-                  value={search}
-                  onChange={setSearch}
+                  value={searchQuery}
+                  onChange={setSearchQuery}
                   placeholder={
-                    search
+                    searchQuery
                       ? "Filter..."
                       : isVariables
                         ? "Search or create variable..."
@@ -1797,7 +1832,7 @@ export function VariablesPanel({
                 <div className="px-1 flex items-center gap-2 text-[10px] text-text-muted">
                   <span>
                     Selection:
-                    {selectedRigId
+                    {effectiveSelectedRigId
                       ? " Rig"
                       : selectedPoseId
                         ? " Pose"
@@ -1961,7 +1996,8 @@ export function VariablesPanel({
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-medium truncate">
-                        Create "<span className="text-accent">{search}</span>"
+                        Create "
+                        <span className="text-accent">{searchQuery}</span>"
                       </span>
                       <span className="text-[10px] text-text-muted">
                         Create and select new variable
@@ -1978,14 +2014,18 @@ export function VariablesPanel({
                         icon={Search}
                         iconSize={18}
                         title={
-                          !selectedRigId && !selectedPoseId && !selectedSceneId
+                          !effectiveSelectedRigId &&
+                          !selectedPoseId &&
+                          !selectedSceneId
                             ? "No selection"
                             : searchQuery
-                              ? `No driver rows matching "${search}"`
+                              ? `No driver rows matching "${searchQuery}"`
                               : "No driver relationships"
                         }
                         description={
-                          !selectedRigId && !selectedPoseId && !selectedSceneId
+                          !effectiveSelectedRigId &&
+                          !selectedPoseId &&
+                          !selectedSceneId
                             ? "Select a rig, pose, or scene object in another panel to inspect its driver graph."
                             : searchQuery
                               ? "Adjust the filter to a matching source or target."
@@ -2066,21 +2106,21 @@ export function VariablesPanel({
                       icon={Search}
                       iconSize={18}
                       title={
-                        search.trim().length > 0
+                        filteredSearch.length > 0
                           ? "No pose groups found"
                           : "No pose groups yet"
                       }
                       description={
-                        search.trim().length > 0
-                          ? `No items found matching "${search}"`
+                        filteredSearch.length > 0
+                          ? `No items found matching "${searchQuery}"`
                           : "Assign a pose to a group to populate this list."
                       }
                       action={
-                        search.trim().length > 0 ? (
+                        filteredSearch.length > 0 ? (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setSearch("")}
+                            onClick={() => setSearchQuery("")}
                             className="h-6 text-[10px] text-accent hover:text-accent-hover"
                           >
                             Clear Search
@@ -2108,7 +2148,7 @@ export function VariablesPanel({
                             }
                             onToggle={() => {}}
                             onSelect={() => selectPoseGroup(group)}
-                            highlightQuery={search}
+                            highlightQuery={searchQuery}
                             icon={
                               <Users size={12} className="text-purple-300" />
                             }
@@ -2151,25 +2191,25 @@ export function VariablesPanel({
                     icon={Search}
                     iconSize={18}
                     title={
-                      search.trim().length > 0
+                      filteredSearch.length > 0
                         ? "No results"
                         : isVariables
                           ? "No variables defined"
                           : "No poses defined"
                     }
                     description={
-                      search.trim().length > 0
-                        ? `No items found matching "${search}"`
+                      filteredSearch.length > 0
+                        ? `No items found matching "${searchQuery}"`
                         : isVariables
                           ? "Create new variables or import a model with poses."
                           : "Create a pose to get started."
                     }
                     action={
-                      search.trim().length > 0 ? (
+                      filteredSearch.length > 0 ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSearch("")}
+                          onClick={() => setSearchQuery("")}
                           className="h-6 text-[10px] text-accent hover:text-accent-hover"
                         >
                           Clear Search
@@ -2195,7 +2235,7 @@ export function VariablesPanel({
                         onAction={handleAction}
                         onSelect={handleSelect}
                         selection={activeSelection}
-                        searchQuery={search}
+                        searchQuery={searchQuery}
                       />
                     ))
                 )}

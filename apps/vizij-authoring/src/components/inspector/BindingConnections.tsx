@@ -24,6 +24,12 @@ import {
   type PoseRigTraceSuggestion,
 } from "./rigConnections";
 
+const poseSourceKindLabels: Record<string, string> = {
+  "pose-entry": "Pose entry",
+  "pose-group-output": "Pose group output",
+  "pose-aggregate-output": "Pose aggregate output",
+};
+
 interface BindingConnectionsProps {
   node: SceneObjectNode;
   onSelectPose?: (poseId: string) => void;
@@ -553,6 +559,15 @@ export function BindingConnections({
                           <Box size={10} className="text-accent" />
                           {rig.label}
                         </div>
+                        {rig.sourceKinds.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {rig.sourceKinds.map((kind) => (
+                              <Chip key={`${rig.id}:${kind}`} tone="default">
+                                {poseSourceKindLabels[kind] ?? kind}
+                              </Chip>
+                            ))}
+                          </div>
+                        )}
                         <span className="text-[9px] opacity-50 truncate max-w-[160px]">
                           affects: {rig.features.join(", ")}
                         </span>
