@@ -739,6 +739,9 @@ export function VariablesPanel({
     const rows: DriverListRow[] = [];
 
     if (selectedRigId) {
+      if (isRigElementStandardInputPath(selectedRigId)) {
+        return [];
+      }
       Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
         if (targetInputId === selectedRigId) {
           return;
@@ -748,6 +751,9 @@ export function VariablesPanel({
           return;
         }
         const input = standardInputsById.get(targetInputId);
+        if (isRigElementStandardInputPath(input?.path)) {
+          return;
+        }
         rows.push({
           id: targetInputId,
           label: input?.label || input?.path || targetInputId,
@@ -797,6 +803,9 @@ export function VariablesPanel({
         for (const sourceId of inputIds) {
           const sourceInput = standardInputsById.get(sourceId);
           if (!sourceInput) {
+            continue;
+          }
+          if (isRigElementStandardInputPath(sourceInput.path)) {
             continue;
           }
           const existing = incomingMap.get(sourceId);
@@ -852,6 +861,9 @@ export function VariablesPanel({
         standardInputsById,
       });
       directChildren.forEach((entry) => {
+        if (isRigElementStandardInputPath(entry.id)) {
+          return;
+        }
         const source = standardInputsById.get(entry.id);
         rows.push({
           id: entry.id,
@@ -890,6 +902,9 @@ export function VariablesPanel({
     if (selectedPoseId && selectedPoseEntry) {
       Object.entries(selectedPoseEntry.values).forEach(([inputId]) => {
         const input = standardInputsById.get(inputId);
+        if (isRigElementStandardInputPath(input?.path)) {
+          return;
+        }
         rows.push({
           id: inputId,
           label: input?.label || input?.path || inputId,

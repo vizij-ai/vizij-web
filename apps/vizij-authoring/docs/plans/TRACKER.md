@@ -10,7 +10,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
 4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. The active implementation item is R0 surface decomposition: `VariablesPanel` now carries Variables, Poses, and Drivers surfaces with dedicated left-pane wiring in progress.
+5. The active implementation item is R0 surface decomposition: `VariablesPanel` now carries Variables, Poses, and Drivers surfaces, but left-column dedicated Face Elements / Variables / Poses / Pose Groups / Drivers pane separation is still incomplete.
 6. Remaining P1 focus is on aggregate binding surfacing, hard boundary enforcement, and diagnostics/import strategy completeness.
 
 ## Deliverables
@@ -94,7 +94,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Scope:
    - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Drivers.
    - one globally selected item is shared between panes.
-   - Variables and Poses tabbed decomposition and Drivers surface are implemented in `VariablesPanel`; next step is dedicated Pose Groups and Drivers panes.
+   - Variables and Poses tabbed decomposition plus Drivers surface are implemented in `VariablesPanel`; next step is dedicated Face Elements + dedicated Pose Groups + dedicated Drivers panes in `WorkspaceLayout`.
    - Variables pane supports true external inputs only, path-grouped key-value controls, and opens sliders directly for selected leaf values.
    - Poses pane shows all defined poses, with inspector affordance to see group membership and add/remove group membership.
    - Pose Groups pane supports list/inspect/edit for group membership plus cross-group blend-mode selection.
@@ -107,7 +107,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - route binding edits against aggregate pose-layer outputs where appropriate.
    - align with new Poses/Pose Groups panes for consistent click-through behavior.
 
-3. R2 Rig metadata namespace + exclusion (`/rig/element`): `planned`
+3. R2 Rig metadata namespace + exclusion (`/rig/element`): `in_progress`
    Scope:
    - auto-generated animatable-driven rig inputs are normalized under the `rig/element` path prefix.
    - hide `/rig/element` entries from Variables panel + Drivers.

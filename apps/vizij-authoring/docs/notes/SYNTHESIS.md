@@ -12,7 +12,7 @@ This file is the relevance filter for all authoring notes. Use this before actin
    - aggregate pose-source surfacing in inspector/binding flows,
    - rig boundary enforcement for animatable writes,
    - grouping/import strategy controls and diagnostics completeness,
-   - dedicated Variables/Poses/Pose Groups/Drivers control-surface split,
+   - dedicated Variables/Poses/Pose Groups/Drivers control-surface split is still partial (shared panel reuse in progress),
    - exclusion of auto-generated `/rig/element` paths from variable and Drivers edit surfaces,
    - primary-face pose pane behavior while secondary-face pose workflows are deferred.
 
@@ -37,9 +37,9 @@ This file is the relevance filter for all authoring notes. Use this before actin
 3. Group lifecycle editing is still path-first and needs explicit group create/rename/delete UX.
 4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
 5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
-6. Poses surface tabs now share with dedicated Pose Groups/Drivers wiring in progress; left column still needs final Face Elements + dedicated Drivers panel selection semantics.
+6. Variables/Poses/Drivers are still surfaced inside `VariablesPanel` tabs; left column still needs dedicated Face Elements + dedicated Pose Groups + dedicated Drivers panel selection semantics.
 7. One globally selected item across panes (and deterministic inspector routing) is still pending.
-8. `/rig/element` path handling needs implementation for metadata-only rig auto-generated paths and exclusion from face/variable editing paths.
+8. `/rig/element` handling is now filtered from Variables and Drivers, and the remaining work is surfacing them as explicit face-property aliases in rig-focused inspection context.
 
 ## Notes Relevance Matrix
 
