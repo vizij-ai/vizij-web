@@ -21,8 +21,7 @@ This directory is the source of truth for authoring-app planning, status, and re
    - `/autorig` generated rig inputs are excluded from Variables as user-facing controls and surfaced as face-graph aliases where needed.
 4. P1 remaining focus:
    - aggregate pose-output binding surfacing in inspector/binding flows,
-   - strict rig-boundary enforcement + diagnostics,
-   - import/group strategy controls and diagnostics completeness.
+   - pose diagnostics breadth and deterministic import/group strategy tooling.
 
 ## Canonical plans
 

@@ -10,7 +10,7 @@ This file is the relevance filter for all authoring notes. Use this before actin
 2. P1 chain-parity and Quori smoke correction findings are resolved.
 3. Active P1 work has shifted to pose architecture semantics:
    - aggregate pose-source surfacing in inspector/binding flows,
-   - rig boundary enforcement for animatable writes,
+   - diagnostics breadth for pose coverage and grouping behaviors,
    - grouping/import strategy controls and diagnostics completeness,
    - dedicated control-surface split (Face Elements, Variables, Poses, Pose Groups, Inputs) is now implemented via dedicated left panes,
    - exclusion of auto-generated `/autorig` paths from variable and Inputs edit surfaces,
@@ -33,13 +33,10 @@ This file is the relevance filter for all authoring notes. Use this before actin
 ## Active Findings That Still Matter
 
 1. Inspector semantics should distinguish pose entry vs group output vs aggregate output explicitly.
-2. Rig boundary constraints still need strict enforcement and diagnostics for invalid abstract-rig-to-animatable writes.
-3. `/autorig` alias behavior in rig-inspection context is still the remaining namespace hardening item; group lifecycle creation/rename/delete UX is now available.
-4. Import grouping strategy needs explicit user-facing controls and deterministic preview.
-5. Pose diagnostics need broader coverage (empty groups, aggregate gaps, boundary violations, unresolved target coverage).
-6. `VariablesPanel` now runs as dedicated surface instances for Variables, Poses, and Inputs, with Pose Groups in a separate dedicated pane.
-7. One globally selected item across panes is now enforced by `useUnifiedSelection`; remaining work is richer alias/aggregate semantics.
-8. `/autorig` handling is now filtered from Variables and Inputs, and the remaining work is surfacing them as explicit face-property aliases in rig-focused inspection context.
+2. Pose diagnostics need broader coverage (empty groups, aggregate gaps, unresolved target coverage, and strategy validation).
+3. Import grouping strategy needs explicit user-facing controls and deterministic preview.
+4. `VariablesPanel` now runs as dedicated surface instances for Variables, Poses, and Inputs, with Pose Groups in a separate dedicated pane.
+5. One globally selected item across panes is now enforced by `useUnifiedSelection`; remaining work is richer alias/aggregate semantics.
 
 ## Notes Relevance Matrix
 

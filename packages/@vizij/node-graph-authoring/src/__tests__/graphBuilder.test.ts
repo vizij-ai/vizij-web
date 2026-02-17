@@ -1301,12 +1301,103 @@ describe("buildRigGraphSpec issues", () => {
     ).toBe(true);
   });
 
+  it("flags unbound abstract rig inputs that drive animatable components directly", () => {
+    const unboundAbstractInput: StandardRigInput = {
+      id: "unbound_abstract_input",
+      path: "/controls/unbound",
+      label: "Unbound Abstract Input",
+      group: "controls",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      unboundAbstractInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([[unboundAbstractInput.id, unboundAbstractInput]]),
+      inputBindings: {},
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(issues).toBeDefined();
+    expect(
+      issues?.some(
+        (issue) =>
+          issue.includes("higher-order rig input") &&
+          issue.includes(unboundAbstractInput.id),
+      ),
+    ).toBe(true);
+  });
+
   it("allows /rig/element metadata alias inputs to drive animatable components", () => {
     const metadataInput: StandardRigInput = {
       id: "rig_element_input",
       path: "/rig/element/jaw/open",
       label: "Jaw Open",
       group: "rig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(metadataInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(metadataInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      metadataInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [metadataInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      issues?.some((issue) => issue.includes("higher-order rig input")),
+    ).toBe(false);
+  });
+
+  it("allows /autorig metadata alias inputs to drive animatable components", () => {
+    const metadataInput: StandardRigInput = {
+      id: "autorig_input",
+      path: "/autorig/jaw/open",
+      label: "Jaw Open",
+      group: "autorig",
       defaultValue: 0,
       range: { min: -1, max: 1 },
     };

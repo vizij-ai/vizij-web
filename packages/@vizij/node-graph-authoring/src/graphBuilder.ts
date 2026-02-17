@@ -73,9 +73,11 @@ interface EvaluateBindingArgs {
   safeId: string;
   context: BindingGraphContext;
   selfNodeId?: string;
+  applyRigBoundaryRules?: boolean;
 }
 
 const RIG_ELEMENT_PATH_PREFIX = "/rig/element";
+const AUTORIG_PATH_PREFIX = "/autorig";
 
 function isRigElementAliasInput(
   inputId: string,
@@ -85,15 +87,18 @@ function isRigElementAliasInput(
   if (!input?.path) {
     return false;
   }
-  return input.path.startsWith(RIG_ELEMENT_PATH_PREFIX);
+  return (
+    input.path.startsWith(RIG_ELEMENT_PATH_PREFIX) ||
+    input.path.startsWith(AUTORIG_PATH_PREFIX)
+  );
 }
 
 function isHigherOrderRigBindingInput(
   inputId: string,
-  inputBindings: InputBindingMap,
   inputsById: Map<string, StandardRigInput>,
 ): boolean {
-  if (!inputBindings[inputId]) {
+  const input = inputsById.get(inputId);
+  if (!input?.path) {
     return false;
   }
   if (isRigElementAliasInput(inputId, inputsById)) {
@@ -111,6 +116,7 @@ function evaluateBinding({
   safeId,
   context,
   selfNodeId,
+  applyRigBoundaryRules = false,
 }: EvaluateBindingArgs): {
   valueNodeId: string | null;
   hasActiveSlot: boolean;
@@ -169,7 +175,8 @@ function evaluateBinding({
     } else if (slot.inputId) {
       const inputId = slot.inputId;
       if (
-        isHigherOrderRigBindingInput(inputId, inputBindings, inputsById) &&
+        applyRigBoundaryRules &&
+        isHigherOrderRigBindingInput(inputId, inputsById) &&
         inputId !== SELF_BINDING_ID
       ) {
         expressionIssues.push(
@@ -1437,6 +1444,7 @@ export function buildRigGraphSpec({
           animatableId: inputId,
           component: undefined,
           safeId: sanitizeNodeId(inputId),
+          applyRigBoundaryRules: false,
           context: {
             inputsById,
             inputBindings,
@@ -1532,6 +1540,7 @@ export function buildRigGraphSpec({
           animatableId: component.animatableId,
           component: component.component,
           safeId: component.safeId,
+          applyRigBoundaryRules: true,
           context: {
             inputsById,
             inputBindings,
