@@ -53,11 +53,12 @@ Status (2026-02-17): pose-group authoring controls are now implemented; remainin
 15. Next: surface pose aggregate outputs as explicit rig binding sources in inspector/binding semantics.
 16. Done: enforce rig boundary where only low-level rig variables can write animatable leaves.
 17. Done: finalize lifecycle operations for pose groups (rename/delete/edit) in dedicated Pose Group pane.
-18. Done: add explicit Inputs relationship edit and removal actions in the dedicated Inputs surface (per-rig/scene link unlink + route-safe deletion).
-19. Next: add explicit import grouping strategy controls and group-level conflict handling.
-20. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
-21. Next: preserve deterministic group strategy and import behavior in migration/export docs.
-22. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+18. In progress: Inputs pane is now focused on direct per-input controls; remaining explicit unlink/remove actions are now expected to remain in inspector-level flows until the new Inputs lifecycle pass is complete.
+19. Done: warn when importing legacy low-level auto-rig metadata still using `/rig/element`.
+20. Next: add explicit import grouping strategy controls and group-level conflict handling.
+21. Next: add pose-layer diagnostics (group/aggregate/boundary/target coverage) and wire to export readiness.
+22. Next: preserve deterministic group strategy and import behavior in migration/export docs.
+23. Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
 ### P2 (architecture and scale-readiness)
 

@@ -46,6 +46,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - `/autorig` filtering for user-facing variable inputs and alias-safe selection flow in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
    - `/autorig` namespace behavior is resolved during rig inspection and trace navigation in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
    - source-kind-aware rig routing is implemented in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx` and `InspectorContent.tsx`.
+   - legacy low-level namespace import warnings in `apps/vizij-authoring/src/hooks/useRigGraphImport.ts`.
 
 ## Regression Follow-ups (Deep Review + Quori Smoke)
 
@@ -137,10 +138,15 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - add diagnostics for empty groups, missing aggregate contributors, boundary violations, and unresolved target coverage.
    - route each diagnostic to the owning editor context.
 
-8. R7 Inputs relationship lifecycle in dedicated Inputs pane: `done`
+8. R7 Inputs relationship lifecycle in dedicated Inputs pane: `in_progress`
    Scope:
-   - provide explicit unlink/delete actions for rig-to-rig and rig-to-scene links from the Inputs list.
-   - preserve chain-safe routing when removing a relationship.
+
+- Inputs now surfaces per-input sliders and values.
+- unlink/delete actions for rig-to-rig and rig-to-scene links remain in inspector-level flows and are tracked separately until Inputs relationship lifecycle is finished.
+
+9. R8 Legacy low-level namespace import warning: `done`
+   - legacy `/rig/element` low-level input paths emit migration warning on graph import with `/autorig` remap suggestions.
+   - import remains compatible to avoid blocking existing faces.
 
 Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
 
