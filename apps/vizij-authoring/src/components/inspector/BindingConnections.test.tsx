@@ -140,7 +140,7 @@ describe("BindingConnections routing", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Smile/i })[0]);
 
     expect(onSelectTarget).toHaveBeenCalledWith("shape:mouth:x");
-    expect(onSelectRig).toHaveBeenCalledWith("rig_1");
+    expect(onSelectRig).toHaveBeenCalledWith("rig_1", "pose-aggregate-output");
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
   });
 });

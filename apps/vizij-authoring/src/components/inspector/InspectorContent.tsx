@@ -52,6 +52,7 @@ import {
 import {
   collectDirectDownstreamRigInputs,
   collectRigDependents,
+  type PoseRigSourceKind,
 } from "./rigConnections";
 import { resolveSelectionTargetIds } from "./bindingSelection";
 import {
@@ -562,6 +563,18 @@ export function InspectorContent() {
     );
   };
 
+  const openRigFromChainSource = (
+    rigId: string,
+    sourceKind?: PoseRigSourceKind,
+  ) => {
+    const view: "quick" | "bindings" =
+      sourceKind === "pose-group-output" ||
+      sourceKind === "pose-aggregate-output"
+        ? "bindings"
+        : "quick";
+    openRigInspector(rigId, view);
+  };
+
   const handleRequestCreateStandardInput = (suggestedPath?: string) => {
     const response = promptDialog(
       "Enter the rig path for the new standard input (e.g., /eyes/blink)",
@@ -622,7 +635,7 @@ export function InspectorContent() {
               <BindingConnections
                 node={node}
                 onSelectPose={openPoseInspector}
-                onSelectRig={(rigId) => openRigInspector(rigId, "quick")}
+                onSelectRig={openRigFromChainSource}
                 onSelectTarget={openSceneBindingInspector}
               />
             </>

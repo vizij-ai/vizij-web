@@ -22,6 +22,8 @@ import {
   selectSafePoseRigTraceSuggestions,
   summarizeTraceConnections,
   type PoseRigTraceSuggestion,
+  type PoseRigSourceKind,
+  type PoseRigFaceTraceTarget,
 } from "./rigConnections";
 
 const poseSourceKindLabels: Record<string, string> = {
@@ -33,7 +35,7 @@ const poseSourceKindLabels: Record<string, string> = {
 interface BindingConnectionsProps {
   node: SceneObjectNode;
   onSelectPose?: (poseId: string) => void;
-  onSelectRig?: (rigId: string) => void;
+  onSelectRig?: (rigId: string, sourceKind?: PoseRigSourceKind) => void;
   onSelectTarget?: (targetId: string) => void;
 }
 
@@ -113,6 +115,42 @@ export function BindingConnections({
   );
   const [expandedRigIds, setExpandedRigIds] = useState<Set<string>>(
     () => new Set(),
+  );
+
+  const getPrimaryRigSourceKind = useCallback(
+    (sourceKinds: PoseRigSourceKind[]) => {
+      if (sourceKinds.includes("pose-aggregate-output")) {
+        return "pose-aggregate-output";
+      }
+      if (sourceKinds.includes("pose-group-output")) {
+        return "pose-group-output";
+      }
+      return "pose-entry";
+    },
+    [],
+  );
+
+  const getTargetRigSourceKind = useCallback(
+    (target: PoseRigFaceTraceTarget, rigId: string): PoseRigSourceKind => {
+      const aggregateRigInputId =
+        target.upstreamRigInputIds.length > 0
+          ? target.upstreamRigInputIds[target.upstreamRigInputIds.length - 1]
+          : null;
+      if (target.directRigInputIds.includes(rigId)) {
+        return "pose-entry";
+      }
+      if (target.upstreamRigInputIds.includes(rigId)) {
+        if (
+          aggregateRigInputId === rigId &&
+          target.directRigInputIds.length > 0
+        ) {
+          return "pose-aggregate-output";
+        }
+        return "pose-group-output";
+      }
+      return "pose-group-output";
+    },
+    [],
   );
 
   const togglePoseExpansion = useCallback((id: string) => {
@@ -547,7 +585,10 @@ export function BindingConnections({
                       className="h-auto py-1 text-[10px] px-2 bg-bg-panel/30 hover:bg-accent-subtle hover:text-accent border-border-default/50 hover:border-accent/30 transition-colors justify-start flex-1"
                       onClick={() => {
                         if (onSelectRig) {
-                          onSelectRig(rig.id);
+                          onSelectRig(
+                            rig.id,
+                            getPrimaryRigSourceKind(rig.sourceKinds),
+                          );
                           return;
                         }
                         handleSelectRig(rig.id);
@@ -664,7 +705,12 @@ export function BindingConnections({
                           key={rigId}
                           type="button"
                           className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/40 hover:border-accent/50 hover:text-accent transition-colors text-[9px] font-mono"
-                          onClick={() => onSelectRig(rigId)}
+                          onClick={() =>
+                            onSelectRig(
+                              rigId,
+                              getTargetRigSourceKind(target, rigId),
+                            )
+                          }
                           title={`Inspect rig input ${rigId}`}
                         >
                           {rigId}

@@ -18,7 +18,7 @@ export interface DirectRigInputDependent {
   label: string;
 }
 
-type PoseRigSourceKind =
+export type PoseRigSourceKind =
   | "pose-entry"
   | "pose-group-output"
   | "pose-aggregate-output";

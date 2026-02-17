@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-17
 Owner: Vizij Authoring
-Status: in_progress (top-priority P1, partial implementation landed)
+Status: in_progress (top-priority P1, T1-T5 done, focus remains T6/T7)
 
 ## 1) Scope and intent
 
@@ -66,10 +66,8 @@ For each rig target variable:
 
 ## 3.2 Not aligned (must change)
 
-1. Pose aggregate nodes are not yet surfaced as first-class binding sources in inspector semantics.
-2. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
-3. Diagnostics for aggregate/group-coverage gaps are not yet complete in editor/export surfaces.
-4. Dedicated Face Elements / Variables / Poses / Pose Groups / Drivers surfaces are now implemented; remaining work is aggregate semantics in click-through and explicit target routing.
+1. Import/remap strategy controls for grouping and topology conflict handling are still implicit.
+2. Diagnostics for aggregate/group-coverage gaps are not yet complete in editor/export surfaces.
 
 ## 4) P1 implementation tracks
 
@@ -115,7 +113,7 @@ Acceptance criteria:
 2. inspector can route boundary violation diagnostics to relevant contexts
 3. tests cover valid and invalid boundary scenarios
 
-## P1-T4 Pose/rig binding semantics in UI (`in_progress`)
+## P1-T4 Pose/rig binding semantics in UI (`done`)
 
 Update inspector and binding UIs to show aggregate semantics:
 
@@ -216,7 +214,7 @@ Acceptance criteria:
 1. T1 domain model (`done`)
 2. T2 compiler (`done`)
 3. T5 blend controls (`done`)
-4. T4 aggregate-source semantics + chain labeling (`in_progress`)
+4. T4 aggregate-source semantics + chain labeling (`done`)
 5. T8 control-surface decomposition (`done`)
 6. T9 rig metadata namespace and aliasing (`done`)
 7. T3 boundary enforcement (`done`)

@@ -10,7 +10,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 2. Prior P1 chain-parity tranche is complete.
 3. Pose architecture tranche has landed first-class group model + two-layer compile + blend controls.
 4. Additional P1 focus is now a control-surface refactor (Face Elements, Variables, Poses, Pose Groups, Drivers) plus `/rig/element` handling for auto-generated rig inputs.
-5. Surface decomposition is now implemented as dedicated left-side panes for Face Elements, Variables, Poses, Pose Groups, and Drivers; remaining focus is aggregate binding surfacing and diagnostics/import strategy completeness.
+5. Surface decomposition is now implemented as dedicated left-side panes for Face Elements, Variables, Poses, Pose Groups, and Drivers; remaining focus is diagnostics/import strategy completeness.
 6. `/rig/element` filtering is implemented in variable/driver surfaces, and alias-safe rig-context behavior is implemented via canonical rig selection matching.
 
 ## Deliverables
@@ -33,7 +33,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - pose-group aware store state in `apps/vizij-authoring/src/poseRig/store.tsx`.
    - two-layer group + cross-group compile topology in `apps/vizij-authoring/src/poseRig/graphBuilder.ts`.
    - blend control surface in `apps/vizij-authoring/src/components/app/ExportPanel.tsx`.
-   - Open: aggregate-source semantics are partially surfaced as source-kind metadata in connection summaries; full binding edit routing is still a P1 follow-up item.
+   - Open: aggregate-source semantics are now surfaced as source-kind metadata with source-aware rig click-through routing in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx` and `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
 
 5. D5 Export pipeline + docs alignment: `done`
    Evidence: GraphSpec/pose compile gating and warnings in `apps/vizij-authoring/src/hooks/useVizijExport.ts`; coverage in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
@@ -44,8 +44,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - dedicated pane separation for Face Elements, Variables, Poses, Pose Groups, and Drivers in `apps/vizij-authoring/src/App.tsx` and `apps/vizij-authoring/src/layouts/WorkspaceLayout.tsx`.
    - panel visibility and toggles for the five control panes in `apps/vizij-authoring/src/state/workspaceStore.ts` and `apps/vizij-authoring/src/components/app/AppMenuBar.tsx`.
    - `/rig/element` filtering for Variables/Drivers and alias-safe selection flow in `apps/vizij-authoring/src/components/panels/VariablesPanel.tsx`.
-     Open:
-   - `/rig/element` namespace behavior in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx` and `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+   - `/rig/element` namespace behavior is resolved during rig inspection and trace navigation in `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx`.
+   - source-kind-aware rig routing is implemented in `apps/vizij-authoring/src/components/inspector/BindingConnections.tsx` and `InspectorContent.tsx`.
 
 ## Regression Follow-ups (Deep Review + Quori Smoke)
 
@@ -102,12 +102,12 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    - Pose Group inspector supports local blend-mode selection.
    - Drivers pane makes explicit what each selected item drives and what drives it.
 
-2. R1 Aggregate-source semantics in inspector/binding UI: `in_progress`
+2. R1 Aggregate-source semantics in inspector/binding UI: `done`
    Scope:
    - explicitly surface pose entry vs group output vs final aggregate output in chain labels and editors.
    - route binding edits against aggregate pose-layer outputs where appropriate.
    - align with new Poses/Pose Groups panes for consistent click-through behavior.
-   - progress: `rigConnections` now tags chain entries with source kinds and `BindingConnections` surfaces those tags in rig row summaries.
+   - completed: `rigConnections` now tags chain entries with source kinds, `BindingConnections` surfaces those tags, and rig navigation routes `pose-aggregate-output` / `pose-group-output` to bindings view.
 
 3. R2 Rig metadata namespace + exclusion (`/rig/element`): `done`
    Scope:
@@ -151,7 +151,7 @@ Tracking spec: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`
 ## Active Blockers
 
 1. No hard runtime blockers.
-2. Remaining work is semantic/editor completeness in P1 queue (R1-R6).
+2. Remaining work is semantic/editor completeness in P1 queue (R5-R6).
 
 ## Exit Criteria for P1 Wrap
 
