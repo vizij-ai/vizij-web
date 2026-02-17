@@ -10,25 +10,22 @@ import {
   Search,
   Sliders,
   Users,
-  ArrowRight,
-  ChevronRight,
 } from "lucide-react";
 import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
-  SELF_BINDING_ID,
 } from "@vizij/utils";
-import type { AnimatableBinding } from "@vizij/node-graph-authoring";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { PanelSearch, TreeRow, Tabs } from "../ui";
+import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
-import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
+import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import type { PoseBlendMode, PoseDefinition } from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
@@ -37,15 +34,14 @@ import type {
   SharedVariableConflict,
   SharedVariableSyncPolicy,
 } from "../../hooks/useSharedVariableSync";
-import { collectDirectDownstreamRigInputs } from "../inspector/rigConnections";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
 // ----------------------------------------------------------------------------
 
-type NodeType = "folder" | "pose" | "rig";
+type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
-type SurfaceTab = "variables" | "poses" | "pose-groups" | "drivers";
+type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
 
 const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
 const UNASSIGNED_POSE_GROUP_LABEL = "Unassigned";
@@ -59,22 +55,15 @@ interface PoseGroupSummary {
   poseIds: string[];
 }
 
-interface DriverNavigationTarget {
-  kind: "rig" | "pose" | "pose-group" | "scene-object";
-  id: string;
-}
-
-interface DriverListRow {
+interface InputListRow {
   id: string;
   label: string;
-  direction: "incoming" | "outgoing";
-  detail?: string;
-  route: DriverNavigationTarget;
-  bindingTargets?: Array<{
-    targetId: string;
-    sourceId: string;
-    slotId?: string;
-  }>;
+  inputId: string;
+  source: RigNodeSource;
+  path: string;
+  value: number;
+  min: number;
+  max: number;
 }
 
 function normalizePoseGroupPath(value: string | null | undefined): string {
@@ -83,30 +72,6 @@ function normalizePoseGroupPath(value: string | null | undefined): string {
     return "";
   }
   return trimmed.replace(/^\/+|\/+$/g, "");
-}
-
-function collectBindingSourceSlots(
-  binding: AnimatableBinding,
-): Array<{ sourceId: string; slotId?: string }> {
-  const links: Array<{ sourceId: string; slotId?: string }> = [];
-  const seen = new Set<string>();
-  const add = (sourceId: string | null | undefined, slotId?: string) => {
-    if (!sourceId) return;
-    const trimmed = sourceId.trim();
-    if (!trimmed || trimmed === SELF_BINDING_ID) return;
-    const key = `${trimmed}|${slotId ?? ""}`;
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    links.push({ sourceId: trimmed, slotId });
-  };
-
-  add(binding.inputId, binding.slots[0]?.id);
-  binding.slots.forEach((slot) => {
-    add(slot.inputId, slot.id);
-  });
-  return links;
 }
 
 function poseGroupDisplayLabel(path: string): string {
@@ -266,6 +231,7 @@ interface TreeRowWrapperProps {
   onToggle: (id: string) => void;
   onAction?: (node: TreeNode, action: string) => void;
   onSelect?: (node: TreeNode) => void;
+  onInputValueChange?: (inputId: string, value: number) => void;
   selection?: { type: "pose" | "rig" | "pose-group"; id: string } | null;
   searchQuery: string;
 }
@@ -277,6 +243,7 @@ function TreeRowWrapper({
   onToggle,
   onAction,
   onSelect,
+  onInputValueChange,
   selection,
   searchQuery,
 }: TreeRowWrapperProps) {
@@ -303,16 +270,61 @@ function TreeRowWrapper({
   let Icon = Folder;
   if (node.type === "pose") Icon = Activity;
   else if (node.type === "rig") Icon = Zap;
+  else if (node.type === "input") Icon = Sliders;
 
   // Determine Icon Color
   let iconClass = "text-text-muted";
   if (node.type === "pose") iconClass = "text-purple-400";
   else if (node.type === "rig") iconClass = "text-yellow-400";
+  else if (node.type === "input") iconClass = "text-cyan-300";
   else if (
     node.type === "folder" &&
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
   )
     iconClass = "text-purple-300";
+
+  if (node.type === "input") {
+    const inputData = node.data as InputListRow;
+    const value =
+      typeof inputData.value === "number" && Number.isFinite(inputData.value)
+        ? inputData.value
+        : 0;
+    return (
+      <TreeRow
+        depth={depth}
+        label={node.label}
+        hasChildren={false}
+        isSelected={!!isSelected}
+        onToggle={() => {}}
+        onSelect={() => onSelect?.(node)}
+        highlightQuery={searchQuery}
+        icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
+        actions={
+          <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30">
+            {inputData.source}
+          </span>
+        }
+      >
+        <div className="px-2 pb-2">
+          <Slider
+            value={value}
+            min={inputData.min}
+            max={inputData.max}
+            step={0.01}
+            onChange={(nextValue) => {
+              const normalizedValue = Array.isArray(nextValue)
+                ? nextValue[0]
+                : nextValue;
+              if (!Number.isFinite(normalizedValue)) {
+                return;
+              }
+              onInputValueChange?.(inputData.inputId, normalizedValue);
+            }}
+          />
+        </div>
+      </TreeRow>
+    );
+  }
 
   return (
     <TreeRow
@@ -437,6 +449,7 @@ function TreeRowWrapper({
                 onToggle={onToggle}
                 onAction={onAction}
                 onSelect={onSelect}
+                onInputValueChange={onInputValueChange}
                 selection={selection}
                 searchQuery={searchQuery}
               />
@@ -623,13 +636,11 @@ export function VariablesPanel({
     managedStandardInputs,
     standardInputsByPath,
     standardInputsById,
-    bindings,
-    inputBindings,
+    inputValues,
+    handleInputValueChange,
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
-    handleUnlinkChildInput,
-    handleBindingInputChange,
   } = useBindingAuthoring((state) => state);
   const referenceFace = useReferenceFace();
   const {
@@ -642,7 +653,7 @@ export function VariablesPanel({
   } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
   const allSurfaces = useMemo(
-    () => availableSurfaces ?? ["variables", "poses", "pose-groups"],
+    () => availableSurfaces ?? ["variables", "poses", "inputs", "pose-groups"],
     [availableSurfaces],
   );
   const [activeSurfaceState, setActiveSurfaceState] = useState<SurfaceTab>(
@@ -677,7 +688,7 @@ export function VariablesPanel({
   const mainFaceRigEntries = useMemo(() => {
     return managedStandardInputs
       .filter((entry) => Boolean(entry.input.path?.trim()))
-      .filter((entry) => !isRigElementStandardInputPath(entry.input.path))
+      .filter((entry) => !isAutorigStandardInputPath(entry.input.path))
       .map((entry) => ({
         input: entry.input,
         source: resolveManagedSource(entry),
@@ -693,7 +704,7 @@ export function VariablesPanel({
     });
     return referenceFace.standardInputs
       .filter((entry) => Boolean(entry.path?.trim()))
-      .filter((entry) => !isRigElementStandardInputPath(entry.path))
+      .filter((entry) => !isAutorigStandardInputPath(entry.path))
       .map((entry) => {
         const normalizedPath = normalizeStandardRigInputPath(entry.path);
         const linkedMain = mainByPath.get(normalizedPath);
@@ -800,295 +811,60 @@ export function VariablesPanel({
     return poses.find((pose) => pose.id === selectedPoseId) ?? null;
   }, [poses, selectedPoseId]);
 
-  const driverIncomingRows = useMemo(() => {
-    if (activeSurface !== "drivers") {
-      return [];
-    }
+  const inputRows = useMemo(() => {
+    return managedStandardInputs.map((entry) => {
+      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+      const min = entry.input.range?.min ?? 0;
+      const max = entry.input.range?.max ?? 1;
+      const value = inputValues[entry.input.id];
+      return {
+        id: entry.input.id,
+        label: entry.input.label || entry.input.id,
+        inputId: entry.input.id,
+        source: resolveManagedSource(entry),
+        path: normalizedPath,
+        value: Number.isFinite(value) ? value : (entry.input.defaultValue ?? 0),
+        min,
+        max,
+      } as const;
+    });
+  }, [inputValues, managedStandardInputs]);
 
-    const rows: DriverListRow[] = [];
-    if (selectedRigInput || effectiveSelectedRigId) {
-      if (
-        effectiveSelectedRigId &&
-        isRigElementStandardInputPath(selectedRigInput?.path ?? "")
-      ) {
-        return [];
+  const inputRootNode = useMemo(() => {
+    const root: TreeNode = {
+      id: "root",
+      label: "Inputs",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+
+    inputRows.forEach((row) => {
+      const pathParts = normalizeStandardRigInputPath(row.path)
+        .split("/")
+        .filter(Boolean);
+      let current = root;
+      for (const part of pathParts) {
+        current = getOrCreateChild(current, part, part);
       }
-      Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
-        if (isSelectedRigMatch(targetInputId)) {
-          return;
-        }
-        const sourceBindings = new Map<string, Array<{ slotId?: string }>>();
-        collectBindingSourceSlots(binding).forEach(({ sourceId, slotId }) => {
-          if (!isSelectedRigMatch(sourceId)) {
-            return;
-          }
-          const existing = sourceBindings.get(sourceId);
-          if (existing) {
-            existing.push({ slotId });
-            return;
-          }
-          sourceBindings.set(sourceId, [{ slotId }]);
-        });
-        if (sourceBindings.size === 0) {
-          return;
-        }
-        const input = standardInputsById.get(targetInputId);
-        if (isRigElementStandardInputPath(input?.path)) {
-          return;
-        }
-        const sourceEntries = Array.from(sourceBindings.entries());
-        sourceEntries.forEach(([sourceId, sourceSlots]) => {
-          const sourceInput = standardInputsById.get(sourceId);
-          rows.push({
-            id: `${targetInputId}->${sourceId}`,
-            label: sourceInput?.label || sourceInput?.path || sourceId,
-            direction: "incoming",
-            detail: input?.path || targetInputId,
-            route: { kind: "rig", id: sourceId },
-            bindingTargets: sourceSlots.map((entry) => ({
-              targetId: targetInputId,
-              sourceId,
-              slotId: entry.slotId,
-            })),
-          });
-        });
+      const key = `input_${row.inputId}`;
+      current.children.set(key, {
+        id: `${current.id}/${key}`,
+        label: row.label,
+        type: "input",
+        children: new Map(),
+        showChildren: false,
+        data: row,
       });
-      return rows;
+    });
+
+    const simplifiedChildren = new Map<string, TreeNode>();
+    for (const [key, child] of root.children) {
+      simplifiedChildren.set(key, simplifyNode(child));
     }
-
-    if (selectedPoseId && selectedPoseEntry) {
-      const groupPath = selectedPoseGroupPath;
-      if (groupPath) {
-        const matchingGroup = poseGroups.find(
-          (group) => group.path === groupPath,
-        );
-        if (matchingGroup) {
-          rows.push({
-            id: matchingGroup.id,
-            label: matchingGroup.label,
-            direction: "incoming",
-            detail: `Pose Group (${groupPath})`,
-            route: { kind: "pose-group", id: matchingGroup.id },
-          });
-        }
-      }
-      return rows;
-    }
-
-    if (selectedSceneNode) {
-      const targetIds = selectedSceneNode.features.flatMap((feature) =>
-        feature.components
-          .map((component) => component.targetId)
-          .filter((targetId): targetId is string => Boolean(targetId)),
-      );
-      const incomingMap = new Map<
-        string,
-        {
-          detailLabels: Set<string>;
-          row: DriverListRow;
-        }
-      >();
-      targetIds.forEach((targetId) => {
-        const binding = bindings[targetId];
-        if (!binding) {
-          return;
-        }
-        collectBindingSourceSlots(binding).forEach(({ sourceId, slotId }) => {
-          const sourceInput = standardInputsById.get(sourceId);
-          if (!sourceInput || isRigElementStandardInputPath(sourceInput.path)) {
-            return;
-          }
-          const existing = incomingMap.get(sourceId);
-          const targetLabel =
-            sceneTargetObjectLabelById.labels.get(targetId) ?? targetId;
-          if (existing) {
-            existing.detailLabels.add(targetLabel);
-            existing.row.bindingTargets?.push({
-              targetId,
-              sourceId,
-              slotId,
-            });
-            return;
-          }
-          incomingMap.set(sourceId, {
-            detailLabels: new Set([targetLabel]),
-            row: {
-              id: `incoming-${sourceId}`,
-              label: sourceInput.label || sourceInput.path || sourceId,
-              direction: "incoming",
-              detail: targetLabel,
-              route: { kind: "rig", id: sourceId },
-              bindingTargets: [
-                {
-                  targetId,
-                  sourceId,
-                  slotId,
-                },
-              ],
-            },
-          });
-        });
-      });
-      const incomingRows = Array.from(incomingMap.values()).map((entry) => ({
-        ...entry.row,
-        detail: Array.from(entry.detailLabels).join(" + "),
-      }));
-      incomingRows.sort((left, right) => left.label.localeCompare(right.label));
-      return incomingRows;
-    }
-
-    return rows;
-  }, [
-    activeSurface,
-    bindings,
-    inputBindings,
-    poseGroups,
-    selectedPoseEntry,
-    selectedPoseGroupPath,
-    selectedPoseId,
-    effectiveSelectedRigId,
-    selectedSceneNode,
-    standardInputsById,
-    selectedSceneId,
-    isSelectedRigMatch,
-    sceneTargetObjectLabelById.labels,
-  ]);
-
-  const driverOutgoingRows = useMemo(() => {
-    if (activeSurface !== "drivers") {
-      return [];
-    }
-
-    const rows: DriverListRow[] = [];
-
-    if (selectedRigInput || effectiveSelectedRigId) {
-      const directChildren = collectDirectDownstreamRigInputs({
-        selectedRigId: effectiveSelectedRigId,
-        inputBindings,
-        standardInputsById,
-      });
-      directChildren.forEach((entry) => {
-        if (isRigElementStandardInputPath(entry.id)) {
-          return;
-        }
-        const source = standardInputsById.get(entry.id);
-        const binding = inputBindings[entry.id];
-        if (!binding) {
-          return;
-        }
-        const sourceSlots = collectBindingSourceSlots(binding).filter(
-          ({ sourceId }) => isSelectedRigMatch(sourceId),
-        );
-        if (sourceSlots.length === 0) {
-          return;
-        }
-        rows.push({
-          id: entry.id,
-          label: entry.label,
-          direction: "outgoing",
-          detail: source?.path || entry.id,
-          route: { kind: "rig", id: entry.id },
-          bindingTargets: sourceSlots.map(({ sourceId, slotId }) => ({
-            targetId: entry.id,
-            sourceId,
-            slotId,
-          })),
-        });
-      });
-
-      const dependentsByObject = new Map<
-        string,
-        {
-          detailLabels: Set<string>;
-          row: DriverListRow;
-        }
-      >();
-      Object.entries(bindings).forEach(([targetId, binding]) => {
-        const ownerId = sceneTargetObjectLabelById.owners.get(targetId);
-        if (!ownerId) {
-          return;
-        }
-        const sourceSlots = collectBindingSourceSlots(binding).filter(
-          ({ sourceId }) => isSelectedRigMatch(sourceId),
-        );
-        if (sourceSlots.length === 0) {
-          return;
-        }
-        const targetLabel =
-          sceneTargetObjectLabelById.labels.get(targetId) ?? targetId;
-        const existing = dependentsByObject.get(ownerId);
-        if (existing) {
-          existing.detailLabels.add(targetLabel);
-          sourceSlots.forEach(({ sourceId, slotId }) => {
-            existing.row.bindingTargets?.push({
-              targetId,
-              sourceId,
-              slotId,
-            });
-          });
-          return;
-        }
-        dependentsByObject.set(ownerId, {
-          detailLabels: new Set([targetLabel]),
-          row: {
-            id: `outgoing-scene-${ownerId}`,
-            label: sceneObjectLabelById.get(ownerId) ?? ownerId,
-            direction: "outgoing",
-            detail: targetLabel,
-            route: {
-              kind: "scene-object",
-              id: ownerId,
-            },
-            bindingTargets: sourceSlots.map(({ sourceId, slotId }) => ({
-              targetId,
-              sourceId,
-              slotId,
-            })),
-          },
-        });
-      });
-      const dependents = Array.from(dependentsByObject.values()).map(
-        (entry) => ({
-          ...entry.row,
-          detail: Array.from(entry.detailLabels).join(" + "),
-        }),
-      );
-      dependents.sort((left, right) => left.label.localeCompare(right.label));
-      rows.push(...dependents);
-      return rows;
-    }
-
-    if (selectedPoseId && selectedPoseEntry) {
-      Object.entries(selectedPoseEntry.values).forEach(([inputId]) => {
-        const input = standardInputsById.get(inputId);
-        if (isRigElementStandardInputPath(input?.path)) {
-          return;
-        }
-        rows.push({
-          id: inputId,
-          label: input?.label || input?.path || inputId,
-          direction: "outgoing",
-          detail: input?.path || inputId,
-          route: { kind: "rig", id: inputId },
-        });
-      });
-      return rows;
-    }
-
-    return rows;
-  }, [
-    activeSurface,
-    bindings,
-    selectedPoseEntry,
-    selectedPoseId,
-    effectiveSelectedRigId,
-    inputBindings,
-    standardInputsById,
-    isSelectedRigMatch,
-    sceneObjectLabelById,
-    sceneTargetObjectLabelById.owners,
-    sceneTargetObjectLabelById.labels,
-  ]);
+    root.children = simplifiedChildren;
+    return root;
+  }, [inputRows]);
 
   const sourceCounts = useMemo(() => {
     const counts: Record<RigNodeSource, number> = {
@@ -1380,13 +1156,23 @@ export function VariablesPanel({
     () => filterTreeBySearch(posesRootNode, searchQuery),
     [posesRootNode, searchQuery],
   );
+  const visibleInputRoot = useMemo(
+    () => filterTreeBySearch(inputRootNode, searchQuery),
+    [inputRootNode, searchQuery],
+  );
   const visibleRoot =
-    activeSurface === "poses" ? visiblePosesRoot : visibleVariablesRoot;
+    activeSurface === "poses"
+      ? visiblePosesRoot
+      : activeSurface === "inputs"
+        ? visibleInputRoot
+        : visibleVariablesRoot;
 
   // Auto-expand folders when searching
   useEffect(() => {
     if (
-      (activeSurface !== "variables" && activeSurface !== "poses") ||
+      (activeSurface !== "variables" &&
+        activeSurface !== "poses" &&
+        activeSurface !== "inputs") ||
       !searchQuery.trim()
     ) {
       return;
@@ -1529,25 +1315,6 @@ export function VariablesPanel({
     }
   };
 
-  const handleDeleteDriverRow = (row: DriverListRow) => {
-    if (!row.bindingTargets?.length) {
-      return;
-    }
-    const ok = window.confirm(`Remove driver "${row.label}"?`);
-    if (!ok) {
-      return;
-    }
-    if (row.route.kind === "scene-object") {
-      row.bindingTargets.forEach(({ targetId, slotId }) => {
-        handleBindingInputChange(targetId, null, slotId);
-      });
-      return;
-    }
-    row.bindingTargets.forEach(({ targetId, sourceId }) => {
-      handleUnlinkChildInput(sourceId, targetId);
-    });
-  };
-
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
       const poseData = node.data as PoseDefinition;
@@ -1674,7 +1441,7 @@ export function VariablesPanel({
     sharedRigEntries.length;
   const poseItemCount = poses.length;
   const poseGroupItemCount = poseGroups.length;
-  const driverItemCount = driverIncomingRows.length + driverOutgoingRows.length;
+  const inputItemCount = inputRows.length;
   const poseGroupsForSurface = useMemo(() => {
     const list = [...visiblePoseGroups];
     list.sort((a, b) => {
@@ -1694,7 +1461,7 @@ export function VariablesPanel({
         ? poseItemCount
         : activeSurface === "pose-groups"
           ? poseGroupItemCount
-          : driverItemCount;
+          : inputItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -1761,7 +1528,7 @@ export function VariablesPanel({
     if (id === "pose-groups") {
       return { id, label: "Pose Groups", badge: poseGroupItemCount };
     }
-    return { id, label: "Drivers", badge: driverItemCount };
+    return { id, label: "Inputs", badge: inputItemCount };
   });
 
   const surfaceForTab = (id: string): SurfaceTab =>
@@ -1769,8 +1536,8 @@ export function VariablesPanel({
       ? "poses"
       : id === "pose-groups"
         ? "pose-groups"
-        : id === "drivers"
-          ? "drivers"
+        : id === "inputs"
+          ? "inputs"
           : "variables";
 
   const selectedPoseName = selectedPoseId
@@ -1786,7 +1553,7 @@ export function VariablesPanel({
             ? "Poses"
             : activeSurface === "pose-groups"
               ? "Pose Groups"
-              : "Drivers"
+              : "Inputs"
       }
       description={
         activeSurface === "variables"
@@ -1795,7 +1562,7 @@ export function VariablesPanel({
             ? "Manage pose entries."
             : activeSurface === "pose-groups"
               ? "Review pose groups and move selected poses."
-              : "Inspect what is driving the current item and what it drives."
+              : "Inspect all potential inputs and adjust values."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
@@ -1814,56 +1581,8 @@ export function VariablesPanel({
           const isVariables = id === "variables";
           const isPoseGroups = id === "pose-groups";
           const isPoses = id === "poses";
-          const isDrivers = id === "drivers";
+          const isInputs = id === "inputs";
           const filteredSearch = searchQuery.trim().toLowerCase();
-
-          const driverQuery = (row: DriverListRow) => {
-            if (!filteredSearch) {
-              return true;
-            }
-            const matchesLabel = row.label
-              .toLowerCase()
-              .includes(filteredSearch);
-            const matchesDetail = row.detail
-              ?.toLowerCase()
-              .includes(filteredSearch);
-            return matchesLabel || !!matchesDetail;
-          };
-
-          const visibleIncomingDrivers = driverIncomingRows.filter(driverQuery);
-          const visibleOutgoingDrivers = driverOutgoingRows.filter(driverQuery);
-
-          const handleOpenDriverTarget = (row: DriverListRow) => {
-            if (row.route.kind === "rig") {
-              onSelectRig?.(row.route.id);
-              return;
-            }
-            if (row.route.kind === "pose") {
-              onSelectPose?.(row.route.id);
-              return;
-            }
-            if (row.route.kind === "pose-group") {
-              const matchingGroup = poseGroups.find(
-                (group) => group.id === row.route.id,
-              );
-              if (matchingGroup) {
-                onSelectPoseGroup?.({
-                  groupPath: matchingGroup.path,
-                  label: matchingGroup.label,
-                  groupId:
-                    matchingGroup.source === "configured"
-                      ? matchingGroup.id
-                      : null,
-                  poseIds: matchingGroup.poseIds,
-                  nodeId: matchingGroup.id,
-                });
-              }
-              return;
-            }
-            if (row.route.kind === "scene-object") {
-              onSelectScene?.(row.route.id);
-            }
-          };
 
           return (
             <div className="flex flex-col h-full min-h-0 gap-1 p-2">
@@ -1881,7 +1600,7 @@ export function VariablesPanel({
                           ? "Search poses..."
                           : isPoseGroups
                             ? "Search pose groups..."
-                            : "Search drivers..."
+                            : "Search inputs..."
                   }
                 />
               </div>
@@ -1898,7 +1617,7 @@ export function VariablesPanel({
                     New Variable
                   </Button>
                 )}
-                {!isVariables && !isPoseGroups && !isDrivers && (
+                {isPoses && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -2006,20 +1725,6 @@ export function VariablesPanel({
                       Additive
                     </Button>
                   </div>
-                </div>
-              )}
-              {isDrivers && (
-                <div className="px-1 flex items-center gap-2 text-[10px] text-text-muted">
-                  <span>
-                    Selection:
-                    {effectiveSelectedRigId
-                      ? " Rig"
-                      : selectedPoseId
-                        ? " Pose"
-                        : selectedSceneId
-                          ? " Scene object"
-                          : " none"}
-                  </span>
                 </div>
               )}
               {isVariables && (
@@ -2186,137 +1891,7 @@ export function VariablesPanel({
                   </div>
                 )}
 
-                {isDrivers ? (
-                  <>
-                    {visibleIncomingDrivers.length === 0 &&
-                    visibleOutgoingDrivers.length === 0 ? (
-                      <EmptyState
-                        icon={Search}
-                        iconSize={18}
-                        title={
-                          !effectiveSelectedRigId &&
-                          !selectedPoseId &&
-                          !selectedSceneId
-                            ? "No selection"
-                            : searchQuery
-                              ? `No driver rows matching "${searchQuery}"`
-                              : "No driver relationships"
-                        }
-                        description={
-                          !effectiveSelectedRigId &&
-                          !selectedPoseId &&
-                          !selectedSceneId
-                            ? "Select a rig, pose, or scene object in another panel to inspect its driver graph."
-                            : searchQuery
-                              ? "Adjust the filter to a matching source or target."
-                              : "Use the variables, poses, and scene inspectors to populate this view."
-                        }
-                      />
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {visibleIncomingDrivers.length > 0 && (
-                          <div className="flex flex-col gap-1">
-                            <div className="text-[10px] uppercase tracking-wider text-text-muted px-1">
-                              Incoming
-                            </div>
-                            {visibleIncomingDrivers.map((row) => (
-                              <div
-                                key={`incoming-${row.id}`}
-                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 flex items-center gap-2 text-xs"
-                              >
-                                <button
-                                  type="button"
-                                  className="flex-1 text-left flex items-center gap-2"
-                                  onClick={() => handleOpenDriverTarget(row)}
-                                >
-                                  <ArrowRight
-                                    size={12}
-                                    className="text-text-muted rotate-180"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate">
-                                      {row.label}
-                                    </div>
-                                    {row.detail && (
-                                      <div className="text-[10px] text-text-muted truncate">
-                                        {row.detail}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <ChevronRight size={10} />
-                                </button>
-                                {row.bindingTargets?.length ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-text-secondary hover:text-amber-300"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleDeleteDriverRow(row);
-                                    }}
-                                    title="Remove driver"
-                                  >
-                                    <Trash2 size={10} />
-                                  </Button>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {visibleOutgoingDrivers.length > 0 && (
-                          <div className="flex flex-col gap-1">
-                            <div className="text-[10px] uppercase tracking-wider text-text-muted px-1">
-                              Outgoing
-                            </div>
-                            {visibleOutgoingDrivers.map((row) => (
-                              <div
-                                key={`outgoing-${row.id}`}
-                                className="p-1.5 rounded border border-border-default/50 bg-bg-panel/40 hover:bg-bg-hover/60 flex items-center gap-2 text-xs"
-                              >
-                                <button
-                                  type="button"
-                                  className="flex-1 text-left flex items-center gap-2"
-                                  onClick={() => handleOpenDriverTarget(row)}
-                                >
-                                  <ArrowRight
-                                    size={12}
-                                    className="text-text-muted"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate">
-                                      {row.label}
-                                    </div>
-                                    {row.detail && (
-                                      <div className="text-[10px] text-text-muted truncate">
-                                        {row.detail}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <ChevronRight size={10} />
-                                </button>
-                                {row.bindingTargets?.length ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-text-secondary hover:text-amber-300"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleDeleteDriverRow(row);
-                                    }}
-                                    title="Remove driver"
-                                  >
-                                    <Trash2 size={10} />
-                                  </Button>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : isPoseGroups ? (
+                {isPoseGroups ? (
                   poseGroupsForSurface.length === 0 ? (
                     <EmptyState
                       icon={Search}
@@ -2411,14 +1986,22 @@ export function VariablesPanel({
                         ? "No results"
                         : isVariables
                           ? "No variables defined"
-                          : "No poses defined"
+                          : isPoses
+                            ? "No poses defined"
+                            : isInputs
+                              ? "No inputs defined"
+                              : "No pose groups defined"
                     }
                     description={
                       filteredSearch.length > 0
                         ? `No items found matching "${searchQuery}"`
                         : isVariables
                           ? "Create new variables or import a model with poses."
-                          : "Create a pose to get started."
+                          : isPoses
+                            ? "Create a pose to get started."
+                            : isInputs
+                              ? "Inputs are populated from rig auto-generation and references."
+                              : "No pose groups yet."
                     }
                     action={
                       filteredSearch.length > 0 ? (
