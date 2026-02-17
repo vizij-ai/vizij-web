@@ -94,6 +94,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
    Scope:
    - dedicated pane organization on the left column: Face Elements, Variables, Poses, Pose Groups, Drivers.
    - one globally selected item is shared between panes.
+   - Variables and Poses tabbed decomposition is complete in `VariablesPanel`; next step is dedicated Pose Groups and Drivers panes.
    - Variables pane supports true external inputs only, path-grouped key-value controls, and opens sliders directly for selected leaf values.
    - Poses pane shows all defined poses, with inspector affordance to see group membership and add/remove group membership.
    - Pose Groups pane supports list/inspect/edit for group membership plus cross-group blend-mode selection.
