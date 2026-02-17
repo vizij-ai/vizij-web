@@ -72,6 +72,24 @@ const INPUT_C: StandardRigInput = {
   range: { min: -1, max: 1 },
 };
 
+const INPUT_D_LEGACY_PATH: StandardRigInput = {
+  id: "autorig_eye_open",
+  path: "/autorig/eye/open",
+  label: "Autorig Eye Open",
+  group: "autorig",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+};
+
+const INPUT_E_LEGACY_PATH: StandardRigInput = {
+  id: "autorig_mouth_open",
+  path: "/autorig/mouth/open",
+  label: "Autorig Mouth Open",
+  group: "autorig",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+};
+
 describe("buildRigGraphSpec", () => {
   it("creates arithmetic nodes for multi-control expressions", () => {
     const binding = createDefaultBinding(COMPONENT);
@@ -137,6 +155,98 @@ describe("buildRigGraphSpec", () => {
     expect(vizijMetadata?.vizij?.bindings).toBeDefined();
     expect(vizijMetadata?.vizij?.inputs).toBeDefined();
     expect(vizijMetadata?.vizij?.bindings).toHaveLength(summaryEntries.length);
+  });
+
+  it("resolves legacy path-style slot input ids in parent input bindings", () => {
+    const { issues, spec, summary } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {},
+      components: [],
+      bindings: {},
+      inputsById: new Map([
+        [INPUT_D_LEGACY_PATH.id, INPUT_D_LEGACY_PATH],
+        [INPUT_E_LEGACY_PATH.id, INPUT_E_LEGACY_PATH],
+      ]),
+      inputBindings: {
+        [INPUT_E_LEGACY_PATH.id]: {
+          targetId: INPUT_E_LEGACY_PATH.id,
+          inputId: null,
+          slots: [
+            {
+              id: "slot_1",
+              alias: "a",
+              inputId: "/rig/element/eye/open",
+            },
+          ],
+          expression: "a",
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+    expect(spec.nodes.some((node) => node.type === "input")).toBe(true);
+    expect(summary.inputs).toContain("rig/robot/autorig/eye/open");
+    expect(summary.inputs).toContain("rig/robot/autorig/mouth/open");
+    expect(
+      issues.fatal.some((issue) => issue.includes('"/rig/element/eye/open"')),
+    ).toBe(false);
+  });
+
+  it("treats face-qualified autorig metadata paths as low-level in higher-order checks", () => {
+    const metadataInput: StandardRigInput = {
+      id: "autorig_input",
+      path: "/autorig/jaw/open",
+      label: "Jaw Open",
+      group: "autorig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      INPUT_A,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [INPUT_A.id]: {
+          targetId: INPUT_A.id,
+          inputId: null,
+          slots: [
+            {
+              id: "slot_1",
+              alias: "a",
+              inputId: "/rig/robot/autorig/jaw/open",
+            },
+          ],
+          expression: "a",
+        },
+        [metadataInput.id]: createDefaultBinding(
+          bindingTargetFromInput(metadataInput),
+        ),
+      },
+    });
+
+    const componentIssues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      componentIssues?.some((issue) =>
+        issue.includes("higher-order rig input"),
+      ) ?? false,
+    ).toBe(false);
   });
 
   it("creates comparison and logical nodes from expressions", () => {
@@ -1388,7 +1498,8 @@ describe("buildRigGraphSpec issues", () => {
 
     const issues = result.issues.byTarget[COMPONENT.id];
     expect(
-      issues?.some((issue) => issue.includes("higher-order rig input")),
+      issues?.some((issue) => issue.includes("higher-order rig input")) ??
+        false,
     ).toBe(false);
   });
 
@@ -1438,7 +1549,8 @@ describe("buildRigGraphSpec issues", () => {
 
     const issues = result.issues.byTarget[COMPONENT.id];
     expect(
-      issues?.some((issue) => issue.includes("higher-order rig input")),
+      issues?.some((issue) => issue.includes("higher-order rig input")) ??
+        false,
     ).toBe(false);
   });
 });
