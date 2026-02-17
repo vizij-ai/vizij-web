@@ -555,6 +555,9 @@ export function VariablesPanel({
     ? (poseGroupByPoseId.get(selectedPoseId) ?? null)
     : null;
 
+  // State for search
+  const [search, setSearch] = useState("");
+
   const visiblePoseGroups = useMemo(() => {
     const trimmed = search.trim().toLowerCase();
     if (!trimmed) {
@@ -620,8 +623,6 @@ export function VariablesPanel({
     }
   }, [activeSurfaceOverride]);
 
-  // State for search
-  const [search, setSearch] = useState("");
   const [enabledSources, setEnabledSources] = useState<Set<RigNodeSource>>(
     () => new Set(["auto", "preset", "custom", "shared", "reference"]),
   );
