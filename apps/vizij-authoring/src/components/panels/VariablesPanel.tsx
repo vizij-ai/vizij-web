@@ -2046,6 +2046,7 @@ export function VariablesPanel({
                         onToggle={handleToggle}
                         onAction={handleAction}
                         onSelect={handleSelect}
+                        onInputValueChange={handleInputValueChange}
                         selection={activeSelection}
                         searchQuery={searchQuery}
                       />
