@@ -14,7 +14,6 @@ import { VariablesPanel } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
-import { MaterialsPanel } from "./components/panels/MaterialsPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
@@ -381,12 +380,23 @@ function AppContent({ loader }: AppContentProps) {
               selectedPoseId={selectedPoseId}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
+              availableSurfaces={["variables", "poses"]}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
             />
           }
           leftMiddleVisible={panels.materials.isVisible}
-          leftMiddlePanel={<MaterialsPanel />}
+          leftMiddlePanel={
+            <VariablesPanel
+              selectedRigId={selectedRigId}
+              selectedPoseId={selectedPoseId}
+              onSelectRig={handleSelectRig}
+              onSelectPose={handleSelectPose}
+              selectedPoseGroup={selectedPoseGroup}
+              onSelectPoseGroup={setSelectedPoseGroup}
+              activeSurfaceOverride="pose-groups"
+            />
+          }
           // Center
           topPanel={
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>

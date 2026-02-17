@@ -374,6 +374,8 @@ interface VariablesPanelProps {
   onSelectPose?: (id: string) => void;
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
+  activeSurfaceOverride?: SurfaceTab;
+  availableSurfaces?: SurfaceTab[];
 }
 
 export function VariablesPanel({
@@ -383,6 +385,8 @@ export function VariablesPanel({
   onSelectPose,
   selectedPoseGroup,
   onSelectPoseGroup,
+  activeSurfaceOverride,
+  availableSurfaces,
 }: VariablesPanelProps) {
   const {
     poses,
@@ -541,7 +545,29 @@ export function VariablesPanel({
     outOfSyncCount: sharedOutOfSyncCount,
   } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
-  const [activeSurface, setActiveSurface] = useState<SurfaceTab>("variables");
+  const allSurfaces = useMemo(
+    () => availableSurfaces ?? ["variables", "poses", "pose-groups"],
+    [availableSurfaces],
+  );
+  const [activeSurfaceState, setActiveSurfaceState] = useState<SurfaceTab>(
+    () => allSurfaces[0] ?? "variables",
+  );
+  const activeSurface = activeSurfaceOverride ?? activeSurfaceState;
+
+  useEffect(() => {
+    if (activeSurfaceOverride) {
+      return;
+    }
+    if (!allSurfaces.includes(activeSurfaceState)) {
+      setActiveSurfaceState(allSurfaces[0] ?? "variables");
+    }
+  }, [activeSurfaceOverride, allSurfaces, activeSurfaceState]);
+
+  useEffect(() => {
+    if (activeSurfaceOverride) {
+      setActiveSurfaceState(activeSurfaceOverride);
+    }
+  }, [activeSurfaceOverride]);
 
   // State for search
   const [search, setSearch] = useState("");
@@ -1170,15 +1196,15 @@ export function VariablesPanel({
     </Button>
   );
 
-  const surfaceTabs = [
-    { id: "variables" as const, label: "Variables", badge: variableItemCount },
-    { id: "poses" as const, label: "Poses", badge: poseItemCount },
-    {
-      id: "pose-groups" as const,
-      label: "Pose Groups",
-      badge: poseGroupItemCount,
-    },
-  ];
+  const surfaceTabs = allSurfaces.map((id) => {
+    if (id === "variables") {
+      return { id, label: "Variables", badge: variableItemCount };
+    }
+    if (id === "poses") {
+      return { id, label: "Poses", badge: poseItemCount };
+    }
+    return { id, label: "Pose Groups", badge: poseGroupItemCount };
+  });
 
   const surfaceForTab = (id: string): SurfaceTab =>
     id === "poses"
@@ -1214,7 +1240,12 @@ export function VariablesPanel({
       <Tabs
         items={surfaceTabs}
         value={activeSurface}
-        onValueChange={(id) => setActiveSurface(surfaceForTab(id))}
+        onValueChange={(id) => {
+          if (activeSurfaceOverride) {
+            return;
+          }
+          setActiveSurfaceState(surfaceForTab(id));
+        }}
         renderPanel={(id) => {
           const isVariables = id === "variables";
           const isPoseGroups = id === "pose-groups";

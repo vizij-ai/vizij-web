@@ -72,7 +72,7 @@ export function AppMenuBar({
           checked={panels.materials.isVisible}
           onCheckedChange={() => togglePanel("materials")}
         >
-          Materials
+          Pose Groups
         </MenuCheckboxItem>
 
         <MenuSeparator />
