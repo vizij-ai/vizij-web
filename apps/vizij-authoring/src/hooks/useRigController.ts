@@ -1498,13 +1498,6 @@ export function useRigController(
     autoPlayTokenRef.current = null;
   }, [graphStatus]);
 
-  const evaluateGraphNow = useCallback(() => {
-    if (graphStatus !== "ready" || graphError) {
-      return;
-    }
-    stageInputsFromState();
-  }, [graphStatus, graphError, stageInputsFromState]);
-
   const rootRenderable = useMemo(() => {
     return rootId ? (world[rootId] as Group | undefined) : undefined;
   }, [rootId, world]);
@@ -1633,6 +1626,106 @@ export function useRigController(
     });
   }, [componentsById, standardInputs]);
 
+  const buildRuntimeInputIdCandidates = useCallback(
+    (inputId: string): string[] => {
+      const normalizedPathFromInputId = (
+        raw: string | null | undefined,
+      ): string => {
+        if (!raw) {
+          return "/custom/input";
+        }
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          return "/custom/input";
+        }
+        return normalizeStandardRigInputPath(trimmed);
+      };
+      const candidateSet = new Set<string>();
+      const addCandidate = (candidate: string | null | undefined) => {
+        const normalized = (candidate ?? "").trim();
+        if (!normalized) {
+          return;
+        }
+        candidateSet.add(normalized);
+      };
+      const seenPaths = new Set<string>();
+      const addPathAndIdCandidates = (path: string | null | undefined) => {
+        const normalized = normalizedPathFromInputId(path);
+        if (
+          normalized === "/custom/input" ||
+          normalized === "/standard" ||
+          normalized === "/"
+        ) {
+          return;
+        }
+        if (seenPaths.has(normalized)) {
+          return;
+        }
+        seenPaths.add(normalized);
+        const withoutStandard = stripStandardInputPathPrefix(normalized);
+        [normalized, withoutStandard, normalized.replace(/^\/+/, "")].forEach(
+          addCandidate,
+        );
+        addCandidate(deriveStandardRigInputIdFromPath(normalized));
+        addCandidate(deriveStandardRigInputIdFromPath(withoutStandard));
+        if (normalized.startsWith("/autorig/")) {
+          addPathAndIdCandidates(
+            `/rig/element/${normalized.slice("/autorig/".length)}`,
+          );
+        } else if (normalized.startsWith("/rig/element/")) {
+          addPathAndIdCandidates(
+            `/autorig/${normalized.slice("/rig/element/".length)}`,
+          );
+        }
+        if (normalized.startsWith("/pose/control/")) {
+          addPathAndIdCandidates(
+            `/autorig/${normalized.slice("/pose/control/".length)}`,
+          );
+        }
+        if (normalized.startsWith("/rig/control/")) {
+          addPathAndIdCandidates(
+            `/autorig/${normalized.slice("/rig/control/".length)}`,
+          );
+        }
+        if (standardInputsByIdRef.current.size > 0) {
+          addCandidate(
+            resolveStandardRigInputId(
+              normalized,
+              standardInputsByIdRef.current,
+            ),
+          );
+          addCandidate(
+            resolveStandardRigInputId(
+              withoutStandard,
+              standardInputsByIdRef.current,
+            ),
+          );
+        }
+      };
+
+      const trimmed = inputId?.trim();
+      if (!trimmed) {
+        return [];
+      }
+      addCandidate(trimmed);
+      addCandidate(trimmed.replace(/^\/+/, ""));
+      addCandidate(trimmed.startsWith("/") ? trimmed.slice(1) : `/${trimmed}`);
+      addPathAndIdCandidates(trimmed);
+      if (standardInputsByIdRef.current.has(trimmed)) {
+        const input = standardInputsByIdRef.current.get(trimmed);
+        if (input?.path) {
+          addPathAndIdCandidates(input.path);
+        }
+      }
+      if (trimmed.includes("/")) {
+        const fallback = deriveStandardRigInputIdFromPath(trimmed);
+        addCandidate(fallback);
+      }
+      return Array.from(candidateSet);
+    },
+    [standardInputsByIdRef],
+  );
+
   const stageGraphInputValue = useCallback(
     (inputId: string, value: number) => {
       if (graphStatus !== "ready" || graphError) {
@@ -1649,19 +1742,38 @@ export function useRigController(
         inputId,
         standardInputsByIdRef.current,
       );
-      let graphPath =
-        graphInputBindingsByIdRef.current.get(resolvedInputId) ??
-        graphInputBindingsByIdRef.current.get(inputId) ??
-        null;
+      const candidateIds = buildRuntimeInputIdCandidates(
+        inputId.length > 0 ? inputId : resolvedInputId,
+      );
+      let graphPath: string | null = null;
+      for (const candidateId of candidateIds) {
+        const resolvedCandidateId = resolveStandardRigInputId(
+          candidateId,
+          standardInputsByIdRef.current,
+        );
+        const mappedPath =
+          graphInputBindingsByIdRef.current.get(resolvedCandidateId) ??
+          graphInputBindingsByIdRef.current.get(candidateId);
+        if (mappedPath) {
+          graphPath = mappedPath;
+          break;
+        }
+      }
+      if (!graphPath) {
+        graphPath =
+          graphInputBindingsByIdRef.current.get(resolvedInputId) ??
+          graphInputBindingsByIdRef.current.get(inputId) ??
+          null;
+      }
       if (!graphPath) {
         const input =
           standardInputsByIdRef.current.get(resolvedInputId) ??
           standardInputsByIdRef.current.get(inputId);
         if (input) {
           graphPath = buildFallbackGraphPath(faceId, input);
-          graphInputBindingsByIdRef.current.set(inputId, graphPath);
+          graphInputBindingsByIdRef.current.set(resolvedInputId, graphPath);
           if (resolvedInputId !== inputId) {
-            graphInputBindingsByIdRef.current.set(resolvedInputId, graphPath);
+            graphInputBindingsByIdRef.current.set(inputId, graphPath);
           }
         }
       }
@@ -1674,7 +1786,14 @@ export function useRigController(
       const stageRuntimeInput = getStageRuntimeInput();
       stageRuntimeInput?.(graphPath, value);
     },
-    [faceId, getStageRuntimeInput, graphStatus, graphError],
+    [
+      buildRuntimeInputIdCandidates,
+      faceId,
+      getStageRuntimeInput,
+      graphError,
+      graphStatus,
+      standardInputsByIdRef,
+    ],
   );
 
   const handleInputValueChange = useCallback(
@@ -1688,9 +1807,8 @@ export function useRigController(
         [resolvedInputId]: value,
       }));
       stageGraphInputValue(resolvedInputId, value);
-      evaluateGraphNow();
     },
-    [evaluateGraphNow, stageGraphInputValue, updateInputValues],
+    [stageGraphInputValue, updateInputValues],
   );
 
   const applyStandardInputBatch = useCallback(
@@ -1758,9 +1876,8 @@ export function useRigController(
         );
         stageGraphInputValue(resolvedInputId, value);
       });
-      evaluateGraphNow();
     },
-    [evaluateGraphNow, stageGraphInputValue, updateInputValues],
+    [stageGraphInputValue, updateInputValues],
   );
 
   const handleResetAllInputValues = useCallback(() => {
@@ -2130,7 +2247,6 @@ export function useRigController(
     }> = [];
     const defaults: Record<string, number> = {};
     const matchedSliderIds = new Set<string>();
-    const unmatchedGraphInputs: string[] = [];
 
     summaryInputPaths.forEach((graphPath) => {
       let matched: StandardRigInput | undefined;
@@ -2198,21 +2314,30 @@ export function useRigController(
           inputId: matched.id,
           defaultValue: matched.defaultValue ?? 0,
         });
-      } else {
-        unmatchedGraphInputs.push(graphPath);
       }
     });
 
     const bindingMap = new Map<string, string>();
     sliderBindings.forEach((binding) => {
       if (binding.inputId) {
-        bindingMap.set(binding.inputId, binding.graphPath);
+        const canonicalInputId = resolveStandardRigInputId(
+          binding.inputId,
+          standardInputsByIdRef.current,
+        );
+        bindingMap.set(canonicalInputId, binding.graphPath);
+        if (canonicalInputId !== binding.inputId) {
+          bindingMap.set(binding.inputId, binding.graphPath);
+        }
       }
     });
 
     if (faceId) {
       managedStandardInputs.forEach(({ input }) => {
-        if (bindingMap.has(input.id)) {
+        const canonicalInputId = resolveStandardRigInputId(
+          input.id,
+          standardInputsByIdRef.current,
+        );
+        if (bindingMap.has(canonicalInputId) || bindingMap.has(input.id)) {
           return;
         }
         const fallbackPath = buildFallbackGraphPath(faceId, input);
@@ -2221,7 +2346,10 @@ export function useRigController(
           inputId: input.id,
           defaultValue: input.defaultValue ?? 0,
         });
-        bindingMap.set(input.id, fallbackPath);
+        bindingMap.set(canonicalInputId, fallbackPath);
+        if (canonicalInputId !== input.id) {
+          bindingMap.set(input.id, fallbackPath);
+        }
       });
     }
 

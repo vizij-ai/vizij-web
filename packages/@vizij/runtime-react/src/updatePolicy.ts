@@ -61,7 +61,16 @@ export function resolveRuntimeUpdatePlan(
   const glbChanged = glbSignature(previous.glb) !== glbSignature(next.glb);
   const rigChanged = graphSignature(previous.rig) !== graphSignature(next.rig);
   const poseChanged = poseSignature(previous.pose) !== poseSignature(next.pose);
-  const graphsChanged = rigChanged || poseChanged;
+  const rigReferenceChanged =
+    previous.rig?.id !== next.rig?.id ||
+    previous.rig?.spec !== next.rig?.spec ||
+    previous.rig?.ir !== next.rig?.ir;
+  const poseReferenceChanged =
+    previous.pose?.graph?.id !== next.pose?.graph?.id ||
+    previous.pose?.graph?.spec !== next.pose?.graph?.spec ||
+    previous.pose?.config !== next.pose?.config;
+  const graphsChanged =
+    rigChanged || poseChanged || rigReferenceChanged || poseReferenceChanged;
 
   if (tier === "assets") {
     return { reloadAssets: true, reregisterGraphs: false };

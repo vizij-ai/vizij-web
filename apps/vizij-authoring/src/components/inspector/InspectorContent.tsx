@@ -11,12 +11,12 @@ import {
 } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
+import { normalizeStandardRigInputPath, SELF_BINDING_ID } from "@vizij/utils";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
-import { Switch } from "../ui/Switch";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
   useBindingAuthoring,
@@ -106,6 +106,46 @@ function extractComponentIdFromInputSourceId(
   } catch {
     return parts[4] ?? null;
   }
+}
+
+function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path).replace(
+    /^\/rig\/[^/]+\//,
+    "/",
+  );
+  return normalized.startsWith("/autorig/");
+}
+
+function collectBindingInputIds(
+  binding:
+    | { inputId?: string | null; slots?: Array<{ inputId?: string | null }> }
+    | null
+    | undefined,
+): string[] {
+  if (!binding) {
+    return [];
+  }
+  const ids = new Set<string>();
+  if (
+    binding.inputId &&
+    binding.inputId !== SELF_BINDING_ID &&
+    binding.inputId.trim().length > 0
+  ) {
+    ids.add(binding.inputId);
+  }
+  (binding.slots ?? []).forEach((slot) => {
+    if (
+      slot.inputId &&
+      slot.inputId !== SELF_BINDING_ID &&
+      slot.inputId.trim().length > 0
+    ) {
+      ids.add(slot.inputId);
+    }
+  });
+  return Array.from(ids);
 }
 
 export function InspectorContent() {
@@ -208,21 +248,132 @@ export function InspectorContent() {
     [selectedRigId, standardInputsById],
   );
   const autorigInputIdByComponentId = useMemo(() => {
-    const resolved = new Map<string, string>();
+    type Candidate = {
+      inputId: string;
+      resolvedInputId: string;
+      canonicalAutorig: boolean;
+      autoSource: boolean;
+    };
+
+    const sourceByInputId = new Map<string, "auto" | "custom">();
+    const candidatesByComponent = new Map<string, Candidate[]>();
     managedStandardInputs.forEach((entry) => {
+      const resolvedInputId = resolveRigMetadataInputId(
+        entry.input.id,
+        standardInputsById,
+      );
+      sourceByInputId.set(entry.input.id, entry.source);
+      if (!sourceByInputId.has(resolvedInputId) || entry.source === "auto") {
+        sourceByInputId.set(resolvedInputId, entry.source);
+      }
       const componentId =
         entry.metadata?.componentId ??
         extractComponentIdFromInputSourceId(entry.input.sourceId);
       if (!componentId) {
         return;
       }
-      if (resolved.has(componentId)) {
+      const resolvedInput =
+        standardInputsById.get(resolvedInputId) ?? entry.input;
+      const candidate: Candidate = {
+        inputId: entry.input.id,
+        resolvedInputId,
+        canonicalAutorig: isCanonicalAutorigInputPath(resolvedInput.path),
+        autoSource: entry.source === "auto",
+      };
+      const existing = candidatesByComponent.get(componentId);
+      if (existing) {
+        existing.push(candidate);
+      } else {
+        candidatesByComponent.set(componentId, [candidate]);
+      }
+    });
+
+    const rankCandidate = (candidate: Candidate): number => {
+      let rank = 0;
+      if (candidate.canonicalAutorig) {
+        rank += 10;
+      }
+      if (candidate.autoSource) {
+        rank += 1;
+      }
+      return rank;
+    };
+
+    const candidateFromInputId = (inputId: string): Candidate | null => {
+      const resolvedInputId = resolveRigMetadataInputId(
+        inputId,
+        standardInputsById,
+      );
+      const resolvedInput =
+        standardInputsById.get(resolvedInputId) ??
+        standardInputsById.get(inputId);
+      if (!resolvedInput) {
+        return null;
+      }
+      const source =
+        sourceByInputId.get(inputId) ?? sourceByInputId.get(resolvedInputId);
+      return {
+        inputId,
+        resolvedInputId,
+        canonicalAutorig: isCanonicalAutorigInputPath(resolvedInput.path),
+        autoSource: source === "auto",
+      };
+    };
+
+    const selected = new Map<string, string>();
+    const componentIds = new Set<string>([
+      ...candidatesByComponent.keys(),
+      ...Object.keys(bindings),
+    ]);
+
+    componentIds.forEach((componentId) => {
+      const candidates = candidatesByComponent.get(componentId) ?? [];
+      const componentBinding = bindings[componentId];
+      const activeBindingInputIds = collectBindingInputIds(componentBinding);
+      const activeBindingInputIdSet = new Set(activeBindingInputIds);
+      const activeResolvedInputIdSet = new Set(
+        activeBindingInputIds.map((id) =>
+          resolveRigMetadataInputId(id, standardInputsById),
+        ),
+      );
+
+      const directActiveAutorigCandidate = activeBindingInputIds
+        .map((id) => candidateFromInputId(id))
+        .find((candidate) => candidate?.canonicalAutorig);
+      if (directActiveAutorigCandidate) {
+        selected.set(componentId, directActiveAutorigCandidate.resolvedInputId);
         return;
       }
-      resolved.set(componentId, entry.input.id);
+
+      const exactActiveCandidate = candidates.find(
+        (candidate) =>
+          activeBindingInputIdSet.has(candidate.inputId) ||
+          activeBindingInputIdSet.has(candidate.resolvedInputId),
+      );
+      if (exactActiveCandidate) {
+        selected.set(componentId, exactActiveCandidate.resolvedInputId);
+        return;
+      }
+      const activeCandidate = candidates.find((candidate) =>
+        activeResolvedInputIdSet.has(candidate.resolvedInputId),
+      );
+      if (activeCandidate) {
+        selected.set(componentId, activeCandidate.resolvedInputId);
+        return;
+      }
+
+      const preferred = [...candidates].sort(
+        (left, right) =>
+          rankCandidate(right) - rankCandidate(left) ||
+          left.resolvedInputId.localeCompare(right.resolvedInputId),
+      )[0];
+      if (preferred) {
+        selected.set(componentId, preferred.resolvedInputId);
+      }
     });
-    return resolved;
-  }, [managedStandardInputs]);
+
+    return selected;
+  }, [bindings, managedStandardInputs, standardInputsById]);
   const referenceFace = useReferenceFace();
   const {
     policy: sharedSyncPolicy,

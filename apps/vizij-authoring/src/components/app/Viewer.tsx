@@ -30,9 +30,28 @@ function RuntimeGraphBridge() {
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const lastPayloadRef = useRef<string | null>(null);
+  const lastGraphRefsRef = useRef<{
+    graphSpec: unknown;
+    poseGraphSpec: unknown;
+    poseConfig: unknown;
+  } | null>(null);
 
   useEffect(() => {
+    const previous = lastGraphRefsRef.current;
+    if (
+      previous &&
+      previous.graphSpec === graphSpec &&
+      previous.poseGraphSpec === poseGraphSpec &&
+      previous.poseConfig === poseConfig
+    ) {
+      return;
+    }
+    lastGraphRefsRef.current = {
+      graphSpec,
+      poseGraphSpec,
+      poseConfig,
+    };
+
     // The rig graph and pose graph currently target the same rig input paths.
     // Registering both causes pose outputs to overwrite manual low-level slider input.
     // Keep pose config for export/metadata, but only register pose graph when rig graph is absent.
@@ -54,11 +73,6 @@ function RuntimeGraphBridge() {
       rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
       pose: posePayload,
     };
-    const serialized = JSON.stringify(payload);
-    if (serialized === lastPayloadRef.current) {
-      return;
-    }
-    lastPayloadRef.current = serialized;
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][graph-bridge]", {
         hasRig: Boolean(payload.rig),

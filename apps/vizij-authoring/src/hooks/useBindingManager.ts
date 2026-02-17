@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { AnimatableComponent } from "@vizij/utils";
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  resolveStandardRigInputId,
+  stripStandardInputPathPrefix,
+  type StandardRigInput,
+} from "@vizij/utils";
 import {
   addBindingSlot,
   bindingTargetFromComponent,
@@ -87,6 +92,40 @@ export function useBindingManager(options: BindingManagerOptions) {
       return aliasOnlyExpression(binding);
     },
     [aliasOnlyExpression],
+  );
+
+  const expressionReferencesSlot = useCallback(
+    (binding: AnimatableBinding, slotId: string): boolean => {
+      const expression = (binding.expression ?? "").trim();
+      if (expression.length === 0) {
+        return false;
+      }
+      const slot = (binding.slots ?? []).find(
+        (candidate) => candidate.id === slotId,
+      );
+      if (!slot || !slot.inputId || slot.inputId === SELF_BINDING_ID) {
+        return false;
+      }
+      const slotTokenCandidates = new Set<string>();
+      const alias = slot.alias?.trim();
+      if (alias) {
+        slotTokenCandidates.add(alias);
+      }
+      const slotTokenId = slot.id?.trim();
+      if (slotTokenId) {
+        slotTokenCandidates.add(slotTokenId);
+      }
+      for (const token of slotTokenCandidates) {
+        const pattern = new RegExp(
+          `\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        );
+        if (pattern.test(expression)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [],
   );
 
   const updateInputBinding = useCallback(
@@ -525,44 +564,88 @@ export function useBindingManager(options: BindingManagerOptions) {
 
   const handleCreateParentDriverBinding = useCallback(
     (targetId: string, upstreamId: string) => {
+      const resolvedTargetId = resolveStandardRigInputId(
+        targetId,
+        standardInputsByIdRef.current,
+      );
+      const resolvedUpstreamId = resolveStandardRigInputId(
+        upstreamId,
+        standardInputsByIdRef.current,
+      );
       const upstreamInput =
-        standardInputsByIdRef.current.get(upstreamId) ??
-        allStandardInputsRef.current.get(upstreamId);
+        standardInputsByIdRef.current.get(resolvedUpstreamId) ??
+        allStandardInputsRef.current.get(resolvedUpstreamId);
       if (!upstreamInput) {
         return;
       }
-      updateInputBinding(
-        targetId,
-        createDefaultParentBinding,
-        (binding, target) => {
-          let working = binding;
-          let availableSlot = working.slots.find(
-            (slot, index) => index !== 0 && slot.inputId === null,
-          );
-          if (!availableSlot) {
-            working = addBindingSlot(working, target);
-            availableSlot = working.slots[working.slots.length - 1];
+      const resolvedTargetInput =
+        standardInputsByIdRef.current.get(resolvedTargetId) ??
+        allStandardInputsRef.current.get(resolvedTargetId);
+      const toComparablePath = (path: string | null | undefined): string =>
+        stripStandardInputPathPrefix(normalizeStandardRigInputPath(path ?? ""));
+      const targetPath = toComparablePath(resolvedTargetInput?.path ?? "");
+      const targetIds = new Set<string>([resolvedTargetId]);
+      if (targetPath && targetPath !== "/custom/input") {
+        allStandardInputsRef.current.forEach((candidate, candidateId) => {
+          if (
+            toComparablePath(candidate.path) === targetPath &&
+            candidateId !== resolvedTargetId
+          ) {
+            targetIds.add(candidateId);
           }
-          const updated = updateBindingWithInput(
-            working,
-            target,
-            upstreamInput,
-            availableSlot.id,
-          );
-          return maybeAutoAliasSlot(
-            updated,
-            target,
-            availableSlot.id,
-            upstreamInput,
-          );
-        },
-      );
+        });
+      }
+      targetIds.forEach((candidateTargetId) => {
+        updateInputBinding(
+          candidateTargetId,
+          createDefaultParentBinding,
+          (binding, target) => {
+            let working = binding;
+            let availableSlot = working.slots.find(
+              (slot, index) => index !== 0 && slot.inputId === null,
+            );
+            if (!availableSlot) {
+              working = addBindingSlot(working, target);
+              availableSlot = working.slots[working.slots.length - 1];
+            }
+            const connectedSlotId = availableSlot.id;
+            const updated = updateBindingWithInput(
+              working,
+              target,
+              upstreamInput,
+              connectedSlotId,
+            );
+            const aliased = maybeAutoAliasSlot(
+              updated,
+              target,
+              connectedSlotId,
+              upstreamInput,
+            );
+            // Ensure the newly-connected slot is active in the expression.
+            if (expressionReferencesSlot(aliased, connectedSlotId)) {
+              return aliased;
+            }
+            const canonicalExpression = canonicalBindingExpression(aliased);
+            if (
+              (aliased.expression ?? "").trim() === canonicalExpression.trim()
+            ) {
+              return aliased;
+            }
+            return {
+              ...aliased,
+              expression: canonicalExpression,
+            };
+          },
+        );
+      });
     },
     [
       allStandardInputsRef,
       standardInputsByIdRef,
       updateInputBinding,
       maybeAutoAliasSlot,
+      canonicalBindingExpression,
+      expressionReferencesSlot,
     ],
   );
 
