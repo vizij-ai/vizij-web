@@ -232,7 +232,10 @@ interface TreeRowWrapperProps {
   onAction?: (node: TreeNode, action: string) => void;
   onSelect?: (node: TreeNode) => void;
   onInputValueChange?: (inputId: string, value: number) => void;
-  selection?: { type: "pose" | "rig" | "pose-group"; id: string } | null;
+  selection?: {
+    type: "pose" | "rig" | "pose-group" | "input";
+    id: string;
+  } | null;
   searchQuery: string;
 }
 
@@ -262,6 +265,9 @@ function TreeRowWrapper({
       (node.type === "rig" &&
         selection.type === "rig" &&
         (node.data as RigNodeData)?.input?.id === selection.id) ||
+      (node.type === "input" &&
+        selection.type === "input" &&
+        (node.data as InputListRow)?.inputId === selection.id) ||
       (isPoseGroupFolder &&
         selection.type === "pose-group" &&
         node.id === selection.id));
@@ -1345,6 +1351,10 @@ export function VariablesPanel({
     ) {
       openPoseGroupInspector(node);
       onSelectRig?.(null);
+    } else if (node.type === "input") {
+      const inputData = node.data as InputListRow;
+      onSelectRig?.(inputData.inputId);
+      onSelectPoseGroup?.(null);
     }
   };
 
@@ -1494,6 +1504,9 @@ export function VariablesPanel({
       };
     }
     if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
+    if (activeSurface === "inputs" && effectiveSelectedRigId) {
+      return { type: "input" as const, id: effectiveSelectedRigId };
+    }
     if (effectiveSelectedRigId) {
       return { type: "rig" as const, id: effectiveSelectedRigId };
     }

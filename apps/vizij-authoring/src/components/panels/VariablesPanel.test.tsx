@@ -238,136 +238,30 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(null);
   });
 
-  it("filters /rig/element rows from Drivers incoming for a selected rig", () => {
-    const selectedRig = makeInput("rig_jaw", "/rig/jaw/open", {
+  it("shows all standard and autorig inputs on the Inputs surface", () => {
+    const abstractInput = makeInput("abstract_jaw", "/mouth/open", {
       label: "Jaw Open",
     });
-    const incomingTarget = makeInput("rig_incoming", "/standard/cheek/open", {
-      label: "Cheek Open",
-    });
-    const metadataTarget = makeInput(
-      "rig_incoming_meta",
-      "/rig/element/nose/open",
-      {
-        label: "Nose Open",
-      },
-    );
-
-    bindingState.managedStandardInputs = [
-      {
-        input: incomingTarget,
-        source: "custom",
-      },
-      {
-        input: metadataTarget,
-        source: "custom",
-      },
-      {
-        input: selectedRig,
-        source: "custom",
-      },
-    ];
-    bindingState.standardInputsById = new Map([
-      [incomingTarget.id, incomingTarget],
-      [metadataTarget.id, metadataTarget],
-      [selectedRig.id, selectedRig],
-    ]);
-    bindingState.inputBindings = {
-      [incomingTarget.id]: { inputId: selectedRig.id },
-      [metadataTarget.id]: { inputId: selectedRig.id },
-    };
-
-    render(
-      <VariablesPanel
-        selectedRigId={selectedRig.id}
-        availableSurfaces={["drivers"]}
-        activeSurfaceOverride="drivers"
-      />,
-    );
-
-    expect(screen.getByText("Incoming")).toBeTruthy();
-    expect(screen.getByText(incomingTarget.label)).toBeTruthy();
-    expect(screen.queryByText(metadataTarget.label)).toBeNull();
-  });
-
-  it("hides all Drivers rows when the selected rig id is /rig/element", () => {
-    const selectedRig = makeInput("rig_jaw", "/rig/element/jaw/open", {
-      label: "Jaw Open",
-    });
-    const incomingTarget = makeInput("rig_incoming", "/standard/cheek/open", {
-      label: "Cheek Open",
-    });
-
-    bindingState.managedStandardInputs = [
-      {
-        input: incomingTarget,
-        source: "custom",
-      },
-      {
-        input: selectedRig,
-        source: "custom",
-      },
-    ];
-    bindingState.standardInputsById = new Map([
-      [incomingTarget.id, incomingTarget],
-      [selectedRig.id, selectedRig],
-    ]);
-    bindingState.inputBindings = {
-      [incomingTarget.id]: { inputId: selectedRig.id },
-    };
-    bindingState.bindings = {
-      [incomingTarget.id]: {
-        slots: [{ inputId: selectedRig.id, alias: "jaw" }],
-      },
-    };
-
-    render(
-      <VariablesPanel
-        selectedRigId={selectedRig.id}
-        availableSurfaces={["drivers"]}
-        activeSurfaceOverride="drivers"
-      />,
-    );
-
-    expect(screen.getByText("No driver relationships")).toBeTruthy();
-    expect(screen.queryByText(incomingTarget.label)).toBeNull();
-  });
-
-  it("filters /rig/element outputs from Drivers outgoing pose rows", () => {
-    const poseInput = makeInput("pose_jaw", "/standard/jaw/open", {
-      label: "Jaw Open",
-    });
-    const poseMetadataInput = makeInput("pose_meta", "/rig/element/eye/open", {
+    const autorigInput = makeInput("autorig_eye", "/autorig/eye/open", {
       label: "Eye Open",
     });
-
-    poseRigState.poses = [
-      {
-        id: "pose-1",
-        name: "Smile",
-        values: {
-          [poseInput.id]: 0.4,
-          [poseMetadataInput.id]: 0.7,
-        },
-        group: null,
-      },
+    bindingState.managedStandardInputs = [
+      { input: abstractInput, source: "preset" },
+      { input: autorigInput, source: "auto" },
     ];
-    poseRigState.selectedPoseId = "pose-1";
-    bindingState.standardInputsById = new Map([
-      [poseInput.id, poseInput],
-      [poseMetadataInput.id, poseMetadataInput],
+    bindingState.standardInputsByPath = new Map([
+      ["/mouth/open", abstractInput],
+      ["/autorig/eye/open", autorigInput],
     ]);
 
     render(
       <VariablesPanel
-        selectedPoseId="pose-1"
-        availableSurfaces={["drivers"]}
-        activeSurfaceOverride="drivers"
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
       />,
     );
 
-    expect(screen.getByText("Outgoing")).toBeTruthy();
-    expect(screen.getByText(poseInput.label)).toBeTruthy();
-    expect(screen.queryByText(poseMetadataInput.label)).toBeNull();
+    expect(screen.getByText("Jaw Open")).toBeTruthy();
+    expect(screen.getByText("Eye Open")).toBeTruthy();
   });
 });

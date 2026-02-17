@@ -11,7 +11,7 @@ interface WorkspaceState {
     hierarchy: PanelState;
     variables: PanelState;
     poses: PanelState;
-    drivers: PanelState;
+    inputs: PanelState;
     // Right Sidebar
     inspector: PanelState;
     debug: PanelState;
@@ -34,7 +34,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     hierarchy: { isVisible: true, order: 2 },
     variables: { isVisible: true, order: 1 },
     poses: { isVisible: false, order: 4 },
-    drivers: { isVisible: false, order: 5 },
+    inputs: { isVisible: false, order: 5 },
     inspector: { isVisible: true, order: 0 },
     debug: { isVisible: false, order: 1 },
     animation: { isVisible: false, order: 0 },

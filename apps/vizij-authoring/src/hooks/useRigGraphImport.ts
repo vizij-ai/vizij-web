@@ -232,6 +232,32 @@ export function useRigGraphImport({
           rebuiltSignatureHash: rebuiltSignature.length,
           missingBlueprintPaths,
         });
+
+        if (rehydrated.legacyAutorigInputPaths.length > 0) {
+          const limited = rehydrated.legacyAutorigInputPaths.slice(0, 8);
+          const remaining = Math.max(
+            0,
+            rehydrated.legacyAutorigInputPaths.length - limited.length,
+          );
+          const samplePaths = limited
+            .map((path) => {
+              const suggestion = path.replace(
+                /^\/rig\/element\/?/,
+                "/autorig/",
+              );
+              return `  ${path} -> ${suggestion}`;
+            })
+            .join("\n");
+          const suffix = remaining > 0 ? `\n  ...and ${remaining} more` : "";
+          alertDialog(
+            "Legacy autorig namespace detected.\n" +
+              `Imported graph contains ${rehydrated.legacyAutorigInputPaths.length} input path(s) under /rig/element.\n` +
+              "Expected low-level generated namespace is /autorig.\n" +
+              "Example remaps:\n" +
+              samplePaths +
+              suffix,
+          );
+        }
         const shouldOpenDiscrepancyWizard =
           !options?.skipDiscrepancyCheck &&
           (importedSignature !== rebuiltSignature ||

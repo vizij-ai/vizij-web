@@ -5,7 +5,9 @@ import {
   normalizeStandardRigInputPath,
 } from "@vizij/utils";
 
+export const AUTORIG_INPUT_PATH_PREFIX = "/autorig";
 export const RIG_ELEMENT_INPUT_PATH_PREFIX = "/rig/element";
+export const LEGACY_AUTORIG_INPUT_PATH_PREFIX = RIG_ELEMENT_INPUT_PATH_PREFIX;
 
 export function isRigElementStandardInputPath(
   path: string | null | undefined,
@@ -14,7 +16,16 @@ export function isRigElementStandardInputPath(
     return false;
   }
   const normalized = normalizeStandardRigInputPath(path);
-  return normalized.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX);
+  return (
+    normalized.startsWith(AUTORIG_INPUT_PATH_PREFIX) ||
+    normalized.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX)
+  );
+}
+
+export function isAutorigStandardInputPath(
+  path: string | null | undefined,
+): boolean {
+  return isRigElementStandardInputPath(path);
 }
 
 export function isRigElementStandardInputPathList(
@@ -55,6 +66,21 @@ export function resolveRigMetadataInputId(
 
   if (selectedRigId.startsWith("rig_element_")) {
     const suffixPath = selectedRigId.replace(/^rig[_-]element[_-]/i, "");
+    const normalizedSuffix = normalizeStandardRigInputPath(suffixPath);
+    normalizedCandidates.add(suffixPath);
+    normalizedCandidates.add(normalizedSuffix);
+    normalizedCandidates.add(applyStandardInputPathPrefix(normalizedSuffix));
+    normalizedCandidates.add(
+      deriveStandardRigInputIdFromPath(normalizedSuffix),
+    );
+    normalizedCandidates.add(
+      deriveStandardRigInputIdFromPath(
+        applyStandardInputPathPrefix(normalizedSuffix),
+      ),
+    );
+  }
+  if (selectedRigId.startsWith("autorig_")) {
+    const suffixPath = selectedRigId.replace(/^autorig[_-]/i, "");
     const normalizedSuffix = normalizeStandardRigInputPath(suffixPath);
     normalizedCandidates.add(suffixPath);
     normalizedCandidates.add(normalizedSuffix);

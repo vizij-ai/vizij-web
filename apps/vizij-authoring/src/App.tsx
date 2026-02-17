@@ -404,7 +404,7 @@ function AppContent({ loader }: AppContentProps) {
               onSelectPoseGroup={setSelectedPoseGroup}
             />
           }
-          leftBottomVisible3={panels.drivers.isVisible}
+          leftBottomVisible3={panels.inputs.isVisible}
           leftBottomPanel3={
             <VariablesPanel
               selectedRigId={selectedRigId}
@@ -413,8 +413,8 @@ function AppContent({ loader }: AppContentProps) {
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
               onSelectScene={handleSelectObject}
-              availableSurfaces={["drivers"]}
-              activeSurfaceOverride="drivers"
+              availableSurfaces={["inputs"]}
+              activeSurfaceOverride="inputs"
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
             />

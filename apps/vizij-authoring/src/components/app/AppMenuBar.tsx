@@ -75,10 +75,10 @@ export function AppMenuBar({
           Poses
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.drivers.isVisible}
-          onCheckedChange={() => togglePanel("drivers")}
+          checked={panels.inputs.isVisible}
+          onCheckedChange={() => togglePanel("inputs")}
         >
-          Drivers
+          Inputs
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={panels.materials.isVisible}

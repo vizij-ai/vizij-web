@@ -3,7 +3,7 @@ import { Folder, Box, Zap, Activity } from "lucide-react";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
-import { isRigElementStandardInputPath } from "../../utils/rigElementInputs";
+import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -112,7 +112,7 @@ function VariablesList({
 
   const groupedVariables = useMemo(() => {
     const visibleInputs = managedStandardInputs.filter(
-      (entry) => !isRigElementStandardInputPath(entry.input.path),
+      (entry) => !isAutorigStandardInputPath(entry.input.path),
     );
     const q = search.toLowerCase();
     const filtered = visibleInputs.filter(
