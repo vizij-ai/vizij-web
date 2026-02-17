@@ -473,6 +473,7 @@ interface VariablesPanelProps {
   onSelectRig?: (id: string | null) => void;
   onSelectPose?: (id: string) => void;
   onSelectScene?: (id: string) => void;
+  onInputValueChange?: (inputId: string, value: number) => void;
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
   activeSurfaceOverride?: SurfaceTab;
@@ -486,6 +487,7 @@ export function VariablesPanel({
   onSelectRig,
   onSelectPose,
   onSelectScene,
+  onInputValueChange,
   selectedPoseGroup,
   onSelectPoseGroup,
   activeSurfaceOverride,
@@ -648,6 +650,7 @@ export function VariablesPanel({
     handleUpdateStandardInput,
     handleDeleteCustomStandardInput,
   } = useBindingAuthoring((state) => state);
+  const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const referenceFace = useReferenceFace();
   const {
     policy: sharedSyncPolicy,
@@ -2046,7 +2049,7 @@ export function VariablesPanel({
                         onToggle={handleToggle}
                         onAction={handleAction}
                         onSelect={handleSelect}
-                        onInputValueChange={handleInputValueChange}
+                        onInputValueChange={activeInputValueChange}
                         selection={activeSelection}
                         searchQuery={searchQuery}
                       />
