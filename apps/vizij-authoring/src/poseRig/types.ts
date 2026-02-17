@@ -38,6 +38,7 @@ export interface PoseDefinition {
   description?: string;
   group?: string | null;
   groupId?: string | null;
+  groupIds?: string[];
   values: Record<StandardInputId, number>;
   createdAt: string;
   updatedAt: string;
