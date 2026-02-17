@@ -3,7 +3,12 @@ import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
 import type { AnimatableComponent } from "@vizij/utils";
 import type { RigBindingMetadata } from "@vizij/utils";
-import { buildAnimatableValue, cloneDeepSafe } from "@vizij/utils";
+import {
+  buildAnimatableValue,
+  cloneDeepSafe,
+  isRigElementStandardInputPath,
+  resolveStandardRigInputId,
+} from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
 import type { BindingMap } from "./state";
@@ -73,11 +78,22 @@ interface EvaluateBindingArgs {
   safeId: string;
   context: BindingGraphContext;
   selfNodeId?: string;
-  applyRigBoundaryRules?: boolean;
+  enforceRigBoundaryRules?: boolean;
 }
 
-const RIG_ELEMENT_PATH_PREFIX = "/rig/element";
-const AUTORIG_PATH_PREFIX = "/autorig";
+function resolveBindingSlotInputId(
+  bindingInputId: string | null | undefined,
+  inputsById: Map<string, StandardRigInput>,
+): string | null | undefined {
+  if (!bindingInputId || bindingInputId === SELF_BINDING_ID) {
+    return bindingInputId;
+  }
+  const resolvedInputId = resolveStandardRigInputId(bindingInputId, inputsById);
+  if (inputsById.has(resolvedInputId)) {
+    return resolvedInputId;
+  }
+  return bindingInputId;
+}
 
 function isRigElementAliasInput(
   inputId: string,
@@ -87,10 +103,7 @@ function isRigElementAliasInput(
   if (!input?.path) {
     return false;
   }
-  return (
-    input.path.startsWith(RIG_ELEMENT_PATH_PREFIX) ||
-    input.path.startsWith(AUTORIG_PATH_PREFIX)
-  );
+  return isRigElementStandardInputPath(input.path);
 }
 
 function isHigherOrderRigBindingInput(
@@ -107,6 +120,40 @@ function isHigherOrderRigBindingInput(
   return true;
 }
 
+function bindingReferencesRigElementInput(
+  binding: AnimatableBinding,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  const candidateInputIds = new Set<string>();
+  if (binding.inputId && binding.inputId !== SELF_BINDING_ID) {
+    candidateInputIds.add(binding.inputId);
+  }
+  binding.slots.forEach((slot) => {
+    if (slot.inputId && slot.inputId !== SELF_BINDING_ID) {
+      candidateInputIds.add(slot.inputId);
+    }
+  });
+
+  for (const candidateInputId of candidateInputIds) {
+    if (isRigElementStandardInputPath(candidateInputId)) {
+      return true;
+    }
+    const resolvedCandidateId = resolveBindingSlotInputId(
+      candidateInputId,
+      inputsById,
+    );
+    if (!resolvedCandidateId || resolvedCandidateId === SELF_BINDING_ID) {
+      continue;
+    }
+    const resolvedInput = inputsById.get(resolvedCandidateId);
+    if (resolvedInput && isRigElementStandardInputPath(resolvedInput.path)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function evaluateBinding({
   binding,
   target,
@@ -116,7 +163,7 @@ function evaluateBinding({
   safeId,
   context,
   selfNodeId,
-  applyRigBoundaryRules = false,
+  enforceRigBoundaryRules = false,
 }: EvaluateBindingArgs): {
   valueNodeId: string | null;
   hasActiveSlot: boolean;
@@ -156,6 +203,10 @@ function evaluateBinding({
     const fallbackAlias = `s${index + 1}`;
     const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
     const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
+    const resolvedSlotInputId = resolveBindingSlotInputId(
+      slot.inputId,
+      inputsById,
+    );
     const slotValueType: BindingValueType =
       slot.valueType === "vector" ? "vector" : "scalar";
     let slotOutputId: string;
@@ -172,11 +223,16 @@ function evaluateBinding({
         expressionIssues.push("Self reference unavailable for this input.");
         slotOutputId = getConstantNodeId(exprContext, target.defaultValue);
       }
-    } else if (slot.inputId) {
-      const inputId = slot.inputId;
+    } else if (resolvedSlotInputId) {
+      const inputId = resolvedSlotInputId;
+      const sourceBinding = inputBindings[inputId];
+      const allowedHigherOrderViaRigElementSource =
+        sourceBinding !== undefined &&
+        bindingReferencesRigElementInput(sourceBinding, inputsById);
       if (
-        applyRigBoundaryRules &&
+        enforceRigBoundaryRules &&
         isHigherOrderRigBindingInput(inputId, inputsById) &&
+        !allowedHigherOrderViaRigElementSource &&
         inputId !== SELF_BINDING_ID
       ) {
         expressionIssues.push(
@@ -195,7 +251,7 @@ function evaluateBinding({
             slotValueType === "vector" ? "vector" : "scalar",
           );
         } else {
-          expressionIssues.push(`Missing standard input "${slot.inputId}".`);
+          expressionIssues.push(`Missing standard input "${inputId}".`);
           slotOutputId = getConstantNodeId(exprContext, 0);
         }
       }
@@ -207,7 +263,7 @@ function evaluateBinding({
       nodeId: slotOutputId,
       slotId,
       slotAlias: alias,
-      inputId: slot.inputId ?? null,
+      inputId: resolvedSlotInputId ?? null,
       targetId,
       animatableId,
       component,
@@ -224,7 +280,7 @@ function evaluateBinding({
       component,
       slotId,
       slotAlias: alias,
-      inputId: slot.inputId ?? null,
+      inputId: resolvedSlotInputId ?? null,
       expression: trimmedExpression,
       valueType: slotValueType,
       nodeId: slotOutputId,
@@ -1444,7 +1500,7 @@ export function buildRigGraphSpec({
           animatableId: inputId,
           component: undefined,
           safeId: sanitizeNodeId(inputId),
-          applyRigBoundaryRules: false,
+          enforceRigBoundaryRules: false,
           context: {
             inputsById,
             inputBindings,
@@ -1540,7 +1596,7 @@ export function buildRigGraphSpec({
           animatableId: component.animatableId,
           component: component.component,
           safeId: component.safeId,
-          applyRigBoundaryRules: true,
+          enforceRigBoundaryRules: true,
           context: {
             inputsById,
             inputBindings,
