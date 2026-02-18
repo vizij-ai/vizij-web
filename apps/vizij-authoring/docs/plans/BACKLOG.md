@@ -97,7 +97,7 @@ Completion notes (2026-02-18 06:13:05Z):
 
 ## B1 — Inspector and Surface Usability
 
-### [ ] B1.1 Inspector Numeric Control Legibility
+### [x] B1.1 Inspector Numeric Control Legibility
 
 Intent:
 Prevent clipping and tiny controls in inspector numeric rows.
@@ -120,6 +120,13 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 06:29:04Z):
+
+1. Added reusable inspector sizing contracts in `src/styles.css` (`--inspector-row-hit-min-height: 32px`, `--inspector-numeric-min-width: 88px`) plus shared utility classes (`.inspector-row-hit-target`, `.inspector-numeric-control`).
+2. Updated shared inspector row controls to use flexible wrapping and minimum hit target sizing in `src/components/ui/CollapsibleRow.tsx` and `src/components/ui/RowSlider.tsx`.
+3. Updated inspector slider+numeric rows in `src/components/inspector/InspectorContent.tsx` and `src/components/inspector/InspectorPanel.tsx` to use shared numeric width and wrapping classes, removing narrow `w-12/w-20` wrappers that caused clipping risk.
+4. Added `src/components/inspector/inspectorSizingContracts.test.ts` to lock the B1.1 sizing and wrapping contracts.
 
 ### [ ] B1.2 Sidebar Density and Pane Orchestration
 

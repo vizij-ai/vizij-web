@@ -324,7 +324,7 @@ export function InspectorPanel({
                           </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
                         <Slider
                           min={0}
                           max={1}
@@ -338,7 +338,7 @@ export function InspectorPanel({
                             )
                           }
                         />
-                        <div className="w-20 flex-shrink-0">
+                        <div className="inspector-numeric-control flex-shrink-0">
                           <NumberField
                             size="sm"
                             value={weight}

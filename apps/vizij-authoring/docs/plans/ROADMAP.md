@@ -45,6 +45,11 @@ Exit gate:
 2. Users can distinguish target/current/contribution values.
 3. Locking behavior is per autorig channel.
 
+Stage 1 progress (2026-02-18 06:29:04Z):
+
+1. `B1.1` complete; inspector numeric rows now enforce `88px` minimum numeric width, `32px` minimum row hit target height, and flexible wrapping to avoid clipping at common panel widths.
+2. `B1.2`, `B1.3`, and `B1.4` remain planned.
+
 ## Stage 2 — Authoring Lifecycle Completeness
 
 Objective:

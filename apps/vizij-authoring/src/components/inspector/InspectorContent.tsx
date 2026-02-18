@@ -1068,7 +1068,7 @@ export function InspectorContent() {
               handleBlend(newAmount);
             }}
             renderMainInput={() => (
-              <div className="flex items-center gap-2 flex-1 group/row">
+              <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
                 <Slider
                   min={0}
                   max={1}
@@ -1077,12 +1077,12 @@ export function InspectorContent() {
                   className="flex-1"
                   onChange={(val) => handleBlend(val as number)}
                 />
-                <div className="w-12 flex-shrink-0">
+                <div className="inspector-numeric-control flex-shrink-0">
                   <Input
                     size="sm"
                     type="text"
                     value={(blendAmount * 100).toFixed(0) + "%"}
-                    className="bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
+                    className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
                     readOnly
                   />
                 </div>
@@ -1179,7 +1179,7 @@ export function InspectorContent() {
                             );
                           }}
                           renderMainInput={() => (
-                            <div className="flex items-center gap-2 flex-1 group/row">
+                            <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
                               <Slider
                                 min={min}
                                 max={max}
@@ -1190,7 +1190,7 @@ export function InspectorContent() {
                                   handleInputValueChange(varId, val as number)
                                 }
                               />
-                              <div className="w-20 flex-shrink-0">
+                              <div className="inspector-numeric-control flex-shrink-0">
                                 <NumberField
                                   size="sm"
                                   value={liveVal} // Assuming liveVal is number, need check
@@ -1925,7 +1925,7 @@ export function InspectorContent() {
                 renderMainInput={() => (
                   <div
                     className={cn(
-                      "flex items-center gap-2 flex-1",
+                      "flex flex-wrap items-center gap-2 flex-1 inspector-row-hit-target",
                       !isDirectRigControlAvailable && "opacity-70",
                     )}
                     title={directRigControlReason ?? undefined}
@@ -1943,11 +1943,11 @@ export function InspectorContent() {
                         handleInputValueChange(input.id, val as number);
                       }}
                     />
-                    <div className="w-12 flex-shrink-0">
+                    <div className="inspector-numeric-control flex-shrink-0">
                       <NumberField
                         size="sm"
                         value={value}
-                        className="bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
+                        className="w-full bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
                         onChange={(val) => {
                           if (!isDirectRigControlAvailable) {
                             return;

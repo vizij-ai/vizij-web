@@ -53,7 +53,10 @@ export function RowSlider({
 
   return (
     <div
-      className={cn("flex items-center gap-3 flex-grow min-w-0", className)}
+      className={cn(
+        "flex flex-wrap items-center gap-2 flex-grow min-w-0 inspector-row-hit-target",
+        className,
+      )}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
@@ -81,7 +84,7 @@ export function RowSlider({
       />
       <Input
         type="number"
-        className="flex-none w-14 text-center text-[10px] tabular-nums font-black bg-zinc-950/40 border-zinc-800/60 h-6 p-0 transition-all hover:border-zinc-700/80 focus:border-blue-500/50"
+        className="inspector-numeric-control flex-none text-center text-[10px] tabular-nums font-black bg-zinc-950/40 border-zinc-800/60 h-6 p-0 transition-all hover:border-zinc-700/80 focus:border-blue-500/50"
         value={inputValue}
         onChange={handleNumberChange}
         onBlur={handleNumberBlur}

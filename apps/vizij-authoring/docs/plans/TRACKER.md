@@ -8,7 +8,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 
 1. Core staging fix is landed (`7ac2ada`).
 2. Baseline health gate is complete; `B0.1`, `B0.2`, and `B0.3` are done and Stage 0 is unblocked.
-3. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
+3. `B1.1` is complete in this worktree with inspector sizing contracts and targeted test coverage.
+4. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
 
 ## Validation Gate Status
 
@@ -19,6 +20,7 @@ Status: `done`
 Latest evidence:
 
 1. `2026-02-18 06:05:57Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+2. `2026-02-18 06:28:25Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 
 ### Lint
 
@@ -27,6 +29,7 @@ Status: `done`
 Latest evidence:
 
 1. `2026-02-18 06:13:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
+2. `2026-02-18 06:29:04Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 16 warnings).
 
 ### Test
 
@@ -36,7 +39,8 @@ Latest evidence:
 
 1. `2026-02-18 06:09:30Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 49 files / 218 tests).
 2. `2026-02-18 06:13:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 49 files / 218 tests).
-3. Residual known failures: none.
+3. `2026-02-18 06:28:43Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 50 files / 221 tests).
+4. Residual known failures: none.
 
 ## Backlog Status Board
 
@@ -45,7 +49,7 @@ Latest evidence:
 | B0.1 | done    | Typecheck pass recorded at `2026-02-18 06:05:57Z`                            |
 | B0.2 | done    | Test pass recorded at `2026-02-18 06:09:30Z`; residual failures: none        |
 | B0.3 | done    | Validate pass recorded at `2026-02-18 06:13:05Z`; caveat: lint warnings only |
-| B1.1 | planned | Waiting on baseline gate                                                     |
+| B1.1 | done    | Completed 2026-02-18 06:29:04Z; inspector row sizing contracts landed        |
 | B1.2 | planned | Waiting on baseline gate                                                     |
 | B1.3 | planned | Waiting on baseline gate                                                     |
 | B1.4 | planned | Waiting on baseline gate                                                     |
@@ -68,6 +72,9 @@ Latest evidence:
 1. `[2026-02-18 06:05:57Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
 2. `[2026-02-18 06:09:30Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 49 files / 218 tests; residual failures: none)`
 3. `[2026-02-18 06:13:05Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; caveat: lint reported 16 no-unused-vars warnings, no errors)`
+4. `[2026-02-18 06:28:25Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
+5. `[2026-02-18 06:28:43Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 50 files / 221 tests)`
+6. `[2026-02-18 06:29:04Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 16 warnings)`
 
 ## Resolved and Archived Notes
 

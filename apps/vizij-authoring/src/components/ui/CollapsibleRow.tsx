@@ -55,11 +55,11 @@ export function CollapsibleRow({
         )}
         data-row-id={id}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap inspector-row-hit-target">
           <BaseCollapsible.Trigger
             disabled={!hasExpandableContent || disabled}
             className={cn(
-              "flex-1 px-2.5 py-1.5 flex items-center gap-3 text-left focus:outline-none focus:bg-zinc-800/20 w-full",
+              "flex-1 min-w-[12rem] min-h-8 px-2.5 py-1 flex items-center gap-2 text-left focus:outline-none focus:bg-zinc-800/20 w-full",
               hasExpandableContent &&
                 !disabled &&
                 "cursor-pointer hover:bg-zinc-800/30",
@@ -92,9 +92,9 @@ export function CollapsibleRow({
             </div>
           </BaseCollapsible.Trigger>
 
-          <div className="flex items-center justify-end gap-3 shrink-0 pr-2.5 py-1.5">
+          <div className="flex items-center justify-end gap-2 flex-wrap flex-1 min-w-0 pr-2.5 py-1">
             {showSlider && value !== undefined && onValueChange && (
-              <div className="w-48">
+              <div className="flex-1 basis-[14rem] min-w-0 max-w-full">
                 <RowSlider
                   value={value}
                   min={min}
