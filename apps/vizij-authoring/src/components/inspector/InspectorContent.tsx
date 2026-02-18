@@ -51,6 +51,7 @@ import {
 } from "./RiggingMaterialSection";
 import {
   collectDirectDownstreamRigInputs,
+  collectDirectRigDependents,
   collectRigDependents,
   type PoseRigSourceKind,
 } from "./rigConnections";
@@ -171,9 +172,7 @@ function normalizePoseMembershipPath(
 
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
-  const [rigAddMode, setRigAddMode] = useState<"property" | "variable">(
-    "property",
-  );
+  const [showRigDriversModal, setShowRigDriversModal] = useState(false);
   const [blendAmount, setBlendAmount] = useState(0);
   const [sceneInspectorView, setSceneInspectorView] = useState<
     "quick" | "bindings"
@@ -195,9 +194,6 @@ export function InspectorContent() {
   const [focusedSceneBindingTargetId, setFocusedSceneBindingTargetId] =
     useState<string | null>(null);
   const [poseBindingEditorInputId, setPoseBindingEditorInputId] = useState<
-    string | null
-  >(null);
-  const [rigDrivenBindingTargetId, setRigDrivenBindingTargetId] = useState<
     string | null
   >(null);
   const [rigDefaultDraft, setRigDefaultDraft] = useState("0");
@@ -267,24 +263,6 @@ export function InspectorContent() {
   );
   const handleBindingInputChange = useBindingAuthoring(
     (state) => state.handleBindingInputChange,
-  );
-  const handleAddBindingSlot = useBindingAuthoring(
-    (state) => state.handleAddBindingSlot,
-  );
-  const handleRemoveBindingSlot = useBindingAuthoring(
-    (state) => state.handleRemoveBindingSlot,
-  );
-  const handleUpdateBindingExpression = useBindingAuthoring(
-    (state) => state.handleUpdateBindingExpression,
-  );
-  const handleUpdateBindingSlotAlias = useBindingAuthoring(
-    (state) => state.handleUpdateBindingSlotAlias,
-  );
-  const handleBindingSlotValueTypeChange = useBindingAuthoring(
-    (state) => state.handleBindingSlotValueTypeChange,
-  );
-  const handleResetBinding = useBindingAuthoring(
-    (state) => state.handleResetBinding,
   );
   const handleEnsureParentBinding = useBindingAuthoring(
     (state) => state.handleEnsureParentBinding,
@@ -504,16 +482,18 @@ export function InspectorContent() {
 
   useEffect(() => {
     if (inspectorMode !== "rig" || !resolvedSelectedRigId) {
-      setRigDrivenBindingTargetId(null);
+      setShowRigDriversModal(false);
       return;
     }
     const nextView = pendingRigInspectorViewRef.current;
     if (nextView) {
       setRigInspectorView(nextView);
+      setShowRigDriversModal(nextView === "bindings");
       pendingRigInspectorViewRef.current = null;
       return;
     }
     setRigInspectorView("quick");
+    setShowRigDriversModal(false);
   }, [inspectorMode, resolvedSelectedRigId]);
 
   useEffect(() => {
@@ -534,7 +514,7 @@ export function InspectorContent() {
     setRigLifecycleMessage(null);
   }, [inspectorMode, selectedManagedRigEntry]);
 
-  const targetOwnerById = (() => {
+  const targetOwnerById = useMemo(() => {
     const targetOwners = new Map<string, string>();
     objects.forEach((objectNode) => {
       objectNode.features.forEach((feature) => {
@@ -547,7 +527,59 @@ export function InspectorContent() {
       });
     });
     return targetOwners;
-  })();
+  }, [objects]);
+  const animatableTargetIdSet = useMemo(
+    () => new Set(targetOwnerById.keys()),
+    [targetOwnerById],
+  );
+  const componentIdByInputId = useMemo(() => {
+    const mapping = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const componentId =
+        entry.metadata?.componentId ??
+        extractComponentIdFromInputSourceId(entry.input.sourceId);
+      if (!componentId) {
+        return;
+      }
+      mapping.set(entry.input.id, componentId);
+      const resolvedInputId = resolveRigMetadataInputId(
+        entry.input.id,
+        standardInputsById,
+      );
+      mapping.set(resolvedInputId, componentId);
+    });
+    return mapping;
+  }, [managedStandardInputs, standardInputsById]);
+  const resolveAnimatablePropertyTargetIds = (
+    targetIds: readonly string[],
+  ): string[] => {
+    const canonical = new Set<string>();
+    targetIds.forEach((targetId) => {
+      if (!targetId) {
+        return;
+      }
+      const resolvedTargetId = componentIdByInputId.get(targetId) ?? targetId;
+      if (animatableTargetIdSet.has(resolvedTargetId)) {
+        canonical.add(resolvedTargetId);
+      }
+    });
+    return Array.from(canonical);
+  };
+  const matchesRigInputId = (
+    candidateId: string | null | undefined,
+    rigInputId: string,
+  ): boolean => {
+    if (!candidateId) {
+      return false;
+    }
+    if (candidateId === rigInputId) {
+      return true;
+    }
+    return (
+      resolveRigMetadataInputId(candidateId, standardInputsById) ===
+      resolveRigMetadataInputId(rigInputId, standardInputsById)
+    );
+  };
 
   const targetLabelById = useMemo(() => {
     const labels = new Map<string, string>();
@@ -1164,8 +1196,13 @@ export function InspectorContent() {
           const newVar = handleCreateCustomStandardInput(`/${nameSafe}`);
           if (!newVar) return;
           variableId = newVar.id;
-          const targetIds = resolveSelectionTargetIds(selection, objects);
+          const targetIds = resolveAnimatablePropertyTargetIds(
+            resolveSelectionTargetIds(selection, objects),
+          );
           if (targetIds.length === 0) {
+            alertDialog(
+              "Selected properties are not currently mapped to animatable targets.",
+            );
             return;
           }
           const shouldApplyBulk =
@@ -2056,6 +2093,12 @@ export function InspectorContent() {
             label: parentEntry?.label || parentEntry?.path || candidateId,
           };
         });
+      const directDependents = collectDirectRigDependents({
+        selectedRigId: resolvedSelectedRigId,
+        bindings,
+        objects,
+        standardInputsById,
+      });
       const dependents = collectRigDependents({
         selectedRigId: resolvedSelectedRigId,
         bindings,
@@ -2263,28 +2306,70 @@ export function InspectorContent() {
         }
 
         if (resolvedSelection.kind === "property") {
-          if (resolvedSelection.targetIds.length === 0) {
-            return;
-          }
-          const selectionLabel =
-            selection.type === "property" ? selection.label : "selection";
-          const shouldApplyBulk =
-            resolvedSelection.targetIds.length === 1 ||
-            (typeof window !== "undefined" &&
-              window.confirm(
-                `Bind all ${resolvedSelection.targetIds.length} components for "${selectionLabel}" to this rig input?`,
-              ));
-          if (!shouldApplyBulk) {
+          const componentTargetIds = resolveAnimatablePropertyTargetIds(
+            resolvedSelection.targetIds,
+          );
+          if (componentTargetIds.length === 0) {
+            alertDialog(
+              "Selected properties are not currently mapped to animatable targets.",
+            );
             return;
           }
           const missingTargetIds: string[] = [];
-          let linkedCount = 0;
-          resolvedSelection.targetIds.forEach((targetId) => {
+          const autorigInputIds = new Set<string>();
+          componentTargetIds.forEach((targetId) => {
+            const componentBinding = bindings[targetId];
+            if (componentBinding) {
+              const slotIdsToClear = new Set<string>();
+              componentBinding.slots.forEach((slot) => {
+                if (matchesRigInputId(slot.inputId, resolvedSelectedRigId)) {
+                  slotIdsToClear.add(slot.id);
+                }
+              });
+              if (
+                slotIdsToClear.size === 0 &&
+                matchesRigInputId(
+                  componentBinding.inputId,
+                  resolvedSelectedRigId,
+                )
+              ) {
+                const primarySlotId = componentBinding.slots[0]?.id;
+                if (primarySlotId) {
+                  slotIdsToClear.add(primarySlotId);
+                }
+              }
+              slotIdsToClear.forEach((slotId) => {
+                handleBindingInputChange(targetId, null, slotId);
+              });
+            }
+
             const autorigInputId = autorigInputIdByComponentId.get(targetId);
             if (!autorigInputId) {
               missingTargetIds.push(targetId);
               return;
             }
+            autorigInputIds.add(autorigInputId);
+          });
+          const resolvedAutorigInputIds = Array.from(autorigInputIds);
+          if (resolvedAutorigInputIds.length === 0) {
+            alertDialog(
+              "Some selected properties are not currently mapped to autorig inputs.",
+            );
+            return;
+          }
+          const selectionLabel =
+            selection.type === "property" ? selection.label : "selection";
+          const shouldApplyBulk =
+            resolvedAutorigInputIds.length === 1 ||
+            (typeof window !== "undefined" &&
+              window.confirm(
+                `Bind all ${resolvedAutorigInputIds.length} components for "${selectionLabel}" to this rig input?`,
+              ));
+          if (!shouldApplyBulk) {
+            return;
+          }
+          let linkedCount = 0;
+          resolvedAutorigInputIds.forEach((autorigInputId) => {
             const existingInputBinding = inputBindings[autorigInputId];
             const alreadyLinked = hasParentBindingInput(
               existingInputBinding,
@@ -2307,6 +2392,94 @@ export function InspectorContent() {
           return;
         }
       };
+      const drivenChainItems: Array<{
+        key: string;
+        label: string;
+        kind: "variable" | "property" | "autorig";
+        drivenInputId?: string;
+        onClick: () => void;
+      }> = [];
+      const seenDrivenKeys = new Set<string>();
+      const removeDrivenVariableLink = (drivenInputId: string) => {
+        const drivenBinding = inputBindings[drivenInputId];
+        if (!drivenBinding) {
+          return;
+        }
+        const slotsToClear = new Set<string>();
+        drivenBinding.slots.forEach((slot) => {
+          if (matchesRigInputId(slot.inputId, resolvedSelectedRigId)) {
+            slotsToClear.add(slot.id);
+          }
+        });
+        if (
+          slotsToClear.size === 0 &&
+          matchesRigInputId(drivenBinding.inputId, resolvedSelectedRigId)
+        ) {
+          const primarySlotId = drivenBinding.slots[0]?.id;
+          if (primarySlotId) {
+            slotsToClear.add(primarySlotId);
+          }
+        }
+        slotsToClear.forEach((slotId) => {
+          handleParentBindingInputChange(drivenInputId, null, slotId);
+        });
+      };
+      downstreamInputs.forEach((entry) => {
+        const key = `variable:${entry.id}`;
+        if (seenDrivenKeys.has(key)) {
+          return;
+        }
+        seenDrivenKeys.add(key);
+        drivenChainItems.push({
+          key,
+          label: entry.label,
+          kind: "variable",
+          drivenInputId: entry.id,
+          onClick: () => openRigInspector(entry.id),
+        });
+      });
+      downstreamAutorigInputs.forEach((entry) => {
+        const mappedTargetId = componentIdByInputId.get(entry.id) ?? null;
+        if (mappedTargetId) {
+          const key = `property:${mappedTargetId}`;
+          if (seenDrivenKeys.has(key)) {
+            return;
+          }
+          seenDrivenKeys.add(key);
+          drivenChainItems.push({
+            key,
+            label: targetLabelById.get(mappedTargetId) ?? entry.label,
+            kind: "property",
+            onClick: () => openSceneBindingInspector(mappedTargetId),
+          });
+          return;
+        }
+        const key = `autorig:${entry.id}`;
+        if (seenDrivenKeys.has(key)) {
+          return;
+        }
+        seenDrivenKeys.add(key);
+        drivenChainItems.push({
+          key,
+          label: entry.label,
+          kind: "autorig",
+          drivenInputId: entry.id,
+          onClick: () => openRigInspector(entry.id),
+        });
+      });
+      directDependents.forEach((dependent) => {
+        const key = `property:${dependent.targetId}`;
+        if (seenDrivenKeys.has(key)) {
+          return;
+        }
+        seenDrivenKeys.add(key);
+        drivenChainItems.push({
+          key,
+          label: dependent.name,
+          kind: "property",
+          onClick: () => openSceneBindingInspector(dependent.targetId),
+        });
+      });
 
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
@@ -2343,615 +2516,502 @@ export function InspectorContent() {
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
-          <div className="flex items-center gap-1 px-1 py-1">
-            <Button
-              variant={rigInspectorView === "quick" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-6 text-[10px]"
-              onClick={() => setRigInspectorView("quick")}
-            >
-              Quick
-            </Button>
-            <Button
-              variant={rigInspectorView === "bindings" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-6 text-[10px]"
-              onClick={() => setRigInspectorView("bindings")}
-            >
-              My Drivers
-            </Button>
-          </div>
-
-          {rigInspectorView === "quick" ? (
-            <>
-              {sharedLink && (
-                <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                      Shared Variable Link
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                        sharedLink.inSync
-                          ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
-                          : "border-amber-500/40 text-amber-200 bg-amber-500/10",
-                      )}
-                    >
-                      {sharedLink.inSync
-                        ? "in sync"
-                        : `drift ${sharedLink.delta.toFixed(3)}`}
-                    </span>
-                  </div>
-                  <div className="text-[10px] font-mono text-text-muted truncate">
-                    {sharedLink.path}
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px]">
-                    <span className="text-text-secondary">
-                      Main:{" "}
-                      <span className="font-mono text-text-primary">
-                        {sharedLink.mainValue.toFixed(3)}
-                      </span>
-                    </span>
-                    <span className="text-text-secondary">
-                      Ref:{" "}
-                      <span className="font-mono text-text-primary">
-                        {sharedLink.referenceValue.toFixed(3)}
-                      </span>
-                    </span>
-                    <span className="text-text-muted ml-auto">
-                      Policy:{" "}
-                      <span className="font-mono text-text-secondary">
-                        {sharedSyncPolicy}
-                      </span>
-                    </span>
-                  </div>
-                  {sharedConflict && (
-                    <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex items-center gap-1">
-                      <span className="text-[10px] text-amber-100 flex-1">
-                        Conflict: {sharedConflict.firstSource} →{" "}
-                        {sharedConflict.secondSource}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={() =>
-                          resolveSharedSyncConflict(sharedConflict.path, "main")
-                        }
-                      >
-                        Keep Main
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={() =>
-                          resolveSharedSyncConflict(
-                            sharedConflict.path,
-                            "reference",
-                          )
-                        }
-                      >
-                        Keep Ref
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={() =>
-                          dismissSharedSyncConflict(sharedConflict.path)
-                        }
-                      >
-                        Dismiss
-                      </Button>
-                    </div>
+          {sharedLink && (
+            <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                  Shared Variable Link
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                    sharedLink.inSync
+                      ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
+                      : "border-amber-500/40 text-amber-200 bg-amber-500/10",
                   )}
-                  {!referenceFace.file && (
-                    <span className="text-[10px] text-text-muted">
-                      Load a reference face to activate shared sync.
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                    Variable Metadata
+                >
+                  {sharedLink.inSync
+                    ? "in sync"
+                    : `drift ${sharedLink.delta.toFixed(3)}`}
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-text-muted truncate">
+                {sharedLink.path}
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-text-secondary">
+                  Main:{" "}
+                  <span className="font-mono text-text-primary">
+                    {sharedLink.mainValue.toFixed(3)}
                   </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                      isRemovableCustomInput
-                        ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
-                        : "border-sky-500/40 text-sky-200 bg-sky-500/10",
-                    )}
-                  >
-                    {isRemovableCustomInput ? "custom" : "system"}
+                </span>
+                <span className="text-text-secondary">
+                  Ref:{" "}
+                  <span className="font-mono text-text-primary">
+                    {sharedLink.referenceValue.toFixed(3)}
                   </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
-                      Default
-                    </span>
-                    <Input
-                      size="sm"
-                      type="number"
-                      step="0.01"
-                      value={rigDefaultDraft}
-                      onChange={(event) =>
-                        setRigDefaultDraft(event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleApplyRigMetadataDraft();
-                        } else if (event.key === "Escape") {
-                          event.preventDefault();
-                          setRigDefaultDraft(
-                            formatDraftNumber(input.defaultValue ?? 0),
-                          );
-                          setRigLifecycleMessage(null);
-                        }
-                      }}
-                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
-                      Min
-                    </span>
-                    <Input
-                      size="sm"
-                      type="number"
-                      step="0.01"
-                      value={rigRangeMinDraft}
-                      onChange={(event) =>
-                        setRigRangeMinDraft(event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleApplyRigMetadataDraft();
-                        } else if (event.key === "Escape") {
-                          event.preventDefault();
-                          setRigRangeMinDraft(
-                            formatDraftNumber(input.range.min ?? -1),
-                          );
-                          setRigLifecycleMessage(null);
-                        }
-                      }}
-                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
-                      Max
-                    </span>
-                    <Input
-                      size="sm"
-                      type="number"
-                      step="0.01"
-                      value={rigRangeMaxDraft}
-                      onChange={(event) =>
-                        setRigRangeMaxDraft(event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleApplyRigMetadataDraft();
-                        } else if (event.key === "Escape") {
-                          event.preventDefault();
-                          setRigRangeMaxDraft(
-                            formatDraftNumber(input.range.max ?? 1),
-                          );
-                          setRigLifecycleMessage(null);
-                        }
-                      }}
-                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
+                </span>
+                <span className="text-text-muted ml-auto">
+                  Policy:{" "}
+                  <span className="font-mono text-text-secondary">
+                    {sharedSyncPolicy}
+                  </span>
+                </span>
+              </div>
+              {sharedConflict && (
+                <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex items-center gap-1">
+                  <span className="text-[10px] text-amber-100 flex-1">
+                    Conflict: {sharedConflict.firstSource} →{" "}
+                    {sharedConflict.secondSource}
+                  </span>
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px]"
-                    onClick={handleApplyRigMetadataDraft}
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      resolveSharedSyncConflict(sharedConflict.path, "main")
+                    }
                   >
-                    Apply Metadata
+                    Keep Main
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px]"
-                    onClick={() => {
-                      setRigDefaultDraft(formatDraftNumber(input.defaultValue));
-                      setRigRangeMinDraft(formatDraftNumber(input.range.min));
-                      setRigRangeMaxDraft(formatDraftNumber(input.range.max));
-                      setRigLifecycleMessage(null);
-                    }}
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      resolveSharedSyncConflict(
+                        sharedConflict.path,
+                        "reference",
+                      )
+                    }
                   >
-                    Reset Draft
+                    Keep Ref
                   </Button>
-                  {!isRemovableCustomInput && (
-                    <span className="text-[10px] text-amber-200/90">
-                      Deletion is disabled for system-managed variables.
-                    </span>
-                  )}
-                </div>
-                {rigLifecycleMessage && (
-                  <p
-                    className={cn(
-                      "text-[10px]",
-                      rigLifecycleMessage.tone === "error"
-                        ? "text-red-300"
-                        : "text-emerald-300",
-                    )}
-                  >
-                    {rigLifecycleMessage.text}
-                  </p>
-                )}
-              </div>
-              <RiggingPropertyRow
-                label="Current Value"
-                onScrubStart={() => {
-                  scrubValuesRef.current[input.id] = value;
-                }}
-                onScrub={(_, totalDelta) => {
-                  if (!isDirectRigControlAvailable) {
-                    return;
-                  }
-                  const step = (input.range.max - input.range.min) / 100;
-                  const startVal = scrubValuesRef.current[input.id] ?? 0;
-                  handleInputValueChange(
-                    input.id,
-                    startVal + totalDelta * step,
-                  );
-                }}
-                renderMainInput={() => (
-                  <div
-                    className={cn(
-                      "flex flex-wrap items-center gap-2 flex-1 inspector-row-hit-target",
-                      !isDirectRigControlAvailable && "opacity-70",
-                    )}
-                    title={directRigControlReason ?? undefined}
-                  >
-                    <Slider
-                      min={input.range.min ?? -1}
-                      max={input.range.max ?? 1}
-                      step={0.01}
-                      value={value}
-                      className="flex-1"
-                      onChange={(val) => {
-                        if (!isDirectRigControlAvailable) {
-                          return;
-                        }
-                        handleInputValueChange(input.id, val as number);
-                      }}
-                    />
-                    <div className="inspector-numeric-control flex-shrink-0">
-                      <NumberField
-                        size="sm"
-                        value={value}
-                        className="w-full bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
-                        onChange={(val) => {
-                          if (!isDirectRigControlAvailable) {
-                            return;
-                          }
-                          handleInputValueChange(input.id, val);
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              />
-              {!isDirectRigControlAvailable && directRigControlReason && (
-                <div className="flex items-center justify-between gap-2 px-1 -mt-2">
-                  <p className="text-[10px] text-amber-300/90">
-                    {directRigControlReason}
-                  </p>
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px] whitespace-nowrap"
-                    onClick={() => handleEnableParentLocalControl(input.id)}
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      dismissSharedSyncConflict(sharedConflict.path)
+                    }
                   >
-                    Enable Local Control
+                    Dismiss
                   </Button>
                 </div>
               )}
-              <div className="flex flex-col gap-2 flex-1 min-h-0">
-                <div className="flex items-center gap-2 px-1 py-1">
-                  <Sliders size={12} className="text-slate-500" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    What I Drive · {downstreamInputs.length} variables ·{" "}
-                    {downstreamAutorigInputs.length} autorig ·{" "}
-                    {dependents.length} properties
-                  </span>
-                </div>
-
-                {parentRigInputs.length > 0 && (
-                  <div className="flex flex-col gap-1">
-                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
-                      Driven By
-                    </div>
-                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
-                      {parentRigInputs.map((entry) => (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                          onClick={() => openRigInspector(entry.id, "bindings")}
-                          title={`Inspect parent ${entry.label}`}
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full bg-violet-500/60" />
-                          <span className="flex-1 truncate">{entry.label}</span>
-                          <ChevronRight size={10} className="text-text-muted" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              {!referenceFace.file && (
+                <span className="text-[10px] text-text-muted">
+                  Load a reference face to activate shared sync.
+                </span>
+              )}
+            </div>
+          )}
+          <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                Variable Metadata
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                  isRemovableCustomInput
+                    ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                    : "border-sky-500/40 text-sky-200 bg-sky-500/10",
                 )}
-
-                {downstreamInputs.length > 0 && (
-                  <div className="flex flex-col gap-1">
-                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
-                      Variables
-                    </div>
-                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
-                      {downstreamInputs.map((entry) => (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                          onClick={() => openRigInspector(entry.id)}
-                          title={`Inspect ${entry.label}`}
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
-                          <span className="flex-1 truncate">{entry.label}</span>
-                          <ChevronRight size={10} className="text-text-muted" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              >
+                {isRemovableCustomInput ? "custom" : "system"}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                  Default
+                </span>
+                <Input
+                  size="sm"
+                  type="number"
+                  step="0.01"
+                  value={rigDefaultDraft}
+                  onChange={(event) => setRigDefaultDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplyRigMetadataDraft();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRigDefaultDraft(
+                        formatDraftNumber(input.defaultValue ?? 0),
+                      );
+                      setRigLifecycleMessage(null);
+                    }
+                  }}
+                  className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                  Min
+                </span>
+                <Input
+                  size="sm"
+                  type="number"
+                  step="0.01"
+                  value={rigRangeMinDraft}
+                  onChange={(event) => setRigRangeMinDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplyRigMetadataDraft();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRigRangeMinDraft(
+                        formatDraftNumber(input.range.min ?? -1),
+                      );
+                      setRigLifecycleMessage(null);
+                    }
+                  }}
+                  className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                  Max
+                </span>
+                <Input
+                  size="sm"
+                  type="number"
+                  step="0.01"
+                  value={rigRangeMaxDraft}
+                  onChange={(event) => setRigRangeMaxDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplyRigMetadataDraft();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRigRangeMaxDraft(
+                        formatDraftNumber(input.range.max ?? 1),
+                      );
+                      setRigLifecycleMessage(null);
+                    }
+                  }}
+                  className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={handleApplyRigMetadataDraft}
+              >
+                Apply Metadata
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={() => {
+                  setRigDefaultDraft(formatDraftNumber(input.defaultValue));
+                  setRigRangeMinDraft(formatDraftNumber(input.range.min));
+                  setRigRangeMaxDraft(formatDraftNumber(input.range.max));
+                  setRigLifecycleMessage(null);
+                }}
+              >
+                Reset Draft
+              </Button>
+              {!isRemovableCustomInput && (
+                <span className="text-[10px] text-amber-200/90">
+                  Deletion is disabled for system-managed variables.
+                </span>
+              )}
+            </div>
+            {rigLifecycleMessage && (
+              <p
+                className={cn(
+                  "text-[10px]",
+                  rigLifecycleMessage.tone === "error"
+                    ? "text-red-300"
+                    : "text-emerald-300",
                 )}
-
-                {downstreamAutorigInputs.length > 0 && (
-                  <div className="flex flex-col gap-1">
-                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
-                      Autorig
-                    </div>
-                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
-                      {downstreamAutorigInputs.map((entry) => (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                          onClick={() => openRigInspector(entry.id)}
-                          title={`Inspect autorig ${entry.label}`}
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
-                          <span className="flex-1 truncate">{entry.label}</span>
-                          <ChevronRight size={10} className="text-text-muted" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              >
+                {rigLifecycleMessage.text}
+              </p>
+            )}
+          </div>
+          <RiggingPropertyRow
+            label="Current Value"
+            onScrubStart={() => {
+              scrubValuesRef.current[input.id] = value;
+            }}
+            onScrub={(_, totalDelta) => {
+              if (!isDirectRigControlAvailable) {
+                return;
+              }
+              const step = (input.range.max - input.range.min) / 100;
+              const startVal = scrubValuesRef.current[input.id] ?? 0;
+              handleInputValueChange(input.id, startVal + totalDelta * step);
+            }}
+            renderMainInput={() => (
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-2 flex-1 inspector-row-hit-target",
+                  !isDirectRigControlAvailable && "opacity-70",
                 )}
-
-                {dependents.length === 0 ? (
-                  <EmptyState
-                    icon={Sliders}
-                    iconSize={20}
-                    title="No Driven Properties"
-                    description="This variable isn't currently driving any scene properties."
-                    className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                title={directRigControlReason ?? undefined}
+              >
+                <Slider
+                  min={input.range.min ?? -1}
+                  max={input.range.max ?? 1}
+                  step={0.01}
+                  value={value}
+                  className="flex-1"
+                  onChange={(val) => {
+                    if (!isDirectRigControlAvailable) {
+                      return;
+                    }
+                    handleInputValueChange(input.id, val as number);
+                  }}
+                />
+                <div className="inspector-numeric-control flex-shrink-0">
+                  <NumberField
+                    size="sm"
+                    value={value}
+                    className="w-full bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
+                    onChange={(val) => {
+                      if (!isDirectRigControlAvailable) {
+                        return;
+                      }
+                      handleInputValueChange(input.id, val);
+                    }}
                   />
+                </div>
+              </div>
+            )}
+          />
+          {!isDirectRigControlAvailable && directRigControlReason && (
+            <div className="flex items-center justify-between gap-2 px-1 -mt-2">
+              <p className="text-[10px] text-amber-300/90">
+                {directRigControlReason}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[10px] whitespace-nowrap"
+                onClick={() => handleEnableParentLocalControl(input.id)}
+              >
+                Enable Local Control
+              </Button>
+            </div>
+          )}
+          <div className="rounded border border-border-default/60 bg-bg-panel/40 p-2 flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-1 py-0.5">
+              <Sliders size={12} className="text-slate-500" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Chain · {parentRigInputs.length} drivers ·{" "}
+                {drivenChainItems.length} driven
+              </span>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-2 items-start">
+              <div className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
+                  Driven By
+                </div>
+                {parentRigInputs.length > 0 ? (
+                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto custom-scrollbar">
+                    {parentRigInputs.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
+                        onClick={() => openRigInspector(entry.id)}
+                        title={`Inspect ${entry.label}`}
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-violet-500/60" />
+                        <span className="flex-1 truncate">{entry.label}</span>
+                        <ChevronRight size={10} className="text-text-muted" />
+                      </button>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar bg-bg-panel/40 rounded p-1 border border-border-default/50 flex-1">
-                    {dependents.map((d) => (
+                  <p className="text-[10px] text-text-muted">
+                    No drivers. This variable is currently root/local.
+                  </p>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-[10px] border border-dashed border-border-default/70"
+                  onClick={() => setShowRigDriversModal(true)}
+                >
+                  Edit My Drivers
+                </Button>
+              </div>
+
+              <div className="rounded border border-border-default/50 bg-bg-panel/50 p-2 flex flex-col gap-1">
+                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
+                  Current Variable
+                </div>
+                <button
+                  type="button"
+                  className="text-left rounded border border-border-default/60 bg-bg-input/60 px-2 py-1.5 hover:border-border-hover transition-colors"
+                  onClick={() => openRigInspector(input.id)}
+                >
+                  <div className="text-xs text-text-primary font-semibold truncate">
+                    {input.label || input.id}
+                  </div>
+                  <div className="text-[10px] text-text-muted font-mono truncate">
+                    {input.path}
+                  </div>
+                </button>
+                <div className="text-[10px] text-text-secondary font-mono">
+                  value {value.toFixed(3)}
+                </div>
+              </div>
+
+              <div className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
+                  What This Drives
+                </div>
+                {drivenChainItems.length > 0 ? (
+                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto custom-scrollbar">
+                    {drivenChainItems.map((entry) => (
                       <div
-                        key={d.targetId}
-                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 group"
+                        key={entry.key}
+                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
                       >
                         <button
                           type="button"
                           className="flex flex-1 items-center gap-2 min-w-0 text-left"
-                          onClick={() => openSceneBindingInspector(d.targetId)}
-                          title={`Inspect ${d.name}`}
+                          onClick={entry.onClick}
+                          title={`Inspect ${entry.label}`}
                         >
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
-                          <span className="flex-1 truncate">{d.name}</span>
-                          <ChevronRight
-                            size={10}
-                            className="text-text-muted opacity-70 group-hover:opacity-100"
+                          <div
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              entry.kind === "variable" && "bg-emerald-500/60",
+                              entry.kind === "property" && "bg-blue-500/60",
+                              entry.kind === "autorig" && "bg-cyan-500/60",
+                            )}
                           />
+                          <span className="flex-1 truncate">{entry.label}</span>
+                          <span className="text-[9px] uppercase text-text-muted border border-border-default/60 rounded px-1 py-0.5">
+                            {entry.kind === "variable"
+                              ? "variable"
+                              : entry.kind === "property"
+                                ? "property"
+                                : "autorig"}
+                          </span>
+                          <ChevronRight size={10} className="text-text-muted" />
                         </button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-text-primary"
-                          onClick={() =>
-                            setRigDrivenBindingTargetId(d.targetId)
-                          }
-                          title="Edit binding here"
-                        >
-                          <Sliders size={10} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
-                          onClick={() => handleResetBinding(d.targetId)}
-                          title="Remove binding"
-                        >
-                          <Trash2 size={10} />
-                        </Button>
+                        {entry.drivenInputId ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 text-slate-500 hover:text-red-400"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeDrivenVariableLink(entry.drivenInputId!);
+                            }}
+                            title={
+                              entry.kind === "autorig"
+                                ? "Remove driven autorig variable link"
+                                : "Remove driven variable link"
+                            }
+                          >
+                            <Trash2 size={10} />
+                          </Button>
+                        ) : null}
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-[10px] text-text-muted">
+                    No downstream variables or properties are linked.
+                  </p>
                 )}
-
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full mt-2 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
-                  onClick={() => {
-                    setRigAddMode("property");
-                    setShowSelector(true);
-                  }}
+                  className="w-full h-7 text-[10px] border border-dashed border-border-default/70"
+                  onClick={() => setShowSelector(true)}
                 >
-                  <Plus
-                    size={14}
-                    className="group-hover:text-blue-400 transition-colors"
-                  />
-                  <span className="font-normal text-xs">
-                    Add Driven Property
-                  </span>
+                  Add Driven Variable
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full mt-1 gap-2 border border-dashed border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/20 transition-all group shrink-0"
-                  onClick={() => {
-                    setRigAddMode("variable");
-                    setShowSelector(true);
-                  }}
-                >
-                  <Plus
-                    size={14}
-                    className="group-hover:text-emerald-400 transition-colors"
-                  />
-                  <span className="font-normal text-xs">
-                    Add Driven Variable
-                  </span>
-                </Button>
-                <Modal
-                  open={showSelector}
-                  onClose={() => setShowSelector(false)}
-                  title={
-                    rigAddMode === "property"
-                      ? "Select Property to Drive"
-                      : "Select Variable to Drive"
-                  }
-                  maxWidth="md"
-                >
-                  <VariableSelector
-                    onSelect={handleAddRigDrivenVariable}
-                    onCancel={() => setShowSelector(false)}
-                    defaultTab={
-                      rigAddMode === "property" ? "scene" : "variables"
-                    }
-                  />
-                </Modal>
-                <Modal
-                  open={rigDrivenBindingTargetId !== null}
-                  onClose={() => setRigDrivenBindingTargetId(null)}
-                  title={
-                    rigDrivenBindingTargetId
-                      ? `Edit Target Drivers · ${
-                          targetLabelById.get(rigDrivenBindingTargetId) ??
-                          rigDrivenBindingTargetId
-                        }`
-                      : "Edit Target Drivers"
-                  }
-                  maxWidth="lg"
-                >
-                  {rigDrivenBindingTargetId &&
-                  bindings[rigDrivenBindingTargetId] ? (
-                    <BindingEditor
-                      binding={bindings[rigDrivenBindingTargetId]}
-                      targetId={rigDrivenBindingTargetId}
-                      issues={bindingIssues.get(rigDrivenBindingTargetId)}
-                      label={
-                        targetLabelById.get(rigDrivenBindingTargetId) ??
-                        rigDrivenBindingTargetId
-                      }
-                      standardInputs={standardInputList}
-                      standardInputLookup={standardInputsById}
-                      onBindingInputChange={handleBindingInputChange}
-                      onAddBindingSlot={handleAddBindingSlot}
-                      onRemoveBindingSlot={handleRemoveBindingSlot}
-                      onBindingExpressionChange={handleUpdateBindingExpression}
-                      onBindingSlotAliasChange={handleUpdateBindingSlotAlias}
-                      onBindingSlotValueTypeChange={
-                        handleBindingSlotValueTypeChange
-                      }
-                      onRequestCreateStandardInput={
-                        handleRequestCreateStandardInput
-                      }
-                      onResetBinding={handleResetBinding}
-                      expandable={false}
-                      defaultExpanded={true}
-                      currentValues={inputValues}
-                      onInputValueChange={handleInputValueChange}
-                      allowSelfBinding={false}
-                      featureFlags={{
-                        vectorAuthoringBeta: true,
-                        conditionalAuthoringBeta: true,
-                      }}
-                    />
-                  ) : (
-                    <EmptyState
-                      icon={Sliders}
-                      iconSize={20}
-                      title="No Binding"
-                      description="This driven target has no editable binding state."
-                      className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-                    />
-                  )}
-                </Modal>
               </div>
-            </>
-          ) : parentBinding ? (
-            <div className="rounded-lg border border-border-default/60 bg-bg-panel/30 p-2 overflow-y-auto custom-scrollbar">
-              <BindingEditor
-                binding={parentBinding}
-                targetId={input.id}
-                issues={bindingIssues.get(input.id)}
-                label={input.label || input.id}
-                standardInputs={standardInputList}
-                standardInputLookup={standardInputsById}
-                onBindingInputChange={handleParentBindingInputChange}
-                onAddBindingSlot={handleParentAddBindingSlot}
-                onRemoveBindingSlot={handleParentRemoveBindingSlot}
-                onBindingExpressionChange={handleParentBindingExpressionChange}
-                onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
-                onBindingSlotValueTypeChange={
-                  handleParentBindingSlotValueTypeChange
-                }
-                onRequestCreateStandardInput={handleRequestCreateStandardInput}
-                onResetBinding={handleParentResetBinding}
-                expandable={false}
-                defaultExpanded={true}
-                currentValues={inputValues}
-                onInputValueChange={handleInputValueChange}
-                featureFlags={{
-                  vectorAuthoringBeta: true,
-                  conditionalAuthoringBeta: true,
-                }}
-              />
             </div>
-          ) : (
-            <EmptyState
-              icon={Sliders}
-              iconSize={20}
-              title="No Parent Binding"
-              description="This variable has no input binding yet. Create one to map it from upstream rig inputs."
-              className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-              action={
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleEnsureParentBinding(input.id)}
-                >
-                  Create Binding
-                </Button>
-              }
+          </div>
+          <Modal
+            open={showRigDriversModal}
+            onClose={() => setShowRigDriversModal(false)}
+            title="Edit My Drivers"
+            maxWidth="lg"
+          >
+            {parentBinding ? (
+              <div className="rounded-lg border border-border-default/60 bg-bg-panel/30 p-2 overflow-y-auto custom-scrollbar">
+                <BindingEditor
+                  binding={parentBinding}
+                  targetId={input.id}
+                  issues={bindingIssues.get(input.id)}
+                  label={input.label || input.id}
+                  standardInputs={standardInputList}
+                  standardInputLookup={standardInputsById}
+                  onBindingInputChange={handleParentBindingInputChange}
+                  onAddBindingSlot={handleParentAddBindingSlot}
+                  onRemoveBindingSlot={handleParentRemoveBindingSlot}
+                  onBindingExpressionChange={
+                    handleParentBindingExpressionChange
+                  }
+                  onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+                  onBindingSlotValueTypeChange={
+                    handleParentBindingSlotValueTypeChange
+                  }
+                  onRequestCreateStandardInput={
+                    handleRequestCreateStandardInput
+                  }
+                  onResetBinding={handleParentResetBinding}
+                  expandable={false}
+                  defaultExpanded={true}
+                  currentValues={inputValues}
+                  onInputValueChange={handleInputValueChange}
+                  featureFlags={{
+                    vectorAuthoringBeta: true,
+                    conditionalAuthoringBeta: true,
+                  }}
+                />
+              </div>
+            ) : (
+              <EmptyState
+                icon={Sliders}
+                iconSize={20}
+                title="No Parent Binding"
+                description="This variable has no input binding yet. Create one to map it from upstream rig inputs."
+                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleEnsureParentBinding(input.id)}
+                  >
+                    Create Binding
+                  </Button>
+                }
+              />
+            )}
+          </Modal>
+          <Modal
+            open={showSelector}
+            onClose={() => setShowSelector(false)}
+            title="Select Variable or Property to Drive"
+            maxWidth="md"
+          >
+            <VariableSelector
+              onSelect={handleAddRigDrivenVariable}
+              onCancel={() => setShowSelector(false)}
+              defaultTab="variables"
             />
-          )}
+          </Modal>
         </div>
       );
     }

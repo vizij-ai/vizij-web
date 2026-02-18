@@ -340,6 +340,38 @@ export function collectRigDependents(params: {
   );
 }
 
+export function collectDirectRigDependents(params: {
+  selectedRigId: string;
+  bindings: BindingMap;
+  objects: SceneObjectNode[];
+  standardInputsById?: Map<string, StandardRigInput>;
+}): RigDependentTarget[] {
+  const { selectedRigId, bindings, objects, standardInputsById } = params;
+  const { canonicalSelectedRigId, isMatch } = createCanonicalRigIdMatcher(
+    selectedRigId,
+    standardInputsById,
+  );
+  const targets = new Map<string, RigDependentTarget>();
+  if (!canonicalSelectedRigId) {
+    return [];
+  }
+
+  Object.entries(bindings).forEach(([targetId, binding]) => {
+    const bindingInputIds = collectBindingInputIds(binding);
+    if (!bindingInputIds.some(isMatch)) {
+      return;
+    }
+    targets.set(targetId, {
+      targetId,
+      name: resolveTargetName(targetId, objects),
+    });
+  });
+
+  return Array.from(targets.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+}
+
 export function summarizeTraceConnections(
   traceTargets: PoseRigFaceTraceTarget[],
   standardInputsById: Map<string, StandardRigInput>,

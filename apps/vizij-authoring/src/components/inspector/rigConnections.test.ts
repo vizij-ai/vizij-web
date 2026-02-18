@@ -3,6 +3,7 @@ import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
+  collectDirectRigDependents,
   buildPoseRigTraversalIndex,
   buildPoseRigTraversalPaths,
   buildPoseRigFaceTrace,
@@ -106,6 +107,45 @@ describe("collectRigDependents", () => {
     });
 
     expect(dependents).toEqual([]);
+  });
+});
+
+describe("collectDirectRigDependents", () => {
+  it("returns only animatable targets directly bound to the selected rig input", () => {
+    const bindings: BindingMap = {
+      "anim://direct": {
+        targetId: "anim://direct",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+      "anim://indirect": {
+        targetId: "anim://indirect",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
+      },
+    };
+    const objects = [
+      createSceneNode(
+        "face_mesh",
+        ["anim://direct", "anim://indirect"],
+        "Face",
+      ),
+    ];
+
+    const dependents = collectDirectRigDependents({
+      selectedRigId: "rig/parent/jaw_open",
+      bindings,
+      objects,
+    });
+
+    expect(dependents).toEqual([
+      {
+        targetId: "anim://direct",
+        name: "Face · Feature 0",
+      },
+    ]);
   });
 });
 

@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from "react";
-import { Folder, Box, Zap, Activity } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Box, Zap } from "lucide-react";
+import { SELF_BINDING_ID } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { cn } from "../../utils/cn";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
 import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 
@@ -26,6 +28,435 @@ interface VariableSelectorProps {
   defaultTab?: "variables" | "scene";
 }
 
+type SelectorTab = "variables" | "scene";
+type ListMode = "variables" | "properties";
+type GroupKind = "group" | "path" | "unassigned";
+
+interface TargetMetadata {
+  targetId: string;
+  objectId: string;
+  objectPath: string;
+  featureId: string;
+  featureLabel: string;
+}
+
+interface SelectorGroup {
+  key: string;
+  label: string;
+  kind: GroupKind;
+  rows: SelectorRow[];
+}
+
+interface SelectorRow {
+  id: string;
+  label: string;
+  path: string;
+  displayPath: string;
+  sourceId?: string;
+  groupKey: string;
+  groupLabel: string;
+  groupKind: GroupKind;
+  searchText: string;
+  matchHint: string | null;
+  contextText: string;
+  contextTitle: string;
+  objectId?: string;
+  featureId?: string;
+  targetId?: string;
+  selectionLabel?: string;
+  propertyTypeKey?: string;
+  propertyLeafKey?: string;
+}
+
+interface FilterOption {
+  key: string;
+  label: string;
+  count: number;
+}
+
+const SORTER = new Intl.Collator(undefined, {
+  sensitivity: "base",
+  numeric: true,
+});
+
+const GROUP_RANK: Record<GroupKind, number> = {
+  group: 0,
+  path: 1,
+  unassigned: 2,
+};
+
+const PROPERTY_TYPE_CATALOG: Array<{ key: string; label: string }> = [
+  { key: "translation", label: "Translation" },
+  { key: "rotation", label: "Rotation" },
+  { key: "scale", label: "Scale" },
+  { key: "color", label: "Color" },
+  { key: "opacity", label: "Opacity" },
+  { key: "morph", label: "Morph" },
+  { key: "weight", label: "Weight" },
+  { key: "material", label: "Material" },
+  { key: "emission", label: "Emission" },
+  { key: "roughness", label: "Roughness" },
+  { key: "metalness", label: "Metalness" },
+  { key: "visibility", label: "Visibility" },
+  { key: "value", label: "Value" },
+  { key: "custom", label: "Custom" },
+];
+
+const PROPERTY_LEAF_CATALOG: Array<{ key: string; label: string }> = [
+  { key: "x", label: "X" },
+  { key: "y", label: "Y" },
+  { key: "z", label: "Z" },
+  { key: "w", label: "W" },
+  { key: "r", label: "R" },
+  { key: "g", label: "G" },
+  { key: "b", label: "B" },
+  { key: "a", label: "A" },
+  { key: "u", label: "U" },
+  { key: "v", label: "V" },
+  { key: "weight", label: "Weight" },
+  { key: "value", label: "Value" },
+  { key: "opacity", label: "Opacity" },
+  { key: "intensity", label: "Intensity" },
+  { key: "factor", label: "Factor" },
+  { key: "amount", label: "Amount" },
+  { key: "pitch", label: "Pitch" },
+  { key: "yaw", label: "Yaw" },
+  { key: "roll", label: "Roll" },
+];
+
+const PROPERTY_TYPE_ALIASES: Record<string, string> = {
+  translation: "translation",
+  translate: "translation",
+  position: "translation",
+  positional: "translation",
+  rotation: "rotation",
+  rotate: "rotation",
+  orientation: "rotation",
+  euler: "rotation",
+  scale: "scale",
+  scaling: "scale",
+  color: "color",
+  colour: "color",
+  rgb: "color",
+  rgba: "color",
+  opacity: "opacity",
+  alpha: "opacity",
+  morph: "morph",
+  blendshape: "morph",
+  blend_shape: "morph",
+  morph_target: "morph",
+  mtarget: "morph",
+  material: "material",
+  emission: "emission",
+  emissive: "emission",
+  roughness: "roughness",
+  metalness: "metalness",
+  visibility: "visibility",
+  visible: "visibility",
+  value: "value",
+  weight: "weight",
+};
+
+const PROPERTY_LEAF_ALIASES: Record<string, string> = {
+  x: "x",
+  y: "y",
+  z: "z",
+  w: "w",
+  r: "r",
+  g: "g",
+  b: "b",
+  a: "a",
+  u: "u",
+  v: "v",
+  tx: "x",
+  ty: "y",
+  tz: "z",
+  rx: "x",
+  ry: "y",
+  rz: "z",
+  sx: "x",
+  sy: "y",
+  sz: "z",
+  red: "r",
+  green: "g",
+  blue: "b",
+  alpha: "a",
+  value: "value",
+  weight: "weight",
+  opacity: "opacity",
+  intensity: "intensity",
+  factor: "factor",
+  amount: "amount",
+  pitch: "pitch",
+  yaw: "yaw",
+  roll: "roll",
+};
+
+function normalizeSearchText(value: string | null | undefined): string {
+  return value?.toLowerCase().trim() ?? "";
+}
+
+function splitSearchTokens(query: string): string[] {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) {
+    return [];
+  }
+  return normalized.split(/\s+/).filter(Boolean);
+}
+
+function compareText(left: string, right: string): number {
+  return SORTER.compare(left, right);
+}
+
+function matchesAllTokens(
+  searchText: string,
+  tokens: readonly string[],
+): boolean {
+  return tokens.every((token) => searchText.includes(token));
+}
+
+function collectBindingInputIds(
+  binding:
+    | { inputId?: string | null; slots?: Array<{ inputId?: string | null }> }
+    | null
+    | undefined,
+): string[] {
+  if (!binding) {
+    return [];
+  }
+  const ids = new Set<string>();
+  const maybeInputId = binding.inputId?.trim();
+  if (maybeInputId && maybeInputId !== SELF_BINDING_ID) {
+    ids.add(maybeInputId);
+  }
+  (binding.slots ?? []).forEach((slot) => {
+    const slotInputId = slot.inputId?.trim();
+    if (slotInputId && slotInputId !== SELF_BINDING_ID) {
+      ids.add(slotInputId);
+    }
+  });
+  return Array.from(ids);
+}
+
+function deriveGroup(
+  path: string,
+  group: string | null,
+): {
+  key: string;
+  label: string;
+  kind: GroupKind;
+} {
+  if (group && group.trim().length > 0) {
+    return {
+      key: `group:${group.toLowerCase()}`,
+      label: `Group · ${group}`,
+      kind: "group",
+    };
+  }
+
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length > 1) {
+    const parentPath = `/${segments.slice(0, -1).join("/")}`;
+    return {
+      key: `path:${parentPath.toLowerCase()}`,
+      label: `Path · ${parentPath}`,
+      kind: "path",
+    };
+  }
+
+  return {
+    key: "unassigned",
+    label: "Unassigned",
+    kind: "unassigned",
+  };
+}
+
+function resolveMatchHint(options: {
+  queryTokens: readonly string[];
+  label: string;
+  id: string;
+  path: string;
+  group: string;
+  sourceId: string;
+  targetText: string;
+  contextText: string;
+}): string | null {
+  if (options.queryTokens.length === 0) {
+    return null;
+  }
+
+  const matchKinds = new Set<string>();
+  options.queryTokens.forEach((token) => {
+    if (normalizeSearchText(options.label).includes(token)) {
+      matchKinds.add("label");
+    }
+    if (normalizeSearchText(options.id).includes(token)) {
+      matchKinds.add("id");
+    }
+    if (normalizeSearchText(options.path).includes(token)) {
+      matchKinds.add("path");
+    }
+    if (normalizeSearchText(options.group).includes(token)) {
+      matchKinds.add("group");
+    }
+    if (normalizeSearchText(options.sourceId).includes(token)) {
+      matchKinds.add("source");
+    }
+    if (normalizeSearchText(options.targetText).includes(token)) {
+      matchKinds.add("target");
+    }
+    if (normalizeSearchText(options.contextText).includes(token)) {
+      matchKinds.add("context");
+    }
+  });
+
+  const ordered = [
+    "label",
+    "path",
+    "id",
+    "group",
+    "source",
+    "target",
+    "context",
+  ]
+    .filter((kind) => matchKinds.has(kind))
+    .filter((kind) => kind !== "label");
+
+  if (ordered.length === 0) {
+    return null;
+  }
+  return `match: ${ordered.slice(0, 2).join("+")}`;
+}
+
+function extractComponentIdFromSourceId(
+  sourceId: string | null | undefined,
+): string | null {
+  if (!sourceId) {
+    return null;
+  }
+  const parts = sourceId.split(":");
+  if (parts[0] !== "component" || parts.length < 5) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(parts[4] ?? "");
+  } catch {
+    return parts[4] ?? null;
+  }
+}
+
+function stripAutorigRoot(path: string): string {
+  if (path === "/autorig") {
+    return "/";
+  }
+  if (path.startsWith("/autorig/")) {
+    return `/${path.slice("/autorig/".length)}`;
+  }
+  return path;
+}
+
+function normalizeFacetToken(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function canonicalizePropertyType(
+  value: string | null | undefined,
+): string | null {
+  const normalized = normalizeFacetToken(value);
+  if (!normalized) {
+    return null;
+  }
+  return PROPERTY_TYPE_ALIASES[normalized] ?? normalized;
+}
+
+function canonicalizePropertyLeaf(
+  value: string | null | undefined,
+): string | null {
+  const normalized = normalizeFacetToken(value);
+  if (!normalized) {
+    return null;
+  }
+  return PROPERTY_LEAF_ALIASES[normalized] ?? normalized;
+}
+
+function derivePropertyTypeKey(options: {
+  metadataFeatureKey?: string;
+  metadataFeatureLabel?: string;
+  displayPath: string;
+}): string | null {
+  const segments = options.displayPath.split("/").filter(Boolean);
+  const fromPath = segments.length >= 2 ? segments[segments.length - 2] : null;
+  const candidates = [
+    options.metadataFeatureKey,
+    options.metadataFeatureLabel,
+    fromPath,
+  ];
+  for (const candidate of candidates) {
+    const canonical = canonicalizePropertyType(candidate);
+    if (canonical) {
+      return canonical;
+    }
+  }
+  return null;
+}
+
+function derivePropertyLeafKey(options: {
+  metadataComponentKey?: string;
+  displayPath: string;
+  label: string;
+}): string | null {
+  const segments = options.displayPath.split("/").filter(Boolean);
+  const fromPath = segments.length > 0 ? segments[segments.length - 1] : null;
+  const labelTail = options.label.split(/\s+/).at(-1);
+  const candidates = [options.metadataComponentKey, fromPath, labelTail];
+  for (const candidate of candidates) {
+    const canonical = canonicalizePropertyLeaf(candidate);
+    if (canonical) {
+      return canonical;
+    }
+  }
+  return null;
+}
+
+function formatFacetLabel(key: string): string {
+  return key
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function buildFacetOptions(
+  catalog: Array<{ key: string; label: string }>,
+  counts: Map<string, number>,
+): FilterOption[] {
+  const catalogKeys = new Set(catalog.map((item) => item.key));
+  const options: FilterOption[] = catalog.map((item) => ({
+    key: item.key,
+    label: item.label,
+    count: counts.get(item.key) ?? 0,
+  }));
+
+  const extras = Array.from(counts.entries())
+    .filter(([key]) => !catalogKeys.has(key))
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([key, count]) => ({
+      key,
+      label: formatFacetLabel(key),
+      count,
+    }));
+
+  return [...options, ...extras];
+}
+
 // ----------------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------------
@@ -35,22 +466,21 @@ export function VariableSelector({
   onCancel,
   defaultTab = "variables",
 }: VariableSelectorProps) {
-  const [activeTab, setActiveTab] = useState<"variables" | "scene">(defaultTab);
+  const [activeTab, setActiveTab] = useState<SelectorTab>(defaultTab);
   const [search, setSearch] = useState("");
 
   const tabs = [
     { id: "variables", label: "Variables" },
-    { id: "scene", label: "Scene Properties" },
-  ];
+    { id: "scene", label: "Properties" },
+  ] as const;
 
   return (
-    <div className="flex flex-col h-[500px] w-full bg-bg-app text-text-primary overflow-hidden rounded-xl border border-border-default shadow-2xl">
-      {/* Search Header */}
+    <div className="flex flex-col h-[80vh] max-h-[980px] w-full bg-bg-app text-text-primary overflow-hidden rounded-xl border border-border-default shadow-2xl">
       <div className="p-3 border-b border-border-default flex flex-col gap-3 bg-bg-panel/50 backdrop-blur-md">
         <Tabs
           items={tabs}
           value={activeTab}
-          onValueChange={(v) => setActiveTab(v as any)}
+          onValueChange={(value) => setActiveTab(value as SelectorTab)}
           renderPanel={() => null}
           size="sm"
           variant="pill"
@@ -64,22 +494,20 @@ export function VariableSelector({
           placeholder={
             activeTab === "variables"
               ? "Search variables..."
-              : "Search scene..."
+              : "Search properties..."
           }
           className="h-9"
         />
       </div>
 
-      {/* Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar bg-bg-input/20">
-        {activeTab === "variables" ? (
-          <VariablesList search={search} onSelect={onSelect} />
-        ) : (
-          <SceneTree search={search} onSelect={onSelect} />
-        )}
+        <InputList
+          mode={activeTab === "variables" ? "variables" : "properties"}
+          search={search}
+          onSelect={onSelect}
+        />
       </div>
 
-      {/* Footer */}
       {onCancel && (
         <div className="p-3 border-t border-border-default flex justify-end bg-bg-panel/50">
           <Button
@@ -97,348 +525,807 @@ export function VariableSelector({
 }
 
 // ----------------------------------------------------------------------------
-// Sub-components
+// Shared List Renderer
 // ----------------------------------------------------------------------------
 
-function VariablesList({
+function InputList({
+  mode,
   search,
   onSelect,
 }: {
+  mode: ListMode;
   search: string;
-  onSelect: (s: VariableSelection) => void;
+  onSelect: (selection: VariableSelection) => void;
 }) {
-  const { managedStandardInputs, bindings } = useBindingAuthoring((s) => s);
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const bindings = useBindingAuthoring((state) => state.bindings);
   const { objects } = useSceneComposer();
 
-  const groupedVariables = useMemo(() => {
-    const visibleInputs = managedStandardInputs.filter(
-      (entry) => !isAutorigStandardInputPath(entry.input.path),
+  const queryTokens = useMemo(() => splitSearchTokens(search), [search]);
+
+  const targetMetadataByTargetId = useMemo(() => {
+    const objectById = new Map(
+      objects.map((objectNode) => [objectNode.id, objectNode]),
     );
-    const q = search.toLowerCase();
-    const filtered = visibleInputs.filter(
-      (m) =>
-        m.input.id.toLowerCase().includes(q) ||
-        (m.input.label && m.input.label.toLowerCase().includes(q)),
-    );
+    const objectPathCache = new Map<string, string>();
 
-    const groups: Record<
-      string,
-      { label: string; vars: typeof visibleInputs }
-    > = {};
+    const resolveObjectPath = (objectId: string): string => {
+      const existing = objectPathCache.get(objectId);
+      if (existing) {
+        return existing;
+      }
+      const objectNode = objectById.get(objectId);
+      if (!objectNode) {
+        objectPathCache.set(objectId, objectId);
+        return objectId;
+      }
 
-    filtered.forEach((mInput) => {
-      const varId = mInput.input.id;
-      const inputDef = mInput.input;
-
-      let groupKey = "Unassigned";
-      let groupLabel = "Unassigned";
-
-      let foundObject = false;
-      for (const [targetId, binding] of Object.entries(bindings)) {
-        if (
-          binding.inputId === varId ||
-          (binding.slots && binding.slots.some((s) => s.inputId === varId))
-        ) {
-          for (const obj of objects) {
-            for (const feat of obj.features) {
-              if (feat.components.some((c) => c.targetId === targetId)) {
-                groupKey = `obj:${obj.id}`;
-                groupLabel = obj.name;
-                foundObject = true;
-                break;
-              }
-            }
-            if (foundObject) break;
-          }
+      const names: string[] = [];
+      let current: typeof objectNode | undefined = objectNode;
+      while (current) {
+        names.unshift(current.name || current.id);
+        if (!current.parentId) {
+          break;
         }
-        if (foundObject) break;
+        current = objectById.get(current.parentId);
       }
 
-      if (!foundObject && inputDef?.group) {
-        groupKey = `group:${inputDef.group}`;
-        groupLabel = inputDef.group;
-      }
+      const resolved = names.join(" / ");
+      objectPathCache.set(objectId, resolved);
+      return resolved;
+    };
 
-      if (!groups[groupKey]) {
-        groups[groupKey] = { label: groupLabel, vars: [] };
-      }
-      groups[groupKey].vars.push(mInput);
+    const metadata = new Map<string, TargetMetadata>();
+    objects.forEach((objectNode) => {
+      const objectPath = resolveObjectPath(objectNode.id);
+      objectNode.features.forEach((feature) => {
+        feature.components.forEach((component) => {
+          if (!component.targetId) {
+            return;
+          }
+          metadata.set(component.targetId, {
+            targetId: component.targetId,
+            objectId: objectNode.id,
+            objectPath,
+            featureId: feature.id,
+            featureLabel: feature.label,
+          });
+        });
+      });
     });
 
-    return Object.values(groups).sort((a, b) => {
-      if (a.label === "Unassigned") return 1;
-      if (b.label === "Unassigned") return -1;
-      return a.label.localeCompare(b.label);
-    });
-  }, [managedStandardInputs, bindings, objects, search]);
+    return metadata;
+  }, [objects]);
 
-  // If we are searching, we probably want groups expanded by default
+  const targetMetadataByInputId = useMemo(() => {
+    const metadataByInput = new Map<string, TargetMetadata[]>();
+    const seenTargetsByInput = new Map<string, Set<string>>();
+
+    Object.entries(bindings).forEach(([targetId, binding]) => {
+      const targetMetadata = targetMetadataByTargetId.get(targetId);
+      if (!targetMetadata) {
+        return;
+      }
+
+      collectBindingInputIds(binding).forEach((inputId) => {
+        const seenTargets =
+          seenTargetsByInput.get(inputId) ?? new Set<string>();
+        if (seenTargets.has(targetId)) {
+          return;
+        }
+        seenTargets.add(targetId);
+        seenTargetsByInput.set(inputId, seenTargets);
+
+        const entries = metadataByInput.get(inputId) ?? [];
+        entries.push(targetMetadata);
+        metadataByInput.set(inputId, entries);
+      });
+    });
+
+    metadataByInput.forEach((entries) => {
+      entries.sort((left, right) => {
+        const pathDiff = compareText(left.objectPath, right.objectPath);
+        if (pathDiff !== 0) {
+          return pathDiff;
+        }
+        const featureDiff = compareText(left.featureLabel, right.featureLabel);
+        if (featureDiff !== 0) {
+          return featureDiff;
+        }
+        return compareText(left.targetId, right.targetId);
+      });
+    });
+
+    return metadataByInput;
+  }, [bindings, targetMetadataByTargetId]);
+
+  const propertyFacetData = useMemo(() => {
+    const typeCounts = new Map<string, number>();
+    const leafCounts = new Map<string, number>();
+    const allTargetIds = new Set<string>();
+
+    managedStandardInputs.forEach((entry) => {
+      const input = entry.input;
+      if (!isAutorigStandardInputPath(input.path)) {
+        return;
+      }
+
+      const displayPath = stripAutorigRoot(input.path);
+      const typeKey = derivePropertyTypeKey({
+        metadataFeatureKey: entry.metadata?.featureKey,
+        metadataFeatureLabel: entry.metadata?.featureLabel,
+        displayPath,
+      });
+      const leafKey = derivePropertyLeafKey({
+        metadataComponentKey:
+          entry.metadata?.componentKey !== undefined
+            ? String(entry.metadata.componentKey)
+            : undefined,
+        displayPath,
+        label: input.label || input.id,
+      });
+      const componentId =
+        entry.metadata?.componentId ??
+        extractComponentIdFromSourceId(input.sourceId ?? null);
+
+      if (componentId) {
+        allTargetIds.add(componentId);
+      }
+
+      if (typeKey) {
+        typeCounts.set(typeKey, (typeCounts.get(typeKey) ?? 0) + 1);
+      }
+      if (leafKey) {
+        leafCounts.set(leafKey, (leafCounts.get(leafKey) ?? 0) + 1);
+      }
+    });
+
+    return {
+      typeOptions: buildFacetOptions(PROPERTY_TYPE_CATALOG, typeCounts),
+      leafOptions: buildFacetOptions(PROPERTY_LEAF_CATALOG, leafCounts),
+      allTargetIds,
+    };
+  }, [managedStandardInputs]);
+
+  const [selectedPropertyTypeFilters, setSelectedPropertyTypeFilters] =
+    useState<Set<string>>(new Set());
+  const [selectedPropertyLeafFilters, setSelectedPropertyLeafFilters] =
+    useState<Set<string>>(new Set());
+  const [selectedPropertyTargetIds, setSelectedPropertyTargetIds] = useState<
+    Set<string>
+  >(new Set());
+  const visiblePropertyTypeOptions = useMemo(
+    () => propertyFacetData.typeOptions.filter((option) => option.count > 0),
+    [propertyFacetData.typeOptions],
+  );
+  const visiblePropertyLeafOptions = useMemo(
+    () => propertyFacetData.leafOptions.filter((option) => option.count > 0),
+    [propertyFacetData.leafOptions],
+  );
+
+  useEffect(() => {
+    setSelectedPropertyTargetIds((current) => {
+      const next = new Set<string>();
+      current.forEach((targetId) => {
+        if (propertyFacetData.allTargetIds.has(targetId)) {
+          next.add(targetId);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [propertyFacetData.allTargetIds]);
+
+  useEffect(() => {
+    const visibleKeys = new Set(
+      visiblePropertyTypeOptions.map((option) => option.key),
+    );
+    setSelectedPropertyTypeFilters((current) => {
+      const next = new Set<string>();
+      current.forEach((key) => {
+        if (visibleKeys.has(key)) {
+          next.add(key);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [visiblePropertyTypeOptions]);
+
+  useEffect(() => {
+    const visibleKeys = new Set(
+      visiblePropertyLeafOptions.map((option) => option.key),
+    );
+    setSelectedPropertyLeafFilters((current) => {
+      const next = new Set<string>();
+      current.forEach((key) => {
+        if (visibleKeys.has(key)) {
+          next.add(key);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [visiblePropertyLeafOptions]);
+
+  const groups = useMemo(() => {
+    const rows: SelectorRow[] = [];
+
+    managedStandardInputs.forEach((entry) => {
+      const input = entry.input;
+      const isAutorig = isAutorigStandardInputPath(input.path);
+      const isInScope = mode === "variables" ? !isAutorig : isAutorig;
+      if (!isInScope) {
+        return;
+      }
+
+      const displayPath =
+        mode === "properties" ? stripAutorigRoot(input.path) : input.path;
+      const groupText = input.group?.trim() || "";
+      const group = deriveGroup(displayPath, groupText);
+      const label = input.label?.trim() || input.id;
+
+      const sourceId = input.sourceId ?? "";
+      const metadata = entry.metadata;
+      const componentId =
+        metadata?.componentId ?? extractComponentIdFromSourceId(sourceId);
+
+      if (mode === "properties" && !componentId) {
+        return;
+      }
+
+      const propertyTypeKey =
+        mode === "properties"
+          ? derivePropertyTypeKey({
+              metadataFeatureKey: metadata?.featureKey,
+              metadataFeatureLabel: metadata?.featureLabel,
+              displayPath,
+            })
+          : undefined;
+      const propertyLeafKey =
+        mode === "properties"
+          ? derivePropertyLeafKey({
+              metadataComponentKey:
+                metadata?.componentKey !== undefined
+                  ? String(metadata.componentKey)
+                  : undefined,
+              displayPath,
+              label,
+            })
+          : undefined;
+
+      if (
+        mode === "properties" &&
+        selectedPropertyTypeFilters.size > 0 &&
+        (!propertyTypeKey || !selectedPropertyTypeFilters.has(propertyTypeKey))
+      ) {
+        return;
+      }
+
+      if (
+        mode === "properties" &&
+        selectedPropertyLeafFilters.size > 0 &&
+        (!propertyLeafKey || !selectedPropertyLeafFilters.has(propertyLeafKey))
+      ) {
+        return;
+      }
+
+      const variableTargetMetadata =
+        mode === "variables"
+          ? (targetMetadataByInputId.get(input.id) ?? [])
+          : [];
+      const variableTargetText = variableTargetMetadata
+        .map((item) => item.targetId)
+        .join(" ");
+      const variableContext = variableTargetMetadata[0]?.objectPath ?? "";
+
+      const propertyContext =
+        metadata?.elementName || metadata?.elementId
+          ? `${metadata?.elementName || metadata?.elementId} · ${metadata?.featureLabel || metadata?.featureKey || "Property"}`
+          : "";
+
+      const contextText =
+        mode === "properties" ? displayPath : variableContext || displayPath;
+      const contextTitle =
+        mode === "properties"
+          ? `${displayPath}${propertyContext ? ` • ${propertyContext}` : ""}`
+          : variableContext
+            ? `${variableContext} • ${displayPath}`
+            : displayPath;
+
+      const targetText =
+        mode === "properties"
+          ? [
+              componentId,
+              metadata?.animatableId,
+              metadata?.featureKey,
+              propertyTypeKey,
+              propertyLeafKey,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : variableTargetText;
+
+      const searchText = normalizeSearchText(
+        [
+          label,
+          input.id,
+          input.path,
+          displayPath,
+          groupText,
+          sourceId,
+          targetText,
+          variableContext,
+          propertyContext,
+        ].join(" "),
+      );
+
+      if (!matchesAllTokens(searchText, queryTokens)) {
+        return;
+      }
+
+      rows.push({
+        id: input.id,
+        label,
+        path: input.path,
+        displayPath,
+        sourceId,
+        groupKey: group.key,
+        groupLabel: group.label,
+        groupKind: group.kind,
+        searchText,
+        matchHint: resolveMatchHint({
+          queryTokens,
+          label,
+          id: input.id,
+          path: `${input.path} ${displayPath}`,
+          group: groupText,
+          sourceId,
+          targetText,
+          contextText,
+        }),
+        contextText,
+        contextTitle,
+        objectId:
+          mode === "properties"
+            ? (metadata?.elementId ?? "autorig")
+            : (variableTargetMetadata[0]?.objectId ?? undefined),
+        featureId:
+          mode === "properties"
+            ? (metadata?.featureKey ?? "autorig")
+            : (variableTargetMetadata[0]?.featureId ?? undefined),
+        targetId:
+          mode === "properties" ? (componentId ?? undefined) : undefined,
+        selectionLabel:
+          mode === "properties" ? `${label} · ${displayPath}` : undefined,
+        propertyTypeKey: propertyTypeKey ?? undefined,
+        propertyLeafKey: propertyLeafKey ?? undefined,
+      });
+    });
+
+    rows.sort((left, right) => {
+      const groupRankDiff =
+        GROUP_RANK[left.groupKind] - GROUP_RANK[right.groupKind];
+      if (groupRankDiff !== 0) {
+        return groupRankDiff;
+      }
+      const groupDiff = compareText(left.groupLabel, right.groupLabel);
+      if (groupDiff !== 0) {
+        return groupDiff;
+      }
+      const labelDiff = compareText(left.label, right.label);
+      if (labelDiff !== 0) {
+        return labelDiff;
+      }
+      return compareText(left.id, right.id);
+    });
+
+    const grouped = new Map<string, SelectorGroup>();
+    rows.forEach((row) => {
+      const existing = grouped.get(row.groupKey);
+      if (existing) {
+        existing.rows.push(row);
+        return;
+      }
+      grouped.set(row.groupKey, {
+        key: row.groupKey,
+        label: row.groupLabel,
+        kind: row.groupKind,
+        rows: [row],
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [
+    managedStandardInputs,
+    mode,
+    queryTokens,
+    selectedPropertyLeafFilters,
+    selectedPropertyTypeFilters,
+    targetMetadataByInputId,
+  ]);
+
+  const filteredPropertyRows = useMemo(
+    () =>
+      mode === "properties"
+        ? groups
+            .flatMap((group) => group.rows)
+            .filter((row) => Boolean(row.targetId))
+        : [],
+    [groups, mode],
+  );
+
+  const filteredPropertyTargetIds = useMemo(
+    () =>
+      filteredPropertyRows
+        .map((row) => row.targetId)
+        .filter((targetId): targetId is string => Boolean(targetId)),
+    [filteredPropertyRows],
+  );
+
+  const selectedPropertyCount = selectedPropertyTargetIds.size;
+
+  const groupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Auto-expand on search
-  React.useEffect(() => {
-    if (search) {
-      setExpandedGroups(new Set(groupedVariables.map((g) => g.label)));
-    }
-  }, [search, groupedVariables]);
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const allowed = new Set(groupKeys);
+      const next = new Set<string>();
+      current.forEach((key) => {
+        if (allowed.has(key)) {
+          next.add(key);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [groupKeys]);
 
-  const toggleGroup = (label: string) => {
-    const next = new Set(expandedGroups);
-    if (next.has(label)) next.delete(label);
-    else next.add(label);
-    setExpandedGroups(next);
+  useEffect(() => {
+    if (queryTokens.length === 0) {
+      return;
+    }
+    setExpandedGroups(new Set(groupKeys));
+  }, [groupKeys, queryTokens]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
-  if (groupedVariables.length === 0) {
-    return (
-      <div className="p-8 text-center text-xs text-text-muted italic">
-        No variables found
-      </div>
-    );
-  }
+  const toggleFacetFilter = (
+    key: string,
+    setFilters: React.Dispatch<React.SetStateAction<Set<string>>>,
+  ) => {
+    setFilters((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const hasActivePropertyFilters =
+    selectedPropertyTypeFilters.size > 0 ||
+    selectedPropertyLeafFilters.size > 0;
+
+  const clearPropertyFilters = () => {
+    setSelectedPropertyTypeFilters(new Set());
+    setSelectedPropertyLeafFilters(new Set());
+  };
+
+  const togglePropertySelection = (targetId: string) => {
+    setSelectedPropertyTargetIds((current) => {
+      const next = new Set(current);
+      if (next.has(targetId)) {
+        next.delete(targetId);
+      } else {
+        next.add(targetId);
+      }
+      return next;
+    });
+  };
+
+  const selectFilteredProperties = () => {
+    setSelectedPropertyTargetIds(new Set(filteredPropertyTargetIds));
+  };
+
+  const clearSelectedProperties = () => {
+    setSelectedPropertyTargetIds(new Set());
+  };
+
+  const handleAddSelectedProperties = () => {
+    if (selectedPropertyTargetIds.size === 0) {
+      return;
+    }
+
+    const ordered = Array.from(selectedPropertyTargetIds).sort(compareText);
+    if (ordered.length === 1) {
+      const singleRow = filteredPropertyRows.find(
+        (row) => row.targetId === ordered[0],
+      );
+      if (singleRow?.targetId) {
+        onSelect({
+          type: "property",
+          objectId: singleRow.objectId ?? "autorig",
+          featureId: singleRow.featureId ?? "autorig",
+          label: singleRow.selectionLabel ?? singleRow.label,
+          targetId: singleRow.targetId,
+        });
+        return;
+      }
+    }
+
+    onSelect({
+      type: "property",
+      objectId: "autorig",
+      featureId: "autorig",
+      label: `Selected Properties (${ordered.length})`,
+      targetIds: ordered,
+    });
+  };
+
+  const handleAddSingleProperty = (row: SelectorRow) => {
+    if (!row.targetId) {
+      return;
+    }
+    onSelect({
+      type: "property",
+      objectId: row.objectId ?? "autorig",
+      featureId: row.featureId ?? "autorig",
+      label: row.selectionLabel ?? row.label,
+      targetId: row.targetId,
+    });
+  };
+
+  const noun = mode === "variables" ? "variables" : "properties";
 
   return (
-    <div className="flex flex-col p-2 gap-0.5">
-      {groupedVariables.map((group) => {
-        const isExpanded = expandedGroups.has(group.label) || !!search;
-        return (
-          <TreeRow
-            key={group.label}
-            depth={0}
-            label={group.label}
-            hasChildren={true}
-            isExpanded={isExpanded}
-            onToggle={() => toggleGroup(group.label)}
-            icon={
-              <Box size={10} className="text-text-muted" strokeWidth={2.5} />
-            }
-            highlightQuery={search}
-            actions={
-              <span className="text-[9px] text-text-muted font-mono">
-                {group.vars.length}
-              </span>
-            }
-          >
-            {/* 
-                   Custom rendering for children because TreeRow expects react nodes.
-                   We render these as leaf TreeRows.
-                */}
-            <div className="flex flex-col">
-              {group.vars.map((item) => (
-                <TreeRow
-                  key={item.input.id}
-                  depth={1}
-                  label={item.input.label || item.input.id || ""}
-                  hasChildren={false}
-                  onToggle={() => {}} // No children
-                  onSelect={() =>
-                    onSelect({ type: "variable", id: item.input.id })
-                  }
-                  icon={
-                    <Zap
-                      size={10}
-                      className="text-yellow-400/70"
-                      strokeWidth={2.5}
-                    />
-                  }
-                  highlightQuery={search}
-                  actions={
-                    <span className="text-[9px] text-text-secondary font-mono truncate max-w-[100px]">
-                      {item.input.id}
-                    </span>
-                  }
-                />
-              ))}
-            </div>
-          </TreeRow>
-        );
-      })}
-    </div>
-  );
-}
-
-function SceneTree({
-  search,
-  onSelect,
-}: {
-  search: string;
-  onSelect: (s: VariableSelection) => void;
-}) {
-  const { objects, rootIds, getChildren } = useSceneComposer();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set(rootIds));
-
-  // Simple search filtering
-  const matchingIds = useMemo(() => {
-    if (!search) return new Set<string>();
-    const q = search.toLowerCase();
-    const matches = new Set<string>();
-    objects.forEach((obj) => {
-      if (
-        obj.name.toLowerCase().includes(q) ||
-        obj.type.toLowerCase().includes(q)
-      ) {
-        matches.add(obj.id);
-      }
-    });
-    return matches;
-  }, [objects, search]);
-
-  const toggle = (id: string, forceState?: boolean) => {
-    const next = new Set(expandedIds);
-    if (forceState !== undefined) {
-      if (forceState) next.add(id);
-      else next.delete(id);
-    } else {
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-    }
-    setExpandedIds(next);
-  };
-
-  const renderNode = (nodeId: string, depth: number) => {
-    const node = objects.find((o) => o.id === nodeId);
-    if (!node) return null;
-
-    const children = getChildren(nodeId);
-    // Determine if it has "children" in the UI sense.
-    // It has children if there are sub-objects OR if there are features.
-    // But features are rendered inside the node's children block in my new design?
-    // Or as siblings?
-    // In `TreeRow`, `children` prop renders inside.
-    const hasSubObjects = children.length > 0;
-    const hasFeatures = node.features.length > 0;
-
-    // We treat features as children of the node for the tree view
-    const hasChildren = hasSubObjects || hasFeatures;
-
-    const expanded = expandedIds.has(nodeId) || search.length > 0;
-
-    // Show if search matches this node or any children
-    const matchesSearch = !search || matchingIds.has(nodeId);
-    const hasMatchingChild =
-      !search ||
-      objects.some((o) => matchingIds.has(o.id) && o.parentId === nodeId); // Approximate check.
-
-    // If searching, we should probably check if features match too, but for now stick to object matching logic
-    if (search && !matchesSearch && !hasMatchingChild) return null;
-
-    const isFace = node.type === "Face";
-    const Icon = isFace ? Activity : node.type === "Group" ? Folder : Box;
-
-    return (
-      <TreeRow
-        key={node.id}
-        depth={depth}
-        label={node.name || node.id}
-        hasChildren={hasChildren}
-        isExpanded={expanded}
-        onToggle={() => toggle(node.id)}
-        highlightQuery={search}
-        icon={
-          <span
-            className="flex items-center justify-center w-4 h-4 bg-accent-subtle text-accent rounded-sm select-none border border-accent/20"
-            title={node.type}
-          >
-            <Icon size={10} strokeWidth={2.5} />
-          </span>
-        }
-        actions={
-          hasFeatures && (
-            <span className="text-[9px] text-slate-500 font-mono">
-              {node.features.length} props
+    <div className="flex flex-col p-2 gap-0.5 pb-4">
+      {mode === "properties" && (
+        <div className="sticky top-0 z-20 mb-2 rounded-lg border border-border-default bg-bg-panel/80 backdrop-blur-md p-2 flex flex-col gap-2">
+          <div className="flex items-start gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+              Type
             </span>
-          )
-        }
-      >
-        {expanded && (
-          <div className="flex flex-col">
-            {/* Render Features first as "children" */}
-            {hasFeatures && (
-              <div className="flex flex-col border-l border-accent/10 ml-[5px] my-0.5">
-                {node.features.map((feature) => {
-                  const targetComponents = feature.components.filter(
-                    (component) => Boolean(component.targetId),
-                  );
-                  if (targetComponents.length === 0) {
-                    return null;
-                  }
+            <div className="flex flex-wrap gap-1 flex-1">
+              {visiblePropertyTypeOptions.map((option) => {
+                const selected = selectedPropertyTypeFilters.has(option.key);
+                return (
+                  <button
+                    key={`type-${option.key}`}
+                    type="button"
+                    className={cn(
+                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                      selected
+                        ? "border-accent/50 bg-accent/20 text-text-primary"
+                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                    )}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      toggleFacetFilter(
+                        option.key,
+                        setSelectedPropertyTypeFilters,
+                      )
+                    }
+                  >
+                    <span>{option.label}</span>
+                    <span className="font-mono text-[9px]">{option.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+              Leaf
+            </span>
+            <div className="flex flex-wrap gap-1 flex-1">
+              {visiblePropertyLeafOptions.map((option) => {
+                const selected = selectedPropertyLeafFilters.has(option.key);
+                return (
+                  <button
+                    key={`leaf-${option.key}`}
+                    type="button"
+                    className={cn(
+                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                      selected
+                        ? "border-emerald-500/50 bg-emerald-500/15 text-text-primary"
+                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                    )}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      toggleFacetFilter(
+                        option.key,
+                        setSelectedPropertyLeafFilters,
+                      )
+                    }
+                  >
+                    <span>{option.label}</span>
+                    <span className="font-mono text-[9px]">{option.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default/60">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px]"
+              onClick={clearPropertyFilters}
+              disabled={!hasActivePropertyFilters}
+            >
+              Clear Filters
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px]"
+              onClick={selectFilteredProperties}
+              disabled={filteredPropertyTargetIds.length === 0}
+            >
+              Select Filtered ({filteredPropertyTargetIds.length})
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px]"
+              onClick={clearSelectedProperties}
+              disabled={selectedPropertyCount === 0}
+            >
+              Clear Selected
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              className="h-6 px-2 text-[10px]"
+              onClick={handleAddSelectedProperties}
+              disabled={selectedPropertyCount === 0}
+            >
+              Add All ({selectedPropertyCount})
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <div className="p-8 text-center text-xs text-text-muted italic flex flex-col gap-1">
+          {search.trim() ? (
+            <>
+              <span>
+                No {noun} match "{search.trim()}".
+              </span>
+              <span className="text-[11px] not-italic text-text-secondary">
+                {mode === "properties" && hasActivePropertyFilters
+                  ? "Try broadening your filter chips or search terms."
+                  : "Try a label, path segment, or ID fragment."}
+              </span>
+            </>
+          ) : (
+            <span>No {noun} available.</span>
+          )}
+        </div>
+      ) : (
+        groups.map((group) => {
+          const isExpanded =
+            expandedGroups.has(group.key) || queryTokens.length > 0;
+
+          return (
+            <TreeRow
+              key={group.key}
+              depth={0}
+              label={group.label}
+              hasChildren={true}
+              isExpanded={isExpanded}
+              onToggle={() => toggleGroup(group.key)}
+              icon={
+                <Box size={10} className="text-text-muted" strokeWidth={2.5} />
+              }
+              highlightQuery=""
+              actions={
+                <span className="text-[9px] text-text-muted font-mono">
+                  {group.rows.length}
+                </span>
+              }
+            >
+              <div className="flex flex-col">
+                {group.rows.map((row) => {
+                  const isPropertySelected =
+                    mode === "properties" &&
+                    !!row.targetId &&
+                    selectedPropertyTargetIds.has(row.targetId);
+
                   return (
-                    <div key={feature.id} className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2 py-1 px-2 ml-2 rounded text-text-secondary border border-transparent">
-                        <span className="w-1 h-1 rounded-full bg-accent/80" />
-                        <span className="text-[11px] font-medium truncate flex-1">
-                          {feature.label}
-                        </span>
-                        {targetComponents.length > 1 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-5 px-1.5 text-[9px]"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const targetIds = targetComponents
-                                .map((component) => component.targetId)
-                                .filter((targetId): targetId is string =>
-                                  Boolean(targetId),
-                                );
-                              if (targetIds.length === 0) {
-                                return;
-                              }
-                              onSelect({
-                                type: "property",
-                                objectId: node.id,
-                                featureId: feature.id,
-                                label: `${node.name} · ${feature.label}`,
-                                targetIds,
-                              });
-                            }}
-                          >
-                            All
-                          </Button>
-                        )}
-                      </div>
-                      {targetComponents.map((component) => {
-                        if (!component.targetId) {
-                          return null;
+                    <TreeRow
+                      key={row.id}
+                      depth={1}
+                      label={row.label}
+                      hasChildren={false}
+                      isSelected={isPropertySelected}
+                      onToggle={() => undefined}
+                      onSelect={() => {
+                        if (mode === "variables") {
+                          onSelect({ type: "variable", id: row.id });
+                          return;
                         }
-                        return (
-                          <div
-                            key={component.id}
-                            className="flex items-center gap-2 py-1 px-2 ml-8 mr-2 hover:bg-accent-subtle hover:text-text-primary rounded cursor-pointer text-text-secondary transition-all border border-transparent hover:border-accent/20 group/prop"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelect({
-                                type: "property",
-                                objectId: node.id,
-                                featureId: feature.id,
-                                label: `${node.name} · ${feature.label}.${component.label}`,
-                                targetId: component.targetId ?? undefined,
-                              });
-                            }}
-                          >
-                            <span className="w-1 h-1 rounded-full bg-accent group-hover/prop:scale-125 transition-transform" />
-                            <span className="text-[10px] font-medium truncate">
-                              {component.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                        if (!row.targetId) {
+                          return;
+                        }
+                        togglePropertySelection(row.targetId);
+                      }}
+                      icon={
+                        <Zap
+                          size={10}
+                          className="text-yellow-400/70"
+                          strokeWidth={2.5}
+                        />
+                      }
+                      highlightQuery=""
+                      actions={
+                        <div className="flex items-center gap-1 max-w-[220px]">
+                          {mode === "properties" && row.targetId ? (
+                            <Button
+                              size="sm"
+                              variant={
+                                isPropertySelected ? "secondary" : "ghost"
+                              }
+                              className="h-5 px-1.5 text-[9px]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                togglePropertySelection(row.targetId!);
+                              }}
+                            >
+                              {isPropertySelected ? "Selected" : "Select"}
+                            </Button>
+                          ) : null}
+
+                          {mode === "properties" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 px-1.5 text-[9px]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleAddSingleProperty(row);
+                              }}
+                            >
+                              Add
+                            </Button>
+                          ) : null}
+                        </div>
+                      }
+                    />
                   );
                 })}
               </div>
-            )}
-            {/* Render Object Children */}
-            {children.map((child) => renderNode(child.id, depth + 1))}
-          </div>
-        )}
-      </TreeRow>
-    );
-  };
-
-  return (
-    <div className="flex flex-col p-2 pb-4">
-      {rootIds.map((id) => renderNode(id, 0))}
+            </TreeRow>
+          );
+        })
+      )}
     </div>
   );
 }

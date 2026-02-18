@@ -922,7 +922,7 @@ Acceptance checks:
 
 ### Priority P1 (Core Workflow Reliability)
 
-### [ ] Q1.1 “Select Variable to Drive” / “Select Property to Drive” Modal Re-architecture
+### [x] Q1.1 “Select Variable to Drive” / “Select Property to Drive” Modal Re-architecture
 
 Intent:
 Rebuild variable/property selection modals with reliable hierarchy and search behavior suitable for dense scenes.
@@ -938,6 +938,35 @@ Acceptance checks:
 1. Search reliably returns expected targets by common query forms (label, path segment, id fragment).
 2. Hierarchy is deterministic and navigable for large scene/property sets.
 3. Modal selection latency remains responsive under representative large datasets.
+
+Completion notes (2026-02-18 20:00:21Z):
+
+1. Re-architected selector modal data models in `src/components/inspector/VariableSelector.tsx`:
+   - kept two tabs (`Variables`, `Properties`) but replaced the prior scene-tree rendering with a shared grouped list model for both tabs,
+   - made the `Properties` tab source from canonical autorig inputs (`/autorig/...`) while hiding the `autorig` root segment in displayed paths,
+   - kept tokenized alias search across label/id/path/group/source/target metadata with deterministic row/group ordering.
+2. Improved browseability + filter affordances:
+   - variable and property rows now share the same grouped presentation and consistent action affordances,
+   - property tab now includes multi-select filter chips for both property type and leaf channels (including canonical sets such as translation/rotation/scale/color/opacity and x/y/z/weight/value, plus discovered extras),
+   - property selection now supports multi-select and multi-add workflows (`Select Filtered`, `Clear Selected`, `Add Selected (N)`) while preserving the existing `type: \"property\"` selection contract,
+   - modal height was increased to a taller layout (`h-[80vh]`, `max-h-[980px]`) for denser browsing,
+   - no-result diagnostics now provide actionable query guidance for both tabs.
+3. Extended selector regression coverage in `src/components/inspector/VariableSelector.test.tsx` for:
+   - path/id-fragment variable search,
+   - autorig-backed property rendering with hidden `/autorig` root and direct property-target selection,
+   - property search by path/id aliases plus combined search+type/leaf filter behavior,
+   - multi-select + multi-add batch property selection payloads,
+   - actionable no-result diagnostics.
+4. Validation evidence:
+   - `2026-02-18 20:00:21Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 20:00:21Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 61 files / 307 tests).
+   - `2026-02-18 20:00:21Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+5. Follow-up polish (2026-02-18 21:18:09Z):
+   - reworked variable inspector chain layout in `src/components/inspector/InspectorContent.tsx` so drivers/current/driven are clearly separated, chain nodes are navigable, `Edit My Drivers` opens the modal, `Add Driven Variable` opens the shared selector, and driven links have explicit delete affordances,
+   - tightened binding correctness in `src/components/inspector/rigConnections.ts` so direct animatable links are canonicalized/cleaned before autorig linking (preventing duplicate-effective writes),
+   - simplified add-variable search rows in `src/components/inspector/VariableSelector.tsx` by removing path context text, match badges, and row highlight treatment.
+6. Validation evidence:
+   - `2026-02-18 21:18:09Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only; 61 files / 308 tests).
 
 ### [x] Q1.2 Runtime Slider Range Reactivity for Metadata Edits
 
