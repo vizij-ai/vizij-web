@@ -815,3 +815,179 @@ Completion notes (2026-02-18 10:45:15Z):
    - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 60 files / 297 tests).
    - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
    - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
+
+## Optional Follow-Ups (Post-B5.3)
+
+These items are intentionally out-of-band from the ordered B0-B5 execution plan and can be scheduled opportunistically.
+
+### [ ] O1 Zero-warning lint hardening for active hot surfaces
+
+Intent:
+Remove residual dead-code/unused-symbol warnings in `VariablesPanel` and tighten quality gate strictness when practical.
+
+Scope:
+
+1. Eliminate current `@typescript-eslint/no-unused-vars` warnings in `src/components/panels/VariablesPanel.tsx`.
+2. Evaluate promoting lint warnings to gating failures (`--max-warnings=0`) once warning baseline is clear.
+
+Acceptance checks:
+
+1. `pnpm --filter vizij-authoring run lint` reports 0 warnings in touched scope.
+2. `TRACKER.md` records the warning-count change and any gate policy adjustment.
+
+### [ ] O2 Stage-5 empirical performance evidence capture
+
+Intent:
+Complement deterministic perf-contract tests with measured profiling evidence on representative large rigs.
+
+Scope:
+
+1. Define one repeatable profiling scenario for slider/search interactions on a dense rig.
+2. Record before/after (or current baseline) rerender/compute timing evidence.
+
+Acceptance checks:
+
+1. Evidence is captured in docs with command/steps and numeric results.
+2. Stage-5 responsiveness claim has explicit empirical support.
+
+### [ ] O3 Multi-candidate autorig retarget quality guardrails
+
+Intent:
+Strengthen deterministic import retargeting when multiple autorig candidates exist for one component.
+
+Scope:
+
+1. Define deterministic candidate-priority semantics beyond lexical fallback.
+2. Add regression tests for multi-candidate component retarget scenarios.
+
+Acceptance checks:
+
+1. Import retarget behavior is deterministic and semantically prioritized under candidate ambiguity.
+2. Tests cover at least one ambiguous multi-candidate case.
+
+### [ ] O4 Shared-sync topology lifecycle cleanup
+
+Intent:
+Prevent stale per-path sync bookkeeping when shared variable topology changes.
+
+Scope:
+
+1. Prune stale suppression/previous-write refs when shared pairs are removed or replaced.
+2. Add tests for remove/re-add topology transitions.
+
+Acceptance checks:
+
+1. Shared-sync behavior remains deterministic after pair removal/re-add flows.
+2. Conflict/mirroring state does not leak across removed paths.
+
+## Prioritized Manual QA Intake (Post-B5.3)
+
+These items come from manual validation findings and are prioritized by runtime correctness first, then workflow integrity, then UX polish.
+
+### Priority P0 (Correctness / Data Integrity)
+
+### [ ] Q0.1 Autorig Retarget Sequencing and Rebind Correctness
+
+Intent:
+Ensure retargeting/migration applies in the correct order: establish autorig targets first, then rebind animatable writes onto those autorig nodes deterministically.
+
+Scope:
+
+1. Audit and fix import/retarget sequencing so autorig target provisioning occurs before retarget/rebind resolution.
+2. Guarantee post-import binding graph routes animatable writes through autorig nodes (no invalid intermediate or direct abstract-rig animatable writes).
+3. Improve diagnostics for each rebind step (`created autorig`, `rebound edge`, `fallback/blocked`) for auditable migration behavior.
+
+Acceptance checks:
+
+1. Imported legacy assets with invalid direct animatable writes are transformed into valid autorig-mediated chains with deterministic results.
+2. Re-import remains idempotent after retargeting.
+3. Regression tests cover multi-step retarget/rebind sequencing.
+
+### [ ] Q0.2 Pose Target Authoring Must Reuse Existing Rig Inputs (No Ghost Variable Creation)
+
+Intent:
+Fix pose authoring so adding a property to a pose references existing autorig/rig input identities instead of creating unintended new variables per property.
+
+Scope:
+
+1. Reproduce and fix the pose-property add flow that appears to mint new variables.
+2. Enforce pose target linkage to canonical existing input ids.
+3. Add explicit guardrails/warnings when a selected property cannot map to a valid existing input.
+
+Acceptance checks:
+
+1. Adding a property to a pose does not increase unrelated variable/input counts.
+2. Pose entries reference existing canonical input ids.
+3. Tests assert no implicit variable creation during pose target assignment.
+
+### Priority P1 (Core Workflow Reliability)
+
+### [ ] Q1.1 “Select Variable to Drive” / “Select Property to Drive” Modal Re-architecture
+
+Intent:
+Rebuild variable/property selection modals with reliable hierarchy and search behavior suitable for dense scenes.
+
+Scope:
+
+1. Redesign source hierarchy for browseability (clear parent-child grouping, stable sort, predictable labels).
+2. Replace/repair search indexing and matching so expected results surface for id/path/label aliases.
+3. Improve filter-result affordances (match highlighting, empty-state diagnostics, selected-path breadcrumbs).
+
+Acceptance checks:
+
+1. Search reliably returns expected targets by common query forms (label, path segment, id fragment).
+2. Hierarchy is deterministic and navigable for large scene/property sets.
+3. Modal selection latency remains responsive under representative large datasets.
+
+### [ ] Q1.2 Runtime Slider Range Reactivity for Metadata Edits
+
+Intent:
+Ensure slider controls immediately reflect edited `min/default/max` metadata ranges.
+
+Scope:
+
+1. Propagate updated range metadata to active slider components without stale memo/state lag.
+2. Clamp/normalize current values correctly when updated bounds invalidate prior values.
+3. Keep numeric field, slider UI, and persisted metadata in sync.
+
+Acceptance checks:
+
+1. Editing `min/max` updates slider bounds instantly for the active item.
+2. Invalid ranges are handled with clear validation and no broken slider state.
+3. Tests cover range updates and value clamping behavior.
+
+### [ ] Q1.3 Control Elements Pane Information Architecture + Count Rendering Fix
+
+Intent:
+Align pane naming/structure with authoring model and fix broken zero-count label rendering.
+
+Scope:
+
+1. Rename top-level combined pane from “Variables” to “Control Elements.”
+2. Keep “Variables” as the sub-surface/tab label within that pane.
+3. Fix count formatting bug so zero-count labels render as “Poses (0)” style (no concatenated `poses0` artifacts).
+
+Acceptance checks:
+
+1. Top-level pane displays “Control Elements” consistently.
+2. Sub-surface naming remains explicit (`Variables`, `Poses`, `Pose Groups`, `Inputs`).
+3. Count rendering is correct and visually consistent for zero and non-zero cases.
+
+### Priority P2 (UX Consistency / Visual System)
+
+### [ ] Q2.1 My Drivers Binding + Expression Editor UX Overhaul
+
+Intent:
+Redesign the My Drivers binding/expression editing surface to match the visual and interaction quality of the rest of the app.
+
+Scope:
+
+1. Refresh layout, typography, spacing, and component hierarchy to align with current inspector/panel aesthetic.
+2. Improve binding row readability and expression editing affordances (state clarity, error display, action grouping).
+3. Ensure chain navigation and binding actions remain discoverable during redesign.
+
+Acceptance checks:
+
+1. My Drivers UI is visually consistent with current app standards.
+2. Binding + expression workflows remain functionally complete.
+3. UX regressions are covered by updated interaction tests.
