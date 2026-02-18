@@ -42,6 +42,12 @@ import type {
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
+const DEFAULT_SURFACES: SurfaceTab[] = [
+  "variables",
+  "poses",
+  "inputs",
+  "pose-groups",
+];
 
 const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
 const UNASSIGNED_POSE_GROUP_LABEL = "Unassigned";
@@ -94,7 +100,11 @@ interface PoseGroupNodeData {
   groupPath: string;
 }
 
-type TreeNodeData = PoseDefinition | RigNodeData | PoseGroupNodeData;
+type TreeNodeData =
+  | PoseDefinition
+  | RigNodeData
+  | PoseGroupNodeData
+  | InputListRow;
 
 interface TreeNode {
   id: string;
@@ -662,7 +672,7 @@ export function VariablesPanel({
   } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
   const allSurfaces = useMemo(
-    () => availableSurfaces ?? ["variables", "poses", "inputs", "pose-groups"],
+    () => availableSurfaces ?? DEFAULT_SURFACES,
     [availableSurfaces],
   );
   const [activeSurfaceState, setActiveSurfaceState] = useState<SurfaceTab>(
@@ -770,8 +780,7 @@ export function VariablesPanel({
           if (!component.targetId) return;
           const componentLabel =
             component.label?.trim() ||
-            component.componentKey ||
-            component.componentKey?.toString() ||
+            String(component.componentKey ?? "") ||
             "Value";
           labels.set(
             component.targetId,

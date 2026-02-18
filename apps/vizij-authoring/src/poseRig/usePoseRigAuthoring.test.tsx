@@ -419,7 +419,7 @@ describe("usePoseRigAuthoring", () => {
     });
 
     expect(result.current?.poses[0]?.group).toBe("viseme");
-    expect(result.current?.poses[0]?.groupId).toBeNull();
+    expect(result.current?.poses[0]?.groupId).toBe("viseme");
     expect(result.current?.poseConfigDraft?.poses[0]?.group).toBe("viseme");
     expect(result.current?.poseConfigDraft?.poses[0]?.groupId).toBe("viseme");
   });

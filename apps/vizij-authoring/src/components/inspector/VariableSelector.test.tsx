@@ -47,6 +47,10 @@ describe("VariableSelector scene property selection", () => {
     });
     render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
 
+    fireEvent.change(screen.getByPlaceholderText("Search variables..."), {
+      target: { value: "Jaw Open" },
+    });
+
     expect(screen.getByText("Jaw Open")).toBeTruthy();
     expect(screen.queryByText("Rig Element Jaw Open")).toBeNull();
   });

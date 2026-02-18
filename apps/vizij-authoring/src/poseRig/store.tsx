@@ -120,7 +120,7 @@ function applyConfiguredPoseGroups(
     prev.rigName,
     prev.faceId,
     prev.rigKind,
-    prev.standardInputSchema,
+    prev.standardInputSchema ?? undefined,
     {
       poseGroups: nextGroups,
       defaultGroupBlendMode: prev.blendMode,
@@ -522,7 +522,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: groups,
               defaultGroupBlendMode: prev.blendMode,
@@ -583,7 +583,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: nextGroups,
               defaultGroupBlendMode: prev.blendMode,
@@ -627,7 +627,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: nextGroups,
               defaultGroupBlendMode: prev.blendMode,
@@ -660,7 +660,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: nextGroups,
               defaultGroupBlendMode: prev.blendMode,
@@ -711,7 +711,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: groups,
               defaultGroupBlendMode: prev.blendMode,
@@ -765,7 +765,7 @@ export function createPoseRigStore(
             prev.rigName,
             prev.faceId,
             prev.rigKind,
-            prev.standardInputSchema,
+            prev.standardInputSchema ?? undefined,
             {
               poseGroups: groups,
               defaultGroupBlendMode: prev.blendMode,

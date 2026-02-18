@@ -74,9 +74,12 @@ export function WorkspaceLayout({
       visible: leftBottomVisible3,
       panel: leftBottomPanel3,
     },
-  ].filter((section): section is { id: string; panel: React.ReactNode } => {
-    return Boolean(section.visible) && Boolean(section.panel);
-  });
+  ].reduce<Array<{ id: string; panel: React.ReactNode }>>((acc, section) => {
+    if (section.visible && section.panel) {
+      acc.push({ id: section.id, panel: section.panel });
+    }
+    return acc;
+  }, []);
   const rightSidebarVisible = rightTopVisible || rightBottomVisible;
   const leftSectionCount = extendedLeftSections.length;
 

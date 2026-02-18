@@ -38,10 +38,19 @@ const bindingState = {
   }>,
   standardInputsByPath: new Map<string, StandardRigInput>(),
   standardInputsById: new Map<string, StandardRigInput>(),
+  inputValues: {} as Record<string, number>,
   bindings: {} as Record<string, unknown>,
   inputBindings: {} as Record<string, unknown>,
+  handleInputValueChange: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
+  handleDeleteCustomStandardInput: vi.fn(),
+};
+
+const graphRuntimeState = {
+  world: null,
+  animatables: {},
+  setStoreState: vi.fn(),
 };
 
 vi.mock("../../state/PoseRigProvider", () => ({
@@ -55,6 +64,15 @@ vi.mock("../../state/ReferenceFaceContext", () => ({
 vi.mock("../../state/RigControllerProvider", () => ({
   useBindingAuthoring: (selector: (state: typeof bindingState) => unknown) =>
     selector(bindingState),
+  useGraphRuntime: (selector: (state: typeof graphRuntimeState) => unknown) =>
+    selector(graphRuntimeState),
+}));
+
+vi.mock("../../scene/useSceneComposer", () => ({
+  useSceneComposer: () => ({
+    objects: [],
+    getNode: () => null,
+  }),
 }));
 
 function makeInput(
@@ -91,10 +109,13 @@ describe("VariablesPanel", () => {
     bindingState.managedStandardInputs = [];
     bindingState.standardInputsByPath = new Map();
     bindingState.standardInputsById = new Map();
+    bindingState.inputValues = {};
     bindingState.bindings = {};
     bindingState.inputBindings = {};
+    bindingState.handleInputValueChange.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
+    bindingState.handleDeleteCustomStandardInput.mockReset();
   });
 
   it("surfaces shared variables when main and reference paths overlap", () => {
@@ -254,14 +275,20 @@ describe("VariablesPanel", () => {
       ["/autorig/eye/open", autorigInput],
     ]);
 
-    render(
+    const view = render(
       <VariablesPanel
         availableSurfaces={["inputs"]}
         activeSurfaceOverride="inputs"
       />,
     );
 
-    expect(screen.getByText("Jaw Open")).toBeTruthy();
-    expect(screen.getByText("Eye Open")).toBeTruthy();
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Jaw Open" } });
+    expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Eye Open" } });
+    expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 });

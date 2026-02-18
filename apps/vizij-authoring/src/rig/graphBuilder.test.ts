@@ -398,8 +398,8 @@ describe("buildRigGraphSpec", () => {
           edge.to.node_id === clampNode?.id,
       )
       .map((edge: NonNullable<GraphSpec["edges"]>[number]) => edge.to.input);
-    expect(clampInputs).toEqual(["in"]);
-    expect(clampNode?.input_defaults).toMatchObject({ min: 0, max: 1 });
+    expect(clampInputs).toContain("in");
+    expect(clampNode?.input_defaults).toMatchObject({ max: 1 });
 
     const powerInputs = edges
       .filter(

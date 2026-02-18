@@ -243,10 +243,12 @@ export function InspectorContent() {
     standardInputs,
     standardInputsById,
   } = useBindingAuthoring((state) => state);
-  const resolvedSelectedRigId = useMemo(
-    () => resolveRigMetadataInputId(selectedRigId, standardInputsById),
-    [selectedRigId, standardInputsById],
-  );
+  const resolvedSelectedRigId = useMemo(() => {
+    if (!selectedRigId) {
+      return null;
+    }
+    return resolveRigMetadataInputId(selectedRigId, standardInputsById);
+  }, [selectedRigId, standardInputsById]);
   const autorigInputIdByComponentId = useMemo(() => {
     type Candidate = {
       inputId: string;

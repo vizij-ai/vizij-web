@@ -21,6 +21,10 @@ const mockSelectionState = {
   handleClearSelection: vi.fn(),
 };
 
+const mockGraphRuntimeState = {
+  animatables: {},
+};
+
 const mockPoseState = {
   selectPose: vi.fn(),
   updatePoseValue: vi.fn(),
@@ -52,6 +56,9 @@ vi.mock("../../state/RigControllerProvider", () => ({
   useBindingAuthoring: (
     selector?: (state: typeof mockBindingState) => unknown,
   ) => (selector ? selector(mockBindingState) : mockBindingState),
+  useGraphRuntime: (
+    selector?: (state: typeof mockGraphRuntimeState) => unknown,
+  ) => (selector ? selector(mockGraphRuntimeState) : mockGraphRuntimeState),
   useSelectionStore: (
     selector?: (state: typeof mockSelectionState) => unknown,
   ) => (selector ? selector(mockSelectionState) : mockSelectionState),
