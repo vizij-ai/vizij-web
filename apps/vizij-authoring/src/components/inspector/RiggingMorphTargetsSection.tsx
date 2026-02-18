@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
@@ -10,6 +10,11 @@ import {
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
+import {
+  isInspectorChannelLocked,
+  resolveFaceInspectorCurrentValue,
+  toggleInspectorChannelLock,
+} from "./faceInspectorSemantics";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -31,7 +36,6 @@ export function RiggingMorphTargetsSection({
   } = useBindingAuthoring((state) => state);
 
   const {
-    setFeatureAnimated,
     updateAnimatableDescriptor,
     setAnimatableValue,
     setStaticFeatureValue,
@@ -88,9 +92,6 @@ export function RiggingMorphTargetsSection({
           onDefaultChange={(id, val) =>
             handleUpdateStandardInput(id, { defaultValue: val })
           }
-          onToggleAnimated={(animated) =>
-            setFeatureAnimated(node.id, feature.id, animated)
-          }
           onConstraintChange={updateAnimatableDescriptor}
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
@@ -116,7 +117,6 @@ interface RiggingScalarRowProps {
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
-  onToggleAnimated: (animated: boolean) => void;
   onConstraintChange: (
     id: string,
     updater: (curr: AnimatableValue) => AnimatableValue,
@@ -145,7 +145,6 @@ function RiggingScalarRow({
   inputValues,
   onValueChange,
   onDefaultChange,
-  onToggleAnimated,
   onConstraintChange,
   onStaticValueChange,
   onUpdateStandardInput,
@@ -153,6 +152,14 @@ function RiggingScalarRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
+  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  useEffect(() => {
+    setLockedChannels(new Set());
+  }, [feature.id]);
+
   const component = feature.components[0];
   if (!component) return null;
 
@@ -177,8 +184,20 @@ function RiggingScalarRow({
   }
 
   const hasInputMetadata = !!(inputId && standardInput);
-  const isBound = !!inputId && !blockedReason;
-  const canEdit = isBound || !!onStaticValueChange;
+  const isBound = hasInputMetadata && !blockedReason;
+  const authority = resolveFaceInspectorCurrentValue({
+    inputId,
+    standardInput,
+    unresolvedInputId,
+    blockedReason,
+    inputValues,
+    staticValue: component.staticValue ?? 0,
+  });
+  const channelLockId = targetId ?? `${feature.id}:value`;
+  const isChannelLocked = isInspectorChannelLocked(
+    lockedChannels,
+    channelLockId,
+  );
 
   const minVal = hasInputMetadata
     ? standardInput!.range.min
@@ -187,9 +206,7 @@ function RiggingScalarRow({
     ? standardInput!.range.max
     : ((feature.descriptor?.constraints as any)?.max ?? 0);
 
-  const currentValue = isBound
-    ? (inputValues[inputId!] ?? standardInput?.defaultValue ?? 0)
-    : (component.staticValue ?? 0);
+  const currentValue = authority.currentValue;
 
   const defaultValue = isBound
     ? (standardInput?.defaultValue ?? 0)
@@ -247,7 +264,7 @@ function RiggingScalarRow({
 
     if (type === "current") {
       val = currentValue;
-      canEdit = isBound || !!onStaticValueChange;
+      canEdit = !isChannelLocked && (isBound || !!onStaticValueChange);
     } else if (type === "default") {
       val = defaultValue;
       canEdit = isBound;
@@ -259,8 +276,13 @@ function RiggingScalarRow({
       canEdit = true;
     }
 
-    return (
+    const row = (
       <div
+        title={
+          type === "current"
+            ? `Current Source: ${authority.sourceLabel}`
+            : undefined
+        }
         className={cn(
           "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
           canEdit ? "focus-within:border-accent/50" : "opacity-70",
@@ -376,23 +398,44 @@ function RiggingScalarRow({
         />
       </div>
     );
+
+    if (type !== "current") {
+      return row;
+    }
+
+    return (
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        {row}
+        <div
+          className="px-1 text-[9px] text-text-muted font-mono truncate"
+          title={authority.sourceLabel}
+        >
+          Current Source: {authority.sourceLabel}
+        </div>
+      </div>
+    );
   };
 
   const renderAnimatableRow = () => (
     <div className="flex gap-1.5 flex-1">
       <button
+        title={`Current Source: ${authority.sourceLabel}`}
         className={cn(
           "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-          feature.animated
-            ? "bg-accent/10 text-accent hover:bg-accent/20"
-            : "bg-bg-input/50 text-text-muted hover:bg-bg-input/70",
+          isChannelLocked
+            ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
+            : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
-        onClick={() => onToggleAnimated(!feature.animated)}
+        onClick={() =>
+          setLockedChannels((current) =>
+            toggleInspectorChannelLock(current, channelLockId),
+          )
+        }
       >
-        {feature.animated ? (
-          <LockOpen size={10} className="shrink-0" />
-        ) : (
+        {isChannelLocked ? (
           <Lock size={10} className="shrink-0" />
+        ) : (
+          <LockOpen size={10} className="shrink-0" />
         )}
         <span>Value</span>
       </button>

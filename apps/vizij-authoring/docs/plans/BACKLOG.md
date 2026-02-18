@@ -203,7 +203,7 @@ Completion notes (2026-02-18 06:46:57Z):
    - `2026-02-18 06:46:45Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 53 files / 232 tests).
    - `2026-02-18 06:46:57Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 16 warnings).
 
-### [ ] B1.4 Face Inspector Truthfulness and Lock Semantics
+### [x] B1.4 Face Inspector Truthfulness and Lock Semantics
 
 Intent:
 Ensure face inspector values and lock behavior map to autorig channels.
@@ -225,6 +225,23 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 07:08:40Z):
+
+1. Added `src/components/inspector/faceInspectorSemantics.ts` and tests in `src/components/inspector/faceInspectorSemantics.test.ts` for:
+   - runtime/autorig-authoritative current-value resolution (`resolveFaceInspectorCurrentValue`)
+   - per-channel lock toggling without implicit sibling locking (`toggleInspectorChannelLock`, `isInspectorChannelLocked`).
+2. Updated face inspector sections to use channel-aware source + lock semantics:
+   - `src/components/inspector/RiggingTransformSection.tsx`
+   - `src/components/inspector/RiggingMorphTargetsSection.tsx`
+   - `src/components/inspector/RiggingMaterialSection.tsx`
+3. Added explicit `Current Source:` context for current-value rows/tooltips and removed feature-wide lock toggles in these sections so lock affordances are per channel.
+4. Added `src/components/inspector/faceInspectorSemanticsContracts.test.ts` to lock B1.4 contracts (`Current Source:` visibility + per-channel lock helper usage + no feature-wide `setFeatureAnimated` usage in face inspector sections).
+5. Validation evidence:
+   - `2026-02-18 07:08:40Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 07:08:40Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 55 files / 237 tests).
+   - `2026-02-18 07:08:40Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 07:10:13Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ## B2 — Authoring Lifecycle Completeness
 

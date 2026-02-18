@@ -1,5 +1,5 @@
-import React, { useRef } from "react";
-import { Lock, LockOpen, Palette, Box, ChevronRight, Info } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
@@ -14,6 +14,11 @@ import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
+import {
+  isInspectorChannelLocked,
+  resolveFaceInspectorCurrentValue,
+  toggleInspectorChannelLock,
+} from "./faceInspectorSemantics";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -37,7 +42,6 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
     assignMaterial,
     duplicateMaterial,
     setAnimatableValue,
-    setFeatureAnimated,
     updateAnimatableDescriptor,
     setStaticFeatureValue,
   } = useSceneComposer();
@@ -142,9 +146,6 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
             handleUpdateStandardInput(id, { defaultValue: val })
           }
           onStaticValueChange={handleStaticValueChange}
-          onToggleAnimated={(animated: boolean) =>
-            setFeatureAnimated(node.id, colorFeature.id, animated)
-          }
           onConstraintChange={updateAnimatableDescriptor}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
@@ -166,9 +167,6 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
             handleUpdateStandardInput(id, { defaultValue: val })
           }
           onStaticValueChange={handleStaticValueChange}
-          onToggleAnimated={(animated: boolean) =>
-            setFeatureAnimated(node.id, opacityFeature.id, animated)
-          }
           onConstraintChange={updateAnimatableDescriptor}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
@@ -192,7 +190,6 @@ interface RiggingScalarRowProps {
   inputValues: Record<string, number>;
   onValueChange: (id: string, value: number) => void;
   onDefaultChange: (id: string, value: number) => void;
-  onToggleAnimated: (animated: boolean) => void;
   onConstraintChange: (
     id: string,
     updater: (curr: AnimatableValue) => AnimatableValue,
@@ -222,13 +219,19 @@ export function RiggingScalarRow({
   onValueChange,
   onDefaultChange,
   onStaticValueChange,
-  onToggleAnimated,
   onConstraintChange,
   onUpdateStandardInput,
   setStaticFeatureValue,
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
+  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  useEffect(() => {
+    setLockedChannels(new Set());
+  }, [feature.id]);
 
   const component = feature.components[0];
   if (!component) return null;
@@ -254,6 +257,19 @@ export function RiggingScalarRow({
   }
 
   const isBound = !!(inputId && standardInput) && !blockedReason;
+  const authority = resolveFaceInspectorCurrentValue({
+    inputId,
+    standardInput,
+    unresolvedInputId,
+    blockedReason,
+    inputValues,
+    staticValue: component.staticValue ?? 0,
+  });
+  const channelLockId = targetId ?? `${feature.id}:value`;
+  const isChannelLocked = isInspectorChannelLocked(
+    lockedChannels,
+    channelLockId,
+  );
 
   const minVal = isBound
     ? standardInput!.range.min
@@ -262,9 +278,7 @@ export function RiggingScalarRow({
     ? standardInput!.range.max
     : ((feature.descriptor?.constraints as any)?.max ?? 0);
 
-  const currentValue = isBound
-    ? (inputValues[inputId!] ?? standardInput!.defaultValue ?? 0)
-    : (component.staticValue ?? 0);
+  const currentValue = authority.currentValue;
 
   const defaultValue = isBound
     ? (standardInput!.defaultValue ?? 0)
@@ -322,7 +336,7 @@ export function RiggingScalarRow({
 
     if (type === "current") {
       val = currentValue as number;
-      canEdit = isBound || !!onStaticValueChange;
+      canEdit = !isChannelLocked && (isBound || !!onStaticValueChange);
     } else if (type === "default") {
       val = defaultValue as number;
       canEdit = isBound;
@@ -334,8 +348,13 @@ export function RiggingScalarRow({
       canEdit = true;
     }
 
-    return (
+    const row = (
       <div
+        title={
+          type === "current"
+            ? `Current Source: ${authority.sourceLabel}`
+            : undefined
+        }
         className={cn(
           "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
           canEdit ? "focus-within:border-accent/50" : "opacity-70",
@@ -453,23 +472,44 @@ export function RiggingScalarRow({
         />
       </div>
     );
+
+    if (type !== "current") {
+      return row;
+    }
+
+    return (
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        {row}
+        <div
+          className="px-1 text-[9px] text-text-muted font-mono truncate"
+          title={authority.sourceLabel}
+        >
+          Current Source: {authority.sourceLabel}
+        </div>
+      </div>
+    );
   };
 
   const renderAnimatableRow = () => (
     <div className="flex gap-1.5 flex-1">
       <button
+        title={`Current Source: ${authority.sourceLabel}`}
         className={cn(
           "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-          feature.animated
-            ? "bg-accent/10 text-accent hover:bg-accent/20"
-            : "bg-bg-input/50 text-text-muted hover:bg-bg-input/70",
+          isChannelLocked
+            ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
+            : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
-        onClick={() => onToggleAnimated?.(!feature.animated)}
+        onClick={() =>
+          setLockedChannels((current) =>
+            toggleInspectorChannelLock(current, channelLockId),
+          )
+        }
       >
-        {feature.animated ? (
-          <LockOpen size={10} className="shrink-0" />
-        ) : (
+        {isChannelLocked ? (
           <Lock size={10} className="shrink-0" />
+        ) : (
+          <LockOpen size={10} className="shrink-0" />
         )}
         <span>Value</span>
       </button>
@@ -506,13 +546,19 @@ export function RiggingColorRow({
   onValueChange,
   onDefaultChange,
   onStaticValueChange,
-  onToggleAnimated,
   onConstraintChange,
   onUpdateStandardInput,
   setStaticFeatureValue,
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
+  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  useEffect(() => {
+    setLockedChannels(new Set());
+  }, [feature.id]);
 
   const getCompData = (key: string, fallbackIndex: number) => {
     const comp =
@@ -546,9 +592,18 @@ export function RiggingColorRow({
     }
 
     const isBound = !!(inputId && standardInput) && !blockedReason;
-    const currentValue = isBound
-      ? (inputValues[inputId!] ?? standardInput!.defaultValue ?? 0)
-      : (comp.staticValue ?? 0);
+    const authority = resolveFaceInspectorCurrentValue({
+      inputId,
+      standardInput,
+      unresolvedInputId,
+      blockedReason,
+      inputValues,
+      staticValue: comp.staticValue ?? 0,
+    });
+    const channelLockId =
+      targetId ??
+      `${feature.id}:${comp.componentKey ?? comp.label ?? String(compLabel)}`;
+    const currentValue = authority.currentValue;
     const defaultValue = isBound
       ? (standardInput!.defaultValue ?? 0)
       : (comp.staticValue ?? 0);
@@ -558,9 +613,11 @@ export function RiggingColorRow({
 
     return {
       label: compLabel,
+      channelLockId,
       inputId,
       targetId,
       currentValue,
+      currentValueSource: authority.sourceLabel,
       defaultValue,
       min,
       max,
@@ -708,7 +765,11 @@ export function RiggingColorRow({
 
     const canEditAny =
       type === "current"
-        ? components.some((c) => c.isBound) || !!onStaticValueChange
+        ? components.some(
+            (c) =>
+              !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
+              (c.isBound || !!onStaticValueChange),
+          )
         : type === "default"
           ? components.some((c) => c.isBound)
           : !!feature.animatableId;
@@ -724,6 +785,12 @@ export function RiggingColorRow({
           { comp: bComp, val: rgb.b },
         ].forEach(({ comp, val }) => {
           if (!comp) return;
+          if (
+            type === "current" &&
+            isInspectorChannelLocked(lockedChannels, comp.channelLockId)
+          ) {
+            return;
+          }
           if (comp.isBound && comp.inputId) {
             if (type === "current") onValueChange(comp.inputId, val);
             else onDefaultChange(comp.inputId, val);
@@ -757,7 +824,11 @@ export function RiggingColorRow({
       }
     };
 
-    return (
+    const sourceSummary = components
+      .map((c) => `${c.label}: ${c.currentValueSource}`)
+      .join(" | ");
+
+    const row = (
       <div className="flex gap-1 flex-1 items-center min-w-0">
         <BasePopover.Root>
           <BasePopover.Trigger
@@ -799,7 +870,8 @@ export function RiggingColorRow({
 
             const canEditComp =
               type === "current"
-                ? c.isBound || !!onStaticValueChange
+                ? !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
+                  (c.isBound || !!onStaticValueChange)
                 : type === "default"
                   ? c.isBound
                   : !!feature.animatableId;
@@ -815,6 +887,11 @@ export function RiggingColorRow({
             return (
               <div
                 key={i}
+                title={
+                  type === "current"
+                    ? `Current Source: ${c.currentValueSource}`
+                    : undefined
+                }
                 className={cn(
                   "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
                   canEditComp ? "focus-within:border-accent/50" : "opacity-70",
@@ -958,6 +1035,22 @@ export function RiggingColorRow({
         </div>
       </div>
     );
+
+    if (type !== "current") {
+      return row;
+    }
+
+    return (
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        {row}
+        <div
+          className="px-1 text-[9px] text-text-muted font-mono truncate"
+          title={sourceSummary}
+        >
+          Current Source: {sourceSummary}
+        </div>
+      </div>
+    );
   };
 
   const renderAnimatableRow = () => (
@@ -965,18 +1058,23 @@ export function RiggingColorRow({
       {components.map((c, i) => (
         <button
           key={i}
+          title={`Current Source: ${c.currentValueSource}`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            feature.animated
-              ? "bg-accent/10 text-accent hover:bg-accent/20"
-              : "bg-bg-input/50 text-text-muted hover:bg-bg-input/70",
+            isInspectorChannelLocked(lockedChannels, c.channelLockId)
+              ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
+              : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          onClick={() => onToggleAnimated?.(!feature.animated)}
+          onClick={() =>
+            setLockedChannels((current) =>
+              toggleInspectorChannelLock(current, c.channelLockId),
+            )
+          }
         >
-          {feature.animated ? (
-            <LockOpen size={10} className="shrink-0" />
-          ) : (
+          {isInspectorChannelLocked(lockedChannels, c.channelLockId) ? (
             <Lock size={10} className="shrink-0" />
+          ) : (
+            <LockOpen size={10} className="shrink-0" />
           )}
           <span>{c.label.substring(0, 1)}</span>
         </button>

@@ -202,7 +202,6 @@ export function InspectorContent() {
     materials,
     updateMaterialLabel,
     setAnimatableValue,
-    setFeatureAnimated,
     updateAnimatableDescriptor,
     setStaticFeatureValue,
   } = useSceneComposer();
@@ -2448,13 +2447,6 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
-                  onToggleAnimated={(animated) =>
-                    setFeatureAnimated(
-                      material.id,
-                      `${material.id}-color`,
-                      animated,
-                    )
-                  }
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
@@ -2474,13 +2466,6 @@ export function InspectorContent() {
                     handleUpdateStandardInput(id, { defaultValue: val })
                   }
                   onStaticValueChange={handleStaticValueChange}
-                  onToggleAnimated={(animated) =>
-                    setFeatureAnimated(
-                      material.id,
-                      `${material.id}-opacity`,
-                      animated,
-                    )
-                  }
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
