@@ -152,12 +152,13 @@ export function resolveUniqueAliasIdFromStandardInputs(
 
   let lookup = standardInputArrayAliasLookupCache.get(standardInputs);
   if (!lookup) {
-    lookup = new Map<string, string[]>();
+    const nextLookup = new Map<string, string[]>();
     standardInputs.forEach((input) => {
-      pushUnique(lookup, normalizeInputIdentifier(input.id), input.id);
-      pushUnique(lookup, normalizeInputIdentifier(input.path), input.id);
+      pushUnique(nextLookup, normalizeInputIdentifier(input.id), input.id);
+      pushUnique(nextLookup, normalizeInputIdentifier(input.path), input.id);
     });
-    standardInputArrayAliasLookupCache.set(standardInputs, lookup);
+    standardInputArrayAliasLookupCache.set(standardInputs, nextLookup);
+    lookup = nextLookup;
   }
 
   const matches = lookup.get(normalized) ?? [];

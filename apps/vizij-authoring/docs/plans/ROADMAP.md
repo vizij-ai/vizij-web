@@ -142,7 +142,7 @@ Exit gate:
 1. Hot-path interactions remain responsive under large rigs.
 2. Core perf/correctness findings from audit are resolved or explicitly deferred.
 
-Stage 5 progress (2026-02-18 10:32:53Z):
+Stage 5 progress (2026-02-18 10:45:15Z):
 
 1. `B5.1` complete; heavy panel/inspector surfaces now use targeted binding-store selectors instead of broad whole-store pulls, reducing unrelated rerender pressure.
 2. `B5.1` removed duplicate hidden-surface tree/filter work in `VariablesPanel` by routing filtering through a single active-surface root resolver and skipping inactive tab-panel rendering work.
@@ -155,3 +155,6 @@ Stage 5 progress (2026-02-18 10:32:53Z):
    - canonical resolution cache misses stay bounded (`canonicalResolutionMisses = 1`) across repeated hot-path id/path resolutions (`standardInputResolutionIndex.test.ts`),
    - traversal selection/find/move can execute from prebuilt traversal indexes without `.find` rescans (`rigConnections.test.ts` traversal index contract).
 7. Validation evidence for `B5.2`: `2026-02-18 10:32:05Z` (`typecheck` pass), `2026-02-18 10:32:19Z` (`test` pass), `2026-02-18 10:32:41Z` (`lint` pass, warnings only), `2026-02-18 10:32:53Z` (`validate` pass).
+8. `B5.3` complete; rig import boundary checks now evaluate transitive rig ancestry into autorig targets so valid multi-hop chains are no longer misclassified as direct animatable violations.
+9. `B5.3` shared-variable sync now executes a single per-cycle shared-pair pass (with deterministic pass metrics) while preserving mirror/conflict behavior.
+10. Validation evidence for `B5.3`: `2026-02-18 10:49:18Z` (`typecheck` pass), `2026-02-18 10:49:18Z` (`test` pass), `2026-02-18 10:49:18Z` (`lint` pass, warnings only), `2026-02-18 10:49:18Z` (`validate` pass).

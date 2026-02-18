@@ -234,7 +234,7 @@ function collectAutorigTargetByComponentId(
   normalizedSummaries: GraphBindingSummary[],
   componentIds: Set<string>,
   standardInputs: Map<string, StandardRigInput>,
-): Map<string, string> {
+): Map<string, string[]> {
   const candidates = new Map<string, Set<string>>();
   const addCandidate = (componentId: string, inputId: string) => {
     const current = candidates.get(componentId) ?? new Set<string>();
@@ -264,15 +264,85 @@ function collectAutorigTargetByComponentId(
     addCandidate(summary.targetId, source.id);
   });
 
-  const resolved = new Map<string, string>();
+  const resolved = new Map<string, string[]>();
   candidates.forEach((inputIds, componentId) => {
     const ordered = Array.from(inputIds).sort((a, b) => a.localeCompare(b));
-    const winner = ordered[0];
-    if (winner) {
-      resolved.set(componentId, winner);
+    if (ordered.length > 0) {
+      resolved.set(componentId, ordered);
     }
   });
   return resolved;
+}
+
+function buildInputDownstreamLookup(
+  normalizedSummaries: GraphBindingSummary[],
+  standardInputs: Map<string, StandardRigInput>,
+): Map<string, Set<string>> {
+  const downstreamByInputId = new Map<string, Set<string>>();
+
+  normalizedSummaries.forEach((summary) => {
+    if (!summary.inputId || summary.inputId === SELF_BINDING_ID) {
+      return;
+    }
+    if (!standardInputs.has(summary.inputId)) {
+      return;
+    }
+    if (!standardInputs.has(summary.targetId)) {
+      return;
+    }
+    const downstream = downstreamByInputId.get(summary.inputId) ?? new Set();
+    downstream.add(summary.targetId);
+    downstreamByInputId.set(summary.inputId, downstream);
+  });
+
+  return downstreamByInputId;
+}
+
+function hasTransitiveAutorigBoundaryPath(params: {
+  componentId: string;
+  sourceInputId: string;
+  autorigTargetsByComponentId: Map<string, string[]>;
+  downstreamByInputId: Map<string, Set<string>>;
+}): boolean {
+  const {
+    componentId,
+    sourceInputId,
+    autorigTargetsByComponentId,
+    downstreamByInputId,
+  } = params;
+  const autorigCandidates = autorigTargetsByComponentId.get(componentId);
+  if (!autorigCandidates || autorigCandidates.length === 0) {
+    return false;
+  }
+  const candidateSet = new Set(autorigCandidates);
+  if (candidateSet.has(sourceInputId)) {
+    return true;
+  }
+
+  const queue = [sourceInputId];
+  const visited = new Set<string>([sourceInputId]);
+
+  while (queue.length > 0) {
+    const currentInputId = queue.shift();
+    if (!currentInputId) {
+      continue;
+    }
+    const downstreamInputs = downstreamByInputId.get(currentInputId);
+    if (!downstreamInputs || downstreamInputs.size === 0) {
+      continue;
+    }
+    for (const nextInputId of downstreamInputs) {
+      if (candidateSet.has(nextInputId)) {
+        return true;
+      }
+      if (!visited.has(nextInputId)) {
+        visited.add(nextInputId);
+        queue.push(nextInputId);
+      }
+    }
+  }
+
+  return false;
 }
 
 function normalizeImportedBindingSummaries(
@@ -327,9 +397,13 @@ function normalizeImportedBindingSummaries(
     };
   });
 
-  const autorigTargetByComponentId = collectAutorigTargetByComponentId(
+  const autorigTargetsByComponentId = collectAutorigTargetByComponentId(
     normalizedIds,
     componentIds,
+    options.standardInputs,
+  );
+  const downstreamByInputId = buildInputDownstreamLookup(
+    normalizedIds,
     options.standardInputs,
   );
 
@@ -345,7 +419,20 @@ function normalizeImportedBindingSummaries(
       return summary;
     }
 
-    const autorigTargetId = autorigTargetByComponentId.get(summary.targetId);
+    if (
+      hasTransitiveAutorigBoundaryPath({
+        componentId: summary.targetId,
+        sourceInputId: summary.inputId,
+        autorigTargetsByComponentId,
+        downstreamByInputId,
+      })
+    ) {
+      return summary;
+    }
+
+    const autorigTargetId = autorigTargetsByComponentId.get(
+      summary.targetId,
+    )?.[0];
     if (!autorigTargetId) {
       diagnostics.animatableFallbacks.push({
         animatableTargetId: summary.targetId,

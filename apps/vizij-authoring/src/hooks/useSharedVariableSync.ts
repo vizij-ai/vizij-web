@@ -47,6 +47,7 @@ interface UseSharedVariableSyncArgs {
   onMainInputValueChange: (inputId: string, value: number) => void;
   onReferenceInputValueChange: (inputId: string, value: number) => void;
   initialPolicy?: SharedVariableSyncPolicy;
+  onSyncPassMetrics?: (metrics: SharedVariableSyncPassMetrics) => void;
 }
 
 export interface UseSharedVariableSyncResult {
@@ -64,6 +65,12 @@ export interface UseSharedVariableSyncResult {
     winner: "main" | "reference",
   ) => SharedVariableConflict | null;
   dismissConflict: (path: string) => void;
+}
+
+export interface SharedVariableSyncPassMetrics {
+  pairCount: number;
+  passCount: number;
+  pairEvaluations: number;
 }
 
 const EPSILON = 1e-6;
@@ -93,6 +100,7 @@ export function useSharedVariableSync({
   onMainInputValueChange,
   onReferenceInputValueChange,
   initialPolicy = "bidirectional",
+  onSyncPassMetrics,
 }: UseSharedVariableSyncArgs): UseSharedVariableSyncResult {
   const [policy, setPolicy] = useState<SharedVariableSyncPolicy>(initialPolicy);
   const [conflictsByPathState, setConflictsByPathState] = useState<
@@ -256,7 +264,11 @@ export function useSharedVariableSync({
   }, [sharedPairsByPath]);
 
   useEffect(() => {
+    const conflictPathsToClear: string[] = [];
+    let pairEvaluations = 0;
+
     sharedPairsByPath.forEach(({ path, mainInput, referenceInput }) => {
+      pairEvaluations += 1;
       const mainValue = safeValue(
         mainInputValues[mainInput.id],
         mainInput.defaultValue,
@@ -266,98 +278,76 @@ export function useSharedVariableSync({
         referenceInput.defaultValue,
       );
       if (!isDifferent(mainValue, referenceValue)) {
-        setConflictsByPathState((current) => {
-          if (!current[path]) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[path];
-          return next;
-        });
+        conflictPathsToClear.push(path);
       }
-    });
-  }, [mainInputValues, referenceInputValues, sharedPairsByPath]);
 
-  useEffect(() => {
-    sharedPairsByPath.forEach(({ path, mainInput, referenceInput }) => {
-      const mainValue = safeValue(
-        mainInputValues[mainInput.id],
-        mainInput.defaultValue,
-      );
-      const previousValue = previousMainByPathRef.current[path];
-      if (previousValue === undefined) {
+      const previousMainValue = previousMainByPathRef.current[path];
+      if (previousMainValue === undefined) {
         previousMainByPathRef.current[path] = mainValue;
-        return;
-      }
-      if (!isDifferent(previousValue, mainValue)) {
-        return;
-      }
-      previousMainByPathRef.current[path] = mainValue;
-      if (shouldSuppress(suppressMainChangeRef.current, path, mainValue)) {
-        return;
+      } else if (isDifferent(previousMainValue, mainValue)) {
+        previousMainByPathRef.current[path] = mainValue;
+        if (!shouldSuppress(suppressMainChangeRef.current, path, mainValue)) {
+          registerChange("main", path, mainValue);
+          if (
+            shouldMirrorFromMain(policy) &&
+            isDifferent(referenceValue, mainValue)
+          ) {
+            suppressReferenceChangeRef.current.set(path, mainValue);
+            onReferenceInputValueChange(referenceInput.id, mainValue);
+          }
+        }
       }
 
-      registerChange("main", path, mainValue);
-      if (!shouldMirrorFromMain(policy)) {
-        return;
-      }
-      const currentReferenceValue = safeValue(
-        referenceInputValues[referenceInput.id],
-        referenceInput.defaultValue,
-      );
-      if (!isDifferent(currentReferenceValue, mainValue)) {
-        return;
-      }
-      suppressReferenceChangeRef.current.set(path, mainValue);
-      onReferenceInputValueChange(referenceInput.id, mainValue);
-    });
-  }, [
-    mainInputValues,
-    onReferenceInputValueChange,
-    policy,
-    referenceInputValues,
-    registerChange,
-    sharedPairsByPath,
-  ]);
-
-  useEffect(() => {
-    sharedPairsByPath.forEach(({ path, mainInput, referenceInput }) => {
-      const referenceValue = safeValue(
-        referenceInputValues[referenceInput.id],
-        referenceInput.defaultValue,
-      );
-      const previousValue = previousReferenceByPathRef.current[path];
-      if (previousValue === undefined) {
+      const previousReferenceValue = previousReferenceByPathRef.current[path];
+      if (previousReferenceValue === undefined) {
         previousReferenceByPathRef.current[path] = referenceValue;
-        return;
+      } else if (isDifferent(previousReferenceValue, referenceValue)) {
+        previousReferenceByPathRef.current[path] = referenceValue;
+        if (
+          !shouldSuppress(
+            suppressReferenceChangeRef.current,
+            path,
+            referenceValue,
+          )
+        ) {
+          registerChange("reference", path, referenceValue);
+          if (
+            shouldMirrorFromReference(policy) &&
+            isDifferent(mainValue, referenceValue)
+          ) {
+            suppressMainChangeRef.current.set(path, referenceValue);
+            onMainInputValueChange(mainInput.id, referenceValue);
+          }
+        }
       }
-      if (!isDifferent(previousValue, referenceValue)) {
-        return;
-      }
-      previousReferenceByPathRef.current[path] = referenceValue;
-      if (
-        shouldSuppress(suppressReferenceChangeRef.current, path, referenceValue)
-      ) {
-        return;
-      }
+    });
 
-      registerChange("reference", path, referenceValue);
-      if (!shouldMirrorFromReference(policy)) {
-        return;
-      }
-      const currentMainValue = safeValue(
-        mainInputValues[mainInput.id],
-        mainInput.defaultValue,
-      );
-      if (!isDifferent(currentMainValue, referenceValue)) {
-        return;
-      }
-      suppressMainChangeRef.current.set(path, referenceValue);
-      onMainInputValueChange(mainInput.id, referenceValue);
+    onSyncPassMetrics?.({
+      pairCount: sharedPairsByPath.size,
+      passCount: 1,
+      pairEvaluations,
+    });
+
+    if (conflictPathsToClear.length === 0) {
+      return;
+    }
+    setConflictsByPathState((current) => {
+      let changed = false;
+      const next = { ...current };
+      conflictPathsToClear.forEach((path) => {
+        if (!next[path]) {
+          return;
+        }
+        delete next[path];
+        changed = true;
+      });
+      return changed ? next : current;
     });
   }, [
     mainInputValues,
     onMainInputValueChange,
+    onReferenceInputValueChange,
+    onSyncPassMetrics,
     policy,
     referenceInputValues,
     registerChange,

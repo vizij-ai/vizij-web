@@ -772,7 +772,7 @@ Completion notes (2026-02-18 10:32:53Z):
    - `2026-02-18 10:32:41Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
    - `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B5.3 Boundary and Shared-Sync Correctness Hardening
+### [x] B5.3 Boundary and Shared-Sync Correctness Hardening
 
 Intent:
 Harden graph correctness where current logic can misclassify or overwork.
@@ -794,3 +794,24 @@ Acceptance checks:
 
 Dependencies:
 `B5.2`.
+
+Completion notes (2026-02-18 10:45:15Z):
+
+1. Hardened boundary normalization with transitive ancestry awareness in `src/rig/importer.ts`:
+   - importer now builds downstream rig-input ancestry from binding summaries,
+   - direct animatable boundary checks accept valid transitive `input -> ... -> autorig(component)` chains,
+   - invalid direct animatable writers still retarget/fallback exactly as before.
+2. Consolidated shared-variable sync passes in `src/hooks/useSharedVariableSync.ts`:
+   - merged separate value-sync loops into one per-cycle shared-pair pass,
+   - preserved mirror/suppression/conflict semantics while reducing repeated pair scans,
+   - added optional sync-pass metrics (`passCount`, `pairEvaluations`) for deterministic workload assertions.
+3. Added targeted regression and pass-count tests:
+   - `src/rig/importer.test.ts` proves valid transitive rig ancestry no longer triggers false boundary retarget/fallback diagnostics.
+   - `src/hooks/__tests__/useSharedVariableSync.test.tsx` proves mirroring behavior remains correct and asserts single-pass metrics (`passCount = 1`, `pairEvaluations = pairCount`) for sync cycles.
+   - existing invalid boundary tests in `src/rig/importer.test.ts` remain green, preserving failure behavior for truly invalid cases.
+4. Fixed a strict-type nullability edge in `src/utils/standardInputResolutionIndex.ts` cache initialization so indexed canonical resolution remains type-safe under `tsc --noEmit`.
+5. Validation evidence:
+   - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 60 files / 297 tests).
+   - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 10:49:18Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).

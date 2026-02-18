@@ -208,6 +208,68 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(result.inputBindings.autorig_jaw_open).toBeDefined();
   });
 
+  it("treats transitive rig ancestry into autorig targets as boundary-valid", () => {
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: "jaw_master",
+          path: "/rig/control/jaw/master",
+          group: "custom",
+        }),
+        makeInput({
+          id: "jaw_control",
+          path: "/rig/control/jaw/open",
+          group: "custom",
+        }),
+        makeInput({
+          id: "autorig_jaw_open",
+          path: "/autorig/mouth/open",
+          group: "mouth",
+          sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
+        }),
+      ],
+      bindings: [
+        makeBindingSummary({
+          targetId: "jaw_control",
+          inputId: "jaw_master",
+          slotId: "s_parent",
+          slotAlias: "parent",
+          nodeId: "node_parent",
+          expressionNodeId: "node_expr_parent",
+        }),
+        makeBindingSummary({
+          targetId: "autorig_jaw_open",
+          inputId: "jaw_control",
+          slotId: "s_autorig",
+          slotAlias: "autorig",
+          nodeId: "node_autorig",
+          expressionNodeId: "node_expr_autorig",
+        }),
+        makeBindingSummary({
+          targetId: JAW_COMPONENT_ID,
+          inputId: "jaw_master",
+          slotId: "s_component",
+          slotAlias: "component",
+          nodeId: "node_component",
+          expressionNodeId: "node_expr_component",
+        }),
+      ],
+    });
+
+    const result = rehydrateRigDataFromGraph(spec, {
+      faceId: "robot",
+      animatables: {},
+      components: [makeComponent()],
+    });
+
+    expect(result.normalizationDiagnostics.animatableRetargets).toEqual([]);
+    expect(result.normalizationDiagnostics.animatableFallbacks).toEqual([]);
+    expect(result.bindings[JAW_COMPONENT_ID]?.inputId).toBe("jaw_master");
+    expect(result.inputBindings.autorig_jaw_open?.inputId).toBe("jaw_control");
+    expect(result.inputBindings.jaw_control?.inputId).toBe("jaw_master");
+  });
+
   it("retargets invalid direct animatable bindings to autorig targets", () => {
     const spec = makeSpec({
       faceId: "legacy_face",

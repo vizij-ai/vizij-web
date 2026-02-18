@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   useSharedVariableSync,
+  type SharedVariableSyncPassMetrics,
   type SharedVariableSyncPolicy,
 } from "../useSharedVariableSync";
 
@@ -26,6 +27,7 @@ interface HookState {
   policy?: SharedVariableSyncPolicy;
   mainValue: number;
   referenceValue: number;
+  onSyncPassMetrics?: (metrics: SharedVariableSyncPassMetrics) => void;
 }
 
 function setupHook(initial?: Partial<HookState>) {
@@ -43,12 +45,14 @@ function setupHook(initial?: Partial<HookState>) {
       referenceInputValues: { [referenceInput.id]: state.referenceValue },
       onMainInputValueChange,
       onReferenceInputValueChange,
+      onSyncPassMetrics: state.onSyncPassMetrics,
     });
 
   const initialState: HookState = {
     policy: initial?.policy ?? "bidirectional",
     mainValue: initial?.mainValue ?? 0,
     referenceValue: initial?.referenceValue ?? 0,
+    onSyncPassMetrics: initial?.onSyncPassMetrics,
   };
 
   const hook = renderHook((state: HookState) => useHookState(state), {
@@ -154,5 +158,35 @@ describe("useSharedVariableSync", () => {
     );
     expect(onMainInputValueChange).toHaveBeenCalledTimes(1);
     expect(onMainInputValueChange).toHaveBeenCalledWith(mainInput.id, 0.2);
+  });
+
+  it("runs a single shared-sync pass per cycle while preserving mirroring", () => {
+    const onSyncPassMetrics = vi.fn();
+    const { rerender, referenceInput, onReferenceInputValueChange } = setupHook(
+      {
+        onSyncPassMetrics,
+      },
+    );
+
+    onSyncPassMetrics.mockClear();
+    onReferenceInputValueChange.mockClear();
+
+    rerender({
+      policy: "bidirectional",
+      mainValue: 0.35,
+      referenceValue: 0,
+      onSyncPassMetrics,
+    });
+
+    expect(onReferenceInputValueChange).toHaveBeenCalledWith(
+      referenceInput.id,
+      0.35,
+    );
+    expect(onSyncPassMetrics).toHaveBeenCalled();
+    onSyncPassMetrics.mock.calls.forEach(([metrics]) => {
+      expect(metrics.passCount).toBe(1);
+      expect(metrics.pairCount).toBe(1);
+      expect(metrics.pairEvaluations).toBe(1);
+    });
   });
 });
