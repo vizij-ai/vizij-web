@@ -46,6 +46,8 @@ export interface UsePoseRigAuthoringResult {
     groupId: string,
     mode: "average" | "additive",
   ) => void;
+  addPoseToGroup: (poseId: string, group: string) => void;
+  removePoseFromGroup: (poseId: string, group: string) => void;
   standardInputs: StandardRigInput[];
   poses: PoseDefinition[];
   selectedPoseId: string | null;
@@ -242,6 +244,20 @@ export function usePoseRigAuthoring(
     [store],
   );
 
+  const addPoseToGroup = useCallback(
+    (poseId: string, group: string) => {
+      store.addPoseToGroup(poseId, group);
+    },
+    [store],
+  );
+
+  const removePoseFromGroup = useCallback(
+    (poseId: string, group: string) => {
+      store.removePoseFromGroup(poseId, group);
+    },
+    [store],
+  );
+
   const createPoseFromSnapshot = useCallback(
     (name?: string) => {
       const snapshot = PoseSnapshotService.capture(
@@ -404,6 +420,8 @@ export function usePoseRigAuthoring(
     renamePoseGroup,
     deletePoseGroup,
     setPoseGroupBlendMode,
+    addPoseToGroup,
+    removePoseFromGroup,
     selectedPoseId,
     selectedPose,
     isNeutralSelected,

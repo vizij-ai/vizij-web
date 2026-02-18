@@ -134,17 +134,46 @@ type ConfiguredPoseGroup = ReturnType<
   typeof normalizePoseGroupsForState
 >[number];
 
+function orderMembershipIds(
+  groupIds: Iterable<string>,
+  groups: ConfiguredPoseGroup[],
+): string[] {
+  const configuredOrder = new Map(
+    groups.map((group, index) => [group.id, index]),
+  );
+  const unique = Array.from(
+    new Set(
+      Array.from(groupIds)
+        .map((groupId) => groupId.trim())
+        .filter((groupId) => groupId.length > 0),
+    ),
+  );
+
+  unique.sort((left, right) => {
+    const leftIndex = configuredOrder.get(left);
+    const rightIndex = configuredOrder.get(right);
+
+    if (leftIndex !== undefined && rightIndex !== undefined) {
+      return leftIndex - rightIndex;
+    }
+    if (leftIndex !== undefined) {
+      return -1;
+    }
+    if (rightIndex !== undefined) {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
+
+  return unique;
+}
+
 function canonicalizePoseMembership(
   pose: PoseDefinition,
   groups: ConfiguredPoseGroup[],
 ): PoseDefinition {
   const membership = resolvePoseMembership(pose, groups);
-  return {
-    ...pose,
-    groupIds: membership.groupIds,
-    groupId: membership.primaryGroupId,
-    group: membership.primaryGroupPath,
-  };
+  return withMembershipIds(pose, membership.groupIds, groups);
 }
 
 function withMembershipIds(
@@ -152,10 +181,11 @@ function withMembershipIds(
   groupIds: string[],
   groups: ConfiguredPoseGroup[],
 ): PoseDefinition {
+  const orderedGroupIds = orderMembershipIds(groupIds, groups);
   const membership = resolvePoseMembership(
     {
       ...pose,
-      groupIds,
+      groupIds: orderedGroupIds,
       groupId: null,
       group: null,
     },
@@ -233,6 +263,8 @@ export interface PoseRigState {
     groupId: string,
     mode: "average" | "additive",
   ) => void;
+  addPoseToGroup: (poseId: string, group: string) => void;
+  removePoseFromGroup: (poseId: string, group: string) => void;
   updatePoseGroup: (poseId: string, group: string | null) => void;
   updatePoseGroupBatch: (
     poseIds: Iterable<string>,
@@ -283,6 +315,8 @@ const defaultState: Omit<
   | "renamePoseGroup"
   | "deletePoseGroup"
   | "setPoseGroupBlendMode"
+  | "addPoseToGroup"
+  | "removePoseFromGroup"
   | "updatePoseGroup"
   | "updatePoseGroupBatch"
   | "clearPose"
@@ -412,6 +446,8 @@ export function createPoseRigStore(
     | "renamePoseGroup"
     | "deletePoseGroup"
     | "setPoseGroupBlendMode"
+    | "addPoseToGroup"
+    | "removePoseFromGroup"
     | "updatePoseGroup"
     | "updatePoseGroupBatch"
     | "clearPose"
@@ -672,6 +708,100 @@ export function createPoseRigStore(
             },
           ),
         };
+      });
+    },
+    addPoseToGroup: (poseId, group) => {
+      const normalizedGroup = normalizePoseGroupPath(group);
+      if (!normalizedGroup) {
+        return;
+      }
+      setState((prev) => {
+        if (!prev.poses.some((pose) => pose.id === poseId)) {
+          return;
+        }
+        const { groupsChanged, groups, groupId } = ensurePoseGroupFromPath(
+          prev,
+          normalizedGroup,
+        );
+        if (!groupId) {
+          return;
+        }
+        let poseChanged = false;
+        const nextPoses = prev.poses.map((pose) => {
+          if (pose.id !== poseId) {
+            return pose;
+          }
+          const membership = resolvePoseMembership(pose, groups);
+          if (membership.groupIds.includes(groupId)) {
+            return pose;
+          }
+          poseChanged = true;
+          return withMembershipIds(
+            pose,
+            [...membership.groupIds, groupId],
+            groups,
+          );
+        });
+
+        if (!poseChanged && !groupsChanged) {
+          return;
+        }
+        if (!groupsChanged) {
+          return { poses: nextPoses };
+        }
+        return {
+          poses: nextPoses,
+          poseConfigDraft: PoseConfigService.create(
+            nextPoses,
+            prev.neutralInputs,
+            prev.rigName,
+            prev.faceId,
+            prev.rigKind,
+            prev.standardInputSchema ?? undefined,
+            {
+              poseGroups: groups,
+              defaultGroupBlendMode: prev.blendMode,
+              crossGroupBlendMode: prev.crossGroupBlendMode,
+            },
+          ),
+        };
+      });
+    },
+    removePoseFromGroup: (poseId, group) => {
+      const normalizedGroup = normalizePoseGroupPath(group);
+      const normalizedGroupId = sanitizePoseGroupId(group, group);
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetGroupId =
+          configured.find((entry) => entry.path === normalizedGroup)?.id ??
+          configured.find((entry) => entry.id === group)?.id ??
+          (normalizedGroup
+            ? sanitizePoseGroupId(normalizedGroup, normalizedGroup)
+            : null) ??
+          normalizedGroupId;
+        if (!targetGroupId) {
+          return;
+        }
+        let poseChanged = false;
+        const nextPoses = prev.poses.map((pose) => {
+          if (pose.id !== poseId) {
+            return pose;
+          }
+          const membership = resolvePoseMembership(pose, configured);
+          if (!membership.groupIds.includes(targetGroupId)) {
+            return pose;
+          }
+          poseChanged = true;
+          return withMembershipIds(
+            pose,
+            membership.groupIds.filter((id) => id !== targetGroupId),
+            configured,
+          );
+        });
+        if (!poseChanged) {
+          return;
+        }
+        return { poses: nextPoses };
       });
     },
     updatePoseGroup: (poseId, group) => {

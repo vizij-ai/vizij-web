@@ -543,7 +543,8 @@ export function VariablesPanel({
     crossGroupBlendMode,
     blendMode,
     setCrossGroupBlendMode,
-    updatePoseGroup,
+    addPoseToGroup,
+    removePoseFromGroup,
     poseConfigDraft,
   } = usePoseRig();
   const selectedPoseId =
@@ -563,6 +564,7 @@ export function VariablesPanel({
 
   const poseGroups = useMemo(() => {
     const byId = new Map<string, string>();
+    const configuredPathOrder = new Map<string, number>();
     const groupsByPath = new Map<string, PoseGroupSummary>();
 
     const declareGroup = (
@@ -593,6 +595,9 @@ export function VariablesPanel({
         normalizePoseGroupPath(group.name) ||
         normalizePoseGroupPath(group.id);
       const path = candidatePath || UNASSIGNED_POSE_GROUP_PATH;
+      if (!configuredPathOrder.has(path)) {
+        configuredPathOrder.set(path, configuredPathOrder.size);
+      }
       declareGroup(
         path,
         poseGroupDisplayLabel(path),
@@ -611,29 +616,78 @@ export function VariablesPanel({
       }
     });
 
-    const resolvePoseGroupPath = (pose: PoseDefinition): string => {
-      if (pose.groupId && byId.has(pose.groupId)) {
-        return byId.get(pose.groupId)!;
+    const sortPaths = (left: string, right: string) => {
+      if (left === UNASSIGNED_POSE_GROUP_PATH) {
+        return 1;
       }
-      const normalized = normalizePoseGroupPath(pose.group);
-      return normalized || UNASSIGNED_POSE_GROUP_PATH;
+      if (right === UNASSIGNED_POSE_GROUP_PATH) {
+        return -1;
+      }
+      const leftOrder = configuredPathOrder.get(left);
+      const rightOrder = configuredPathOrder.get(right);
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+      if (leftOrder !== undefined) {
+        return -1;
+      }
+      if (rightOrder !== undefined) {
+        return 1;
+      }
+      return left.localeCompare(right);
+    };
+
+    const resolvePoseGroupPaths = (pose: PoseDefinition): string[] => {
+      const paths = new Set<string>();
+      const addPath = (path: string | null | undefined) => {
+        const normalized = normalizePoseGroupPath(path);
+        if (!normalized) {
+          return;
+        }
+        paths.add(normalized);
+      };
+      const addById = (groupId: string | null | undefined) => {
+        const trimmed = groupId?.trim();
+        if (!trimmed) {
+          return;
+        }
+        if (byId.has(trimmed)) {
+          paths.add(byId.get(trimmed)!);
+          return;
+        }
+        addPath(trimmed);
+      };
+
+      pose.groupIds?.forEach((groupId) => {
+        addById(groupId);
+      });
+      addById(pose.groupId);
+      addPath(pose.group);
+
+      if (paths.size === 0) {
+        return [UNASSIGNED_POSE_GROUP_PATH];
+      }
+      return Array.from(paths).sort(sortPaths);
     };
 
     poses.forEach((pose) => {
-      const path = resolvePoseGroupPath(pose);
-      let group = groupsByPath.get(path);
-      if (!group) {
-        group = {
-          id: `auto:${path}`,
-          path,
-          label: poseGroupDisplayLabel(path),
-          blendMode: poseGroupBlendModeFallback,
-          source: "auto",
-          poseIds: [],
-        };
-        groupsByPath.set(path, group);
-      }
-      group.poseIds.push(pose.id);
+      resolvePoseGroupPaths(pose).forEach((path) => {
+        let group = groupsByPath.get(path);
+        if (!group) {
+          group = {
+            id: `auto:${path}`,
+            path,
+            label: poseGroupDisplayLabel(path),
+            blendMode: poseGroupBlendModeFallback,
+            source: "auto",
+            poseIds: [],
+          };
+          groupsByPath.set(path, group);
+        }
+        if (!group.poseIds.includes(pose.id)) {
+          group.poseIds.push(pose.id);
+        }
+      });
     });
 
     return Array.from(groupsByPath.values()).filter(
@@ -641,19 +695,26 @@ export function VariablesPanel({
     );
   }, [blendMode, poseGroupBlendModeFallback, poseGroupsFromConfig, poses]);
 
-  const poseGroupByPoseId = useMemo(() => {
-    const next = new Map<string, string>();
+  const poseGroupsByPoseId = useMemo(() => {
+    const next = new Map<string, string[]>();
     poseGroups.forEach((group) => {
       group.poseIds.forEach((poseId) => {
-        next.set(poseId, group.path);
+        const existing = next.get(poseId);
+        if (!existing) {
+          next.set(poseId, [group.path]);
+          return;
+        }
+        if (!existing.includes(group.path)) {
+          existing.push(group.path);
+        }
       });
     });
     return next;
   }, [poseGroups]);
 
-  const selectedPoseGroupPath = selectedPoseId
-    ? (poseGroupByPoseId.get(selectedPoseId) ?? null)
-    : null;
+  const selectedPoseGroupPaths = selectedPoseId
+    ? (poseGroupsByPoseId.get(selectedPoseId) ?? [])
+    : [];
 
   const visiblePoseGroups = useMemo(() => {
     const trimmed = searchQuery.trim().toLowerCase();
@@ -1367,15 +1428,15 @@ export function VariablesPanel({
     if (!selectedPoseId || selectedPoseId === "__pose_rig_neutral__") {
       return;
     }
-    const isMember = selectedPoseGroupPath === group.path;
-    if (isMember) {
-      updatePoseGroup(selectedPoseId, null);
+    if (group.path === UNASSIGNED_POSE_GROUP_PATH) {
       return;
     }
-    updatePoseGroup(
-      selectedPoseId,
-      group.path === UNASSIGNED_POSE_GROUP_PATH ? null : group.path,
-    );
+    const isMember = selectedPoseGroupPaths.includes(group.path);
+    if (isMember) {
+      removePoseFromGroup(selectedPoseId, group.path);
+      return;
+    }
+    addPoseToGroup(selectedPoseId, group.path);
   };
 
   const handleAction = (node: TreeNode, action: string) => {
@@ -1660,6 +1721,18 @@ export function VariablesPanel({
   const selectedPoseName = selectedPoseId
     ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
     : null;
+  const selectedPoseMemberships =
+    selectedPoseGroupPaths.length > 0
+      ? selectedPoseGroupPaths.map((path) => ({
+          path,
+          label: poseGroupDisplayLabel(path),
+        }))
+      : [
+          {
+            path: UNASSIGNED_POSE_GROUP_PATH,
+            label: UNASSIGNED_POSE_GROUP_LABEL,
+          },
+        ];
 
   return (
     <Panel
@@ -1814,9 +1887,16 @@ export function VariablesPanel({
                       : "Select a pose to edit membership"}
                   </span>
                   {selectedPoseName && (
-                    <span className="text-[10px] text-text-muted font-mono">
-                      ({selectedPoseGroupPath || "unassigned"})
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {selectedPoseMemberships.map((membership) => (
+                        <span
+                          key={membership.path}
+                          className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
+                        >
+                          {membership.label}
+                        </span>
+                      ))}
+                    </div>
                   )}
                   <div className="ml-auto flex items-center gap-1">
                     <Button
@@ -2040,9 +2120,11 @@ export function VariablesPanel({
                   ) : (
                     <div className="flex flex-col">
                       {poseGroupsForSurface.map((group) => {
-                        const isMember = selectedPoseId
-                          ? selectedPoseGroupPath === group.path
-                          : false;
+                        const isMember =
+                          selectedPoseId &&
+                          selectedPoseGroupPaths.includes(group.path);
+                        const isUnassigned =
+                          group.path === UNASSIGNED_POSE_GROUP_PATH;
                         return (
                           <TreeRow
                             key={group.id}
@@ -2072,7 +2154,7 @@ export function VariablesPanel({
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 px-2 text-[10px]"
-                                  disabled={!selectedPoseId}
+                                  disabled={!selectedPoseId || isUnassigned}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     handlePoseGroupMembershipToggle(group);
@@ -2080,9 +2162,11 @@ export function VariablesPanel({
                                   title={
                                     !selectedPoseId
                                       ? "Select a pose first"
-                                      : isMember
-                                        ? "Unassign selected pose"
-                                        : "Assign selected pose"
+                                      : isUnassigned
+                                        ? "Unassigned membership is derived from poses with no groups"
+                                        : isMember
+                                          ? "Unassign selected pose"
+                                          : "Assign selected pose"
                                   }
                                 >
                                   {isMember ? "Unassign" : "Assign"}

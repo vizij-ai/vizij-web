@@ -475,6 +475,51 @@ describe("usePoseRigAuthoring", () => {
     });
   });
 
+  it("preserves many-to-many memberships when adding/removing groups in hook actions", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Pose A");
+      result.current?.createPoseGroup("emotion/primary");
+      result.current?.createPoseGroup("viseme/main");
+    });
+
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBeTruthy();
+
+    act(() => {
+      if (poseId) {
+        result.current?.addPoseToGroup(poseId, "viseme/main");
+        result.current?.addPoseToGroup(poseId, "emotion/primary");
+        result.current?.addPoseToGroup(poseId, "emotion/primary");
+      }
+    });
+
+    const assigned = result.current?.poses.find((pose) => pose.id === poseId);
+    expect(assigned?.groupIds).toEqual(["emotion_primary", "viseme_main"]);
+    expect(assigned?.groupId).toBe("emotion_primary");
+    expect(assigned?.group).toBe("emotion/primary");
+    expect(result.current?.poseConfigDraft?.poses[0]?.groupIds).toEqual([
+      "emotion_primary",
+      "viseme_main",
+    ]);
+
+    act(() => {
+      if (poseId) {
+        result.current?.removePoseFromGroup(poseId, "emotion/primary");
+      }
+    });
+
+    const afterRemoval = result.current?.poses.find(
+      (pose) => pose.id === poseId,
+    );
+    expect(afterRemoval?.groupIds).toEqual(["viseme_main"]);
+    expect(afterRemoval?.groupId).toBe("viseme_main");
+    expect(afterRemoval?.group).toBe("viseme/main");
+    expect(result.current?.poseConfigDraft?.poses[0]?.groupIds).toEqual([
+      "viseme_main",
+    ]);
+  });
+
   it("reuses the same configured group identity across assign/unassign cycles", () => {
     const { result } = hook!;
     act(() => {

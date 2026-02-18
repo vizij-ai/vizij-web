@@ -158,6 +158,16 @@ function formatDraftNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value);
 }
 
+function normalizePoseMembershipPath(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
+}
+
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
   const [rigAddMode, setRigAddMode] = useState<"property" | "variable">(
@@ -224,6 +234,9 @@ export function InspectorContent() {
     removePoseInput,
     updatePoseName,
     updatePoseGroup,
+    addPoseToGroup,
+    removePoseFromGroup,
+    poseConfigDraft,
   } = usePoseRig();
 
   const {
@@ -870,6 +883,90 @@ export function InspectorContent() {
   if (inspectorMode === "pose" && selectedPoseId) {
     const pose = poses.find((p) => p.id === selectedPoseId);
     if (pose) {
+      const configuredPoseGroups = (poseConfigDraft?.poseGroups ?? [])
+        .map((group, index) => {
+          const path = normalizePoseMembershipPath(
+            group.path ?? group.name ?? group.id,
+          );
+          if (!path) {
+            return null;
+          }
+          return {
+            id: group.id,
+            path,
+            index,
+          };
+        })
+        .filter((group): group is { id: string; path: string; index: number } =>
+          Boolean(group),
+        );
+      const configuredPathOrder = new Map(
+        configuredPoseGroups.map((group) => [group.path, group.index]),
+      );
+      const configuredPathById = new Map(
+        configuredPoseGroups.map((group) => [group.id, group.path]),
+      );
+      const sortGroupPaths = (left: string, right: string) => {
+        const leftOrder = configuredPathOrder.get(left);
+        const rightOrder = configuredPathOrder.get(right);
+        if (leftOrder !== undefined && rightOrder !== undefined) {
+          return leftOrder - rightOrder;
+        }
+        if (leftOrder !== undefined) {
+          return -1;
+        }
+        if (rightOrder !== undefined) {
+          return 1;
+        }
+        return left.localeCompare(right);
+      };
+      const membershipPaths = (() => {
+        const paths = new Set<string>();
+        const addPath = (rawPath: string | null | undefined) => {
+          const normalized = normalizePoseMembershipPath(rawPath);
+          if (!normalized) {
+            return;
+          }
+          paths.add(normalized);
+        };
+        const addById = (groupId: string | null | undefined) => {
+          const trimmed = groupId?.trim();
+          if (!trimmed) {
+            return;
+          }
+          const configuredPath = configuredPathById.get(trimmed);
+          if (configuredPath) {
+            paths.add(configuredPath);
+            return;
+          }
+          addPath(trimmed);
+        };
+
+        pose.groupIds?.forEach((groupId) => {
+          addById(groupId);
+        });
+        addById(pose.groupId);
+        addPath(pose.group);
+        return Array.from(paths).sort(sortGroupPaths);
+      })();
+
+      const handlePromptAddPoseGroupMembership = () => {
+        const response = promptDialog("Add pose to group", "");
+        if (response === null) {
+          return;
+        }
+        const normalized = normalizePoseMembershipPath(response);
+        if (!normalized) {
+          alertDialog("Group path cannot be empty.");
+          return;
+        }
+        if (membershipPaths.includes(normalized)) {
+          alertDialog(`Pose already belongs to "${normalized}".`);
+          return;
+        }
+        addPoseToGroup(pose.id, normalized);
+      };
+
       // Grouping Logic for Pose
       const groupedVariables = (() => {
         const targetToFeature: Record<
@@ -1093,6 +1190,70 @@ export function InspectorContent() {
             onNameChange={(name) => updatePoseName(pose.id, name)}
             onPathChange={(group) => updatePoseGroup(pose.id, group)}
           />
+          <div className="flex flex-col gap-2 px-1 py-2 rounded border border-border-default/60 bg-bg-panel/30">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-text-secondary">
+                Pose Groups
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={handlePromptAddPoseGroupMembership}
+              >
+                <Plus size={11} />
+                Add Group
+              </Button>
+            </div>
+            {membershipPaths.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {membershipPaths.map((groupPath) => (
+                  <span
+                    key={groupPath}
+                    className="inline-flex items-center gap-1 text-[10px] font-mono border border-border-default/60 rounded px-1.5 py-0.5 text-text-muted"
+                  >
+                    {groupPath}
+                    <button
+                      type="button"
+                      className="h-4 w-4 inline-flex items-center justify-center rounded hover:bg-bg-hover hover:text-text-primary"
+                      title={`Remove pose from "${groupPath}"`}
+                      onClick={() => removePoseFromGroup(pose.id, groupPath)}
+                    >
+                      <Trash2 size={9} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[10px] text-text-muted font-mono">
+                Unassigned
+              </div>
+            )}
+            {configuredPoseGroups.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                {configuredPoseGroups.map((group) => {
+                  const isAssigned = membershipPaths.includes(group.path);
+                  return (
+                    <Button
+                      key={group.path}
+                      variant={isAssigned ? "subtle" : "ghost"}
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      disabled={isAssigned}
+                      onClick={() => addPoseToGroup(pose.id, group.path)}
+                      title={
+                        isAssigned
+                          ? `Already assigned to "${group.path}"`
+                          : `Assign to "${group.path}"`
+                      }
+                    >
+                      {group.path}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {renderChainPath()}
           {renderAuthoringStatus()}
           <RiggingPropertyRow

@@ -164,6 +164,44 @@ describe("PoseRigStore", () => {
     expect(unassigned?.groupIds).toEqual([]);
   });
 
+  it("adds and removes multi-group memberships independently", () => {
+    const store = createPoseRigStore();
+    store.getState().createPose("Smile");
+    store.getState().createPoseGroup("emotion/main");
+    store.getState().createPoseGroup("viseme/main");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBe("pose_smile");
+
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().addPoseToGroup(poseId, "emotion/main");
+    store.getState().addPoseToGroup(poseId, "emotion/main");
+    store.getState().addPoseToGroup(poseId, "viseme/main");
+
+    const assigned = store.getState().poses.find((pose) => pose.id === poseId);
+    expect(assigned?.groupIds).toEqual(["emotion_main", "viseme_main"]);
+    expect(assigned?.groupId).toBe("emotion_main");
+    expect(assigned?.group).toBe("emotion/main");
+
+    store.getState().removePoseFromGroup(poseId, "emotion/main");
+    const afterFirstRemoval = store
+      .getState()
+      .poses.find((pose) => pose.id === poseId);
+    expect(afterFirstRemoval?.groupIds).toEqual(["viseme_main"]);
+    expect(afterFirstRemoval?.groupId).toBe("viseme_main");
+    expect(afterFirstRemoval?.group).toBe("viseme/main");
+
+    store.getState().removePoseFromGroup(poseId, "viseme/main");
+    const afterSecondRemoval = store
+      .getState()
+      .poses.find((pose) => pose.id === poseId);
+    expect(afterSecondRemoval?.groupIds).toEqual([]);
+    expect(afterSecondRemoval?.groupId).toBeNull();
+    expect(afterSecondRemoval?.group).toBeNull();
+  });
+
   it("migrates legacy group fields into canonical membership on import", () => {
     const store = createPoseRigStore();
     const config: PoseRigConfigFile = {

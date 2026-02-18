@@ -586,7 +586,7 @@ Implementation (2026-02-18):
    - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
    - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B4.2 Many-to-Many Pose Membership Authoring
+### [x] B4.2 Many-to-Many Pose Membership Authoring
 
 Intent:
 Allow a pose to be included in multiple groups.
@@ -608,6 +608,30 @@ Acceptance checks:
 
 Dependencies:
 `B4.1`.
+
+Implementation (2026-02-18):
+
+1. Extended pose-group membership actions in `src/poseRig/store.tsx` and `src/poseRig/usePoseRigAuthoring.ts` for explicit many-to-many assignment/unassignment:
+   - added `addPoseToGroup` and `removePoseFromGroup` actions (plus hook exports),
+   - preserved existing memberships when adding/removing one group,
+   - enforced deduplication and deterministic `groupIds` ordering while keeping `group`/`groupId` derived from primary membership.
+2. Updated group-context membership UX in `src/components/panels/VariablesPanel.tsx`:
+   - pose-group rows now resolve membership from canonical `groupIds`,
+   - assign/unassign toggles now call many-to-many add/remove actions without collapsing other memberships,
+   - selected-pose banner now renders the full membership list.
+3. Updated pose-context membership UX in `src/components/inspector/InspectorContent.tsx`:
+   - added pose membership section with explicit list/chips for all assigned groups,
+   - added add/remove controls (prompt + quick configured-group assignment buttons),
+   - added duplicate guardrail messaging for already-assigned groups.
+4. Added regression coverage for many-to-many membership behavior and visualization:
+   - `src/poseRig/store.test.ts`,
+   - `src/poseRig/usePoseRigAuthoring.test.tsx`,
+   - `src/components/panels/VariablesPanel.test.tsx`.
+5. Validation evidence:
+   - `2026-02-18 09:53:33Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 09:53:43Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 282 tests).
+   - `2026-02-18 09:54:00Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 09:54:07Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B4.3 Compiler and IO Support for Shared Poses
 

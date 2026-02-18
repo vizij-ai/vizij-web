@@ -14,6 +14,8 @@ const poseRigState = {
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
   deletePose: vi.fn(),
+  addPoseToGroup: vi.fn(),
+  removePoseFromGroup: vi.fn(),
   updatePoseGroup: vi.fn(),
   setCrossGroupBlendMode: vi.fn(),
   crossGroupBlendMode: "additive" as const,
@@ -112,6 +114,8 @@ describe("VariablesPanel", () => {
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
     poseRigState.deletePose.mockReset();
+    poseRigState.addPoseToGroup.mockReset();
+    poseRigState.removePoseFromGroup.mockReset();
     poseRigState.updatePoseGroup.mockReset();
     poseRigState.setCrossGroupBlendMode.mockReset();
     poseRigState.poseConfigDraft = null;
@@ -459,6 +463,11 @@ describe("VariablesPanel", () => {
           name: "Emotion",
           path: "emotion",
         },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+        },
       ],
     };
     poseRigState.poses = [
@@ -466,7 +475,9 @@ describe("VariablesPanel", () => {
         id: "pose_smile",
         name: "Smile",
         description: "",
-        group: null,
+        group: "viseme",
+        groupId: "viseme",
+        groupIds: ["viseme"],
         values: {},
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z",
@@ -483,17 +494,18 @@ describe("VariablesPanel", () => {
     fireEvent.click(
       within(assignView.container).getByRole("button", { name: "Assign" }),
     );
-    expect(poseRigState.updatePoseGroup).toHaveBeenCalledWith(
+    expect(poseRigState.addPoseToGroup).toHaveBeenCalledWith(
       "pose_smile",
       "emotion",
     );
 
-    poseRigState.updatePoseGroup.mockReset();
+    poseRigState.addPoseToGroup.mockReset();
     poseRigState.poses = [
       {
         ...poseRigState.poses[0]!,
         group: "emotion",
         groupId: "emotion",
+        groupIds: ["emotion"],
       },
     ];
 
@@ -507,10 +519,65 @@ describe("VariablesPanel", () => {
     fireEvent.click(
       within(unassignView.container).getByRole("button", { name: "Unassign" }),
     );
-    expect(poseRigState.updatePoseGroup).toHaveBeenCalledWith(
+    expect(poseRigState.removePoseFromGroup).toHaveBeenCalledWith(
       "pose_smile",
-      null,
+      "emotion",
     );
+  });
+
+  it("shows full selected-pose membership list on pose-groups surface", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+        },
+      ],
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: "emotion",
+        groupId: "emotion",
+        groupIds: ["emotion", "viseme"],
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        selectedPoseId="pose_smile"
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+
+    expect(
+      within(view.container).getByText("Selected pose: Smile"),
+    ).toBeTruthy();
+    expect(
+      within(view.container).getAllByText("emotion").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(view.container).getAllByText("viseme").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(view.container).getAllByRole("button", { name: "Unassign" }),
+    ).toHaveLength(2);
   });
 
   it("clears stale pose-group selection when the backing group no longer exists", () => {
