@@ -61,6 +61,10 @@ import {
   resolveRigDrivenSelection,
 } from "./inspectorActions";
 import { resolveControllableInputId } from "./bindingSlotResolution";
+import {
+  computePoseContributionSemantics,
+  formatContributionStrength,
+} from "./poseContributionSemantics";
 
 type PoseVariableItem =
   | {
@@ -1022,12 +1026,22 @@ export function InspectorContent() {
         return 0;
       };
 
-      const resolvePoseInputValue = (varId: string): number => {
+      const resolvePoseAppliedValue = (varId: string): number => {
+        // Runtime-authoritative path: staged runtime/autorig input value with neutral fallback.
         const staged = inputValues[varId];
         if (typeof staged === "number" && Number.isFinite(staged)) {
           return staged;
         }
         return resolvePoseNeutralValue(varId);
+      };
+
+      const poseSemanticTooltips = {
+        target:
+          "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
+        applied:
+          "Current/Applied Value: runtime/autorig-authoritative value currently applied to this rig input.",
+        contribution:
+          "Contribution Strength: (Current/Applied - Neutral) / (Target - Neutral). Can be below 0% or above 100% when runtime values overshoot.",
       };
 
       const handleBlend = (amount: number) => {
@@ -1057,8 +1071,7 @@ export function InspectorContent() {
           {renderChainPath()}
           {renderAuthoringStatus()}
           <RiggingPropertyRow
-            label="Current Value"
-            defaultLabel="Pose Target"
+            label="Contribution Strength"
             onScrub={(_, totalDelta) => {
               // Blend based on delta (assuming 100px = 100% blend)
               const newAmount = Math.max(
@@ -1077,6 +1090,12 @@ export function InspectorContent() {
                   className="flex-1"
                   onChange={(val) => handleBlend(val as number)}
                 />
+                <span
+                  className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                  title={poseSemanticTooltips.contribution}
+                >
+                  Contrib
+                </span>
                 <div className="inspector-numeric-control flex-shrink-0">
                   <Input
                     size="sm"
@@ -1100,6 +1119,32 @@ export function InspectorContent() {
               </div>
             )}
           />
+          <div className="flex items-start gap-2 px-1 py-1 rounded border border-border-default/50 bg-bg-panel/30">
+            <Info size={11} className="mt-0.5 text-text-secondary shrink-0" />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[9px] uppercase tracking-wider font-bold text-text-secondary">
+                Legend
+              </span>
+              <span
+                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+                title={poseSemanticTooltips.target}
+              >
+                Target Value
+              </span>
+              <span
+                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+                title={poseSemanticTooltips.applied}
+              >
+                Current/Applied
+              </span>
+              <span
+                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+                title={poseSemanticTooltips.contribution}
+              >
+                Contribution Strength
+              </span>
+            </div>
+          </div>
           <div className="flex items-center gap-2 px-1 mb-2">
             <div className="h-px bg-border-default flex-1" />
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
@@ -1139,8 +1184,19 @@ export function InspectorContent() {
                       const label = cleanLabel(rawLabel, group.label);
                       const min = inputDef?.range?.min ?? -1;
                       const max = inputDef?.range?.max ?? 1;
-                      const liveVal = resolvePoseInputValue(varId);
-                      const isDifferent = Math.abs(liveVal - poseVal) > 0.001;
+                      const appliedVal = resolvePoseAppliedValue(varId);
+                      const neutralVal = resolvePoseNeutralValue(varId);
+                      const contributionSemantics =
+                        computePoseContributionSemantics({
+                          targetValue: poseVal,
+                          appliedValue: appliedVal,
+                          neutralValue: neutralVal,
+                        });
+                      const contributionLabel = formatContributionStrength(
+                        contributionSemantics.contributionStrength,
+                      );
+                      const isDifferent =
+                        Math.abs(appliedVal - poseVal) > 0.001;
                       const canInspectVariable = standardInputsById.has(varId);
                       const chainSummary =
                         item.drivenVariableCount > 0 ||
@@ -1152,7 +1208,7 @@ export function InspectorContent() {
                         <RiggingPropertyRow
                           key={varId}
                           label={label}
-                          defaultLabel="Pose Target"
+                          defaultLabel="Target Value"
                           hasDifferentDefault={isDifferent}
                           onResetToDefault={() =>
                             handleInputValueChange(varId, poseVal)
@@ -1161,18 +1217,18 @@ export function InspectorContent() {
                             updatePoseValue(
                               pose.id,
                               varId,
-                              resolvePoseInputValue(varId),
+                              resolvePoseAppliedValue(varId),
                             )
                           }
                           onScrubStart={() => {
                             scrubValuesRef.current[varId] =
-                              resolvePoseInputValue(varId);
+                              resolvePoseAppliedValue(varId);
                           }}
-                          onScrub={(delta, totalDelta) => {
+                          onScrub={(_, totalDelta) => {
                             const step = 0.01;
                             const startVal =
                               scrubValuesRef.current[varId] ??
-                              resolvePoseInputValue(varId);
+                              resolvePoseAppliedValue(varId);
                             handleInputValueChange(
                               varId,
                               startVal + totalDelta * step,
@@ -1184,16 +1240,22 @@ export function InspectorContent() {
                                 min={min}
                                 max={max}
                                 step={0.01}
-                                value={liveVal}
+                                value={appliedVal}
                                 className="flex-1"
                                 onChange={(val) =>
                                   handleInputValueChange(varId, val as number)
                                 }
                               />
+                              <span
+                                className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                                title={poseSemanticTooltips.applied}
+                              >
+                                Applied
+                              </span>
                               <div className="inspector-numeric-control flex-shrink-0">
                                 <NumberField
                                   size="sm"
-                                  value={liveVal} // Assuming liveVal is number, need check
+                                  value={appliedVal}
                                   className={cn(
                                     "w-full bg-bg-input/80 border-border-default/80 text-right font-mono",
                                     isDifferent
@@ -1205,6 +1267,18 @@ export function InspectorContent() {
                                   }
                                 />
                               </div>
+                              <span
+                                className={cn(
+                                  "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
+                                  contributionSemantics.contributionStrength ===
+                                    null
+                                    ? "text-text-muted border-border-default/50"
+                                    : "text-accent border-accent/40 bg-accent/10",
+                                )}
+                                title={poseSemanticTooltips.contribution}
+                              >
+                                Contrib {contributionLabel}
+                              </span>
                               {chainSummary && (
                                 <span className="text-[9px] text-text-muted font-mono whitespace-nowrap">
                                   {chainSummary}
@@ -1243,7 +1317,7 @@ export function InspectorContent() {
                           renderDefaultInput={() => (
                             <div className="flex items-center gap-2 flex-1 group/row">
                               <ScrubbableLabel
-                                onScrub={(delta, totalDelta) => {
+                                onScrub={(_, totalDelta) => {
                                   const step = 0.01;
                                   const startVal =
                                     scrubValuesRef.current[varId] ?? 0;
@@ -1260,6 +1334,7 @@ export function InspectorContent() {
                                   size="sm"
                                   type="text"
                                   value={poseVal.toFixed(2)}
+                                  title={poseSemanticTooltips.target}
                                   className="border-none text-right font-mono text-[10px] text-text-muted cursor-ew-resize bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
                                   onChange={(e) => {
                                     const v = parseFloat(e.target.value);
@@ -1292,9 +1367,34 @@ export function InspectorContent() {
                       const b = item.components.find((c) => c.channel === "b");
                       const isDifferent = item.components.some(
                         (c) =>
-                          Math.abs(resolvePoseInputValue(c.varId) - c.poseVal) >
-                          0.001,
+                          Math.abs(
+                            resolvePoseAppliedValue(c.varId) - c.poseVal,
+                          ) > 0.001,
                       );
+                      const colorContributionLabel = [
+                        { channel: "R", component: r },
+                        { channel: "G", component: g },
+                        { channel: "B", component: b },
+                      ]
+                        .map(({ channel, component }) => {
+                          if (!component) {
+                            return null;
+                          }
+                          const semantics = computePoseContributionSemantics({
+                            targetValue: component.poseVal,
+                            appliedValue: resolvePoseAppliedValue(
+                              component.varId,
+                            ),
+                            neutralValue: resolvePoseNeutralValue(
+                              component.varId,
+                            ),
+                          });
+                          return `${channel} ${formatContributionStrength(
+                            semantics.contributionStrength,
+                          )}`;
+                        })
+                        .filter((value): value is string => value !== null)
+                        .join(" · ");
 
                       const handleBulkChange = (
                         isPose: boolean,
@@ -1326,22 +1426,32 @@ export function InspectorContent() {
                         const curR = isPoseValue
                           ? (r?.poseVal ?? 0)
                           : r?.varId
-                            ? resolvePoseInputValue(r.varId)
+                            ? resolvePoseAppliedValue(r.varId)
                             : 0;
                         const curG = isPoseValue
                           ? (g?.poseVal ?? 0)
                           : g?.varId
-                            ? resolvePoseInputValue(g.varId)
+                            ? resolvePoseAppliedValue(g.varId)
                             : 0;
                         const curB = isPoseValue
                           ? (b?.poseVal ?? 0)
                           : b?.varId
-                            ? resolvePoseInputValue(b.varId)
+                            ? resolvePoseAppliedValue(b.varId)
                             : 0;
                         const hex = rgbToHex(curR, curG, curB);
 
                         return (
                           <div className="flex items-center gap-2 flex-1 group/row">
+                            <span
+                              className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                              title={
+                                isPoseValue
+                                  ? poseSemanticTooltips.target
+                                  : poseSemanticTooltips.applied
+                              }
+                            >
+                              {isPoseValue ? "Target" : "Applied"}
+                            </span>
                             <BasePopover.Root>
                               <BasePopover.Trigger
                                 className="w-8 h-4 rounded border border-border-default shadow-sm transition-transform hover:scale-105"
@@ -1384,12 +1494,12 @@ export function InspectorContent() {
                                 >
                                   <ScrubbableLabel
                                     label={ch}
-                                    onScrub={(delta, totalDelta) => {
+                                    onScrub={(_, totalDelta) => {
                                       if (c?.varId) {
                                         const step = 0.01;
                                         const startVal =
                                           scrubValuesRef.current[c.varId] ??
-                                          resolvePoseInputValue(c.varId);
+                                          resolvePoseAppliedValue(c.varId);
                                         const nextVal =
                                           startVal + totalDelta * step;
                                         if (isPoseValue) {
@@ -1413,7 +1523,7 @@ export function InspectorContent() {
                                       if (c?.varId) {
                                         const baseline = isPoseValue
                                           ? c.poseVal
-                                          : resolvePoseInputValue(c.varId);
+                                          : resolvePoseAppliedValue(c.varId);
                                         scrubValuesRef.current[c.varId] =
                                           baseline;
                                       }
@@ -1433,7 +1543,7 @@ export function InspectorContent() {
                                     value={(isPoseValue
                                       ? (c?.poseVal ?? 0)
                                       : c?.varId
-                                        ? resolvePoseInputValue(c.varId)
+                                        ? resolvePoseAppliedValue(c.varId)
                                         : 0
                                     ).toFixed(2)}
                                     className="border-none text-right font-mono text-[9px] text-text-primary bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
@@ -1451,6 +1561,14 @@ export function InspectorContent() {
                                 </div>
                               ))}
                             </div>
+                            {!isPoseValue && colorContributionLabel && (
+                              <span
+                                className="text-[9px] font-mono whitespace-nowrap rounded border border-accent/40 bg-accent/10 text-accent px-1 py-0.5"
+                                title={poseSemanticTooltips.contribution}
+                              >
+                                Contrib {colorContributionLabel}
+                              </span>
+                            )}
                             {isPoseValue && (
                               <div className="flex gap-0.5 ml-1">
                                 <Button
@@ -1476,7 +1594,7 @@ export function InspectorContent() {
                         <RiggingPropertyRow
                           key={`color - ${item.featureId} -${idx} `}
                           label={item.label}
-                          defaultLabel="Pose Target"
+                          defaultLabel="Target Value"
                           hasDifferentDefault={isDifferent}
                           onResetToDefault={() =>
                             item.components.forEach((c) =>
@@ -1488,7 +1606,7 @@ export function InspectorContent() {
                               updatePoseValue(
                                 pose.id,
                                 c.varId,
-                                resolvePoseInputValue(c.varId),
+                                resolvePoseAppliedValue(c.varId),
                               ),
                             )
                           }

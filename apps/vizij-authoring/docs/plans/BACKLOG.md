@@ -166,7 +166,7 @@ Completion notes (2026-02-18 06:37:14Z):
    - `2026-02-18 06:36:56Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 51 files / 225 tests).
    - `2026-02-18 06:37:14Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 16 warnings).
 
-### [ ] B1.3 Pose Inspector Value Semantics
+### [x] B1.3 Pose Inspector Value Semantics
 
 Intent:
 Make pose contribution state explicit and understandable.
@@ -188,6 +188,20 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 06:46:57Z):
+
+1. Added `src/components/inspector/poseContributionSemantics.ts` and unit tests in `src/components/inspector/poseContributionSemantics.test.ts` to compute explicit contribution semantics from target/applied/neutral values.
+2. Updated pose mode rendering in `src/components/inspector/InspectorContent.tsx` to:
+   - Preserve runtime-authoritative current/applied value sourcing through `resolvePoseAppliedValue` (`inputValues` staged runtime/autorig path with neutral fallback).
+   - Rename ambiguous labels to explicit semantics (`Target Value`, `Current/Applied`, `Contribution Strength`).
+   - Add a pose legend and semantic tooltips clarifying each value meaning.
+   - Display contribution strength badges for scalar and color pose-controlled targets.
+3. Added `src/components/inspector/poseInspectorSemanticsContracts.test.ts` to lock semantic label/runtime-path contracts.
+4. Validation evidence:
+   - `2026-02-18 06:46:10Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 06:46:45Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 53 files / 232 tests).
+   - `2026-02-18 06:46:57Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 16 warnings).
 
 ### [ ] B1.4 Face Inspector Truthfulness and Lock Semantics
 

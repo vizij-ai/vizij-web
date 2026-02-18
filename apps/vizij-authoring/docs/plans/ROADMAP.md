@@ -45,12 +45,14 @@ Exit gate:
 2. Users can distinguish target/current/contribution values.
 3. Locking behavior is per autorig channel.
 
-Stage 1 progress (2026-02-18 06:37:14Z):
+Stage 1 progress (2026-02-18 06:46:57Z):
 
 1. `B1.1` complete; inspector numeric rows now enforce `88px` minimum numeric width, `32px` minimum row hit target height, and flexible wrapping to avoid clipping at common panel widths.
 2. `B1.2` complete; left sidebar now keeps Hierarchy separate and consolidates variable-related panes into one `VariablesPanel` with deterministic surface ordering (`variables` -> `poses` -> `pose-groups` via materials toggle -> `inputs`), plus active-surface-only tree filtering.
 3. Validation evidence for `B1.2`: `2026-02-18 06:36:42Z` (`typecheck` pass), `2026-02-18 06:36:56Z` (`test` pass), `2026-02-18 06:37:14Z` (`lint` pass, warnings only).
-4. `B1.3` and `B1.4` remain planned.
+4. `B1.3` complete; pose inspector now shows explicit `Target Value`, `Current/Applied`, and `Contribution Strength` semantics, with contribution computed via a dedicated helper and applied values sourced from the runtime/autorig-authoritative path.
+5. Validation evidence for `B1.3`: `2026-02-18 06:46:10Z` (`typecheck` pass), `2026-02-18 06:46:45Z` (`test` pass), `2026-02-18 06:46:57Z` (`lint` pass, warnings only).
+6. `B1.4` remains planned.
 
 ## Stage 2 — Authoring Lifecycle Completeness
 
