@@ -144,7 +144,7 @@ describe("Viewer", () => {
     expect(stepSpy).not.toHaveBeenCalled();
   });
 
-  it("updates rig/pose graphs via setGraphBundle", () => {
+  it("registers rig and pose graph payloads concurrently", () => {
     const store = createGraphRuntimeStore({
       graphSpec: { nodes: [] } as any,
       poseGraphSpec: { nodes: [] } as any,
@@ -170,7 +170,16 @@ describe("Viewer", () => {
       </GraphRuntimeStoreProvider>,
     );
 
-    expect(setGraphBundleSpy).toHaveBeenCalled();
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [] } },
+          config: { version: 1, neutralInputs: {}, poses: [] },
+        },
+      },
+      { tier: "graphs" },
+    );
   });
 
   it("emits add/update/remove graph bundle transitions", () => {
@@ -203,12 +212,13 @@ describe("Viewer", () => {
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
         pose: {
-          graph: undefined,
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
       { tier: "graphs" },
     );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
       store.setState({
@@ -227,6 +237,7 @@ describe("Viewer", () => {
       },
       { tier: "graphs" },
     );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
 
     act(() => {
       store.setState({
@@ -241,6 +252,7 @@ describe("Viewer", () => {
       },
       { tier: "graphs" },
     );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
   });
 
   it("registers pose graph only when rig graph is absent", () => {

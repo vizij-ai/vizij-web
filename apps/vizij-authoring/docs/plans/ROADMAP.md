@@ -94,11 +94,14 @@ Exit gate:
 2. Runtime controls include pose weights and rig inputs.
 3. Import converges legacy data safely and deterministically.
 
-Stage 3 progress (2026-02-18 09:01:00Z):
+Stage 3 progress (2026-02-18 09:12:48Z):
 
 1. `B3.1` complete; export flow now enforces runtime compatibility contract checks by auditing bundled graphs against compiled IR and runtime output target coverage before GLB export.
 2. Invalid exports now surface actionable diagnostics in export flow (mismatch type + failing graph/output path) and are blocked prior to `exportScene`.
 3. Validation evidence for `B3.1`: `2026-02-18 09:01:00Z` (`typecheck` pass), `2026-02-18 09:01:00Z` (`test` pass), `2026-02-18 09:01:00Z` (`lint` pass, warnings only), `2026-02-18 09:01:00Z` (`validate` pass).
+4. `B3.2` complete; runtime control surface now registers rig and pose graphs concurrently in `RuntimeGraphBridge`, removing previous coupling that dropped `poseGraphSpec` whenever `graphSpec` was present.
+5. `B3.2` regression coverage now asserts deterministic runtime bundle transitions and call sequencing for concurrent rig/pose updates in `Viewer.test.tsx`.
+6. Validation evidence for `B3.2`: `2026-02-18 09:12:48Z` (`typecheck` pass), `2026-02-18 09:12:48Z` (`test` pass), `2026-02-18 09:12:48Z` (`lint` pass, warnings only), `2026-02-18 09:12:48Z` (`validate` pass).
 
 ## Stage 4 — Pose/Group Model Evolution
 

@@ -52,23 +52,16 @@ function RuntimeGraphBridge() {
       poseConfig,
     };
 
-    // The rig graph and pose graph currently target the same rig input paths.
-    // Registering both causes pose outputs to overwrite manual low-level slider input.
-    // Keep pose config for export/metadata, but only register pose graph when rig graph is absent.
-    const includePoseGraph = !graphSpec && Boolean(poseGraphSpec);
-    const posePayload = graphSpec
+    const shouldIncludePosePayload =
+      Boolean(graphSpec) || Boolean(poseGraphSpec) || Boolean(poseConfig);
+    const posePayload = shouldIncludePosePayload
       ? {
-          graph: undefined,
+          graph: poseGraphSpec
+            ? { id: "pose", spec: poseGraphSpec }
+            : undefined,
           config: poseConfig ?? undefined,
         }
-      : poseGraphSpec || poseConfig
-        ? {
-            graph: includePoseGraph
-              ? { id: "pose", spec: poseGraphSpec }
-              : undefined,
-            config: poseConfig ?? undefined,
-          }
-        : undefined;
+      : undefined;
     const payload = {
       rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
       pose: posePayload,

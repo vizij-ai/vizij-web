@@ -458,7 +458,7 @@ Completion notes (2026-02-18 09:01:00Z):
    - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
    - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B3.2 Runtime Control Surface Completeness
+### [x] B3.2 Runtime Control Surface Completeness
 
 Intent:
 Expose pose-weight controls in runtime alongside rig inputs.
@@ -480,6 +480,17 @@ Acceptance checks:
 
 Dependencies:
 `B3.1`.
+
+Completion notes (2026-02-18 09:12:48Z):
+
+1. Updated runtime graph bundle wiring in `src/components/app/Viewer.tsx` (`RuntimeGraphBridge`) so `poseGraphSpec` is no longer dropped when `graphSpec` exists; runtime now registers rig and pose graphs concurrently when both are present.
+2. Preserved existing ref-based state guard behavior while keeping deterministic pose-payload transitions (`pose` payload remains explicitly present when rig graph is active to ensure clear add/update/remove sequencing).
+3. Updated `src/components/app/Viewer.test.tsx` to assert concurrent rig+pose registration and deterministic transition call counts for add/update/remove payload changes.
+4. Validation evidence:
+   - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 271 tests).
+   - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B3.3 Import Normalization and Autorig Retarget
 
