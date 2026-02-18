@@ -23,7 +23,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 15. `B4.2` is complete in this worktree with many-to-many pose membership authoring across pose/group contexts, duplicate-assignment guardrails, and deterministic membership ordering.
 16. `B4.3` is complete in this worktree with deterministic compile/import/export behavior for shared poses via canonical multi-group ordering and per-membership path resolution.
 17. `B5.1` is complete in this worktree with targeted heavy-surface binding selectors, active-surface-only tree filtering resolution, and deterministic perf contract coverage.
-18. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
+18. `B5.2` is complete in this worktree with shared canonical lookup indexes/caches for resolver + parent-driver paths and traversal index reuse for inspector chain navigation.
+19. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
 
 ## Validation Gate Status
 
@@ -50,6 +51,7 @@ Latest evidence:
 15. `2026-02-18 09:53:33Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 16. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 17. `2026-02-18 10:16:19Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+18. `2026-02-18 10:32:05Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 
 ### Lint
 
@@ -87,6 +89,8 @@ Latest evidence:
 28. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 29. `2026-02-18 10:16:56Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
 30. `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
+31. `2026-02-18 10:32:41Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+32. `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 
 ### Test
 
@@ -114,6 +118,8 @@ Latest evidence:
 18. `2026-02-18 10:16:34Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 59 files / 289 tests).
 19. `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 59 files / 289 tests).
 20. Residual known failures: none.
+21. `2026-02-18 10:32:19Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 60 files / 295 tests).
+22. `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 60 files / 295 tests).
 
 ## Backlog Status Board
 
@@ -137,7 +143,7 @@ Latest evidence:
 | B4.2 | done    | Completed 2026-02-18 09:54:07Z; many-to-many pose membership authoring + UI coverage        |
 | B4.3 | done    | Completed 2026-02-18 10:06:42Z; deterministic shared-pose compile + IO round-trip coverage  |
 | B5.1 | done    | Completed 2026-02-18 10:17:11Z; heavy panel selectors narrowed + active-surface filter path |
-| B5.2 | planned | Depends on B0                                                                               |
+| B5.2 | done    | Completed 2026-02-18 10:32:53Z; canonical lookup indexes + traversal hot-path index reuse   |
 | B5.3 | planned | Depends on B5.2                                                                             |
 
 ## Evidence Log
@@ -206,6 +212,10 @@ Latest evidence:
 62. `[2026-02-18 10:16:34Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 59 files / 289 tests)`
 63. `[2026-02-18 10:16:56Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
 64. `[2026-02-18 10:17:11Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
+65. `[2026-02-18 10:32:05Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
+66. `[2026-02-18 10:32:19Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 60 files / 295 tests)`
+67. `[2026-02-18 10:32:41Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
+68. `[2026-02-18 10:32:53Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
 
 ## Resolved and Archived Notes
 

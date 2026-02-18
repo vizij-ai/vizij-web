@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { AnimatableComponent } from "@vizij/utils";
-import {
-  normalizeStandardRigInputPath,
-  resolveStandardRigInputId,
-  stripStandardInputPathPrefix,
-  type StandardRigInput,
-} from "@vizij/utils";
+import { type StandardRigInput } from "@vizij/utils";
 import {
   addBindingSlot,
   bindingTargetFromComponent,
@@ -31,6 +26,7 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
+import { getStandardInputResolutionIndex } from "../utils/standardInputResolutionIndex";
 
 interface BindingManagerOptions {
   componentsById: Map<string, AnimatableComponent>;
@@ -564,36 +560,26 @@ export function useBindingManager(options: BindingManagerOptions) {
 
   const handleCreateParentDriverBinding = useCallback(
     (targetId: string, upstreamId: string) => {
-      const resolvedTargetId = resolveStandardRigInputId(
-        targetId,
+      const standardInputIndex = getStandardInputResolutionIndex(
         standardInputsByIdRef.current,
       );
-      const resolvedUpstreamId = resolveStandardRigInputId(
-        upstreamId,
-        standardInputsByIdRef.current,
+      const allInputIndex = getStandardInputResolutionIndex(
+        allStandardInputsRef.current,
       );
+      const resolvedTargetId = standardInputIndex.resolveCanonicalId(targetId);
+      const resolvedUpstreamId =
+        standardInputIndex.resolveCanonicalId(upstreamId);
       const upstreamInput =
         standardInputsByIdRef.current.get(resolvedUpstreamId) ??
         allStandardInputsRef.current.get(resolvedUpstreamId);
       if (!upstreamInput) {
         return;
       }
-      const resolvedTargetInput =
-        standardInputsByIdRef.current.get(resolvedTargetId) ??
-        allStandardInputsRef.current.get(resolvedTargetId);
-      const toComparablePath = (path: string | null | undefined): string =>
-        stripStandardInputPathPrefix(normalizeStandardRigInputPath(path ?? ""));
-      const targetPath = toComparablePath(resolvedTargetInput?.path ?? "");
-      const targetIds = new Set<string>([resolvedTargetId]);
-      if (targetPath && targetPath !== "/custom/input") {
-        allStandardInputsRef.current.forEach((candidate, candidateId) => {
-          if (
-            toComparablePath(candidate.path) === targetPath &&
-            candidateId !== resolvedTargetId
-          ) {
-            targetIds.add(candidateId);
-          }
-        });
+      const targetIds = new Set<string>(
+        allInputIndex.getEquivalentInputIds(resolvedTargetId),
+      );
+      if (!targetIds.has(resolvedTargetId)) {
+        targetIds.add(resolvedTargetId);
       }
       targetIds.forEach((candidateTargetId) => {
         updateInputBinding(

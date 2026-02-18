@@ -19,6 +19,7 @@ import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Chip } from "../ui";
 import {
   buildPoseRigFaceTrace,
+  buildPoseRigTraversalIndex,
   buildPoseRigTraversalPaths,
   findPoseRigTraversalNode,
   movePoseRigTraversalSelection,
@@ -114,25 +115,33 @@ export function BindingConnections({
       }),
     [standardInputsById, trace.targets],
   );
+  const traversalIndex = useMemo(
+    () => buildPoseRigTraversalIndex(traversalPaths),
+    [traversalPaths],
+  );
   const [traversalSelection, setTraversalSelection] =
     useState<PoseRigTraversalSelection | null>(() =>
-      resolvePoseRigTraversalSelection(traversalPaths, null),
+      resolvePoseRigTraversalSelection(traversalPaths, null, traversalIndex),
     );
   const activeTraversalPath = useMemo(() => {
     const resolved = resolvePoseRigTraversalSelection(
       traversalPaths,
       traversalSelection,
+      traversalIndex,
     );
     if (!resolved) {
       return null;
     }
-    return (
-      traversalPaths.find((path) => path.targetId === resolved.targetId) ?? null
-    );
-  }, [traversalPaths, traversalSelection]);
+    return traversalIndex.pathByTargetId.get(resolved.targetId) ?? null;
+  }, [traversalIndex, traversalPaths, traversalSelection]);
   const activeTraversalNode = useMemo(
-    () => findPoseRigTraversalNode(traversalPaths, traversalSelection),
-    [traversalPaths, traversalSelection],
+    () =>
+      findPoseRigTraversalNode(
+        traversalPaths,
+        traversalSelection,
+        traversalIndex,
+      ),
+    [traversalIndex, traversalPaths, traversalSelection],
   );
   const activeTraversalNodeIndex = useMemo(() => {
     if (!activeTraversalPath || !activeTraversalNode) {
@@ -326,9 +335,9 @@ export function BindingConnections({
 
   useEffect(() => {
     setTraversalSelection((current) =>
-      resolvePoseRigTraversalSelection(traversalPaths, current),
+      resolvePoseRigTraversalSelection(traversalPaths, current, traversalIndex),
     );
-  }, [traversalPaths]);
+  }, [traversalIndex, traversalPaths]);
 
   useEffect(() => {
     if (!traceFeedback) {
@@ -535,16 +544,18 @@ export function BindingConnections({
   const handleSetTraversalTarget = useCallback(
     (targetId: string) => {
       setTraversalSelection((current) => {
-        const targetPath = traversalPaths.find(
-          (path) => path.targetId === targetId,
-        );
+        const targetPath = traversalIndex.pathByTargetId.get(targetId);
         if (!targetPath) {
-          return resolvePoseRigTraversalSelection(traversalPaths, current);
+          return resolvePoseRigTraversalSelection(
+            traversalPaths,
+            current,
+            traversalIndex,
+          );
         }
         if (current) {
-          const matchingNode = targetPath.nodes.find(
-            (node) => node.id === current.nodeId,
-          );
+          const matchingNode = traversalIndex.nodeByTargetAndNodeId
+            .get(targetId)
+            ?.get(current.nodeId);
           if (matchingNode) {
             return {
               targetId,
@@ -564,7 +575,7 @@ export function BindingConnections({
           : null;
       });
     },
-    [traversalPaths],
+    [traversalIndex, traversalPaths],
   );
 
   const handleTraverseDirection = useCallback(
@@ -574,15 +585,20 @@ export function BindingConnections({
           traversalPaths,
           current,
           direction,
+          traversalIndex,
         );
-        const nextNode = findPoseRigTraversalNode(traversalPaths, next);
+        const nextNode = findPoseRigTraversalNode(
+          traversalPaths,
+          next,
+          traversalIndex,
+        );
         if (nextNode) {
           routeTraversalNode(nextNode);
         }
         return next;
       });
     },
-    [routeTraversalNode, traversalPaths],
+    [routeTraversalNode, traversalIndex, traversalPaths],
   );
 
   if (

@@ -3,10 +3,12 @@ import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
+  buildPoseRigTraversalIndex,
   buildPoseRigTraversalPaths,
   buildPoseRigFaceTrace,
   collectDirectDownstreamRigInputs,
   collectRigDependents,
+  findPoseRigTraversalNode,
   movePoseRigTraversalSelection,
   resolvePoseRigTraversalSelection,
   selectSafePoseRigTraceSuggestions,
@@ -758,5 +760,37 @@ describe("pose rig traversal helpers", () => {
 
     const resolved = resolvePoseRigTraversalSelection(refreshed, rigSelection);
     expect(resolved).toEqual(rigSelection);
+  });
+
+  it("uses traversal index lookups without rescanning path arrays", () => {
+    const traversalIndex = buildPoseRigTraversalIndex(traversalPaths);
+    const protectedPaths = new Proxy(traversalPaths, {
+      get(target, property, receiver) {
+        if (property === "find") {
+          throw new Error("unexpected array scan");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const initial = resolvePoseRigTraversalSelection(
+      protectedPaths as typeof traversalPaths,
+      null,
+      traversalIndex,
+    );
+    const next = movePoseRigTraversalSelection(
+      protectedPaths as typeof traversalPaths,
+      initial,
+      "upstream",
+      traversalIndex,
+    );
+    const nextNode = findPoseRigTraversalNode(
+      protectedPaths as typeof traversalPaths,
+      next,
+      traversalIndex,
+    );
+
+    expect(initial?.nodeId).toContain("animatable:");
+    expect(next?.nodeId).toContain("autorig:");
+    expect(nextNode?.kind).toBe("autorig");
   });
 });

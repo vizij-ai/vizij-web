@@ -4,10 +4,8 @@ import type {
   InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
-import {
-  isAutorigStandardInputPath,
-  resolveRigMetadataInputId,
-} from "../../utils/rigElementInputs";
+import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
+import { getStandardInputResolutionIndex } from "../../utils/standardInputResolutionIndex";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 
@@ -86,6 +84,13 @@ export interface PoseRigTraversalPath {
 export interface PoseRigTraversalSelection {
   targetId: string;
   nodeId: string;
+}
+
+export interface PoseRigTraversalIndex {
+  firstPath: PoseRigTraversalPath | null;
+  pathByTargetId: Map<string, PoseRigTraversalPath>;
+  nodeByTargetAndNodeId: Map<string, Map<string, PoseRigTraversalNode>>;
+  firstPathByNodeId: Map<string, PoseRigTraversalPath>;
 }
 
 export type PoseRigTraceSuggestion =
@@ -175,31 +180,30 @@ function collectBindingInputIds(binding: AnimatableBinding): string[] {
   return Array.from(ids);
 }
 
-function resolveRigGraphId(
+function createCanonicalRigIdMatcher(
   selectedRigId: string,
-  standardInputsById: Map<string, StandardRigInput>,
-): string {
-  return resolveRigMetadataInputId(selectedRigId, standardInputsById);
-}
-
-function isRigGraphIdMatch(
-  candidateId: string,
-  selectedRigId: string,
-  standardInputsById: Map<string, StandardRigInput>,
-): boolean {
-  const canonicalSelected = resolveRigGraphId(
-    selectedRigId,
-    standardInputsById,
-  );
-  if (!canonicalSelected) {
-    return false;
+  standardInputsById?: Map<string, StandardRigInput>,
+): {
+  canonicalSelectedRigId: string;
+  isMatch: (candidateId: string) => boolean;
+} {
+  if (!standardInputsById) {
+    return {
+      canonicalSelectedRigId: selectedRigId,
+      isMatch: (candidateId: string) => candidateId === selectedRigId,
+    };
   }
-  if (candidateId === selectedRigId || candidateId === canonicalSelected) {
-    return true;
-  }
-  return (
-    resolveRigGraphId(candidateId, standardInputsById) === canonicalSelected
-  );
+  const resolutionIndex = getStandardInputResolutionIndex(standardInputsById);
+  const canonicalSelectedRigId =
+    resolutionIndex.resolveCanonicalId(selectedRigId);
+  return {
+    canonicalSelectedRigId,
+    isMatch: (candidateId: string) =>
+      candidateId === selectedRigId ||
+      candidateId === canonicalSelectedRigId ||
+      resolutionIndex.resolveCanonicalId(candidateId) ===
+        canonicalSelectedRigId,
+  };
 }
 
 export function collectDownstreamRigInputIds(
@@ -207,9 +211,10 @@ export function collectDownstreamRigInputIds(
   inputBindings: InputBindingMap,
   standardInputsById?: Map<string, StandardRigInput>,
 ): Set<string> {
-  const canonicalSelectedRigId = standardInputsById
-    ? resolveRigGraphId(selectedRigId, standardInputsById)
-    : selectedRigId;
+  const { canonicalSelectedRigId, isMatch } = createCanonicalRigIdMatcher(
+    selectedRigId,
+    standardInputsById,
+  );
   const downstream = new Set<string>(
     canonicalSelectedRigId ? [canonicalSelectedRigId] : [selectedRigId],
   );
@@ -220,15 +225,7 @@ export function collectDownstreamRigInputIds(
     Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
       const bindingInputIds = collectBindingInputIds(binding);
       const dependsOnDownstream = bindingInputIds.some(
-        (inputId) =>
-          downstream.has(inputId) ||
-          (standardInputsById
-            ? isRigGraphIdMatch(
-                inputId,
-                canonicalSelectedRigId,
-                standardInputsById,
-              )
-            : false),
+        (inputId) => downstream.has(inputId) || isMatch(inputId),
       );
       if (dependsOnDownstream && !downstream.has(targetInputId)) {
         downstream.add(targetInputId);
@@ -252,17 +249,14 @@ export function collectDirectDownstreamRigInputs(params: {
     standardInputsById,
     includeAutorig = false,
   } = params;
-  const canonicalSelectedRigId = resolveRigGraphId(
+  const { canonicalSelectedRigId, isMatch } = createCanonicalRigIdMatcher(
     selectedRigId,
     standardInputsById,
   );
   const results = new Map<string, DirectRigInputDependent>();
-  const isMatch = (candidateId: string) => {
-    if (!canonicalSelectedRigId) {
-      return candidateId === selectedRigId;
-    }
-    return isRigGraphIdMatch(candidateId, selectedRigId, standardInputsById);
-  };
+  if (!canonicalSelectedRigId) {
+    return [];
+  }
 
   Object.entries(inputBindings).forEach(([targetInputId, binding]) => {
     if (isMatch(targetInputId)) {
@@ -913,51 +907,82 @@ export function buildPoseRigTraversalPaths(params: {
 function findTraversalPath(
   paths: PoseRigTraversalPath[],
   selection: PoseRigTraversalSelection | null,
+  traversalIndex?: PoseRigTraversalIndex,
 ): PoseRigTraversalPath | null {
-  if (paths.length === 0) {
+  const index = traversalIndex ?? buildPoseRigTraversalIndex(paths);
+  if (!index.firstPath) {
     return null;
   }
   if (!selection) {
-    return paths[0] ?? null;
+    return index.firstPath;
   }
-  return (
-    paths.find((path) => path.targetId === selection.targetId) ??
-    paths[0] ??
-    null
-  );
+  return index.pathByTargetId.get(selection.targetId) ?? index.firstPath;
+}
+
+export function buildPoseRigTraversalIndex(
+  paths: PoseRigTraversalPath[],
+): PoseRigTraversalIndex {
+  const pathByTargetId = new Map<string, PoseRigTraversalPath>();
+  const nodeByTargetAndNodeId = new Map<
+    string,
+    Map<string, PoseRigTraversalNode>
+  >();
+  const firstPathByNodeId = new Map<string, PoseRigTraversalPath>();
+
+  paths.forEach((path) => {
+    pathByTargetId.set(path.targetId, path);
+    const nodeLookup = new Map<string, PoseRigTraversalNode>();
+    path.nodes.forEach((node) => {
+      nodeLookup.set(node.id, node);
+      if (!firstPathByNodeId.has(node.id)) {
+        firstPathByNodeId.set(node.id, path);
+      }
+    });
+    nodeByTargetAndNodeId.set(path.targetId, nodeLookup);
+  });
+
+  return {
+    firstPath: paths[0] ?? null,
+    pathByTargetId,
+    nodeByTargetAndNodeId,
+    firstPathByNodeId,
+  };
 }
 
 export function findPoseRigTraversalNode(
   paths: PoseRigTraversalPath[],
   selection: PoseRigTraversalSelection | null,
+  traversalIndex?: PoseRigTraversalIndex,
 ): PoseRigTraversalNode | null {
   if (!selection) {
     return null;
   }
-  const path = paths.find(
-    (candidate) => candidate.targetId === selection.targetId,
+  const index = traversalIndex ?? buildPoseRigTraversalIndex(paths);
+  return (
+    index.nodeByTargetAndNodeId
+      .get(selection.targetId)
+      ?.get(selection.nodeId) ?? null
   );
-  if (!path) {
-    return null;
-  }
-  return path.nodes.find((node) => node.id === selection.nodeId) ?? null;
 }
 
 export function resolvePoseRigTraversalSelection(
   paths: PoseRigTraversalPath[],
   previous: PoseRigTraversalSelection | null,
+  traversalIndex?: PoseRigTraversalIndex,
 ): PoseRigTraversalSelection | null {
-  if (paths.length === 0) {
+  const index = traversalIndex ?? buildPoseRigTraversalIndex(paths);
+  if (!index.firstPath) {
     return null;
   }
   if (previous) {
-    const exactPath = paths.find((path) => path.targetId === previous.targetId);
-    if (exactPath?.nodes.some((node) => node.id === previous.nodeId)) {
+    const exactPath = index.pathByTargetId.get(previous.targetId);
+    const exactNodeLookup = exactPath
+      ? index.nodeByTargetAndNodeId.get(exactPath.targetId)
+      : null;
+    if (exactNodeLookup?.has(previous.nodeId)) {
       return previous;
     }
-    const pathWithNode = paths.find((path) =>
-      path.nodes.some((node) => node.id === previous.nodeId),
-    );
+    const pathWithNode = index.firstPathByNodeId.get(previous.nodeId);
     if (pathWithNode) {
       return {
         targetId: pathWithNode.targetId,
@@ -966,7 +991,7 @@ export function resolvePoseRigTraversalSelection(
     }
   }
 
-  const firstPath = paths[0];
+  const firstPath = index.firstPath;
   const defaultNode =
     firstPath.nodes[firstPath.nodes.length - 1] ?? firstPath.nodes[0] ?? null;
   if (!defaultNode) {
@@ -982,9 +1007,11 @@ export function movePoseRigTraversalSelection(
   paths: PoseRigTraversalPath[],
   current: PoseRigTraversalSelection | null,
   direction: "upstream" | "downstream",
+  traversalIndex?: PoseRigTraversalIndex,
 ): PoseRigTraversalSelection | null {
-  const resolved = resolvePoseRigTraversalSelection(paths, current);
-  const path = findTraversalPath(paths, resolved);
+  const index = traversalIndex ?? buildPoseRigTraversalIndex(paths);
+  const resolved = resolvePoseRigTraversalSelection(paths, current, index);
+  const path = findTraversalPath(paths, resolved, index);
   if (!resolved || !path || path.nodes.length === 0) {
     return resolved;
   }

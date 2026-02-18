@@ -727,7 +727,7 @@ Completion notes (2026-02-18 10:17:11Z):
    - `2026-02-18 10:16:56Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
    - `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B5.2 Canonical Resolution and Traversal Hot-Path Optimization
+### [x] B5.2 Canonical Resolution and Traversal Hot-Path Optimization
 
 Intent:
 Cut repeated path/id canonicalization work in frequent operations.
@@ -750,6 +750,27 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 10:32:53Z):
+
+1. Added canonical lookup index/cache helpers in `src/utils/standardInputResolutionIndex.ts`:
+   - cached canonical id resolution (`resolveStandardRigInputId`) for repeated alias lookups,
+   - indexed normalized id/path alias lookup for resolver paths,
+   - indexed equivalent target-id lookup by comparable canonical path for parent-driver fan-out.
+2. Updated B5.2 hot-path callers to consume indexed lookups:
+   - `src/components/inspector/bindingSlotResolution.ts` now resolves canonical fallback ids through indexed alias helpers (including cached fallback for map-empty legacy paths).
+   - `src/hooks/useBindingManager.ts` parent-driver creation now resolves canonical ids and equivalent target ids through shared indexes instead of per-call full input-map scans.
+   - `src/components/inspector/rigConnections.ts` now uses cached canonical rig-id matching and exposes `buildPoseRigTraversalIndex` so traversal selection/find/move paths can reuse indexed node/path lookups.
+   - `src/components/inspector/BindingConnections.tsx` now memoizes and reuses traversal index data across traversal interactions.
+3. Added deterministic perf + equivalence tests:
+   - `src/utils/standardInputResolutionIndex.test.ts` proves canonical lookup cache miss reduction (`canonicalResolutionMisses` stays `1` across repeated hot-path resolutions) while preserving alias/equivalent-id behavior.
+   - `src/components/inspector/rigConnections.test.ts` adds traversal-index contract coverage that validates selection/find/move work with indexed lookups without array `.find` rescans.
+   - existing behavior tests in `src/components/inspector/bindingSlotResolution.test.ts` and `src/hooks/__tests__/useBindingManager.test.ts` remain green under indexed paths.
+4. Validation evidence:
+   - `2026-02-18 10:32:05Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 10:32:19Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 60 files / 295 tests).
+   - `2026-02-18 10:32:41Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B5.3 Boundary and Shared-Sync Correctness Hardening
 
