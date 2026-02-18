@@ -939,7 +939,7 @@ Acceptance checks:
 2. Hierarchy is deterministic and navigable for large scene/property sets.
 3. Modal selection latency remains responsive under representative large datasets.
 
-### [ ] Q1.2 Runtime Slider Range Reactivity for Metadata Edits
+### [x] Q1.2 Runtime Slider Range Reactivity for Metadata Edits
 
 Intent:
 Ensure slider controls immediately reflect edited `min/default/max` metadata ranges.
@@ -956,7 +956,20 @@ Acceptance checks:
 2. Invalid ranges are handled with clear validation and no broken slider state.
 3. Tests cover range updates and value clamping behavior.
 
-### [ ] Q1.3 Control Elements Pane Information Architecture + Count Rendering Fix
+Completion notes (2026-02-18 19:12:51Z):
+
+1. Added `src/components/inspector/rigMetadataReactivity.ts` and tests in `src/components/inspector/rigMetadataReactivity.test.ts` to lock deterministic range normalization + current-value clamping behavior when metadata changes.
+2. Updated rig metadata apply flow in `src/components/inspector/InspectorContent.tsx` to:
+   - resolve/clamp runtime value against edited min/max immediately via `resolveRigMetadataReactivity`,
+   - apply clamped metadata through `handleUpdateStandardInput`,
+   - stage clamped current values with `handleInputValueChange` when bounds invalidate prior values,
+   - keep draft numeric fields aligned with applied metadata values.
+3. Validation evidence:
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 61 files / 303 tests).
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+
+### [x] Q1.3 Control Elements Pane Information Architecture + Count Rendering Fix
 
 Intent:
 Align pane naming/structure with authoring model and fix broken zero-count label rendering.
@@ -972,6 +985,21 @@ Acceptance checks:
 1. Top-level pane displays “Control Elements” consistently.
 2. Sub-surface naming remains explicit (`Variables`, `Poses`, `Pose Groups`, `Inputs`).
 3. Count rendering is correct and visually consistent for zero and non-zero cases.
+
+Completion notes (2026-02-18 19:12:51Z):
+
+1. Renamed the combined pane header in `src/components/panels/VariablesPanel.tsx` from per-surface titles to a stable top-level title: `Control Elements`.
+2. Preserved explicit sub-surface naming while fixing count rendering:
+   - added `formatSurfaceLabelWithCount`,
+   - updated tab labels to `Variables (N)`, `Poses (N)`, `Pose Groups (N)`, `Inputs (N)` (including zero-count cases).
+3. Added regression coverage in `src/components/panels/VariablesPanel.test.tsx` for:
+   - `Control Elements` header rendering,
+   - explicit zero-count labels (`Poses (0)` style),
+   - count-label formatting helper stability.
+4. Validation evidence:
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 61 files / 303 tests).
+   - `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
 
 ### Priority P2 (UX Consistency / Visual System)
 

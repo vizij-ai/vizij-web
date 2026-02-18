@@ -5,6 +5,7 @@ import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
+  formatSurfaceLabelWithCount,
   resolveVisibleRootForActiveSurface,
 } from "./VariablesPanel";
 
@@ -167,6 +168,20 @@ describe("VariablesPanel", () => {
     render(<VariablesPanel />);
 
     expect(screen.getByText(/Shared \(1\)/)).toBeTruthy();
+  });
+
+  it("renders Control Elements header with explicit per-surface count labels", () => {
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["variables", "poses", "pose-groups", "inputs"]}
+      />,
+    );
+
+    expect(within(view.container).getByText("Control Elements")).toBeTruthy();
+    expect(within(view.container).getByText("Variables (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Poses (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Pose Groups (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
   });
 
   it("filters out /rig/element variables from the variables panel", () => {
@@ -602,6 +617,13 @@ describe("VariablesPanel", () => {
     );
 
     expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("formatSurfaceLabelWithCount", () => {
+  it("keeps count formatting stable for zero and non-zero values", () => {
+    expect(formatSurfaceLabelWithCount("Poses", 0)).toBe("Poses (0)");
+    expect(formatSurfaceLabelWithCount("Poses", 7)).toBe("Poses (7)");
   });
 });
 

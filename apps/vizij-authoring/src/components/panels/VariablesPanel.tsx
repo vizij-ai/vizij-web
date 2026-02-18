@@ -87,6 +87,13 @@ function poseGroupDisplayLabel(path: string): string {
     : path;
 }
 
+export function formatSurfaceLabelWithCount(
+  label: string,
+  count: number,
+): string {
+  return `${label} (${count})`;
+}
+
 interface RigNodeData {
   input: StandardRigInput;
   source: RigNodeSource;
@@ -1731,15 +1738,21 @@ export function VariablesPanel({
 
   const surfaceTabs = allSurfaces.map((id) => {
     if (id === "variables") {
-      return { id, label: "Variables", badge: variableItemCount };
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Variables", variableItemCount),
+      };
     }
     if (id === "poses") {
-      return { id, label: "Poses", badge: poseItemCount };
+      return { id, label: formatSurfaceLabelWithCount("Poses", poseItemCount) };
     }
     if (id === "pose-groups") {
-      return { id, label: "Pose Groups", badge: poseGroupItemCount };
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Pose Groups", poseGroupItemCount),
+      };
     }
-    return { id, label: "Inputs", badge: inputItemCount };
+    return { id, label: formatSurfaceLabelWithCount("Inputs", inputItemCount) };
   });
 
   const surfaceForTab = (id: string): SurfaceTab =>
@@ -1769,23 +1782,9 @@ export function VariablesPanel({
 
   return (
     <Panel
-      title={
-        activeSurface === "variables"
-          ? "Variables"
-          : activeSurface === "poses"
-            ? "Poses"
-            : activeSurface === "pose-groups"
-              ? "Pose Groups"
-              : "Inputs"
-      }
+      title="Control Elements"
       description={
-        activeSurface === "variables"
-          ? "Manage rig variables and references."
-          : activeSurface === "poses"
-            ? "Manage pose entries."
-            : activeSurface === "pose-groups"
-              ? "Review pose groups and move selected poses."
-              : "Inspect all potential inputs and adjust values."
+        "Author and organize variables, poses, pose groups, and inputs."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}

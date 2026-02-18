@@ -69,6 +69,7 @@ import {
   appendOrRevisitInspectorChainPath,
   type InspectorChainNode,
 } from "./inspectorChainPath";
+import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 
 type PoseVariableItem =
   | {
@@ -2133,13 +2134,24 @@ export function InspectorContent() {
           });
           return;
         }
-        handleUpdateStandardInput(input.id, {
-          defaultValue: parsedDefault,
-          range: {
+        const reactivity = resolveRigMetadataReactivity({
+          currentValue: value,
+          nextDefaultValue: parsedDefault,
+          nextRange: {
             min: parsedMin,
             max: parsedMax,
           },
         });
+        handleUpdateStandardInput(input.id, {
+          defaultValue: reactivity.defaultValue,
+          range: reactivity.range,
+        });
+        if (reactivity.value !== value) {
+          handleInputValueChange(input.id, reactivity.value);
+        }
+        setRigDefaultDraft(formatDraftNumber(reactivity.defaultValue));
+        setRigRangeMinDraft(formatDraftNumber(reactivity.range.min));
+        setRigRangeMaxDraft(formatDraftNumber(reactivity.range.max));
         setRigLifecycleMessage({
           tone: "info",
           text: "Variable metadata updated.",

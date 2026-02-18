@@ -25,7 +25,9 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 17. `B5.1` is complete in this worktree with targeted heavy-surface binding selectors, active-surface-only tree filtering resolution, and deterministic perf contract coverage.
 18. `B5.2` is complete in this worktree with shared canonical lookup indexes/caches for resolver + parent-driver paths and traversal index reuse for inspector chain navigation.
 19. `B5.3` is complete in this worktree with transitive boundary validation for import normalization and single-pass shared-variable sync loops with deterministic pass-count coverage.
-20. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
+20. `Q1.2` is complete with rig-metadata range reactivity: active slider bounds update immediately and current values clamp deterministically when edited min/max invalidate prior values.
+21. `Q1.3` is complete with pane IA fixes: top-level `Control Elements` naming and stable `Label (N)` surface counts including zero-count cases.
+22. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
 
 ## Validation Gate Status
 
@@ -55,6 +57,7 @@ Latest evidence:
 18. `2026-02-18 10:32:05Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 19. `2026-02-18 10:43:38Z` — `pnpm --filter vizij-authoring run typecheck` -> fail (`TS2345` in `src/utils/standardInputResolutionIndex.ts:157` and `src/utils/standardInputResolutionIndex.ts:158`; pre-existing unrelated to B5.3).
 20. `2026-02-18 10:51:39Z` — `pnpm --filter vizij-authoring run validate` -> pass (typecheck phase exited 0; no TypeScript errors).
+21. `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 
 ### Lint
 
@@ -96,6 +99,7 @@ Latest evidence:
 32. `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 33. `2026-02-18 10:44:23Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
 34. `2026-02-18 10:51:39Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
+35. `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
 
 ### Test
 
@@ -127,6 +131,7 @@ Latest evidence:
 22. `2026-02-18 10:32:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 60 files / 295 tests).
 23. `2026-02-18 10:43:59Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 60 files / 297 tests).
 24. `2026-02-18 10:51:39Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 60 files / 297 tests).
+25. `2026-02-18 19:12:51Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 61 files / 303 tests).
 
 ## Backlog Status Board
 
@@ -152,6 +157,8 @@ Latest evidence:
 | B5.1 | done   | Completed 2026-02-18 10:17:11Z; heavy panel selectors narrowed + active-surface filter path |
 | B5.2 | done   | Completed 2026-02-18 10:32:53Z; canonical lookup indexes + traversal hot-path index reuse   |
 | B5.3 | done   | Completed 2026-02-18 10:45:15Z; transitive boundary checks + single-pass shared-sync loops  |
+| Q1.2 | done   | Completed 2026-02-18 19:12:51Z; rig metadata range reactivity + value clamping landed       |
+| Q1.3 | done   | Completed 2026-02-18 19:12:51Z; Control Elements pane naming + count label formatting fixed |
 
 ## Evidence Log
 
@@ -228,6 +235,10 @@ Latest evidence:
 71. `[2026-02-18 10:44:23Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
 72. `[2026-02-18 10:44:35Z] pnpm --filter vizij-authoring run validate -> fail (blocked at typecheck by the same pre-existing TS2345 errors)`
 73. `[2026-02-18 10:51:39Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
+74. `[2026-02-18 19:12:51Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
+75. `[2026-02-18 19:12:51Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 61 files / 303 tests)`
+76. `[2026-02-18 19:12:51Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
+77. `[2026-02-18 19:12:51Z] pnpm run prep -> pass (format + validate at repo root; validate uses affected-workspace filters and reported no matching projects in this worktree base comparison)`
 
 ## Resolved and Archived Notes
 
