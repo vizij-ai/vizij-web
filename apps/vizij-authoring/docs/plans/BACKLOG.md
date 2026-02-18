@@ -680,7 +680,7 @@ Implementation (2026-02-18):
 
 ## B5 — Performance and Architecture Cleanup
 
-### [ ] B5.1 Heavy Panel Rerender and Duplicate Compute Reduction
+### [x] B5.1 Heavy Panel Rerender and Duplicate Compute Reduction
 
 Intent:
 Reduce unnecessary render and tree/filter compute in hot UI paths.
@@ -702,6 +702,30 @@ Acceptance checks:
 
 Dependencies:
 `B1.2`.
+
+Completion notes (2026-02-18 10:17:11Z):
+
+1. Replaced broad binding-store selectors in heavy panel/inspector surfaces with targeted selectors:
+   - `src/components/panels/VariablesPanel.tsx`
+   - `src/components/inspector/InspectorContent.tsx`
+   - `src/components/inspector/InspectorPanel.tsx`
+   - `src/components/inspector/RiggingTransformSection.tsx`
+   - `src/components/inspector/RiggingMorphTargetsSection.tsx`
+   - `src/components/inspector/RiggingMaterialSection.tsx`
+2. Removed duplicate hidden-surface work in `VariablesPanel` by:
+   - resolving visible tree roots through one active-surface-only path (`resolveVisibleRootForActiveSurface`),
+   - avoiding non-active tab-panel render work (`renderPanel` now returns `null` for inactive surfaces).
+3. Added regression/perf-oriented tests:
+   - `src/components/panels/VariablesPanel.test.tsx` (`resolveVisibleRootForActiveSurface` verifies exactly one active-surface filter invocation)
+   - `src/components/inspector/panelPerformanceContracts.test.ts` (guards against broad `useBindingAuthoring((state) => state)` usage and asserts active-surface panel gating hooks)
+4. Profiling evidence (deterministic instrumentation):
+   - `resolveVisibleRootForActiveSurface` contract test confirms hidden surfaces do not execute filter callbacks while active surface filtering executes once per run.
+   - panel performance contract test confirms heavy surfaces no longer use broad binding-store selectors that trigger unrelated rerenders.
+5. Validation evidence:
+   - `2026-02-18 10:16:19Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 10:16:34Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 59 files / 289 tests).
+   - `2026-02-18 10:16:56Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B5.2 Canonical Resolution and Traversal Hot-Path Optimization
 

@@ -2,7 +2,11 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
-import { VariablesPanel, filterTreeForActiveSurface } from "./VariablesPanel";
+import {
+  VariablesPanel,
+  filterTreeForActiveSurface,
+  resolveVisibleRootForActiveSurface,
+} from "./VariablesPanel";
 
 const poseRigState = {
   poses: [] as PoseDefinition[],
@@ -633,5 +637,29 @@ describe("filterTreeForActiveSurface", () => {
 
     expect(filterTree).toHaveBeenCalledWith(rootNode, "brow");
     expect(result).toBe(filteredNode);
+  });
+});
+
+describe("resolveVisibleRootForActiveSurface", () => {
+  it("only filters the active surface tree", () => {
+    const variablesRoot = { id: "variables" };
+    const posesRoot = { id: "poses" };
+    const inputRoot = { id: "inputs" };
+    const filterTree = vi.fn((root: { id: string }) => ({
+      id: `${root.id}:filtered`,
+    }));
+
+    const result = resolveVisibleRootForActiveSurface({
+      activeSurface: "variables",
+      query: "jaw",
+      variablesRootNode: variablesRoot,
+      posesRootNode: posesRoot,
+      inputRootNode: inputRoot,
+      filterTree,
+    });
+
+    expect(result).toEqual({ id: "variables:filtered" });
+    expect(filterTree).toHaveBeenCalledTimes(1);
+    expect(filterTree).toHaveBeenCalledWith(variablesRoot, "jaw");
   });
 });

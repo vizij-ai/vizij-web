@@ -22,7 +22,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 14. `B4.1` is complete in this worktree with canonical pose membership (`groupIds`) decoupled from pose identity, legacy group-field migration coverage, and deterministic id behavior preserved.
 15. `B4.2` is complete in this worktree with many-to-many pose membership authoring across pose/group contexts, duplicate-assignment guardrails, and deterministic membership ordering.
 16. `B4.3` is complete in this worktree with deterministic compile/import/export behavior for shared poses via canonical multi-group ordering and per-membership path resolution.
-17. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
+17. `B5.1` is complete in this worktree with targeted heavy-surface binding selectors, active-surface-only tree filtering resolution, and deterministic perf contract coverage.
+18. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
 
 ## Validation Gate Status
 
@@ -48,6 +49,7 @@ Latest evidence:
 14. `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 15. `2026-02-18 09:53:33Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 16. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+17. `2026-02-18 10:16:19Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 
 ### Lint
 
@@ -83,6 +85,8 @@ Latest evidence:
 26. `2026-02-18 09:54:07Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 27. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
 28. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
+29. `2026-02-18 10:16:56Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+30. `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 
 ### Test
 
@@ -107,32 +111,34 @@ Latest evidence:
 15. `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 279 tests).
 16. `2026-02-18 09:53:43Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 282 tests).
 17. `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 286 tests).
-18. Residual known failures: none.
+18. `2026-02-18 10:16:34Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 59 files / 289 tests).
+19. `2026-02-18 10:17:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (test phase exited 0; 59 files / 289 tests).
+20. Residual known failures: none.
 
 ## Backlog Status Board
 
-| ID   | Status  | Notes                                                                                      |
-| ---- | ------- | ------------------------------------------------------------------------------------------ |
-| B0.1 | done    | Typecheck pass recorded at `2026-02-18 06:05:57Z`                                          |
-| B0.2 | done    | Test pass recorded at `2026-02-18 06:09:30Z`; residual failures: none                      |
-| B0.3 | done    | Validate pass recorded at `2026-02-18 06:13:05Z`; caveat: lint warnings only               |
-| B1.1 | done    | Completed 2026-02-18 06:29:04Z; inspector row sizing contracts landed                      |
-| B1.2 | done    | Completed 2026-02-18 06:37:14Z; single ordered VariablesPanel + filter gating              |
-| B1.3 | done    | Completed 2026-02-18 06:46:57Z; pose target/applied/contribution semantics landed          |
-| B1.4 | done    | Completed 2026-02-18 07:08:40Z; per-channel face lock semantics + current source           |
-| B2.1 | done    | Completed 2026-02-18 07:32:04Z; variable lifecycle + metadata editing landed               |
-| B2.2 | done    | Completed 2026-02-18 07:52:10Z; deterministic pose lifecycle + CRUD coverage               |
-| B2.3 | done    | Completed 2026-02-18 08:05:13Z; pose-group lifecycle + membership reconciliation           |
-| B2.4 | done    | Completed 2026-02-18 08:40:31Z; bidirectional chain traversal + context preservation       |
-| B3.1 | done    | Completed 2026-02-18 09:01:00Z; export runtime contract checks + diagnostics               |
-| B3.2 | done    | Completed 2026-02-18 09:12:48Z; concurrent rig+pose runtime graph registration             |
-| B3.3 | done    | Completed 2026-02-18 09:26:30Z; import normalization + autorig retarget diagnostics        |
-| B4.1 | done    | Completed 2026-02-18 09:40:59Z; pose/group identity decoupling + legacy migration          |
-| B4.2 | done    | Completed 2026-02-18 09:54:07Z; many-to-many pose membership authoring + UI coverage       |
-| B4.3 | done    | Completed 2026-02-18 10:06:42Z; deterministic shared-pose compile + IO round-trip coverage |
-| B5.1 | planned | Depends on B1.2                                                                            |
-| B5.2 | planned | Depends on B0                                                                              |
-| B5.3 | planned | Depends on B5.2                                                                            |
+| ID   | Status  | Notes                                                                                       |
+| ---- | ------- | ------------------------------------------------------------------------------------------- |
+| B0.1 | done    | Typecheck pass recorded at `2026-02-18 06:05:57Z`                                           |
+| B0.2 | done    | Test pass recorded at `2026-02-18 06:09:30Z`; residual failures: none                       |
+| B0.3 | done    | Validate pass recorded at `2026-02-18 06:13:05Z`; caveat: lint warnings only                |
+| B1.1 | done    | Completed 2026-02-18 06:29:04Z; inspector row sizing contracts landed                       |
+| B1.2 | done    | Completed 2026-02-18 06:37:14Z; single ordered VariablesPanel + filter gating               |
+| B1.3 | done    | Completed 2026-02-18 06:46:57Z; pose target/applied/contribution semantics landed           |
+| B1.4 | done    | Completed 2026-02-18 07:08:40Z; per-channel face lock semantics + current source            |
+| B2.1 | done    | Completed 2026-02-18 07:32:04Z; variable lifecycle + metadata editing landed                |
+| B2.2 | done    | Completed 2026-02-18 07:52:10Z; deterministic pose lifecycle + CRUD coverage                |
+| B2.3 | done    | Completed 2026-02-18 08:05:13Z; pose-group lifecycle + membership reconciliation            |
+| B2.4 | done    | Completed 2026-02-18 08:40:31Z; bidirectional chain traversal + context preservation        |
+| B3.1 | done    | Completed 2026-02-18 09:01:00Z; export runtime contract checks + diagnostics                |
+| B3.2 | done    | Completed 2026-02-18 09:12:48Z; concurrent rig+pose runtime graph registration              |
+| B3.3 | done    | Completed 2026-02-18 09:26:30Z; import normalization + autorig retarget diagnostics         |
+| B4.1 | done    | Completed 2026-02-18 09:40:59Z; pose/group identity decoupling + legacy migration           |
+| B4.2 | done    | Completed 2026-02-18 09:54:07Z; many-to-many pose membership authoring + UI coverage        |
+| B4.3 | done    | Completed 2026-02-18 10:06:42Z; deterministic shared-pose compile + IO round-trip coverage  |
+| B5.1 | done    | Completed 2026-02-18 10:17:11Z; heavy panel selectors narrowed + active-surface filter path |
+| B5.2 | planned | Depends on B0                                                                               |
+| B5.3 | planned | Depends on B5.2                                                                             |
 
 ## Evidence Log
 
@@ -196,6 +202,10 @@ Latest evidence:
 58. `[2026-02-18 10:06:42Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 58 files / 286 tests)`
 59. `[2026-02-18 10:06:42Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
 60. `[2026-02-18 10:06:42Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
+61. `[2026-02-18 10:16:19Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
+62. `[2026-02-18 10:16:34Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 59 files / 289 tests)`
+63. `[2026-02-18 10:16:56Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 7 warnings)`
+64. `[2026-02-18 10:17:11Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
 
 ## Resolved and Archived Notes
 

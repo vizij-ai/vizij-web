@@ -239,38 +239,86 @@ export function InspectorContent() {
     poseConfigDraft,
   } = usePoseRig();
 
-  const {
-    managedStandardInputs,
-    handleInputValueChange,
-    applyStandardInputBatch,
-    inputValues,
-    bindings,
-    bindingIssues,
-    inputBindings,
-    handleCreateCustomStandardInput,
-    handleUpdateStandardInput,
-    handleDeleteCustomStandardInput,
-    handleRenameShape,
-    handleBindingInputChange,
-    handleAddBindingSlot,
-    handleRemoveBindingSlot,
-    handleUpdateBindingExpression,
-    handleUpdateBindingSlotAlias,
-    handleBindingSlotValueTypeChange,
-    handleResetBinding,
-    handleEnsureParentBinding,
-    handleParentBindingInputChange,
-    handleParentAddBindingSlot,
-    handleParentRemoveBindingSlot,
-    handleParentBindingExpressionChange,
-    handleParentBindingSlotAliasChange,
-    handleParentBindingSlotValueTypeChange,
-    handleParentResetBinding,
-    handleEnableParentLocalControl,
-    handleCreateParentDriverBinding,
-    standardInputs,
-    standardInputsById,
-  } = useBindingAuthoring((state) => state);
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const handleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
+  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const handleCreateCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleCreateCustomStandardInput,
+  );
+  const handleUpdateStandardInput = useBindingAuthoring(
+    (state) => state.handleUpdateStandardInput,
+  );
+  const handleDeleteCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleDeleteCustomStandardInput,
+  );
+  const handleRenameShape = useBindingAuthoring(
+    (state) => state.handleRenameShape,
+  );
+  const handleBindingInputChange = useBindingAuthoring(
+    (state) => state.handleBindingInputChange,
+  );
+  const handleAddBindingSlot = useBindingAuthoring(
+    (state) => state.handleAddBindingSlot,
+  );
+  const handleRemoveBindingSlot = useBindingAuthoring(
+    (state) => state.handleRemoveBindingSlot,
+  );
+  const handleUpdateBindingExpression = useBindingAuthoring(
+    (state) => state.handleUpdateBindingExpression,
+  );
+  const handleUpdateBindingSlotAlias = useBindingAuthoring(
+    (state) => state.handleUpdateBindingSlotAlias,
+  );
+  const handleBindingSlotValueTypeChange = useBindingAuthoring(
+    (state) => state.handleBindingSlotValueTypeChange,
+  );
+  const handleResetBinding = useBindingAuthoring(
+    (state) => state.handleResetBinding,
+  );
+  const handleEnsureParentBinding = useBindingAuthoring(
+    (state) => state.handleEnsureParentBinding,
+  );
+  const handleParentBindingInputChange = useBindingAuthoring(
+    (state) => state.handleParentBindingInputChange,
+  );
+  const handleParentAddBindingSlot = useBindingAuthoring(
+    (state) => state.handleParentAddBindingSlot,
+  );
+  const handleParentRemoveBindingSlot = useBindingAuthoring(
+    (state) => state.handleParentRemoveBindingSlot,
+  );
+  const handleParentBindingExpressionChange = useBindingAuthoring(
+    (state) => state.handleParentBindingExpressionChange,
+  );
+  const handleParentBindingSlotAliasChange = useBindingAuthoring(
+    (state) => state.handleParentBindingSlotAliasChange,
+  );
+  const handleParentBindingSlotValueTypeChange = useBindingAuthoring(
+    (state) => state.handleParentBindingSlotValueTypeChange,
+  );
+  const handleParentResetBinding = useBindingAuthoring(
+    (state) => state.handleParentResetBinding,
+  );
+  const handleEnableParentLocalControl = useBindingAuthoring(
+    (state) => state.handleEnableParentLocalControl,
+  );
+  const handleCreateParentDriverBinding = useBindingAuthoring(
+    (state) => state.handleCreateParentDriverBinding,
+  );
+  const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
       return null;
@@ -426,11 +474,13 @@ export function InspectorContent() {
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphError = useGraphRuntime((state) => state.graphError);
   const graphWarning = useGraphRuntime((state) => state.graphWarning);
-  const bindingIssueCount = useBindingAuthoring((state) =>
-    Array.from(state.bindingIssues.values()).reduce(
-      (count, issues) => count + issues.length,
-      0,
-    ),
+  const bindingIssueCount = useMemo(
+    () =>
+      Array.from(bindingIssues.values()).reduce(
+        (count, issues) => count + issues.length,
+        0,
+      ),
+    [bindingIssues],
   );
 
   // Reset blend amount when selected pose changes

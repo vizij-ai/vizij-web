@@ -29,15 +29,19 @@ interface RiggingTransformSectionProps {
 export function RiggingTransformSection({
   node,
 }: RiggingTransformSectionProps) {
-  const {
-    bindings,
-    standardInputs,
-    standardInputsById,
-    inputBindings,
-    inputValues,
-    handleInputValueChange,
-    handleUpdateStandardInput,
-  } = useBindingAuthoring((state) => state);
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const handleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
+  const handleUpdateStandardInput = useBindingAuthoring(
+    (state) => state.handleUpdateStandardInput,
+  );
 
   const {
     updateAnimatableDescriptor,

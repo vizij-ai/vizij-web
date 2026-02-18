@@ -37,8 +37,15 @@ export function InspectorPanel({
     selectPose,
     selectedPoseId,
   } = usePoseRig();
-  const { managedStandardInputs, applyStandardInputBatch, standardInputsById } =
-    useBindingAuthoring((state) => state);
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
   const [poseGroupWeights, setPoseGroupWeights] = useState<
     Record<string, number>
   >({});

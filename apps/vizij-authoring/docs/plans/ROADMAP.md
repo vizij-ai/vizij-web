@@ -141,3 +141,12 @@ Exit gate:
 
 1. Hot-path interactions remain responsive under large rigs.
 2. Core perf/correctness findings from audit are resolved or explicitly deferred.
+
+Stage 5 progress (2026-02-18 10:17:11Z):
+
+1. `B5.1` complete; heavy panel/inspector surfaces now use targeted binding-store selectors instead of broad whole-store pulls, reducing unrelated rerender pressure.
+2. `B5.1` removed duplicate hidden-surface tree/filter work in `VariablesPanel` by routing filtering through a single active-surface root resolver and skipping inactive tab-panel rendering work.
+3. `B5.1` deterministic perf coverage now asserts:
+   - active-surface-only filter callback execution (`resolveVisibleRootForActiveSurface` calls filter exactly once for active surface),
+   - broad selector regression guardrails across heavy files (`panelPerformanceContracts.test.ts`).
+4. Validation evidence for `B5.1`: `2026-02-18 10:16:19Z` (`typecheck` pass), `2026-02-18 10:16:34Z` (`test` pass), `2026-02-18 10:16:56Z` (`lint` pass, warnings only), `2026-02-18 10:17:11Z` (`validate` pass).

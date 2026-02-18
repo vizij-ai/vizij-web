@@ -257,6 +257,48 @@ export function filterTreeForActiveSurface<T>({
   return filterTree(rootNode, query);
 }
 
+export function resolveVisibleRootForActiveSurface<T>({
+  activeSurface,
+  query,
+  variablesRootNode,
+  posesRootNode,
+  inputRootNode,
+  filterTree,
+}: {
+  activeSurface: SurfaceTab;
+  query: string;
+  variablesRootNode: T;
+  posesRootNode: T;
+  inputRootNode: T;
+  filterTree: (node: T, searchQuery: string) => T;
+}): T {
+  if (activeSurface === "poses") {
+    return filterTreeForActiveSurface({
+      activeSurface,
+      targetSurface: "poses",
+      rootNode: posesRootNode,
+      query,
+      filterTree,
+    });
+  }
+  if (activeSurface === "inputs") {
+    return filterTreeForActiveSurface({
+      activeSurface,
+      targetSurface: "inputs",
+      rootNode: inputRootNode,
+      query,
+      filterTree,
+    });
+  }
+  return filterTreeForActiveSurface({
+    activeSurface,
+    targetSurface: "variables",
+    rootNode: variablesRootNode,
+    query,
+    filterTree,
+  });
+}
+
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
@@ -780,16 +822,28 @@ export function VariablesPanel({
     onSelectPoseGroup(nextSelection);
   }, [onSelectPoseGroup, poseGroups, selectedPoseGroup]);
 
-  const {
-    managedStandardInputs,
-    standardInputsByPath,
-    standardInputsById,
-    inputValues,
-    handleInputValueChange,
-    handleCreateCustomStandardInput,
-    handleUpdateStandardInput,
-    handleDeleteCustomStandardInput,
-  } = useBindingAuthoring((state) => state);
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const standardInputsByPath = useBindingAuthoring(
+    (state) => state.standardInputsByPath,
+  );
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
+  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const handleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
+  const handleCreateCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleCreateCustomStandardInput,
+  );
+  const handleUpdateStandardInput = useBindingAuthoring(
+    (state) => state.handleUpdateStandardInput,
+  );
+  const handleDeleteCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleDeleteCustomStandardInput,
+  );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const referenceFace = useReferenceFace();
   const {
@@ -1296,45 +1350,24 @@ export function VariablesPanel({
     return root;
   }, [poses]);
 
-  const visibleVariablesRoot = useMemo(
+  const visibleRoot = useMemo(
     () =>
-      filterTreeForActiveSurface({
+      resolveVisibleRootForActiveSurface({
         activeSurface,
-        targetSurface: "variables",
-        rootNode: variablesRootNode,
         query: searchQuery,
+        variablesRootNode,
+        posesRootNode,
+        inputRootNode,
         filterTree: filterTreeBySearch,
       }),
-    [activeSurface, variablesRootNode, searchQuery],
+    [
+      activeSurface,
+      inputRootNode,
+      posesRootNode,
+      searchQuery,
+      variablesRootNode,
+    ],
   );
-  const visiblePosesRoot = useMemo(
-    () =>
-      filterTreeForActiveSurface({
-        activeSurface,
-        targetSurface: "poses",
-        rootNode: posesRootNode,
-        query: searchQuery,
-        filterTree: filterTreeBySearch,
-      }),
-    [activeSurface, posesRootNode, searchQuery],
-  );
-  const visibleInputRoot = useMemo(
-    () =>
-      filterTreeForActiveSurface({
-        activeSurface,
-        targetSurface: "inputs",
-        rootNode: inputRootNode,
-        query: searchQuery,
-        filterTree: filterTreeBySearch,
-      }),
-    [activeSurface, inputRootNode, searchQuery],
-  );
-  const visibleRoot =
-    activeSurface === "poses"
-      ? visiblePosesRoot
-      : activeSurface === "inputs"
-        ? visibleInputRoot
-        : visibleVariablesRoot;
 
   // Auto-expand folders when searching
   useEffect(() => {
@@ -1768,6 +1801,9 @@ export function VariablesPanel({
           setActiveSurfaceState(surfaceForTab(id));
         }}
         renderPanel={(id) => {
+          if (surfaceForTab(id) !== activeSurface) {
+            return null;
+          }
           const isVariables = id === "variables";
           const isPoseGroups = id === "pose-groups";
           const isPoses = id === "poses";
