@@ -3,9 +3,12 @@ import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import {
+  buildPoseRigTraversalPaths,
   buildPoseRigFaceTrace,
   collectDirectDownstreamRigInputs,
   collectRigDependents,
+  movePoseRigTraversalSelection,
+  resolvePoseRigTraversalSelection,
   selectSafePoseRigTraceSuggestions,
   summarizeTraceConnections,
   type PoseRigTraceSuggestion,
@@ -158,8 +161,8 @@ describe("collectDirectDownstreamRigInputs", () => {
     });
 
     expect(dependents).toEqual([
-      { id: "rig/child/lip_raise", label: "Lip Raise" },
-      { id: "rig/child/mouth_open", label: "Mouth Open" },
+      { id: "rig/child/lip_raise", label: "Lip Raise", layer: "rig" },
+      { id: "rig/child/mouth_open", label: "Mouth Open", layer: "rig" },
     ]);
   });
 
@@ -204,6 +207,70 @@ describe("collectDirectDownstreamRigInputs", () => {
     });
 
     expect(dependents).toEqual([]);
+  });
+
+  it("includes direct child autorig inputs when explicitly requested", () => {
+    const inputBindings: InputBindingMap = {
+      "autorig/eye/open": {
+        targetId: "autorig/eye/open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+      "rig/child/lip_raise": {
+        targetId: "rig/child/lip_raise",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+    };
+    const standardInputsById = new Map<string, StandardRigInput>([
+      [
+        "autorig/eye/open",
+        {
+          id: "autorig/eye/open",
+          path: "/autorig/eye/open",
+          label: "Eye Open",
+          group: "autorig",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+      [
+        "rig/child/lip_raise",
+        {
+          id: "rig/child/lip_raise",
+          path: "/standard/face/lip/raise",
+          label: "Lip Raise",
+          group: "standard",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+      [
+        "rig/parent/jaw_open",
+        {
+          id: "rig/parent/jaw_open",
+          path: "/standard/face/jaw/open",
+          label: "Jaw Open",
+          group: "standard",
+          defaultValue: 0,
+          range: { min: -1, max: 1 },
+        },
+      ],
+    ]);
+
+    const dependents = collectDirectDownstreamRigInputs({
+      selectedRigId: "rig/parent/jaw_open",
+      inputBindings,
+      standardInputsById,
+      includeAutorig: true,
+    });
+
+    expect(dependents).toEqual([
+      { id: "autorig/eye/open", label: "Eye Open", layer: "autorig" },
+      { id: "rig/child/lip_raise", label: "Lip Raise", layer: "rig" },
+    ]);
   });
 });
 
@@ -428,6 +495,7 @@ describe("summarizeTraceConnections", () => {
           targetLabel: "Face Mesh · Mouth Open",
           directRigInputIds: ["rig/child/mouth_open"],
           upstreamRigInputIds: ["rig/child/mouth_open", "rig/parent/jaw_open"],
+          orderedRigInputIds: ["rig/child/mouth_open", "rig/parent/jaw_open"],
           matchedPoseOutputs: [
             {
               poseId: "pose_1",
@@ -529,5 +597,166 @@ describe("selectSafePoseRigTraceSuggestions", () => {
       "link-high",
       "retarget-high",
     ]);
+  });
+});
+
+describe("pose rig traversal helpers", () => {
+  const standardInputsById = new Map<string, StandardRigInput>([
+    [
+      "rig/parent/jaw_open",
+      {
+        id: "rig/parent/jaw_open",
+        path: "/standard/face/jaw/open",
+        label: "Jaw Open",
+        group: "standard",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      },
+    ],
+    [
+      "autorig/mouth/open",
+      {
+        id: "autorig/mouth/open",
+        path: "/autorig/face/mouth/open",
+        label: "Mouth Open Autorig",
+        group: "autorig",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      },
+    ],
+  ]);
+
+  const traversalPaths = buildPoseRigTraversalPaths({
+    traceTargets: [
+      {
+        targetId: "anim://mouth/open",
+        targetLabel: "Face Mesh · Mouth Open",
+        directRigInputIds: ["autorig/mouth/open"],
+        upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+        orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+        matchedPoseOutputs: [
+          {
+            poseId: "pose_1",
+            poseName: "Jaw Open Pose",
+            inputId: "rig/parent/jaw_open",
+            value: 0.7,
+            neutral: 0,
+          },
+        ],
+        diagnostics: [],
+      },
+    ],
+    standardInputsById,
+  });
+
+  it("builds traversal path using Pose -> Rig -> Autorig -> Animatable semantics", () => {
+    expect(traversalPaths).toHaveLength(1);
+    expect(traversalPaths[0]?.nodes.map((node) => node.kind)).toEqual([
+      "pose",
+      "rig",
+      "autorig",
+      "animatable",
+    ]);
+  });
+
+  it("supports upstream and downstream movement across traversal nodes", () => {
+    const initial = resolvePoseRigTraversalSelection(traversalPaths, null);
+    expect(initial?.nodeId).toContain("animatable:");
+
+    const upstreamOne = movePoseRigTraversalSelection(
+      traversalPaths,
+      initial,
+      "upstream",
+    );
+    expect(upstreamOne?.nodeId).toContain("autorig:");
+
+    const upstreamTwo = movePoseRigTraversalSelection(
+      traversalPaths,
+      upstreamOne,
+      "upstream",
+    );
+    expect(upstreamTwo?.nodeId).toContain("rig:");
+
+    const upstreamThree = movePoseRigTraversalSelection(
+      traversalPaths,
+      upstreamTwo,
+      "upstream",
+    );
+    expect(upstreamThree?.nodeId).toContain("pose:");
+
+    const downstreamOne = movePoseRigTraversalSelection(
+      traversalPaths,
+      upstreamThree,
+      "downstream",
+    );
+    expect(downstreamOne?.nodeId).toContain("rig:");
+
+    const downstreamTwo = movePoseRigTraversalSelection(
+      traversalPaths,
+      downstreamOne,
+      "downstream",
+    );
+    expect(downstreamTwo?.nodeId).toContain("autorig:");
+
+    const downstreamThree = movePoseRigTraversalSelection(
+      traversalPaths,
+      downstreamTwo,
+      "downstream",
+    );
+    expect(downstreamThree?.nodeId).toContain("animatable:");
+
+    const downstreamAtEnd = movePoseRigTraversalSelection(
+      traversalPaths,
+      downstreamThree,
+      "downstream",
+    );
+    expect(downstreamAtEnd).toEqual(downstreamThree);
+
+    const upstreamAtStart = movePoseRigTraversalSelection(
+      traversalPaths,
+      upstreamThree,
+      "upstream",
+    );
+    expect(upstreamAtStart).toEqual(upstreamThree);
+  });
+
+  it("preserves selected traversal context when refreshed paths still contain the node", () => {
+    const rigSelection = {
+      targetId: "anim://mouth/open",
+      nodeId: "rig:rig/parent/jaw_open",
+    };
+    const refreshed = buildPoseRigTraversalPaths({
+      traceTargets: [
+        {
+          targetId: "anim://mouth/open",
+          targetLabel: "Face Mesh · Mouth Open",
+          directRigInputIds: ["autorig/mouth/open"],
+          upstreamRigInputIds: [
+            "autorig/mouth/open",
+            "rig/parent/jaw_open",
+            "rig/unused/extra",
+          ],
+          orderedRigInputIds: [
+            "autorig/mouth/open",
+            "rig/parent/jaw_open",
+            "rig/unused/extra",
+          ],
+          matchedPoseOutputs: [
+            {
+              poseId: "pose_1",
+              poseName: "Jaw Open Pose",
+              inputId: "rig/parent/jaw_open",
+              value: 0.7,
+              neutral: 0,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      standardInputsById: new Map(standardInputsById),
+    });
+
+    const resolved = resolvePoseRigTraversalSelection(refreshed, rigSelection);
+    expect(resolved).toEqual(rigSelection);
   });
 });

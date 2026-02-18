@@ -65,6 +65,10 @@ import {
   computePoseContributionSemantics,
   formatContributionStrength,
 } from "./poseContributionSemantics";
+import {
+  appendOrRevisitInspectorChainPath,
+  type InspectorChainNode,
+} from "./inspectorChainPath";
 
 type PoseVariableItem =
   | {
@@ -84,16 +88,6 @@ type PoseVariableItem =
         channel: "r" | "g" | "b";
       }[];
     };
-
-type InspectorChainMode = "scene" | "rig" | "pose";
-
-type InspectorChainNode = {
-  mode: InspectorChainMode;
-  id: string;
-  label: string;
-  view?: "quick" | "features" | "bindings";
-  targetId?: string;
-};
 
 type RigLifecycleMessage = {
   tone: "error" | "info";
@@ -582,18 +576,10 @@ export function InspectorContent() {
       pending.id === currentInspectorChainNode.id
     ) {
       setInspectorChainPath((current) => {
-        if (current.length === 0) {
-          return [currentInspectorChainNode];
-        }
-        const existingIndex = current.findIndex(
-          (entry) =>
-            entry.mode === currentInspectorChainNode.mode &&
-            entry.id === currentInspectorChainNode.id,
+        return appendOrRevisitInspectorChainPath(
+          current,
+          currentInspectorChainNode,
         );
-        if (existingIndex >= 0) {
-          return current.slice(0, existingIndex + 1);
-        }
-        return [...current, currentInspectorChainNode];
       });
       pendingChainNavigationRef.current = null;
       return;
@@ -1837,11 +1823,27 @@ export function InspectorContent() {
       const standardInputList = managedStandardInputs.map(
         (entry) => entry.input,
       );
-      const downstreamInputs = collectDirectDownstreamRigInputs({
+      const downstreamConnections = collectDirectDownstreamRigInputs({
         selectedRigId: resolvedSelectedRigId,
         inputBindings,
         standardInputsById,
+        includeAutorig: true,
       });
+      const downstreamInputs = downstreamConnections.filter(
+        (entry) => entry.layer === "rig",
+      );
+      const downstreamAutorigInputs = downstreamConnections.filter(
+        (entry) => entry.layer === "autorig",
+      );
+      const parentRigInputs = collectBindingInputIds(parentBinding)
+        .filter((candidateId) => candidateId !== input.id)
+        .map((candidateId) => {
+          const parentEntry = standardInputsById.get(candidateId);
+          return {
+            id: candidateId,
+            label: parentEntry?.label || parentEntry?.path || candidateId,
+          };
+        });
       const dependents = collectRigDependents({
         selectedRigId: resolvedSelectedRigId,
         bindings,
@@ -1974,6 +1976,11 @@ export function InspectorContent() {
         }
         if (downstreamInputs.length > 0) {
           impactNotes.push(`${downstreamInputs.length} downstream variable(s)`);
+        }
+        if (downstreamAutorigInputs.length > 0) {
+          impactNotes.push(
+            `${downstreamAutorigInputs.length} downstream autorig variable(s)`,
+          );
         }
         if (dependents.length > 0) {
           impactNotes.push(
@@ -2437,9 +2444,33 @@ export function InspectorContent() {
                   <Sliders size={12} className="text-slate-500" />
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     What I Drive · {downstreamInputs.length} variables ·{" "}
+                    {downstreamAutorigInputs.length} autorig ·{" "}
                     {dependents.length} properties
                   </span>
                 </div>
+
+                {parentRigInputs.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
+                      Driven By
+                    </div>
+                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
+                      {parentRigInputs.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
+                          onClick={() => openRigInspector(entry.id, "bindings")}
+                          title={`Inspect parent ${entry.label}`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-violet-500/60" />
+                          <span className="flex-1 truncate">{entry.label}</span>
+                          <ChevronRight size={10} className="text-text-muted" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {downstreamInputs.length > 0 && (
                   <div className="flex flex-col gap-1">
@@ -2456,6 +2487,29 @@ export function InspectorContent() {
                           title={`Inspect ${entry.label}`}
                         >
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+                          <span className="flex-1 truncate">{entry.label}</span>
+                          <ChevronRight size={10} className="text-text-muted" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {downstreamAutorigInputs.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-1">
+                      Autorig
+                    </div>
+                    <div className="flex flex-col gap-1 bg-bg-panel/30 rounded p-1 border border-border-default/40">
+                      {downstreamAutorigInputs.map((entry) => (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
+                          onClick={() => openRigInspector(entry.id)}
+                          title={`Inspect autorig ${entry.label}`}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
                           <span className="flex-1 truncate">{entry.label}</span>
                           <ChevronRight size={10} className="text-text-muted" />
                         </button>

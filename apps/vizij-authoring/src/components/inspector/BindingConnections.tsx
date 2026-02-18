@@ -19,9 +19,15 @@ import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Chip } from "../ui";
 import {
   buildPoseRigFaceTrace,
+  buildPoseRigTraversalPaths,
+  findPoseRigTraversalNode,
+  movePoseRigTraversalSelection,
+  resolvePoseRigTraversalSelection,
   selectSafePoseRigTraceSuggestions,
   summarizeTraceConnections,
   type PoseRigTraceSuggestion,
+  type PoseRigTraversalNode,
+  type PoseRigTraversalSelection,
   type PoseRigSourceKind,
   type PoseRigFaceTraceTarget,
 } from "./rigConnections";
@@ -30,6 +36,13 @@ const poseSourceKindLabels: Record<string, string> = {
   "pose-entry": "Pose entry",
   "pose-group-output": "Pose group output",
   "pose-aggregate-output": "Pose aggregate output",
+};
+
+const traversalStageLabels: Record<PoseRigTraversalNode["kind"], string> = {
+  pose: "Pose",
+  rig: "Rig",
+  autorig: "Autorig",
+  animatable: "Animatable",
 };
 
 interface BindingConnectionsProps {
@@ -93,6 +106,42 @@ export function BindingConnections({
     () => summarizeTraceConnections(trace.targets, standardInputsById),
     [standardInputsById, trace.targets],
   );
+  const traversalPaths = useMemo(
+    () =>
+      buildPoseRigTraversalPaths({
+        traceTargets: trace.targets,
+        standardInputsById,
+      }),
+    [standardInputsById, trace.targets],
+  );
+  const [traversalSelection, setTraversalSelection] =
+    useState<PoseRigTraversalSelection | null>(() =>
+      resolvePoseRigTraversalSelection(traversalPaths, null),
+    );
+  const activeTraversalPath = useMemo(() => {
+    const resolved = resolvePoseRigTraversalSelection(
+      traversalPaths,
+      traversalSelection,
+    );
+    if (!resolved) {
+      return null;
+    }
+    return (
+      traversalPaths.find((path) => path.targetId === resolved.targetId) ?? null
+    );
+  }, [traversalPaths, traversalSelection]);
+  const activeTraversalNode = useMemo(
+    () => findPoseRigTraversalNode(traversalPaths, traversalSelection),
+    [traversalPaths, traversalSelection],
+  );
+  const activeTraversalNodeIndex = useMemo(() => {
+    if (!activeTraversalPath || !activeTraversalNode) {
+      return -1;
+    }
+    return activeTraversalPath.nodes.findIndex(
+      (node) => node.id === activeTraversalNode.id,
+    );
+  }, [activeTraversalNode, activeTraversalPath]);
 
   const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<Set<string>>(
     () => new Set(),
@@ -276,6 +325,12 @@ export function BindingConnections({
   }, [previewSuggestionId, trace.suggestedFixes]);
 
   useEffect(() => {
+    setTraversalSelection((current) =>
+      resolvePoseRigTraversalSelection(traversalPaths, current),
+    );
+  }, [traversalPaths]);
+
+  useEffect(() => {
     if (!traceFeedback) {
       return;
     }
@@ -441,6 +496,95 @@ export function BindingConnections({
     setLastUndoAction(null);
   }, [lastUndoAction]);
 
+  const routeTraversalNode = useCallback(
+    (node: PoseRigTraversalNode) => {
+      if (node.kind === "pose" && node.poseId) {
+        if (onSelectPose) {
+          onSelectPose(node.poseId);
+        } else {
+          selectPose(node.poseId);
+          handleClearSelection();
+        }
+        return;
+      }
+      if ((node.kind === "rig" || node.kind === "autorig") && node.rigId) {
+        const sourceKind: PoseRigSourceKind =
+          node.kind === "rig" ? "pose-group-output" : "pose-entry";
+        if (onSelectRig) {
+          onSelectRig(node.rigId, sourceKind);
+        } else {
+          handleSelectRig(node.rigId);
+          handleClearSelection();
+        }
+        return;
+      }
+      if (node.kind === "animatable" && node.targetId && onSelectTarget) {
+        onSelectTarget(node.targetId);
+      }
+    },
+    [
+      handleClearSelection,
+      handleSelectRig,
+      onSelectPose,
+      onSelectRig,
+      onSelectTarget,
+      selectPose,
+    ],
+  );
+
+  const handleSetTraversalTarget = useCallback(
+    (targetId: string) => {
+      setTraversalSelection((current) => {
+        const targetPath = traversalPaths.find(
+          (path) => path.targetId === targetId,
+        );
+        if (!targetPath) {
+          return resolvePoseRigTraversalSelection(traversalPaths, current);
+        }
+        if (current) {
+          const matchingNode = targetPath.nodes.find(
+            (node) => node.id === current.nodeId,
+          );
+          if (matchingNode) {
+            return {
+              targetId,
+              nodeId: matchingNode.id,
+            };
+          }
+        }
+        const fallbackNode =
+          targetPath.nodes[targetPath.nodes.length - 1] ??
+          targetPath.nodes[0] ??
+          null;
+        return fallbackNode
+          ? {
+              targetId,
+              nodeId: fallbackNode.id,
+            }
+          : null;
+      });
+    },
+    [traversalPaths],
+  );
+
+  const handleTraverseDirection = useCallback(
+    (direction: "upstream" | "downstream") => {
+      setTraversalSelection((current) => {
+        const next = movePoseRigTraversalSelection(
+          traversalPaths,
+          current,
+          direction,
+        );
+        const nextNode = findPoseRigTraversalNode(traversalPaths, next);
+        if (nextNode) {
+          routeTraversalNode(nextNode);
+        }
+        return next;
+      });
+    },
+    [routeTraversalNode, traversalPaths],
+  );
+
   if (
     connections.rigs.length === 0 &&
     connections.poses.length === 0 &&
@@ -456,6 +600,94 @@ export function BindingConnections({
         <LinkIcon size={10} />
         My Driver Chain
       </label>
+
+      {traversalPaths.length > 0 &&
+        activeTraversalPath &&
+        activeTraversalNode && (
+          <div className="rounded border border-border-default/50 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9px] font-semibold text-text-muted uppercase tracking-wide">
+                Traversal
+              </span>
+              {traversalPaths.length > 1 ? (
+                <select
+                  className="text-[9px] rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5"
+                  value={activeTraversalPath.targetId}
+                  onChange={(event) =>
+                    handleSetTraversalTarget(event.target.value)
+                  }
+                  data-testid="binding-traversal-target-select"
+                >
+                  {traversalPaths.map((path) => (
+                    <option key={path.targetId} value={path.targetId}>
+                      {path.targetLabel}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[9px] px-2"
+                disabled={activeTraversalNodeIndex <= 0}
+                onClick={() => handleTraverseDirection("upstream")}
+                data-testid="binding-traversal-upstream"
+              >
+                Upstream
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[9px] px-2"
+                disabled={
+                  activeTraversalNodeIndex < 0 ||
+                  activeTraversalNodeIndex >=
+                    activeTraversalPath.nodes.length - 1
+                }
+                onClick={() => handleTraverseDirection("downstream")}
+                data-testid="binding-traversal-downstream"
+              >
+                Downstream
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {activeTraversalPath.nodes.map((node) => (
+                <button
+                  key={`${activeTraversalPath.targetId}:${node.id}`}
+                  type="button"
+                  className="px-1.5 py-0.5 rounded border text-[9px] text-left transition-colors border-border-default/40 bg-bg-panel/20 hover:border-accent/50 hover:text-accent"
+                  data-active={
+                    node.id === activeTraversalNode.id ? "true" : undefined
+                  }
+                  onClick={() => {
+                    setTraversalSelection({
+                      targetId: activeTraversalPath.targetId,
+                      nodeId: node.id,
+                    });
+                    routeTraversalNode(node);
+                  }}
+                >
+                  <span className="font-semibold">
+                    {traversalStageLabels[node.kind]}
+                  </span>
+                  <span className="opacity-80"> · {node.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="text-[9px] text-text-muted">
+              Current stage:{" "}
+              <span
+                className="font-semibold text-text-primary"
+                data-testid="binding-traversal-current-kind"
+              >
+                {traversalStageLabels[activeTraversalNode.kind]}
+              </span>{" "}
+              <code data-testid="binding-traversal-current-label">
+                {activeTraversalNode.label}
+              </code>
+            </div>
+          </div>
+        )}
 
       <div className="flex flex-col gap-1.5">
         {/* Poses First as they are higher level */}

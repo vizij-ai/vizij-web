@@ -19,6 +19,7 @@ interface RigDependentTarget {
 export interface DirectRigInputDependent {
   id: string;
   label: string;
+  layer: "rig" | "autorig";
 }
 
 export type PoseRigSourceKind =
@@ -49,6 +50,7 @@ export interface PoseRigFaceTraceTarget {
   targetLabel: string;
   directRigInputIds: string[];
   upstreamRigInputIds: string[];
+  orderedRigInputIds: string[];
   matchedPoseOutputs: PoseTraceOutput[];
   diagnostics: string[];
 }
@@ -58,6 +60,32 @@ export interface PoseRigFaceTrace {
   unmatchedPoseOutputs: PoseTraceOutput[];
   suggestedFixes: PoseRigTraceSuggestion[];
   diagnostics: string[];
+}
+
+export type PoseRigTraversalNodeKind =
+  | "pose"
+  | "rig"
+  | "autorig"
+  | "animatable";
+
+export interface PoseRigTraversalNode {
+  id: string;
+  kind: PoseRigTraversalNodeKind;
+  label: string;
+  poseId?: string;
+  rigId?: string;
+  targetId?: string;
+}
+
+export interface PoseRigTraversalPath {
+  targetId: string;
+  targetLabel: string;
+  nodes: PoseRigTraversalNode[];
+}
+
+export interface PoseRigTraversalSelection {
+  targetId: string;
+  nodeId: string;
 }
 
 export type PoseRigTraceSuggestion =
@@ -216,8 +244,14 @@ export function collectDirectDownstreamRigInputs(params: {
   selectedRigId: string;
   inputBindings: InputBindingMap;
   standardInputsById: Map<string, StandardRigInput>;
+  includeAutorig?: boolean;
 }): DirectRigInputDependent[] {
-  const { selectedRigId, inputBindings, standardInputsById } = params;
+  const {
+    selectedRigId,
+    inputBindings,
+    standardInputsById,
+    includeAutorig = false,
+  } = params;
   const canonicalSelectedRigId = resolveRigGraphId(
     selectedRigId,
     standardInputsById,
@@ -235,7 +269,8 @@ export function collectDirectDownstreamRigInputs(params: {
       return;
     }
     const targetInput = standardInputsById.get(targetInputId);
-    if (isAutorigStandardInputPath(targetInput?.path)) {
+    const isAutorig = isAutorigStandardInputPath(targetInput?.path);
+    if (isAutorig && !includeAutorig) {
       return;
     }
     const inputIds = collectBindingInputIds(binding);
@@ -246,6 +281,7 @@ export function collectDirectDownstreamRigInputs(params: {
     results.set(targetInputId, {
       id: targetInputId,
       label: input?.label || input?.path || targetInputId,
+      layer: isAutorig ? "autorig" : "rig",
     });
   });
 
@@ -586,6 +622,32 @@ function collectUpstreamRigInputIds(
   return upstream;
 }
 
+function collectOrderedUpstreamRigInputIds(
+  rootInputId: string,
+  inputBindings: InputBindingMap,
+): string[] {
+  const ordered: string[] = [];
+  const visited = new Set<string>();
+  let currentId: string | null = rootInputId;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    ordered.push(currentId);
+    const binding: AnimatableBinding | undefined = inputBindings[currentId];
+    if (!binding) {
+      break;
+    }
+    const parentIds: string[] = collectBindingInputIds(binding).sort(
+      (left: string, right: string) => left.localeCompare(right),
+    );
+    const nextParentId: string | null =
+      parentIds.find((parentId: string) => !visited.has(parentId)) ?? null;
+    currentId = nextParentId;
+  }
+
+  return ordered;
+}
+
 function buildNodeLookup(
   objects: SceneObjectNode[],
 ): Map<string, SceneObjectNode> {
@@ -674,6 +736,16 @@ export function buildPoseRigFaceTrace(params: {
     const directRigInputIds = collectBindingInputIds(target.binding).sort(
       (a, b) => a.localeCompare(b),
     );
+    const orderedRigInputIds =
+      directRigInputIds
+        .map((inputId) =>
+          collectOrderedUpstreamRigInputIds(inputId, inputBindings),
+        )
+        .sort(
+          (left, right) =>
+            right.length - left.length ||
+            left.join(">").localeCompare(right.join(">")),
+        )[0] ?? [];
     const upstreamRigInputIds = new Set<string>();
     directRigInputIds.forEach((inputId) => {
       collectUpstreamRigInputIds(inputId, inputBindings).forEach(
@@ -713,6 +785,7 @@ export function buildPoseRigFaceTrace(params: {
       targetLabel: target.targetLabel,
       directRigInputIds,
       upstreamRigInputIds: upstreamList,
+      orderedRigInputIds,
       matchedPoseOutputs,
       diagnostics,
     });
@@ -751,5 +824,184 @@ export function buildPoseRigFaceTrace(params: {
     unmatchedPoseOutputs,
     suggestedFixes,
     diagnostics,
+  };
+}
+
+function rigInputLabel(
+  inputId: string,
+  standardInputsById: Map<string, StandardRigInput>,
+): string {
+  const input = standardInputsById.get(inputId);
+  return input?.label || input?.path || inputId;
+}
+
+export function buildPoseRigTraversalPaths(params: {
+  traceTargets: PoseRigFaceTraceTarget[];
+  standardInputsById: Map<string, StandardRigInput>;
+}): PoseRigTraversalPath[] {
+  const { traceTargets, standardInputsById } = params;
+  return traceTargets.map((target) => {
+    const nodes: PoseRigTraversalNode[] = [];
+
+    const poseById = new Map<string, PoseTraceOutput>();
+    target.matchedPoseOutputs.forEach((output) => {
+      if (!poseById.has(output.poseId)) {
+        poseById.set(output.poseId, output);
+      }
+    });
+    Array.from(poseById.values())
+      .sort((a, b) => a.poseName.localeCompare(b.poseName))
+      .forEach((output) => {
+        nodes.push({
+          id: `pose:${output.poseId}`,
+          kind: "pose",
+          label: output.poseName,
+          poseId: output.poseId,
+        });
+      });
+
+    const orderedRigInputIds =
+      target.orderedRigInputIds.length > 0
+        ? target.orderedRigInputIds
+        : target.upstreamRigInputIds.length > 0
+          ? target.upstreamRigInputIds
+          : target.directRigInputIds;
+
+    const directRigInputId =
+      orderedRigInputIds[0] ?? target.directRigInputIds[0] ?? null;
+    const upstreamRigInputIds = directRigInputId
+      ? orderedRigInputIds.slice(1).reverse()
+      : [...orderedRigInputIds].reverse();
+
+    upstreamRigInputIds.forEach((rigId) => {
+      nodes.push({
+        id: `rig:${rigId}`,
+        kind: "rig",
+        label: rigInputLabel(rigId, standardInputsById),
+        rigId,
+      });
+    });
+
+    if (directRigInputId) {
+      const directInput = standardInputsById.get(directRigInputId);
+      const directKind = isAutorigStandardInputPath(directInput?.path)
+        ? "autorig"
+        : "rig";
+      nodes.push({
+        id: `${directKind}:${directRigInputId}`,
+        kind: directKind,
+        label: rigInputLabel(directRigInputId, standardInputsById),
+        rigId: directRigInputId,
+      });
+    }
+
+    nodes.push({
+      id: `animatable:${target.targetId}`,
+      kind: "animatable",
+      label: target.targetLabel,
+      targetId: target.targetId,
+    });
+
+    return {
+      targetId: target.targetId,
+      targetLabel: target.targetLabel,
+      nodes,
+    };
+  });
+}
+
+function findTraversalPath(
+  paths: PoseRigTraversalPath[],
+  selection: PoseRigTraversalSelection | null,
+): PoseRigTraversalPath | null {
+  if (paths.length === 0) {
+    return null;
+  }
+  if (!selection) {
+    return paths[0] ?? null;
+  }
+  return (
+    paths.find((path) => path.targetId === selection.targetId) ??
+    paths[0] ??
+    null
+  );
+}
+
+export function findPoseRigTraversalNode(
+  paths: PoseRigTraversalPath[],
+  selection: PoseRigTraversalSelection | null,
+): PoseRigTraversalNode | null {
+  if (!selection) {
+    return null;
+  }
+  const path = paths.find(
+    (candidate) => candidate.targetId === selection.targetId,
+  );
+  if (!path) {
+    return null;
+  }
+  return path.nodes.find((node) => node.id === selection.nodeId) ?? null;
+}
+
+export function resolvePoseRigTraversalSelection(
+  paths: PoseRigTraversalPath[],
+  previous: PoseRigTraversalSelection | null,
+): PoseRigTraversalSelection | null {
+  if (paths.length === 0) {
+    return null;
+  }
+  if (previous) {
+    const exactPath = paths.find((path) => path.targetId === previous.targetId);
+    if (exactPath?.nodes.some((node) => node.id === previous.nodeId)) {
+      return previous;
+    }
+    const pathWithNode = paths.find((path) =>
+      path.nodes.some((node) => node.id === previous.nodeId),
+    );
+    if (pathWithNode) {
+      return {
+        targetId: pathWithNode.targetId,
+        nodeId: previous.nodeId,
+      };
+    }
+  }
+
+  const firstPath = paths[0];
+  const defaultNode =
+    firstPath.nodes[firstPath.nodes.length - 1] ?? firstPath.nodes[0] ?? null;
+  if (!defaultNode) {
+    return null;
+  }
+  return {
+    targetId: firstPath.targetId,
+    nodeId: defaultNode.id,
+  };
+}
+
+export function movePoseRigTraversalSelection(
+  paths: PoseRigTraversalPath[],
+  current: PoseRigTraversalSelection | null,
+  direction: "upstream" | "downstream",
+): PoseRigTraversalSelection | null {
+  const resolved = resolvePoseRigTraversalSelection(paths, current);
+  const path = findTraversalPath(paths, resolved);
+  if (!resolved || !path || path.nodes.length === 0) {
+    return resolved;
+  }
+  const currentIndex = path.nodes.findIndex(
+    (node) => node.id === resolved.nodeId,
+  );
+  const safeIndex = currentIndex >= 0 ? currentIndex : path.nodes.length - 1;
+  const nextIndex =
+    direction === "upstream"
+      ? Math.max(0, safeIndex - 1)
+      : Math.min(path.nodes.length - 1, safeIndex + 1);
+  const nextNode = path.nodes[nextIndex];
+  if (!nextNode) {
+    return resolved;
+  }
+  return {
+    targetId: path.targetId,
+    nodeId: nextNode.id,
   };
 }

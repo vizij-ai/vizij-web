@@ -374,7 +374,7 @@ Completion notes (2026-02-18 08:05:13Z):
    - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
    - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B2.4 Inspector Chain Traversal Completion
+### [x] B2.4 Inspector Chain Traversal Completion
 
 Intent:
 Allow full chain navigation and edits without leaving inspector.
@@ -396,6 +396,23 @@ Acceptance checks:
 
 Dependencies:
 `B1.2`, `B1.3`, `B1.4`.
+
+Completion notes (2026-02-18 08:40:31Z):
+
+1. Completed rig/inspector chain traversal in both directions:
+   - Rig inspector now exposes explicit downstream autorig traversal (`Autorig` section) and upstream parent rig traversal (`Driven By` section) without leaving inspector context.
+   - Existing scene `BindingConnections` + rig/property affordances continue to support animatable-to-rig/pose reverse traversal.
+2. Hardened context-preserving chain transitions:
+   - added `src/components/inspector/inspectorChainPath.ts` helper (`appendOrRevisitInspectorChainPath`) so revisiting an existing chain node truncates deterministically while refreshing latest view/target context metadata.
+3. Added/updated test coverage:
+   - `src/components/inspector/rigConnections.test.ts` now covers optional downstream autorig inclusion semantics.
+   - `src/components/inspector/inspectorChainPath.test.ts` covers context-preserving revisit behavior.
+   - `src/components/inspector/inspectorChainTraversalContracts.test.ts` locks B2.4 UI/doc traversal contracts.
+4. Validation evidence:
+   - `2026-02-18 08:40:31Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 08:40:31Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 268 tests).
+   - `2026-02-18 08:40:31Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 08:40:31Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ## B3 — Import/Export and Runtime Contract
 

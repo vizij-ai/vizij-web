@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, fireEvent } from "@testing-library/react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import type {
@@ -40,6 +40,31 @@ const mockSceneState = {
   objects: [],
 };
 
+const standardInputsById = new Map<string, StandardRigInput>([
+  [
+    "rig/parent/jaw_open",
+    {
+      id: "rig/parent/jaw_open",
+      path: "/standard/face/jaw/open",
+      label: "Jaw Open",
+      group: "standard",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    },
+  ],
+  [
+    "autorig/mouth/open",
+    {
+      id: "autorig/mouth/open",
+      path: "/autorig/face/mouth/open",
+      label: "Mouth Open Autorig",
+      group: "autorig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    },
+  ],
+]);
+
 let mockTrace: PoseRigFaceTrace = {
   targets: [],
   unmatchedPoseOutputs: [],
@@ -77,13 +102,34 @@ vi.mock("../../scene/useSceneComposer", () => ({
   useSceneComposer: () => mockSceneState,
 }));
 
-vi.mock("./rigConnections", () => ({
-  buildPoseRigFaceTrace: () => mockTrace,
-  summarizeTraceConnections: () => mockSummary,
-  selectSafePoseRigTraceSuggestions: () => [],
-}));
+vi.mock("./rigConnections", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./rigConnections")>();
+  return {
+    ...actual,
+    buildPoseRigFaceTrace: () => mockTrace,
+    summarizeTraceConnections: () => mockSummary,
+    selectSafePoseRigTraceSuggestions: () => [],
+  };
+});
 
 describe("BindingConnections routing", () => {
+  beforeEach(() => {
+    cleanup();
+    mockBindingState.standardInputsById = standardInputsById;
+    mockBindingState.handleSelectRig.mockReset();
+    mockSelectionState.handleClearSelection.mockReset();
+    mockPoseState.selectPose.mockReset();
+    mockPoseState.updatePoseValue.mockReset();
+    mockPoseState.removePoseInput.mockReset();
+    mockSummary = { poses: [], rigs: [] };
+    mockTrace = {
+      targets: [],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+  });
+
   it("routes pose/rig/target actions through provided callbacks", () => {
     mockSummary = {
       poses: [{ id: "pose_1", label: "Smile", features: ["mouth"] }],
@@ -103,6 +149,7 @@ describe("BindingConnections routing", () => {
           targetLabel: "Mouth X",
           directRigInputIds: ["rig_1"],
           upstreamRigInputIds: ["rig_1"],
+          orderedRigInputIds: ["rig_1"],
           matchedPoseOutputs: [
             {
               poseId: "pose_1",
@@ -133,7 +180,7 @@ describe("BindingConnections routing", () => {
       features: [],
     };
 
-    render(
+    const view = render(
       <BindingConnections
         node={node}
         onSelectPose={onSelectPose}
@@ -142,12 +189,208 @@ describe("BindingConnections routing", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Mouth X/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Mouth Open/i }));
-    fireEvent.click(screen.getAllByRole("button", { name: /Smile/i })[0]);
+    fireEvent.click(view.getByTitle("Inspect Mouth X"));
+    fireEvent.click(view.getByRole("button", { name: /Mouth Open/i }));
+    fireEvent.click(view.getAllByRole("button", { name: /Smile/i })[0]);
 
     expect(onSelectTarget).toHaveBeenCalledWith("shape:mouth:x");
     expect(onSelectRig).toHaveBeenCalledWith("rig_1", "pose-aggregate-output");
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
+  });
+
+  it("traverses Pose -> Rig -> Autorig -> Animatable in both directions", () => {
+    mockTrace = {
+      targets: [
+        {
+          targetId: "anim://mouth/open",
+          targetLabel: "Face Mesh · Mouth Open",
+          directRigInputIds: ["autorig/mouth/open"],
+          upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          matchedPoseOutputs: [
+            {
+              poseId: "pose_1",
+              poseName: "Jaw Open Pose",
+              inputId: "rig/parent/jaw_open",
+              value: 0.7,
+              neutral: 0,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+
+    const onSelectPose = vi.fn();
+    const onSelectRig = vi.fn();
+    const onSelectTarget = vi.fn();
+
+    const node: SceneObjectNode = {
+      id: "shape_1",
+      name: "Shape 1",
+      type: "shape",
+      parentId: null,
+      childIds: [],
+      features: [],
+    };
+
+    const view = render(
+      <BindingConnections
+        node={node}
+        onSelectPose={onSelectPose}
+        onSelectRig={onSelectRig}
+        onSelectTarget={onSelectTarget}
+      />,
+    );
+
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Animatable");
+
+    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Autorig");
+
+    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Rig");
+
+    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Pose");
+
+    fireEvent.click(view.getByTestId("binding-traversal-downstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Rig");
+
+    fireEvent.click(view.getByTestId("binding-traversal-downstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Autorig");
+
+    fireEvent.click(view.getByTestId("binding-traversal-downstream"));
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Animatable");
+
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      1,
+      "autorig/mouth/open",
+      "pose-entry",
+    );
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      2,
+      "rig/parent/jaw_open",
+      "pose-group-output",
+    );
+    expect(onSelectPose).toHaveBeenCalledWith("pose_1");
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      3,
+      "rig/parent/jaw_open",
+      "pose-group-output",
+    );
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      4,
+      "autorig/mouth/open",
+      "pose-entry",
+    );
+    expect(onSelectTarget).toHaveBeenCalledWith("anim://mouth/open");
+  });
+
+  it("preserves traversal selection context when trace refreshes", () => {
+    mockTrace = {
+      targets: [
+        {
+          targetId: "anim://mouth/open",
+          targetLabel: "Face Mesh · Mouth Open",
+          directRigInputIds: ["autorig/mouth/open"],
+          upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          matchedPoseOutputs: [
+            {
+              poseId: "pose_1",
+              poseName: "Jaw Open Pose",
+              inputId: "rig/parent/jaw_open",
+              value: 0.7,
+              neutral: 0,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+
+    const node: SceneObjectNode = {
+      id: "shape_1",
+      name: "Shape 1",
+      type: "shape",
+      parentId: null,
+      childIds: [],
+      features: [],
+    };
+
+    const view = render(<BindingConnections node={node} />);
+
+    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
+    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
+
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Rig");
+    expect(
+      view.getByTestId("binding-traversal-current-label").textContent,
+    ).toContain("Jaw Open");
+
+    mockTrace = {
+      targets: [
+        {
+          targetId: "anim://mouth/open",
+          targetLabel: "Face Mesh · Mouth Open v2",
+          directRigInputIds: ["autorig/mouth/open"],
+          upstreamRigInputIds: [
+            "autorig/mouth/open",
+            "rig/parent/jaw_open",
+            "rig/group/smile",
+          ],
+          orderedRigInputIds: [
+            "autorig/mouth/open",
+            "rig/parent/jaw_open",
+            "rig/group/smile",
+          ],
+          matchedPoseOutputs: [
+            {
+              poseId: "pose_1",
+              poseName: "Jaw Open Pose",
+              inputId: "rig/parent/jaw_open",
+              value: 0.8,
+              neutral: 0,
+            },
+          ],
+          diagnostics: [],
+        },
+      ],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+
+    view.rerender(<BindingConnections node={node} />);
+
+    expect(
+      view.getByTestId("binding-traversal-current-kind").textContent,
+    ).toContain("Rig");
+    expect(
+      view.getByTestId("binding-traversal-current-label").textContent,
+    ).toContain("Jaw Open");
   });
 });

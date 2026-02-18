@@ -68,15 +68,17 @@ Exit gate:
 1. No lifecycle gaps across variables/poses/pose groups.
 2. Chain traversal and editing are complete without context loss.
 
-Stage 2 progress (2026-02-18 08:05:13Z):
+Stage 2 progress (2026-02-18 08:40:31Z):
 
 1. `B2.1` complete; variable lifecycle is now explicit across pane + inspector flows with create/delete operations and dedicated inspector metadata editing (`default`, `min`, `max`) plus validation messaging.
 2. System-managed variable delete guardrails are explicit in inspector UI and block destructive operations; custom variable deletion requires confirmation messaging in pane flow.
 3. `B2.2` complete; pose lifecycle now enforces deterministic identity/references (no random IDs) across create/duplicate/add/import paths while preserving per-item CRUD and target edit/preview behavior.
 4. `B2.3` complete; pose-group lifecycle now keeps configured groups visible even when empty and reconciles/clears stale group-selection context, with explicit membership assignment coverage.
-5. Validation evidence for `B2.1`: `2026-02-18 07:32:04Z` (`typecheck` pass), `2026-02-18 07:32:04Z` (`test` pass), `2026-02-18 07:32:04Z` (`lint` pass, warnings only), `2026-02-18 07:32:04Z` (`validate` pass).
-6. Validation evidence for `B2.2`: `2026-02-18 07:52:10Z` (`typecheck` pass), `2026-02-18 07:52:10Z` (`test` pass), `2026-02-18 07:52:10Z` (`lint` pass, warnings only), `2026-02-18 07:52:10Z` (`validate` pass).
-7. Validation evidence for `B2.3`: `2026-02-18 08:05:13Z` (`typecheck` pass), `2026-02-18 08:05:13Z` (`test` pass), `2026-02-18 08:05:13Z` (`lint` pass, warnings only), `2026-02-18 08:05:13Z` (`validate` pass).
+5. `B2.4` complete; rig inspector now supports explicit chain traversal through downstream autorig nodes and upstream parent rig nodes, while chain-path revisits preserve latest node context (view/target metadata) instead of resetting unexpectedly.
+6. Validation evidence for `B2.1`: `2026-02-18 07:32:04Z` (`typecheck` pass), `2026-02-18 07:32:04Z` (`test` pass), `2026-02-18 07:32:04Z` (`lint` pass, warnings only), `2026-02-18 07:32:04Z` (`validate` pass).
+7. Validation evidence for `B2.2`: `2026-02-18 07:52:10Z` (`typecheck` pass), `2026-02-18 07:52:10Z` (`test` pass), `2026-02-18 07:52:10Z` (`lint` pass, warnings only), `2026-02-18 07:52:10Z` (`validate` pass).
+8. Validation evidence for `B2.3`: `2026-02-18 08:05:13Z` (`typecheck` pass), `2026-02-18 08:05:13Z` (`test` pass), `2026-02-18 08:05:13Z` (`lint` pass, warnings only), `2026-02-18 08:05:13Z` (`validate` pass).
+9. Validation evidence for `B2.4`: `2026-02-18 08:40:31Z` (`typecheck` pass), `2026-02-18 08:40:31Z` (`test` pass), `2026-02-18 08:40:31Z` (`lint` pass, warnings only), `2026-02-18 08:40:31Z` (`validate` pass).
 
 ## Stage 3 — Import/Export + Runtime Contract
 
