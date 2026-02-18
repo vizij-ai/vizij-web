@@ -411,6 +411,127 @@ describe("VariablesPanel", () => {
     expect(poseRigState.deletePose).toHaveBeenCalledWith("pose_smile");
     confirmSpy.mockRestore();
   });
+
+  it("shows configured pose groups even when they have zero members", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+        },
+      ],
+    };
+
+    const onSelectPoseGroup = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+        onSelectPoseGroup={onSelectPoseGroup}
+      />,
+    );
+
+    fireEvent.click(within(view.container).getByTitle("emotion"));
+
+    expect(onSelectPoseGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: "emotion",
+        groupPath: "emotion",
+        poseIds: [],
+      }),
+    );
+  });
+
+  it("assigns and unassigns selected pose membership deterministically", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+        },
+      ],
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: null,
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const assignView = render(
+      <VariablesPanel
+        selectedPoseId="pose_smile"
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+    fireEvent.click(
+      within(assignView.container).getByRole("button", { name: "Assign" }),
+    );
+    expect(poseRigState.updatePoseGroup).toHaveBeenCalledWith(
+      "pose_smile",
+      "emotion",
+    );
+
+    poseRigState.updatePoseGroup.mockReset();
+    poseRigState.poses = [
+      {
+        ...poseRigState.poses[0]!,
+        group: "emotion",
+        groupId: "emotion",
+      },
+    ];
+
+    const unassignView = render(
+      <VariablesPanel
+        selectedPoseId="pose_smile"
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+    fireEvent.click(
+      within(unassignView.container).getByRole("button", { name: "Unassign" }),
+    );
+    expect(poseRigState.updatePoseGroup).toHaveBeenCalledWith(
+      "pose_smile",
+      null,
+    );
+  });
+
+  it("clears stale pose-group selection when the backing group no longer exists", () => {
+    const onSelectPoseGroup = vi.fn();
+    render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+        selectedPoseGroup={{
+          groupId: "missing_group",
+          groupPath: "emotion",
+          label: "emotion",
+          nodeId: "missing_group",
+          poseIds: ["pose_smile"],
+        }}
+        onSelectPoseGroup={onSelectPoseGroup}
+      />,
+    );
+
+    expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
+  });
 });
 
 describe("filterTreeForActiveSurface", () => {

@@ -334,7 +334,7 @@ Completion notes (2026-02-18 07:52:10Z):
    - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
    - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B2.3 Pose Group Lifecycle and Membership Editing
+### [x] B2.3 Pose Group Lifecycle and Membership Editing
 
 Intent:
 Support complete pose-group lifecycle with membership management.
@@ -357,6 +357,22 @@ Acceptance checks:
 
 Dependencies:
 `B2.2`.
+
+Completion notes (2026-02-18 08:05:13Z):
+
+1. Completed pose-group lifecycle affordances so configured groups remain reachable for full CRUD even when empty:
+   - `src/components/panels/VariablesPanel.tsx` now retains configured groups with zero members in the Pose Groups surface.
+2. Added selection-reconciliation behavior for pose-group inspector context:
+   - stale pose-group selections are refreshed when metadata changes and cleared when backing groups disappear, preventing stuck membership editor state.
+3. Added/extended membership and lifecycle coverage:
+   - `src/components/panels/VariablesPanel.test.tsx` for empty-group visibility, assign/unassign flows, and stale-selection clearing.
+   - `src/poseRig/usePoseRigAuthoring.test.tsx` for group create/rename/delete lifecycle and deterministic membership persistence through assign/unassign cycles.
+4. Membership add/remove remains deterministic and persistent by continuing to route through `updatePoseGroup` / `updatePoseGroupBatch` + pose-config draft synchronization.
+5. Validation evidence:
+   - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 257 tests).
+   - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B2.4 Inspector Chain Traversal Completion
 

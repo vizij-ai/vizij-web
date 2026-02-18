@@ -14,7 +14,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`
 6. `B1.4` is complete in this worktree with face-inspector current-source truthfulness and per-channel lock semantics.
 7. `B2.1` is complete in this worktree with inspector variable metadata editing, delete guardrails, and lifecycle validation messaging.
 8. `B2.2` is complete in this worktree with deterministic pose ID lifecycle behavior and explicit pose CRUD/preview regression coverage.
-9. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
+9. `B2.3` is complete in this worktree with pose-group lifecycle reachability for empty groups and deterministic membership editor-state reconciliation.
+10. Backlog IDs in this tracker map to `plans/BACKLOG.md`.
 
 ## Validation Gate Status
 
@@ -31,6 +32,7 @@ Latest evidence:
 5. `2026-02-18 07:08:40Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 6. `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 7. `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+8. `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
 
 ### Lint
 
@@ -48,6 +50,8 @@ Latest evidence:
 8. `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 9. `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
 10. `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
+11. `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+12. `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint phase exited 0 with warnings only; no lint errors).
 
 ### Test
 
@@ -63,7 +67,8 @@ Latest evidence:
 6. `2026-02-18 07:08:40Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 55 files / 237 tests).
 7. `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 242 tests).
 8. `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 252 tests).
-9. Residual known failures: none.
+9. `2026-02-18 08:05:13Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 257 tests).
+10. Residual known failures: none.
 
 ## Backlog Status Board
 
@@ -78,7 +83,7 @@ Latest evidence:
 | B1.4 | done    | Completed 2026-02-18 07:08:40Z; per-channel face lock semantics + current source  |
 | B2.1 | done    | Completed 2026-02-18 07:32:04Z; variable lifecycle + metadata editing landed      |
 | B2.2 | done    | Completed 2026-02-18 07:52:10Z; deterministic pose lifecycle + CRUD coverage      |
-| B2.3 | planned | Depends on B2.2                                                                   |
+| B2.3 | done    | Completed 2026-02-18 08:05:13Z; pose-group lifecycle + membership reconciliation  |
 | B2.4 | planned | Depends on B1 + B2                                                                |
 | B3.1 | planned | Depends on B0                                                                     |
 | B3.2 | planned | Depends on B3.1                                                                   |
@@ -116,6 +121,10 @@ Latest evidence:
 22. `[2026-02-18 07:52:10Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 56 files / 252 tests)`
 23. `[2026-02-18 07:52:10Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 8 warnings)`
 24. `[2026-02-18 07:52:10Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
+25. `[2026-02-18 08:05:13Z] pnpm --filter vizij-authoring run typecheck -> pass (tsc --noEmit, exit 0)`
+26. `[2026-02-18 08:05:13Z] pnpm --filter vizij-authoring run test -> pass (vitest --run --passWithNoTests, exit 0; 56 files / 257 tests)`
+27. `[2026-02-18 08:05:13Z] pnpm --filter vizij-authoring run lint -> pass (0 errors, 8 warnings)`
+28. `[2026-02-18 08:05:13Z] pnpm --filter vizij-authoring run validate -> pass (pnpm run lint && pnpm run typecheck && pnpm run test, exit 0; lint warnings only)`
 
 ## Resolved and Archived Notes
 

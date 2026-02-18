@@ -186,6 +186,13 @@ function collectPoseIds(node: TreeNode): string[] {
   return ids;
 }
 
+function arePoseIdListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((id, index) => id === right[index]);
+}
+
 function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) {
@@ -630,7 +637,7 @@ export function VariablesPanel({
     });
 
     return Array.from(groupsByPath.values()).filter(
-      (group) => group.poseIds.length > 0,
+      (group) => group.source === "configured" || group.poseIds.length > 0,
     );
   }, [blendMode, poseGroupBlendModeFallback, poseGroupsFromConfig, poses]);
 
@@ -669,6 +676,48 @@ export function VariablesPanel({
       return false;
     });
   }, [poseGroups, poseNameById, searchQuery]);
+
+  useEffect(() => {
+    if (!selectedPoseGroup || !onSelectPoseGroup) {
+      return;
+    }
+
+    const selectedPath =
+      normalizePoseGroupPath(selectedPoseGroup.groupPath) ??
+      UNASSIGNED_POSE_GROUP_PATH;
+    const matchingGroup = selectedPoseGroup.groupId
+      ? poseGroups.find(
+          (group) =>
+            group.source === "configured" &&
+            group.id === selectedPoseGroup.groupId,
+        )
+      : poseGroups.find((group) => group.path === selectedPath);
+
+    if (!matchingGroup) {
+      onSelectPoseGroup(null);
+      return;
+    }
+
+    const nextSelection: PoseGroupInspectorSelection = {
+      groupPath: matchingGroup.path,
+      label: poseGroupDisplayLabel(matchingGroup.path),
+      groupId: matchingGroup.source === "configured" ? matchingGroup.id : null,
+      poseIds: matchingGroup.poseIds,
+      nodeId: matchingGroup.id,
+    };
+
+    if (
+      selectedPoseGroup.groupPath === nextSelection.groupPath &&
+      selectedPoseGroup.label === nextSelection.label &&
+      selectedPoseGroup.groupId === nextSelection.groupId &&
+      selectedPoseGroup.nodeId === nextSelection.nodeId &&
+      arePoseIdListsEqual(selectedPoseGroup.poseIds, nextSelection.poseIds)
+    ) {
+      return;
+    }
+
+    onSelectPoseGroup(nextSelection);
+  }, [onSelectPoseGroup, poseGroups, selectedPoseGroup]);
 
   const {
     managedStandardInputs,
@@ -1972,7 +2021,7 @@ export function VariablesPanel({
                       description={
                         filteredSearch.length > 0
                           ? `No items found matching "${searchQuery}"`
-                          : "Assign a pose to a group to populate this list."
+                          : "Create a group or assign poses to populate this list."
                       }
                       action={
                         filteredSearch.length > 0 ? (

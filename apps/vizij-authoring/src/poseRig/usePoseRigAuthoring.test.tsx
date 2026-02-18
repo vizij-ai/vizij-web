@@ -412,6 +412,117 @@ describe("usePoseRigAuthoring", () => {
     });
   });
 
+  it("supports pose-group lifecycle with deterministic ids and persisted memberships", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Pose A");
+      result.current?.createPose("Pose B");
+      result.current?.createPoseGroup("emotion/primary");
+    });
+
+    const poseIds = result.current?.poses.map((pose) => pose.id) ?? [];
+    expect(poseIds).toHaveLength(2);
+
+    const createdGroup = result.current?.poseConfigDraft?.poseGroups?.find(
+      (group) => group.path === "emotion/primary",
+    );
+    expect(createdGroup?.id).toBe("emotion_primary");
+
+    act(() => {
+      result.current?.updatePoseGroupBatch(poseIds, "emotion/primary");
+    });
+
+    result.current?.poses.forEach((pose) => {
+      expect(pose.group).toBe("emotion/primary");
+      expect(pose.groupId).toBe(createdGroup?.id);
+    });
+    result.current?.poseConfigDraft?.poses.forEach((pose) => {
+      expect(pose.group).toBe("emotion/primary");
+      expect(pose.groupId).toBe(createdGroup?.id);
+    });
+
+    act(() => {
+      if (createdGroup?.id) {
+        result.current?.renamePoseGroup(createdGroup.id, "emotion/lead");
+      }
+    });
+
+    const renamedGroup = result.current?.poseConfigDraft?.poseGroups?.find(
+      (group) => group.id === createdGroup?.id,
+    );
+    expect(renamedGroup?.path).toBe("emotion/lead");
+    result.current?.poses.forEach((pose) => {
+      expect(pose.group).toBe("emotion/lead");
+      expect(pose.groupId).toBe(createdGroup?.id);
+    });
+
+    act(() => {
+      if (createdGroup?.id) {
+        result.current?.deletePoseGroup(createdGroup.id);
+      }
+    });
+
+    expect(
+      result.current?.poseConfigDraft?.poseGroups?.some(
+        (group) => group.id === createdGroup?.id,
+      ),
+    ).toBe(false);
+    result.current?.poses.forEach((pose) => {
+      expect(pose.group).toBeNull();
+      expect(pose.groupId).toBeNull();
+    });
+  });
+
+  it("reuses the same configured group identity across assign/unassign cycles", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Pose A");
+      result.current?.createPose("Pose B");
+      result.current?.createPoseGroup("viseme/main");
+    });
+
+    const poseIds = result.current?.poses.map((pose) => pose.id) ?? [];
+    const targetGroup = result.current?.poseConfigDraft?.poseGroups?.find(
+      (group) => group.path === "viseme/main",
+    );
+    expect(targetGroup?.id).toBe("viseme_main");
+
+    act(() => {
+      result.current?.updatePoseGroupBatch(poseIds, "viseme/main");
+    });
+
+    const firstPoseId = poseIds[0];
+    expect(firstPoseId).toBeTruthy();
+    act(() => {
+      if (firstPoseId) {
+        result.current?.updatePoseGroup(firstPoseId, null);
+      }
+    });
+
+    const unassignedPose = result.current?.poses.find(
+      (pose) => pose.id === firstPoseId,
+    );
+    expect(unassignedPose?.group).toBeNull();
+    expect(unassignedPose?.groupId).toBeNull();
+
+    act(() => {
+      if (firstPoseId) {
+        result.current?.updatePoseGroup(firstPoseId, "viseme/main");
+      }
+    });
+
+    const reassignedPose = result.current?.poses.find(
+      (pose) => pose.id === firstPoseId,
+    );
+    expect(reassignedPose?.group).toBe("viseme/main");
+    expect(reassignedPose?.groupId).toBe(targetGroup?.id);
+    expect(
+      result.current?.poseConfigDraft?.poseGroups?.filter(
+        (group) => group.path === "viseme/main",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("reassigns imported grouped poses even when legacy groupId is present", () => {
     const { result } = hook!;
     act(() => {
