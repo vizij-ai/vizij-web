@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
-import { VariablesPanel } from "./VariablesPanel";
+import { VariablesPanel, filterTreeForActiveSurface } from "./VariablesPanel";
 
 const poseRigState = {
   poses: [],
@@ -290,5 +290,40 @@ describe("VariablesPanel", () => {
 
     fireEvent.change(search, { target: { value: "Eye Open" } });
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
+  });
+});
+
+describe("filterTreeForActiveSurface", () => {
+  it("skips filter work for inactive surfaces", () => {
+    const rootNode = { id: "root" };
+    const filterTree = vi.fn(() => ({ id: "filtered" }));
+
+    const result = filterTreeForActiveSurface({
+      activeSurface: "poses",
+      targetSurface: "variables",
+      rootNode,
+      query: "jaw",
+      filterTree,
+    });
+
+    expect(result).toBe(rootNode);
+    expect(filterTree).not.toHaveBeenCalled();
+  });
+
+  it("runs filter work for the active surface", () => {
+    const rootNode = { id: "root" };
+    const filteredNode = { id: "filtered" };
+    const filterTree = vi.fn(() => filteredNode);
+
+    const result = filterTreeForActiveSurface({
+      activeSurface: "inputs",
+      targetSurface: "inputs",
+      rootNode,
+      query: "brow",
+      filterTree,
+    });
+
+    expect(filterTree).toHaveBeenCalledWith(rootNode, "brow");
+    expect(result).toBe(filteredNode);
   });
 });

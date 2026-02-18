@@ -128,7 +128,7 @@ Completion notes (2026-02-18 06:29:04Z):
 3. Updated inspector slider+numeric rows in `src/components/inspector/InspectorContent.tsx` and `src/components/inspector/InspectorPanel.tsx` to use shared numeric width and wrapping classes, removing narrow `w-12/w-20` wrappers that caused clipping risk.
 4. Added `src/components/inspector/inspectorSizingContracts.test.ts` to lock the B1.1 sizing and wrapping contracts.
 
-### [ ] B1.2 Sidebar Density and Pane Orchestration
+### [x] B1.2 Sidebar Density and Pane Orchestration
 
 Intent:
 Keep left sidebar usable when many panes are active.
@@ -152,6 +152,19 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 06:37:14Z):
+
+1. Consolidated left sidebar variable surfaces into one `VariablesPanel` instance in `src/App.tsx`, while keeping `HierarchyPanel` in its own pane section.
+2. Added explicit deterministic surface ordering in `src/components/panels/variablesSurfaceOrder.ts` driven by visibility flags in this order: `variables` -> `poses` -> `pose-groups` (from `materials` toggle) -> `inputs`.
+3. Gated heavy tree filtering in `src/components/panels/VariablesPanel.tsx` so `filterTreeBySearch` only runs for the active surface tree.
+4. Added targeted tests:
+   - `src/components/panels/variablesSurfaceOrder.test.ts` (ordering contract)
+   - `src/components/panels/VariablesPanel.test.tsx` (`filterTreeForActiveSurface` gating behavior)
+5. Validation evidence:
+   - `2026-02-18 06:36:42Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 06:36:56Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 51 files / 225 tests).
+   - `2026-02-18 06:37:14Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 16 warnings).
 
 ### [ ] B1.3 Pose Inspector Value Semantics
 

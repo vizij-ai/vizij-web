@@ -39,6 +39,7 @@ import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
+import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -206,6 +207,13 @@ function AppContent({ loader }: AppContentProps) {
   });
 
   const { panels } = useWorkspaceStore();
+  const visibleVariablesSurfaces = getVisibleVariablesSurfaces({
+    variables: panels.variables,
+    poses: panels.poses,
+    materials: panels.materials,
+    inputs: panels.inputs,
+  });
+  const variablesPanelVisible = visibleVariablesSurfaces.length > 0;
   const {
     selectedId,
     selectedRigId,
@@ -375,7 +383,7 @@ function AppContent({ loader }: AppContentProps) {
               onSelectObject={handleSelectObject}
             />
           }
-          leftBottomVisible={panels.variables.isVisible}
+          leftBottomVisible={variablesPanelVisible}
           leftBottomPanel={
             <VariablesPanel
               selectedRigId={selectedRigId}
@@ -384,54 +392,14 @@ function AppContent({ loader }: AppContentProps) {
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
               onSelectScene={handleSelectObject}
-              availableSurfaces={["variables"]}
+              availableSurfaces={visibleVariablesSurfaces}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
             />
           }
-          leftBottomVisible2={panels.poses.isVisible}
-          leftBottomPanel2={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRig}
-              onSelectPose={handleSelectPose}
-              onSelectScene={handleSelectObject}
-              availableSurfaces={["poses"]}
-              activeSurfaceOverride="poses"
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
-            />
-          }
-          leftBottomVisible3={panels.inputs.isVisible}
-          leftBottomPanel3={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRig}
-              onSelectPose={handleSelectPose}
-              onSelectScene={handleSelectObject}
-              availableSurfaces={["inputs"]}
-              activeSurfaceOverride="inputs"
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
-            />
-          }
-          leftMiddleVisible={panels.materials.isVisible}
-          leftMiddlePanel={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              onSelectRig={handleSelectRig}
-              onSelectPose={handleSelectPose}
-              availableSurfaces={["pose-groups"]}
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
-              activeSurfaceOverride="pose-groups"
-            />
-          }
+          leftBottomVisible2={false}
+          leftBottomVisible3={false}
+          leftMiddleVisible={false}
           // Center
           topPanel={
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>

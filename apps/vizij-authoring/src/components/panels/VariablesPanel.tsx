@@ -42,6 +42,7 @@ import type {
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
+type FilterableSurfaceTab = Exclude<SurfaceTab, "pose-groups">;
 const DEFAULT_SURFACES: SurfaceTab[] = [
   "variables",
   "poses",
@@ -228,6 +229,25 @@ function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
     ...rootNode,
     children: filteredRootChildren,
   };
+}
+
+export function filterTreeForActiveSurface<T>({
+  activeSurface,
+  targetSurface,
+  rootNode,
+  query,
+  filterTree,
+}: {
+  activeSurface: SurfaceTab;
+  targetSurface: FilterableSurfaceTab;
+  rootNode: T;
+  query: string;
+  filterTree: (node: T, searchQuery: string) => T;
+}): T {
+  if (activeSurface !== targetSurface) {
+    return rootNode;
+  }
+  return filterTree(rootNode, query);
 }
 
 // ----------------------------------------------------------------------------
@@ -1167,16 +1187,37 @@ export function VariablesPanel({
   }, [poses]);
 
   const visibleVariablesRoot = useMemo(
-    () => filterTreeBySearch(variablesRootNode, searchQuery),
-    [variablesRootNode, searchQuery],
+    () =>
+      filterTreeForActiveSurface({
+        activeSurface,
+        targetSurface: "variables",
+        rootNode: variablesRootNode,
+        query: searchQuery,
+        filterTree: filterTreeBySearch,
+      }),
+    [activeSurface, variablesRootNode, searchQuery],
   );
   const visiblePosesRoot = useMemo(
-    () => filterTreeBySearch(posesRootNode, searchQuery),
-    [posesRootNode, searchQuery],
+    () =>
+      filterTreeForActiveSurface({
+        activeSurface,
+        targetSurface: "poses",
+        rootNode: posesRootNode,
+        query: searchQuery,
+        filterTree: filterTreeBySearch,
+      }),
+    [activeSurface, posesRootNode, searchQuery],
   );
   const visibleInputRoot = useMemo(
-    () => filterTreeBySearch(inputRootNode, searchQuery),
-    [inputRootNode, searchQuery],
+    () =>
+      filterTreeForActiveSurface({
+        activeSurface,
+        targetSurface: "inputs",
+        rootNode: inputRootNode,
+        query: searchQuery,
+        filterTree: filterTreeBySearch,
+      }),
+    [activeSurface, inputRootNode, searchQuery],
   );
   const visibleRoot =
     activeSurface === "poses"
