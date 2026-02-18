@@ -24,6 +24,11 @@ Exit gate:
 2. Lint green.
 3. Test status reconciled and documented.
 
+Stage 0 progress (2026-02-18 06:05:57Z):
+
+1. `B0.1` complete; typecheck gate is currently green.
+2. Remaining Stage 0 blockers: `B0.2`, `B0.3`.
+
 ## Stage 1 — Inspector and Sidebar Usability
 
 Objective:

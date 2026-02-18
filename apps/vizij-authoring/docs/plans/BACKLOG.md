@@ -8,7 +8,7 @@ This file is implementation-level. Each item must be executable without ambiguit
 
 ## B0 — Baseline and CI Health
 
-### [ ] B0.1 TypeScript Baseline Cleanup
+### [x] B0.1 TypeScript Baseline Cleanup
 
 Intent:
 Bring `vizij-authoring` back to zero TypeScript errors.
@@ -30,6 +30,11 @@ Acceptance checks:
 
 Dependencies:
 None.
+
+Completion notes (2026-02-18 06:05:57Z):
+
+1. `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+2. No TypeScript source edits were required in this task window.
 
 ### [ ] B0.2 Test Reconciliation
 
