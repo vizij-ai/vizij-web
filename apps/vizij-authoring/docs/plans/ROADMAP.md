@@ -24,10 +24,11 @@ Exit gate:
 2. Lint green.
 3. Test status reconciled and documented.
 
-Stage 0 progress (2026-02-18 06:05:57Z):
+Stage 0 progress (2026-02-18 06:09:30Z):
 
 1. `B0.1` complete; typecheck gate is currently green.
-2. Remaining Stage 0 blockers: `B0.2`, `B0.3`.
+2. `B0.2` complete; test gate is green (`pnpm --filter vizij-authoring run test` pass, no quarantines, residual failures: none).
+3. Remaining Stage 0 blocker: `B0.3`.
 
 ## Stage 1 — Inspector and Sidebar Usability
 
