@@ -245,7 +245,7 @@ Completion notes (2026-02-18 07:08:40Z):
 
 ## B2 — Authoring Lifecycle Completeness
 
-### [ ] B2.1 Variables Lifecycle Completion
+### [x] B2.1 Variables Lifecycle Completion
 
 Intent:
 Support full variable CRUD + metadata editing with clear constraints.
@@ -269,6 +269,26 @@ Acceptance checks:
 
 Dependencies:
 `B1.1`, `B1.2`.
+
+Completion notes (2026-02-18 07:32:04Z):
+
+1. Completed variable lifecycle affordances across pane + inspector flows:
+   - `VariablesPanel` create/delete flow retained and delete confirmation messaging strengthened for destructive operations.
+   - Rig variable inspector now includes explicit metadata editing (`default`, `min`, `max`) with apply/reset draft controls.
+2. Added validation messaging for invalid edits and destructive guardrails in inspector:
+   - numeric required/valid checks
+   - min/max ordering check
+   - default-within-range check
+   - system-managed variable delete blocking with explicit user-facing messaging.
+3. Added/updated tests:
+   - `src/components/panels/VariablesPanel.test.tsx` for delete confirmation + confirmed deletion behavior.
+   - `src/components/inspector/rigVariableLifecycleContracts.test.ts` for B2.1 inspector lifecycle contracts.
+4. Persistence contract preserved by routing metadata edits through existing `handleUpdateStandardInput` mutation/persistence path (`useRigPersistence` + rig persistence storage), so metadata survives refresh/re-open under current face persistence model.
+5. Validation evidence:
+   - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 242 tests).
+   - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B2.2 Pose Lifecycle Completion
 

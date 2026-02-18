@@ -95,6 +95,11 @@ type InspectorChainNode = {
   targetId?: string;
 };
 
+type RigLifecycleMessage = {
+  tone: "error" | "info";
+  text: string;
+};
+
 function extractComponentIdFromInputSourceId(
   sourceId: string | null | undefined,
 ): string | null {
@@ -152,6 +157,13 @@ function collectBindingInputIds(
   return Array.from(ids);
 }
 
+function formatDraftNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
 export function InspectorContent() {
   const [showSelector, setShowSelector] = useState(false);
   const [rigAddMode, setRigAddMode] = useState<"property" | "variable">(
@@ -183,6 +195,11 @@ export function InspectorContent() {
   const [rigDrivenBindingTargetId, setRigDrivenBindingTargetId] = useState<
     string | null
   >(null);
+  const [rigDefaultDraft, setRigDefaultDraft] = useState("0");
+  const [rigRangeMinDraft, setRigRangeMinDraft] = useState("-1");
+  const [rigRangeMaxDraft, setRigRangeMaxDraft] = useState("1");
+  const [rigLifecycleMessage, setRigLifecycleMessage] =
+    useState<RigLifecycleMessage | null>(null);
 
   // Hooks
   const {
@@ -225,6 +242,7 @@ export function InspectorContent() {
     inputBindings,
     handleCreateCustomStandardInput,
     handleUpdateStandardInput,
+    handleDeleteCustomStandardInput,
     handleRenameShape,
     handleBindingInputChange,
     handleAddBindingSlot,
@@ -252,6 +270,16 @@ export function InspectorContent() {
     }
     return resolveRigMetadataInputId(selectedRigId, standardInputsById);
   }, [selectedRigId, standardInputsById]);
+  const selectedManagedRigEntry = useMemo(() => {
+    if (!resolvedSelectedRigId) {
+      return null;
+    }
+    return (
+      managedStandardInputs.find(
+        (entry) => entry.input.id === resolvedSelectedRigId,
+      ) ?? null
+    );
+  }, [managedStandardInputs, resolvedSelectedRigId]);
   const autorigInputIdByComponentId = useMemo(() => {
     type Candidate = {
       inputId: string;
@@ -435,6 +463,18 @@ export function InspectorContent() {
       setPoseBindingEditorInputId(null);
     }
   }, [inspectorMode, selectedPoseId]);
+
+  useEffect(() => {
+    if (inspectorMode !== "rig" || !selectedManagedRigEntry) {
+      setRigLifecycleMessage(null);
+      return;
+    }
+    const { input } = selectedManagedRigEntry;
+    setRigDefaultDraft(formatDraftNumber(input.defaultValue ?? 0));
+    setRigRangeMinDraft(formatDraftNumber(input.range.min ?? -1));
+    setRigRangeMaxDraft(formatDraftNumber(input.range.max ?? 1));
+    setRigLifecycleMessage(null);
+  }, [inspectorMode, selectedManagedRigEntry]);
 
   const targetOwnerById = (() => {
     const targetOwners = new Map<string, string>();
@@ -1771,13 +1811,15 @@ export function InspectorContent() {
 
   // 3. Rig Mode
   if (inspectorMode === "rig" && resolvedSelectedRigId) {
-    const rigInput = managedStandardInputs.find(
-      (m) => m.input.id === resolvedSelectedRigId,
-    );
+    const rigInput = selectedManagedRigEntry;
     if (rigInput) {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
       const parentBinding = inputBindings[input.id];
+      const isRemovableCustomInput = rigInput.source === "custom";
+      const deleteGuardrailMessage = isRemovableCustomInput
+        ? null
+        : "This variable is system-managed and cannot be deleted from the inspector.";
       const controllableResolution = resolveControllableInputId(
         input.id,
         inputBindings,
@@ -1811,6 +1853,146 @@ export function InspectorContent() {
       const sharedConflict = sharedLink
         ? (sharedSyncConflictsByPath.get(sharedLink.path) ?? null)
         : null;
+      const linkedPoseCount = poses.reduce((count, poseEntry) => {
+        return Object.prototype.hasOwnProperty.call(poseEntry.values, input.id)
+          ? count + 1
+          : count;
+      }, 0);
+
+      const parseDraftNumber = (valueText: string, label: string) => {
+        const trimmed = valueText.trim();
+        if (!trimmed) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: `${label} is required.`,
+          });
+          return null;
+        }
+        const parsed = Number(trimmed);
+        if (!Number.isFinite(parsed)) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: `${label} must be a valid number.`,
+          });
+          return null;
+        }
+        return parsed;
+      };
+
+      const handleApplyRigMetadataDraft = () => {
+        const parsedMin = parseDraftNumber(rigRangeMinDraft, "Minimum value");
+        if (parsedMin === null) {
+          return;
+        }
+        const parsedMax = parseDraftNumber(rigRangeMaxDraft, "Maximum value");
+        if (parsedMax === null) {
+          return;
+        }
+        const parsedDefault = parseDraftNumber(
+          rigDefaultDraft,
+          "Default value",
+        );
+        if (parsedDefault === null) {
+          return;
+        }
+        if (parsedMin > parsedMax) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: "Minimum value cannot be greater than maximum value.",
+          });
+          return;
+        }
+        if (parsedDefault < parsedMin || parsedDefault > parsedMax) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: "Default value must stay within the configured min/max range.",
+          });
+          return;
+        }
+        if (
+          parsedDefault === input.defaultValue &&
+          parsedMin === input.range.min &&
+          parsedMax === input.range.max
+        ) {
+          setRigLifecycleMessage({
+            tone: "info",
+            text: "No metadata changes to apply.",
+          });
+          return;
+        }
+        handleUpdateStandardInput(input.id, {
+          defaultValue: parsedDefault,
+          range: {
+            min: parsedMin,
+            max: parsedMax,
+          },
+        });
+        setRigLifecycleMessage({
+          tone: "info",
+          text: "Variable metadata updated.",
+        });
+      };
+
+      const handleRigPathChange = (nextPath: string) => {
+        const trimmedPath = nextPath.trim();
+        if (!trimmedPath) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: "Path cannot be empty.",
+          });
+          return;
+        }
+        const normalizedPath = normalizeStandardRigInputPath(trimmedPath);
+        const duplicatePath = managedStandardInputs.some(
+          (entry) =>
+            entry.input.id !== input.id &&
+            normalizeStandardRigInputPath(entry.input.path) === normalizedPath,
+        );
+        if (duplicatePath) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: `Another variable already uses "${normalizedPath}".`,
+          });
+          return;
+        }
+        handleUpdateStandardInput(input.id, { path: normalizedPath });
+        setRigLifecycleMessage(null);
+      };
+
+      const handleDeleteSelectedRigInput = () => {
+        if (!isRemovableCustomInput) {
+          setRigLifecycleMessage({
+            tone: "error",
+            text: deleteGuardrailMessage!,
+          });
+          return;
+        }
+        const label = input.label || input.path || input.id;
+        const impactNotes: string[] = [];
+        if (linkedPoseCount > 0) {
+          impactNotes.push(`${linkedPoseCount} pose target(s)`);
+        }
+        if (downstreamInputs.length > 0) {
+          impactNotes.push(`${downstreamInputs.length} downstream variable(s)`);
+        }
+        if (dependents.length > 0) {
+          impactNotes.push(
+            `${dependents.length} driven propert${dependents.length === 1 ? "y" : "ies"}`,
+          );
+        }
+        const impactSummary =
+          impactNotes.length > 0
+            ? `\n\nThis also removes links from ${impactNotes.join(", ")}.`
+            : "";
+        const shouldDelete = window.confirm(
+          `Delete custom variable "${label}"?${impactSummary}`,
+        );
+        if (!shouldDelete) {
+          return;
+        }
+        handleDeleteCustomStandardInput(input.id);
+        handleSelectRig(null);
+      };
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
@@ -1903,11 +2085,30 @@ export function InspectorContent() {
             path={input.path || ""}
             typeLabel="Rig"
             id={input.id}
-            onNameChange={(name) =>
-              handleUpdateStandardInput(input.id, { label: name })
-            }
-            onPathChange={(path) =>
-              handleUpdateStandardInput(input.id, { path })
+            onNameChange={(name) => {
+              handleUpdateStandardInput(input.id, { label: name });
+              setRigLifecycleMessage(null);
+            }}
+            onPathChange={handleRigPathChange}
+            actions={
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-6 w-6 p-0",
+                  isRemovableCustomInput
+                    ? "text-text-secondary hover:text-red-400"
+                    : "text-text-muted hover:text-amber-300",
+                )}
+                title={
+                  isRemovableCustomInput
+                    ? "Delete custom variable"
+                    : (deleteGuardrailMessage ?? undefined)
+                }
+                onClick={handleDeleteSelectedRigInput}
+              >
+                <Trash2 size={12} />
+              </Button>
             }
           />
           {renderChainPath()}
@@ -2023,6 +2224,146 @@ export function InspectorContent() {
                   )}
                 </div>
               )}
+              <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Variable Metadata
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                      isRemovableCustomInput
+                        ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                        : "border-sky-500/40 text-sky-200 bg-sky-500/10",
+                    )}
+                  >
+                    {isRemovableCustomInput ? "custom" : "system"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                      Default
+                    </span>
+                    <Input
+                      size="sm"
+                      type="number"
+                      step="0.01"
+                      value={rigDefaultDraft}
+                      onChange={(event) =>
+                        setRigDefaultDraft(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleApplyRigMetadataDraft();
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setRigDefaultDraft(
+                            formatDraftNumber(input.defaultValue ?? 0),
+                          );
+                          setRigLifecycleMessage(null);
+                        }
+                      }}
+                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                      Min
+                    </span>
+                    <Input
+                      size="sm"
+                      type="number"
+                      step="0.01"
+                      value={rigRangeMinDraft}
+                      onChange={(event) =>
+                        setRigRangeMinDraft(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleApplyRigMetadataDraft();
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setRigRangeMinDraft(
+                            formatDraftNumber(input.range.min ?? -1),
+                          );
+                          setRigLifecycleMessage(null);
+                        }
+                      }}
+                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                      Max
+                    </span>
+                    <Input
+                      size="sm"
+                      type="number"
+                      step="0.01"
+                      value={rigRangeMaxDraft}
+                      onChange={(event) =>
+                        setRigRangeMaxDraft(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleApplyRigMetadataDraft();
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setRigRangeMaxDraft(
+                            formatDraftNumber(input.range.max ?? 1),
+                          );
+                          setRigLifecycleMessage(null);
+                        }
+                      }}
+                      className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    onClick={handleApplyRigMetadataDraft}
+                  >
+                    Apply Metadata
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    onClick={() => {
+                      setRigDefaultDraft(formatDraftNumber(input.defaultValue));
+                      setRigRangeMinDraft(formatDraftNumber(input.range.min));
+                      setRigRangeMaxDraft(formatDraftNumber(input.range.max));
+                      setRigLifecycleMessage(null);
+                    }}
+                  >
+                    Reset Draft
+                  </Button>
+                  {!isRemovableCustomInput && (
+                    <span className="text-[10px] text-amber-200/90">
+                      Deletion is disabled for system-managed variables.
+                    </span>
+                  )}
+                </div>
+                {rigLifecycleMessage && (
+                  <p
+                    className={cn(
+                      "text-[10px]",
+                      rigLifecycleMessage.tone === "error"
+                        ? "text-red-300"
+                        : "text-emerald-300",
+                    )}
+                  >
+                    {rigLifecycleMessage.text}
+                  </p>
+                )}
+              </div>
               <RiggingPropertyRow
                 label="Current Value"
                 onScrubStart={() => {

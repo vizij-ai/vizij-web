@@ -1361,7 +1361,9 @@ export function VariablesPanel({
       }
       const label =
         rigData.input.label || rigData.input.path || rigData.input.id;
-      const ok = window.confirm(`Delete custom variable "${label}"?`);
+      const ok = window.confirm(
+        `Delete custom variable "${label}"?\n\nThis removes the variable plus linked pose targets and binding routes.`,
+      );
       if (!ok) {
         return;
       }

@@ -68,6 +68,12 @@ Exit gate:
 1. No lifecycle gaps across variables/poses/pose groups.
 2. Chain traversal and editing are complete without context loss.
 
+Stage 2 progress (2026-02-18 07:32:04Z):
+
+1. `B2.1` complete; variable lifecycle is now explicit across pane + inspector flows with create/delete operations and dedicated inspector metadata editing (`default`, `min`, `max`) plus validation messaging.
+2. System-managed variable delete guardrails are explicit in inspector UI and block destructive operations; custom variable deletion requires confirmation messaging in pane flow.
+3. Validation evidence for `B2.1`: `2026-02-18 07:32:04Z` (`typecheck` pass), `2026-02-18 07:32:04Z` (`test` pass), `2026-02-18 07:32:04Z` (`lint` pass, warnings only), `2026-02-18 07:32:04Z` (`validate` pass).
+
 ## Stage 3 — Import/Export + Runtime Contract
 
 Objective:

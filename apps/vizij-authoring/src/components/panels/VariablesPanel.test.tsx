@@ -291,6 +291,74 @@ describe("VariablesPanel", () => {
     fireEvent.change(search, { target: { value: "Eye Open" } });
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
+
+  it("requires confirmation before deleting a custom variable", () => {
+    const customInput = makeInput("custom_smile", "/custom/smile", {
+      label: "Smile",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: customInput,
+        source: "custom",
+      },
+    ];
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText(
+        "Search or create variable...",
+      ),
+      {
+        target: { value: customInput.label },
+      },
+    );
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Delete variable")[0]!,
+    );
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      `Delete custom variable "${customInput.label}"?\n\nThis removes the variable plus linked pose targets and binding routes.`,
+    );
+    expect(bindingState.handleDeleteCustomStandardInput).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("deletes confirmed custom variables and clears selection", () => {
+    const customInput = makeInput("custom_brow", "/custom/brow", {
+      label: "Brow Raise",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: customInput,
+        source: "custom",
+      },
+    ];
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onSelectRig = vi.fn();
+    const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText(
+        "Search or create variable...",
+      ),
+      {
+        target: { value: customInput.label },
+      },
+    );
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Delete variable")[0]!,
+    );
+
+    expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledWith(
+      customInput.id,
+    );
+    expect(onSelectRig).toHaveBeenCalledWith(null);
+    confirmSpy.mockRestore();
+  });
 });
 
 describe("filterTreeForActiveSurface", () => {
