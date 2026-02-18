@@ -94,7 +94,7 @@ Exit gate:
 2. Runtime controls include pose weights and rig inputs.
 3. Import converges legacy data safely and deterministically.
 
-Stage 3 progress (2026-02-18 09:12:48Z):
+Stage 3 progress (2026-02-18 09:26:30Z):
 
 1. `B3.1` complete; export flow now enforces runtime compatibility contract checks by auditing bundled graphs against compiled IR and runtime output target coverage before GLB export.
 2. Invalid exports now surface actionable diagnostics in export flow (mismatch type + failing graph/output path) and are blocked prior to `exportScene`.
@@ -102,6 +102,9 @@ Stage 3 progress (2026-02-18 09:12:48Z):
 4. `B3.2` complete; runtime control surface now registers rig and pose graphs concurrently in `RuntimeGraphBridge`, removing previous coupling that dropped `poseGraphSpec` whenever `graphSpec` was present.
 5. `B3.2` regression coverage now asserts deterministic runtime bundle transitions and call sequencing for concurrent rig/pose updates in `Viewer.test.tsx`.
 6. Validation evidence for `B3.2`: `2026-02-18 09:12:48Z` (`typecheck` pass), `2026-02-18 09:12:48Z` (`test` pass), `2026-02-18 09:12:48Z` (`lint` pass, warnings only), `2026-02-18 09:12:48Z` (`validate` pass).
+7. `B3.3` complete; import path now normalizes safe binding id mismatches and deterministically retargets invalid abstract-rig -> animatable bindings to autorig targets in the shared importer layer, with explicit unresolved fallback diagnostics.
+8. `B3.3` regression coverage now asserts safe remap, deterministic retarget, explicit fallback flagging, and idempotent re-import behavior in `src/rig/importer.test.ts`.
+9. Validation evidence for `B3.3`: `2026-02-18 09:26:30Z` (`typecheck` pass), `2026-02-18 09:26:30Z` (`test` pass), `2026-02-18 09:26:30Z` (`lint` pass, warnings only), `2026-02-18 09:26:30Z` (`validate` pass).
 
 ## Stage 4 — Pose/Group Model Evolution
 

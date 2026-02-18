@@ -492,7 +492,7 @@ Completion notes (2026-02-18 09:12:48Z):
    - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
    - `2026-02-18 09:12:48Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B3.3 Import Normalization and Autorig Retarget
+### [x] B3.3 Import Normalization and Autorig Retarget
 
 Intent:
 Automatically normalize common legacy import mismatches.
@@ -515,6 +515,26 @@ Acceptance checks:
 
 Dependencies:
 `B3.1`.
+
+Completion notes (2026-02-18 09:26:30Z):
+
+1. Added deterministic import normalization/retarget pass in `src/rig/importer.ts`:
+   - normalizes safe binding target/input id mismatches via canonical input-id resolution,
+   - retargets invalid direct animatable bindings to autorig input targets when deterministically resolvable,
+   - explicitly flags unresolved direct animatable bindings when safe retarget is not possible.
+2. Added import diagnostics for remapped/fallback cases:
+   - `RehydratedRigData` now carries `normalizationDiagnostics` (`inputIdRemaps`, `targetIdRemaps`, `animatableRetargets`, `animatableFallbacks`),
+   - `src/hooks/useRigGraphImport.ts` now surfaces normalization diagnostics via import warnings/alerts and discrepancy-review mismatch reasons.
+3. Added focused regression coverage in `src/rig/importer.test.ts`:
+   - safe binding id mismatch normalization,
+   - abstract-rig -> animatable retargeting to autorig targets,
+   - explicit unresolved fallback diagnostics,
+   - deterministic idempotent re-import behavior.
+4. Validation evidence:
+   - `2026-02-18 09:26:30Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 09:26:30Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 275 tests).
+   - `2026-02-18 09:26:30Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 09:26:30Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ## B4 — Pose/Group Data Model Evolution
 

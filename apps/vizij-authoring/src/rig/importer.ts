@@ -14,9 +14,12 @@ import {
   type BindingValueType,
 } from "@vizij/node-graph-authoring";
 import {
+  SELF_BINDING_ID,
   createStandardRigInput,
   deriveGroupFromNormalizedPath,
+  isAutorigStandardInputPath,
   normalizeStandardRigInputPath,
+  resolveStandardRigInputId,
   type AnimatableComponent,
   type AnimatableValue,
   type StandardRigInput,
@@ -65,9 +68,45 @@ export interface RehydratedRigData {
   inputBindings: InputBindingMap;
   inputMetadata: Map<string, { source?: string; root?: string }>;
   legacyAutorigInputPaths: string[];
+  normalizationDiagnostics: ImportNormalizationDiagnostics;
 }
 
 const LEGACY_AUTORIG_PREFIX = "/rig/element";
+
+type BindingFallbackReason = "missing-source-input" | "missing-autorig-target";
+
+interface BindingInputRemapDiagnostic {
+  targetId: string;
+  slotId: string;
+  fromInputId: string;
+  toInputId: string;
+}
+
+interface BindingTargetRemapDiagnostic {
+  fromTargetId: string;
+  toTargetId: string;
+}
+
+interface AnimatableRetargetDiagnostic {
+  animatableTargetId: string;
+  slotId: string;
+  fromInputId: string;
+  toAutorigInputId: string;
+}
+
+interface AnimatableFallbackDiagnostic {
+  animatableTargetId: string;
+  slotId: string;
+  inputId: string;
+  reason: BindingFallbackReason;
+}
+
+export interface ImportNormalizationDiagnostics {
+  inputIdRemaps: BindingInputRemapDiagnostic[];
+  targetIdRemaps: BindingTargetRemapDiagnostic[];
+  animatableRetargets: AnimatableRetargetDiagnostic[];
+  animatableFallbacks: AnimatableFallbackDiagnostic[];
+}
 
 function isLegacyAutorigPath(path: string | undefined | null): boolean {
   if (!path) {
@@ -115,6 +154,221 @@ function normalizeImportedInputPath(
 function coerceExpression(value: string | null | undefined, fallback: string) {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function createNormalizationDiagnostics(): ImportNormalizationDiagnostics {
+  return {
+    inputIdRemaps: [],
+    targetIdRemaps: [],
+    animatableRetargets: [],
+    animatableFallbacks: [],
+  };
+}
+
+function normalizeBindingInputId(
+  inputId: string | null,
+  standardInputs: Map<string, StandardRigInput>,
+): string | null {
+  if (inputId === null) {
+    return null;
+  }
+  const trimmed = inputId.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed === SELF_BINDING_ID) {
+    return SELF_BINDING_ID;
+  }
+  if (standardInputs.has(trimmed)) {
+    return trimmed;
+  }
+  const resolved = resolveStandardRigInputId(trimmed, standardInputs);
+  if (resolved !== trimmed && standardInputs.has(resolved)) {
+    return resolved;
+  }
+  return trimmed;
+}
+
+function normalizeBindingTargetId(
+  targetId: string,
+  componentIds: Set<string>,
+  standardInputs: Map<string, StandardRigInput>,
+): string {
+  const trimmed = targetId.trim();
+  if (!trimmed || componentIds.has(trimmed)) {
+    return trimmed || targetId;
+  }
+  if (standardInputs.has(trimmed)) {
+    return trimmed;
+  }
+  const resolved = resolveStandardRigInputId(trimmed, standardInputs);
+  if (resolved !== trimmed && standardInputs.has(resolved)) {
+    return resolved;
+  }
+  return trimmed;
+}
+
+function resolveComponentIdFromSourceId(
+  sourceId: string | undefined,
+): string | null {
+  const value = sourceId?.trim();
+  if (!value || !value.startsWith("component:")) {
+    return null;
+  }
+  const tokens = value.split(":");
+  if (tokens.length < 2) {
+    return null;
+  }
+  const encodedComponentId = tokens[tokens.length - 1];
+  if (!encodedComponentId || encodedComponentId.trim().length === 0) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(encodedComponentId);
+  } catch {
+    return encodedComponentId;
+  }
+}
+
+function collectAutorigTargetByComponentId(
+  normalizedSummaries: GraphBindingSummary[],
+  componentIds: Set<string>,
+  standardInputs: Map<string, StandardRigInput>,
+): Map<string, string> {
+  const candidates = new Map<string, Set<string>>();
+  const addCandidate = (componentId: string, inputId: string) => {
+    const current = candidates.get(componentId) ?? new Set<string>();
+    current.add(inputId);
+    candidates.set(componentId, current);
+  };
+
+  standardInputs.forEach((input, inputId) => {
+    if (!isAutorigStandardInputPath(input.path)) {
+      return;
+    }
+    const componentId = resolveComponentIdFromSourceId(input.sourceId);
+    if (!componentId || !componentIds.has(componentId)) {
+      return;
+    }
+    addCandidate(componentId, inputId);
+  });
+
+  normalizedSummaries.forEach((summary) => {
+    if (!componentIds.has(summary.targetId) || !summary.inputId) {
+      return;
+    }
+    const source = standardInputs.get(summary.inputId);
+    if (!source || !isAutorigStandardInputPath(source.path)) {
+      return;
+    }
+    addCandidate(summary.targetId, source.id);
+  });
+
+  const resolved = new Map<string, string>();
+  candidates.forEach((inputIds, componentId) => {
+    const ordered = Array.from(inputIds).sort((a, b) => a.localeCompare(b));
+    const winner = ordered[0];
+    if (winner) {
+      resolved.set(componentId, winner);
+    }
+  });
+  return resolved;
+}
+
+function normalizeImportedBindingSummaries(
+  summaries: GraphBindingSummary[],
+  options: {
+    components: AnimatableComponent[];
+    standardInputs: Map<string, StandardRigInput>;
+  },
+): {
+  summaries: GraphBindingSummary[];
+  diagnostics: ImportNormalizationDiagnostics;
+} {
+  const diagnostics = createNormalizationDiagnostics();
+  const componentIds = new Set(
+    options.components.map((component) => component.id),
+  );
+
+  const normalizedIds = summaries.map((summary) => {
+    const normalizedTargetId = normalizeBindingTargetId(
+      summary.targetId,
+      componentIds,
+      options.standardInputs,
+    );
+    if (normalizedTargetId !== summary.targetId) {
+      diagnostics.targetIdRemaps.push({
+        fromTargetId: summary.targetId,
+        toTargetId: normalizedTargetId,
+      });
+    }
+
+    const normalizedInputId = normalizeBindingInputId(
+      summary.inputId,
+      options.standardInputs,
+    );
+    if (
+      summary.inputId &&
+      normalizedInputId &&
+      normalizedInputId !== summary.inputId
+    ) {
+      diagnostics.inputIdRemaps.push({
+        targetId: normalizedTargetId,
+        slotId: summary.slotId,
+        fromInputId: summary.inputId,
+        toInputId: normalizedInputId,
+      });
+    }
+
+    return {
+      ...summary,
+      targetId: normalizedTargetId,
+      inputId: normalizedInputId,
+    };
+  });
+
+  const autorigTargetByComponentId = collectAutorigTargetByComponentId(
+    normalizedIds,
+    componentIds,
+    options.standardInputs,
+  );
+
+  const retargeted = normalizedIds.map((summary) => {
+    if (!componentIds.has(summary.targetId) || !summary.inputId) {
+      return summary;
+    }
+    if (summary.inputId === SELF_BINDING_ID) {
+      return summary;
+    }
+    const sourceInput = options.standardInputs.get(summary.inputId);
+    if (sourceInput && isAutorigStandardInputPath(sourceInput.path)) {
+      return summary;
+    }
+
+    const autorigTargetId = autorigTargetByComponentId.get(summary.targetId);
+    if (!autorigTargetId) {
+      diagnostics.animatableFallbacks.push({
+        animatableTargetId: summary.targetId,
+        slotId: summary.slotId,
+        inputId: summary.inputId,
+        reason: sourceInput ? "missing-autorig-target" : "missing-source-input",
+      });
+      return summary;
+    }
+
+    diagnostics.animatableRetargets.push({
+      animatableTargetId: summary.targetId,
+      slotId: summary.slotId,
+      fromInputId: summary.inputId,
+      toAutorigInputId: autorigTargetId,
+    });
+    return {
+      ...summary,
+      targetId: autorigTargetId,
+    };
+  });
+
+  return { summaries: retargeted, diagnostics };
 }
 
 function buildBindingFromSummaries(
@@ -173,12 +427,12 @@ function buildBindingFromSummaries(
 }
 
 function buildBindings(
-  metadata: VizijGraphMetadata,
+  summaries: GraphBindingSummary[],
   components: AnimatableComponent[],
   standardInputs: Map<string, StandardRigInput>,
 ): { bindings: BindingMap; inputBindings: InputBindingMap } {
   const groups = new Map<string, GraphBindingSummary[]>();
-  metadata.bindings.forEach((summary) => {
+  summaries.forEach((summary) => {
     const key = summary.targetId;
     const existing = groups.get(key);
     if (existing) {
@@ -306,8 +560,14 @@ export function rehydrateRigDataFromGraph(
     standardInputs.map((input) => [input.id, input]),
   );
 
+  const { summaries: normalizedSummaries, diagnostics } =
+    normalizeImportedBindingSummaries(vizij.bindings, {
+      components: options.components,
+      standardInputs: standardInputsById,
+    });
+
   const { bindings, inputBindings } = buildBindings(
-    vizij,
+    normalizedSummaries,
     options.components,
     standardInputsById,
   );
@@ -321,5 +581,6 @@ export function rehydrateRigDataFromGraph(
     inputBindings,
     inputMetadata,
     legacyAutorigInputPaths: Array.from(legacyAutorigInputPaths),
+    normalizationDiagnostics: diagnostics,
   };
 }

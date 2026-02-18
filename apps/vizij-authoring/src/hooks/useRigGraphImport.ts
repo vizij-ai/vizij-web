@@ -258,6 +258,49 @@ export function useRigGraphImport({
               suffix,
           );
         }
+        const normalizationDiagnostics = rehydrated.normalizationDiagnostics;
+        const normalizationCount =
+          normalizationDiagnostics.inputIdRemaps.length +
+          normalizationDiagnostics.targetIdRemaps.length +
+          normalizationDiagnostics.animatableRetargets.length;
+        if (normalizationCount > 0) {
+          // eslint-disable-next-line no-console -- explicit import migration diagnostics
+          console.warn("[vizij-authoring] Import normalization applied.", {
+            inputIdRemaps: normalizationDiagnostics.inputIdRemaps.length,
+            targetIdRemaps: normalizationDiagnostics.targetIdRemaps.length,
+            animatableRetargets:
+              normalizationDiagnostics.animatableRetargets.length,
+          });
+        }
+        if (normalizationDiagnostics.animatableFallbacks.length > 0) {
+          const limitedFallbacks =
+            normalizationDiagnostics.animatableFallbacks.slice(0, 8);
+          const remainingFallbacks = Math.max(
+            0,
+            normalizationDiagnostics.animatableFallbacks.length -
+              limitedFallbacks.length,
+          );
+          const fallbackLines = limitedFallbacks
+            .map((fallback) => {
+              const suffix =
+                fallback.reason === "missing-autorig-target"
+                  ? "missing autorig target"
+                  : "missing source input";
+              return `  ${fallback.animatableTargetId} (${fallback.slotId}) <- ${fallback.inputId} (${suffix})`;
+            })
+            .join("\n");
+          const fallbackSuffix =
+            remainingFallbacks > 0
+              ? `\n  ...and ${remainingFallbacks} more`
+              : "";
+          alertDialog(
+            "Import normalization could not safely retarget all direct animatable bindings.\n" +
+              `Fallbacks flagged: ${normalizationDiagnostics.animatableFallbacks.length}\n` +
+              "Review these unresolved bindings:\n" +
+              fallbackLines +
+              fallbackSuffix,
+          );
+        }
         const shouldOpenDiscrepancyWizard =
           !options?.skipDiscrepancyCheck &&
           (importedSignature !== rebuiltSignature ||
@@ -339,6 +382,26 @@ export function useRigGraphImport({
                 `Auto-generated inputs missing from the imported metadata: ${missingBlueprintPaths
                   .map((path) => `"${path}"`)
                   .join(", ")}.`,
+              );
+            }
+            if (normalizationDiagnostics.targetIdRemaps.length > 0) {
+              mismatchReasons.push(
+                `Target id normalization remaps applied: ${normalizationDiagnostics.targetIdRemaps.length}.`,
+              );
+            }
+            if (normalizationDiagnostics.inputIdRemaps.length > 0) {
+              mismatchReasons.push(
+                `Input id normalization remaps applied: ${normalizationDiagnostics.inputIdRemaps.length}.`,
+              );
+            }
+            if (normalizationDiagnostics.animatableRetargets.length > 0) {
+              mismatchReasons.push(
+                `Invalid direct animatable bindings retargeted to autorig inputs: ${normalizationDiagnostics.animatableRetargets.length}.`,
+              );
+            }
+            if (normalizationDiagnostics.animatableFallbacks.length > 0) {
+              mismatchReasons.push(
+                `Unresolved direct animatable bindings explicitly flagged: ${normalizationDiagnostics.animatableFallbacks.length}.`,
               );
             }
             pendingReviewRef.current = openDiscrepancyReview({
