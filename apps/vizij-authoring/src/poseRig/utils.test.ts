@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildRigInputPath,
   buildPoseWeightPathMap,
+  normalizePoseDefinitionIds,
+  resolveDeterministicPoseId,
   slugifyLabel,
 } from "./utils";
 import type { PoseDefinition } from "./types";
@@ -87,5 +89,59 @@ describe("buildPoseWeightPathMap", () => {
     expect(map.get("pose_a")?.relativePath).toBe("/emotions/smile.weight");
     expect(map.get("pose_b")?.relativePath).toBe("/accents/smile.weight");
     expect(map.get("pose_c")?.relativePath).toBe("/emotions/smile_2.weight");
+  });
+});
+
+describe("resolveDeterministicPoseId", () => {
+  it("preserves valid preferred ids and suffixes collisions deterministically", () => {
+    expect(
+      resolveDeterministicPoseId({
+        preferredId: "pose_keep",
+        existingIds: [],
+      }),
+    ).toBe("pose_keep");
+    expect(
+      resolveDeterministicPoseId({
+        preferredId: "pose_keep",
+        existingIds: ["pose_keep"],
+      }),
+    ).toBe("pose_keep_2");
+  });
+
+  it("generates name/group based ids when preferred id is invalid", () => {
+    expect(
+      resolveDeterministicPoseId({
+        preferredId: "invalid id",
+        name: "Wide Smile",
+        group: "emotion",
+      }),
+    ).toBe("pose_emotion_wide_smile");
+  });
+});
+
+describe("normalizePoseDefinitionIds", () => {
+  it("normalizes collisions in import order with stable suffixes", () => {
+    const basePose: PoseDefinition = {
+      id: "pose_base",
+      name: "Base Pose",
+      description: "",
+      group: null,
+      values: {},
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    };
+    const poses: PoseDefinition[] = [
+      { ...basePose, id: "pose_keep", name: "Keep" },
+      { ...basePose, id: "pose_keep", name: "Keep Again" },
+      { ...basePose, id: "bad id", name: "Smile", group: "emotion" },
+      { ...basePose, id: "", name: "Smile", group: "emotion" },
+    ];
+
+    expect(normalizePoseDefinitionIds(poses).map((pose) => pose.id)).toEqual([
+      "pose_keep",
+      "pose_keep_2",
+      "pose_emotion_smile",
+      "pose_emotion_smile_2",
+    ]);
   });
 });

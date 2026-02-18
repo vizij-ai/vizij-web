@@ -122,14 +122,124 @@ export function capturePoseSnapshot(options: {
   return snapshot;
 }
 
-export function duplicatePoseDefinition(pose: PoseDefinition): PoseDefinition {
+const POSE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function appendStableSuffix(
+  baseId: string,
+  usedIds: Set<string>,
+  startAt = 2,
+): string {
+  let suffix = startAt;
+  let candidate = `${baseId}_${suffix}`;
+  while (usedIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseId}_${suffix}`;
+  }
+  return candidate;
+}
+
+function buildGeneratedPoseIdBase(
+  name: string | null | undefined,
+  group: string | null | undefined,
+): string {
+  const groupSegment = (group ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const nameSegment = sanitizePosePathSegment(name, "pose");
+  const rawBase = [groupSegment, nameSegment].filter(Boolean).join("_");
+  const normalizedBase = rawBase || "pose";
+  return normalizedBase.startsWith("pose_")
+    ? normalizedBase
+    : `pose_${normalizedBase}`;
+}
+
+export function isValidPoseId(
+  value: string | null | undefined,
+): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed !== value) {
+    return false;
+  }
+  return POSE_ID_PATTERN.test(trimmed);
+}
+
+export function resolveDeterministicPoseId(options: {
+  existingIds?: Iterable<string>;
+  preferredId?: string | null;
+  name?: string | null;
+  group?: string | null;
+  reservedIds?: Iterable<string>;
+}): string {
+  const usedIds = new Set(options.existingIds ?? []);
+  if (options.reservedIds) {
+    for (const reserved of options.reservedIds) {
+      usedIds.add(reserved);
+    }
+  }
+
+  const preferredId = options.preferredId?.trim() ?? "";
+  const baseId = isValidPoseId(preferredId)
+    ? preferredId
+    : buildGeneratedPoseIdBase(options.name, options.group);
+
+  if (!usedIds.has(baseId)) {
+    return baseId;
+  }
+
+  return appendStableSuffix(baseId, usedIds);
+}
+
+export function normalizePoseDefinitionIds(
+  poses: PoseDefinition[],
+  options?: { reservedIds?: Iterable<string> },
+): PoseDefinition[] {
+  const usedIds = new Set<string>();
+  const normalized: PoseDefinition[] = [];
+  poses.forEach((pose) => {
+    const nextId = resolveDeterministicPoseId({
+      existingIds: usedIds,
+      preferredId: pose.id,
+      name: pose.name,
+      group: pose.group,
+      reservedIds: options?.reservedIds,
+    });
+    usedIds.add(nextId);
+    if (nextId === pose.id) {
+      normalized.push(pose);
+      return;
+    }
+    normalized.push({ ...pose, id: nextId });
+  });
+  return normalized;
+}
+
+export function duplicatePoseDefinition(
+  pose: PoseDefinition,
+  options?: {
+    existingIds?: Iterable<string>;
+    reservedIds?: Iterable<string>;
+  },
+): PoseDefinition {
+  const now = new Date().toISOString();
+  const name = `${pose.name} Copy`;
+  const id = resolveDeterministicPoseId({
+    existingIds: options?.existingIds,
+    name,
+    group: pose.group,
+    reservedIds: options?.reservedIds,
+  });
   return {
     ...pose,
-    id: `${pose.id}_copy_${Math.random().toString(36).slice(2, 8)}`,
-    name: `${pose.name} Copy`,
+    id,
+    name,
     values: { ...pose.values },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 

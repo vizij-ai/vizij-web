@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { PoseSnapshotService } from "./poseSnapshotService";
 
 describe("PoseSnapshotService", () => {
+  it("creates deterministic pose ids with stable suffixes", () => {
+    const pose = PoseSnapshotService.createPoseDefinition("Smile", "emotion", {
+      existingIds: ["pose_emotion_smile"],
+    });
+    expect(pose.id).toBe("pose_emotion_smile_2");
+  });
+
   it("captures pose correctly", () => {
     const current = { a: 1, b: 0.5 };
     const neutral = { a: 0, b: 0 };

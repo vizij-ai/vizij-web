@@ -348,20 +348,6 @@ export function usePoseRigAuthoring(
       }
 
       parsed.poses.forEach((pose) => {
-        let uniqueId = pose.id;
-        // If rigName is provided, maybe use it to prefix?
-        // The test "renames imported poses when ids collide" suggests we just handle collision.
-        // But "appends imported poses" implies we keep existing.
-
-        // Simple collision handling
-        let counter = 1;
-        while (poses.some((p) => p.id === uniqueId)) {
-          uniqueId = `${pose.id}_${counter++}`;
-        }
-
-        // If we renamed the ID, we might want to update the name too if it helps,
-        // but usually name is user facing.
-
         const newValues = { ...pose.values };
         if (!applyNeutral) {
           // Rebase logic
@@ -381,7 +367,6 @@ export function usePoseRigAuthoring(
 
         const newPose: PoseDefinition = {
           ...pose,
-          id: uniqueId,
           group: groupName ?? pose.group,
           values: newValues,
         };
@@ -391,7 +376,7 @@ export function usePoseRigAuthoring(
 
       return parsed.warnings;
     },
-    [store, visibleStandardInputs, poses, neutralInputs],
+    [store, visibleStandardInputs, neutralInputs],
   );
 
   const poseLibrary = useMemo(

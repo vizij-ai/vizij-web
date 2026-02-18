@@ -1,14 +1,24 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
+import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
 import { VariablesPanel, filterTreeForActiveSurface } from "./VariablesPanel";
 
 const poseRigState = {
-  poses: [],
+  poses: [] as PoseDefinition[],
   applyPose: vi.fn(),
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  createPoseGroup: vi.fn(),
+  renamePoseGroup: vi.fn(),
+  deletePoseGroup: vi.fn(),
+  deletePose: vi.fn(),
+  updatePoseGroup: vi.fn(),
+  setCrossGroupBlendMode: vi.fn(),
+  crossGroupBlendMode: "additive" as const,
+  blendMode: "average" as const,
+  poseConfigDraft: null as PoseRigConfigFile | null,
 };
 
 const referenceFaceState = {
@@ -98,6 +108,13 @@ describe("VariablesPanel", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.createPoseGroup.mockReset();
+    poseRigState.renamePoseGroup.mockReset();
+    poseRigState.deletePoseGroup.mockReset();
+    poseRigState.deletePose.mockReset();
+    poseRigState.updatePoseGroup.mockReset();
+    poseRigState.setCrossGroupBlendMode.mockReset();
+    poseRigState.poseConfigDraft = null;
 
     referenceFaceState.file = { name: "ref.glb" } as File;
     referenceFaceState.isLoaded = true;
@@ -357,6 +374,41 @@ describe("VariablesPanel", () => {
       customInput.id,
     );
     expect(onSelectRig).toHaveBeenCalledWith(null);
+    confirmSpy.mockRestore();
+  });
+
+  it("keeps pose CRUD actions wired on the poses surface", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: null,
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    const onSelectPose = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPose={onSelectPose}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New Pose" }));
+    expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(view.container).getByTitle("Smile"));
+    expect(onSelectPose).toHaveBeenCalledWith("pose_smile");
+    expect(poseRigState.applyPose).toHaveBeenCalledWith("pose_smile");
+
+    fireEvent.click(within(view.container).getByTitle("Delete Pose"));
+    expect(confirmSpy).toHaveBeenCalledWith('Delete pose "Smile"?');
+    expect(poseRigState.deletePose).toHaveBeenCalledWith("pose_smile");
     confirmSpy.mockRestore();
   });
 });

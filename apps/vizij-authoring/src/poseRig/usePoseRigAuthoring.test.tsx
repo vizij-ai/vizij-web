@@ -260,7 +260,7 @@ describe("usePoseRigAuthoring", () => {
     });
 
     const poseId = result.current?.poses[0]?.id;
-    expect(poseId).toBeTruthy();
+    expect(poseId).toBe("pose_1");
 
     act(() => {
       result.current?.updateCurrentValue("smile", 0.7);
@@ -289,9 +289,38 @@ describe("usePoseRigAuthoring", () => {
 
     expect(result.current?.poses).toHaveLength(2);
     const [original, duplicate] = result.current?.poses ?? [];
+    expect(duplicate?.id).toBe("pose_1_copy");
     expect(duplicate?.id).not.toEqual(original?.id);
     expect(duplicate?.name).toContain("Copy");
     expect(duplicate?.values).toEqual(original?.values);
+  });
+
+  it("reflects target edits in pose state and preview application", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Editable Pose");
+    });
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_editable_pose");
+
+    act(() => {
+      if (poseId) {
+        result.current?.updatePoseValue(poseId, "smile", 0.42);
+      }
+    });
+
+    const updatedPose = result.current?.poses.find(
+      (pose) => pose.id === poseId,
+    );
+    expect(updatedPose?.values.smile).toBeCloseTo(0.42, 6);
+
+    act(() => {
+      if (poseId) {
+        result.current?.applyPose(poseId);
+      }
+    });
+
+    expect(result.current?.currentValues.smile).toBeCloseTo(0.42, 6);
   });
 
   it("imports pose config and reports warnings for missing inputs", async () => {
@@ -447,6 +476,7 @@ describe("usePoseRigAuthoring", () => {
     const imported = result.current?.poses?.find(
       (pose) => pose.id && !existingIds.includes(pose.id),
     );
+    expect(imported?.id).toBe("pose_imported");
     expect(imported?.values).toEqual({
       smile: 0.5,
     });
@@ -472,8 +502,9 @@ describe("usePoseRigAuthoring", () => {
     const duplicates = result.current?.poses?.filter((pose) =>
       pose.id.startsWith(existingId as string),
     );
-    expect(duplicates?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(duplicates?.length ?? 0).toBe(2);
     const imported = duplicates?.find((pose) => pose.id !== existingId);
+    expect(imported?.id).toBe(`${existingId}_2`);
     expect(imported?.values).toEqual({
       brow_raise: -0.3,
     });

@@ -11,7 +11,12 @@ import type {
 import { PoseConfigService } from "./services/poseConfigService";
 import { PoseGraphService } from "./services/poseGraphService";
 import { PoseSnapshotService } from "./services/poseSnapshotService";
-import { createNeutralInputs } from "./utils";
+import {
+  createNeutralInputs,
+  duplicatePoseDefinition,
+  normalizePoseDefinitionIds,
+  resolveDeterministicPoseId,
+} from "./utils";
 
 function normalizePoseGroupPath(
   value: string | null | undefined,
@@ -458,6 +463,10 @@ export function createPoseRigStore(
         const newPose = PoseSnapshotService.createPoseDefinition(
           name || `Pose ${prev.poses.length + 1}`,
           group,
+          {
+            existingIds: prev.poses.map((pose) => pose.id),
+            reservedIds: [NEUTRAL_POSE_ID],
+          },
         );
         return {
           poses: [...prev.poses, newPose],
@@ -466,22 +475,35 @@ export function createPoseRigStore(
       });
     },
     addPose: (pose) => {
-      setState((prev) => ({
-        poses: [...prev.poses, pose],
-        selectedPoseId: pose.id,
-      }));
+      setState((prev) => {
+        const poseId = resolveDeterministicPoseId({
+          existingIds: prev.poses.map((entry) => entry.id),
+          preferredId: pose.id,
+          name: pose.name,
+          group: pose.group,
+          reservedIds: [NEUTRAL_POSE_ID],
+        });
+        const nextPose =
+          pose.id === poseId
+            ? pose
+            : {
+                ...pose,
+                id: poseId,
+              };
+        return {
+          poses: [...prev.poses, nextPose],
+          selectedPoseId: poseId,
+        };
+      });
     },
     duplicatePose: (poseId) => {
       setState((prev) => {
         const original = prev.poses.find((p) => p.id === poseId);
         if (!original) return;
-        const duplicate = {
-          ...original,
-          id: `pose_${Math.random().toString(36).slice(2, 10)}`,
-          name: `${original.name} Copy`,
-          updatedAt: new Date().toISOString(),
-          values: { ...original.values },
-        };
+        const duplicate = duplicatePoseDefinition(original, {
+          existingIds: prev.poses.map((pose) => pose.id),
+          reservedIds: [NEUTRAL_POSE_ID],
+        });
         return {
           poses: [...prev.poses, duplicate],
           selectedPoseId: duplicate.id,
@@ -861,12 +883,15 @@ export function createPoseRigStore(
         state.standardInputs,
         state.faceId,
       );
+      const importedPoses = normalizePoseDefinitionIds(normalized.poses, {
+        reservedIds: [NEUTRAL_POSE_ID],
+      });
       const newNeutralInputs = {
         ...createNeutralInputs(state.standardInputs),
         ...normalized.neutralInputs,
       };
       setState({
-        poses: normalized.poses,
+        poses: importedPoses,
         neutralInputs: newNeutralInputs,
         currentValues: { ...newNeutralInputs },
         rigName: normalized.title || DEFAULT_RIG_NAME,

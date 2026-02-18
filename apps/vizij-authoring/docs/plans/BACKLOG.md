@@ -290,7 +290,7 @@ Completion notes (2026-02-18 07:32:04Z):
    - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
    - `2026-02-18 07:32:04Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B2.2 Pose Lifecycle Completion
+### [x] B2.2 Pose Lifecycle Completion
 
 Intent:
 Support full per-pose lifecycle and target-content editing.
@@ -313,6 +313,26 @@ Acceptance checks:
 
 Dependencies:
 `B1.3`.
+
+Completion notes (2026-02-18 07:52:10Z):
+
+1. Completed pose lifecycle determinism by removing random pose IDs and enforcing deterministic collision-safe IDs across create/duplicate/add/import paths:
+   - `src/poseRig/utils.ts`
+   - `src/poseRig/services/poseSnapshotService.ts`
+   - `src/poseRig/store.tsx`
+   - `src/poseRig/usePoseRigAuthoring.ts`
+2. Added deterministic ID helper coverage and store/import behavior tests:
+   - `src/poseRig/utils.test.ts`
+   - `src/poseRig/services/poseSnapshotService.test.ts`
+   - `src/poseRig/store.test.ts`
+   - `src/poseRig/usePoseRigAuthoring.test.tsx`
+3. Added pose CRUD panel wiring coverage in `src/components/panels/VariablesPanel.test.tsx` to lock per-item lifecycle affordances (`New Pose`, select/apply, delete).
+4. Verified target edit + preview semantics remain intact by adding focused pose authoring test coverage (`updatePoseValue` -> `applyPose` preview path) in `src/poseRig/usePoseRigAuthoring.test.tsx`.
+5. Validation evidence:
+   - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 56 files / 252 tests).
+   - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 07:52:10Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B2.3 Pose Group Lifecycle and Membership Editing
 
