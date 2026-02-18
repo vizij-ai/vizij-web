@@ -534,7 +534,7 @@ export function BindingEditor({
     )
       .map((variable) => variable.name)
       .join(", ");
-    return available ? `Reserved: ${available}` : "";
+    return available;
   }, []);
 
   const reservedVariableNames = useMemo(
@@ -828,6 +828,33 @@ export function BindingEditor({
     return [...new Set(merged)];
   }, [allowSelfBinding, issues, slots]);
 
+  const slotSummary = useMemo(() => {
+    let bound = 0;
+    let local = 0;
+    let unbound = 0;
+    slots.forEach((slot) => {
+      if (slot.inputId === SELF_BINDING_ID) {
+        local += 1;
+        return;
+      }
+      if (typeof slot.inputId === "string" && slot.inputId.trim().length > 0) {
+        bound += 1;
+        return;
+      }
+      unbound += 1;
+    });
+    return { bound, local, unbound };
+  }, [slots]);
+
+  const handleAddSlot = useCallback(() => {
+    onAddBindingSlot(targetId);
+  }, [onAddBindingSlot, targetId]);
+
+  const handleResetExpressionDraft = useCallback(() => {
+    setExpressionDraft(expressionValue);
+    setExpressionDirty(false);
+  }, [expressionValue]);
+
   const caseMetadata = useMemo(() => {
     if (!resolveSlotDiagnostics || slots.length === 0) {
       return null;
@@ -840,7 +867,7 @@ export function BindingEditor({
   }, [resolveSlotDiagnostics, slots, targetId]);
 
   const header = (
-    <div className="flex items-center gap-3 py-2 px-1 border-b border-white/5 mb-4 group">
+    <div className="flex flex-wrap items-start gap-3 py-2 px-1 border-b border-white/5 mb-4 group">
       {expandable && (
         <button
           type="button"
@@ -865,28 +892,55 @@ export function BindingEditor({
           </svg>
         </button>
       )}
-      <span className="text-[11px] font-black uppercase tracking-widest text-text-secondary">
-        {label} Drivers Config
-      </span>
+      <div className="flex flex-col gap-1.5 min-w-[160px]">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-text-muted">
+          My Drivers
+        </span>
+        <span className="text-sm font-semibold text-text-primary">
+          {label} Binding
+        </span>
+      </div>
       <div className="flex-1" />
-      {headerActions}
-      {onResetBinding && (
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center gap-1 rounded-md border border-border-default/60 bg-bg-panel/50 px-2 py-1 text-[10px] font-medium text-text-secondary">
+          <span>{slots.length} controls</span>
+          {slotSummary.bound > 0 && <span>· {slotSummary.bound} linked</span>}
+          {slotSummary.local > 0 && <span>· {slotSummary.local} local</span>}
+          {slotSummary.unbound > 0 && (
+            <span className="text-amber-300">
+              · {slotSummary.unbound} unbound
+            </span>
+          )}
+        </div>
+        {issueList.length > 0 && (
+          <span className="inline-flex items-center rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-semibold text-red-300">
+            {issueList.length} issue{issueList.length === 1 ? "" : "s"}
+          </span>
+        )}
+        {headerActions}
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="h-7 text-[10px] px-2.5 font-bold"
-          onClick={() => onResetBinding(targetId)}
+          className="h-7 text-[10px] px-2.5 font-semibold"
+          onClick={handleAddSlot}
         >
-          Reset
+          Add control
         </Button>
-      )}
+        {onResetBinding && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-7 text-[10px] px-2.5 font-semibold"
+            onClick={() => onResetBinding(targetId)}
+          >
+            Reset binding
+          </Button>
+        )}
+      </div>
     </div>
   );
-
-  const handleAddSlot = useCallback(() => {
-    onAddBindingSlot(targetId);
-  }, [onAddBindingSlot, targetId]);
 
   const handleSlotDiagnosticsToggle = useCallback((slotKey: string) => {
     setExpandedSlotDiagnostics((previous) => {
@@ -924,6 +978,23 @@ export function BindingEditor({
     <div className="w-full bg-bg-panel/40 border border-border-default/50 rounded-xl p-4">
       {header}
       <div className="flex flex-col gap-6">
+        {issueList.length > 0 && (
+          <div
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2"
+            data-testid="binding-editor-issue-summary"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-red-300">
+              Binding issues
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {issueList.map((issue) => (
+                <li key={issue} className="text-[11px] text-red-200/90">
+                  • {issue}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-col gap-4">
           {slots.map((slot, index) => {
             const rawSlotInputId = slot.inputId ?? "";
@@ -1010,6 +1081,18 @@ export function BindingEditor({
                 : baseOptions;
 
             const slotValueType = slot.valueType ?? "scalar";
+            const slotStatus =
+              normalizedSlotInputId === null
+                ? "Unbound"
+                : normalizedSlotInputId === SELF_BINDING_ID
+                  ? "Local (self)"
+                  : "Bound";
+            const slotStatusClass =
+              normalizedSlotInputId === null
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                : normalizedSlotInputId === SELF_BINDING_ID
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-border-default/70 bg-bg-panel/60 text-text-secondary";
 
             if (resolvedInputId && hiddenDriverIds?.has(resolvedInputId)) {
               return null;
@@ -1017,19 +1100,46 @@ export function BindingEditor({
 
             return (
               <div
-                key={slot.id}
-                className="bg-bg-input/40 border border-border-default/50 rounded-lg p-5 flex flex-col gap-6 group/slot hover:border-border-default transition-colors"
+                key={slot.id ?? slotIdentifier}
+                className="bg-bg-input/40 border border-border-default/60 rounded-xl p-4 flex flex-col gap-4 group/slot hover:border-border-default transition-colors"
+                data-testid={`binding-slot-${slotIdentifier}`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                      Expression variable
-                    </span>
-                    <code className="text-[12px] bg-bg-input px-2 py-0.5 rounded border border-border-default text-accent font-mono font-bold">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <code className="text-[11px] bg-bg-input px-2 py-0.5 rounded border border-border-default text-accent font-mono font-semibold">
                       {slotIdentifier}
                     </code>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold",
+                        slotStatusClass,
+                      )}
+                    >
+                      {slotStatus}
+                    </span>
                   </div>
-                  <label className="flex flex-col gap-1.5 flex-1 min-w-[120px]">
+                  {index > 0 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      className="h-7 text-[10px] px-2.5"
+                      onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                      aria-label={`Remove ${slotIdentifier}`}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-text-muted">
+                  {normalizedSlotInputId === null
+                    ? "No driver source selected yet."
+                    : normalizedSlotInputId === SELF_BINDING_ID
+                      ? "Driven by local slider control."
+                      : `Source: ${currentLabel}`}
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex flex-col gap-1.5 min-w-[120px]">
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                       Alias
                     </span>
@@ -1048,77 +1158,65 @@ export function BindingEditor({
                       spellCheck={false}
                     />
                   </label>
-
-                  {index > 0 && (
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      className="h-8 text-[10px] font-bold px-3 mt-4"
-                      onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                  {vectorAuthoringEnabled && (
+                    <div
+                      className="flex flex-col gap-2"
+                      role="group"
+                      aria-label={`Value type for ${label} slot ${index + 1}`}
                     >
-                      Remove
-                    </Button>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                        Value type
+                      </span>
+                      <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "scalar"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "scalar") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "scalar",
+                              );
+                            }
+                          }}
+                        >
+                          Scalar
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "vector"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "vector") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "vector",
+                              );
+                            }
+                          }}
+                        >
+                          Vector
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {vectorAuthoringEnabled && (
-                  <div
-                    className="flex flex-col gap-2"
-                    role="group"
-                    aria-label={`Value type for ${label} slot ${index + 1}`}
-                  >
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                      Value type
-                    </span>
-                    <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
-                      <button
-                        type="button"
-                        className={cn(
-                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                          slotValueType === "scalar"
-                            ? "bg-bg-secondary text-text-primary shadow-sm"
-                            : "text-text-muted hover:text-text-primary",
-                        )}
-                        onClick={() => {
-                          if (slotValueType !== "scalar") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "scalar",
-                            );
-                          }
-                        }}
-                      >
-                        Scalar
-                      </button>
-                      <button
-                        type="button"
-                        className={cn(
-                          "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
-                          slotValueType === "vector"
-                            ? "bg-bg-secondary text-text-primary shadow-sm"
-                            : "text-text-muted hover:text-text-primary",
-                        )}
-                        onClick={() => {
-                          if (slotValueType !== "vector") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "vector",
-                            );
-                          }
-                        }}
-                      >
-                        Vector
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <div className="flex flex-col gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                    Driver Binding:
+                    Driver source
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Combobox
                       value={normalizedSlotInputId ?? ""}
                       onChange={(nextValue) =>
@@ -1133,34 +1231,36 @@ export function BindingEditor({
                       className="flex-1 min-w-0"
                       size="sm"
                     />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-9 px-3 text-[10px] font-bold"
-                      onClick={() =>
-                        onBindingInputChange(targetId, null, slot.id)
-                      }
-                      disabled={!normalizedSlotInputId}
-                    >
-                      Unbind
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-9 px-3 text-[10px] font-bold"
-                      onClick={() =>
-                        onNormalizeBindingSlot?.(targetId, slot.id)
-                      }
-                      disabled={
-                        !onNormalizeBindingSlot ||
-                        !normalizedSlotInputId ||
-                        normalizedSlotInputId === SELF_BINDING_ID
-                      }
-                    >
-                      Normalize
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-3 text-[10px] font-semibold"
+                        onClick={() =>
+                          onBindingInputChange(targetId, null, slot.id)
+                        }
+                        disabled={!normalizedSlotInputId}
+                      >
+                        Unbind
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-3 text-[10px] font-semibold"
+                        onClick={() =>
+                          onNormalizeBindingSlot?.(targetId, slot.id)
+                        }
+                        disabled={
+                          !onNormalizeBindingSlot ||
+                          !normalizedSlotInputId ||
+                          normalizedSlotInputId === SELF_BINDING_ID
+                        }
+                      >
+                        Normalize
+                      </Button>
+                    </div>
                   </div>
                   {selectedInput &&
                     (() => {
@@ -1189,7 +1289,7 @@ export function BindingEditor({
                         ) : undefined;
 
                       return (
-                        <div className="w-full mt-4 p-4 bg-bg-input rounded-xl border border-border-default/50">
+                        <div className="w-full mt-2 p-3 bg-bg-input rounded-xl border border-border-default/50">
                           <CollapsibleRow
                             id={`${targetId}-${slot.id}-driver`}
                             title={input.label ?? resolvedInputId ?? "Driver"}
@@ -1210,21 +1310,21 @@ export function BindingEditor({
                               <div className="flex gap-4 p-3 bg-bg-secondary/60 rounded border border-border-default/50 text-[11px] text-text-muted font-medium">
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
-                                  Min:{" "}
+                                  Min:
                                   <span className="text-text-primary font-bold">
                                     {driverMin}
                                   </span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
-                                  Default:{" "}
+                                  Default:
                                   <span className="text-text-primary font-bold">
                                     {driverDefault}
                                   </span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
-                                  Max:{" "}
+                                  Max:
                                   <span className="text-text-primary font-bold">
                                     {driverMax}
                                   </span>
@@ -1238,7 +1338,7 @@ export function BindingEditor({
                     })()}
                 </div>
                 {upstreamNodes.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-border-default/50">
+                  <div className="mt-1 pt-3 border-t border-border-default/50">
                     <Button
                       type="button"
                       variant="ghost"
@@ -1279,29 +1379,54 @@ export function BindingEditor({
               </div>
             );
           })}
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            className="feature-tree__slot-add"
-            onClick={handleAddSlot}
-          >
-            Add control
-          </Button>
         </div>
-        <div className="flex flex-col gap-4">
-          <label
-            htmlFor={`binding-expression-${targetId}`}
-            className="text-[10px] font-black uppercase tracking-widest text-text-muted"
-          >
-            Expression: {label} =
-          </label>
+        <div className="flex flex-col gap-4 rounded-xl border border-border-default/60 bg-bg-input/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label
+              htmlFor={`binding-expression-${targetId}`}
+              className="text-[10px] font-black uppercase tracking-widest text-text-muted"
+            >
+              Expression: {label} =
+            </label>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-semibold",
+                  expressionDirty
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+                )}
+              >
+                {expressionDirty ? "Draft changed" : "Expression synced"}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-[10px] font-semibold"
+                onClick={handleResetExpressionDraft}
+                disabled={!expressionDirty}
+              >
+                Revert draft
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-[10px] font-semibold"
+                onClick={commitExpressionDraft}
+                disabled={!expressionDirty}
+              >
+                Apply expression
+              </Button>
+            </div>
+          </div>
           <TextArea
             id={`binding-expression-${targetId}`}
             ref={expressionInputRef}
             value={expressionDraft}
             className={cn(
-              "w-full h-24", // TextArea has default styles, just overriding size/specifics if needed.
+              "w-full h-28",
               issueList.length > 0 && "border-red-500/50 bg-red-500/5",
             )}
             onChange={(event) =>
@@ -1315,37 +1440,31 @@ export function BindingEditor({
             aria-invalid={issueList.length > 0}
             spellCheck={false}
           />
+          {expressionDirty && (
+            <p className="text-[10px] text-amber-200">
+              Draft changed. Click "Apply expression" or blur the editor to
+              commit.
+            </p>
+          )}
           {(aliasHints || reservedHints) && (
-            <div className="flex flex-col gap-1.5 px-1">
+            <div className="flex flex-col gap-1.5">
               {aliasHints && (
-                <p className="text-[10px] text-text-muted font-medium">
-                  <span className="text-text-secondary font-bold">
+                <p className="text-[10px] text-text-muted">
+                  <span className="text-text-secondary font-semibold">
                     Aliases:
                   </span>{" "}
                   {aliasHints}
                 </p>
               )}
               {reservedHints && (
-                <p className="text-[10px] text-text-muted font-medium">
-                  <span className="text-text-secondary font-bold">
+                <p className="text-[10px] text-text-muted">
+                  <span className="text-text-secondary font-semibold">
                     Reserved:
                   </span>{" "}
                   {reservedHints}
                 </p>
               )}
             </div>
-          )}
-          {issueList.length > 0 && (
-            <ul className="mt-2 space-y-1.5 p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
-              {issueList.map((issue) => (
-                <li
-                  key={issue}
-                  className="text-[10px] text-red-400 flex gap-2 font-medium"
-                >
-                  <span className="shrink-0">•</span> {issue}
-                </li>
-              ))}
-            </ul>
           )}
           {caseMetadata && <CaseMetadataSummary metadata={caseMetadata} />}
           {expressionFunctionGroups.length > 0 && (

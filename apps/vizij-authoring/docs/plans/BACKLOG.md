@@ -1032,7 +1032,7 @@ Completion notes (2026-02-18 19:12:51Z):
 
 ### Priority P2 (UX Consistency / Visual System)
 
-### [ ] Q2.1 My Drivers Binding + Expression Editor UX Overhaul
+### [x] Q2.1 My Drivers Binding + Expression Editor UX Overhaul
 
 Intent:
 Redesign the My Drivers binding/expression editing surface to match the visual and interaction quality of the rest of the app.
@@ -1048,3 +1048,25 @@ Acceptance checks:
 1. My Drivers UI is visually consistent with current app standards.
 2. Binding + expression workflows remain functionally complete.
 3. UX regressions are covered by updated interaction tests.
+
+Completion notes (2026-02-18 22:45:04Z):
+
+1. Overhauled the My Drivers binding surface in `src/components/binding/BindingEditor.tsx`:
+   - added a top summary strip with control-state counts (`linked`, `local`, `unbound`) and issue count,
+   - improved header action grouping (`Add control`, `Reset binding`) and overall hierarchy/spacing,
+   - added explicit issue summary UI for binding errors.
+2. Redesigned binding rows for readability and state clarity:
+   - added per-slot status badges (`Bound`, `Local (self)`, `Unbound`),
+   - grouped slot controls (`Alias`, `Value type`, `Source`) with clearer source messaging,
+   - preserved chain and slot actions (`Unbind`, `Normalize`, slot remove, diagnostics toggle).
+3. Improved expression editor affordances:
+   - added draft/synced status chips,
+   - added explicit `Apply expression` and `Revert draft` actions while preserving existing commit behavior.
+4. Added interaction regression tests in `src/components/binding/BindingEditor.test.tsx` covering:
+   - summary/error display and action visibility,
+   - expression apply/revert flows,
+   - slot-level binding actions after UI redesign.
+5. Validation evidence:
+   - `2026-02-18 22:44:47Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 22:44:57Z` — `pnpm --filter vizij-authoring exec vitest --run src/components/binding/BindingEditor.test.tsx` -> pass (1 file / 3 tests).
+   - `2026-02-18 22:45:04Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings; pre-existing warnings in `src/components/panels/VariablesPanel.tsx`).
