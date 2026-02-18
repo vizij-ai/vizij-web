@@ -79,7 +79,6 @@ import { linkChildInput, unlinkChildInput } from "./standardInputLinks";
 import {
   buildFallbackGraphPath,
   subscribeRuntimeInputBridgeAvailable,
-  type GraphInputBindingEntry,
 } from "./graphRuntime";
 import {
   resolveRuntimeGraphSpec,
@@ -182,6 +181,11 @@ interface UseRigControllerStores {
   selectionStore: SelectionStore;
 }
 
+interface RuntimeInputRoute {
+  graphPath: string;
+  defaultValue: number;
+}
+
 export type RigController = void;
 
 export function useRigController(
@@ -218,6 +222,7 @@ export function useRigController(
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [runtimeInputBridgeEpoch, setRuntimeInputBridgeEpoch] = useState(0);
+  const [runtimeInputMapRevision, setRuntimeInputMapRevision] = useState(0);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [graphWarning, setGraphWarning] = useState<string | null>(null);
   const pendingFaceRenameRef = useRef<string | null>(null);
@@ -431,8 +436,17 @@ export function useRigController(
   const lastGraphSummaryLogSignatureRef = useRef<string | null>(null);
   const lastKnownGoodRuntimeSpecRef = useRef<RuntimeGraphSpec | null>(null);
   const skipRuntimeUnloadRef = useRef(false);
-  const graphInputBindingsRef = useRef<GraphInputBindingEntry[]>([]);
-  const graphInputBindingsByIdRef = useRef<Map<string, string>>(new Map());
+  const runtimeInputRoutesByCanonicalIdRef = useRef<
+    Map<string, RuntimeInputRoute>
+  >(new Map());
+  const runtimeInputGraphPathLookupRef = useRef<Map<string, string>>(new Map());
+  const runtimeInputIdResolutionCacheRef = useRef<{
+    sourceMap: Map<string, StandardRigInput> | null;
+    cache: Map<string, string>;
+  }>({
+    sourceMap: null,
+    cache: new Map(),
+  });
   const autoPlayTokenRef = useRef<string | null>(null);
 
   const [graphInputDefaults, setGraphInputDefaults] = useState<
@@ -445,6 +459,26 @@ export function useRigController(
   const lastAutoFaceIdRef = useRef<string | null>(null);
   const lastLoadedFaceIdRef = useRef<string | null>(null);
   const skipPersistRef = useRef(false);
+
+  const resolveRuntimeInputId = useCallback((inputId: string): string => {
+    const normalized = inputId.trim();
+    if (!normalized) {
+      return inputId;
+    }
+    const sourceMap = standardInputsByIdRef.current;
+    const cacheState = runtimeInputIdResolutionCacheRef.current;
+    if (cacheState.sourceMap !== sourceMap) {
+      cacheState.sourceMap = sourceMap;
+      cacheState.cache = new Map();
+    }
+    const cached = cacheState.cache.get(normalized);
+    if (cached) {
+      return cached;
+    }
+    const resolved = resolveStandardRigInputId(normalized, sourceMap);
+    cacheState.cache.set(normalized, resolved);
+    return resolved;
+  }, []);
 
   const animatableComponents = useMemo(
     () => extractAnimatableComponents(animatables),
@@ -1379,68 +1413,18 @@ export function useRigController(
     if (graphStatus !== "ready" || graphError) {
       return;
     }
-    const resolveInputIdForRuntime = (
-      inputId?: string | null,
-    ): string | null => {
-      if (!inputId) {
-        return null;
-      }
-      return resolveStandardRigInputId(inputId, standardInputsByIdRef.current);
-    };
-    const getRuntimeInputValue = (inputId: string): number | undefined => {
-      if (!inputId) {
-        return undefined;
-      }
-      const trimmed = inputId.trim();
-      const direct = inputValuesRef.current[inputId];
-      if (typeof direct === "number" && Number.isFinite(direct)) {
-        return direct;
-      }
-      if (trimmed !== inputId) {
-        const trimmedValue = inputValuesRef.current[trimmed];
-        if (typeof trimmedValue === "number" && Number.isFinite(trimmedValue)) {
-          return trimmedValue;
-        }
-      }
-      return undefined;
-    };
-    const bindingsById = graphInputBindingsByIdRef.current;
-    const fallbackBindings = graphInputBindingsRef.current;
-    if (bindingsById.size === 0 && fallbackBindings.length === 0) {
-      return;
-    }
-    if (bindingsById.size > 0) {
-      const stageRuntimeInput = getStageRuntimeInput();
-      bindingsById.forEach((graphPath, inputId) => {
-        const resolvedInputId = resolveInputIdForRuntime(inputId);
-        const resolvedInput = resolvedInputId
-          ? standardInputsByIdRef.current.get(resolvedInputId)
-          : null;
-        const fallbackInput = standardInputsByIdRef.current.get(inputId);
-        const stored =
-          (resolvedInputId && getRuntimeInputValue(resolvedInputId)) ??
-          getRuntimeInputValue(inputId);
-        const value =
-          typeof stored === "number" && Number.isFinite(stored)
-            ? stored
-            : (resolvedInput?.defaultValue ?? fallbackInput?.defaultValue ?? 0);
-        stageRuntimeInput?.(graphPath, value);
-      });
+    const routesByCanonicalId = runtimeInputRoutesByCanonicalIdRef.current;
+    if (routesByCanonicalId.size === 0) {
       return;
     }
     const stageRuntimeInput = getStageRuntimeInput();
-    fallbackBindings.forEach(({ graphPath, inputId, defaultValue }) => {
-      const resolvedInputId = inputId
-        ? resolveInputIdForRuntime(inputId)
-        : null;
-      const stored =
-        (resolvedInputId && getRuntimeInputValue(resolvedInputId)) ??
-        (inputId ? getRuntimeInputValue(inputId) : undefined);
+    routesByCanonicalId.forEach((route, canonicalInputId) => {
+      const stored = inputValuesRef.current[canonicalInputId];
       const value =
         typeof stored === "number" && Number.isFinite(stored)
           ? stored
-          : defaultValue;
-      stageRuntimeInput?.(graphPath, value);
+          : route.defaultValue;
+      stageRuntimeInput?.(route.graphPath, value);
     });
   }, [getStageRuntimeInput, graphError, graphStatus]);
 
@@ -1626,106 +1610,6 @@ export function useRigController(
     });
   }, [componentsById, standardInputs]);
 
-  const buildRuntimeInputIdCandidates = useCallback(
-    (inputId: string): string[] => {
-      const normalizedPathFromInputId = (
-        raw: string | null | undefined,
-      ): string => {
-        if (!raw) {
-          return "/custom/input";
-        }
-        const trimmed = raw.trim();
-        if (!trimmed) {
-          return "/custom/input";
-        }
-        return normalizeStandardRigInputPath(trimmed);
-      };
-      const candidateSet = new Set<string>();
-      const addCandidate = (candidate: string | null | undefined) => {
-        const normalized = (candidate ?? "").trim();
-        if (!normalized) {
-          return;
-        }
-        candidateSet.add(normalized);
-      };
-      const seenPaths = new Set<string>();
-      const addPathAndIdCandidates = (path: string | null | undefined) => {
-        const normalized = normalizedPathFromInputId(path);
-        if (
-          normalized === "/custom/input" ||
-          normalized === "/standard" ||
-          normalized === "/"
-        ) {
-          return;
-        }
-        if (seenPaths.has(normalized)) {
-          return;
-        }
-        seenPaths.add(normalized);
-        const withoutStandard = stripStandardInputPathPrefix(normalized);
-        [normalized, withoutStandard, normalized.replace(/^\/+/, "")].forEach(
-          addCandidate,
-        );
-        addCandidate(deriveStandardRigInputIdFromPath(normalized));
-        addCandidate(deriveStandardRigInputIdFromPath(withoutStandard));
-        if (normalized.startsWith("/autorig/")) {
-          addPathAndIdCandidates(
-            `/rig/element/${normalized.slice("/autorig/".length)}`,
-          );
-        } else if (normalized.startsWith("/rig/element/")) {
-          addPathAndIdCandidates(
-            `/autorig/${normalized.slice("/rig/element/".length)}`,
-          );
-        }
-        if (normalized.startsWith("/pose/control/")) {
-          addPathAndIdCandidates(
-            `/autorig/${normalized.slice("/pose/control/".length)}`,
-          );
-        }
-        if (normalized.startsWith("/rig/control/")) {
-          addPathAndIdCandidates(
-            `/autorig/${normalized.slice("/rig/control/".length)}`,
-          );
-        }
-        if (standardInputsByIdRef.current.size > 0) {
-          addCandidate(
-            resolveStandardRigInputId(
-              normalized,
-              standardInputsByIdRef.current,
-            ),
-          );
-          addCandidate(
-            resolveStandardRigInputId(
-              withoutStandard,
-              standardInputsByIdRef.current,
-            ),
-          );
-        }
-      };
-
-      const trimmed = inputId?.trim();
-      if (!trimmed) {
-        return [];
-      }
-      addCandidate(trimmed);
-      addCandidate(trimmed.replace(/^\/+/, ""));
-      addCandidate(trimmed.startsWith("/") ? trimmed.slice(1) : `/${trimmed}`);
-      addPathAndIdCandidates(trimmed);
-      if (standardInputsByIdRef.current.has(trimmed)) {
-        const input = standardInputsByIdRef.current.get(trimmed);
-        if (input?.path) {
-          addPathAndIdCandidates(input.path);
-        }
-      }
-      if (trimmed.includes("/")) {
-        const fallback = deriveStandardRigInputIdFromPath(trimmed);
-        addCandidate(fallback);
-      }
-      return Array.from(candidateSet);
-    },
-    [standardInputsByIdRef],
-  );
-
   const stageGraphInputValue = useCallback(
     (inputId: string, value: number) => {
       if (graphStatus !== "ready" || graphError) {
@@ -1738,45 +1622,12 @@ export function useRigController(
         }
         return;
       }
-      const resolvedInputId = resolveStandardRigInputId(
-        inputId,
-        standardInputsByIdRef.current,
-      );
-      const candidateIds = buildRuntimeInputIdCandidates(
-        inputId.length > 0 ? inputId : resolvedInputId,
-      );
-      let graphPath: string | null = null;
-      for (const candidateId of candidateIds) {
-        const resolvedCandidateId = resolveStandardRigInputId(
-          candidateId,
-          standardInputsByIdRef.current,
-        );
-        const mappedPath =
-          graphInputBindingsByIdRef.current.get(resolvedCandidateId) ??
-          graphInputBindingsByIdRef.current.get(candidateId);
-        if (mappedPath) {
-          graphPath = mappedPath;
-          break;
-        }
-      }
-      if (!graphPath) {
-        graphPath =
-          graphInputBindingsByIdRef.current.get(resolvedInputId) ??
-          graphInputBindingsByIdRef.current.get(inputId) ??
-          null;
-      }
-      if (!graphPath) {
-        const input =
-          standardInputsByIdRef.current.get(resolvedInputId) ??
-          standardInputsByIdRef.current.get(inputId);
-        if (input) {
-          graphPath = buildFallbackGraphPath(faceId, input);
-          graphInputBindingsByIdRef.current.set(resolvedInputId, graphPath);
-          if (resolvedInputId !== inputId) {
-            graphInputBindingsByIdRef.current.set(inputId, graphPath);
-          }
-        }
-      }
+      const trimmedInputId = inputId.trim();
+      const resolvedInputId = resolveRuntimeInputId(trimmedInputId);
+      const graphPath =
+        runtimeInputGraphPathLookupRef.current.get(resolvedInputId) ??
+        runtimeInputGraphPathLookupRef.current.get(trimmedInputId) ??
+        null;
       if (!graphPath) {
         if (__DEV__) {
           console.warn("[vizij] no graph input binding for", inputId, value);
@@ -1786,29 +1637,19 @@ export function useRigController(
       const stageRuntimeInput = getStageRuntimeInput();
       stageRuntimeInput?.(graphPath, value);
     },
-    [
-      buildRuntimeInputIdCandidates,
-      faceId,
-      getStageRuntimeInput,
-      graphError,
-      graphStatus,
-      standardInputsByIdRef,
-    ],
+    [getStageRuntimeInput, graphError, graphStatus, resolveRuntimeInputId],
   );
 
   const handleInputValueChange = useCallback(
     (inputId: string, value: number) => {
-      const resolvedInputId = resolveStandardRigInputId(
-        inputId,
-        standardInputsByIdRef.current,
-      );
+      const resolvedInputId = resolveRuntimeInputId(inputId);
       updateInputValues((previous) => ({
         ...previous,
         [resolvedInputId]: value,
       }));
       stageGraphInputValue(resolvedInputId, value);
     },
-    [stageGraphInputValue, updateInputValues],
+    [resolveRuntimeInputId, stageGraphInputValue, updateInputValues],
   );
 
   const applyStandardInputBatch = useCallback(
@@ -1833,10 +1674,7 @@ export function useRigController(
           const entryIds = new Set<StandardInputId>();
           let changed = false;
           entries.forEach(([inputId, value]) => {
-            const resolvedInputId = resolveStandardRigInputId(
-              inputId,
-              standardInputsByIdRef.current,
-            );
+            const resolvedInputId = resolveRuntimeInputId(inputId);
             entryIds.add(resolvedInputId);
             next[resolvedInputId] = value;
             if (!changed && previous[resolvedInputId] !== value) {
@@ -1858,10 +1696,7 @@ export function useRigController(
         let changed = false;
         const next: StandardInputValues = { ...previous };
         entries.forEach(([inputId, value]) => {
-          const resolvedInputId = resolveStandardRigInputId(
-            inputId,
-            standardInputsByIdRef.current,
-          );
+          const resolvedInputId = resolveRuntimeInputId(inputId);
           if (next[resolvedInputId] !== value) {
             next[resolvedInputId] = value;
             changed = true;
@@ -1870,14 +1705,11 @@ export function useRigController(
         return changed ? next : previous;
       });
       entries.forEach(([inputId, value]) => {
-        const resolvedInputId = resolveStandardRigInputId(
-          inputId,
-          standardInputsByIdRef.current,
-        );
+        const resolvedInputId = resolveRuntimeInputId(inputId);
         stageGraphInputValue(resolvedInputId, value);
       });
     },
-    [stageGraphInputValue, updateInputValues],
+    [resolveRuntimeInputId, stageGraphInputValue, updateInputValues],
   );
 
   const handleResetAllInputValues = useCallback(() => {
@@ -2226,9 +2058,10 @@ export function useRigController(
   useEffect(() => {
     const summary = graphSummaryRef.current;
     if (graphStatus !== "ready" || !summary) {
-      graphInputBindingsRef.current = [];
-      graphInputBindingsByIdRef.current = new Map();
+      runtimeInputRoutesByCanonicalIdRef.current = new Map();
+      runtimeInputGraphPathLookupRef.current = new Map();
       setGraphInputDefaults({});
+      setRuntimeInputMapRevision((previous) => previous + 1);
       resetDrivenAnimatables();
       return;
     }
@@ -2240,13 +2073,30 @@ export function useRigController(
           .map((entry) => entry.replace(/^\/+/, ""))
       : [];
 
-    const sliderBindings: Array<{
-      graphPath: string;
-      inputId?: string;
-      defaultValue: number;
-    }> = [];
+    const routesByCanonicalId = new Map<string, RuntimeInputRoute>();
+    const graphPathLookupByInputId = new Map<string, string>();
     const defaults: Record<string, number> = {};
-    const matchedSliderIds = new Set<string>();
+    const registerInputRoute = (
+      inputId: string,
+      graphPath: string,
+      defaultValue: number,
+    ) => {
+      const canonicalInputId = resolveRuntimeInputId(inputId);
+      if (!canonicalInputId) {
+        return;
+      }
+      if (!routesByCanonicalId.has(canonicalInputId)) {
+        routesByCanonicalId.set(canonicalInputId, {
+          graphPath,
+          defaultValue,
+        });
+      }
+      graphPathLookupByInputId.set(canonicalInputId, graphPath);
+      if (canonicalInputId !== inputId) {
+        graphPathLookupByInputId.set(inputId, graphPath);
+      }
+      defaults[canonicalInputId] = defaultValue;
+    };
 
     summaryInputPaths.forEach((graphPath) => {
       let matched: StandardRigInput | undefined;
@@ -2307,65 +2157,31 @@ export function useRigController(
         matched = standardInputsById.get(candidateId);
       }
       if (matched) {
-        matchedSliderIds.add(matched.id);
-        defaults[matched.id] = matched.defaultValue ?? 0;
-        sliderBindings.push({
-          graphPath,
-          inputId: matched.id,
-          defaultValue: matched.defaultValue ?? 0,
-        });
-      }
-    });
-
-    const bindingMap = new Map<string, string>();
-    sliderBindings.forEach((binding) => {
-      if (binding.inputId) {
-        const canonicalInputId = resolveStandardRigInputId(
-          binding.inputId,
-          standardInputsByIdRef.current,
-        );
-        bindingMap.set(canonicalInputId, binding.graphPath);
-        if (canonicalInputId !== binding.inputId) {
-          bindingMap.set(binding.inputId, binding.graphPath);
-        }
+        registerInputRoute(matched.id, graphPath, matched.defaultValue ?? 0);
       }
     });
 
     if (faceId) {
       managedStandardInputs.forEach(({ input }) => {
-        const canonicalInputId = resolveStandardRigInputId(
-          input.id,
-          standardInputsByIdRef.current,
-        );
-        if (bindingMap.has(canonicalInputId) || bindingMap.has(input.id)) {
+        const canonicalInputId = resolveRuntimeInputId(input.id);
+        if (routesByCanonicalId.has(canonicalInputId)) {
           return;
         }
         const fallbackPath = buildFallbackGraphPath(faceId, input);
-        sliderBindings.push({
-          graphPath: fallbackPath,
-          inputId: input.id,
-          defaultValue: input.defaultValue ?? 0,
-        });
-        bindingMap.set(canonicalInputId, fallbackPath);
-        if (canonicalInputId !== input.id) {
-          bindingMap.set(input.id, fallbackPath);
-        }
+        registerInputRoute(input.id, fallbackPath, input.defaultValue ?? 0);
       });
     }
 
-    graphInputBindingsRef.current = sliderBindings;
-    const nextBindingMap = new Map<string, string>();
-    bindingMap.forEach((path, inputId) => {
-      nextBindingMap.set(inputId, path);
-    });
-    graphInputBindingsByIdRef.current = nextBindingMap;
-
+    runtimeInputRoutesByCanonicalIdRef.current = routesByCanonicalId;
+    runtimeInputGraphPathLookupRef.current = graphPathLookupByInputId;
     setGraphInputDefaults(defaults);
+    setRuntimeInputMapRevision((previous) => previous + 1);
   }, [
     faceId,
     graphStatus,
     managedStandardInputs,
     resetDrivenAnimatables,
+    resolveRuntimeInputId,
     standardInputsById,
     standardInputsByPath,
     rigOutputLookup,
@@ -2374,9 +2190,9 @@ export function useRigController(
   useEffect(() => {
     stageInputsFromState();
   }, [
-    graphInputDefaults,
     graphStatus,
     runtimeInputBridgeEpoch,
+    runtimeInputMapRevision,
     stageInputsFromState,
   ]);
 
