@@ -238,4 +238,54 @@ describe("buildPoseGraphSpec", () => {
       "add",
     );
   });
+
+  it("keeps shared-pose compile output deterministic across groupIds order", () => {
+    const sharedPose = {
+      ...poses[0],
+      id: "pose_shared",
+      name: "Shared Smile",
+      group: null,
+      groupId: null,
+      groupIds: ["viseme_main", "emotion_main"],
+      values: { mouth_open: 0.8, brow_raise: 0.4 },
+    };
+    const poseGroups = [
+      { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+      { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+    ];
+    const options = {
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      standardInputs,
+      poseGroups,
+      defaultGroupBlendMode: "average" as const,
+      crossGroupBlendMode: "additive" as const,
+    };
+
+    const firstCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [sharedPose],
+    });
+    const secondCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [
+        {
+          ...sharedPose,
+          groupIds: ["emotion_main", "viseme_main"],
+        },
+      ],
+    });
+
+    expect(secondCompile.spec).toEqual(firstCompile.spec);
+    expect(secondCompile.summary).toEqual(firstCompile.summary);
+
+    const poseInputNodeId = "pose_pose_shared";
+    const sharedWeightEdges = (firstCompile.spec.edges ?? []).filter(
+      (edge: any) =>
+        edge.from?.node_id === poseInputNodeId &&
+        typeof edge.to?.node_id === "string" &&
+        edge.to.node_id.startsWith("pose_weights_group_"),
+    );
+    expect(sharedWeightEdges).toHaveLength(2);
+  });
 });

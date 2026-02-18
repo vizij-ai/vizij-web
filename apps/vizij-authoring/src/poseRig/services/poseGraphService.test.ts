@@ -108,6 +108,56 @@ describe("PoseGraphService", () => {
     expect(findNode(spec, "pose_cross_apply_smile")?.type).toBe("add");
   });
 
+  it("builds deterministic shared-pose graphs for equivalent membership sets", () => {
+    const baseConfig = {
+      version: 1 as const,
+      faceId: "robot",
+      rigKind: "face-specific" as const,
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "additive" as const,
+      poseGroups: [
+        { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+        { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+      ],
+      poses: [
+        {
+          id: "pose_shared",
+          name: "Shared",
+          group: null,
+          groupId: null,
+          groupIds: ["viseme_main", "emotion_main"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const first = PoseGraphService.buildSpec(baseConfig, inputs, {
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+    });
+    const second = PoseGraphService.buildSpec(
+      {
+        ...baseConfig,
+        poses: [
+          {
+            ...baseConfig.poses[0],
+            groupIds: ["emotion_main", "viseme_main"],
+          },
+        ],
+      },
+      inputs,
+      {
+        defaultGroupBlendMode: "average",
+        crossGroupBlendMode: "additive",
+      },
+    );
+
+    expect(second.spec).toEqual(first.spec);
+    expect(second.summary).toEqual(first.summary);
+  });
+
   it("flags invalid specs", () => {
     const warnings = PoseGraphService.validate({ nodes: [] }, []);
     expect(warnings.length).toBeGreaterThan(0);

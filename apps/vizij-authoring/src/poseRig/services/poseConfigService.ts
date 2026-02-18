@@ -63,14 +63,11 @@ function normalizePoseGroups(
 
   poses.forEach((pose) => {
     const membership = resolvePoseMembership(pose, groups);
-    membership.groupIds.forEach((resolvedId, index) => {
+    membership.groupIds.forEach((resolvedId) => {
       if (groupById.has(resolvedId)) {
         return;
       }
-      const resolvedPath =
-        index === 0
-          ? membership.primaryGroupPath
-          : normalizePoseGroupPath(resolvedId);
+      const resolvedPath = membership.groupPathsById[resolvedId] ?? null;
       const path =
         resolvedPath ?? normalizePoseGroupPath(resolvedId) ?? "default";
       if (groupByPath.has(path)) {

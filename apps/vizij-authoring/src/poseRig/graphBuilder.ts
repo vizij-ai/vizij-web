@@ -119,11 +119,8 @@ function resolvePoseGroups(
         ? membership.groupIds
         : [sanitizePoseGroupId(null, "default")];
 
-    membershipIds.forEach((groupId, index) => {
-      const resolvedPath =
-        index === 0
-          ? membership.primaryGroupPath
-          : normalizePoseGroupPath(groupId);
+    membershipIds.forEach((groupId) => {
+      const resolvedPath = membership.groupPathsById[groupId] ?? null;
       const path = resolvedPath ?? normalizePoseGroupPath(groupId) ?? "default";
       const normalizedId = sanitizePoseGroupId(groupId, path);
       const existing = byId.get(normalizedId) ?? byPath.get(path);

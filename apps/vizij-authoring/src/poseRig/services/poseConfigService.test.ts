@@ -271,6 +271,80 @@ describe("PoseConfigService", () => {
     });
   });
 
+  it("normalizes shared pose memberships to deterministic configured-group order", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0 },
+      poseGroups: [
+        { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+        { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+      ],
+      poses: [
+        {
+          id: "pose_shared",
+          name: "Shared",
+          group: "viseme/main",
+          groupId: "viseme_main",
+          groupIds: ["viseme_main", "emotion_main"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.poses[0]).toMatchObject({
+      group: "emotion/main",
+      groupId: "emotion_main",
+      groupIds: ["emotion_main", "viseme_main"],
+    });
+  });
+
+  it("round-trips many-to-many memberships through serialize/normalize deterministically", () => {
+    const initialConfig = {
+      version: POSE_RIG_CONFIG_VERSION,
+      faceId: "face_a",
+      rigKind: "face-specific" as const,
+      neutralInputs: { smile: 0 },
+      poseGroups: [
+        { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+        { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+      ],
+      crossGroupBlendMode: "additive" as const,
+      poses: [
+        {
+          id: "pose_shared",
+          name: "Shared",
+          group: "viseme/main",
+          groupId: "viseme_main",
+          groupIds: ["viseme_main", "emotion_main"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      metadata: {
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    };
+
+    const first = PoseConfigService.normalize(initialConfig).config;
+    const firstSerialized = PoseConfigService.serialize(first);
+    const second = PoseConfigService.normalize(
+      JSON.parse(firstSerialized),
+    ).config;
+    const secondSerialized = PoseConfigService.serialize(second);
+
+    expect(second.poses[0]).toMatchObject({
+      group: "emotion/main",
+      groupId: "emotion_main",
+      groupIds: ["emotion_main", "viseme_main"],
+    });
+    expect(JSON.parse(secondSerialized)).toEqual(JSON.parse(firstSerialized));
+  });
+
   it("migrates legacy single-group pose fields into canonical groupIds", () => {
     const input = {
       version: POSE_RIG_CONFIG_VERSION,

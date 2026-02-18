@@ -633,7 +633,7 @@ Implementation (2026-02-18):
    - `2026-02-18 09:54:00Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
    - `2026-02-18 09:54:07Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
-### [ ] B4.3 Compiler and IO Support for Shared Poses
+### [x] B4.3 Compiler and IO Support for Shared Poses
 
 Intent:
 Keep compile/import/export deterministic under many-to-many membership.
@@ -655,6 +655,28 @@ Acceptance checks:
 
 Dependencies:
 `B4.1`, `B4.2`.
+
+Implementation (2026-02-18):
+
+1. Canonicalized shared-pose membership resolution for compile + IO in `src/poseRig/groupMembership.ts`:
+   - added deterministic membership ordering via `orderPoseMembershipIds` (configured pose-group order first, lexical fallback),
+   - resolved compatibility-path promotion so explicit group paths can supersede ID-derived fallback paths,
+   - added `groupPathsById` to resolved membership output so all memberships (not only primary) preserve deterministic path mapping.
+2. Updated compile path for shared membership in `src/poseRig/graphBuilder.ts`:
+   - compile group resolution now uses per-membership `groupPathsById` mapping for each `groupId`,
+   - shared poses now compile deterministically even when equivalent `groupIds` arrive in different order.
+3. Updated config import/export normalization path in `src/poseRig/services/poseConfigService.ts` and store canonicalization in `src/poseRig/store.tsx`:
+   - normalize/create paths now share deterministic membership ordering and path mapping semantics,
+   - compatibility fields (`group`, `groupId`) remain derived coherently from canonical `groupIds`.
+4. Added targeted regression coverage:
+   - `src/poseRig/graphBuilder.test.ts` (shared-pose compile determinism + many-to-many group weight wiring),
+   - `src/poseRig/services/poseConfigService.test.ts` (deterministic many-to-many normalize order + serialize/normalize round-trip stability),
+   - `src/poseRig/services/poseGraphService.test.ts` (deterministic runtime graph/summary outputs for equivalent shared memberships).
+5. Validation evidence:
+   - `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 286 tests).
+   - `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 10:06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ## B5 — Performance and Architecture Cleanup
 

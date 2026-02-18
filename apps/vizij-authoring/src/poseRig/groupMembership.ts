@@ -37,6 +37,7 @@ export function humanizePoseGroupName(path: string): string {
 export interface PoseGroupLookup {
   byId: Map<string, PoseGroupDefinition>;
   byPath: Map<string, PoseGroupDefinition>;
+  orderById: Map<string, number>;
 }
 
 export function buildPoseGroupLookup(
@@ -44,8 +45,9 @@ export function buildPoseGroupLookup(
 ): PoseGroupLookup {
   const byId = new Map<string, PoseGroupDefinition>();
   const byPath = new Map<string, PoseGroupDefinition>();
+  const orderById = new Map<string, number>();
 
-  (groups ?? []).forEach((group) => {
+  (groups ?? []).forEach((group, index) => {
     const path = normalizePoseGroupPath(group.path ?? group.name ?? group.id);
     if (!path) {
       return;
@@ -61,12 +63,53 @@ export function buildPoseGroupLookup(
           : humanizePoseGroupName(path),
     };
     byId.set(id, normalized);
+    if (!orderById.has(id)) {
+      orderById.set(id, index);
+    }
     if (!byPath.has(path)) {
       byPath.set(path, normalized);
     }
   });
 
-  return { byId, byPath };
+  return { byId, byPath, orderById };
+}
+
+export function orderPoseMembershipIds(
+  groupIds: Iterable<string>,
+  groups: PoseGroupDefinition[] | undefined,
+): string[] {
+  const { orderById } = buildPoseGroupLookup(groups);
+  const unique = Array.from(
+    new Set(
+      Array.from(groupIds)
+        .map((groupId) => groupId.trim())
+        .filter((groupId) => groupId.length > 0),
+    ),
+  );
+
+  unique.sort((left, right) => {
+    const leftIndex = orderById.get(left);
+    const rightIndex = orderById.get(right);
+
+    if (leftIndex !== undefined && rightIndex !== undefined) {
+      return leftIndex - rightIndex;
+    }
+    if (leftIndex !== undefined) {
+      return -1;
+    }
+    if (rightIndex !== undefined) {
+      return 1;
+    }
+    const leftPath = normalizePoseGroupPath(left) ?? left;
+    const rightPath = normalizePoseGroupPath(right) ?? right;
+    const byPath = leftPath.localeCompare(rightPath);
+    if (byPath !== 0) {
+      return byPath;
+    }
+    return left.localeCompare(right);
+  });
+
+  return unique;
 }
 
 export function resolvePoseMembership(
@@ -76,6 +119,7 @@ export function resolvePoseMembership(
   groupIds: string[];
   primaryGroupId: string | null;
   primaryGroupPath: string | null;
+  groupPathsById: Record<string, string>;
 } {
   const { byId, byPath } = buildPoseGroupLookup(groups);
   const resolvedGroupIds: string[] = [];
@@ -88,8 +132,22 @@ export function resolvePoseMembership(
     if (!resolvedGroupIds.includes(groupId)) {
       resolvedGroupIds.push(groupId);
     }
-    if (path && !pathById.has(groupId)) {
-      pathById.set(groupId, path);
+    if (path) {
+      const existingPath = pathById.get(groupId);
+      const normalizedGroupIdPath = normalizePoseGroupPath(groupId);
+      const normalizedExistingPath =
+        normalizePoseGroupPath(existingPath) ?? existingPath ?? null;
+      const normalizedIncomingPath =
+        normalizePoseGroupPath(path) ?? path ?? null;
+      const shouldPromotePath =
+        normalizedExistingPath === null ||
+        (normalizedGroupIdPath !== null &&
+          normalizedExistingPath === normalizedGroupIdPath &&
+          normalizedIncomingPath !== normalizedGroupIdPath);
+
+      if (shouldPromotePath) {
+        pathById.set(groupId, path);
+      }
     }
   };
 
@@ -140,14 +198,25 @@ export function resolvePoseMembership(
   addById(pose.groupId);
   addByPath(pose.group);
 
-  const primaryGroupId = resolvedGroupIds[0] ?? null;
+  const orderedGroupIds = orderPoseMembershipIds(resolvedGroupIds, groups);
+
+  const primaryGroupId = orderedGroupIds[0] ?? null;
   const primaryGroupPath = primaryGroupId
     ? (byId.get(primaryGroupId)?.path ?? pathById.get(primaryGroupId) ?? null)
     : null;
+  const groupPathsById: Record<string, string> = {};
+  orderedGroupIds.forEach((groupId) => {
+    const path = byId.get(groupId)?.path ?? pathById.get(groupId) ?? null;
+    if (!path) {
+      return;
+    }
+    groupPathsById[groupId] = path;
+  });
 
   return {
-    groupIds: resolvedGroupIds,
+    groupIds: orderedGroupIds,
     primaryGroupId,
     primaryGroupPath,
+    groupPathsById,
   };
 }

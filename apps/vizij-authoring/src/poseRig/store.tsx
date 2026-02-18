@@ -20,6 +20,7 @@ import {
 import {
   humanizePoseGroupName,
   normalizePoseGroupPath,
+  orderPoseMembershipIds,
   resolvePoseMembership,
   sanitizePoseGroupId,
 } from "./groupMembership";
@@ -134,40 +135,6 @@ type ConfiguredPoseGroup = ReturnType<
   typeof normalizePoseGroupsForState
 >[number];
 
-function orderMembershipIds(
-  groupIds: Iterable<string>,
-  groups: ConfiguredPoseGroup[],
-): string[] {
-  const configuredOrder = new Map(
-    groups.map((group, index) => [group.id, index]),
-  );
-  const unique = Array.from(
-    new Set(
-      Array.from(groupIds)
-        .map((groupId) => groupId.trim())
-        .filter((groupId) => groupId.length > 0),
-    ),
-  );
-
-  unique.sort((left, right) => {
-    const leftIndex = configuredOrder.get(left);
-    const rightIndex = configuredOrder.get(right);
-
-    if (leftIndex !== undefined && rightIndex !== undefined) {
-      return leftIndex - rightIndex;
-    }
-    if (leftIndex !== undefined) {
-      return -1;
-    }
-    if (rightIndex !== undefined) {
-      return 1;
-    }
-    return left.localeCompare(right);
-  });
-
-  return unique;
-}
-
 function canonicalizePoseMembership(
   pose: PoseDefinition,
   groups: ConfiguredPoseGroup[],
@@ -181,7 +148,7 @@ function withMembershipIds(
   groupIds: string[],
   groups: ConfiguredPoseGroup[],
 ): PoseDefinition {
-  const orderedGroupIds = orderMembershipIds(groupIds, groups);
+  const orderedGroupIds = orderPoseMembershipIds(groupIds, groups);
   const membership = resolvePoseMembership(
     {
       ...pose,

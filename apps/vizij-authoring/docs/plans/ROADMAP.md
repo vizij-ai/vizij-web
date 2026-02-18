@@ -119,12 +119,15 @@ Exit gate:
 1. Shared pose definitions are first-class.
 2. Multi-group membership works through authoring, compile, import, and export.
 
-Stage 4 progress (2026-02-18 09:54:07Z):
+Stage 4 progress (2026-02-18 10:06:42Z):
 
 1. `B4.1` complete; pose membership now normalizes through canonical `groupIds` while preserving legacy `group`/`groupId` compatibility fields across store/config/compile flows.
 2. `B4.1` deterministic identity is now decoupled from group assignment for generated pose IDs (name-based stable IDs with deterministic collision suffixes).
 3. `B4.2` complete; authoring now supports many-to-many pose membership editing in both pose and pose-group contexts, with duplicate-assignment guardrails and deterministic membership ordering.
 4. Validation evidence for `B4.2`: `2026-02-18 09:53:33Z` (`typecheck` pass), `2026-02-18 09:53:43Z` (`test` pass), `2026-02-18 09:54:00Z` (`lint` pass, warnings only), `2026-02-18 09:54:07Z` (`validate` pass).
+5. `B4.3` complete; compile/import/export now share deterministic many-to-many membership canonicalization via resolved `groupIds` ordering + per-membership path mapping (`groupPathsById`), preserving coherent `group`/`groupId` compatibility fields.
+6. `B4.3` regression coverage now asserts shared-pose compile determinism, serialize/normalize round-trip membership stability, and deterministic runtime graph outputs for equivalent shared membership sets.
+7. Validation evidence for `B4.3`: `2026-02-18 10:06:42Z` (`typecheck` pass), `2026-02-18 10:06:42Z` (`test` pass), `2026-02-18 10:06:42Z` (`lint` pass, warnings only), `2026-02-18 10:06:42Z` (`validate` pass).
 
 ## Stage 5 — Performance and Modularity Cleanup
 
