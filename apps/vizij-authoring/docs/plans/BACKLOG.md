@@ -416,7 +416,7 @@ Completion notes (2026-02-18 08:40:31Z):
 
 ## B3 — Import/Export and Runtime Contract
 
-### [ ] B3.1 Export Runtime Compatibility Contract
+### [x] B3.1 Export Runtime Compatibility Contract
 
 Intent:
 Ensure exported artifacts run correctly in external runtime consumers.
@@ -438,6 +438,25 @@ Acceptance checks:
 
 Dependencies:
 `B0` complete.
+
+Completion notes (2026-02-18 09:01:00Z):
+
+1. Added runtime contract audit gating directly into GLB export flow:
+   - `src/hooks/useVizijExport.ts` now runs `auditBundleGraphs(bundle, { validOutputTargets })` before `exportScene`.
+   - Exports are blocked when graph audit status is not `match` (`diff`, `missing-ir`, `error`) or when output coverage includes `missing-target`.
+2. Added actionable export diagnostics for compatibility failures:
+   - blocking dialogs now identify the failing graph and concrete reason (IR mismatch count, missing IR metadata, compile/audit error, or unmapped output path).
+3. Wired runtime target context into export hook:
+   - `src/components/app/ExportDialog.tsx` now passes `validOutputTargets` from binding authoring state into `useVizijExport`.
+4. Added focused regression coverage in `src/hooks/__tests__/useVizijExport.test.tsx`:
+   - export is blocked on audit diff failures,
+   - export is blocked on missing runtime target mapping,
+   - successful export path asserts `auditBundleGraphs` receives `validOutputTargets`.
+5. Validation evidence:
+   - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 271 tests).
+   - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 8 warnings).
+   - `2026-02-18 09:01:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B3.2 Runtime Control Surface Completeness
 

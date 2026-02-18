@@ -56,6 +56,9 @@ export function ExportDialog({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const validOutputTargets = useBindingAuthoring(
+    (state) => state.validOutputTargets,
+  );
   const featureLabelOverrides = useBindingAuthoring(
     (state) => state.featureLabelOverrides,
   );
@@ -100,6 +103,7 @@ export function ExportDialog({
     bindings,
     inputBindings,
     standardInputsById,
+    validOutputTargets,
     featureLabelOverrides,
     collectAnimatableExportState,
     setStoreState,

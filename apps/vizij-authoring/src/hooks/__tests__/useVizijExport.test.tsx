@@ -1,6 +1,14 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { describe, expect, it, vi, beforeAll, afterEach } from "vitest";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -13,6 +21,7 @@ import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import { downloadJsonFile } from "../../utils/fileIO";
+import { auditBundleGraphs } from "../../utils/bundleAudit";
 
 vi.mock("@vizij/render", () => ({
   exportScene: vi.fn(),
@@ -60,11 +69,16 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
   },
 }));
 
+vi.mock("../../utils/bundleAudit", () => ({
+  auditBundleGraphs: vi.fn(),
+}));
+
 const mockedExportScene = vi.mocked(exportScene);
 const mockedNormalizeGraphSpec = vi.mocked(normalizeGraphSpec);
 const mockedBuildRigGraphSpec = vi.mocked(buildRigGraphSpec);
 const mockedPoseGraphService = vi.mocked(PoseGraphService);
 const mockedDownloadJsonFile = vi.mocked(downloadJsonFile);
+const mockedAuditBundleGraphs = vi.mocked(auditBundleGraphs);
 
 type HookResult = ReturnType<typeof useVizijExport>;
 
@@ -156,6 +170,7 @@ function createOptions(
     bindings: {},
     inputBindings: {},
     standardInputsById: new Map([[INPUT.id, INPUT]]),
+    validOutputTargets: new Set<string>(["/autorig/face/mouth/pos/y"]),
     featureLabelOverrides: {},
     collectAnimatableExportState: () => ({
       appliedOverrides: false,
@@ -187,6 +202,10 @@ beforeAll(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
+beforeEach(() => {
+  mockedAuditBundleGraphs.mockResolvedValue([]);
+});
+
 afterEach(() => {
   mockedExportScene.mockReset();
   mockedNormalizeGraphSpec.mockReset();
@@ -195,6 +214,7 @@ afterEach(() => {
   mockedPoseGraphService.validate.mockReset();
   mockedPoseGraphService.parse.mockReset();
   mockedDownloadJsonFile.mockReset();
+  mockedAuditBundleGraphs.mockReset();
 });
 
 describe("useVizijExport", () => {
@@ -262,6 +282,14 @@ describe("useVizijExport", () => {
       await hook.result.current?.exportGlb();
     });
 
+    expect(mockedAuditBundleGraphs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        graphs: expect.any(Array),
+      }),
+      {
+        validOutputTargets: options.validOutputTargets,
+      },
+    );
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
     const exportArgs = mockedExportScene.mock.calls[0];
     expect(exportArgs?.[1]).toMatchObject({
@@ -413,6 +441,144 @@ describe("useVizijExport", () => {
 
     expect(mockedExportScene).not.toHaveBeenCalled();
     expect(options.alertDialog).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
+
+  it("blocks export when bundle audit reports runtime contract diff", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedAuditBundleGraphs.mockResolvedValue([
+      {
+        id: "face",
+        kind: "rig",
+        status: "diff",
+        faceId: "face",
+        diffCount: 2,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [],
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+    ]);
+
+    const options = createOptions();
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).not.toHaveBeenCalled();
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      'Export blocked: graph "face" does not match compiled IR (2 diffs).',
+    );
+    hook.unmount();
+  });
+
+  it("blocks export when bundle audit finds unmapped output targets", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedAuditBundleGraphs.mockResolvedValue([
+      {
+        id: "face",
+        kind: "rig",
+        status: "match",
+        faceId: "face",
+        diffCount: 0,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [
+          {
+            nodeId: "out_1",
+            path: "/unknown/output/path",
+            status: "missing-target",
+          },
+        ],
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+    ]);
+
+    const options = createOptions();
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).not.toHaveBeenCalled();
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      'Export blocked: graph "face" has output path "/unknown/output/path" that does not map to a runtime target.',
+    );
+    hook.unmount();
+  });
+
+  it("ignores non-rig missing IR entries when checking export compatibility", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.validate.mockReturnValue([]);
+    mockedAuditBundleGraphs.mockResolvedValue([
+      {
+        id: "face",
+        kind: "rig",
+        status: "match",
+        faceId: "face",
+        diffCount: 0,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [],
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+      {
+        id: "face_pose_graph",
+        kind: "pose-driver",
+        status: "missing-ir",
+        faceId: "face",
+        diffCount: 0,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [],
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+    ]);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: {
+          nodes: [{ id: "pose1", type: "output" }],
+        } as GraphSpec,
+        poseGraphFileName: "face_pose_graph.json",
+        poseConfigDraft: null,
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average",
+        crossGroupBlendMode: "additive",
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalled();
     hook.unmount();
   });
 

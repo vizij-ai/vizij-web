@@ -26,6 +26,7 @@ import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
+import { auditBundleGraphs } from "../utils/bundleAudit";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;
@@ -63,6 +64,7 @@ interface UseVizijExportOptions {
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   standardInputsById: Map<string, StandardRigInput>;
+  validOutputTargets?: Set<string>;
   standardInputMetadataById?: Map<
     string,
     { source?: "auto" | "custom" | "preset"; root?: string }
@@ -83,6 +85,37 @@ interface VizijExportHandlers {
   importPoseConfigFile: (file: File) => Promise<void>;
 }
 
+function resolveBundleContractViolationMessage(
+  audits: Awaited<ReturnType<typeof auditBundleGraphs>>,
+): string | null {
+  const contractAudits = audits.filter((entry) => entry.kind === "rig");
+  if (!contractAudits.length) {
+    return null;
+  }
+  const mismatchEntry = contractAudits.find(
+    (entry) => entry.status !== "match",
+  );
+  if (mismatchEntry) {
+    if (mismatchEntry.status === "missing-ir") {
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" is missing IR metadata required for runtime compatibility checks.`;
+    }
+    if (mismatchEntry.status === "diff") {
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${mismatchEntry.diffCount} diff${mismatchEntry.diffCount === 1 ? "" : "s"}).`;
+    }
+    return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" failed runtime compatibility checks (${mismatchEntry.error ?? "unknown error"}).`;
+  }
+  const outputMismatch = contractAudits.find((entry) =>
+    entry.outputs.some((output) => output.status === "missing-target"),
+  );
+  if (outputMismatch) {
+    const missingOutput = outputMismatch.outputs.find(
+      (output) => output.status === "missing-target",
+    );
+    return `Export blocked: graph "${outputMismatch.label ?? outputMismatch.id}" has output path "${missingOutput?.path ?? "(missing path)"}" that does not map to a runtime target.`;
+  }
+  return null;
+}
+
 export function useVizijExport(
   options: UseVizijExportOptions,
 ): VizijExportHandlers {
@@ -101,6 +134,7 @@ export function useVizijExport(
     bindings,
     inputBindings,
     standardInputsById,
+    validOutputTargets,
     standardInputMetadataById,
     featureLabelOverrides,
     collectAnimatableExportState,
@@ -297,6 +331,15 @@ export function useVizijExport(
             return;
           }
         }
+        const bundleAudits = await auditBundleGraphs(bundle, {
+          validOutputTargets,
+        });
+        const contractViolationMessage =
+          resolveBundleContractViolationMessage(bundleAudits);
+        if (contractViolationMessage) {
+          await alertDialog(contractViolationMessage);
+          return;
+        }
       }
 
       exportScene(
@@ -330,6 +373,7 @@ export function useVizijExport(
     setStoreState,
     sourceName,
     standardInputsById,
+    validOutputTargets,
     values,
   ]);
 
