@@ -10,38 +10,12 @@ import type {
   PoseBlendMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
-
-function sanitizeGroupPath(value: string | null | undefined): string {
-  const normalized = (value ?? "")
-    .trim()
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\/+/g, "/");
-  if (!normalized) {
-    return "default";
-  }
-  return normalized;
-}
-
-function sanitizeGroupId(value: string | null | undefined, fallback: string) {
-  const normalized = (value ?? "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_/-]+/g, "_")
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\/+/g, "_");
-  if (!normalized) {
-    return fallback.replace(/\//g, "_");
-  }
-  return normalized;
-}
-
-function humanizeGroupName(path: string): string {
-  const leaf = path.split("/").filter(Boolean).pop() ?? path;
-  return leaf
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+import {
+  humanizePoseGroupName,
+  normalizePoseGroupPath,
+  resolvePoseMembership,
+  sanitizePoseGroupId,
+} from "../groupMembership";
 
 function normalizePoseGroups(
   poses: PoseDefinition[],
@@ -63,8 +37,9 @@ function normalizePoseGroups(
     if (!group || typeof group !== "object") {
       return;
     }
-    const path = sanitizeGroupPath(group.path ?? group.name ?? group.id);
-    const id = sanitizeGroupId(group.id, path);
+    const path =
+      normalizePoseGroupPath(group.path ?? group.name ?? group.id) ?? "default";
+    const id = sanitizePoseGroupId(group.id, path);
     const existingByPath = groupByPath.get(path);
     if (existingByPath) {
       return;
@@ -75,7 +50,7 @@ function normalizePoseGroups(
       name:
         typeof group.name === "string" && group.name.trim().length > 0
           ? group.name.trim()
-          : humanizeGroupName(path),
+          : humanizePoseGroupName(path),
       blendMode:
         group.blendMode === "additive" || group.blendMode === "average"
           ? group.blendMode
@@ -87,25 +62,30 @@ function normalizePoseGroups(
   });
 
   poses.forEach((pose) => {
-    const posePath = sanitizeGroupPath(pose.group);
-    const poseGroupId = pose.groupId
-      ? sanitizeGroupId(pose.groupId, posePath)
-      : null;
-    const existing =
-      (poseGroupId ? groupById.get(poseGroupId) : null) ??
-      (pose.group ? groupByPath.get(posePath) : null);
-    if (existing || !pose.group) {
-      return;
-    }
-    const normalized: PoseGroupDefinition = {
-      id: poseGroupId ?? sanitizeGroupId(null, posePath),
-      path: posePath,
-      name: humanizeGroupName(posePath),
-      blendMode: defaultGroupBlendMode,
-    };
-    groups.push(normalized);
-    groupById.set(normalized.id, normalized);
-    groupByPath.set(normalized.path, normalized);
+    const membership = resolvePoseMembership(pose, groups);
+    membership.groupIds.forEach((resolvedId, index) => {
+      if (groupById.has(resolvedId)) {
+        return;
+      }
+      const resolvedPath =
+        index === 0
+          ? membership.primaryGroupPath
+          : normalizePoseGroupPath(resolvedId);
+      const path =
+        resolvedPath ?? normalizePoseGroupPath(resolvedId) ?? "default";
+      if (groupByPath.has(path)) {
+        return;
+      }
+      const normalized: PoseGroupDefinition = {
+        id: sanitizePoseGroupId(resolvedId, path),
+        path,
+        name: humanizePoseGroupName(path),
+        blendMode: defaultGroupBlendMode,
+      };
+      groups.push(normalized);
+      groupById.set(normalized.id, normalized);
+      groupByPath.set(normalized.path, normalized);
+    });
   });
 
   return { poseGroups: groups, groupById, groupByPath };
@@ -269,11 +249,7 @@ export const PoseConfigService = {
     }
 
     const defaultGroupBlendMode: PoseBlendMode = "average";
-    const {
-      poseGroups: normalizedGroups,
-      groupById,
-      groupByPath,
-    } = normalizePoseGroups(
+    const { poseGroups: normalizedGroups } = normalizePoseGroups(
       candidate.poses as PoseDefinition[],
       candidate.poseGroups,
       defaultGroupBlendMode,
@@ -314,20 +290,13 @@ export const PoseConfigService = {
         }
       }
 
-      const fallbackGroupPath = pose.group
-        ? sanitizeGroupPath(pose.group)
-        : null;
-      const fallbackGroup =
-        (pose.groupId
-          ? groupById.get(sanitizeGroupId(pose.groupId, ""))
-          : null) ??
-        (fallbackGroupPath ? groupByPath.get(fallbackGroupPath) : null) ??
-        null;
+      const membership = resolvePoseMembership(pose, normalizedGroups);
 
       const newPose = {
         ...pose,
-        groupId: fallbackGroup?.id ?? null,
-        group: fallbackGroup?.path ?? fallbackGroupPath ?? null,
+        groupIds: membership.groupIds,
+        groupId: membership.primaryGroupId,
+        group: membership.primaryGroupPath,
         values,
       };
       return newPose;
@@ -383,22 +352,12 @@ export const PoseConfigService = {
     );
 
     const normalizedPoses = poses.map((pose) => {
-      const posePath = pose.group ? sanitizeGroupPath(pose.group) : null;
-      const group =
-        (pose.groupId
-          ? poseGroups.find(
-              (entry) =>
-                entry.id === sanitizeGroupId(pose.groupId, posePath ?? ""),
-            )
-          : null) ??
-        (posePath
-          ? poseGroups.find((entry) => entry.path === posePath)
-          : null) ??
-        null;
+      const membership = resolvePoseMembership(pose, poseGroups);
       return {
         ...pose,
-        groupId: group?.id ?? null,
-        group: group?.path ?? posePath ?? null,
+        groupIds: membership.groupIds,
+        groupId: membership.primaryGroupId,
+        group: membership.primaryGroupPath,
         values: { ...pose.values },
       };
     });

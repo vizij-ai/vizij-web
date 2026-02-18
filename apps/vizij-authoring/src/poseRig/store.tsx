@@ -17,31 +17,15 @@ import {
   normalizePoseDefinitionIds,
   resolveDeterministicPoseId,
 } from "./utils";
-
-function normalizePoseGroupPath(
-  value: string | null | undefined,
-): string | null {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) {
-    return null;
-  }
-  return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
-}
-
-function sanitizeGroupId(value: string | null | undefined, fallback: string) {
-  const normalized = (value ?? "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_/-]+/g, "_")
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\/+/g, "_");
-  if (!normalized) {
-    return fallback.replace(/\//g, "_");
-  }
-  return normalized;
-}
+import {
+  humanizePoseGroupName,
+  normalizePoseGroupPath,
+  resolvePoseMembership,
+  sanitizePoseGroupId,
+} from "./groupMembership";
 
 function nextPoseGroupId(base: string, existing: Set<string>): string {
-  const sanitized = sanitizeGroupId(base, base);
+  const sanitized = sanitizePoseGroupId(base, base);
   if (!existing.has(sanitized)) {
     return sanitized;
   }
@@ -50,15 +34,6 @@ function nextPoseGroupId(base: string, existing: Set<string>): string {
     counter += 1;
   }
   return `${sanitized}_${counter}`;
-}
-
-function humanizeGroupName(path: string): string {
-  const leaf = path.split("/").filter(Boolean).pop() ?? path;
-  return leaf
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function normalizePoseGroupsForState(source: unknown): Array<{
@@ -86,7 +61,7 @@ function normalizePoseGroupsForState(source: unknown): Array<{
       const path = normalizePoseGroupPath(group.path) ?? "default";
       return {
         ...group,
-        id: sanitizeGroupId(group.id, path),
+        id: sanitizePoseGroupId(group.id, path),
         path,
         blendMode:
           group.blendMode === "additive" || group.blendMode === "average"
@@ -107,31 +82,6 @@ function getConfiguredPoseGroups(
     return draftGroups;
   }
   return normalizePoseGroupsForState(state.lastImportedConfig?.poseGroups);
-}
-
-function applyConfiguredPoseGroups(
-  prev: PoseRigState,
-  nextGroups: ReturnType<typeof normalizePoseGroupsForState>,
-) {
-  if (prev.poseConfigDraft) {
-    return {
-      ...prev.poseConfigDraft,
-      poseGroups: nextGroups.map((group) => ({ ...group })),
-    };
-  }
-  return PoseConfigService.create(
-    prev.poses,
-    prev.neutralInputs,
-    prev.rigName,
-    prev.faceId,
-    prev.rigKind,
-    prev.standardInputSchema ?? undefined,
-    {
-      poseGroups: nextGroups,
-      defaultGroupBlendMode: prev.blendMode,
-      crossGroupBlendMode: prev.crossGroupBlendMode,
-    },
-  );
 }
 
 function ensurePoseGroupFromPath(
@@ -169,7 +119,7 @@ function ensurePoseGroupFromPath(
   nextGroups.push({
     id: nextId,
     path: normalizedTarget,
-    name: humanizeGroupName(normalizedTarget),
+    name: humanizePoseGroupName(normalizedTarget),
     blendMode: prev.blendMode,
   });
   return {
@@ -177,6 +127,45 @@ function ensurePoseGroupFromPath(
     groupId: nextId,
     groups: nextGroups,
     groupsChanged: true,
+  };
+}
+
+type ConfiguredPoseGroup = ReturnType<
+  typeof normalizePoseGroupsForState
+>[number];
+
+function canonicalizePoseMembership(
+  pose: PoseDefinition,
+  groups: ConfiguredPoseGroup[],
+): PoseDefinition {
+  const membership = resolvePoseMembership(pose, groups);
+  return {
+    ...pose,
+    groupIds: membership.groupIds,
+    groupId: membership.primaryGroupId,
+    group: membership.primaryGroupPath,
+  };
+}
+
+function withMembershipIds(
+  pose: PoseDefinition,
+  groupIds: string[],
+  groups: ConfiguredPoseGroup[],
+): PoseDefinition {
+  const membership = resolvePoseMembership(
+    {
+      ...pose,
+      groupIds,
+      groupId: null,
+      group: null,
+    },
+    groups,
+  );
+  return {
+    ...pose,
+    groupIds: membership.groupIds,
+    groupId: membership.primaryGroupId,
+    group: membership.primaryGroupPath,
   };
 }
 
@@ -460,6 +449,7 @@ export function createPoseRigStore(
     },
     createPose: (name, group) => {
       setState((prev) => {
+        const configuredGroups = getConfiguredPoseGroups(prev);
         const newPose = PoseSnapshotService.createPoseDefinition(
           name || `Pose ${prev.poses.length + 1}`,
           group,
@@ -468,28 +458,33 @@ export function createPoseRigStore(
             reservedIds: [NEUTRAL_POSE_ID],
           },
         );
+        const normalizedPose = canonicalizePoseMembership(
+          newPose,
+          configuredGroups,
+        );
         return {
-          poses: [...prev.poses, newPose],
-          selectedPoseId: newPose.id,
+          poses: [...prev.poses, normalizedPose],
+          selectedPoseId: normalizedPose.id,
         };
       });
     },
     addPose: (pose) => {
       setState((prev) => {
+        const configuredGroups = getConfiguredPoseGroups(prev);
         const poseId = resolveDeterministicPoseId({
           existingIds: prev.poses.map((entry) => entry.id),
           preferredId: pose.id,
           name: pose.name,
-          group: pose.group,
           reservedIds: [NEUTRAL_POSE_ID],
         });
-        const nextPose =
+        const withId =
           pose.id === poseId
             ? pose
             : {
                 ...pose,
                 id: poseId,
               };
+        const nextPose = canonicalizePoseMembership(withId, configuredGroups);
         return {
           poses: [...prev.poses, nextPose],
           selectedPoseId: poseId,
@@ -498,12 +493,16 @@ export function createPoseRigStore(
     },
     duplicatePose: (poseId) => {
       setState((prev) => {
+        const configuredGroups = getConfiguredPoseGroups(prev);
         const original = prev.poses.find((p) => p.id === poseId);
         if (!original) return;
-        const duplicate = duplicatePoseDefinition(original, {
-          existingIds: prev.poses.map((pose) => pose.id),
-          reservedIds: [NEUTRAL_POSE_ID],
-        });
+        const duplicate = canonicalizePoseMembership(
+          duplicatePoseDefinition(original, {
+            existingIds: prev.poses.map((pose) => pose.id),
+            reservedIds: [NEUTRAL_POSE_ID],
+          }),
+          configuredGroups,
+        );
         return {
           poses: [...prev.poses, duplicate],
           selectedPoseId: duplicate.id,
@@ -583,19 +582,13 @@ export function createPoseRigStore(
             ? {
                 ...group,
                 path: normalized,
-                name: humanizeGroupName(normalized),
+                name: humanizePoseGroupName(normalized),
               }
             : group,
         );
-        const oldPath = target.path;
         const nextPoses = prev.poses.map((pose) => {
-          if (pose.groupId === groupId) {
-            return { ...pose, group: normalized, groupId };
-          }
-          if (!pose.groupId && normalizePoseGroupPath(pose.group) === oldPath) {
-            return { ...pose, group: normalized, groupId };
-          }
-          return pose;
+          const membership = resolvePoseMembership(pose, configured);
+          return withMembershipIds(pose, membership.groupIds, nextGroups);
         });
         return {
           poses: nextPoses,
@@ -624,22 +617,11 @@ export function createPoseRigStore(
         if (targetIndex < 0) {
           return;
         }
-        const target = configured[targetIndex];
-        if (!target) {
-          return;
-        }
         const nextGroups = configured.filter((group) => group.id !== groupId);
         const nextPoses = prev.poses.map((pose) => {
-          if (pose.groupId === groupId) {
-            return { ...pose, group: null, groupId: null };
-          }
-          if (
-            !pose.groupId &&
-            normalizePoseGroupPath(pose.group) === target.path
-          ) {
-            return { ...pose, group: null, groupId: null };
-          }
-          return pose;
+          const membership = resolvePoseMembership(pose, configured);
+          const nextIds = membership.groupIds.filter((id) => id !== groupId);
+          return withMembershipIds(pose, nextIds, nextGroups);
         });
         return {
           poses: nextPoses,
@@ -695,20 +677,26 @@ export function createPoseRigStore(
     updatePoseGroup: (poseId, group) => {
       const nextGroup = group ?? null;
       if (!nextGroup) {
-        setState((prev) => ({
-          poses: prev.poses.map((p) =>
-            p.id === poseId ? { ...p, group: null, groupId: null } : p,
-          ),
-        }));
+        setState((prev) => {
+          const configured = getConfiguredPoseGroups(prev);
+          return {
+            poses: prev.poses.map((p) =>
+              p.id === poseId ? withMembershipIds(p, [], configured) : p,
+            ),
+          };
+        });
         return;
       }
       const normalizedGroup = normalizePoseGroupPath(nextGroup);
       if (!normalizedGroup) {
-        setState((prev) => ({
-          poses: prev.poses.map((p) =>
-            p.id === poseId ? { ...p, group: null, groupId: null } : p,
-          ),
-        }));
+        setState((prev) => {
+          const configured = getConfiguredPoseGroups(prev);
+          return {
+            poses: prev.poses.map((p) =>
+              p.id === poseId ? withMembershipIds(p, [], configured) : p,
+            ),
+          };
+        });
         return;
       }
       setState((prev) => {
@@ -720,7 +708,7 @@ export function createPoseRigStore(
           return;
         }
         const nextPoses = prev.poses.map((p) =>
-          p.id === poseId ? { ...p, group: normalizedGroup, groupId } : p,
+          p.id === poseId ? withMembershipIds(p, [groupId], groups) : p,
         );
         if (!groupsChanged) {
           return { poses: nextPoses };
@@ -747,20 +735,26 @@ export function createPoseRigStore(
       const ids = new Set(poseIds);
       const nextGroup = group ?? null;
       if (!nextGroup) {
-        setState((prev) => ({
-          poses: prev.poses.map((p) =>
-            ids.has(p.id) ? { ...p, group: null, groupId: null } : p,
-          ),
-        }));
+        setState((prev) => {
+          const configured = getConfiguredPoseGroups(prev);
+          return {
+            poses: prev.poses.map((p) =>
+              ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
+            ),
+          };
+        });
         return;
       }
       const normalizedGroup = normalizePoseGroupPath(nextGroup);
       if (!normalizedGroup) {
-        setState((prev) => ({
-          poses: prev.poses.map((p) =>
-            ids.has(p.id) ? { ...p, group: null, groupId: null } : p,
-          ),
-        }));
+        setState((prev) => {
+          const configured = getConfiguredPoseGroups(prev);
+          return {
+            poses: prev.poses.map((p) =>
+              ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
+            ),
+          };
+        });
         return;
       }
       setState((prev) => {
@@ -770,7 +764,7 @@ export function createPoseRigStore(
         );
         const nextPoses = prev.poses.map((p) =>
           ids.has(p.id)
-            ? { ...p, group: normalizedGroup, groupId: groupId ?? null }
+            ? withMembershipIds(p, groupId ? [groupId] : [], groups)
             : p,
         );
         if (!groupId) {

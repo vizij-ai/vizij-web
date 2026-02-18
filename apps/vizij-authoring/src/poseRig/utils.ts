@@ -138,17 +138,9 @@ function appendStableSuffix(
   return candidate;
 }
 
-function buildGeneratedPoseIdBase(
-  name: string | null | undefined,
-  group: string | null | undefined,
-): string {
-  const groupSegment = (group ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function buildGeneratedPoseIdBase(name: string | null | undefined): string {
   const nameSegment = sanitizePosePathSegment(name, "pose");
-  const rawBase = [groupSegment, nameSegment].filter(Boolean).join("_");
+  const rawBase = [nameSegment].filter(Boolean).join("_");
   const normalizedBase = rawBase || "pose";
   return normalizedBase.startsWith("pose_")
     ? normalizedBase
@@ -185,7 +177,7 @@ export function resolveDeterministicPoseId(options: {
   const preferredId = options.preferredId?.trim() ?? "";
   const baseId = isValidPoseId(preferredId)
     ? preferredId
-    : buildGeneratedPoseIdBase(options.name, options.group);
+    : buildGeneratedPoseIdBase(options.name);
 
   if (!usedIds.has(baseId)) {
     return baseId;

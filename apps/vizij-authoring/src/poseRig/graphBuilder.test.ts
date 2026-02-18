@@ -204,4 +204,38 @@ describe("buildPoseGraphSpec", () => {
       "blendweightedaverageoverlay",
     );
   });
+
+  it("resolves pose memberships from canonical groupIds", () => {
+    const groupedPoses = [
+      {
+        ...poses[0],
+        group: null,
+        groupId: null,
+        groupIds: ["emotion"],
+      },
+      {
+        ...poses[1],
+        group: null,
+        groupId: null,
+        groupIds: ["viseme"],
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+    });
+
+    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")?.type).toBe(
+      "add",
+    );
+  });
 });

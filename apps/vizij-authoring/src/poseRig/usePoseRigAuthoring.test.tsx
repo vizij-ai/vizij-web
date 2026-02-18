@@ -435,10 +435,12 @@ describe("usePoseRigAuthoring", () => {
     result.current?.poses.forEach((pose) => {
       expect(pose.group).toBe("emotion/primary");
       expect(pose.groupId).toBe(createdGroup?.id);
+      expect(pose.groupIds).toEqual([createdGroup?.id]);
     });
     result.current?.poseConfigDraft?.poses.forEach((pose) => {
       expect(pose.group).toBe("emotion/primary");
       expect(pose.groupId).toBe(createdGroup?.id);
+      expect(pose.groupIds).toEqual([createdGroup?.id]);
     });
 
     act(() => {
@@ -504,6 +506,7 @@ describe("usePoseRigAuthoring", () => {
     );
     expect(unassignedPose?.group).toBeNull();
     expect(unassignedPose?.groupId).toBeNull();
+    expect(unassignedPose?.groupIds).toEqual([]);
 
     act(() => {
       if (firstPoseId) {
@@ -516,6 +519,7 @@ describe("usePoseRigAuthoring", () => {
     );
     expect(reassignedPose?.group).toBe("viseme/main");
     expect(reassignedPose?.groupId).toBe(targetGroup?.id);
+    expect(reassignedPose?.groupIds).toEqual([targetGroup?.id]);
     expect(
       result.current?.poseConfigDraft?.poseGroups?.filter(
         (group) => group.path === "viseme/main",
@@ -560,8 +564,12 @@ describe("usePoseRigAuthoring", () => {
 
     expect(result.current?.poses[0]?.group).toBe("viseme");
     expect(result.current?.poses[0]?.groupId).toBe("viseme");
+    expect(result.current?.poses[0]?.groupIds).toEqual(["viseme"]);
     expect(result.current?.poseConfigDraft?.poses[0]?.group).toBe("viseme");
     expect(result.current?.poseConfigDraft?.poses[0]?.groupId).toBe("viseme");
+    expect(result.current?.poseConfigDraft?.poses[0]?.groupIds).toEqual([
+      "viseme",
+    ]);
   });
 
   it("appends imported poses instead of overwriting existing ones", () => {

@@ -44,9 +44,9 @@ describe("PoseRigStore", () => {
     store.getState().createPose("Smile", "viseme");
 
     expect(store.getState().poses.map((pose) => pose.id)).toEqual([
-      "pose_emotion_smile",
-      "pose_emotion_smile_2",
-      "pose_viseme_smile",
+      "pose_smile",
+      "pose_smile_2",
+      "pose_smile_3",
     ]);
   });
 
@@ -61,8 +61,8 @@ describe("PoseRigStore", () => {
 
     expect(store.getState().poses.map((pose) => pose.id)).toEqual([
       "legacy_pose",
-      "pose_emotion_legacy_pose_copy",
-      "pose_emotion_legacy_pose_copy_2",
+      "pose_legacy_pose_copy",
+      "pose_legacy_pose_copy_2",
     ]);
   });
 
@@ -78,8 +78,8 @@ describe("PoseRigStore", () => {
     expect(store.getState().poses.map((pose) => pose.id)).toEqual([
       "pose_keep",
       "pose_keep_2",
-      "pose_emotion_wide_smile",
-      "pose_emotion_wide_smile_2",
+      "pose_wide_smile",
+      "pose_wide_smile_2",
     ]);
   });
 
@@ -132,8 +132,60 @@ describe("PoseRigStore", () => {
     expect(store.getState().poses.map((pose) => pose.id)).toEqual([
       "pose_keep",
       "pose_keep_2",
-      "pose_emotion_smile",
-      "pose_emotion_smile_2",
+      "pose_smile",
+      "pose_smile_2",
     ]);
+  });
+
+  it("keeps pose identity stable when group membership changes", () => {
+    const store = createPoseRigStore();
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBe("pose_smile");
+
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().createPoseGroup("emotion/main");
+    store.getState().updatePoseGroup(poseId, "emotion/main");
+    const assigned = store.getState().poses.find((pose) => pose.id === poseId);
+    expect(assigned?.id).toBe("pose_smile");
+    expect(assigned?.groupId).toBe("emotion_main");
+    expect(assigned?.groupIds).toEqual(["emotion_main"]);
+
+    store.getState().updatePoseGroup(poseId, null);
+    const unassigned = store
+      .getState()
+      .poses.find((pose) => pose.id === poseId);
+    expect(unassigned?.id).toBe("pose_smile");
+    expect(unassigned?.group).toBeNull();
+    expect(unassigned?.groupId).toBeNull();
+    expect(unassigned?.groupIds).toEqual([]);
+  });
+
+  it("migrates legacy group fields into canonical membership on import", () => {
+    const store = createPoseRigStore();
+    const config: PoseRigConfigFile = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: { smile: 0 },
+      poseGroups: [{ id: "emotion", name: "Emotion", path: "emotion" }],
+      poses: [
+        makePose("pose_legacy", "Legacy Smile", {
+          group: "emotion",
+          groupId: "emotion",
+          values: { smile: 0.5 },
+        }),
+      ],
+    };
+
+    store.getState().importConfig(config);
+    const pose = store.getState().poses[0];
+    expect(pose?.id).toBe("pose_legacy");
+    expect(pose?.group).toBe("emotion");
+    expect(pose?.groupId).toBe("emotion");
+    expect(pose?.groupIds).toEqual(["emotion"]);
+    expect(pose?.values).toEqual({ smile: 0.5 });
   });
 });

@@ -538,7 +538,7 @@ Completion notes (2026-02-18 09:26:30Z):
 
 ## B4 — Pose/Group Data Model Evolution
 
-### [ ] B4.1 Decouple Pose Definitions from Group Identity
+### [x] B4.1 Decouple Pose Definitions from Group Identity
 
 Intent:
 Treat pose definitions as reusable entities, independent of group ownership.
@@ -560,6 +560,31 @@ Acceptance checks:
 
 Dependencies:
 `B2.2`, `B2.3`.
+
+Implementation (2026-02-18):
+
+1. Canonicalized pose membership in code paths to use `groupIds` while keeping legacy `group`/`groupId` as derived compatibility fields:
+   - added shared membership utilities in `src/poseRig/groupMembership.ts`,
+   - updated normalize/create paths in `src/poseRig/services/poseConfigService.ts`,
+   - updated store mutation paths in `src/poseRig/store.tsx`,
+   - updated compile group resolution in `src/poseRig/graphBuilder.ts`.
+2. Decoupled generated pose definition identity from group assignment:
+   - deterministic fallback IDs now derive from pose naming only (not group path) in `src/poseRig/utils.ts`,
+   - deterministic collision suffix behavior remains unchanged.
+3. Preserved legacy import semantics with explicit migration coverage:
+   - legacy `group`/`groupId` import now migrates to canonical `groupIds` without losing effective membership or pose values.
+4. Added/updated regression coverage:
+   - `src/poseRig/store.test.ts`,
+   - `src/poseRig/services/poseConfigService.test.ts`,
+   - `src/poseRig/graphBuilder.test.ts`,
+   - `src/poseRig/usePoseRigAuthoring.test.tsx`,
+   - `src/poseRig/utils.test.ts`,
+   - `src/poseRig/services/poseSnapshotService.test.ts`.
+5. Validation evidence:
+   - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run typecheck` -> pass (`tsc --noEmit`, exit 0).
+   - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run test` -> pass (`vitest --run --passWithNoTests`, exit 0; 58 files / 279 tests).
+   - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run lint` -> pass (0 errors, 7 warnings).
+   - `2026-02-18 09:40:59Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` -> `typecheck` -> `test`, exit 0; lint warnings only).
 
 ### [ ] B4.2 Many-to-Many Pose Membership Authoring
 

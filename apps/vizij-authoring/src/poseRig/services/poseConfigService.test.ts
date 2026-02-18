@@ -228,6 +228,7 @@ describe("PoseConfigService", () => {
     expect(config.poses[0]).toMatchObject({
       group: "emotion",
       groupId: "emotion",
+      groupIds: ["emotion"],
     });
   });
 
@@ -266,6 +267,34 @@ describe("PoseConfigService", () => {
     expect(created.poses[0]).toMatchObject({
       group: "emotion",
       groupId: "emotion",
+      groupIds: ["emotion"],
+    });
+  });
+
+  it("migrates legacy single-group pose fields into canonical groupIds", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0 },
+      poseGroups: [{ id: "emotion", name: "Emotion", path: "emotion" }],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          group: "emotion",
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.poses[0]).toMatchObject({
+      id: "pose_smile",
+      group: "emotion",
+      groupId: "emotion",
+      groupIds: ["emotion"],
+      values: { smile: 0.8 },
     });
   });
 });

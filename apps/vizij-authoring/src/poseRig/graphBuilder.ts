@@ -1,6 +1,12 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import { buildPoseWeightPathMap, buildRigInputPath } from "./utils";
+import {
+  humanizePoseGroupName,
+  normalizePoseGroupPath,
+  resolvePoseMembership,
+  sanitizePoseGroupId,
+} from "./groupMembership";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -61,38 +67,6 @@ function createPoseInputNode(pose: PoseDefinition, path: string): NodeSpec {
   };
 }
 
-function sanitizeGroupPath(value: string | null | undefined): string {
-  const normalized = (value ?? "")
-    .trim()
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\/+/g, "/");
-  if (!normalized) {
-    return "default";
-  }
-  return normalized;
-}
-
-function sanitizeGroupId(value: string | null | undefined, fallback: string) {
-  const normalized = (value ?? "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_/-]+/g, "_")
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\/+/g, "_");
-  if (!normalized) {
-    return fallback.replace(/\//g, "_");
-  }
-  return normalized;
-}
-
-function humanizeGroupName(path: string): string {
-  const leaf = path.split("/").filter(Boolean).pop() ?? path;
-  return leaf
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 interface ResolvedPoseGroup {
   id: string;
   path: string;
@@ -114,18 +88,19 @@ function resolvePoseGroups(
     if (!group || typeof group !== "object") {
       return;
     }
-    const path = sanitizeGroupPath(group.path ?? group.name ?? group.id);
+    const path =
+      normalizePoseGroupPath(group.path ?? group.name ?? group.id) ?? "default";
     if (byPath.has(path)) {
       return;
     }
-    const id = sanitizeGroupId(group.id, path);
+    const id = sanitizePoseGroupId(group.id, path);
     const normalized: ResolvedPoseGroup = {
       id,
       path,
       name:
         typeof group.name === "string" && group.name.trim().length > 0
           ? group.name.trim()
-          : humanizeGroupName(path),
+          : humanizePoseGroupName(path),
       blendMode:
         group.blendMode === "additive" || group.blendMode === "average"
           ? group.blendMode
@@ -138,28 +113,43 @@ function resolvePoseGroups(
   });
 
   poses.forEach((pose) => {
-    const path = sanitizeGroupPath(pose.group);
-    const fallbackId = sanitizeGroupId(null, path);
-    const byPoseGroupId = pose.groupId
-      ? byId.get(sanitizeGroupId(pose.groupId, fallbackId))
-      : null;
-    const group = byPoseGroupId ?? byPath.get(path);
-    if (group) {
-      group.poseIds.push(pose.id);
-      return;
-    }
-    const normalized: ResolvedPoseGroup = {
-      id: pose.groupId
-        ? sanitizeGroupId(pose.groupId, fallbackId)
-        : sanitizeGroupId(null, path),
-      path,
-      name: humanizeGroupName(path),
-      blendMode: defaultGroupBlendMode,
-      poseIds: [pose.id],
-    };
-    groups.push(normalized);
-    byPath.set(path, normalized);
-    byId.set(normalized.id, normalized);
+    const membership = resolvePoseMembership(pose, groups);
+    const membershipIds =
+      membership.groupIds.length > 0
+        ? membership.groupIds
+        : [sanitizePoseGroupId(null, "default")];
+
+    membershipIds.forEach((groupId, index) => {
+      const resolvedPath =
+        index === 0
+          ? membership.primaryGroupPath
+          : normalizePoseGroupPath(groupId);
+      const path = resolvedPath ?? normalizePoseGroupPath(groupId) ?? "default";
+      const normalizedId = sanitizePoseGroupId(groupId, path);
+      const existing = byId.get(normalizedId) ?? byPath.get(path);
+      if (existing) {
+        if (!existing.poseIds.includes(pose.id)) {
+          existing.poseIds.push(pose.id);
+        }
+        if (!byId.has(existing.id)) {
+          byId.set(existing.id, existing);
+        }
+        if (!byPath.has(existing.path)) {
+          byPath.set(existing.path, existing);
+        }
+        return;
+      }
+      const normalized: ResolvedPoseGroup = {
+        id: normalizedId,
+        path,
+        name: humanizePoseGroupName(path),
+        blendMode: defaultGroupBlendMode,
+        poseIds: [pose.id],
+      };
+      groups.push(normalized);
+      byPath.set(path, normalized);
+      byId.set(normalized.id, normalized);
+    });
   });
 
   return groups.filter((group) => group.poseIds.length > 0);

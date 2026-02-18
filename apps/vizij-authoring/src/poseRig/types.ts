@@ -36,9 +36,10 @@ export interface PoseDefinition {
   id: string;
   name: string;
   description?: string;
+  groupIds?: string[];
+  // Legacy compatibility fields. New membership logic should prefer `groupIds`.
   group?: string | null;
   groupId?: string | null;
-  groupIds?: string[];
   values: Record<StandardInputId, number>;
   createdAt: string;
   updatedAt: string;

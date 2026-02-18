@@ -108,14 +108,14 @@ describe("resolveDeterministicPoseId", () => {
     ).toBe("pose_keep_2");
   });
 
-  it("generates name/group based ids when preferred id is invalid", () => {
+  it("generates name-based ids when preferred id is invalid", () => {
     expect(
       resolveDeterministicPoseId({
         preferredId: "invalid id",
         name: "Wide Smile",
         group: "emotion",
       }),
-    ).toBe("pose_emotion_wide_smile");
+    ).toBe("pose_wide_smile");
   });
 });
 
@@ -140,8 +140,8 @@ describe("normalizePoseDefinitionIds", () => {
     expect(normalizePoseDefinitionIds(poses).map((pose) => pose.id)).toEqual([
       "pose_keep",
       "pose_keep_2",
-      "pose_emotion_smile",
-      "pose_emotion_smile_2",
+      "pose_smile",
+      "pose_smile_2",
     ]);
   });
 });

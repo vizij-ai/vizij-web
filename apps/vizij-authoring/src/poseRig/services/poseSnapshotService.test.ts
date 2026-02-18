@@ -4,9 +4,9 @@ import { PoseSnapshotService } from "./poseSnapshotService";
 describe("PoseSnapshotService", () => {
   it("creates deterministic pose ids with stable suffixes", () => {
     const pose = PoseSnapshotService.createPoseDefinition("Smile", "emotion", {
-      existingIds: ["pose_emotion_smile"],
+      existingIds: ["pose_smile"],
     });
-    expect(pose.id).toBe("pose_emotion_smile_2");
+    expect(pose.id).toBe("pose_smile_2");
   });
 
   it("captures pose correctly", () => {
