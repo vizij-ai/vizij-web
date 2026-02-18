@@ -66,7 +66,7 @@ Completion notes (2026-02-18 06:09:30Z):
 2. Failure classification: none observed (no regressions, no pre-existing failures, no flaky failures in this run).
 3. Residual known failures: none.
 
-### [ ] B0.3 Validation Command Reliability
+### [x] B0.3 Validation Command Reliability
 
 Intent:
 Make day-to-day validation deterministic for contributors.
@@ -88,6 +88,12 @@ Acceptance checks:
 
 Dependencies:
 `B0.1`, `B0.2`.
+
+Completion notes (2026-02-18 06:13:05Z):
+
+1. `pnpm --filter vizij-authoring run validate` -> pass (`pnpm run lint && pnpm run typecheck && pnpm run test`, exit 0).
+2. Validation ordering is deterministic in this branch state (`lint` -> `typecheck` -> `test`).
+3. Caveat: lint currently reports 16 `@typescript-eslint/no-unused-vars` warnings, but no lint errors; `validate` remains a stable passing gate.
 
 ## B1 — Inspector and Surface Usability
 

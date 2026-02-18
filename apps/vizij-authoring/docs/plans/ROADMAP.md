@@ -24,11 +24,12 @@ Exit gate:
 2. Lint green.
 3. Test status reconciled and documented.
 
-Stage 0 progress (2026-02-18 06:09:30Z):
+Stage 0 progress (2026-02-18 06:13:05Z):
 
 1. `B0.1` complete; typecheck gate is currently green.
 2. `B0.2` complete; test gate is green (`pnpm --filter vizij-authoring run test` pass, no quarantines, residual failures: none).
-3. Remaining Stage 0 blocker: `B0.3`.
+3. `B0.3` complete; `pnpm --filter vizij-authoring run validate` passed (`lint` -> `typecheck` -> `test`, exit 0).
+4. Stage 0 exit gate is satisfied; caveat: lint emits warnings (no errors), so gate health is currently based on error-free lint execution.
 
 ## Stage 1 — Inspector and Sidebar Usability
 
