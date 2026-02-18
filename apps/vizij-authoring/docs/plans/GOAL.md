@@ -1,43 +1,40 @@
 # Vizij Authoring Goal
 
-Last updated: 2026-02-17
-Owner: Vizij Authoring (Chris infra/runtime, Saad UX)
+Last updated: 2026-02-18
+Owner: Vizij Authoring
 
-## North Star
+## Mission
 
-Make `vizij-authoring` a runtime-truthful authoring app where the main face executes through `@vizij/runtime-react`, authoring edits flow through IR -> GraphSpec, and bundled GLB export is reliable for real runtime use.
+Make `vizij-authoring` the authoritative, runtime-truthful authoring surface for rig and pose workflows.
 
-## Product Goal
+## North Star Outcomes
 
-Deliver a fast, correct end-to-end loop:
+1. Authored rig + pose state compiles into deterministic runtime-valid graphs.
+2. Inspector workflows are complete enough that users can create/edit/delete and traverse chains without leaving context.
+3. Import/export flows are deterministic and migration-safe across legacy and current assets.
+4. The development branch stays continuously green (`typecheck`, `lint`, `test`).
 
-1. Import (`.glb`, GraphSpec JSON, IR, bundled GLB).
-2. Rig/bind/edit expressions.
-3. Author and blend poses.
-4. Validate compile/runtime health.
-5. Export bundled GLB with required Vizij graph artifacts.
+## Current Program Objective
 
-## Success Criteria
+Restore and hold engineering baseline health before expanding new UX scope.
 
-1. Main face execution is runtime-react based (no legacy eval path for main-face staging).
-2. Graph updates use incremental graph-tier updates (no routine full asset reload churn).
-3. IR-first behavior is enforced for runtime apply (fatal compile errors block apply; warnings are surfaced).
-4. Pose authoring and blending produce runtime-valid pose graph behavior.
-5. Bundled export is blocked on invalid GraphSpec and includes runtime-required graph metadata.
-6. `pnpm --filter vizij-authoring typecheck` and target regression tests pass.
-7. Face Variables are separated from rig metadata (`/autorig`) and exposed in dedicated control panes.
-8. Pose authors can inspect all poses independently of groups, edit pose/group membership, and configure group blend modes without leaving the main authoring flow.
-9. Inputs are a dedicated inspector-adjacent surface for what each item drives and what drives it.
-10. Variables pane targets true external inputs only (not generated `/autorig` controls), and pose editing is centered on primary-face pose definitions first.
+Required gate:
 
-## Non-Goals (Current Phase)
+1. `pnpm --filter vizij-authoring run typecheck` passes.
+2. `pnpm --filter vizij-authoring run lint` passes.
+3. `pnpm --filter vizij-authoring run test` passes, or any intentional quarantines are documented in `TRACKER.md` with explicit rationale.
 
-1. Full undo/redo productization.
-2. Final UI polish/theme decisions.
-3. Multi-face unified runtime architecture.
-4. Broad telemetry/perf instrumentation suite.
-5. Website/ecosystem launch work.
+## Success Criteria (Release-Level)
 
-## Current Phase (2026-02-17)
+1. Variables, poses, and pose groups each support full per-item lifecycle editing.
+2. Face/pose inspector values reflect authoritative runtime/autorig state.
+3. Locking is channel-level at the autorig layer.
+4. Runtime exposes rig inputs and pose-weight controls.
+5. Import normalizes face naming and retargets invalid abstract-rig -> animatable links safely to autorig links.
+6. Pose definitions are reusable and can belong to multiple groups.
 
-P0 is complete and prior P1 routing/parity tranche is complete. P1 now includes a user-experience refactor for control-surface decomposition (Variables, Poses, Pose Groups, Inputs) plus rig metadata aliasing (`/autorig`) so face control editing stays focused. Remaining scope is still aggregate pose-output binding surfacing, input-surface contract finalization, import/diagnostic completeness, and import grouping controls before moving fully into P2.
+## Non-Goals (Current Stage)
+
+1. Full visual redesign unrelated to authoring usability.
+2. Broad runtime platform redesign outside authoring contract needs.
+3. Work outside `vizij-authoring` unless required for contract compatibility.

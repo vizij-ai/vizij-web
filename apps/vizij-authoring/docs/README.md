@@ -1,53 +1,63 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-17 (P1 UI control-surface refactor added)
+Last updated: 2026-02-18
 
-This directory is the source of truth for authoring-app planning, status, and review notes.
+This folder is organized into active core docs, active references, and archived historical docs.
 
-## Current snapshot
+## Active Core Docs
 
-1. P0 is complete.
-2. P1 completed tranches include:
-   - inspector chain clickthrough + binding parity,
-   - first-class pose-group config and two-layer pose blending compile path,
-   - pose creation/play tooling and sidebar pose-group inspector.
-3. P1 completed in this tranche:
-   - dedicated left-column control-surface split into Face Elements, Variables, Poses, Pose Groups, Inputs,
-   - one globally selected item between panes with deterministic inspector routing,
-   - Variables pane exposes true external inputs only, path-grouped, and opening directly to slider controls,
-   - Poses pane lists primary-face pose definitions only (secondary-face pose workflow deferred),
-   - all defined poses exposed in a dedicated pose pane with add/remove-to-group controls and membership visibility,
-   - pose groups exposed as first-class entities with cross-group blend-mode controls in the pose-group pane and local blend-mode controls in the pose group inspector,
-   - `/autorig` generated rig inputs are excluded from Variables as user-facing controls and surfaced as face-graph aliases where needed.
-4. P1 remaining focus:
-   - aggregate pose-output binding surfacing in inspector/binding flows,
-   - pose diagnostics breadth and deterministic import/group strategy tooling.
-
-## Canonical plans
+### Planning (execution source of truth)
 
 1. `apps/vizij-authoring/docs/plans/GOAL.md`
-2. `apps/vizij-authoring/docs/plans/TRACKER.md`
-3. `apps/vizij-authoring/docs/plans/ROADMAP_BACKLOG.md`
-4. `apps/vizij-authoring/docs/plans/BACKLOG.md`
-5. `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`
+   Role: product/program objective and success criteria.
+2. `apps/vizij-authoring/docs/plans/ROADMAP.md`
+   Role: stage ordering and exit gates.
+3. `apps/vizij-authoring/docs/plans/BACKLOG.md`
+   Role: implementation-ready task list.
+4. `apps/vizij-authoring/docs/plans/TRACKER.md`
+   Role: live status and validation evidence.
 
-Use these for active planning and execution.
+### Contracts
 
-## Notes and analysis
+1. `apps/vizij-authoring/docs/UI_DESIGN.md`
+   Role: UI/UX behavior contract.
+2. `apps/vizij-authoring/docs/ARCHITECTURE.md`
+   Role: technical boundaries and invariants.
+3. `apps/vizij-authoring/docs/Authoring_Blueprint.md`
+   Role: detailed layer and namespace contract.
 
-1. `apps/vizij-authoring/docs/notes/SYNTHESIS.md` is the active interpretation layer and relevance triage.
-2. `apps/vizij-authoring/docs/notes/pr-draft-p0-p1-for-saad.md` is the PR draft handoff doc for UI cleanup and review.
-3. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md` remains the target architecture vision note.
-4. `apps/vizij-authoring/docs/notes/runtime-chain-review-2026-02-11.md` and `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md` are historical deep-review evidence (many findings now resolved; see synthesis).
-5. `apps/vizij-authoring/docs/notes/audit.md`, `apps/vizij-authoring/docs/notes/pose_report.md`, and `apps/vizij-authoring/docs/notes/review.md` are source audit artifacts.
-6. `apps/vizij-authoring/docs/ARCHITECTURE.md` is the full architecture explainer for contributors onboarding to the app.
-7. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md` is the practical contributor guide (rules, perf, race notes, security, flags, and PR checklist).
+## Active References
 
-## Update rules
+1. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
+   Role: component-level inventory used for UI refactor planning (`B1`, `B5`).
 
-1. Update `GOAL.md` when scope or success criteria changes.
-2. Update `TRACKER.md` when status, validation, or blockers change.
-3. Update `ROADMAP_BACKLOG.md` when priority bands change.
-4. Update `BACKLOG.md` with concrete implementation tasks.
-5. Update `SYNTHESIS.md` whenever note findings are resolved, superseded, or promoted into backlog.
-6. Run `pnpm --filter vizij-authoring run validate` before closing major backlog tranches.
+## Active Notes
+
+1. `apps/vizij-authoring/docs/notes/SYNTHESIS.md`
+   Role: notes relevance filter and archive triage summary.
+2. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`
+   Role: pose architecture intent reference.
+3. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md`
+   Role: contributor guardrails and practical checks.
+
+## Archive
+
+Historical material is under:
+
+1. `apps/vizij-authoring/docs/archive/plans/`
+2. `apps/vizij-authoring/docs/archive/notes/`
+3. `apps/vizij-authoring/docs/archive/reports/`
+
+Notable archived evidence:
+
+1. `apps/vizij-authoring/docs/archive/reports/audit_authoring_report.md`
+   Role: detailed audit evidence feeding backlog `B5`.
+
+Archived docs are context only and should not be used as active execution sources.
+
+## Update Rules
+
+1. Keep each doc focused on its role; avoid duplicating task detail across core docs.
+2. Promote actionable items from notes/references/reports into `plans/BACKLOG.md`.
+3. Move completed/superseded notes and one-off reports to `docs/archive/`.
+4. Record validation evidence changes in `plans/TRACKER.md`.

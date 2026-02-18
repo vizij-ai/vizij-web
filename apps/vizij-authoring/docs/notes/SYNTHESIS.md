@@ -1,60 +1,53 @@
 # Authoring Notes Synthesis
 
-Last updated: 2026-02-17 (control-surface refactor added)
+Last updated: 2026-02-18
 
-This file is the relevance filter for all authoring notes. Use this before acting on older findings.
+Purpose:
+Keep note usage DRY by mapping note content to active backlog/tracker items.
 
-## Current Signal
+## Active Signal
 
-1. P0 stabilization findings are resolved and locked by tests.
-2. P1 chain-parity and Quori smoke correction findings are resolved.
-3. Active P1 work has shifted to pose architecture semantics:
-   - aggregate pose-source surfacing in inspector/binding flows,
-   - diagnostics breadth for pose coverage and grouping behaviors,
-   - grouping/import strategy controls and diagnostics completeness,
-   - dedicated control-surface split (Face Elements, Variables, Poses, Pose Groups, Inputs) is now implemented via dedicated left panes,
-   - exclusion of auto-generated `/autorig` paths from variable and Inputs edit surfaces,
-   - primary-face pose pane behavior while secondary-face pose workflows are deferred.
+1. Baseline gate (`B0`) is still blocking new feature expansion.
+2. Next major implementation focus is `B1` through `B4` once baseline is green.
+3. Audit-driven perf/modularity work is captured in `B5`.
 
-## Resolved Findings Since Initial Reviews
+## Note Disposition
 
-1. Runtime graph clear/remove semantics and late-readiness input restaging are fixed.
-2. Import remap and discrepancy handling are deterministic and conflict-safe.
-3. Inspector chain clickthrough and cross-context binding editing are implemented.
-4. Quick-edit slider reliability issues tied to slot resolution are fixed.
-5. Pose parent-binding modal ambiguity (root vs missing link) is fixed.
-6. Pose-group domain model and two-layer compile topology are implemented.
-7. Pose authoring UX now includes:
-   - pose creation and target editing,
-   - neutral-safe single-pose preview semantics,
-   - sidebar pose-group inspector controls.
-8. Primary/secondary face workflow requested explicit sidebar decomposition: face-elements, variables, poses, pose-groups, Inputs.
+### Active notes
 
-## Active Findings That Still Matter
+1. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`
+   Used for pose/group architecture intent and acceptance direction.
+2. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md`
+   Used for practical engineering constraints.
 
-1. Inspector semantics should distinguish pose entry vs group output vs aggregate output explicitly.
-2. Pose diagnostics need broader coverage (empty groups, aggregate gaps, unresolved target coverage, and strategy validation).
-3. Import grouping strategy needs explicit user-facing controls and deterministic preview.
-4. `VariablesPanel` now runs as dedicated surface instances for Variables, Poses, and Inputs, with Pose Groups in a separate dedicated pane.
-5. One globally selected item across panes is now enforced by `useUnifiedSelection`; remaining work is richer alias/aggregate semantics.
+### Archived notes
 
-## Notes Relevance Matrix
+1. `apps/vizij-authoring/docs/archive/notes/runtime-chain-review-2026-02-11.md`
+2. `apps/vizij-authoring/docs/archive/notes/quori-smoke-findings-2026-02-11.md`
+3. `apps/vizij-authoring/docs/archive/notes/audit.md`
+4. `apps/vizij-authoring/docs/archive/notes/pose_report.md`
+5. `apps/vizij-authoring/docs/archive/notes/review.md`
+6. `apps/vizij-authoring/docs/archive/notes/pr-draft-p0-p1-for-saad.md`
+7. `apps/vizij-authoring/docs/archive/notes/variable_investigation_2026-02-17.md`
 
-1. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`: `active-reference`
-   Use for target architecture semantics and acceptance intent.
-2. `apps/vizij-authoring/docs/notes/runtime-chain-review-2026-02-11.md`: `historical-with-residual`
-   Most critical findings are resolved; remaining value is context for aggregate semantics and boundary follow-up.
-3. `apps/vizij-authoring/docs/notes/quori-smoke-findings-2026-02-11.md`: `mostly-resolved`
-   Keep as smoke-test evidence; unresolved threads are now captured as P1 backlog items.
-4. `apps/vizij-authoring/docs/notes/audit.md`: `historical`
-   Architecture debt reference for P2 planning.
-5. `apps/vizij-authoring/docs/notes/pose_report.md`: `historical`
-   Earlier regression evidence, now superseded by current tracker/test status.
-6. `apps/vizij-authoring/docs/notes/review.md`: `historical`
-   Keep for chronology; do not treat as current task source without tracker confirmation.
+### Archived report evidence
 
-## Execution Source of Truth
+1. `apps/vizij-authoring/docs/archive/reports/audit_authoring_report.md`
+   Source evidence for backlog `B5` performance/modularity tasks.
 
-1. Concrete tasks and status: `apps/vizij-authoring/docs/plans/BACKLOG.md` and `apps/vizij-authoring/docs/plans/TRACKER.md`.
-2. Priority positioning: `apps/vizij-authoring/docs/plans/ROADMAP_BACKLOG.md`.
-3. Pose architecture implementation contract: `apps/vizij-authoring/docs/plans/P1_POSE_AUTHORING_CHAIN_SPEC.md`.
+## Promotion Map to Backlog
+
+1. Typecheck and test stabilization -> `B0.1` to `B0.3`
+2. Inspector/sidebar UX clarity -> `B1.1` to `B1.4`
+3. Variables/poses/groups lifecycle completeness -> `B2.1` to `B2.4`
+4. Import/export/runtime contract hardening -> `B3.1` to `B3.3`
+5. Pose/group model evolution -> `B4.1` to `B4.3`
+6. Audit performance/modularity findings -> `B5.1` to `B5.3`
+
+## Rule of Use
+
+If a note contains action-worthy detail:
+
+1. capture it in `plans/BACKLOG.md`,
+2. track status/evidence in `plans/TRACKER.md`,
+3. keep the note as context only.
