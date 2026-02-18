@@ -540,9 +540,17 @@ describe("buildRigGraphSpec", () => {
 
   it("creates graph nodes for trig, clamp, and power functions", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
+    const lowLevelInputB: StandardRigInput = {
+      ...INPUT_B,
+      path: "/rig/element/controls/b",
+    };
     const INPUT_C: StandardRigInput = {
       id: "input_c",
-      path: "/controls/c",
+      path: "/rig/element/controls/c",
       label: "Control C",
       group: "controls",
       defaultValue: 0.5,
@@ -578,8 +586,8 @@ describe("buildRigGraphSpec", () => {
         [COMPONENT.id]: binding,
       },
       inputsById: new Map([
-        [INPUT_A.id, INPUT_A],
-        [INPUT_B.id, INPUT_B],
+        [INPUT_A.id, lowLevelInputA],
+        [INPUT_B.id, lowLevelInputB],
         [INPUT_C.id, INPUT_C],
       ]),
       inputBindings: {},
@@ -906,6 +914,14 @@ describe("buildRigGraphSpec", () => {
 
   it("does not emit type errors for scalar conditionals", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
+    const lowLevelInputB: StandardRigInput = {
+      ...INPUT_B,
+      path: "/rig/element/controls/b",
+    };
     binding.slots = [
       {
         id: "slot_a",
@@ -930,8 +946,8 @@ describe("buildRigGraphSpec", () => {
         [COMPONENT.id]: binding,
       },
       inputsById: new Map([
-        [INPUT_A.id, INPUT_A],
-        [INPUT_B.id, INPUT_B],
+        [INPUT_A.id, lowLevelInputA],
+        [INPUT_B.id, lowLevelInputB],
       ]),
       inputBindings: {},
     });
@@ -942,6 +958,10 @@ describe("buildRigGraphSpec", () => {
 
   it("supports piecewise remap expressions with vector literals", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
     binding.slots = [
       {
         id: "slot_a",
@@ -960,7 +980,7 @@ describe("buildRigGraphSpec", () => {
       bindings: {
         [COMPONENT.id]: binding,
       },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputsById: new Map([[INPUT_A.id, lowLevelInputA]]),
       inputBindings: {},
     });
 
