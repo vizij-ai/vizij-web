@@ -19,7 +19,7 @@ const createInput = (id: string, path: string): StandardRigInput => ({
 
 describe("PoseIrService", () => {
   it("maps legacy config blend modes into v1 pose IR", () => {
-    const { ir, warnings } = PoseIrService.fromConfig(
+    const { ir, warnings, diagnostics } = PoseIrService.fromConfig(
       {
         version: 1,
         faceId: "robot",
@@ -69,6 +69,13 @@ describe("PoseIrService", () => {
     expect(ir.neutral.values).toEqual({ smile: 0 });
     expect(
       warnings.some((warning) => warning.includes('"unknown_input" ignored')),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.code === "non-canonical-input-id",
+      ),
     ).toBe(true);
   });
 
@@ -123,7 +130,7 @@ describe("PoseIrService", () => {
   });
 
   it("normalizes IR payloads that only provide group poseIds", () => {
-    const { ir, warnings } = PoseIrService.normalize(
+    const { ir, warnings, diagnostics } = PoseIrService.normalize(
       {
         version: 1,
         faceId: "robot",
@@ -168,6 +175,14 @@ describe("PoseIrService", () => {
     expect(
       warnings.some((warning) => warning.includes('"unknown_input" ignored')),
     ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.code === "non-canonical-input-id",
+      ),
+    ).toBe(true);
   });
 
   it("preserves legacy additive cross-group mode when normalizing pose IR", () => {
@@ -208,5 +223,43 @@ describe("PoseIrService", () => {
     );
 
     expect(ir.crossGroupPolicy.mode).toBe("add");
+  });
+
+  it("throws structured diagnostics for invalid payloads", () => {
+    try {
+      PoseIrService.normalize(null, [], "robot");
+      expect.unreachable("expected normalize to throw");
+    } catch (error) {
+      const typed = error as Error & {
+        diagnostics?: Array<{ severity: string; code: string }>;
+      };
+      expect(typed.message).toContain("Invalid pose IR payload.");
+      expect(typed.diagnostics?.[0]).toMatchObject({
+        severity: "error",
+        code: "invalid-payload",
+      });
+    }
+  });
+
+  it("throws structured diagnostics for unsupported IR versions", () => {
+    try {
+      PoseIrService.normalize(
+        {
+          version: 999,
+        },
+        [],
+        "robot",
+      );
+      expect.unreachable("expected normalize to throw");
+    } catch (error) {
+      const typed = error as Error & {
+        diagnostics?: Array<{ severity: string; code: string }>;
+      };
+      expect(typed.message).toContain("Unsupported pose rig IR version");
+      expect(typed.diagnostics?.[0]).toMatchObject({
+        severity: "error",
+        code: "unsupported-ir-version",
+      });
+    }
   });
 });

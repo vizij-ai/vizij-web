@@ -3,6 +3,7 @@ import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import type {
   LowLevelRigSummary,
+  PoseDiagnostic,
   PoseDefinition,
   PoseRigConfigFile,
   PoseRigGraphSummary,
@@ -88,6 +89,7 @@ export interface UsePoseRigAuthoringResult {
   poseIrFileName: string;
   setPoseIrFileName: (value: string) => void;
   poseConfigWarnings: string[];
+  poseDiagnostics: PoseDiagnostic[];
   poseConfigDraft: PoseRigConfigFile | null;
   poseIrDraft: PoseRigIrFile | null;
   importPoseConfig: (file: File) => Promise<void>;
@@ -142,6 +144,7 @@ export function usePoseRigAuthoring(
   const poseConfigDraft = store.poseConfigDraft;
   const poseIrDraft = store.poseIrDraft;
   const poseConfigWarnings = store.warnings;
+  const poseDiagnostics = store.poseDiagnostics;
   const poseGraphFileName = store.filenames.graph;
   const poseConfigFileName = store.filenames.config;
   const poseIrFileName = store.filenames.ir;
@@ -482,6 +485,7 @@ export function usePoseRigAuthoring(
     poseIrFileName,
     setPoseIrFileName,
     poseConfigWarnings,
+    poseDiagnostics,
     poseConfigDraft,
     poseIrDraft,
     importPoseConfig,

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import type {
+  PoseDiagnostic,
   PoseDefinition,
   PoseRigConfigFile,
   PoseRigGraphSummary,
@@ -200,6 +201,7 @@ export interface PoseRigState {
     ir: string;
   };
   warnings: string[];
+  poseDiagnostics: PoseDiagnostic[];
   isReady: boolean;
 
   // Actions
@@ -324,6 +326,7 @@ const defaultState: Omit<
     ir: "",
   },
   warnings: [],
+  poseDiagnostics: [],
   isReady: false,
 };
 
@@ -1018,10 +1021,17 @@ export function createPoseRigStore(
         lastImportedConfig: config,
         poseConfigDraft: normalized,
         warnings,
+        poseDiagnostics: warnings.map((message, index) => ({
+          id: `pose-config:legacy-warning:${index + 1}`,
+          severity: "warning",
+          code: "legacy-config-warning",
+          source: "pose-config",
+          message,
+        })),
       });
     },
     importIr: (irPayload) => {
-      const { ir, warnings } = PoseIrService.normalize(
+      const { ir, warnings, diagnostics } = PoseIrService.normalize(
         irPayload,
         state.standardInputs,
         state.faceId,
@@ -1048,6 +1058,7 @@ export function createPoseRigStore(
         poseConfigDraft: normalized,
         poseIrDraft: ir,
         warnings,
+        poseDiagnostics: diagnostics,
       });
     },
     reset: () => {

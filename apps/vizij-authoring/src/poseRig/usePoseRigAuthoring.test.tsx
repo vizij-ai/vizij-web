@@ -365,6 +365,16 @@ describe("usePoseRigAuthoring", () => {
       'Neutral value for missing input "missing_input" was ignored.',
       'Pose "Legacy Pose" references missing input "missing_input" and was pruned.',
     ]);
+    expect(
+      result.current?.poseDiagnostics.every(
+        (diagnostic) => diagnostic.severity === "warning",
+      ),
+    ).toBe(true);
+    expect(
+      result.current?.poseDiagnostics.some(
+        (diagnostic) => diagnostic.code === "legacy-config-warning",
+      ),
+    ).toBe(true);
 
     expect(result.current?.savedNeutral).toEqual({
       smile: 0.35,

@@ -924,6 +924,13 @@ Acceptance checks:
 2. Import/export/inspector surfaces consume diagnostics without console-only paths.
 3. Tests cover at least one hard error and one warning path.
 
+Progress notes (2026-02-19):
+
+1. Added machine-readable diagnostics contracts and compile result shape (`PoseDiagnostic`, `PoseIrCompileResult`) in `src/poseRig/types.ts`.
+2. Updated `PoseIrService.fromConfig` / `normalize` to emit structured diagnostics alongside legacy warnings, including structured error diagnostics for invalid payload/version paths.
+3. Plumbed diagnostics through pose store + authoring hook (`poseDiagnostics`) while preserving existing warnings-based UI behavior.
+4. Added tests for warning and hard-error diagnostic paths in `src/poseRig/services/poseIrService.test.ts` and hook-level diagnostics exposure in `src/poseRig/usePoseRigAuthoring.test.tsx`.
+
 ### [ ] IR3 Bundle Export Includes Pose IR + Diagnostics
 
 Intent:

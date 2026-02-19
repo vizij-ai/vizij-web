@@ -6,9 +6,12 @@ import {
   sanitizePoseGroupId,
 } from "../groupMembership";
 import type {
+  PoseDiagnostic,
+  PoseDiagnosticLocation,
   PoseBlendMode,
   PoseDefinition,
   PoseGroupDefinition,
+  PoseIrCompileResult,
   PoseIrBlendMode,
   PoseRigConfigFile,
   PoseRigIrFile,
@@ -33,6 +36,59 @@ function toPoseIrBlendMode(value: unknown): PoseIrBlendMode {
 
 function toPoseConfigBlendMode(value: unknown): PoseBlendMode {
   return value === "add" || value === "additive" ? "additive" : "average";
+}
+
+interface DiagnosticCollector {
+  warnings: string[];
+  diagnostics: PoseDiagnostic[];
+}
+
+function createDiagnosticCollector(): DiagnosticCollector {
+  return {
+    warnings: [],
+    diagnostics: [],
+  };
+}
+
+function pushPoseDiagnostic(
+  collector: DiagnosticCollector,
+  params: {
+    severity: "warning" | "error" | "info";
+    code: string;
+    source: "pose-config" | "pose-ir";
+    message: string;
+    location?: PoseDiagnosticLocation;
+    metadata?: Record<string, unknown>;
+  },
+): void {
+  const { severity, code, source, message, location, metadata } = params;
+  const index = collector.diagnostics.length + 1;
+  collector.diagnostics.push({
+    id: `${source}:${code}:${index}`,
+    severity,
+    code,
+    source,
+    message,
+    location,
+    metadata,
+  });
+  if (severity === "warning") {
+    collector.warnings.push(message);
+  }
+}
+
+function createPoseIrServiceError(
+  message: string,
+  diagnostic: Omit<PoseDiagnostic, "id">,
+): Error & { diagnostics: PoseDiagnostic[] } {
+  const error = new Error(message) as Error & { diagnostics: PoseDiagnostic[] };
+  error.diagnostics = [
+    {
+      ...diagnostic,
+      id: `${diagnostic.source}:${diagnostic.code}:1`,
+    },
+  ];
+  return error;
 }
 
 function normalizePoseGroups(
@@ -105,8 +161,9 @@ function normalizePoseGroups(
 function canonicalizeInputValues(
   values: Record<string, number> | null | undefined,
   canonicalInputs: Set<string>,
-  warnings: string[],
+  collector: DiagnosticCollector,
   context: string,
+  source: "pose-config" | "pose-ir",
 ): Record<string, number> {
   if (!values || typeof values !== "object") {
     return {};
@@ -114,13 +171,34 @@ function canonicalizeInputValues(
   const normalized: Record<string, number> = {};
   Object.entries(values).forEach(([inputId, value]) => {
     if (!Number.isFinite(value)) {
-      warnings.push(`${context} input "${inputId}" ignored invalid value.`);
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "invalid-input-value",
+        source,
+        message: `${context} input "${inputId}" ignored invalid value.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+          value,
+        },
+      });
       return;
     }
     if (canonicalInputs.size > 0 && !canonicalInputs.has(inputId)) {
-      warnings.push(
-        `${context} input "${inputId}" ignored because it is not a canonical standard input id.`,
-      );
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "non-canonical-input-id",
+        source,
+        message: `${context} input "${inputId}" ignored because it is not a canonical standard input id.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+        },
+      });
       return;
     }
     normalized[inputId] = value;
@@ -131,13 +209,15 @@ function canonicalizeInputValues(
 function mapConfigToPoseIr(
   config: PoseRigConfigFile,
   standardInputs: StandardRigInput[],
-  warnings: string[],
+  collector: DiagnosticCollector,
   options?: {
     defaultGroupBlendMode?: PoseBlendMode;
     crossGroupBlendMode?: PoseBlendMode;
+    diagnosticSource?: "pose-config" | "pose-ir";
   },
 ): PoseRigIrFile {
   const canonicalInputs = new Set(standardInputs.map((input) => input.id));
+  const diagnosticSource = options?.diagnosticSource ?? "pose-config";
   const sourcePoses = Array.isArray(config.poses) ? config.poses : [];
   const fallbackGroupBlendMode = options?.defaultGroupBlendMode ?? "average";
   const normalizedGroups = normalizePoseGroups(
@@ -197,8 +277,9 @@ function mapConfigToPoseIr(
     const targets = canonicalizeInputValues(
       pose.values,
       canonicalInputs,
-      warnings,
+      collector,
       `Pose "${pose.name ?? pose.id}"`,
+      diagnosticSource,
     );
 
     return {
@@ -242,8 +323,9 @@ function mapConfigToPoseIr(
       values: canonicalizeInputValues(
         config.neutralInputs,
         canonicalInputs,
-        warnings,
+        collector,
         "Neutral",
+        diagnosticSource,
       ),
     },
     groups,
@@ -316,27 +398,45 @@ export const PoseIrService = {
     options?: {
       defaultGroupBlendMode?: PoseBlendMode;
       crossGroupBlendMode?: PoseBlendMode;
+      diagnosticSource?: "pose-config" | "pose-ir";
     },
-  ): { ir: PoseRigIrFile; warnings: string[] } {
-    const warnings: string[] = [];
+  ): PoseIrCompileResult {
+    const collector = createDiagnosticCollector();
+    const diagnosticSource = options?.diagnosticSource ?? "pose-config";
     const importedFaceId = config.faceId;
     if (currentFaceId && importedFaceId && importedFaceId !== currentFaceId) {
-      warnings.push(
-        `Imported pose rig targets face "${importedFaceId}", current face "${currentFaceId}".`,
-      );
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "face-id-mismatch",
+        source: diagnosticSource,
+        message: `Imported pose rig targets face "${importedFaceId}", current face "${currentFaceId}".`,
+        metadata: {
+          importedFaceId,
+          currentFaceId,
+        },
+      });
     }
 
-    const ir = mapConfigToPoseIr(config, standardInputs, warnings, options);
-    return { ir, warnings };
+    const ir = mapConfigToPoseIr(config, standardInputs, collector, options);
+    return {
+      ir,
+      warnings: collector.warnings,
+      diagnostics: collector.diagnostics,
+    };
   },
 
   normalize(
     payload: unknown,
     standardInputs: StandardRigInput[] = [],
     currentFaceId: string | null = null,
-  ): { ir: PoseRigIrFile; warnings: string[] } {
+  ): PoseIrCompileResult {
     if (!payload || typeof payload !== "object") {
-      throw new Error("Invalid pose IR payload.");
+      throw createPoseIrServiceError("Invalid pose IR payload.", {
+        severity: "error",
+        code: "invalid-payload",
+        source: "pose-ir",
+        message: "Invalid pose IR payload.",
+      });
     }
 
     if (
@@ -359,8 +459,14 @@ export const PoseIrService = {
     };
 
     if (candidate.version !== POSE_RIG_IR_VERSION) {
-      throw new Error(
+      throw createPoseIrServiceError(
         `Unsupported pose rig IR version: ${candidate.version ?? "unknown"}.`,
+        {
+          severity: "error",
+          code: "unsupported-ir-version",
+          source: "pose-ir",
+          message: `Unsupported pose rig IR version: ${candidate.version ?? "unknown"}.`,
+        },
       );
     }
 
@@ -421,7 +527,9 @@ export const PoseIrService = {
       standardInputSchema: candidate.standardInputSchema,
     };
 
-    return this.fromConfig(configLike, standardInputs, currentFaceId);
+    return this.fromConfig(configLike, standardInputs, currentFaceId, {
+      diagnosticSource: "pose-ir",
+    });
   },
 
   toConfig(ir: PoseRigIrFile): PoseRigConfigFile {

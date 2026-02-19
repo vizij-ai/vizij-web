@@ -9,6 +9,30 @@ export const POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT =
 export type StandardInputId = StandardRigInput["id"];
 export type PoseBlendMode = "average" | "additive";
 export type PoseIrBlendMode = "average" | "add";
+export type PoseDiagnosticSeverity = "warning" | "error" | "info";
+
+export interface PoseDiagnosticLocation {
+  poseId?: string;
+  groupId?: string;
+  inputId?: StandardInputId;
+  path?: string;
+}
+
+export interface PoseDiagnostic {
+  id: string;
+  severity: PoseDiagnosticSeverity;
+  message: string;
+  code: string;
+  source: "pose-config" | "pose-ir";
+  location?: PoseDiagnosticLocation;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PoseIrCompileResult {
+  ir: PoseRigIrFile;
+  warnings: string[];
+  diagnostics: PoseDiagnostic[];
+}
 
 export interface PoseIrContracts {
   targetIds: typeof POSE_IR_TARGETING_CONTRACT;
