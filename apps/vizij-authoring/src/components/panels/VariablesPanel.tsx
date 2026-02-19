@@ -35,7 +35,10 @@ import type {
   PoseIrStageSource,
   PoseRigConfigFile,
 } from "../../poseRig/types";
-import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
+import {
+  isPoseControlInputPath,
+  parsePoseWeightInputSourceId,
+} from "../../poseRig/utils";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 import type {
@@ -1175,34 +1178,38 @@ export function VariablesPanel({
       groupLabelById.set(groupId, poseGroupDisplayLabel(normalizedPath));
     });
 
-    const managedRows = managedStandardInputs.map((entry) => {
-      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
-      const min = entry.input.range?.min ?? 0;
-      const max = entry.input.range?.max ?? 1;
-      const value = inputValues[entry.input.id];
-      const poseWeightPoseId = parsePoseWeightInputSourceId(
-        entry.input.sourceId,
-      );
-      const controlKind: InputListRow["controlKind"] = poseWeightPoseId
-        ? "pose-weight"
-        : "rig-input";
-      return {
-        id: entry.input.id,
-        label: entry.input.label || entry.input.id,
-        inputId: entry.input.id,
-        source: resolveManagedSource(entry),
-        path: normalizedPath,
-        value: Number.isFinite(value) ? value : (entry.input.defaultValue ?? 0),
-        min,
-        max,
-        controlKind,
-        provenance: poseWeightPoseId
-          ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
-          : undefined,
-        editable: true,
-        selectable: true,
-      } as const;
-    });
+    const managedRows = managedStandardInputs
+      .filter((entry) => !isPoseControlInputPath(entry.input.path))
+      .map((entry) => {
+        const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+        const min = entry.input.range?.min ?? 0;
+        const max = entry.input.range?.max ?? 1;
+        const value = inputValues[entry.input.id];
+        const poseWeightPoseId = parsePoseWeightInputSourceId(
+          entry.input.sourceId,
+        );
+        const controlKind: InputListRow["controlKind"] = poseWeightPoseId
+          ? "pose-weight"
+          : "rig-input";
+        return {
+          id: entry.input.id,
+          label: entry.input.label || entry.input.id,
+          inputId: entry.input.id,
+          source: resolveManagedSource(entry),
+          path: normalizedPath,
+          value: Number.isFinite(value)
+            ? value
+            : (entry.input.defaultValue ?? 0),
+          min,
+          max,
+          controlKind,
+          provenance: poseWeightPoseId
+            ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
+            : undefined,
+          editable: true,
+          selectable: true,
+        } as const;
+      });
 
     const groupOutputRows = (poseConfigDraft?.poseGroups ?? []).map((group) => {
       const groupId = group.id?.trim() || "group";

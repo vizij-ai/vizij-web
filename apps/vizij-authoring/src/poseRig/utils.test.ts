@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPoseControlRelativePath,
   buildPoseWeightInputSourceId,
   buildPoseWeightRelativePath,
   buildRigInputPath,
   buildPoseWeightPathMap,
+  isPoseControlInputPath,
   isPoseWeightInputPath,
+  parsePoseControlInputIdFromPath,
   parsePoseWeightInputSourceId,
   normalizePoseDefinitionIds,
   resolveDeterministicPoseId,
@@ -97,6 +100,27 @@ describe("pose weight input helpers", () => {
     expect(sourceId).toBe("pose-weight:pose_smile");
     expect(parsePoseWeightInputSourceId(sourceId)).toBe("pose_smile");
     expect(parsePoseWeightInputSourceId("custom:pose_smile")).toBeNull();
+  });
+});
+
+describe("pose control input helpers", () => {
+  it("builds canonical relative paths keyed by input id", () => {
+    expect(buildPoseControlRelativePath("jaw_open")).toBe(
+      "/pose/control/jaw_open",
+    );
+    expect(isPoseControlInputPath("/pose/control/jaw_open")).toBe(true);
+    expect(isPoseControlInputPath("rig/face/pose/control/jaw_open")).toBe(true);
+    expect(isPoseControlInputPath("/autorig/jaw/open")).toBe(false);
+  });
+
+  it("parses input ids from pose control paths", () => {
+    expect(parsePoseControlInputIdFromPath("/pose/control/jaw_open")).toBe(
+      "jaw_open",
+    );
+    expect(
+      parsePoseControlInputIdFromPath("rig/face/pose/control/jaw_open"),
+    ).toBe("jaw_open");
+    expect(parsePoseControlInputIdFromPath("/autorig/jaw/open")).toBeNull();
   });
 });
 

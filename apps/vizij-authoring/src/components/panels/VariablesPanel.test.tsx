@@ -348,6 +348,42 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 
+  it("hides internal pose-control channels on the Inputs surface", () => {
+    const directInput = makeInput("jaw_open", "/standard/jaw/open", {
+      label: "Jaw Open",
+    });
+    const poseControlInternal = makeInput(
+      "pose_control_jaw_open",
+      "/pose/control/jaw_open",
+      {
+        label: "Pose Control Jaw Open",
+      },
+    );
+    bindingState.managedStandardInputs = [
+      { input: directInput, source: "preset" },
+      { input: poseControlInternal, source: "auto" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/standard/jaw/open", directInput],
+      ["/pose/control/jaw_open", poseControlInternal],
+    ]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Jaw Open" } });
+    expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Pose Control Jaw Open" } });
+    expect(scoped.queryByTitle("Pose Control Jaw Open")).toBeNull();
+  });
+
   it("distinguishes pose-weight inputs from group/stage derived controls", () => {
     const regularInput = makeInput("jaw_open", "/standard/jaw/open", {
       label: "Jaw Open",

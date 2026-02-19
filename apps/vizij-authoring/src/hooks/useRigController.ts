@@ -47,7 +47,7 @@ import {
   type RigBindingSlot,
   type StandardRigInput,
 } from "@vizij/utils";
-import { buildRigInputPath } from "../poseRig/utils";
+import { buildRigInputPath, isPoseControlInputPath } from "../poseRig/utils";
 import { buildSceneGraphData } from "../scene/sceneGraph";
 import {
   buildAutoRigInputBlueprints,
@@ -2099,6 +2099,11 @@ export function useRigController(
     };
 
     summaryInputPaths.forEach((graphPath) => {
+      if (isPoseControlInputPath(graphPath)) {
+        // Pose-control graph inputs are internal composition channels and
+        // should not become editable direct-input routes.
+        return;
+      }
       let matched: StandardRigInput | undefined;
       let remainder = graphPath;
       const normalizedGraphPath = normalizeGraphPath(graphPath);

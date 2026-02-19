@@ -252,7 +252,7 @@ const GOLDEN_FIXTURES: GoldenFixture[] = [
       ],
     },
     expectedTopologyHash:
-      "345f950518a15b8213847bd19d2a7383838f2b85fc1f36d2a0f7f23bba83f225",
+      "eec7b8021837d544ed43d74f8700678f93312503af1af75d61e3031099d31268",
     expectedDiagnosticCodes: [],
   },
   {
@@ -288,7 +288,7 @@ const GOLDEN_FIXTURES: GoldenFixture[] = [
       ],
     },
     expectedTopologyHash:
-      "a783427cdaf5d5346f915b023111920024133128b66e221bc6f9ead3c29f366c",
+      "28c7878232d83b5af55d5804f518a268f83b1ebf32053b942c3a91ce2fea4c1c",
     expectedDiagnosticCodes: ["implicit-neutral-fallback"],
   },
   {
@@ -372,7 +372,7 @@ const GOLDEN_FIXTURES: GoldenFixture[] = [
       ],
     },
     expectedTopologyHash:
-      "d78d42fb24c14cb217752d5bc2771a6468d050dba945eeaa64aced1a3ef4b636",
+      "f50d5edc90a2077782ebb3b02e8d9ecd529a28e50dbf4bad09db1ff625e396da",
     expectedDiagnosticCodes: [],
   },
 ];

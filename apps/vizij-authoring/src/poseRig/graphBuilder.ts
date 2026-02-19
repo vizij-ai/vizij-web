@@ -1,6 +1,7 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import {
+  buildPoseControlRelativePath,
   buildPoseWeightPathMap,
   buildRigInputPath,
   createNeutralInputs,
@@ -1086,8 +1087,10 @@ export function buildPoseGraphSpec(options: {
       return;
     }
 
-    const path = input.path;
-    const typedPath = buildRigInputPath(faceSegment, path);
+    const typedPath = buildRigInputPath(
+      faceSegment,
+      buildPoseControlRelativePath(input.id),
+    );
     const outputNodeId = `out_${sanitizeId(input.id)}`;
     const hasBlendStages = Boolean(blendStages && blendStages.length > 0);
     const crossGroupMode =
@@ -1302,11 +1305,11 @@ export function buildPoseGraphSpec(options: {
 
     summary.inputs.push({
       id: input.id,
-      path,
+      path: typedPath,
       neutral: neutralValue,
       contributions,
     });
-    summary.outputs.push(path);
+    summary.outputs.push(typedPath);
   });
 
   const spec: GraphSpec = {

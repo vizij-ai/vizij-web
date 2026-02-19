@@ -14,6 +14,8 @@ This folder is organized into active execution docs, active contracts, reference
    - Active work backlog, grouped by semantic block and dependency order.
 4. `apps/vizij-authoring/docs/plans/TRACKER.md`
    - Current execution status, risk notes, and validation evidence.
+5. `apps/vizij-authoring/docs/plans/POSE_CONTROL_COMPOSITION_PLAN.md`
+   - Commit-sized execution plan and progress log for direct+pose channel composition alignment.
 
 ## Active Contracts
 

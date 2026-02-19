@@ -44,7 +44,7 @@ Current compile path:
 1. Authoring store mutations (poses, groups, and blend stages) land in pose IR first; config/UI views are projected from IR (`PoseIrService`).
 2. IR compiles into pose graph spec (`buildPoseGraphSpecFromIr`).
 3. Compiler resolves canonical target channels, neutral baseline, group contributions, and cross-group composition.
-4. Compiler emits output nodes bound to canonical rig input paths.
+4. Compiler emits pose graph output nodes to internal pose-control rig input paths: `rig/<face>/pose/control/<inputId>`.
 
 Composition semantics currently supported:
 
@@ -60,9 +60,22 @@ Composition semantics currently supported:
    - `explicit`: authored neutral values with per-channel fallback to standard-input defaults when missing.
    - `face-default`: compile directly from standard-input defaults.
 
+Direct/pose channel composition contract (execution target):
+
+1. Pose authoring targets canonical direct rig controls by `inputId` in IR.
+2. The pose graph writes only to internal pose-control paths (`rig/<face>/pose/control/<inputId>`).
+3. The rig graph owns final per-channel composition:
+   - `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)`.
+4. MVP compose modes:
+   - `add` (default),
+   - `average`.
+5. Internal pose-control paths are runtime inputs, but they are graph-internal implementation details from the default authoring UX perspective.
+
 Remaining deferred semantics:
 
 1. Activity-weighting skew mitigation policy lock-in (design examples captured in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
+2. Weighted and priority-based direct/pose composition policy extensions.
+3. Potential monolithic-graph refactor that fuses rig + pose graphs once contracts are stable.
 
 ## Runtime Graph Packaging
 
@@ -75,16 +88,23 @@ Authoring currently produces a single runtime bundle update that contains distin
 
 Important: rig and pose are still separate graph specs today, not one monolithic merged graph.
 
+Execution note:
+
+1. Separate-graph packaging is intentional for MVP delivery speed and compatibility.
+2. Rig graph composition nodes consume both direct rig-control and pose-control signals to produce final effective values per channel.
+
 ## Canonical Path and Identity Contracts
 
 1. Generated low-level rig paths use `/autorig/...`.
 2. Pose-weight controls use canonical per-pose paths: `rig/{face}/poses/{poseId}.weight`.
 3. Pose-weight controls carry stable source IDs (`pose-weight:{poseId}`).
 4. Pose target references resolve to canonical existing input IDs.
-5. Ghost/intermediate blend signals are compile-time graph internals, not authored inputs.
-6. Inputs-pane IA distinguishes authored controls (`rig-input`, `pose-weight`) from derived composition outputs (`group-output`, `stage-output`).
-7. Derived composition outputs use deterministic synthetic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) for visibility and provenance.
-8. Derived group/stage outputs are read-only/non-selectable in Inputs; edits flow through pose/pose-group/stage authoring surfaces.
+5. Pose graph outputs use internal paths `rig/{face}/pose/control/{inputId}`.
+6. Ghost/intermediate blend signals are compile-time graph internals, not authored inputs.
+7. Inputs-pane IA distinguishes authored controls (`rig-input`, `pose-weight`) from derived composition outputs (`group-output`, `stage-output`).
+8. Internal pose-control paths are not shown as user-editable Inputs rows in default UX.
+9. Derived composition outputs use deterministic synthetic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) for visibility and provenance.
+10. Derived group/stage outputs are read-only/non-selectable in Inputs; edits flow through pose/pose-group/stage authoring surfaces.
 
 ## Diagnostics and Validation Contracts
 

@@ -159,6 +159,24 @@ describe("buildPoseGraphSpec", () => {
     ).toBeTruthy();
   });
 
+  it("emits pose-control output paths keyed by canonical input ids", () => {
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses,
+      standardInputs,
+      blendMode: "average",
+    });
+
+    const mouthOutput = findNode(spec.nodes, "out_mouth_open");
+    const browOutput = findNode(spec.nodes, "out_brow_raise");
+
+    expect(mouthOutput?.type).toBe("output");
+    expect(mouthOutput?.params?.path).toBe("rig/face/pose/control/mouth_open");
+    expect(browOutput?.type).toBe("output");
+    expect(browOutput?.params?.path).toBe("rig/face/pose/control/brow_raise");
+  });
+
   it("builds cross-group additive blend nodes for shared targets", () => {
     const groupedPoses = [
       { ...poses[0], group: "emotion" },

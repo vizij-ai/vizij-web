@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createStandardRigInput,
   normalizeStandardRigInputPath,
+  resolveStandardRigInputId,
 } from "./standard-inputs";
 
 describe("normalizeStandardRigInputPath", () => {
@@ -28,5 +29,42 @@ describe("createStandardRigInput", () => {
       range: { min: -1, max: 1 },
     });
     expect(input.path).toBe("/eyes/blink");
+  });
+});
+
+describe("resolveStandardRigInputId", () => {
+  it("resolves pose-control paths keyed by canonical input id", () => {
+    const input = createStandardRigInput({
+      id: "jaw_open",
+      path: "/autorig/jaw/open",
+      label: "Jaw Open",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const map = new Map([[input.id, input]]);
+
+    expect(resolveStandardRigInputId("/pose/control/jaw_open", map)).toBe(
+      "jaw_open",
+    );
+    expect(
+      resolveStandardRigInputId("rig/face/pose/control/jaw_open", map),
+    ).toBe("jaw_open");
+  });
+
+  it("keeps legacy pose-control path alias resolution", () => {
+    const input = createStandardRigInput({
+      id: "autorig_source_openness",
+      path: "/autorig/source/openness",
+      label: "Source Openness",
+      group: "source",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const map = new Map([[input.id, input]]);
+
+    expect(
+      resolveStandardRigInputId("/pose/control/source/openness", map),
+    ).toBe("autorig_source_openness");
   });
 });

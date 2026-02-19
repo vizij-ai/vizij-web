@@ -8,11 +8,12 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
-2. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
-3. `F5.1` -> `F5.6` -> `F5.8`
-4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
-5. Blocks `A0` through `E4` are complete and are prerequisite foundations for this import reliability wave.
+1. `A0.4` -> `A0.5` -> `A0.6` -> `A0.7`
+2. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
+3. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
+4. `F5.1` -> `F5.6` -> `F5.8`
+5. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
+6. Blocks `A0` through `E4` are complete foundations, with `A0.4`-`A0.7` adding the direct+pose composition contract before import reliability work resumes.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -118,6 +119,117 @@ Completion notes (2026-02-19):
 4. Validation evidence:
    - `2026-02-19 03:58Z` — `pnpm --filter vizij-authoring exec vitest --run src/poseRig/usePoseRigAuthoring.test.tsx src/hooks/__tests__/useVizijExport.test.tsx` -> pass (2 files / 37 tests).
    - `2026-02-19 04:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 345 tests).
+
+### [x] A0.4 Pose-Control Path Contract Alignment
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: The pose contribution channel must not collide with direct rig controls. A stable internal path contract is required for deterministic behavior.
+
+Dependencies / blockers:
+
+- Depends on: `A0.1`, `B1.1`
+- Blocks: `A0.5`, `A0.6`, `A0.7`
+
+Intent:
+
+- Ensure compiled pose outputs target internal rig input paths `rig/<face>/pose/control/<inputId>` while IR still targets canonical direct input IDs.
+
+Acceptance checks:
+
+1. Pose graph outputs compile to `rig/<face>/pose/control/<inputId>`.
+2. Direct rig controls remain on canonical direct paths.
+3. Path contracts are covered by deterministic tests in compiler/service layers.
+
+Completion notes (2026-02-19):
+
+1. Pose graph compiler now emits per-channel outputs to `rig/<face>/pose/control/<inputId>` using canonical input IDs for suffix identity.
+2. Runtime input-route mapping now treats pose-control channels as internal-only and excludes them from editable direct-input route registration.
+3. Inputs pane now filters internal pose-control managed rows from default user-facing editing surfaces.
+4. Added/updated regression coverage in:
+   - `src/poseRig/graphBuilder.test.ts`
+   - `src/poseRig/topologyGolden.test.ts`
+   - `src/poseRig/utils.test.ts`
+   - `src/components/panels/VariablesPanel.test.tsx`
+   - `src/hooks/__tests__/poseControlInputContracts.test.ts`
+   - `packages/@vizij/utils/src/rig/standard-inputs.test.ts`
+5. Validation evidence:
+   - `pnpm --filter @vizij/utils run test -- src/rig/standard-inputs.test.ts` -> pass
+   - `pnpm --filter vizij-authoring run test -- src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseGraphService.test.ts src/poseRig/usePoseRigAuthoring.test.tsx src/poseRig/store.test.ts src/components/panels/VariablesPanel.test.tsx src/hooks/__tests__/poseControlInputContracts.test.ts src/poseRig/utils.test.ts` -> pass
+   - `pnpm --filter @vizij/utils run typecheck` -> pass
+   - `pnpm --filter vizij-authoring run typecheck` -> pass
+   - `pnpm --filter @vizij/utils run lint` -> pass
+   - `pnpm --filter vizij-authoring run lint` -> pass
+
+### [ ] A0.5 Rig-Graph Effective Channel Composition
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Without rig-side composition, direct edits and pose outputs compete instead of combining predictably.
+
+Dependencies / blockers:
+
+- Depends on: `A0.4`
+- Blocks: `A0.6`, `A0.7`
+
+Intent:
+
+- Implement per-channel `effective_i` composition in rig graph:
+  - `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)`.
+
+Acceptance checks:
+
+1. Each targeted channel composes direct + pose-control values in rig graph.
+2. Clamp is applied after compose.
+3. Default compose mode is additive.
+
+### [ ] A0.6 Per-Channel Compose Mode Authoring (MVP)
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Users need explicit control over how direct and pose contributions combine per channel.
+
+Dependencies / blockers:
+
+- Depends on: `A0.5`
+- Blocks: `A0.7`
+
+Intent:
+
+- Add per-channel compose mode authoring in pose UI and IR with MVP modes:
+  1. `add` (default)
+  2. `average`
+
+Acceptance checks:
+
+1. Every driven channel can configure compose mode.
+2. New channels default to `add`.
+3. Import/export and IR projection preserve mode values.
+
+### [ ] A0.7 Inputs Pane Internal-Path Filtering + Contract Tests
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Internal pose-control channels are runtime plumbing and should not confuse normal authoring workflows.
+
+Dependencies / blockers:
+
+- Depends on: `A0.5`, `A0.6`
+- Blocks: resume `F5.*` import reliability wave
+
+Intent:
+
+- Hide `rig/<face>/pose/control/<inputId>` internal channels from default Inputs pane while preserving normal rig + pose-weight editing and correctness tests.
+
+Acceptance checks:
+
+1. Internal pose-control channels are not shown/editable in Inputs pane default UX.
+2. Canonical rig inputs and pose-weight inputs remain visible and editable.
+3. Regression tests cover filtering and control sync with inspector flows.
 
 ## Block B — IR-First Authoring Foundation
 

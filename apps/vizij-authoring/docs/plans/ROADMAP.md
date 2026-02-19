@@ -114,6 +114,29 @@ Current status:
 - `done`
 - Progress: `E4.1` and `E4.2` are implemented (per-channel override contracts + priority compile semantics with diagnostics) and `E4.3` remains the supporting design reference (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
 
+## Stage 4A — Pose-Control Composition Alignment
+
+Objective:
+
+- Align pose graph output paths and rig-graph composition so direct controls and pose outputs combine deterministically per channel.
+
+Backlog scope:
+
+- `A0.4`, `A0.5`, `A0.6`, `A0.7`
+
+Exit gate:
+
+1. Pose graph outputs target `rig/<face>/pose/control/<inputId>`.
+2. Rig graph computes `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)` per targeted channel.
+3. Per-channel compose mode is authorable in UI with MVP modes `add` (default) and `average`.
+4. Inputs pane hides internal pose-control channels while preserving normal rig/pose-weight editing.
+5. Regression tests cover path contracts, compile topology, and inspector/inputs behavior.
+
+Current status:
+
+- `in_progress`
+- Execution detail: `plans/POSE_CONTROL_COMPOSITION_PLAN.md`
+
 ## Stage 5 — Import Migration Reliability
 
 Objective:
@@ -137,3 +160,8 @@ Exit gate:
 Current status:
 
 - `planned`
+
+## Future Architecture Horizon (Post-Stage 5)
+
+1. Evaluate monolithic graph refactor once pose-control composition and import contracts are stable.
+2. Expand channel composition policy beyond MVP (`add`/`average`) to include optional weights and priority-based blending.

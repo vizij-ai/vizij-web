@@ -201,6 +201,14 @@ export function resolveStandardRigInputId(
         addPathCandidates(strippedFacePrefix);
       }
     }
+    if (normalized.startsWith("/pose/control/")) {
+      const suffix = normalized
+        .slice("/pose/control/".length)
+        .replace(/^\/+/g, "");
+      if (suffix.length > 0) {
+        candidateIds.add(suffix);
+      }
+    }
   };
 
   const enqueueAliasPath = (normalizedPath: string) => {

@@ -49,12 +49,13 @@ Traversal must preserve context (no unexpected selection resets).
 
 1. Inputs include canonical rig controls, canonical pose-weight controls, and derived group/stage output rows.
 2. Pose-weight controls are stable per pose and path-based (`rig/{face}/poses/{poseId}.weight`).
-3. Derived composition rows use deterministic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`).
-4. Input rows must show provenance metadata (pose source for pose-weight controls; group/stage mode and source context for derived rows).
-5. Editability contract:
+3. Internal pose-control paths (`rig/{face}/pose/control/{inputId}`) are runtime inputs but hidden from the default user-facing Inputs pane.
+4. Derived composition rows use deterministic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`).
+5. Input rows must show provenance metadata (pose source for pose-weight controls; group/stage mode and source context for derived rows).
+6. Editability contract:
    - regular rig and pose-weight controls remain editable/selectable with standard range/default semantics,
    - derived group/stage rows are explicitly read-only and non-selectable.
-6. Inputs must visibly distinguish control kinds (`rig-input`, `pose-weight`, `group-output`, `stage-output`).
+7. Inputs must visibly distinguish control kinds (`rig-input`, `pose-weight`, `group-output`, `stage-output`).
 
 ## Pose Authoring Contract
 
@@ -79,8 +80,9 @@ Row 1 (identity + mapping):
 
 1. Channel name.
 2. Contribution strength.
-3. Link/reference to the target variable.
-4. Remove-channel action.
+3. Compose mode selector (`Additive` default, `Average` optional) for direct+pose channel combination.
+4. Link/reference to the target variable.
+5. Remove-channel action.
 
 Row 2 (current value controls):
 
@@ -109,6 +111,12 @@ Interaction requirements:
 4. Multi-stage composition supports explicit stage ordering and operations (`add` / `average`) with stage source selection (group and prior-stage references).
 5. Stage editing blocks invalid topology before apply/export (self/forward references, unknown sources, duplicate/empty sources).
 6. Data contracts support per-channel cross-group overrides, including `priority` mode with deterministic ordering/tie-break semantics; import/export and diagnostics must preserve and explain these policies.
+
+Direct+pose effective-channel contract:
+
+1. For each driven channel, authoring configures how direct control and pose-control signals combine before binding.
+2. Effective value uses `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)`.
+3. MVP `compose` options are `add` and `average`, with `add` as default.
 
 ## Neutral and Value Semantics
 

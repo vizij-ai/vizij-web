@@ -271,6 +271,7 @@ export interface PoseWeightPathInfo {
 
 export const POSE_WEIGHT_INPUT_PATH_PREFIX = "/poses/";
 export const POSE_WEIGHT_INPUT_SOURCE_PREFIX = "pose-weight:";
+export const POSE_CONTROL_INPUT_PATH_PREFIX = "/pose/control/";
 
 function normalizePoseWeightPathSegment(
   value: string | null | undefined,
@@ -303,6 +304,39 @@ export function buildPoseWeightInputSourceId(
   poseId: string | null | undefined,
 ): string {
   return `${POSE_WEIGHT_INPUT_SOURCE_PREFIX}${poseId?.trim() ?? ""}`;
+}
+
+export function buildPoseControlRelativePath(
+  inputId: string | null | undefined,
+): string {
+  const trimmed = inputId?.trim() ?? "";
+  return `${POSE_CONTROL_INPUT_PATH_PREFIX}${trimmed || "input"}`;
+}
+
+export function isPoseControlInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX);
+}
+
+export function parsePoseControlInputIdFromPath(
+  path: string | null | undefined,
+): string | null {
+  if (!path) {
+    return null;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  if (!normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX)) {
+    return null;
+  }
+  const inputId = normalized
+    .slice(POSE_CONTROL_INPUT_PATH_PREFIX.length)
+    .replace(/^\/+/g, "");
+  return inputId.length > 0 ? inputId : null;
 }
 
 export function parsePoseWeightInputSourceId(
