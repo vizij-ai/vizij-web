@@ -111,4 +111,5 @@ Exit gate:
 
 Current status:
 
-- `deferred` (explicitly not required for MVP)
+- `deferred` (explicitly not required for MVP implementation)
+- Progress: `E4.3` docs-only design pack is complete (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`); `E4.1` and `E4.2` remain deferred.

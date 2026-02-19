@@ -550,7 +550,7 @@ Acceptance checks:
 2. Conflict scenarios have deterministic test coverage.
 3. Diagnostics explain when priority changed a channel output.
 
-### [ ] E4.3 Overlap Bias / Activity Heuristic Design Pack
+### [x] E4.3 Overlap Bias / Activity Heuristic Design Pack
 
 Priority and why this should still be done:
 
@@ -572,6 +572,15 @@ Acceptance checks:
 2. Tradeoffs are explicit for additive vs weighted-average vs priority policies.
 3. Follow-on implementation scope is clearly itemized.
 
+Completion notes (2026-02-19):
+
+1. Added the design pack note at `apps/vizij-authoring/docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`.
+2. The note documents representative shared-channel overlap scenarios (`S1`-`S4`) with explicit expected outputs across additive, weighted-average, and priority policy behavior.
+3. The note includes a direct policy tradeoff matrix and a concrete activity-heuristic candidate profile for weighted-average behavior.
+4. The note includes an itemized follow-on implementation scope covering schema/compiler/diagnostics/UI/tests/rollout.
+5. Evidence reference:
+   - `2026-02-19` — `apps/vizij-authoring/docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`
+
 ## Recently Completed (Reference)
 
 - `Q0.2` Canonical pose target mapping and no-ghost-variable add flow guardrails.
@@ -579,3 +588,4 @@ Acceptance checks:
 - `B2.4 Inspector Chain Traversal Completion` landed in the prior execution cycle and remains a required contract baseline.
 - Pose IR diagnostics surfaced in authoring UI and bundle export metadata (`IR2`, `IR3`).
 - Pose "What I Drive" 3-row control redesign and pose duplication action.
+- `E4.3` Overlap bias/activity heuristic design pack delivered with scenario outputs, policy tradeoffs, and implementation scope.

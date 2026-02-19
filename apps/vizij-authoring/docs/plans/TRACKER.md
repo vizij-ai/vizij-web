@@ -11,6 +11,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 3. Pose "What I Drive" controls and pose duplication UX are landed.
 4. Stage 0 (`A0.1`-`A0.3`), Stage 1 (`B1.1`-`B1.4`), and Stage 2 (`C2.1`-`C2.3`) are complete.
 5. Stage 3 (`D3.1`-`D3.4`) is complete, including the empirical Inputs-pane performance baseline capture.
+6. `E4.3` design-pack scope is complete as docs-only output; `E4.1` and `E4.2` remain intentionally deferred.
 
 ## Backlog Status Board
 
@@ -32,7 +33,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | D3.4 | done     | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
 | E4.1 | deferred | P3       | Per-channel override map intentionally deferred.                                                                                                                        |
 | E4.2 | deferred | P3       | Priority resolution semantics intentionally deferred.                                                                                                                   |
-| E4.3 | deferred | P3       | Overlap-bias heuristic design intentionally deferred.                                                                                                                   |
+| E4.3 | done     | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
 
 ## Validation Gate Status
 
@@ -57,7 +58,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 ## Active Risks and Mitigations
 
 1. Risk: Multi-group overlap behavior can skew with additive/average policies when memberships are uneven.
-   - Mitigation: keep diagnostic warnings now; address policy design in deferred block `E4.*`.
+   - Mitigation: `E4.3` design note now defines scenario-based policy options and implementation scope; remaining mitigation is implementation in deferred `E4.1`/`E4.2`.
 
 ## Recently Completed Highlights
 
@@ -76,5 +77,6 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `D3.2` Inputs pane IA update for explicit pose-weight vs derived group/stage outputs, including provenance labeling and read-only derived controls.
 - `D3.3` lint warning baseline cleanup (warning count reduced to zero).
 - `D3.4` empirical dense Inputs-pane performance baseline capture with latency + React Profiler commit/duration evidence (`docs/perf/inputs-pane-baseline-2026-02-19.md`).
+- `E4.3` overlap bias/activity heuristic design pack with representative overlap scenarios and expected policy outputs (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).

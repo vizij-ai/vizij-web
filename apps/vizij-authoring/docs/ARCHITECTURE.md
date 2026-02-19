@@ -59,7 +59,7 @@ Deferred semantics (not MVP):
 
 1. Per-channel override policies.
 2. Priority/tie-break rules for overlaps.
-3. Activity-weighting skew mitigation policy lock-in.
+3. Activity-weighting skew mitigation policy lock-in (design examples captured in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
 
 ## Runtime Graph Packaging
 
