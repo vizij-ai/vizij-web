@@ -934,7 +934,7 @@ Completion notes (2026-02-19):
    - `src/components/app/PoseRigPanels.tsx` now renders structured diagnostics in pose import and export panels.
    - `src/components/inspector/InspectorContent.tsx` now shows scoped diagnostic counts/messages in authoring status.
 
-### [ ] IR3 Bundle Export Includes Pose IR + Diagnostics
+### [x] IR3 Bundle Export Includes Pose IR + Diagnostics
 
 Intent:
 Export enough pose artifacts for runtime/debug auditing without recomputing local compile context.
@@ -944,6 +944,13 @@ Acceptance checks:
 1. Bundle pose payload includes config, IR, and diagnostics metadata.
 2. Existing bundle consumers remain backward compatible.
 3. Export validation covers IR/diagnostic presence contracts.
+
+Completion notes (2026-02-19):
+
+1. Updated export pipeline (`src/hooks/useVizijExport.ts` + `src/components/app/ExportDialog.tsx`) to include pose config plus pose IR snapshot and structured diagnostics metadata (`poseIr`, `diagnostics`, `diagnosticSummary`) in bundle pose payload metadata.
+2. Added export contract coverage in `src/hooks/__tests__/useVizijExport.test.tsx` for:
+   - backward-compatible `poses: null` when no pose config draft is present,
+   - presence of pose config + IR + diagnostics metadata when pose authoring data exists.
 
 ### [ ] IR4 Unified Pose Import Feedback UX
 

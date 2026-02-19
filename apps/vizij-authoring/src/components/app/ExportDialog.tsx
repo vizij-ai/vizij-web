@@ -143,6 +143,7 @@ export function ExportDialog({
       poseGraphFileName: poseRig.poseGraphFileName,
       poseConfigDraft: poseRig.poseConfigDraft,
       poseConfigFileName: poseRig.poseConfigFileName,
+      poseDiagnostics: poseRig.poseDiagnostics,
       importPoseConfig: poseRig.importPoseConfig,
       poseIrDraft: poseRigWithIr.poseIrDraft,
       poseIrFileName,

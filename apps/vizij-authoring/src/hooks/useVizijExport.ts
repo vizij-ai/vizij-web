@@ -24,7 +24,7 @@ import { waitForNextFrame } from "../utils/frame";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
-import type { PoseRigConfigFile } from "../poseRig/types";
+import type { PoseDiagnostic, PoseRigConfigFile } from "../poseRig/types";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 
@@ -40,6 +40,7 @@ interface PoseRigExportState {
   poseGraphFileName: string;
   poseConfigDraft: PoseRigConfigFile | null;
   poseConfigFileName: string;
+  poseDiagnostics?: PoseDiagnostic[];
   importPoseConfig: (file: File) => Promise<void>;
   poseIrDraft?: unknown | null;
   poseIrFileName?: string;
@@ -569,6 +570,16 @@ interface BuildVizijBundleOptions {
   poseGraphSpecForExport?: GraphSpec | null;
 }
 
+function clonePoseIrForBundle(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return cloneSerializable(value as Record<string, unknown>) as Record<
+    string,
+    unknown
+  >;
+}
+
 function buildVizijBundle(
   options: BuildVizijBundleOptions,
 ): VizijBundleExtension | null {
@@ -651,6 +662,17 @@ function buildVizijBundle(
         poseRig.poseConfigDraft,
       ) as unknown as VizijPoseRigConfig)
     : null;
+  const poseIrForBundle = clonePoseIrForBundle(poseRig.poseIrDraft);
+  const poseDiagnostics = cloneSerializable(
+    poseRig.poseDiagnostics ?? [],
+  ) as PoseDiagnostic[];
+  const diagnosticSummary = {
+    errors: poseDiagnostics.filter((entry) => entry.severity === "error")
+      .length,
+    warnings: poseDiagnostics.filter((entry) => entry.severity === "warning")
+      .length,
+    info: poseDiagnostics.filter((entry) => entry.severity === "info").length,
+  };
 
   const inheritedAnimations =
     includeImportedAnimations && Array.isArray(loadedBundle?.animations)
@@ -683,7 +705,12 @@ function buildVizijBundle(
     poses: poseConfig
       ? {
           config: poseConfig,
-          metadata: { exportedAt: exportTimestamp },
+          metadata: {
+            exportedAt: exportTimestamp,
+            poseIr: poseIrForBundle,
+            diagnostics: poseDiagnostics,
+            diagnosticSummary,
+          },
         }
       : null,
     animations: inheritedAnimations,

@@ -301,6 +301,7 @@ describe("useVizijExport", () => {
             ir: { nodes: [{ id: "ir1" }] },
           },
         ],
+        poses: null,
       },
     });
     hook.unmount();
@@ -405,6 +406,113 @@ describe("useVizijExport", () => {
             spec: { nodes: [{ id: "pose1", type: "output" }] },
           }),
         ]),
+      },
+    });
+    hook.unmount();
+  });
+
+  it("includes pose config, pose IR, and diagnostics metadata in exported bundles", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue([]);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {
+            input_a: 0,
+          },
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.75,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        poseIrDraft: {
+          version: 1,
+          groups: [],
+          poses: [{ id: "pose_1" }],
+        },
+        poseDiagnostics: [
+          {
+            id: "pose-ir:warning:1",
+            severity: "warning",
+            code: "legacy-config-warning",
+            source: "pose-ir",
+            message: "Legacy mapping was normalized.",
+          },
+          {
+            id: "pose-ir:error:2",
+            severity: "error",
+            code: "unsupported-ir-version",
+            source: "pose-ir",
+            message: "Unsupported IR version.",
+          },
+        ],
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
+      bundle: {
+        poses: {
+          config: {
+            version: 1,
+            faceId: "face",
+          },
+          metadata: {
+            poseIr: {
+              version: 1,
+              groups: [],
+              poses: [{ id: "pose_1" }],
+            },
+            diagnostics: [
+              expect.objectContaining({
+                severity: "warning",
+                code: "legacy-config-warning",
+              }),
+              expect.objectContaining({
+                severity: "error",
+                code: "unsupported-ir-version",
+              }),
+            ],
+            diagnosticSummary: {
+              errors: 1,
+              warnings: 1,
+              info: 0,
+            },
+          },
+        },
       },
     });
     hook.unmount();
