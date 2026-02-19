@@ -39,6 +39,21 @@ function toPoseConfigBlendMode(value: unknown): PoseBlendMode {
   return value === "add" || value === "additive" ? "additive" : "average";
 }
 
+function isSyntheticPoseChannelId(inputId: string): boolean {
+  const normalized = inputId.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized.startsWith("pose_group_") ||
+    normalized.startsWith("pose_cross_") ||
+    normalized.startsWith("pose_weights_") ||
+    normalized.startsWith("pose_neutral_") ||
+    normalized.startsWith("out_") ||
+    normalized.includes("__pose_ghost__")
+  );
+}
+
 interface DiagnosticCollector {
   warnings: string[];
   diagnostics: PoseDiagnostic[];
@@ -183,6 +198,21 @@ function canonicalizeInputValues(
         metadata: {
           context,
           value,
+        },
+      });
+      return;
+    }
+    if (isSyntheticPoseChannelId(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "ghost-channel-id",
+        source,
+        message: `${context} input "${inputId}" ignored because synthetic pose channels are graph-internal only.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
         },
       });
       return;

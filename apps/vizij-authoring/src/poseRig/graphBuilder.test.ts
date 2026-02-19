@@ -182,6 +182,48 @@ describe("buildPoseGraphSpec", () => {
     );
   });
 
+  it("keeps synthetic group signals internal and does not emit ghost input nodes", () => {
+    const groupedPoses = [
+      { ...poses[0], id: "pose_emotion", group: "emotion" },
+      {
+        ...poses[1],
+        id: "pose_viseme",
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+      {
+        ...poses[0],
+        id: "pose_shared",
+        group: "emotion",
+        values: { mouth_open: 0.5, brow_raise: 0.25 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+    });
+
+    const inputNodes = (spec.nodes ?? []).filter(
+      (node: any) => node.type === "input",
+    ) as Array<{ params?: { path?: string } }>;
+    expect(inputNodes).toHaveLength(groupedPoses.length);
+    inputNodes.forEach((node) => {
+      expect(node.params?.path).toContain("/poses/");
+      expect(node.params?.path).toContain(".weight");
+    });
+
+    const groupMouthSignals = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "weightedsumvector" &&
+        node.id?.startsWith("pose_group_ws_mouth_open"),
+    );
+    expect(groupMouthSignals).toHaveLength(2);
+  });
+
   it("builds cross-group average overlay nodes when requested", () => {
     const groupedPoses = [
       { ...poses[0], group: "emotion" },

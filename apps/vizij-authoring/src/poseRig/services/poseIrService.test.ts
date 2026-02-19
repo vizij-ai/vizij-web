@@ -203,6 +203,43 @@ describe("PoseIrService", () => {
     ).toBe(true);
   });
 
+  it("drops synthetic ghost channel ids from authored payloads", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: {
+          smile: 0,
+          pose_group_delta_smile: 0.5,
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+              pose_cross_smile: 0.2,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [],
+      "robot",
+    );
+
+    expect(ir.neutral.values).toEqual({ smile: 0 });
+    expect(ir.poses[0]?.targets).toEqual({ smile: 0.8 });
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === "ghost-channel-id"),
+    ).toBe(true);
+    expect(ir.contracts.syntheticNodes).toBe(
+      POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+    );
+  });
+
   it("converts pose IR back into legacy pose config payloads", () => {
     const ir: PoseRigIrFile = {
       version: 1,

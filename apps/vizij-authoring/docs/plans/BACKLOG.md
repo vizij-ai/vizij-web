@@ -193,7 +193,7 @@ Completion notes (2026-02-19):
 6. Validation evidence:
    - `2026-02-19 20:31Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 354 tests).
 
-### [ ] B1.3 Enforce Ghost-Signal Boundary Contract
+### [x] B1.3 Enforce Ghost-Signal Boundary Contract
 
 Priority and why this should still be done:
 
@@ -214,6 +214,17 @@ Acceptance checks:
 1. IR payload never introduces ghost inputs.
 2. Compiled graph can reference intermediate blend outputs in binding expressions only.
 3. Tests assert one intermediate signal per group/group-blend output, not per pose.
+
+Completion notes (2026-02-19):
+
+1. Pose IR normalization now rejects synthetic/ghost channel IDs (`pose_group_*`, `pose_cross_*`, `pose_weights_*`, etc.) and emits structured `ghost-channel-id` diagnostics when encountered.
+2. Graph builder now enforces authored-input boundaries by validating that compiled `input` nodes map only to canonical pose-weight controls.
+3. Added graph-side guard against duplicate group-signal generation for the same group/channel pair.
+4. Regression coverage added:
+   - `src/poseRig/services/poseIrService.test.ts` verifies ghost-channel pruning + diagnostics.
+   - `src/poseRig/graphBuilder.test.ts` verifies no ghost authored inputs are emitted and group-channel signal count is bounded per group, not per pose.
+5. Validation evidence:
+   - `2026-02-19 20:38Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 356 tests).
 
 ### [ ] B1.4 Unified Pose Import Feedback UX (`IR4`)
 

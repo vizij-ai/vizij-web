@@ -189,6 +189,7 @@ export function buildPoseGraphSpec(options: {
 
   const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId);
   const poseInputs = new Map<string, string>();
+  const allowedPoseInputPaths = new Set<string>();
   const resolvedGroups = resolvePoseGroups(
     poses,
     options.poseGroups,
@@ -217,6 +218,7 @@ export function buildPoseGraphSpec(options: {
     const poseWeightPath =
       poseWeightPathMap.get(pose.id)?.absolutePath ??
       buildRigInputPath(faceSegment, `/poses/${sanitizeId(pose.id)}.weight`);
+    allowedPoseInputPaths.add(poseWeightPath);
     const inputNode = createPoseInputNode(pose, poseWeightPath);
     nodes.push(inputNode);
     poseInputs.set(pose.id, inputNode.id);
@@ -266,6 +268,7 @@ export function buildPoseGraphSpec(options: {
   };
 
   standardInputs.forEach((input) => {
+    const seenGroupSignals = new Set<string>();
     const neutral = getNeutralValue(input, neutralInputs);
     const neutralValue = clampValueForInput(input, neutral);
 
@@ -311,6 +314,14 @@ export function buildPoseGraphSpec(options: {
       if (!hasContribution || deltas.length === 0) {
         return;
       }
+
+      const groupSignalKey = `${group.id}:${input.id}`;
+      if (seenGroupSignals.has(groupSignalKey)) {
+        throw new Error(
+          `Duplicate pose-group signal generated for group "${group.id}" and input "${input.id}".`,
+        );
+      }
+      seenGroupSignals.add(groupSignalKey);
 
       const groupSuffix = `${sanitizeId(input.id)}_${groupIndex + 1}_${sanitizeId(group.id)}`;
       const deltaNodeId = `pose_group_delta_values_${groupSuffix}`;
@@ -612,6 +623,18 @@ export function buildPoseGraphSpec(options: {
     nodes,
     edges: edges.length ? edges : undefined,
   };
+
+  nodes
+    .filter((node) => node.type === "input")
+    .forEach((node) => {
+      const inputPath = (node.params as { path?: string } | undefined)?.path;
+      if (inputPath && allowedPoseInputPaths.has(inputPath)) {
+        return;
+      }
+      throw new Error(
+        `Unexpected authored input node "${node.id}" with path "${inputPath ?? "(missing)"}".`,
+      );
+    });
 
   return { spec, summary };
 }
