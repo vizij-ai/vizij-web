@@ -17,7 +17,6 @@ export const PoseGraphService = {
       blendMode?: "average" | "additive";
       defaultGroupBlendMode?: "average" | "additive";
       crossGroupBlendMode?: "average" | "additive";
-      poseGroupSegment?: string | null;
     },
   ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
     const { ir } = PoseIrService.fromConfig(
@@ -33,7 +32,6 @@ export const PoseGraphService = {
 
     return this.buildSpecFromIr(ir, standardInputs, {
       rigKind: config.rigKind ?? "face-specific",
-      poseGroupSegment: options?.poseGroupSegment ?? null,
     });
   },
 
@@ -41,7 +39,6 @@ export const PoseGraphService = {
     ir: PoseRigIrFile,
     standardInputs: StandardRigInput[],
     options?: {
-      poseGroupSegment?: string | null;
       rigKind?: "generic" | "face-specific";
     },
   ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
@@ -50,7 +47,6 @@ export const PoseGraphService = {
       standardInputs,
       faceId: ir.faceId,
       rigKind: options?.rigKind ?? ir.rigKind ?? "face-specific",
-      poseGroupSegment: options?.poseGroupSegment ?? null,
     });
   },
 

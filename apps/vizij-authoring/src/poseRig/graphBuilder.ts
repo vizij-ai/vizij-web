@@ -776,7 +776,6 @@ export function buildPoseGraphSpec(options: {
   crossGroupChannelOverrides?: unknown;
   blendStages?: PoseIrBlendStageDefinition[];
   blendMode?: "average" | "additive";
-  poseGroupSegment?: string | null;
   rigKind?: "generic" | "face-specific";
 }): { spec: GraphSpec; summary: PoseRigGraphSummary } {
   const { faceId, neutralInputs, poses, standardInputs } = options;
@@ -1386,7 +1385,6 @@ export function buildPoseGraphSpecFromIr(options: {
   standardInputs: StandardRigInput[];
   faceId?: string | null;
   rigKind?: "generic" | "face-specific";
-  poseGroupSegment?: string | null;
 }): { spec: GraphSpec; summary: PoseRigGraphSummary } {
   const { poseIr, standardInputs } = options;
   assertPoseIrContracts(poseIr);
@@ -1447,7 +1445,6 @@ export function buildPoseGraphSpecFromIr(options: {
       poseIr.crossGroupPolicy?.mode === "add" ? "additive" : "average",
     crossGroupChannelOverrides: poseIr.crossGroupPolicy?.overrides,
     blendStages: normalizedBlendStages,
-    poseGroupSegment: options.poseGroupSegment ?? null,
     rigKind: poseIr.rigKind ?? options.rigKind ?? "face-specific",
   });
 }

@@ -27,6 +27,19 @@ function findNode(spec: GraphSpec, id: string) {
 }
 
 describe("PoseGraphService", () => {
+  it("does not accept the removed poseGroupSegment option", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: {},
+      poses: [],
+    };
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+
+    // @ts-expect-error poseGroupSegment contract removed from public API
+    PoseGraphService.buildSpec(config, inputs, { poseGroupSegment: "legacy" });
+  });
+
   it("builds pose graphs with canonical per-pose weight paths", () => {
     const config: any = {
       faceId: "robot",
