@@ -119,6 +119,7 @@ export function traverseThree(
         stack.push(...child.children);
       }
     }
+    applyDerivedRootBoundsFallback(worldData, group);
   } else {
     const derivedRootBounds = rootBounds ?? deriveRootBounds(group);
 
@@ -349,4 +350,33 @@ function deriveRootBounds(
       y: safeHeight,
     },
   };
+}
+
+function applyDerivedRootBoundsFallback(worldData: World, group: Group): void {
+  const groups = Object.values(worldData).filter(
+    (entry): entry is VizijGroup => entry.type === "group",
+  );
+  if (groups.length === 0) {
+    return;
+  }
+  if (groups.some((entry) => Boolean(entry.rootBounds))) {
+    return;
+  }
+
+  const derivedRootBounds = deriveRootBounds(group);
+  if (!derivedRootBounds) {
+    return;
+  }
+
+  const target =
+    groups.find((entry) => entry.root) ??
+    groups.find((entry) => entry.id === group.uuid) ??
+    groups[0];
+
+  if (!target) {
+    return;
+  }
+
+  target.root = true;
+  target.rootBounds = derivedRootBounds;
 }

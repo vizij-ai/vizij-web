@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
-import { findRootId } from "../utils/world";
+import { resolveWorldRoot } from "../utils/world";
 
 type VizijLoader = () => Promise<LoadedVizijAsset>;
 
@@ -20,17 +20,17 @@ export function useVizijAssetLoader() {
     async (loader: VizijLoader, label: string) => {
       setIsLoading(true);
       setError(null);
-      setRootId(null);
       try {
         const {
           world: worldData,
           animatables,
           bundle: loadedBundle,
         } = await loader();
-        const nextRootId = findRootId(worldData);
-        if (!nextRootId) {
-          throw new Error("Unable to find a Vizij root in the provided asset.");
+        const resolvedRoot = resolveWorldRoot(worldData);
+        if (resolvedRoot.status !== "resolved") {
+          throw new Error(resolvedRoot.message);
         }
+        const nextRootId = resolvedRoot.rootId;
 
         setStoreState({
           values: new Map(),
@@ -44,7 +44,6 @@ export function useVizijAssetLoader() {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
-        setBundle(null);
       } finally {
         setIsLoading(false);
       }
