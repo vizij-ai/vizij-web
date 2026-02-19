@@ -25,4 +25,18 @@ describe("pose control input guard contracts", () => {
       ".filter((entry) => !isPoseControlInputPath(entry.input.path))",
     );
   });
+
+  it("projects per-channel compose modes into rig graph compilation", () => {
+    expect(useRigControllerTs).toContain("buildPoseComposeModeByInputId");
+    expect(useRigControllerTs).toContain(
+      "inputComposeModesById: poseComposeModesByInputId",
+    );
+  });
+
+  it("keeps managed-input fallback routing so pose weights remain stageable", () => {
+    expect(useRigControllerTs).toContain("managedStandardInputs.forEach");
+    expect(useRigControllerTs).toContain(
+      "buildFallbackGraphPath(faceId, input)",
+    );
+  });
 });

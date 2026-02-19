@@ -119,6 +119,50 @@ function cloneCrossGroupChannelOverrides(
   return Object.fromEntries(clonedEntries);
 }
 
+function clonePoseComposeModes(
+  composeModes: PoseDefinition["composeModes"] | undefined,
+): Record<string, "add" | "average"> | undefined {
+  if (!composeModes) {
+    return undefined;
+  }
+  const entries = Object.entries(composeModes).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const filtered: Array<[string, "add" | "average"]> = [];
+  entries.forEach(([inputId, mode]) => {
+    if (mode === "add" || mode === "average") {
+      filtered.push([inputId, mode]);
+    }
+  });
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
+}
+
+function projectPoseComposeModesForValues(
+  composeModes: PoseDefinition["composeModes"] | undefined,
+  values: Record<string, number>,
+): PoseDefinition["composeModes"] | undefined {
+  if (!composeModes) {
+    return undefined;
+  }
+  const next: Record<string, "add" | "average"> = {};
+  Object.entries(composeModes).forEach(([inputId, mode]) => {
+    if (values[inputId] === undefined) {
+      return;
+    }
+    if (mode !== "add" && mode !== "average") {
+      return;
+    }
+    next[inputId] = mode;
+  });
+  return clonePoseComposeModes(next);
+}
+
 interface BlendStageTopologyIssue {
   code:
     | "missing-stage-id"
@@ -1498,7 +1542,7 @@ export function createPoseRigStore(
     clearPose: (poseId) => {
       setState((prev) => {
         const nextPoses = prev.poses.map((p) =>
-          p.id === poseId ? { ...p, values: {} } : p,
+          p.id === poseId ? { ...p, values: {}, composeModes: undefined } : p,
         );
         return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
@@ -1512,11 +1556,20 @@ export function createPoseRigStore(
         }
         const val =
           prev.currentValues[inputId] ?? prev.neutralInputs[inputId] ?? 0;
-        const nextPoses = prev.poses.map((p) =>
-          p.id === poseId
-            ? { ...p, values: { ...p.values, [inputId]: val } }
-            : p,
-        );
+        const nextPoses = prev.poses.map((p) => {
+          if (p.id !== poseId) {
+            return p;
+          }
+          const nextComposeModes: Record<string, "add" | "average"> = {
+            ...(clonePoseComposeModes(p.composeModes) ?? {}),
+          };
+          nextComposeModes[inputId] = "add";
+          return {
+            ...p,
+            values: { ...p.values, [inputId]: val },
+            composeModes: nextComposeModes,
+          };
+        });
         return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
     },
@@ -1526,8 +1579,21 @@ export function createPoseRigStore(
         if (!pose) return;
         const nextValues = { ...pose.values };
         delete nextValues[inputId];
+        const nextComposeModes = {
+          ...(clonePoseComposeModes(pose.composeModes) ?? {}),
+        };
+        delete nextComposeModes[inputId];
+        const projectedComposeModes = clonePoseComposeModes(nextComposeModes);
         const nextPoses = prev.poses.map((p) =>
-          p.id === poseId ? { ...p, values: nextValues } : p,
+          p.id === poseId
+            ? {
+                ...p,
+                values: nextValues,
+                ...(projectedComposeModes
+                  ? { composeModes: projectedComposeModes }
+                  : { composeModes: undefined }),
+              }
+            : p,
         );
         return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
@@ -1559,6 +1625,10 @@ export function createPoseRigStore(
         const updated = {
           ...pose,
           values: captured.values,
+          composeModes: projectPoseComposeModesForValues(
+            pose.composeModes,
+            captured.values,
+          ),
           updatedAt: new Date().toISOString(),
         };
         const nextPoses = prev.poses.map((p) =>

@@ -14,6 +14,7 @@ import type {
   PoseIrStageSource,
   PosePriorityTieBreak,
   PoseNeutralMode,
+  PoseInputComposeMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
 import {
@@ -146,6 +147,30 @@ function cloneCrossGroupChannelOverrides(
     (entry): entry is readonly [string, PoseCrossGroupChannelOverride] =>
       entry !== null,
   );
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
+}
+
+function clonePoseComposeModes(
+  composeModes: PoseDefinition["composeModes"] | undefined,
+): Record<string, PoseInputComposeMode> | undefined {
+  if (!composeModes) {
+    return undefined;
+  }
+  const entries = Object.entries(composeModes).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const filtered: Array<[string, PoseInputComposeMode]> = [];
+  entries.forEach(([inputId, mode]) => {
+    if (mode === "add" || mode === "average") {
+      filtered.push([inputId, mode]);
+    }
+  });
   if (filtered.length === 0) {
     return undefined;
   }
@@ -705,7 +730,69 @@ export const PoseConfigService = {
         }
       }
 
+      const composeModesSource =
+        pose.composeModes &&
+        typeof pose.composeModes === "object" &&
+        !Array.isArray(pose.composeModes)
+          ? (pose.composeModes as Record<string, unknown>)
+          : null;
+      if (pose.composeModes !== undefined && composeModesSource === null) {
+        pushWarning(
+          `Pose "${pose.name}" composeModes were ignored because payload is not an object map.`,
+        );
+      }
+      const composeModes: Record<string, PoseInputComposeMode> = {};
+      const composeModeSourcesByResolvedId = new Map<string, string>();
+      Object.entries(composeModesSource ?? {}).forEach(([key, rawMode]) => {
+        const trimmedKey = key.trim();
+        if (!trimmedKey) {
+          pushWarning(
+            `Pose "${pose.name}" has a compose mode entry with an empty input id and it was ignored.`,
+          );
+          return;
+        }
+        const resolved = resolveInputId(trimmedKey);
+        if (!resolved.id) {
+          if (validInputs.size > 0) {
+            pushWarning(
+              `Pose "${pose.name}" compose mode for missing input "${trimmedKey}" was ignored.`,
+            );
+            return;
+          }
+        }
+        const canonicalInputId = resolved.id ?? trimmedKey;
+        if (values[canonicalInputId] === undefined) {
+          pushWarning(
+            `Pose "${pose.name}" compose mode for "${trimmedKey}" was ignored because the pose does not target that channel.`,
+          );
+          return;
+        }
+        const firstSource =
+          composeModeSourcesByResolvedId.get(canonicalInputId);
+        if (firstSource && firstSource !== trimmedKey) {
+          pushWarning(
+            `Pose "${pose.name}" compose modes "${firstSource}" and "${trimmedKey}" both remap to "${canonicalInputId}"; keeping value from "${trimmedKey}".`,
+          );
+        } else if (!firstSource) {
+          composeModeSourcesByResolvedId.set(canonicalInputId, trimmedKey);
+        }
+        const mode: PoseInputComposeMode =
+          rawMode === "average" || rawMode === "add" ? rawMode : "add";
+        if (rawMode !== "average" && rawMode !== "add") {
+          pushWarning(
+            `Pose "${pose.name}" compose mode for "${trimmedKey}" value "${String(rawMode)}" is invalid; using "add".`,
+          );
+        }
+        composeModes[canonicalInputId] = mode;
+        if (resolved.id && resolved.id !== trimmedKey) {
+          pushWarning(
+            `Pose "${pose.name}" compose mode "${trimmedKey}" remapped to "${resolved.id}" via ${resolved.reason ?? "id"} match.`,
+          );
+        }
+      });
+
       const membership = resolvePoseMembership(pose, normalizedGroups);
+      const normalizedComposeModes = clonePoseComposeModes(composeModes);
 
       const newPose = {
         ...pose,
@@ -713,6 +800,7 @@ export const PoseConfigService = {
         groupId: membership.primaryGroupId,
         group: membership.primaryGroupPath,
         values,
+        composeModes: normalizedComposeModes,
       };
       return newPose;
     });
@@ -732,7 +820,14 @@ export const PoseConfigService = {
         blendStages: cloneBlendStages(normalizedBlendStages),
         neutralMode,
         neutralInputs,
-        poses: poses.map((p) => ({ ...p, values: { ...p.values } })),
+        poses: poses.map((pose) => {
+          const composeModes = clonePoseComposeModes(pose.composeModes);
+          return {
+            ...pose,
+            values: { ...pose.values },
+            ...(composeModes ? { composeModes } : {}),
+          };
+        }),
         lowLevel:
           (candidate.lowLevel as LowLevelRigSummary | null | undefined) ?? null,
         standardInputSchema: candidate.standardInputSchema ?? undefined,
@@ -794,12 +889,14 @@ export const PoseConfigService = {
 
     const normalizedPoses = poses.map((pose) => {
       const membership = resolvePoseMembership(pose, poseGroups);
+      const composeModes = clonePoseComposeModes(pose.composeModes);
       return {
         ...pose,
         groupIds: membership.groupIds,
         groupId: membership.primaryGroupId,
         group: membership.primaryGroupPath,
         values: { ...pose.values },
+        composeModes,
       };
     });
 

@@ -408,6 +408,44 @@ describe("PoseRigStore", () => {
     expect(store.getState().poses[0]?.values).toEqual({});
   });
 
+  it("defaults added pose channels to add compose mode and clears mode on removal", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().addPoseInput(poseId, "smile");
+    expect(store.getState().poses[0]?.composeModes).toEqual({ smile: "add" });
+    expect(store.getState().poseConfigDraft?.poses[0]?.composeModes).toEqual({
+      smile: "add",
+    });
+    expect(store.getState().poseIrDraft?.poses[0]?.composeModes).toEqual({
+      smile: "add",
+    });
+
+    store.getState().updatePose(poseId, (pose) => ({
+      ...pose,
+      composeModes: { ...(pose.composeModes ?? {}), smile: "average" },
+    }));
+    expect(store.getState().poses[0]?.composeModes).toEqual({
+      smile: "average",
+    });
+
+    store.getState().removePoseInput(poseId, "smile");
+    expect(store.getState().poses[0]?.values).toEqual({});
+    expect(store.getState().poses[0]?.composeModes).toBeUndefined();
+    expect(store.getState().poseConfigDraft?.poses[0]?.composeModes).toBe(
+      undefined,
+    );
+    expect(store.getState().poseIrDraft?.poses[0]?.composeModes).toBe(
+      undefined,
+    );
+  });
+
   it("imports pose IR payloads into store state", () => {
     const store = createPoseRigStore();
     store.getState().setStandardInputs([createInput("smile")]);

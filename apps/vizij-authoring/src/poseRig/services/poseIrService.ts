@@ -17,6 +17,7 @@ import type {
   PoseIrCrossGroupChannelOverride,
   PoseIrBlendStageDefinition,
   PoseIrStageSource,
+  PoseInputComposeMode,
   PosePriorityTieBreak,
   PoseNeutralMode,
   PoseRigConfigFile,
@@ -192,6 +193,30 @@ function mapIrOverridesToConfig(
     return undefined;
   }
   return Object.fromEntries(mappedEntries);
+}
+
+function clonePoseComposeModes(
+  composeModes: PoseDefinition["composeModes"] | undefined,
+): Record<string, PoseInputComposeMode> | undefined {
+  if (!composeModes) {
+    return undefined;
+  }
+  const entries = Object.entries(composeModes).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const filtered: Array<[string, PoseInputComposeMode]> = [];
+  entries.forEach(([inputId, mode]) => {
+    if (mode === "add" || mode === "average") {
+      filtered.push([inputId, mode]);
+    }
+  });
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
 }
 
 function isSyntheticPoseChannelId(inputId: string): boolean {
@@ -390,6 +415,93 @@ function canonicalizeInputValues(
     normalized[inputId] = value;
   });
   return normalized;
+}
+
+function canonicalizePoseComposeModes(
+  composeModes: Record<string, unknown> | null | undefined,
+  params: {
+    canonicalInputs: Set<string>;
+    targetInputIds: Set<string>;
+    collector: DiagnosticCollector;
+    context: string;
+    source: "pose-config" | "pose-ir";
+  },
+): Record<string, PoseInputComposeMode> | undefined {
+  if (!composeModes) {
+    return undefined;
+  }
+  const { canonicalInputs, targetInputIds, collector, context, source } =
+    params;
+  const normalized: Record<string, PoseInputComposeMode> = {};
+
+  Object.entries(composeModes).forEach(([inputId, rawMode]) => {
+    if (isSyntheticPoseChannelId(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "ghost-compose-mode-input-id",
+        source,
+        message: `${context} compose mode "${inputId}" ignored because synthetic pose channels are graph-internal only.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+        },
+      });
+      return;
+    }
+    if (canonicalInputs.size > 0 && !canonicalInputs.has(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "non-canonical-compose-mode-input-id",
+        source,
+        message: `${context} compose mode "${inputId}" ignored because it is not a canonical standard input id.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+        },
+      });
+      return;
+    }
+    if (!targetInputIds.has(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "compose-mode-without-target",
+        source,
+        message: `${context} compose mode "${inputId}" ignored because the pose does not target that channel.`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+        },
+      });
+      return;
+    }
+
+    const mode: PoseInputComposeMode =
+      rawMode === "add" || rawMode === "average" ? rawMode : "add";
+    if (rawMode !== "add" && rawMode !== "average") {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "invalid-compose-mode",
+        source,
+        message: `${context} compose mode "${inputId}" value "${String(rawMode)}" is invalid; using "add".`,
+        location: {
+          inputId,
+        },
+        metadata: {
+          context,
+          rawMode,
+        },
+      });
+    }
+    normalized[inputId] = mode;
+  });
+
+  return clonePoseComposeModes(normalized);
 }
 
 function cloneBlendStages(
@@ -1039,6 +1151,30 @@ function mapConfigToPoseIr(
       `Pose "${pose.name ?? pose.id}"`,
       diagnosticSource,
     );
+    const rawComposeModes =
+      pose.composeModes &&
+      typeof pose.composeModes === "object" &&
+      !Array.isArray(pose.composeModes)
+        ? (pose.composeModes as Record<string, unknown>)
+        : null;
+    if (pose.composeModes !== undefined && rawComposeModes === null) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "invalid-compose-mode-map",
+        source: diagnosticSource,
+        message: `Pose "${pose.name ?? pose.id}" composeModes were ignored because payload is not an object map.`,
+        location: {
+          poseId: pose.id,
+        },
+      });
+    }
+    const composeModes = canonicalizePoseComposeModes(rawComposeModes, {
+      canonicalInputs,
+      targetInputIds: new Set(Object.keys(targets)),
+      collector,
+      context: `Pose "${pose.name ?? pose.id}"`,
+      source: diagnosticSource,
+    });
 
     return {
       id: pose.id,
@@ -1046,6 +1182,7 @@ function mapConfigToPoseIr(
       description: pose.description,
       groupIds,
       targets,
+      ...(composeModes ? { composeModes } : {}),
       createdAt: pose.createdAt ?? new Date().toISOString(),
       updatedAt: pose.updatedAt ?? new Date().toISOString(),
     };
@@ -1223,6 +1360,7 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
     const primaryGroupPath = primaryGroupId
       ? (groupById.get(primaryGroupId)?.path ?? null)
       : null;
+    const composeModes = clonePoseComposeModes(pose.composeModes);
 
     return {
       id: pose.id,
@@ -1232,6 +1370,7 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
       groupId: primaryGroupId,
       group: primaryGroupPath,
       values: { ...pose.targets },
+      ...(composeModes ? { composeModes } : {}),
       createdAt: pose.createdAt,
       updatedAt: pose.updatedAt,
     };
@@ -1396,6 +1535,12 @@ export const PoseIrService = {
             pose.groupIds && pose.groupIds.length > 0
               ? pose.groupIds
               : fallbackGroupIds;
+          const composeModes =
+            pose.composeModes &&
+            typeof pose.composeModes === "object" &&
+            !Array.isArray(pose.composeModes)
+              ? (pose.composeModes as Record<string, PoseInputComposeMode>)
+              : undefined;
           return {
             id: pose.id,
             name: pose.name,
@@ -1404,6 +1549,7 @@ export const PoseIrService = {
             values: {
               ...(pose.targets as Record<string, number> | undefined),
             },
+            ...(composeModes ? { composeModes } : {}),
             createdAt: pose.createdAt ?? now,
             updatedAt: pose.updatedAt ?? now,
           };

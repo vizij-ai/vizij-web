@@ -229,6 +229,7 @@ export function InspectorContent() {
     addPoseInput,
     updatePoseValue,
     removePoseInput,
+    setPoseInputComposeMode,
     updatePoseName,
     updatePoseGroup,
     addPoseToGroup,
@@ -1545,6 +1546,7 @@ export function InspectorContent() {
                       maximumFractionDigits: 4,
                     } as const;
                     const canInspectVariable = standardInputsById.has(varId);
+                    const poseComposeMode = pose.composeModes?.[varId] ?? "add";
                     const chainSummary =
                       item.drivenVariableCount > 0 ||
                       item.drivenPropertyCount > 0
@@ -1611,6 +1613,30 @@ export function InspectorContent() {
                           >
                             Contrib {contributionLabel}
                           </span>
+                          <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
+                            <span className="uppercase tracking-wide font-bold">
+                              Compose
+                            </span>
+                            <select
+                              className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
+                              value={poseComposeMode}
+                              title="Compose direct/current value with this pose target for this channel."
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                event.stopPropagation();
+                                setPoseInputComposeMode(
+                                  pose.id,
+                                  varId,
+                                  event.target.value === "average"
+                                    ? "average"
+                                    : "add",
+                                );
+                              }}
+                            >
+                              <option value="add">Add</option>
+                              <option value="average">Average</option>
+                            </select>
+                          </label>
                           <Button
                             variant="ghost"
                             size="sm"

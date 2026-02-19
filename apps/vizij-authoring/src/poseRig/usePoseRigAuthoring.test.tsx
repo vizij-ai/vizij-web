@@ -414,6 +414,43 @@ describe("usePoseRigAuthoring", () => {
     expect(result.current?.poseConfigDraft?.poses[0]?.values).toEqual({});
   });
 
+  it("defaults compose mode to add for added channels and supports per-channel updates", () => {
+    const { result } = hook!;
+
+    act(() => {
+      result.current?.createPose("Compose Mode Pose");
+    });
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_compose_mode_pose");
+    if (!poseId) {
+      return;
+    }
+
+    act(() => {
+      result.current?.addPoseInput(poseId, "smile");
+    });
+    expect(result.current?.poses[0]?.composeModes).toEqual({ smile: "add" });
+    expect(result.current?.poseConfigDraft?.poses[0]?.composeModes).toEqual({
+      smile: "add",
+    });
+    expect(result.current?.poseIrDraft?.poses[0]?.composeModes).toEqual({
+      smile: "add",
+    });
+
+    act(() => {
+      result.current?.setPoseInputComposeMode(poseId, "smile", "average");
+    });
+    expect(result.current?.poses[0]?.composeModes).toEqual({
+      smile: "average",
+    });
+
+    act(() => {
+      result.current?.removePoseInput(poseId, "smile");
+    });
+    expect(result.current?.poses[0]?.values).toEqual({});
+    expect(result.current?.poses[0]?.composeModes).toBeUndefined();
+  });
+
   it("imports pose config and reports warnings for missing inputs", async () => {
     const { result } = hook!;
 

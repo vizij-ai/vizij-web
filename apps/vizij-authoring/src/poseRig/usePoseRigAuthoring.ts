@@ -5,6 +5,7 @@ import type {
   LowLevelRigSummary,
   PoseDiagnostic,
   PoseDefinition,
+  PoseInputComposeMode,
   PoseIrBlendMode,
   PoseIrBlendStageDefinition,
   PoseIrStageSource,
@@ -88,6 +89,11 @@ export interface UsePoseRigAuthoringResult {
   updatePoseValue: (poseId: string, inputId: string, value: number) => void;
   addPoseInput: (poseId: string, inputId: string) => void;
   removePoseInput: (poseId: string, inputId: string) => void;
+  setPoseInputComposeMode: (
+    poseId: string,
+    inputId: string,
+    mode: PoseInputComposeMode,
+  ) => void;
   captureNeutral: () => void;
   applyNeutral: () => void;
   applyPose: (poseId: string) => void;
@@ -329,18 +335,34 @@ export function usePoseRigAuthoring(
 
   const addPoseInput = useCallback(
     (poseId: string, inputId: string) => {
-      const val = currentValues[inputId] ?? neutralInputs[inputId] ?? 0;
-      updatePoseValue(poseId, inputId, val);
+      store.addPoseInput(poseId, inputId);
     },
-    [currentValues, neutralInputs, updatePoseValue],
+    [store],
   );
 
   const removePoseInput = useCallback(
     (poseId: string, inputId: string) => {
-      store.updatePose(poseId, (p) => {
-        const next = { ...p.values };
-        delete next[inputId];
-        return { ...p, values: next };
+      store.removePoseInput(poseId, inputId);
+    },
+    [store],
+  );
+
+  const setPoseInputComposeMode = useCallback(
+    (poseId: string, inputId: string, mode: PoseInputComposeMode) => {
+      if (mode !== "add" && mode !== "average") {
+        return;
+      }
+      store.updatePose(poseId, (pose) => {
+        if (pose.values[inputId] === undefined) {
+          return pose;
+        }
+        return {
+          ...pose,
+          composeModes: {
+            ...(pose.composeModes ?? {}),
+            [inputId]: mode,
+          },
+        };
       });
     },
     [store],
@@ -567,6 +589,7 @@ export function usePoseRigAuthoring(
     updatePoseValue,
     addPoseInput,
     removePoseInput,
+    setPoseInputComposeMode,
     captureNeutral,
     applyNeutral,
     applyPose,

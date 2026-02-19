@@ -30,4 +30,13 @@ describe("B1.3 pose inspector value semantics contracts", () => {
     );
     expect(inspectorContentTsx).not.toContain('defaultLabel="Pose Target"');
   });
+
+  it("exposes per-channel direct+pose compose mode controls", () => {
+    expect(inspectorContentTsx).toContain("Compose");
+    expect(inspectorContentTsx).toContain('<option value="add">Add</option>');
+    expect(inspectorContentTsx).toContain(
+      '<option value="average">Average</option>',
+    );
+    expect(inspectorContentTsx).toContain("setPoseInputComposeMode");
+  });
 });

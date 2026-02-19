@@ -7,6 +7,7 @@ import {
   buildAnimatableValue,
   cloneDeepSafe,
   isRigElementStandardInputPath,
+  normalizeStandardRigInputPath,
   resolveStandardRigInputId,
 } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
@@ -427,6 +428,8 @@ interface InputExportMetadata {
   root?: string;
 }
 
+export type InputComposeMode = "add" | "average";
+
 export interface BuildGraphOptions {
   faceId: string;
   animatables: Record<string, AnimatableValue>;
@@ -435,6 +438,7 @@ export interface BuildGraphOptions {
   inputsById: Map<string, StandardRigInput>;
   inputBindings: InputBindingMap;
   inputMetadata?: Map<string, InputExportMetadata>;
+  inputComposeModesById?: Partial<Record<string, InputComposeMode>>;
 }
 
 export interface GraphBindingSummary {
@@ -494,6 +498,24 @@ function buildRigInputPath(faceId: string, inputPath: string): string {
   }
   const suffix = trimmed ? `/${trimmed}` : "";
   return `rig/${faceId}${suffix}`;
+}
+
+function buildPoseControlInputPath(faceId: string, inputId: string): string {
+  return `rig/${faceId}/pose/control/${inputId}`;
+}
+
+function isPoseWeightInputPath(path: string): boolean {
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/poses/") && normalized.endsWith(".weight");
+}
+
+function isPoseControlPath(path: string): boolean {
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/pose/control/");
+}
+
+function resolveInputComposeMode(mode: unknown): InputComposeMode {
+  return mode === "average" ? "average" : "add";
 }
 
 function getComponentOrder(
@@ -1420,6 +1442,7 @@ export function buildRigGraphSpec({
   inputsById,
   inputBindings,
   inputMetadata,
+  inputComposeModesById,
 }: BuildGraphOptions): BuildGraphResult {
   const metadataByInputId =
     inputMetadata ?? new Map<string, InputExportMetadata>();
@@ -1449,6 +1472,94 @@ export function buildRigGraphSpec({
   const bindingIssues = new Map<string, Set<string>>();
   const animatableEntries = new Map<string, AnimatableGraphEntry>();
   const outputs = new Set<string>();
+  const composeModeByInputId = new Map<string, InputComposeMode>();
+  Object.entries(inputComposeModesById ?? {}).forEach(([inputId, mode]) => {
+    if (!inputsById.has(inputId)) {
+      return;
+    }
+    composeModeByInputId.set(inputId, resolveInputComposeMode(mode));
+  });
+
+  const shouldComposeInputWithPoseControl = (input: StandardRigInput) => {
+    if (!composeModeByInputId.has(input.id)) {
+      return false;
+    }
+    if (isPoseWeightInputPath(input.path)) {
+      return false;
+    }
+    if (isPoseControlPath(input.path)) {
+      return false;
+    }
+    return true;
+  };
+
+  const buildEffectiveInputNodeId = (
+    input: StandardRigInput,
+    directNodeId: string,
+  ): string => {
+    if (!shouldComposeInputWithPoseControl(input)) {
+      return directNodeId;
+    }
+
+    const safeInputId = sanitizeNodeId(input.id);
+    const poseControlNodeId = `input_pose_control_${safeInputId}`;
+    nodes.push({
+      id: poseControlNodeId,
+      type: "input",
+      params: {
+        path: buildPoseControlInputPath(faceId, input.id),
+        value: { float: 0 },
+      },
+    });
+
+    const composeAddNodeId = `input_compose_add_${safeInputId}`;
+    nodes.push({
+      id: composeAddNodeId,
+      type: "add",
+    });
+    edges.push(
+      {
+        from: { nodeId: directNodeId },
+        to: { nodeId: composeAddNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: poseControlNodeId },
+        to: { nodeId: composeAddNodeId, portId: "operand_2" },
+      },
+    );
+
+    const composeMode = composeModeByInputId.get(input.id) ?? "add";
+    const composeOutputNodeId =
+      composeMode === "average"
+        ? `input_compose_average_${safeInputId}`
+        : composeAddNodeId;
+    if (composeMode === "average") {
+      nodes.push({
+        id: composeOutputNodeId,
+        type: "divide",
+        inputDefaults: { rhs: 2 },
+      });
+      edges.push({
+        from: { nodeId: composeAddNodeId },
+        to: { nodeId: composeOutputNodeId, portId: "lhs" },
+      });
+    }
+
+    const minValue = Number.isFinite(input.range.min) ? input.range.min : -1;
+    const maxValue = Number.isFinite(input.range.max) ? input.range.max : 1;
+    const clampNodeId = `input_effective_${safeInputId}`;
+    nodes.push({
+      id: clampNodeId,
+      type: "clamp",
+      inputDefaults: { min: minValue, max: maxValue },
+    });
+    edges.push({
+      from: { nodeId: composeOutputNodeId },
+      to: { nodeId: clampNodeId, portId: "in" },
+    });
+
+    return clampNodeId;
+  };
 
   const ensureInputNode = (
     inputId: string,
@@ -1523,12 +1634,18 @@ export function buildRigGraphSpec({
               value: input.defaultValue,
             },
           });
-          const record = { nodeId: constNodeId, input };
+          const record = {
+            nodeId: buildEffectiveInputNodeId(input, constNodeId),
+            input,
+          };
           inputNodes.set(inputId, record);
           return record;
         }
         computedInputs.add(inputId);
-        const record = { nodeId: valueNodeId, input };
+        const record = {
+          nodeId: buildEffectiveInputNodeId(input, valueNodeId),
+          input,
+        };
         inputNodes.set(inputId, record);
         return record;
       } finally {
@@ -1545,7 +1662,7 @@ export function buildRigGraphSpec({
         value: { float: defaultValue },
       },
     });
-    const record = { nodeId, input };
+    const record = { nodeId: buildEffectiveInputNodeId(input, nodeId), input };
     inputNodes.set(inputId, record);
     return record;
   };

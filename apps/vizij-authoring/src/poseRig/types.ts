@@ -9,11 +9,15 @@ export const POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT =
 export type StandardInputId = StandardRigInput["id"];
 export type PoseBlendMode = "average" | "additive";
 export type PoseIrBlendMode = "average" | "add";
+export type PoseInputComposeMode = "average" | "add";
 export type PoseCrossGroupOverrideMode = PoseBlendMode | "priority";
 export type PoseIrCrossGroupOverrideMode = PoseIrBlendMode | "priority";
 export type PosePriorityTieBreak = "group-order" | "group-id";
 export type PoseNeutralMode = "face-default" | "explicit";
 export type PoseDiagnosticSeverity = "warning" | "error" | "info";
+export type PoseInputComposeModeMap = Partial<
+  Record<StandardInputId, PoseInputComposeMode>
+>;
 
 export interface PoseDiagnosticLocation {
   poseId?: string;
@@ -54,6 +58,7 @@ export interface PoseIrPoseDefinition {
   description?: string;
   groupIds: string[];
   targets: Record<StandardInputId, number>;
+  composeModes?: PoseInputComposeModeMap;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,6 +168,7 @@ export interface PoseDefinition {
   group?: string | null;
   groupId?: string | null;
   values: Record<StandardInputId, number>;
+  composeModes?: PoseInputComposeModeMap;
   createdAt: string;
   updatedAt: string;
 }

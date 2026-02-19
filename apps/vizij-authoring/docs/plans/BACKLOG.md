@@ -8,12 +8,11 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `A0.4` -> `A0.5` -> `A0.6` -> `A0.7`
-2. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
-3. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
-4. `F5.1` -> `F5.6` -> `F5.8`
-5. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
-6. Blocks `A0` through `E4` are complete foundations, with `A0.4`-`A0.7` adding the direct+pose composition contract before import reliability work resumes.
+1. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
+2. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
+3. `F5.1` -> `F5.6` -> `F5.8`
+4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
+5. Blocks `A0` through `E4` are complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -162,7 +161,7 @@ Completion notes (2026-02-19):
    - `pnpm --filter @vizij/utils run lint` -> pass
    - `pnpm --filter vizij-authoring run lint` -> pass
 
-### [ ] A0.5 Rig-Graph Effective Channel Composition
+### [x] A0.5 Rig-Graph Effective Channel Composition
 
 Priority and why this should still be done:
 
@@ -185,7 +184,20 @@ Acceptance checks:
 2. Clamp is applied after compose.
 3. Default compose mode is additive.
 
-### [ ] A0.6 Per-Channel Compose Mode Authoring (MVP)
+Completion notes (2026-02-19):
+
+1. `buildRigGraphSpec` now accepts per-input compose policy (`inputComposeModesById`) and emits effective input chains for composed channels.
+2. Effective chain topology for composed channels now includes:
+   - pose-control input (`rig/<face>/pose/control/<inputId>`),
+   - compose operation (`add` or `average`),
+   - clamp to input range (`min`/`max`).
+3. Added node-graph-authoring topology tests for additive and average compose behavior in `packages/@vizij/node-graph-authoring/src/__tests__/graphBuilder.test.ts`.
+4. Validation evidence:
+   - `pnpm --filter @vizij/node-graph-authoring run test -- src/__tests__/graphBuilder.test.ts` -> pass
+   - `pnpm --filter @vizij/node-graph-authoring run typecheck` -> pass
+   - `pnpm --filter @vizij/node-graph-authoring run lint` -> pass
+
+### [x] A0.6 Per-Channel Compose Mode Authoring (MVP)
 
 Priority and why this should still be done:
 
@@ -209,7 +221,18 @@ Acceptance checks:
 2. New channels default to `add`.
 3. Import/export and IR projection preserve mode values.
 
-### [ ] A0.7 Inputs Pane Internal-Path Filtering + Contract Tests
+Completion notes (2026-02-19):
+
+1. Added per-channel compose modes on pose definitions (`composeModes`) with supported values `add` and `average`.
+2. Pose config and pose IR services now normalize, validate, and round-trip compose modes with diagnostics for invalid or non-target entries.
+3. Pose authoring lifecycle now enforces defaults:
+   - added pose channels default to `add`,
+   - removed channels remove compose-mode entries.
+4. Pose inspector `What I Drive` row 1 now exposes per-channel `Compose` selector (`Add` / `Average`).
+5. Validation evidence:
+   - `pnpm --filter vizij-authoring run test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts src/components/inspector/poseInspectorSemanticsContracts.test.ts` -> pass
+
+### [x] A0.7 Inputs Pane Internal-Path Filtering + Contract Tests
 
 Priority and why this should still be done:
 
@@ -230,6 +253,18 @@ Acceptance checks:
 1. Internal pose-control channels are not shown/editable in Inputs pane default UX.
 2. Canonical rig inputs and pose-weight inputs remain visible and editable.
 3. Regression tests cover filtering and control sync with inspector flows.
+
+Completion notes (2026-02-19):
+
+1. Inputs pane default UX filtering for internal pose-control channels remains enforced (`A0.4`) and now includes additional contract coverage for compose-mode compile wiring and managed-input fallback routing.
+2. Rig graph compile path now derives compose modes from current pose config and passes them to rig graph compilation, keeping inspector-authored compose settings and runtime behavior aligned.
+3. Added/updated contract tests:
+   - `src/hooks/__tests__/poseControlInputContracts.test.ts`
+   - `src/components/inspector/poseInspectorSemanticsContracts.test.ts`
+4. Validation evidence:
+   - `pnpm --filter vizij-authoring run test -- src/hooks/__tests__/poseControlInputContracts.test.ts src/components/inspector/poseInspectorSemanticsContracts.test.ts src/components/panels/VariablesPanel.test.tsx` -> pass
+   - `pnpm --filter vizij-authoring run typecheck` -> pass
+   - `pnpm --filter vizij-authoring run lint` -> pass
 
 ## Block B — IR-First Authoring Foundation
 

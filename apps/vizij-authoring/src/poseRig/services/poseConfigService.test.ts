@@ -225,6 +225,74 @@ describe("PoseConfigService", () => {
     ).toBe(true);
   });
 
+  it("normalizes pose compose modes and prunes entries without matching targets", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0, brow_raise: 0 },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          values: { smile: 0.8 },
+          composeModes: {
+            smile: "bad_mode",
+            brow_raise: "average",
+          },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(input);
+    expect(config.poses[0]?.values).toEqual({ smile: 0.8 });
+    expect(config.poses[0]?.composeModes).toEqual({ smile: "add" });
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Pose "Smile" compose mode for "smile" value "bad_mode" is invalid; using "add".',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Pose "Smile" compose mode for "brow_raise" was ignored because the pose does not target that channel.',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("preserves pose compose modes through create -> normalize", () => {
+    const created = PoseConfigService.create(
+      [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          values: { smile: 0.8, brow_raise: 0.25 },
+          composeModes: { brow_raise: "add", smile: "average" },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      { smile: 0, brow_raise: 0 },
+      "Test",
+      "face",
+      "face-specific",
+    );
+
+    expect(created.poses[0]?.composeModes).toEqual({
+      brow_raise: "add",
+      smile: "average",
+    });
+
+    const { config } = PoseConfigService.normalize(created);
+    expect(config.poses[0]?.composeModes).toEqual({
+      brow_raise: "add",
+      smile: "average",
+    });
+  });
+
   it("normalizes pose groups and cross-group blend mode", () => {
     const input = {
       version: POSE_RIG_CONFIG_VERSION,

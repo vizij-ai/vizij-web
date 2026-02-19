@@ -134,8 +134,8 @@ Exit gate:
 
 Current status:
 
-- `in_progress`
-- Execution detail: `plans/POSE_CONTROL_COMPOSITION_PLAN.md`
+- `done`
+- Progress: `A0.4`, `A0.5`, `A0.6`, and `A0.7` are complete; execution details and validation log are captured in `plans/POSE_CONTROL_COMPOSITION_PLAN.md`.
 
 ## Stage 5 — Import Migration Reliability
 

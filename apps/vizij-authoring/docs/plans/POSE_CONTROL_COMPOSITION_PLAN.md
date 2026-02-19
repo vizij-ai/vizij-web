@@ -1,7 +1,7 @@
 # Pose-Control Composition Execution Plan
 
 Last updated: 2026-02-19
-Status: `in_progress`
+Status: `done`
 
 ## Goal
 
@@ -42,7 +42,7 @@ Acceptance:
 2. Canonical direct paths remain unchanged.
 3. Tests pass for path contract.
 
-### Chunk 2 — Rig Effective Composition (`A0.5`) [planned]
+### Chunk 2 — Rig Effective Composition (`A0.5`) [completed]
 
 1. Add rig-graph-level effective channel composition nodes (`add`/`average` + clamp).
 2. Route downstream bindings to effective channel output per targeted input.
@@ -54,7 +54,7 @@ Acceptance:
 2. Clamp is applied post-compose.
 3. Regression tests verify additive default behavior.
 
-### Chunk 3 — Per-Channel Compose Mode in IR/UI (`A0.6`) [planned]
+### Chunk 3 — Per-Channel Compose Mode in IR/UI (`A0.6`) [completed]
 
 1. Extend pose channel data contracts with compose mode field (`add` default).
 2. Add UI control in pose "What I Drive" rows.
@@ -66,7 +66,7 @@ Acceptance:
 2. `average` is selectable and persisted.
 3. Tests cover serialization and projection stability.
 
-### Chunk 4 — Inputs Pane Filtering + End-to-End Sync (`A0.7`) [planned]
+### Chunk 4 — Inputs Pane Filtering + End-to-End Sync (`A0.7`) [completed]
 
 1. Filter internal `rig/<face>/pose/control/<inputId>` from editable Inputs rows.
 2. Keep pose inspector, pose-group inspector, and Inputs controls synchronized.
@@ -99,3 +99,35 @@ Acceptance:
      - `pnpm --filter vizij-authoring run typecheck`
      - `pnpm --filter @vizij/utils run lint`
      - `pnpm --filter vizij-authoring run lint`
+- 2026-02-19: Chunk 2 completed.
+  1. `buildRigGraphSpec` now supports per-input direct+pose composition modes via `inputComposeModesById`.
+  2. For composed channels, rig graph now emits:
+     - pose-control input node at `rig/<face>/pose/control/<inputId>`,
+     - compose operation (`add`, or `average` via divide by `2`),
+     - clamp node using input min/max to produce effective channel output.
+  3. Added node-graph-authoring tests for additive and average compose topology.
+- 2026-02-19: Chunk 3 completed.
+  1. Added per-channel compose mode map on pose definitions (`composeModes`) with supported modes `add` and `average`.
+  2. Config and IR services now normalize, round-trip, and validate compose-mode maps with diagnostics for invalid entries.
+  3. Pose authoring now exposes `setPoseInputComposeMode`, and pose input lifecycle now defaults added channels to `add` and removes compose entries when channels are removed.
+  4. Pose inspector `What I Drive` row 1 now includes a `Compose` selector (`Add` / `Average`) per channel.
+- 2026-02-19: Chunk 4 completed.
+  1. Runtime rig graph compilation now derives per-channel compose mode from pose config (`graphRuntimeStore.poseConfig`) and passes it into rig graph build.
+  2. Internal pose-control inputs remain hidden in Inputs pane default UX and excluded from editable route registration.
+  3. Added/updated sync contract coverage:
+     - `src/hooks/__tests__/poseControlInputContracts.test.ts`
+     - `src/components/inspector/poseInspectorSemanticsContracts.test.ts`
+  4. Validation evidence:
+     - `pnpm --filter @vizij/node-graph-authoring run test -- src/__tests__/graphBuilder.test.ts`
+     - `pnpm --filter @vizij/node-graph-authoring run typecheck`
+     - `pnpm --filter @vizij/node-graph-authoring run lint`
+     - `pnpm --filter vizij-authoring run test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts src/components/inspector/poseInspectorSemanticsContracts.test.ts src/hooks/__tests__/poseControlInputContracts.test.ts src/poseRig/graphBuilder.test.ts src/poseRig/services/poseGraphService.test.ts src/components/panels/VariablesPanel.test.tsx`
+     - `pnpm --filter vizij-authoring run typecheck`
+     - `pnpm --filter vizij-authoring run lint`
+- 2026-02-19: Plan closed.
+  1. Stage `4A` acceptance gates are met end-to-end (path contract, effective composition, compose-mode authoring, Inputs filtering/sync contracts).
+  2. Final validation evidence:
+     - `pnpm --filter @vizij/node-graph-authoring run test -- src/__tests__/graphBuilder.test.ts`
+     - `pnpm --filter @vizij/node-graph-authoring run typecheck`
+     - `pnpm --filter @vizij/node-graph-authoring run lint`
+     - `pnpm --filter vizij-authoring run validate`

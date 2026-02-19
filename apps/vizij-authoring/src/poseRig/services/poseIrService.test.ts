@@ -113,6 +113,86 @@ describe("PoseIrService", () => {
     expect(config.neutralInputs).toEqual({ smile: 0.4 });
   });
 
+  it("maps pose compose modes into IR and round-trips to config", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+              brow: 0.2,
+            },
+            composeModes: {
+              smile: "average",
+              brow: "add",
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.poses[0]?.composeModes).toEqual({
+      brow: "add",
+      smile: "average",
+    });
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.poses[0]?.composeModes).toEqual({
+      brow: "add",
+      smile: "average",
+    });
+  });
+
+  it("normalizes invalid compose modes and drops entries for channels without targets", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+            },
+            composeModes: {
+              smile: "bad_mode",
+              brow: "average",
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.poses[0]?.composeModes).toEqual({ smile: "add" });
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "invalid-compose-mode",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "compose-mode-without-target",
+      ),
+    ).toBe(true);
+  });
+
   it("emits diagnostics when poses belong to multiple groups", () => {
     const { warnings, diagnostics } = PoseIrService.fromConfig(
       {

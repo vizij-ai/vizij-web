@@ -12,34 +12,34 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 4. Stage 0 (`A0.1`-`A0.3`), Stage 1 (`B1.1`-`B1.4`), and Stage 2 (`C2.1`-`C2.3`) are complete.
 5. Stage 3 (`D3.1`-`D3.4`) is complete, including the empirical Inputs-pane performance baseline capture.
 6. Stage 4 policy semantics are now complete: `E4.1` override-map contracts, `E4.2` priority compiler semantics, and `E4.3` design-pack guidance.
-7. Stage `4A` pose-control composition alignment is active; `A0.4` is complete and `A0.5`-`A0.7` remain to lock direct+pose channel behavior before resuming import migration reliability.
+7. Stage `4A` pose-control composition alignment is complete (`A0.4`-`A0.7`), including rig-side effective composition, per-channel compose-mode authoring, and Inputs-pane internal-path filtering/sync contracts.
 8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
 
 ## Backlog Status Board
 
-| ID   | Status  | Priority | Notes                                                                                                                                                                   |
-| ---- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A0.1 | done    | P0       | Canonical pose-weight paths, Inputs sync, and stale/duplicate cleanup landed with regression tests.                                                                     |
-| A0.2 | done    | P0       | Import now provisions autorig targets before retargeting and emits created/rebound/fallback diagnostics.                                                                |
-| A0.3 | done    | P0       | MVP pose lifecycle smoke tests landed, including ghost-target guard coverage.                                                                                           |
-| A0.4 | done    | P0       | Pose graph outputs now target `rig/<face>/pose/control/<inputId>`; runtime/input-pane guardrails and regression tests are landed.                                       |
-| A0.5 | planned | P0       | Rig graph `effective_i` composition (`clamp(compose(direct_i, pose_i), min_i, max_i)`) is next after path contract lock-in.                                             |
-| A0.6 | planned | P0       | Per-channel compose mode authoring (`add` default, `average`) is queued across UI + IR + compiler projection.                                                           |
-| A0.7 | planned | P0       | Inputs-pane filtering for internal pose-control paths and sync regression coverage will close Stage `4A`.                                                               |
-| B1.1 | done    | P1       | Store mutations now project through pose IR and export/runtime pose config resolves from IR projection.                                                                 |
-| B1.2 | done    | P1       | Neutral strategy is modeled in config/IR/store with deterministic compiler behavior and fallback diagnostics.                                                           |
-| B1.3 | done    | P1       | IR prunes synthetic ghost channel IDs and compiler guards authored-input/signal boundary contracts.                                                                     |
-| B1.4 | done    | P1       | Import feedback now uses unified structured diagnostics across config/IR/graph paths with actionable failures.                                                          |
-| C2.1 | done    | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics.                                                          |
-| C2.2 | done    | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
-| C2.3 | done    | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
-| D3.1 | done    | P2       | Inspector chain defaults now abstract autorig internals with explicit show/hide toggle for advanced access.                                                             |
-| D3.2 | done    | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
-| D3.3 | done    | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
-| D3.4 | done    | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
-| E4.1 | done    | P3       | Per-channel cross-group override map landed across config/IR contracts with deterministic normalization + diagnostics, including store-projection retention.            |
-| E4.2 | done    | P3       | Priority override mode landed with deterministic ordering/tie-break semantics, compiler topology realization, and explanatory diagnostics.                              |
-| E4.3 | done    | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
+| ID   | Status | Priority | Notes                                                                                                                                                                   |
+| ---- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0.1 | done   | P0       | Canonical pose-weight paths, Inputs sync, and stale/duplicate cleanup landed with regression tests.                                                                     |
+| A0.2 | done   | P0       | Import now provisions autorig targets before retargeting and emits created/rebound/fallback diagnostics.                                                                |
+| A0.3 | done   | P0       | MVP pose lifecycle smoke tests landed, including ghost-target guard coverage.                                                                                           |
+| A0.4 | done   | P0       | Pose graph outputs now target `rig/<face>/pose/control/<inputId>`; runtime/input-pane guardrails and regression tests are landed.                                       |
+| A0.5 | done   | P0       | Rig graph now computes `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)` for composed channels with additive default and average support.                  |
+| A0.6 | done   | P0       | Per-channel compose mode authoring (`add` default, `average`) is implemented across UI, config, IR projection, and compiler wiring.                                     |
+| A0.7 | done   | P0       | Inputs pane filters internal pose-control paths and regression contracts cover inspector/input sync + compose-mode routing into rig compile.                            |
+| B1.1 | done   | P1       | Store mutations now project through pose IR and export/runtime pose config resolves from IR projection.                                                                 |
+| B1.2 | done   | P1       | Neutral strategy is modeled in config/IR/store with deterministic compiler behavior and fallback diagnostics.                                                           |
+| B1.3 | done   | P1       | IR prunes synthetic ghost channel IDs and compiler guards authored-input/signal boundary contracts.                                                                     |
+| B1.4 | done   | P1       | Import feedback now uses unified structured diagnostics across config/IR/graph paths with actionable failures.                                                          |
+| C2.1 | done   | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics.                                                          |
+| C2.2 | done   | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
+| C2.3 | done   | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
+| D3.1 | done   | P2       | Inspector chain defaults now abstract autorig internals with explicit show/hide toggle for advanced access.                                                             |
+| D3.2 | done   | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
+| D3.3 | done   | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
+| D3.4 | done   | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
+| E4.1 | done   | P3       | Per-channel cross-group override map landed across config/IR contracts with deterministic normalization + diagnostics, including store-projection retention.            |
+| E4.2 | done   | P3       | Priority override mode landed with deterministic ordering/tie-break semantics, compiler topology realization, and explanatory diagnostics.                              |
+| E4.3 | done   | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
 
 ## Import Migration Integration Board
 
@@ -80,8 +80,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
    - Mitigation: keep `E4.3` scenario pack as reference for future heuristic rollout and guard with topology/diagnostic regression tests.
 2. Risk: Import behavior contracts remain partially implicit in code paths, increasing regression risk across compatibility variants.
    - Mitigation: execute `F5.1`-`F5.8` in order, with linked quality gates (`QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, `QL2.5`) and fixture-matrix CI coverage.
-3. Risk: Direct rig controls and pose outputs can still exhibit last-write behavior until `A0.5` lands.
-   - Mitigation: prioritize Stage `4A` (`A0.4`-`A0.7`) before resuming broad backlog execution.
+3. Risk: Compose policy remains MVP-level (`add`/`average`) and may not cover future weighting/prioritization needs.
+   - Mitigation: keep future-policy expansion tracked in roadmap horizon and gate rollout with deterministic topology/tests.
 
 ## Recently Completed Highlights
 
@@ -89,6 +89,10 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `A0.1` canonical pose-weight input synchronization + stale/duplicate cleanup + provider regression tests.
 - `A0.2` import retarget sequencing hardening with autorig pre-provisioning and created/rebound/fallback diagnostics.
 - `A0.3` MVP pose authoring smoke coverage for lifecycle + export guard paths.
+- `A0.4` pose-control path contract alignment (`rig/<face>/pose/control/<inputId>`) with runtime/input-pane internal-path guardrails.
+- `A0.5` rig effective channel composition (`compose + clamp`) for deterministic direct+pose merging.
+- `A0.6` per-channel compose mode authoring (`add`/`average`) across pose UI + config/IR projection.
+- `A0.7` Inputs-pane internal-path filtering and end-to-end sync contracts for inspector/input coherence.
 - `B1.1` IR-first store projection update with IR-projected pose-config export/runtime sync and regression tests.
 - `B1.2` neutral-mode round-trip, compiler semantics, and implicit-fallback diagnostics.
 - `B1.3` ghost-channel boundary enforcement with compiler/runtime contract guards and regression tests.

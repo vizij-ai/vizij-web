@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { SetStateAction } from "react";
 import {
   bindingFromDefinition,
@@ -17,6 +24,7 @@ import {
   type BindingMap,
   type BindingTarget,
   type BuildGraphResult,
+  type InputComposeMode,
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
@@ -125,6 +133,36 @@ function createGraphInsightSnapshot(
   };
 }
 
+function buildPoseComposeModeByInputId(
+  poseConfig:
+    | {
+        poses?: Array<{
+          values?: Record<string, number | undefined>;
+          composeModes?: Record<string, unknown>;
+        }>;
+      }
+    | null
+    | undefined,
+): Partial<Record<string, InputComposeMode>> {
+  const next: Partial<Record<string, InputComposeMode>> = {};
+  const poses = Array.isArray(poseConfig?.poses) ? poseConfig.poses : [];
+  poses.forEach((pose) => {
+    if (!pose || typeof pose !== "object") {
+      return;
+    }
+    const targets =
+      pose.values && typeof pose.values === "object" ? pose.values : {};
+    Object.keys(targets).forEach((inputId) => {
+      const rawMode =
+        pose.composeModes && typeof pose.composeModes === "object"
+          ? pose.composeModes[inputId]
+          : undefined;
+      next[inputId] = rawMode === "average" ? "average" : "add";
+    });
+  });
+  return next;
+}
+
 function deriveAliasFromInputDescriptor(
   input?: StandardRigInput | null,
 ): string | null {
@@ -193,6 +231,11 @@ export function useRigController(
   stores: UseRigControllerStores,
 ): RigController {
   const { graphRuntimeStore, bindingAuthoringStore, selectionStore } = stores;
+  const poseConfigSnapshot = useSyncExternalStore(
+    graphRuntimeStore.subscribe,
+    () => graphRuntimeStore.getState().poseConfig,
+    () => graphRuntimeStore.getState().poseConfig,
+  );
   const world = useVizijStore((state) => state.world) as World;
   const animatables = useVizijStore((state) => state.animatables);
   const setValue = useVizijStore((state) => state.setValue);
@@ -1321,6 +1364,8 @@ export function useRigController(
     if (!faceId) {
       return null;
     }
+    const poseComposeModesByInputId =
+      buildPoseComposeModeByInputId(poseConfigSnapshot);
     return buildRigGraphSpec({
       faceId,
       animatables,
@@ -1329,6 +1374,7 @@ export function useRigController(
       inputsById: standardInputsById,
       inputBindings,
       inputMetadata: standardInputMetadataById,
+      inputComposeModesById: poseComposeModesByInputId,
     });
   }, [
     animatableComponents,
@@ -1336,6 +1382,7 @@ export function useRigController(
     bindings,
     inputBindings,
     faceId,
+    poseConfigSnapshot,
     standardInputsById,
     standardInputMetadataById,
   ]);

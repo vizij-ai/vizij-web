@@ -192,6 +192,123 @@ describe("buildRigGraphSpec", () => {
     ).toBe(false);
   });
 
+  it("builds effective input chains with additive pose-control composition", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+      },
+    ];
+    binding.inputId = INPUT_A.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_A.id]: "add",
+      },
+    });
+
+    const poseControlNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_pose_control_input_a" && node.type === "input",
+    );
+    const composeAddNode = spec.nodes.find(
+      (node) => node.id === "input_compose_add_input_a" && node.type === "add",
+    );
+    const effectiveNode = spec.nodes.find(
+      (node) => node.id === "input_effective_input_a" && node.type === "clamp",
+    );
+    expect(poseControlNode).toBeDefined();
+    expect(
+      (poseControlNode?.params as { path?: string } | undefined)?.path,
+    ).toBe("rig/robot/pose/control/input_a");
+    expect(composeAddNode).toBeDefined();
+    expect(effectiveNode?.input_defaults).toMatchObject({
+      min: INPUT_A.range.min,
+      max: INPUT_A.range.max,
+    });
+
+    const addInputs = (spec.edges ?? [])
+      .filter((edge) => edge.to?.node_id === "input_compose_add_input_a")
+      .map((edge) => edge.to?.input)
+      .sort();
+    expect(addInputs).toEqual(["operand_1", "operand_2"]);
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_add_input_a" &&
+          edge.to?.node_id === "input_effective_input_a" &&
+          edge.to?.input === "in",
+      ),
+    ).toBe(true);
+  });
+
+  it("supports average input composition mode for effective input channels", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+      },
+    ];
+    binding.inputId = INPUT_A.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_A.id]: "average",
+      },
+    });
+
+    const averageNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_average_input_a" && node.type === "divide",
+    );
+    expect(averageNode).toBeDefined();
+    expect(averageNode?.input_defaults).toMatchObject({ rhs: 2 });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_add_input_a" &&
+          edge.to?.node_id === "input_compose_average_input_a" &&
+          edge.to?.input === "lhs",
+      ),
+    ).toBe(true);
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_average_input_a" &&
+          edge.to?.node_id === "input_effective_input_a" &&
+          edge.to?.input === "in",
+      ),
+    ).toBe(true);
+  });
+
   it("treats face-qualified autorig metadata paths as low-level in higher-order checks", () => {
     const metadataInput: StandardRigInput = {
       id: "autorig_input",
