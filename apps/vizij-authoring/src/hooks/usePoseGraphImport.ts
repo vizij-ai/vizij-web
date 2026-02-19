@@ -173,11 +173,8 @@ export function usePoseGraphImport({
         let activeInputIds: Set<string> | null = null;
         try {
           activeInputIds = collectPoseGraphDeltaInputs(workingSpec);
-        } catch (error) {
-          console.warn(
-            "[poseRig] Unable to collect pose graph deltas before remap",
-            error,
-          );
+        } catch {
+          activeInputIds = null;
         }
         const outputs = listPoseGraphOutputs(workingSpec);
         const autoRows: PoseGraphRemapRow[] = [];

@@ -226,7 +226,7 @@ Completion notes (2026-02-19):
 5. Validation evidence:
    - `2026-02-19 20:38Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 356 tests).
 
-### [ ] B1.4 Unified Pose Import Feedback UX (`IR4`)
+### [x] B1.4 Unified Pose Import Feedback UX (`IR4`)
 
 Priority and why this should still be done:
 
@@ -247,6 +247,18 @@ Acceptance checks:
 1. All pose import paths show structured warnings and errors in the same UI pattern.
 2. Fatal import failures provide actionable remediation text.
 3. No import path relies on console-only feedback.
+
+Completion notes (2026-02-19):
+
+1. Unified import feedback plumbing now routes config, IR, and pose-graph import outcomes through the same diagnostics channel (`poseDiagnostics` + `poseConfigWarnings`) exposed by the Pose Rig panels.
+2. Pose file import failures now emit actionable remediation text and structured `import-failed` diagnostics per source (`pose-config`, `pose-ir`, `pose-graph`).
+3. Pose-graph imports now emit structured `pose-graph` warning diagnostics instead of returning warning strings without UI visibility.
+4. Removed console-only import warning behavior:
+   - Pose graph import warnings now surface via dialog + diagnostics.
+   - Remap pre-analysis fallback no longer logs console warnings without user-visible feedback.
+5. Regression coverage added in `src/poseRig/usePoseRigAuthoring.test.tsx` for config/IR/graph import failure diagnostics.
+6. Validation evidence:
+   - `2026-02-19 20:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 357 tests).
 
 ## Block C — Blend Topology and Scale
 

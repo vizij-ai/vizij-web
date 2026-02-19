@@ -266,6 +266,10 @@ export interface PoseRigState {
   clearPose: (poseId: string) => void;
   addPoseInput: (poseId: string, inputId: string) => void;
   removePoseInput: (poseId: string, inputId: string) => void;
+  setPoseImportFeedback: (params: {
+    warnings: string[];
+    diagnostics: PoseDiagnostic[];
+  }) => void;
 }
 
 type PoseRigStoreUpdate =
@@ -317,6 +321,7 @@ const defaultState: Omit<
   | "clearPose"
   | "addPoseInput"
   | "removePoseInput"
+  | "setPoseImportFeedback"
 > = {
   faceId: null,
   rigName: DEFAULT_RIG_NAME,
@@ -592,6 +597,7 @@ export function createPoseRigStore(
     | "clearPose"
     | "addPoseInput"
     | "removePoseInput"
+    | "setPoseImportFeedback"
   > = {
     setRigName: (name) => {
       setState((prev) => ({
@@ -1057,6 +1063,12 @@ export function createPoseRigStore(
           p.id === poseId ? { ...p, values: nextValues } : p,
         );
         return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
+      });
+    },
+    setPoseImportFeedback: ({ warnings, diagnostics }) => {
+      setState({
+        warnings,
+        poseDiagnostics: diagnostics,
       });
     },
     updatePose: (poseId, updater) => {

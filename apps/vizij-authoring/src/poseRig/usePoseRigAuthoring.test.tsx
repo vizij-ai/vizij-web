@@ -484,9 +484,18 @@ describe("usePoseRigAuthoring", () => {
       text: async () => "{invalid_json",
     } as unknown as File;
 
-    const importPromise = result.current?.importPoseConfig(invalidFile);
-    expect(importPromise).toBeTruthy();
-    await expect(importPromise).rejects.toThrow();
+    await act(async () => {
+      const importPromise = result.current?.importPoseConfig(invalidFile);
+      expect(importPromise).toBeTruthy();
+      await expect(importPromise).rejects.toThrow(/Pose config import failed/);
+    });
+    expect(result.current?.poseDiagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        source: "pose-config",
+        code: "import-failed",
+      }),
+    ]);
   });
 
   it("exposes pose IR draft and supports IR file naming", () => {
@@ -558,9 +567,18 @@ describe("usePoseRigAuthoring", () => {
       text: async () => "{invalid_json",
     } as unknown as File;
 
-    const importPromise = result.current?.importPoseIr(invalidFile);
-    expect(importPromise).toBeTruthy();
-    await expect(importPromise).rejects.toThrow();
+    await act(async () => {
+      const importPromise = result.current?.importPoseIr(invalidFile);
+      expect(importPromise).toBeTruthy();
+      await expect(importPromise).rejects.toThrow(/Pose IR import failed/);
+    });
+    expect(result.current?.poseDiagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        source: "pose-ir",
+        code: "import-failed",
+      }),
+    ]);
   });
 
   it("allows assigning pose groups that persist into the config draft", () => {
@@ -961,5 +979,26 @@ describe("usePoseRigAuthoring", () => {
       (pose) => pose.name === "Pose Flat",
     );
     expect(importedPose?.values.smile).toBeUndefined();
+  });
+
+  it("surfaces structured pose-graph diagnostics when graph import fails", () => {
+    const { result } = hook!;
+    let thrown: unknown = null;
+    act(() => {
+      try {
+        result.current?.importPoseGraphSpec({ nodes: [] } as GraphSpec);
+      } catch (error) {
+        thrown = error;
+      }
+    });
+    expect(thrown).toBeTruthy();
+    expect((thrown as Error).message).toContain("Pose graph import failed");
+    expect(result.current?.poseDiagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        source: "pose-graph",
+        code: "import-failed",
+      }),
+    ]);
   });
 });

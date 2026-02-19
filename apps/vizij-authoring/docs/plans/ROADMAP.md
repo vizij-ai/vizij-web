@@ -49,7 +49,7 @@ Exit gate:
 
 Current status:
 
-- `in_progress`
+- `done`
 
 ## Stage 2 — Multi-Stage Blend Topology
 
@@ -69,7 +69,7 @@ Exit gate:
 
 Current status:
 
-- `planned`
+- `in_progress`
 
 ## Stage 3 — UX Simplification and Operational Hardening
 

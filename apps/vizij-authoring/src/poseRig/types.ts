@@ -24,7 +24,7 @@ export interface PoseDiagnostic {
   severity: PoseDiagnosticSeverity;
   message: string;
   code: string;
-  source: "pose-config" | "pose-ir";
+  source: "pose-config" | "pose-ir" | "pose-graph";
   location?: PoseDiagnosticLocation;
   metadata?: Record<string, unknown>;
 }

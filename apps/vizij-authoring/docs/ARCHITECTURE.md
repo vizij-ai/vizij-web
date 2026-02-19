@@ -82,9 +82,10 @@ Important: rig and pose are still separate graph specs today, not one monolithic
 ## Diagnostics and Validation Contracts
 
 1. Compile/import/export must emit machine-readable diagnostics for warnings/errors.
-2. Unknown channels, invalid mappings, and blocked retargets are never silent.
-3. Export validation checks runtime compatibility before writing assets.
-4. Import normalization and retargeting must be deterministic and idempotent.
+2. Pose config, pose IR, and pose graph imports share one structured diagnostics surface in authoring UI.
+3. Unknown channels, invalid mappings, and blocked retargets are never silent.
+4. Export validation checks runtime compatibility before writing assets.
+5. Import normalization and retargeting must be deterministic and idempotent.
 
 ## Performance and Reactivity Constraints
 

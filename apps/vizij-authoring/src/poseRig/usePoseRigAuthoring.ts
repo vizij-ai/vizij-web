@@ -359,9 +359,27 @@ export function usePoseRigAuthoring(
 
   const importPoseConfig = useCallback(
     async (file: File) => {
-      const text = await file.text();
-      const json = JSON.parse(text);
-      store.importConfig(json);
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        store.importConfig(json);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        const message = `Pose config import failed. Validate that the JSON is a v1 pose config with neutralInputs and poses. ${detail}`;
+        store.setPoseImportFeedback({
+          warnings: [message],
+          diagnostics: [
+            {
+              id: "pose-config:import-failed:1",
+              severity: "error",
+              code: "import-failed",
+              source: "pose-config",
+              message,
+            },
+          ],
+        });
+        throw new Error(message);
+      }
     },
     [store],
   );
@@ -370,10 +388,28 @@ export function usePoseRigAuthoring(
 
   const importPoseIr = useCallback(
     async (file: File) => {
-      const text = await file.text();
-      const json = JSON.parse(text);
-      const { ir } = PoseIrService.normalize(json, store.standardInputs);
-      store.importIr(ir);
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const { ir } = PoseIrService.normalize(json, store.standardInputs);
+        store.importIr(ir);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        const message = `Pose IR import failed. Validate that the payload is Pose IR v1 with contracts, neutral, groups, and poses. ${detail}`;
+        store.setPoseImportFeedback({
+          warnings: [message],
+          diagnostics: [
+            {
+              id: "pose-ir:import-failed:1",
+              severity: "error",
+              code: "import-failed",
+              source: "pose-ir",
+              message,
+            },
+          ],
+        });
+        throw new Error(message);
+      }
     },
     [store],
   );
@@ -390,41 +426,69 @@ export function usePoseRigAuthoring(
       },
     ) => {
       const { groupName, applyNeutral = true } = options ?? {};
+      try {
+        const parsed = PoseGraphService.parse(spec, visibleStandardInputs);
 
-      const parsed = PoseGraphService.parse(spec, visibleStandardInputs);
-
-      if (applyNeutral) {
-        store.setNeutralInputs(parsed.neutralInputs);
-      }
-
-      parsed.poses.forEach((pose) => {
-        const newValues = { ...pose.values };
-        if (!applyNeutral) {
-          // Rebase logic
-          for (const inputId of Object.keys(newValues)) {
-            const val = newValues[inputId];
-            const importedN = parsed.neutralInputs[inputId] ?? 0;
-            const currentN = neutralInputs[inputId] ?? 0;
-            const rebased = val - importedN + currentN;
-
-            if (Math.abs(rebased - currentN) < 1e-6) {
-              delete newValues[inputId];
-            } else {
-              newValues[inputId] = rebased;
-            }
-          }
+        if (applyNeutral) {
+          store.setNeutralInputs(parsed.neutralInputs);
         }
 
-        const newPose: PoseDefinition = {
-          ...pose,
-          group: groupName ?? pose.group,
-          values: newValues,
-        };
+        parsed.poses.forEach((pose) => {
+          const newValues = { ...pose.values };
+          if (!applyNeutral) {
+            // Rebase logic
+            for (const inputId of Object.keys(newValues)) {
+              const val = newValues[inputId];
+              const importedN = parsed.neutralInputs[inputId] ?? 0;
+              const currentN = neutralInputs[inputId] ?? 0;
+              const rebased = val - importedN + currentN;
 
-        store.addPose(newPose);
-      });
+              if (Math.abs(rebased - currentN) < 1e-6) {
+                delete newValues[inputId];
+              } else {
+                newValues[inputId] = rebased;
+              }
+            }
+          }
 
-      return parsed.warnings;
+          const newPose: PoseDefinition = {
+            ...pose,
+            group: groupName ?? pose.group,
+            values: newValues,
+          };
+
+          store.addPose(newPose);
+        });
+
+        const diagnostics = parsed.warnings.map((warning, index) => ({
+          id: `pose-graph:import-warning:${index + 1}`,
+          severity: "warning" as const,
+          code: "import-warning",
+          source: "pose-graph" as const,
+          message: warning,
+        }));
+        store.setPoseImportFeedback({
+          warnings: parsed.warnings,
+          diagnostics,
+        });
+        return parsed.warnings;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        const message = `Pose graph import failed. Ensure the graph includes a neutral record and compatible pose outputs before importing. ${detail}`;
+        store.setPoseImportFeedback({
+          warnings: [message],
+          diagnostics: [
+            {
+              id: "pose-graph:import-failed:1",
+              severity: "error",
+              code: "import-failed",
+              source: "pose-graph",
+              message,
+            },
+          ],
+        });
+        throw new Error(message);
+      }
     },
     [store, visibleStandardInputs, neutralInputs],
   );

@@ -169,10 +169,12 @@ function AppContent({ loader }: AppContentProps) {
         applyNeutral: false,
       });
       if (warnings.length > 0) {
-        console.warn("[vizij-authoring] Pose graph import warnings:", warnings);
+        await showAlert(
+          `Pose graph imported with ${warnings.length} warning(s). Review Pose diagnostics in the Pose Rig panel.`,
+        );
       }
     },
-    [poseRig],
+    [poseRig, showAlert],
   );
 
   const {
