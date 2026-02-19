@@ -4,9 +4,14 @@ import type { GLTF } from "three-stdlib";
 import { GLTFLoader, DRACOLoader } from "three-stdlib";
 import type { AnimatableValue, RawVector2 } from "@vizij/utils";
 import type { World } from "../types/world";
-import type { VizijBundleExtension, VizijAnimationClipData } from "../types";
+import type {
+  VizijBundleCompatibilityDiagnostic,
+  VizijBundleCompatibilitySelection,
+  VizijBundleExtension,
+  VizijAnimationClipData,
+} from "../types";
 import { traverseThree } from "./gltf-loading/traverse-three";
-import { extractVizijBundle } from "./vizij-bundle";
+import { extractVizijBundleResult } from "./vizij-bundle";
 import { extractVizijAnimations } from "./gltf-loading/extract-animations";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
@@ -114,6 +119,8 @@ export type LoadedVizijAsset = {
   world: World;
   animatables: Record<string, AnimatableValue>;
   bundle: VizijBundleExtension | null;
+  bundleSelection: VizijBundleCompatibilitySelection | null;
+  bundleDiagnostics: VizijBundleCompatibilityDiagnostic[];
   animations: VizijAnimationClipData[];
 };
 
@@ -136,7 +143,8 @@ function parseScene(
     aggressiveImport,
     rootBounds,
   );
-  const bundle = extractVizijBundle(scene, parserJson);
+  const bundleResult = extractVizijBundleResult(scene, parserJson);
+  const bundle = bundleResult.bundle;
   const animations = extractVizijAnimations(parserJson, clips);
   // if (bundle) {
   //   console.info("[vizij-render] Bundle extracted during GLTF load.", {
@@ -148,7 +156,14 @@ function parseScene(
   // } else {
   //   console.info("[vizij-render] No bundle extracted during GLTF load.");
   // }
-  return { world, animatables, bundle, animations };
+  return {
+    world,
+    animatables,
+    bundle,
+    bundleSelection: bundleResult.selection,
+    bundleDiagnostics: bundleResult.diagnostics,
+    animations,
+  };
 }
 
 export async function loadGLTFWithBundle(

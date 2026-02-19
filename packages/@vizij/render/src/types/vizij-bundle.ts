@@ -105,3 +105,37 @@ export interface VizijBundleExtension {
   animations?: VizijBundleAnimationEntry[];
   metadata?: Record<string, unknown>;
 }
+
+export type VizijBundleCompatibilitySeverity = "info" | "warning" | "error";
+
+export type VizijBundleCompatibilityDiagnosticCode =
+  | "bundle-selected"
+  | "bundle-candidate-ignored"
+  | "unsupported-bundle-version"
+  | "unsupported-bundle-variant"
+  | "invalid-bundle-candidate"
+  | "no-supported-bundle-candidate";
+
+export interface VizijBundleCompatibilitySource {
+  scope: "object" | "parser-node" | "parser-scene";
+  index: number;
+  alias: string;
+  entryIndex: number;
+}
+
+export interface VizijBundleCompatibilityDiagnostic {
+  code: VizijBundleCompatibilityDiagnosticCode;
+  severity: VizijBundleCompatibilitySeverity;
+  source: VizijBundleCompatibilitySource;
+  message: string;
+}
+
+export interface VizijBundleCompatibilitySelection {
+  source: VizijBundleCompatibilitySource;
+}
+
+export interface VizijBundleExtractionResult {
+  bundle: VizijBundleExtension | null;
+  selection: VizijBundleCompatibilitySelection | null;
+  diagnostics: VizijBundleCompatibilityDiagnostic[];
+}

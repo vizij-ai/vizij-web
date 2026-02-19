@@ -5,7 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { Group } from "three";
-import { extractVizijBundle } from "../src/functions/vizij-bundle.ts";
+import {
+  extractVizijBundle,
+  extractVizijBundleResult,
+} from "../src/functions/vizij-bundle.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,5 +48,89 @@ test("extracts VIZIJ bundle metadata from example GLB", () => {
   assert.ok(
     (bundle.poses?.config?.poses ?? []).length > 0,
     "should include pose definitions",
+  );
+});
+
+test("prefers current alias over legacy alias deterministically", () => {
+  const rootGroup = new Group();
+  rootGroup.userData = {
+    gltfExtensions: {
+      vizij_bundle: { version: 1, metadata: { source: "legacy" } },
+      VIZIJ_bundle: { version: 1, metadata: { source: "current" } },
+    },
+  };
+
+  const result = extractVizijBundleResult(rootGroup);
+  assert.equal(
+    result.bundle?.metadata?.source,
+    "current",
+    "current alias should win over legacy alias",
+  );
+  assert.equal(result.selection?.source.alias, "VIZIJ_bundle");
+  assert.ok(
+    result.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "bundle-candidate-ignored" &&
+        diagnostic.source.alias === "vizij_bundle",
+    ),
+    "legacy candidate should be reported as ignored",
+  );
+});
+
+test("selects first deterministic candidate when multiple entries are present", () => {
+  const rootGroup = new Group();
+  const parserJson = {
+    nodes: [
+      {
+        extensions: {
+          VIZIJ_bundle: [
+            { version: 1, metadata: { marker: "first" } },
+            { version: 1, metadata: { marker: "second" } },
+          ],
+        },
+      },
+    ],
+  };
+
+  const result = extractVizijBundleResult(rootGroup, parserJson);
+  assert.equal(
+    result.bundle?.metadata?.marker,
+    "first",
+    "first candidate should be selected",
+  );
+  assert.equal(result.selection?.source.entryIndex, 0);
+  assert.ok(
+    result.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "bundle-candidate-ignored" &&
+        diagnostic.source.entryIndex === 1,
+    ),
+    "non-selected candidate should be reported",
+  );
+});
+
+test("reports unsupported variants explicitly", () => {
+  const rootGroup = new Group();
+  rootGroup.userData = {
+    gltfExtensions: {
+      VIZIJ_bundle: {
+        variant: "vizij_bundle_v2",
+      },
+    },
+  };
+
+  const result = extractVizijBundleResult(rootGroup);
+  assert.equal(result.bundle, null, "unsupported variants should not resolve");
+  assert.ok(
+    result.diagnostics.some(
+      (diagnostic) => diagnostic.code === "unsupported-bundle-variant",
+    ),
+    "unsupported variant diagnostic should be emitted",
+  );
+  assert.ok(
+    result.diagnostics.some(
+      (diagnostic) => diagnostic.code === "no-supported-bundle-candidate",
+    ),
+    "missing supported candidate diagnostic should be emitted",
   );
 });
