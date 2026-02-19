@@ -34,6 +34,7 @@ import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
+import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import { BindingEditor } from "../binding";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
@@ -149,6 +150,13 @@ function formatDraftNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value);
 }
 
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
 function normalizePoseMembershipPath(
   value: string | null | undefined,
 ): string | null {
@@ -227,6 +235,7 @@ export function InspectorContent() {
     removePoseFromGroup,
     poseConfigDraft,
     poseDiagnostics,
+    poseGraphSpec,
   } = usePoseRig();
 
   const managedStandardInputs = useBindingAuthoring(
@@ -455,10 +464,55 @@ export function InspectorContent() {
     [bindingIssues],
   );
 
+  const poseWeightInputIdByPoseId = useMemo(() => {
+    const map = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
+      if (!poseId || map.has(poseId)) {
+        return;
+      }
+      map.set(poseId, entry.input.id);
+    });
+    return map;
+  }, [managedStandardInputs]);
+
+  const selectedPoseWeightInputId =
+    selectedPoseId && poseWeightInputIdByPoseId.has(selectedPoseId)
+      ? (poseWeightInputIdByPoseId.get(selectedPoseId) ?? null)
+      : null;
+
+  const selectedPoseWeightValue = useMemo(() => {
+    if (!selectedPoseWeightInputId) {
+      return 0;
+    }
+    const stored = inputValues[selectedPoseWeightInputId];
+    if (typeof stored !== "number" || !Number.isFinite(stored)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1, stored));
+  }, [inputValues, selectedPoseWeightInputId]);
+
+  const usePoseWeightPreview = Boolean(
+    poseGraphSpec && selectedPoseWeightInputId,
+  );
+
   // Reset blend amount when selected pose changes
   useEffect(() => {
+    if (inspectorMode !== "pose" || !selectedPoseId) {
+      setBlendAmount(0);
+      return;
+    }
+    if (usePoseWeightPreview) {
+      setBlendAmount(selectedPoseWeightValue);
+      return;
+    }
     setBlendAmount(0);
-  }, [selectedPoseId]);
+  }, [
+    inspectorMode,
+    selectedPoseId,
+    selectedPoseWeightValue,
+    usePoseWeightPreview,
+  ]);
 
   useEffect(() => {
     if (inspectorMode !== "scene") {
@@ -1256,14 +1310,19 @@ export function InspectorContent() {
       };
 
       const handleBlend = (amount: number) => {
-        setBlendAmount(amount);
+        const clampedAmount = clamp01(amount);
+        setBlendAmount(clampedAmount);
+        if (usePoseWeightPreview && selectedPoseWeightInputId) {
+          handleInputValueChange(selectedPoseWeightInputId, clampedAmount);
+          return;
+        }
         const updates: Record<string, number> = {};
         managedStandardInputs.forEach((entry) => {
           updates[entry.input.id] = resolvePoseNeutralValue(entry.input.id);
         });
         Object.entries(pose.values).forEach(([varId, targetVal]) => {
           const neutralVal = resolvePoseNeutralValue(varId);
-          const newVal = neutralVal + (targetVal - neutralVal) * amount;
+          const newVal = neutralVal + (targetVal - neutralVal) * clampedAmount;
           updates[varId] = newVal;
         });
         applyStandardInputBatch(updates, { replace: true });
@@ -1491,6 +1550,45 @@ export function InspectorContent() {
                       item.drivenPropertyCount > 0
                         ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
                         : null;
+                    const resolvePoseWeightFromAppliedValue = (
+                      nextAppliedValue: number,
+                    ): number => {
+                      const denominator = poseVal - neutralVal;
+                      if (Math.abs(denominator) <= 1e-6) {
+                        if (Math.abs(nextAppliedValue - neutralVal) <= 1e-6) {
+                          return 0;
+                        }
+                        return selectedPoseWeightValue;
+                      }
+                      const rawWeight =
+                        (nextAppliedValue - neutralVal) / denominator;
+                      return clamp01(rawWeight);
+                    };
+                    const handleAppliedValueChange = (nextApplied: number) => {
+                      if (usePoseWeightPreview) {
+                        handleBlend(
+                          resolvePoseWeightFromAppliedValue(nextApplied),
+                        );
+                        return;
+                      }
+                      handleInputValueChange(varId, nextApplied);
+                    };
+                    const handleAppliedReset = () => {
+                      if (usePoseWeightPreview) {
+                        handleBlend(
+                          resolvePoseWeightFromAppliedValue(neutralVal),
+                        );
+                        return;
+                      }
+                      handleInputValueChange(varId, neutralVal);
+                    };
+                    const handleTargetValueChange = (nextTarget: number) => {
+                      updatePoseValue(pose.id, varId, nextTarget);
+                      if (usePoseWeightPreview) {
+                        return;
+                      }
+                      handleInputValueChange(varId, nextTarget);
+                    };
 
                     return (
                       <div
@@ -1557,7 +1655,7 @@ export function InspectorContent() {
                             value={appliedVal}
                             className="flex-1 min-w-[120px]"
                             onChange={(val) =>
-                              handleInputValueChange(varId, val as number)
+                              handleAppliedValueChange(val as number)
                             }
                           />
                           <div
@@ -1573,19 +1671,15 @@ export function InspectorContent() {
                               format={precisionFormat}
                               value={appliedVal}
                               className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                              onChange={(val) =>
-                                handleInputValueChange(varId, val)
-                              }
+                              onChange={handleAppliedValueChange}
                             />
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-[10px]"
-                            title="Reset current value to target value"
-                            onClick={() =>
-                              handleInputValueChange(varId, poseVal)
-                            }
+                            title="Reset current value to neutral/default"
+                            onClick={handleAppliedReset}
                           >
                             <RotateCcw size={11} />
                             Reset
@@ -1621,11 +1715,9 @@ export function InspectorContent() {
                             step={0.0001}
                             value={poseVal}
                             className="flex-1 min-w-[120px]"
-                            onChange={(val) => {
-                              const nextValue = val as number;
-                              updatePoseValue(pose.id, varId, nextValue);
-                              handleInputValueChange(varId, nextValue);
-                            }}
+                            onChange={(val) =>
+                              handleTargetValueChange(val as number)
+                            }
                           />
                           <div
                             className="inspector-numeric-control flex-shrink-0"
@@ -1640,10 +1732,7 @@ export function InspectorContent() {
                               format={precisionFormat}
                               value={poseVal}
                               className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                              onChange={(val) => {
-                                updatePoseValue(pose.id, varId, val);
-                                handleInputValueChange(varId, val);
-                              }}
+                              onChange={handleTargetValueChange}
                             />
                           </div>
                           <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">

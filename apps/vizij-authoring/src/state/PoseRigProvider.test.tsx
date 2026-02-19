@@ -31,7 +31,10 @@ const bindingState = {
 
 const graphRuntimeState = {
   faceId: "robot",
-  setStoreState: vi.fn(),
+};
+
+const graphRuntimeStoreApi = {
+  setState: vi.fn(),
 };
 
 const poseRigAuthoringState = {
@@ -49,6 +52,7 @@ vi.mock("./RigControllerProvider", () => ({
     selector(bindingState),
   useGraphRuntime: (selector: (state: typeof graphRuntimeState) => unknown) =>
     selector(graphRuntimeState),
+  useGraphRuntimeStoreApi: () => graphRuntimeStoreApi,
 }));
 
 vi.mock("../poseRig/usePoseRigAuthoring", () => ({
@@ -101,7 +105,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
     bindingState.handleDeleteCustomStandardInput.mockReset();
 
     graphRuntimeState.faceId = "robot";
-    graphRuntimeState.setStoreState.mockReset();
+    graphRuntimeStoreApi.setState.mockReset();
 
     poseRigAuthoringState.poses = [];
     poseRigAuthoringState.poseGraphSpec = null;
@@ -205,6 +209,13 @@ describe("PoseRigProvider pose weight synchronization", () => {
         sourceId: "pose-weight:pose_old",
       },
     );
+    const malformedPoseWeight = makeInput(
+      "pose_smile_weight_suffix",
+      "/poses/pose_smile.weight_2",
+      {
+        label: "Pose Weight - Smile (suffix)",
+      },
+    );
 
     bindingState.standardInputs = [regularInput, canonicalPoseWeight];
     bindingState.standardInputsByPath = new Map([
@@ -216,6 +227,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       { input: canonicalPoseWeight, source: "custom" },
       { input: duplicatePoseWeight, source: "custom" },
       { input: stalePoseWeight, source: "custom" },
+      { input: malformedPoseWeight, source: "custom" },
     ];
 
     poseRigAuthoringState.poses = [makePose("pose_smile", "Smile")];
@@ -233,7 +245,11 @@ describe("PoseRigProvider pose weight synchronization", () => {
         ),
       );
       expect(deleted).toEqual(
-        new Set([duplicatePoseWeight.id, stalePoseWeight.id]),
+        new Set([
+          duplicatePoseWeight.id,
+          stalePoseWeight.id,
+          malformedPoseWeight.id,
+        ]),
       );
     });
 
@@ -241,5 +257,49 @@ describe("PoseRigProvider pose weight synchronization", () => {
       bindingState.handleDeleteCustomStandardInput,
     ).not.toHaveBeenCalledWith(canonicalPoseWeight.id);
     expect(bindingState.handleCreateCustomStandardInput).not.toHaveBeenCalled();
+  });
+
+  it("publishes pose graph payload to the graph runtime store", async () => {
+    const regularInput = makeInput("jaw_open", "/autorig/robot/jaw/open");
+    const poseGraphSpec = { nodes: [{ id: "pose_input", type: "input" }] };
+    const poseConfigDraft = {
+      version: 1,
+      title: "Pose Test",
+      rigKind: "face-specific" as const,
+      faceId: "robot",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [],
+      standardInputSchema: null,
+      blendStages: [],
+      crossGroupBlendMode: "average" as const,
+      neutralMode: "explicit" as const,
+    };
+
+    bindingState.standardInputs = [regularInput];
+    bindingState.standardInputsByPath = new Map([
+      [regularInput.path, regularInput],
+    ]);
+    bindingState.managedStandardInputs = [
+      { input: regularInput, source: "custom" },
+    ];
+
+    poseRigAuthoringState.poses = [makePose("pose_smile", "Smile")];
+    poseRigAuthoringState.poseGraphSpec = poseGraphSpec as any;
+    poseRigAuthoringState.poseConfigDraft = poseConfigDraft as any;
+
+    render(
+      <PoseRigProvider rootId="root">
+        <div>child</div>
+      </PoseRigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockNormalizeGraphSpec).toHaveBeenCalledWith(poseGraphSpec);
+      expect(graphRuntimeStoreApi.setState).toHaveBeenCalledWith({
+        poseGraphSpec,
+        poseConfig: poseConfigDraft,
+      });
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { RotateCcw, Activity } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -9,6 +9,7 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
+import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import { InspectorContent } from "./InspectorContent";
 
 interface InspectorPanelProps {
@@ -40,16 +41,16 @@ export function InspectorPanel({
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const handleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
   );
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
-  const [poseGroupWeights, setPoseGroupWeights] = useState<
-    Record<string, number>
-  >({});
-
   const poseLookup = useMemo(() => {
     const lookup = new Map<string, PoseDefinition>();
     poses.forEach((pose) => lookup.set(pose.id, pose));
@@ -75,18 +76,39 @@ export function InspectorPanel({
     return configuredGroup?.blendMode ?? blendMode;
   }, [blendMode, poseConfigDraft?.poseGroups, selectedPoseGroup?.groupId]);
 
-  useEffect(() => {
-    if (!selectedPoseGroup) {
-      return;
-    }
-    setPoseGroupWeights((previous) => {
-      const next: Record<string, number> = {};
-      selectedPoseGroup.poseIds.forEach((poseId) => {
-        next[poseId] = selectedPoseId === poseId ? 1 : (previous[poseId] ?? 0);
-      });
-      return next;
+  const poseWeightInputIdByPoseId = useMemo(() => {
+    const map = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
+      if (!poseId || map.has(poseId)) {
+        return;
+      }
+      map.set(poseId, entry.input.id);
     });
-  }, [selectedPoseGroup, selectedPoseId]);
+    return map;
+  }, [managedStandardInputs]);
+
+  const poseGroupWeights = useMemo(() => {
+    if (!selectedPoseGroup) {
+      return {} as Record<string, number>;
+    }
+    const next: Record<string, number> = {};
+    selectedPoseGroup.poseIds.forEach((poseId) => {
+      const inputId = poseWeightInputIdByPoseId.get(poseId);
+      const stored = inputId ? inputValues[inputId] : undefined;
+      if (typeof stored === "number" && Number.isFinite(stored)) {
+        next[poseId] = clamp01(stored);
+        return;
+      }
+      next[poseId] = selectedPoseId === poseId ? 1 : 0;
+    });
+    return next;
+  }, [
+    inputValues,
+    poseWeightInputIdByPoseId,
+    selectedPoseGroup,
+    selectedPoseId,
+  ]);
 
   const resolveNeutralValue = (inputId: string) => {
     const neutral = neutralInputs[inputId];
@@ -171,31 +193,53 @@ export function InspectorPanel({
 
   const handlePoseGroupWeightChange = (poseId: string, nextWeight: number) => {
     const clamped = clamp01(nextWeight);
-    setPoseGroupWeights((previous) => {
-      const next = {
-        ...previous,
-        [poseId]: clamped,
-      };
-      applyPoseGroupPreview(activePoseGroupPoses, next);
-      return next;
-    });
+    const poseWeightInputId = poseWeightInputIdByPoseId.get(poseId);
+    if (poseWeightInputId) {
+      handleInputValueChange(poseWeightInputId, clamped);
+      return;
+    }
+    const next = {
+      ...poseGroupWeights,
+      [poseId]: clamped,
+    };
+    applyPoseGroupPreview(activePoseGroupPoses, next);
   };
 
   const handlePoseGroupReset = () => {
+    const canonicalUpdates: Record<string, number> = {};
+    activePoseGroupPoses.forEach((pose) => {
+      const poseWeightInputId = poseWeightInputIdByPoseId.get(pose.id);
+      if (poseWeightInputId) {
+        canonicalUpdates[poseWeightInputId] = 0;
+      }
+    });
+    if (Object.keys(canonicalUpdates).length > 0) {
+      applyStandardInputBatch(canonicalUpdates);
+      return;
+    }
     const next: Record<string, number> = {};
     activePoseGroupPoses.forEach((pose) => {
       next[pose.id] = 0;
     });
-    setPoseGroupWeights(next);
     applyPoseGroupPreview(activePoseGroupPoses, next);
   };
 
   const handlePoseGroupSolo = (poseId: string) => {
+    const canonicalUpdates: Record<string, number> = {};
+    activePoseGroupPoses.forEach((pose) => {
+      const poseWeightInputId = poseWeightInputIdByPoseId.get(pose.id);
+      if (poseWeightInputId) {
+        canonicalUpdates[poseWeightInputId] = pose.id === poseId ? 1 : 0;
+      }
+    });
+    if (Object.keys(canonicalUpdates).length > 0) {
+      applyStandardInputBatch(canonicalUpdates);
+      return;
+    }
     const next: Record<string, number> = {};
     activePoseGroupPoses.forEach((pose) => {
       next[pose.id] = pose.id === poseId ? 1 : 0;
     });
-    setPoseGroupWeights(next);
     applyPoseGroupPreview(activePoseGroupPoses, next);
   };
 

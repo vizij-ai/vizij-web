@@ -21,7 +21,11 @@ import {
   parsePoseWeightInputSourceId,
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
-import { useBindingAuthoring, useGraphRuntime } from "./RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useGraphRuntime,
+  useGraphRuntimeStoreApi,
+} from "./RigControllerProvider";
 
 function filterRecordByIds<T extends Record<string, number>>(
   record: T,
@@ -76,6 +80,14 @@ function areSchemasEquivalent(
     return false;
   }
   return left.id === right.id && left.version === right.version;
+}
+
+function isPoseInputNamespacePath(path: string | null | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/poses/");
 }
 
 interface PoseRigProviderProps {
@@ -174,7 +186,7 @@ function PoseRigController({
       (entry) =>
         entry.source === "custom" &&
         (parsePoseWeightInputSourceId(entry.input.sourceId) !== null ||
-          isPoseWeightInputPath(entry.input.path)),
+          isPoseInputNamespacePath(entry.input.path)),
     );
     const trackedByPoseId = new Map<string, typeof trackedEntries>();
     const trackedByPath = new Map<string, typeof trackedEntries>();
@@ -264,37 +276,34 @@ function PoseRigController({
     standardInputsByPath,
   ]);
 
-  const setGraphRuntimeState = useGraphRuntime((state) => state.setStoreState);
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
     let cancelled = false;
 
     const syncPoseGraph = async () => {
       if (!poseRig.poseGraphSpec) {
-        setGraphRuntimeState((prev) => ({
-          ...prev,
+        graphRuntimeStore.setState({
           poseGraphSpec: null,
           poseConfig: projectedPoseConfig,
-        }));
+        });
         return;
       }
 
       try {
         const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
         if (cancelled) return;
-        setGraphRuntimeState((prev) => ({
-          ...prev,
+        graphRuntimeStore.setState({
           poseGraphSpec: normalized,
           poseConfig: projectedPoseConfig,
-        }));
+        });
       } catch (error) {
         console.warn("[poseRig] Failed to normalize pose graph", error);
         if (cancelled) return;
-        setGraphRuntimeState((prev) => ({
-          ...prev,
+        graphRuntimeStore.setState({
           poseGraphSpec: null,
           poseConfig: projectedPoseConfig,
-        }));
+        });
       }
     };
 
@@ -303,7 +312,7 @@ function PoseRigController({
     return () => {
       cancelled = true;
     };
-  }, [poseRig.poseGraphSpec, projectedPoseConfig, setGraphRuntimeState]);
+  }, [graphRuntimeStore, poseRig.poseGraphSpec, projectedPoseConfig]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>
