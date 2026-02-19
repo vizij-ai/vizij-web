@@ -10,7 +10,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 2. Pose target authoring no longer creates ghost variables (`Q0.2` landed).
 3. Pose "What I Drive" controls and pose duplication UX are landed.
 4. Stage 0 (`A0.1`-`A0.3`) is complete; next priority is Stage 1 (`B1.1`).
-5. Lint remains warning-only due to unused symbols in `src/components/panels/VariablesPanel.tsx`.
+5. Lint warning baseline cleanup (`D3.3`) is complete; `vizij-authoring` lint now runs clean (0 warnings / 0 errors).
 
 ## Backlog Status Board
 
@@ -28,7 +28,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | C2.3 | planned  | P1       | Golden fixture suite follows C2.1/C2.2.                                                                  |
 | D3.1 | planned  | P2       | Autorig abstraction cleanup remains a UX objective.                                                      |
 | D3.2 | planned  | P2       | Inputs pane IA for stage/group controls pending stage model.                                             |
-| D3.3 | planned  | P2       | Lint warning cleanup is scoped but not yet scheduled.                                                    |
+| D3.3 | done     | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                     |
 | D3.4 | planned  | P2       | Empirical performance baseline capture pending.                                                          |
 | E4.1 | deferred | P3       | Per-channel override map intentionally deferred.                                                         |
 | E4.2 | deferred | P3       | Priority resolution semantics intentionally deferred.                                                    |
@@ -40,19 +40,19 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 04:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
+  - `2026-02-19 04:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
 
 ### Lint
 
-- Status: `done` (warning-only caveat)
+- Status: `done`
 - Latest evidence:
-  - `2026-02-19 04:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 7 warnings in `VariablesPanel.tsx`, 0 errors).
+  - `2026-02-19 04:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
 
 ### Test
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 04:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 66 files / 345 tests passed).
+  - `2026-02-19 04:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 66 files / 345 tests passed).
 
 ## Active Risks and Mitigations
 
@@ -65,5 +65,6 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `A0.1` canonical pose-weight input synchronization + stale/duplicate cleanup + provider regression tests.
 - `A0.2` import retarget sequencing hardening with autorig pre-provisioning and created/rebound/fallback diagnostics.
 - `A0.3` MVP pose authoring smoke coverage for lifecycle + export guard paths.
+- `D3.3` lint warning baseline cleanup (warning count reduced to zero).
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).

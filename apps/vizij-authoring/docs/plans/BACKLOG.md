@@ -322,7 +322,7 @@ Acceptance checks:
 2. Users can distinguish pose-weight controls from stage/group controls.
 3. Group/stage wiring provenance is visible from inspector context.
 
-### [ ] D3.3 Lint Warning Baseline Cleanup (`VariablesPanel`)
+### [x] D3.3 Lint Warning Baseline Cleanup (`VariablesPanel`)
 
 Priority and why this should still be done:
 
@@ -342,6 +342,13 @@ Acceptance checks:
 
 1. `pnpm --filter vizij-authoring run lint` reports 0 warnings in touched scope.
 2. Tracker records warning baseline change.
+
+Completion notes (2026-02-19):
+
+1. Removed unused selector and scene-derived variables from `src/components/panels/VariablesPanel.tsx` (`onSelectScene`, selected-scene and selected-rig derived values) to eliminate lingering warning debt.
+2. `pnpm --filter vizij-authoring run lint` now exits with 0 warnings and 0 errors for `vizij-authoring`.
+3. Validation evidence:
+   - `2026-02-19 04:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` clean; typecheck + tests green, 66 files / 345 tests).
 
 ### [ ] D3.4 Empirical Performance Baseline Capture
 

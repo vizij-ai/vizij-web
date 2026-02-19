@@ -23,7 +23,6 @@ import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
@@ -581,10 +580,10 @@ interface VariablesPanelProps {
 export function VariablesPanel({
   selectedRigId,
   selectedPoseId: selectedPoseIdFromParent,
-  selectedSceneId,
+  selectedSceneId: _selectedSceneId,
   onSelectRig,
   onSelectPose,
-  onSelectScene,
+  onSelectScene: _onSelectScene,
   onInputValueChange,
   selectedPoseGroup,
   onSelectPoseGroup,
@@ -611,7 +610,6 @@ export function VariablesPanel({
   } = usePoseRig();
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
-  const { objects, getNode } = useSceneComposer();
   const [searchQuery, setSearchQuery] = useState("");
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
@@ -975,35 +973,6 @@ export function VariablesPanel({
     referenceRigEntries,
   ]);
 
-  const sceneTargetObjectLabelById = useMemo(() => {
-    const labels = new Map<string, string>();
-    const owners = new Map<string, string>();
-    objects.forEach((node) => {
-      node.features.forEach((feature) => {
-        feature.components.forEach((component) => {
-          if (!component.targetId) return;
-          const componentLabel =
-            component.label?.trim() ||
-            String(component.componentKey ?? "") ||
-            "Value";
-          labels.set(
-            component.targetId,
-            `${node.name} · ${feature.label} ${componentLabel}`,
-          );
-          owners.set(component.targetId, node.id);
-        });
-      });
-    });
-    return { labels, owners };
-  }, [objects]);
-
-  const sceneObjectLabelById = useMemo(
-    () => new Map(objects.map((node) => [node.id, node.name])),
-    [objects],
-  );
-
-  const selectedSceneNode = selectedSceneId ? getNode(selectedSceneId) : null;
-
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
       return null;
@@ -1011,27 +980,6 @@ export function VariablesPanel({
     return resolveRigMetadataInputId(selectedRigId, standardInputsById);
   }, [selectedRigId, standardInputsById]);
   const effectiveSelectedRigId = resolvedSelectedRigId || selectedRigId || null;
-  const selectedRigInput = useMemo(
-    () => standardInputsById.get(effectiveSelectedRigId ?? ""),
-    [standardInputsById, effectiveSelectedRigId],
-  );
-
-  const isSelectedRigMatch = useMemo(() => {
-    if (!effectiveSelectedRigId) {
-      return () => false;
-    }
-    return (candidate: string) =>
-      candidate === effectiveSelectedRigId ||
-      resolveRigMetadataInputId(candidate, standardInputsById) ===
-        effectiveSelectedRigId;
-  }, [effectiveSelectedRigId, standardInputsById]);
-
-  const selectedPoseEntry = useMemo(() => {
-    if (!selectedPoseId) {
-      return null;
-    }
-    return poses.find((pose) => pose.id === selectedPoseId) ?? null;
-  }, [poses, selectedPoseId]);
 
   const inputRows = useMemo(() => {
     return managedStandardInputs.map((entry) => {
