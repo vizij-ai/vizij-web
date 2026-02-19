@@ -37,7 +37,9 @@ This folder is organized into active core docs, active references, and archived 
    Role: notes relevance filter and archive triage summary.
 2. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`
    Role: pose architecture intent reference.
-3. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md`
+3. `apps/vizij-authoring/docs/notes/pose-rig-ir-design-2026-02-18.md`
+   Role: current-state vs target-state design for pose/group IR semantics and compile contract.
+4. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md`
    Role: contributor guardrails and practical checks.
 
 ## Archive

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { createPoseRigStore } from "./store";
-import type { PoseDefinition, PoseRigConfigFile } from "./types";
+import type { PoseDefinition, PoseRigConfigFile, PoseRigIrFile } from "./types";
+import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+} from "./types";
 
 function makePose(
   id: string,
@@ -16,6 +20,17 @@ function makePose(
     createdAt: "2024-01-01T00:00:00.000Z",
     updatedAt: "2024-01-01T00:00:00.000Z",
     ...overrides,
+  };
+}
+
+function createInput(id: string) {
+  return {
+    id,
+    label: id,
+    path: `/${id}`,
+    group: "/",
+    defaultValue: 0,
+    range: { min: -1, max: 1 },
   };
 }
 
@@ -225,5 +240,92 @@ describe("PoseRigStore", () => {
     expect(pose?.groupId).toBe("emotion");
     expect(pose?.groupIds).toEqual(["emotion"]);
     expect(pose?.values).toEqual({ smile: 0.5 });
+  });
+
+  it("tracks pose IR draft as the canonical authoring model", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().updateCurrentValues({ smile: 0.7 });
+    store.getState().addPoseInput(poseId, "smile");
+
+    const ir = store.getState().poseIrDraft;
+    expect(ir?.contracts).toEqual({
+      targetIds: POSE_IR_TARGETING_CONTRACT,
+      syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+    });
+    expect(ir?.poses[0]?.targets).toEqual({ smile: 0.7 });
+  });
+
+  it("ignores pose input additions for non-canonical ids", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().addPoseInput(poseId, "ghost_input");
+    expect(store.getState().poses[0]?.values).toEqual({});
+  });
+
+  it("imports pose IR payloads into store state", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "face",
+      rigKind: "face-specific",
+      title: "Imported IR",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0.1 },
+      },
+      crossGroupPolicy: { mode: "average" },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    store.getState().importIr(ir);
+
+    const state = store.getState();
+    expect(state.rigName).toBe("Imported IR");
+    expect(state.poses[0]).toMatchObject({
+      id: "pose_smile",
+      groupIds: ["emotion"],
+      values: { smile: 0.8 },
+    });
+    expect(state.poseIrDraft?.poses[0]?.targets).toEqual({ smile: 0.8 });
   });
 });

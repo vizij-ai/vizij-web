@@ -5,7 +5,10 @@ import { Button, Card, CardHeader, CardBody, Input, Chip } from "../ui";
 interface PoseRigImportPanelProps {
   onImportPoseConfig: (file: File) => Promise<void>;
   onImportPoseGraph: (file: File) => Promise<void>;
+  onImportPoseIr: (file: File) => Promise<void>;
   poseConfigWarnings: readonly string[];
+  poseIrEnabled?: boolean;
+  poseIrSupportHint?: string;
   disabled?: boolean;
 }
 
@@ -18,19 +21,29 @@ interface PoseRigExportPanelProps {
   onPoseConfigFileNameChange: (value: string) => void;
   onExportPoseGraph: () => void;
   onExportPoseConfig: () => void;
+  poseIrFileName: string;
+  onPoseIrFileNameChange: (value: string) => void;
+  onExportPoseIr: () => void;
+  poseIrEnabled?: boolean;
+  poseIrSupportHint?: string;
   disabled?: boolean;
 }
 
 export function PoseRigImportPanel({
   onImportPoseConfig,
   onImportPoseGraph,
+  onImportPoseIr,
   poseConfigWarnings,
+  poseIrEnabled = false,
+  poseIrSupportHint,
   disabled,
 }: PoseRigImportPanelProps) {
   const [isImportingConfig, setIsImportingConfig] = useState(false);
   const [isImportingGraph, setIsImportingGraph] = useState(false);
+  const [isImportingPoseIr, setIsImportingPoseIr] = useState(false);
   const configInputId = useId();
   const graphInputId = useId();
+  const poseIrInputId = useId();
 
   const handleGraphImport = async (event: ChangeEvent<HTMLInputElement>) => {
     if (disabled || isImportingGraph) {
@@ -66,6 +79,23 @@ export function PoseRigImportPanel({
     }
   };
 
+  const handlePoseIrImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (disabled || isImportingPoseIr || !poseIrEnabled) {
+      return;
+    }
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+    try {
+      setIsImportingPoseIr(true);
+      await onImportPoseIr(file);
+    } finally {
+      setIsImportingPoseIr(false);
+    }
+  };
+
   return (
     <Card>
       <CardBody className="asset-card__body--compact">
@@ -86,6 +116,27 @@ export function PoseRigImportPanel({
         <p className="asset-card__hint asset-card__hint--muted">
           Import pose graphs exported from Vizij Authoring to reuse poses across
           faces.
+        </p>
+
+        <div className="asset-card__row">
+          <div>
+            <span className="asset-card__section-title">
+              Load Pose IR <Chip tone="info">Preview</Chip>
+            </span>
+          </div>
+          <Input
+            id={poseIrInputId}
+            type="file"
+            accept="application/json,.ir.json,.pose-ir.json"
+            disabled={disabled || isImportingPoseIr || !poseIrEnabled}
+            onChange={handlePoseIrImport}
+          />
+        </div>
+        <p className="asset-card__hint asset-card__hint--muted">
+          {poseIrEnabled
+            ? "Import Pose IR JSON snapshots when your core pose rig build exposes Pose IR hooks."
+            : (poseIrSupportHint ??
+              "Pose IR import is unavailable in this build.")}
         </p>
 
         <div className="asset-card__row">
@@ -131,6 +182,11 @@ export function PoseRigExportPanel({
   onPoseConfigFileNameChange,
   onExportPoseGraph,
   onExportPoseConfig,
+  poseIrFileName,
+  onPoseIrFileNameChange,
+  onExportPoseIr,
+  poseIrEnabled = false,
+  poseIrSupportHint,
   disabled,
 }: PoseRigExportPanelProps) {
   return (
@@ -189,6 +245,31 @@ export function PoseRigExportPanel({
             Export
           </Button>
         </div>
+
+        <label className="field-label" htmlFor="pose-rig-ir-file">
+          Pose IR file <Chip tone="info">Preview</Chip>
+        </label>
+        <div className="asset-card__form-row">
+          <Input
+            id="pose-rig-ir-file"
+            type="text"
+            value={poseIrFileName}
+            disabled={disabled || !poseIrEnabled}
+            onChange={(event) => onPoseIrFileNameChange(event.target.value)}
+          />
+          <Button
+            variant="secondary"
+            onClick={onExportPoseIr}
+            disabled={disabled || !poseIrEnabled}
+          >
+            Export
+          </Button>
+        </div>
+        {!poseIrEnabled && poseIrSupportHint ? (
+          <p className="asset-card__hint asset-card__hint--muted">
+            {poseIrSupportHint}
+          </p>
+        ) : null}
       </CardBody>
     </Card>
   );

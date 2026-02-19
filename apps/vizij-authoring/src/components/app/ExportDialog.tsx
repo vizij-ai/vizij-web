@@ -22,6 +22,14 @@ import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
 
+interface PoseRigIrCapabilities {
+  poseIrDraft?: unknown | null;
+  poseIrFileName?: string;
+  setPoseIrFileName?: (value: string) => void;
+  importPoseIr?: (file: File) => Promise<void> | void;
+  exportPoseIrData?: () => Promise<unknown> | unknown;
+}
+
 interface ExportDialogProps {
   open: boolean;
   onClose: () => void;
@@ -81,13 +89,34 @@ export function ExportDialog({
   const { includeVizijBundle, includeImportedAnimations } = uiState;
   const { alert: showAlert } = useDialogQueue();
   const poseRig = usePoseRig();
+  const poseRigWithIr = poseRig as typeof poseRig & PoseRigIrCapabilities;
+  const [fallbackPoseIrFileName, setFallbackPoseIrFileName] =
+    useState("pose_ir.json");
+  const poseIrFileName = poseRigWithIr.poseIrFileName ?? fallbackPoseIrFileName;
+  const setPoseIrFileName = poseRigWithIr.setPoseIrFileName;
+
+  const handlePoseIrFileNameChange = useCallback(
+    (name: string) => {
+      if (typeof setPoseIrFileName === "function") {
+        setPoseIrFileName(name);
+        return;
+      }
+      setFallbackPoseIrFileName(name);
+    },
+    [setPoseIrFileName],
+  );
 
   const {
     exportGraph,
     exportGlb,
     exportPoseGraphFile,
     exportPoseConfigFile,
+    exportPoseIrFile,
     importPoseConfigFile,
+    importPoseIrFile,
+    canExportPoseIr,
+    canImportPoseIr,
+    poseIrSupportHint,
   } = useVizijExport({
     faceId,
     graphFileName,
@@ -115,6 +144,10 @@ export function ExportDialog({
       poseConfigDraft: poseRig.poseConfigDraft,
       poseConfigFileName: poseRig.poseConfigFileName,
       importPoseConfig: poseRig.importPoseConfig,
+      poseIrDraft: poseRigWithIr.poseIrDraft,
+      poseIrFileName,
+      importPoseIr: poseRigWithIr.importPoseIr,
+      exportPoseIrData: poseRigWithIr.exportPoseIrData,
       blendMode: poseRig.blendMode,
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
@@ -233,8 +266,9 @@ export function ExportDialog({
               <div className="flex items-start gap-3">
                 <div className="mt-1 w-1 h-1 rounded-full bg-accent shrink-0" />
                 <p className="text-[11px] leading-relaxed text-text-muted font-medium">
-                  Legacy rig graph and pose rig files remain available when
-                  required for backward compatibility or specialized pipelines.
+                  Legacy rig graph and pose rig files (including Pose IR when
+                  supported by core APIs) remain available for compatibility and
+                  specialized pipelines.
                 </p>
               </div>
 
@@ -250,7 +284,10 @@ export function ExportDialog({
               <PoseRigImportPanel
                 onImportPoseConfig={(file) => importPoseConfigFile(file)}
                 onImportPoseGraph={(file) => onImportPoseGraph(file)}
+                onImportPoseIr={(file) => importPoseIrFile(file)}
                 poseConfigWarnings={poseRig.poseConfigWarnings}
+                poseIrEnabled={canImportPoseIr}
+                poseIrSupportHint={poseIrSupportHint}
                 disabled={!poseRig.ready}
               />
 
@@ -269,6 +306,13 @@ export function ExportDialog({
                 }
                 onExportPoseGraph={exportPoseGraphFile}
                 onExportPoseConfig={exportPoseConfigFile}
+                poseIrFileName={poseIrFileName}
+                onPoseIrFileNameChange={handlePoseIrFileNameChange}
+                onExportPoseIr={() => {
+                  void exportPoseIrFile();
+                }}
+                poseIrEnabled={canExportPoseIr}
+                poseIrSupportHint={poseIrSupportHint}
                 disabled={!poseRig.ready}
               />
             </div>

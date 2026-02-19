@@ -1,8 +1,13 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
-import type { PoseRigConfigFile, PoseRigGraphSummary } from "../types";
-import { buildPoseGraphSpec } from "../graphBuilder";
+import type {
+  PoseRigConfigFile,
+  PoseRigGraphSummary,
+  PoseRigIrFile,
+} from "../types";
+import { buildPoseGraphSpecFromIr } from "../graphBuilder";
 import { parsePoseGraphSpec } from "../graphParser";
+import { PoseIrService } from "./poseIrService";
 
 export const PoseGraphService = {
   buildSpec(
@@ -15,20 +20,36 @@ export const PoseGraphService = {
       poseGroupSegment?: string | null;
     },
   ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
-    const rigKind = config.rigKind ?? "face-specific";
-    return buildPoseGraphSpec({
-      faceId: config.faceId,
-      rigKind,
-      neutralInputs: config.neutralInputs,
-      poses: config.poses,
+    const { ir } = PoseIrService.fromConfig(
+      config,
       standardInputs,
-      poseGroups: config.poseGroups,
-      defaultGroupBlendMode:
-        options?.defaultGroupBlendMode ?? options?.blendMode ?? "average",
-      crossGroupBlendMode:
-        options?.crossGroupBlendMode ??
-        config.crossGroupBlendMode ??
-        "additive",
+      config.faceId ?? null,
+      {
+        defaultGroupBlendMode:
+          options?.defaultGroupBlendMode ?? options?.blendMode,
+        crossGroupBlendMode: options?.crossGroupBlendMode,
+      },
+    );
+
+    return this.buildSpecFromIr(ir, standardInputs, {
+      rigKind: config.rigKind ?? "face-specific",
+      poseGroupSegment: options?.poseGroupSegment ?? null,
+    });
+  },
+
+  buildSpecFromIr(
+    ir: PoseRigIrFile,
+    standardInputs: StandardRigInput[],
+    options?: {
+      poseGroupSegment?: string | null;
+      rigKind?: "generic" | "face-specific";
+    },
+  ): { spec: GraphSpec; summary: PoseRigGraphSummary } {
+    return buildPoseGraphSpecFromIr({
+      poseIr: ir,
+      standardInputs,
+      faceId: ir.faceId,
+      rigKind: options?.rigKind ?? ir.rigKind ?? "face-specific",
       poseGroupSegment: options?.poseGroupSegment ?? null,
     });
   },

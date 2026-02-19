@@ -11,8 +11,13 @@ import type {
   PoseBlendMode,
   PoseDefinition,
   PoseGroupDefinition,
+  PoseRigIrFile,
   PoseRigGraphSummary,
   StandardInputId,
+} from "./types";
+import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
 } from "./types";
 
 type EdgeSpec = NonNullable<GraphSpec["edges"]>[number];
@@ -238,7 +243,10 @@ export function buildPoseGraphSpec(options: {
 
   const neutralRecordFields: Record<string, number> = {};
   standardInputs.forEach((input) => {
-    const value = clampValueForInput(input, neutralInputs[input.id] ?? 0);
+    const value = clampValueForInput(
+      input,
+      getNeutralValue(input, neutralInputs),
+    );
     neutralRecordFields[input.id] = value;
   });
 
@@ -605,4 +613,111 @@ export function buildPoseGraphSpec(options: {
   };
 
   return { spec, summary };
+}
+
+function mapPoseIrBlendMode(mode: unknown): PoseBlendMode {
+  return mode === "add" ? "additive" : "average";
+}
+
+function assertPoseIrContracts(poseIr: PoseRigIrFile): void {
+  if (poseIr.contracts?.targetIds !== POSE_IR_TARGETING_CONTRACT) {
+    throw new Error(
+      `Pose IR target contract must be "${POSE_IR_TARGETING_CONTRACT}".`,
+    );
+  }
+  if (
+    poseIr.contracts?.syntheticNodes !== POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT
+  ) {
+    throw new Error(
+      `Pose IR synthetic-node contract must be "${POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT}".`,
+    );
+  }
+}
+
+function assertCanonicalTargets(
+  poseIr: PoseRigIrFile,
+  standardInputs: StandardRigInput[],
+): void {
+  const canonicalIds = new Set(standardInputs.map((input) => input.id));
+  if (canonicalIds.size === 0) {
+    return;
+  }
+
+  Object.keys(poseIr.neutral?.values ?? {}).forEach((inputId) => {
+    if (canonicalIds.has(inputId)) {
+      return;
+    }
+    throw new Error(
+      `Pose IR neutral input "${inputId}" is not a canonical standard input id.`,
+    );
+  });
+
+  poseIr.poses.forEach((pose) => {
+    Object.keys(pose.targets).forEach((inputId) => {
+      if (canonicalIds.has(inputId)) {
+        return;
+      }
+      throw new Error(
+        `Pose IR target "${inputId}" in pose "${pose.name}" is not a canonical standard input id.`,
+      );
+    });
+  });
+}
+
+export function buildPoseGraphSpecFromIr(options: {
+  poseIr: PoseRigIrFile;
+  standardInputs: StandardRigInput[];
+  faceId?: string | null;
+  rigKind?: "generic" | "face-specific";
+  poseGroupSegment?: string | null;
+}): { spec: GraphSpec; summary: PoseRigGraphSummary } {
+  const { poseIr, standardInputs } = options;
+  assertPoseIrContracts(poseIr);
+  assertCanonicalTargets(poseIr, standardInputs);
+
+  const groups = Array.isArray(poseIr.groups) ? poseIr.groups : [];
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const legacyPoses: PoseDefinition[] = (
+    Array.isArray(poseIr.poses) ? poseIr.poses : []
+  ).map((pose) => {
+    const primaryGroupId = pose.groupIds[0] ?? null;
+    const primaryGroupPath = primaryGroupId
+      ? (groupById.get(primaryGroupId)?.path ?? null)
+      : null;
+    return {
+      id: pose.id,
+      name: pose.name,
+      description: pose.description,
+      groupIds: [...pose.groupIds],
+      groupId: primaryGroupId,
+      group: primaryGroupPath,
+      values: { ...pose.targets },
+      createdAt: pose.createdAt,
+      updatedAt: pose.updatedAt,
+    };
+  });
+
+  const legacyGroups: PoseGroupDefinition[] = groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    path: group.path,
+    blendMode: mapPoseIrBlendMode(group.intraGroupBlendMode),
+  }));
+
+  const defaultGroupBlendMode = mapPoseIrBlendMode(
+    groups[0]?.intraGroupBlendMode ?? "average",
+  );
+
+  return buildPoseGraphSpec({
+    faceId: poseIr.faceId ?? options.faceId ?? null,
+    neutralInputs: { ...(poseIr.neutral?.values ?? {}) },
+    poses: legacyPoses,
+    standardInputs,
+    poseGroups: legacyGroups,
+    defaultGroupBlendMode,
+    crossGroupBlendMode:
+      poseIr.crossGroupPolicy?.mode === "add" ? "additive" : "average",
+    poseGroupSegment: options.poseGroupSegment ?? null,
+    rigKind: poseIr.rigKind ?? options.rigKind ?? "face-specific",
+  });
 }

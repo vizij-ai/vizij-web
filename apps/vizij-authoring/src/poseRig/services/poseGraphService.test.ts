@@ -1,15 +1,24 @@
 import { describe, it, expect } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
+import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+  type PoseRigIrFile,
+} from "../types";
 import { PoseGraphService } from "./poseGraphService";
 
-const createInput = (id: string, path: string): StandardRigInput => ({
+const createInput = (
+  id: string,
+  path: string,
+  defaultValue = 0,
+): StandardRigInput => ({
   id,
   path,
   sourceId: id,
   label: id,
   group: "test",
-  defaultValue: 0,
+  defaultValue,
   range: { min: -1, max: 1 },
 });
 
@@ -156,6 +165,82 @@ describe("PoseGraphService", () => {
 
     expect(second.spec).toEqual(first.spec);
     expect(second.summary).toEqual(first.summary);
+  });
+
+  it("enforces canonical-id targeting when compiling from pose IR", () => {
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const baseIr: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      crossGroupPolicy: { mode: "add" },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const compiled = PoseGraphService.buildSpecFromIr(baseIr, inputs);
+    expect(findNode(compiled.spec, "out_smile")?.type).toBe("output");
+
+    const invalid = {
+      ...baseIr,
+      poses: [
+        {
+          ...baseIr.poses[0],
+          targets: {
+            smile: 0.8,
+            ghost: 1,
+          },
+        },
+      ],
+    } satisfies PoseRigIrFile;
+
+    expect(() => PoseGraphService.buildSpecFromIr(invalid, inputs)).toThrow(
+      /canonical standard input id/,
+    );
+  });
+
+  it("uses standard input defaults when neutral values are omitted", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: {},
+      poses: [],
+    };
+    const inputs: StandardRigInput[] = [
+      createInput("smile", "/face/smile", 0.25),
+    ];
+    const { spec } = PoseGraphService.buildSpec(config, inputs, {
+      blendMode: "average",
+    });
+    const neutralNode = findNode(spec, "pose_neutral_record") as any;
+    expect(
+      neutralNode?.params?.value?.record?.values?.record?.smile?.float,
+    ).toBeCloseTo(0.25, 6);
   });
 
   it("flags invalid specs", () => {

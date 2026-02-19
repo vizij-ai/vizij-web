@@ -1,9 +1,69 @@
 import type { StandardRigInput } from "@vizij/utils";
 
 export const POSE_RIG_CONFIG_VERSION = 1;
+export const POSE_RIG_IR_VERSION = 1;
+export const POSE_IR_TARGETING_CONTRACT = "canonical-standard-input-id";
+export const POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT =
+  "compiled-graph-synthetic-only";
 
 export type StandardInputId = StandardRigInput["id"];
 export type PoseBlendMode = "average" | "additive";
+export type PoseIrBlendMode = "average" | "add";
+
+export interface PoseIrContracts {
+  targetIds: typeof POSE_IR_TARGETING_CONTRACT;
+  syntheticNodes: typeof POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT;
+}
+
+export interface PoseIrNeutralDefinition {
+  mode: "face-default" | "explicit";
+  values: Record<StandardInputId, number>;
+}
+
+export interface PoseIrPoseDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  groupIds: string[];
+  targets: Record<StandardInputId, number>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PoseIrGroupDefinition {
+  id: string;
+  name: string;
+  path: string;
+  intraGroupBlendMode: PoseIrBlendMode;
+  poseIds: string[];
+}
+
+export interface PoseIrCrossGroupPolicy {
+  mode: PoseIrBlendMode;
+}
+
+export interface PoseRigIrFile {
+  version: 1;
+  faceId: string | null;
+  rigKind?: "generic" | "face-specific";
+  title?: string;
+  description?: string;
+  contracts: PoseIrContracts;
+  neutral: PoseIrNeutralDefinition;
+  groups: PoseIrGroupDefinition[];
+  crossGroupPolicy: PoseIrCrossGroupPolicy;
+  poses: PoseIrPoseDefinition[];
+  lowLevel?: LowLevelRigSummary | null;
+  metadata?: {
+    createdAt: string;
+    updatedAt: string;
+    author?: string;
+  };
+  standardInputSchema?: {
+    id: string;
+    version: string;
+  };
+}
 
 export interface PoseGroupDefinition {
   id: string;

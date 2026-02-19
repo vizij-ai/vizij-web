@@ -6,10 +6,12 @@ import type {
   PoseDefinition,
   PoseRigConfigFile,
   PoseRigGraphSummary,
+  PoseRigIrFile,
   StandardInputId,
 } from "./types";
 import { PoseConfigService } from "./services/poseConfigService";
 import { PoseGraphService } from "./services/poseGraphService";
+import { PoseIrService } from "./services/poseIrService";
 import { PoseSnapshotService } from "./services/poseSnapshotService";
 import {
   createNeutralInputs,
@@ -186,6 +188,7 @@ export interface PoseRigState {
   // Graph/Config State
   poseGraphSpec: GraphSpec | null;
   poseGraphSummary: PoseRigGraphSummary | null;
+  poseIrDraft: PoseRigIrFile | null;
   poseConfigDraft: PoseRigConfigFile | null; // The config being edited
   standardInputSchema: { id: string; version: string } | null;
   lastImportedConfig: PoseRigConfigFile | null; // For diffing/dirty checks
@@ -194,6 +197,7 @@ export interface PoseRigState {
   filenames: {
     config: string;
     graph: string;
+    ir: string;
   };
   warnings: string[];
   isReady: boolean;
@@ -218,8 +222,13 @@ export interface PoseRigState {
   captureNeutral: () => void;
   applyNeutral: () => void;
   importConfig: (config: PoseRigConfigFile) => void;
+  importIr: (ir: PoseRigIrFile) => void;
   reset: () => void;
-  setFilenames: (filenames: { config?: string; graph?: string }) => void;
+  setFilenames: (filenames: {
+    config?: string;
+    graph?: string;
+    ir?: string;
+  }) => void;
   setBlendMode: (mode: "average" | "additive") => void;
   setCrossGroupBlendMode: (mode: "average" | "additive") => void;
   updatePoseName: (poseId: string, name: string) => void;
@@ -271,6 +280,7 @@ const defaultState: Omit<
   | "captureNeutral"
   | "applyNeutral"
   | "importConfig"
+  | "importIr"
   | "reset"
   | "addPose"
   | "duplicatePose"
@@ -304,12 +314,14 @@ const defaultState: Omit<
   crossGroupBlendMode: "additive",
   poseGraphSpec: null,
   poseGraphSummary: null,
+  poseIrDraft: null,
   poseConfigDraft: null,
   standardInputSchema: null,
   lastImportedConfig: null,
   filenames: {
     config: "",
     graph: "",
+    ir: "",
   },
   warnings: [],
   isReady: false,
@@ -328,7 +340,7 @@ export function createPoseRigStore(
     }
     const nextState = { ...state, ...patch } as PoseRigState;
 
-    // Auto-update poseConfigDraft if relevant fields change
+    // Auto-update pose IR/config/graph drafts when authoring fields change.
     if (
       patch.poses ||
       patch.neutralInputs ||
@@ -338,7 +350,9 @@ export function createPoseRigStore(
       patch.standardInputs ||
       patch.standardInputSchema ||
       patch.blendMode ||
-      patch.crossGroupBlendMode
+      patch.crossGroupBlendMode ||
+      patch.poseConfigDraft ||
+      patch.poseIrDraft
     ) {
       const standardInputSchema =
         nextState.poseConfigDraft?.standardInputSchema ??
@@ -347,7 +361,7 @@ export function createPoseRigStore(
         undefined;
       const poseGroups = getConfiguredPoseGroups(nextState);
 
-      nextState.poseConfigDraft = PoseConfigService.create(
+      const nextConfig = PoseConfigService.create(
         nextState.poses,
         nextState.neutralInputs,
         nextState.rigName,
@@ -360,14 +374,20 @@ export function createPoseRigStore(
           crossGroupBlendMode: nextState.crossGroupBlendMode,
         },
       );
+      const { ir } = PoseIrService.fromConfig(
+        nextConfig,
+        nextState.standardInputs,
+        nextState.faceId,
+      );
+      nextState.poseIrDraft = ir;
+      nextState.poseConfigDraft = PoseIrService.toConfig(ir);
 
       try {
-        const { spec, summary } = PoseGraphService.buildSpec(
-          nextState.poseConfigDraft,
+        const { spec, summary } = PoseGraphService.buildSpecFromIr(
+          ir,
           nextState.standardInputs,
           {
-            defaultGroupBlendMode: nextState.blendMode,
-            crossGroupBlendMode: nextState.crossGroupBlendMode,
+            rigKind: nextState.rigKind,
           },
         );
         nextState.poseGraphSpec = spec;
@@ -402,6 +422,7 @@ export function createPoseRigStore(
     | "captureNeutral"
     | "applyNeutral"
     | "importConfig"
+    | "importIr"
     | "reset"
     | "addPose"
     | "duplicatePose"
@@ -899,6 +920,9 @@ export function createPoseRigStore(
       setState((prev) => {
         const pose = prev.poses.find((p) => p.id === poseId);
         if (!pose) return;
+        if (!prev.standardInputs.some((input) => input.id === inputId)) {
+          return;
+        }
         const val =
           prev.currentValues[inputId] ?? prev.neutralInputs[inputId] ?? 0;
         return {
@@ -996,6 +1020,36 @@ export function createPoseRigStore(
         warnings,
       });
     },
+    importIr: (irPayload) => {
+      const { ir, warnings } = PoseIrService.normalize(
+        irPayload,
+        state.standardInputs,
+        state.faceId,
+      );
+      const normalized = PoseIrService.toConfig(ir);
+      const importedPoses = normalizePoseDefinitionIds(normalized.poses, {
+        reservedIds: [NEUTRAL_POSE_ID],
+      });
+      const newNeutralInputs = {
+        ...createNeutralInputs(state.standardInputs),
+        ...normalized.neutralInputs,
+      };
+      setState({
+        poses: importedPoses,
+        neutralInputs: newNeutralInputs,
+        currentValues: { ...newNeutralInputs },
+        rigName: normalized.title || DEFAULT_RIG_NAME,
+        rigKind: normalized.rigKind ?? "face-specific",
+        blendMode:
+          normalized.poseGroups?.[0]?.blendMode ?? state.blendMode ?? "average",
+        crossGroupBlendMode: normalized.crossGroupBlendMode ?? "additive",
+        standardInputSchema: normalized.standardInputSchema ?? null,
+        lastImportedConfig: normalized,
+        poseConfigDraft: normalized,
+        poseIrDraft: ir,
+        warnings,
+      });
+    },
     reset: () => {
       setState({
         ...defaultState,
@@ -1008,6 +1062,49 @@ export function createPoseRigStore(
     ...actions,
     ...(initialState ?? {}),
   };
+
+  // Ensure drafts are initialized eagerly so UI/export surfaces can rely on
+  // pose IR/config availability even before the first explicit mutation.
+  const initialStandardInputSchema =
+    state.poseConfigDraft?.standardInputSchema ??
+    state.lastImportedConfig?.standardInputSchema ??
+    state.standardInputSchema ??
+    undefined;
+  const initialPoseGroups = getConfiguredPoseGroups(state);
+  const initialConfig = PoseConfigService.create(
+    state.poses,
+    state.neutralInputs,
+    state.rigName,
+    state.faceId,
+    state.rigKind,
+    initialStandardInputSchema,
+    {
+      poseGroups: initialPoseGroups,
+      defaultGroupBlendMode: state.blendMode,
+      crossGroupBlendMode: state.crossGroupBlendMode,
+    },
+  );
+  const { ir: initialIr } = PoseIrService.fromConfig(
+    initialConfig,
+    state.standardInputs,
+    state.faceId,
+  );
+  state.poseIrDraft = initialIr;
+  state.poseConfigDraft = PoseIrService.toConfig(initialIr);
+  try {
+    const { spec, summary } = PoseGraphService.buildSpecFromIr(
+      initialIr,
+      state.standardInputs,
+      {
+        rigKind: state.rigKind,
+      },
+    );
+    state.poseGraphSpec = spec;
+    state.poseGraphSummary = summary;
+  } catch {
+    state.poseGraphSpec = null;
+    state.poseGraphSummary = null;
+  }
 
   const getState = () => state;
   const subscribe = (listener: () => void) => {

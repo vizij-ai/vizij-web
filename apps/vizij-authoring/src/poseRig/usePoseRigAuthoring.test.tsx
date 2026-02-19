@@ -13,6 +13,10 @@ import {
   BindingAuthoringStoreProvider,
 } from "../state/bindingAuthoringStore";
 import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+} from "./types";
+import {
   usePoseRigAuthoring,
   type UsePoseRigAuthoringResult,
 } from "./usePoseRigAuthoring";
@@ -125,7 +129,6 @@ function renderPoseRigHook(options: RenderOptions): RenderedHook {
   const poseRigStoreRef = { current: poseRigStore };
 
   function Harness({ opts }: { opts: RenderOptions }): ReactElement | null {
-    console.log("Harness render");
     const [inputValues, setInputValues] = useState(opts.inputValues);
     useEffect(() => {
       setInputValues(opts.inputValues);
@@ -375,6 +378,91 @@ describe("usePoseRigAuthoring", () => {
     expect(importedPose?.values).toEqual({
       smile: 0.8,
     });
+  });
+
+  it("propagates pose config import errors", async () => {
+    const { result } = hook!;
+    const invalidFile = {
+      text: async () => "{invalid_json",
+    } as unknown as File;
+
+    const importPromise = result.current?.importPoseConfig(invalidFile);
+    expect(importPromise).toBeTruthy();
+    await expect(importPromise).rejects.toThrow();
+  });
+
+  it("exposes pose IR draft and supports IR file naming", () => {
+    const { result } = hook!;
+    expect(result.current?.poseIrDraft).toBeTruthy();
+    expect(result.current?.poseIrFileName).toBe("");
+
+    act(() => {
+      result.current?.setPoseIrFileName("pose_ir.json");
+    });
+
+    expect(result.current?.poseIrFileName).toBe("pose_ir.json");
+  });
+
+  it("imports pose IR payloads through poseRig layer", () => {
+    const { result } = hook!;
+
+    act(() => {
+      result.current?.importPoseIrFromData({
+        version: 1,
+        faceId: "face",
+        rigKind: "face-specific",
+        title: "IR Import",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0.1 },
+        },
+        crossGroupPolicy: { mode: "average" },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            poseIds: ["pose_smile"],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      });
+    });
+
+    expect(result.current?.rigName).toBe("IR Import");
+    expect(result.current?.poses[0]).toMatchObject({
+      id: "pose_smile",
+      values: { smile: 0.8 },
+      groupIds: ["emotion"],
+    });
+    expect(result.current?.poseIrDraft?.poses[0]?.targets).toEqual({
+      smile: 0.8,
+    });
+  });
+
+  it("propagates pose IR import errors", async () => {
+    const { result } = hook!;
+    const invalidFile = {
+      text: async () => "{invalid_json",
+    } as unknown as File;
+
+    const importPromise = result.current?.importPoseIr(invalidFile);
+    expect(importPromise).toBeTruthy();
+    await expect(importPromise).rejects.toThrow();
   });
 
   it("allows assigning pose groups that persist into the config draft", () => {

@@ -6,11 +6,13 @@ import type {
   PoseDefinition,
   PoseRigConfigFile,
   PoseRigGraphSummary,
+  PoseRigIrFile,
   StandardInputId,
 } from "./types";
 import { usePoseRigStore } from "./store";
 import { PoseSnapshotService } from "./services/poseSnapshotService";
 import { PoseGraphService } from "./services/poseGraphService";
+import { PoseIrService } from "./services/poseIrService";
 
 export interface UsePoseRigAuthoringOptions {
   faceId: string | null;
@@ -83,10 +85,15 @@ export interface UsePoseRigAuthoringResult {
   setPoseGraphFileName: (value: string) => void;
   poseConfigFileName: string;
   setPoseConfigFileName: (value: string) => void;
+  poseIrFileName: string;
+  setPoseIrFileName: (value: string) => void;
   poseConfigWarnings: string[];
   poseConfigDraft: PoseRigConfigFile | null;
+  poseIrDraft: PoseRigIrFile | null;
   importPoseConfig: (file: File) => Promise<void>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  importPoseIr: (file: File) => Promise<void>;
+  importPoseIrFromData: (ir: PoseRigIrFile) => void;
   importPoseGraphSpec: (
     spec: GraphSpec,
     options?: {
@@ -133,9 +140,11 @@ export function usePoseRigAuthoring(
   const poseGraphSpec = store.poseGraphSpec;
   const poseGraphSummary = store.poseGraphSummary;
   const poseConfigDraft = store.poseConfigDraft;
+  const poseIrDraft = store.poseIrDraft;
   const poseConfigWarnings = store.warnings;
   const poseGraphFileName = store.filenames.graph;
   const poseConfigFileName = store.filenames.config;
+  const poseIrFileName = store.filenames.ir;
 
   const selectedPose = useMemo(
     () => poses.find((p) => p.id === selectedPoseId) ?? null,
@@ -282,6 +291,9 @@ export function usePoseRigAuthoring(
 
   const updatePoseValue = useCallback(
     (poseId: string, inputId: string, value: number) => {
+      if (!store.standardInputs.some((input) => input.id === inputId)) {
+        return;
+      }
       store.updatePose(poseId, (p) => ({
         ...p,
         values: { ...p.values, [inputId]: value },
@@ -331,20 +343,35 @@ export function usePoseRigAuthoring(
     [store],
   );
 
+  const setPoseIrFileName = useCallback(
+    (name: string) => {
+      store.setFilenames({ ir: name });
+    },
+    [store],
+  );
+
   const importPoseConfig = useCallback(
     async (file: File) => {
-      try {
-        const text = await file.text();
-        const json = JSON.parse(text);
-        store.importConfig(json);
-      } catch (e) {
-        console.error("Failed to import config", e);
-      }
+      const text = await file.text();
+      const json = JSON.parse(text);
+      store.importConfig(json);
     },
     [store],
   );
 
   const importPoseConfigFromData = store.importConfig;
+
+  const importPoseIr = useCallback(
+    async (file: File) => {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const { ir } = PoseIrService.normalize(json, store.standardInputs);
+      store.importIr(ir);
+    },
+    [store],
+  );
+
+  const importPoseIrFromData = store.importIr;
 
   const importPoseGraphSpec = useCallback(
     (
@@ -452,10 +479,15 @@ export function usePoseRigAuthoring(
     setPoseGraphFileName,
     poseConfigFileName,
     setPoseConfigFileName,
+    poseIrFileName,
+    setPoseIrFileName,
     poseConfigWarnings,
     poseConfigDraft,
+    poseIrDraft,
     importPoseConfig,
     importPoseConfigFromData,
+    importPoseIr,
+    importPoseIrFromData,
     importPoseGraphSpec,
     resetPoseState,
     poseLibrary,

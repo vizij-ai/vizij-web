@@ -880,6 +880,24 @@ Acceptance checks:
 1. Shared-sync behavior remains deterministic after pair removal/re-add flows.
 2. Conflict/mirroring state does not leak across removed paths.
 
+### [ ] O5 Autorig UI Abstraction Cleanup
+
+Intent:
+Hide low-level autorig variables from primary authoring flow and present direct high-level variable <-> property inspection/navigation that conceptually crosses over autorig internals.
+
+Scope:
+
+1. Audit where autorig inputs are currently surfaced in Inputs/Inspector flows and identify primary-user vs debug-user surfaces.
+2. Make default authoring navigation jump directly between high-level variables and scene properties, with relationship views that point across autorig mediation.
+3. Preserve explicit autorig visibility only in advanced/debug contexts.
+4. Add regression tests for chain navigation and inspector relationship labels after autorig abstraction changes.
+
+Acceptance checks:
+
+1. Primary authoring UX no longer requires interacting with autorig rows for common binding/pose workflows.
+2. Inspector relationships clearly show variable -> property and property -> variable traversal semantics while preserving runtime correctness.
+3. Debug/advanced mode still exposes autorig internals when needed for diagnostics.
+
 ## Prioritized Manual QA Intake (Post-B5.3)
 
 These items come from manual validation findings and are prioritized by runtime correctness first, then workflow integrity, then UX polish.

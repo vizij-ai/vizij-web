@@ -18,9 +18,9 @@ import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { exportScene } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
+import { downloadJsonFile } from "@vizij/authoring-shared";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
-import { downloadJsonFile } from "../../utils/fileIO";
 import { auditBundleGraphs } from "../../utils/bundleAudit";
 
 vi.mock("@vizij/render", () => ({
@@ -47,7 +47,7 @@ vi.mock("@vizij/node-graph-wasm", async () => {
   };
 });
 
-vi.mock("../../utils/fileIO", () => ({
+vi.mock("@vizij/authoring-shared", () => ({
   downloadJsonFile: vi.fn(),
   ensureExtension: (value: string, defaultBase: string, extension: string) => {
     const suffix = extension.startsWith(".") ? extension : `.${extension}`;
@@ -614,6 +614,116 @@ describe("useVizijExport", () => {
       "Failed to build pose graph for export: build failed",
     );
     expect(mockedDownloadJsonFile).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it("exports Pose IR using core export hooks when available", async () => {
+    const exportPoseIrData = vi.fn().mockResolvedValue({
+      version: 1,
+      nodes: [{ id: "pose_ir_1" }],
+    });
+    const options = createOptions({
+      poseRig: {
+        ...createOptions().poseRig,
+        poseIrFileName: "pose_ir_export",
+        exportPoseIrData,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseIrFile();
+    });
+
+    expect(exportPoseIrData).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadJsonFile).toHaveBeenCalledWith(
+      { version: 1, nodes: [{ id: "pose_ir_1" }] },
+      "pose_ir_export.json",
+    );
+    hook.unmount();
+  });
+
+  it("exports Pose IR from draft data when core export hook is unavailable", async () => {
+    const options = createOptions({
+      poseRig: {
+        ...createOptions().poseRig,
+        poseIrDraft: { version: 1, nodes: [{ id: "draft_pose_ir" }] },
+        poseIrFileName: "pose_ir_draft.json",
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseIrFile();
+    });
+
+    expect(mockedDownloadJsonFile).toHaveBeenCalledWith(
+      { version: 1, nodes: [{ id: "draft_pose_ir" }] },
+      "pose_ir_draft.json",
+    );
+    hook.unmount();
+  });
+
+  it("alerts when Pose IR export hooks are unavailable", async () => {
+    const options = createOptions({
+      alertDialog: vi.fn(),
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseIrFile();
+    });
+
+    expect(mockedDownloadJsonFile).not.toHaveBeenCalled();
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      expect.stringContaining("Pose IR export is unavailable."),
+    );
+    hook.unmount();
+  });
+
+  it("imports Pose IR using core hooks when available", async () => {
+    const importPoseIr = vi.fn().mockResolvedValue(undefined);
+    const options = createOptions({
+      poseRig: {
+        ...createOptions().poseRig,
+        importPoseIr,
+      },
+      alertDialog: vi.fn(),
+    });
+    const hook = renderHook(options);
+    const file = new File(
+      [JSON.stringify({ version: 1, nodes: [] })],
+      "pose_ir.json",
+      { type: "application/json" },
+    );
+
+    await act(async () => {
+      await hook.result.current?.importPoseIrFile(file);
+    });
+
+    expect(importPoseIr).toHaveBeenCalledWith(file);
+    expect(options.alertDialog).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it("alerts when Pose IR import hooks are unavailable", async () => {
+    const options = createOptions({
+      alertDialog: vi.fn(),
+    });
+    const hook = renderHook(options);
+    const file = new File(
+      [JSON.stringify({ version: 1, nodes: [] })],
+      "pose_ir.json",
+      { type: "application/json" },
+    );
+
+    await act(async () => {
+      await hook.result.current?.importPoseIrFile(file);
+    });
+
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      expect.stringContaining("Pose IR import is unavailable."),
+    );
     hook.unmount();
   });
 });

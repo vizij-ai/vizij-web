@@ -41,6 +41,10 @@ interface PoseRigExportState {
   poseConfigDraft: PoseRigConfigFile | null;
   poseConfigFileName: string;
   importPoseConfig: (file: File) => Promise<void>;
+  poseIrDraft?: unknown | null;
+  poseIrFileName?: string;
+  importPoseIr?: (file: File) => Promise<void> | void;
+  exportPoseIrData?: () => Promise<unknown> | unknown;
   blendMode?: "average" | "additive";
   crossGroupBlendMode?: "average" | "additive";
 }
@@ -82,8 +86,16 @@ interface VizijExportHandlers {
   exportGlb: () => Promise<void>;
   exportPoseGraphFile: () => void;
   exportPoseConfigFile: () => void;
+  exportPoseIrFile: () => Promise<void>;
   importPoseConfigFile: (file: File) => Promise<void>;
+  importPoseIrFile: (file: File) => Promise<void>;
+  canExportPoseIr: boolean;
+  canImportPoseIr: boolean;
+  poseIrSupportHint: string;
 }
+
+const POSE_IR_SUPPORT_HINT =
+  "Pose IR hooks unavailable. Expected core poseRig hooks: exportPoseIrData() and importPoseIr(file).";
 
 function resolveBundleContractViolationMessage(
   audits: Awaited<ReturnType<typeof auditBundleGraphs>>,
@@ -458,12 +470,82 @@ export function useVizijExport(
     [alertDialog, poseRig],
   );
 
+  const canExportPoseIr =
+    typeof poseRig.exportPoseIrData === "function" ||
+    poseRig.poseIrDraft != null;
+  const canImportPoseIr = typeof poseRig.importPoseIr === "function";
+
+  const exportPoseIrFile = useCallback(async () => {
+    let poseIrPayload: unknown = null;
+    if (typeof poseRig.exportPoseIrData === "function") {
+      try {
+        poseIrPayload = await poseRig.exportPoseIrData();
+      } catch (error) {
+        await alertDialog(
+          `Failed to build Pose IR for export: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+    } else {
+      poseIrPayload = poseRig.poseIrDraft;
+    }
+
+    if (poseIrPayload == null) {
+      await alertDialog(
+        `Pose IR export is unavailable. ${POSE_IR_SUPPORT_HINT}`,
+      );
+      return;
+    }
+
+    const slug = faceSlug(faceId);
+    const fileName = ensureExtension(
+      poseRig.poseIrFileName ?? "",
+      `${slug}_pose_ir`,
+      "json",
+    );
+    downloadJsonFile(cloneSerializable(poseIrPayload), fileName);
+  }, [
+    alertDialog,
+    faceId,
+    poseRig.exportPoseIrData,
+    poseRig.poseIrDraft,
+    poseRig.poseIrFileName,
+  ]);
+
+  const importPoseIrFile = useCallback(
+    async (file: File) => {
+      if (typeof poseRig.importPoseIr !== "function") {
+        await alertDialog(
+          `Pose IR import is unavailable. ${POSE_IR_SUPPORT_HINT}`,
+        );
+        return;
+      }
+      try {
+        await poseRig.importPoseIr(file);
+      } catch (error) {
+        await alertDialog(
+          `Failed to import Pose IR: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+    [alertDialog, poseRig.importPoseIr],
+  );
+
   return {
     exportGraph,
     exportGlb,
     exportPoseGraphFile,
     exportPoseConfigFile,
+    exportPoseIrFile,
     importPoseConfigFile,
+    importPoseIrFile,
+    canExportPoseIr,
+    canImportPoseIr,
+    poseIrSupportHint: POSE_IR_SUPPORT_HINT,
   };
 }
 
