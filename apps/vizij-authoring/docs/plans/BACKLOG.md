@@ -338,7 +338,7 @@ Completion notes (2026-02-19):
 7. Validation evidence:
    - `2026-02-19 05:33Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 370 tests).
 
-### [ ] C2.3 Golden Topology Fixture Suite (`IR8`)
+### [x] C2.3 Golden Topology Fixture Suite (`IR8`)
 
 Priority and why this should still be done:
 
@@ -359,6 +359,19 @@ Acceptance checks:
 1. Fixture suite includes shared-channel overlaps, neutral fallback, and multi-stage chains.
 2. Golden outputs are stable across deterministic rebuilds.
 3. Unintended topology drift fails CI.
+
+Completion notes (2026-02-19):
+
+1. Added dedicated pose-rig golden topology coverage in `src/poseRig/topologyGolden.test.ts`.
+2. Fixture set now includes:
+   - shared-channel overlaps,
+   - neutral fallback behavior,
+   - multi-stage blend chains.
+3. Each fixture compiles twice and asserts deterministic topology snapshots + hashes; diagnostics are also checked for deterministic parity.
+4. Drift protection is now enforced with locked SHA-256 topology hashes per fixture, so topology changes fail tests unless hashes are intentionally updated.
+5. Neutral fallback fixture explicitly asserts the `implicit-neutral-fallback` diagnostic contract and verifies fallback neutral values in compiled topology.
+6. Validation evidence:
+   - `2026-02-19 05:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 377 tests).
 
 ## Block D — UX Simplification and Maintainability
 
