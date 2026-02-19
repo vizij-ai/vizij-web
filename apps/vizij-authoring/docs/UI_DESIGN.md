@@ -3,7 +3,7 @@
 Last updated: 2026-02-19
 Status: active
 
-This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `plans/ROADMAP.md` and `plans/BACKLOG.md`.
+This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `plans/ROADMAP.md` and `plans/BACKLOG.md`. Import compatibility behavior is source-of-truth in `references/import-compat-contract.md`.
 
 ## Design Principles
 
@@ -138,6 +138,9 @@ Direct+pose effective-channel contract:
 1. Import must surface structured diagnostics consistently across pose config/IR/graph paths.
 2. Export must show compatibility failures before write and include actionable remediation.
 3. Export metadata includes pose IR and diagnostics for auditability.
+4. Import outcomes must map to the contract statuses (`success`, `success_with_repair`, `blocked_recoverable`, `blocked_fatal`) defined in `references/import-compat-contract.md`.
+5. Remap UX must support deterministic "create missing standard input" recovery for unresolved outputs.
+6. Asset-load, sample-load, and bundle-sync failures must be visible and recoverable with retry actions.
 
 ## Out of Scope (Current MVP Scope)
 

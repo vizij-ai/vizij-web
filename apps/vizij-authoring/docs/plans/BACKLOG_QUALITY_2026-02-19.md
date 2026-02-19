@@ -5,6 +5,8 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` done
 
 This backlog is derived from `docs/reports/code-quality-review-2026-02-19.md` and is organized for parallel execution.
 
+Import compatibility behavior source of truth: `docs/references/import-compat-contract.md`.
+
 ## Parallel Lanes
 
 Lane A: correctness + compiler/import invariants  
@@ -317,7 +319,7 @@ Acceptance checks:
 
 1. Enforce no new `any`/unsafe casts in targeted modules via lint or codemod guardrails.
 
-### [ ] QL3.3 Update architecture/docs for new boundaries and error-handling guarantees
+### [~] QL3.3 Update architecture/docs for new boundaries and error-handling guarantees
 
 Lane: C  
 Priority: P2  
@@ -330,6 +332,12 @@ Intent:
 Acceptance checks:
 
 1. `ARCHITECTURE.md` and `UI_DESIGN.md` reflect new service boundaries and failure-surface expectations.
+
+Progress notes (2026-02-19):
+
+1. Import compatibility contracts are now centralized in `docs/references/import-compat-contract.md`.
+2. `ARCHITECTURE.md`, `UI_DESIGN.md`, `ROADMAP.md`, `TRACKER.md`, and `BACKLOG.md` now cross-link the import compatibility contract and align Stage 5/F5 status text with working-tree behavior.
+3. Remaining `QL3.3` scope stays open for non-import boundary/documentation updates.
 
 ## Suggested Parallel Plan
 

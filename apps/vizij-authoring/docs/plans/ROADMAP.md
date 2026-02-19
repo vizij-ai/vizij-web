@@ -159,7 +159,9 @@ Exit gate:
 
 Current status:
 
-- `planned`
+- `done`
+- Progress: `F5.1`-`F5.8` are implemented in the current working tree, including explicit outcome classes, content-hash discrepancy replay, user-visible asset/sample/bundle failure surfaces, bundle alias compatibility adapter, root fallback hardening, persistence migration registry, pose remap create-missing flow, and fixture-matrix regression gate.
+- Contract source: `docs/references/import-compat-contract.md`
 
 ## Future Architecture Horizon (Post-Stage 5)
 

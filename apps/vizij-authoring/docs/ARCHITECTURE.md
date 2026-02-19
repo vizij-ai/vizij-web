@@ -12,7 +12,8 @@ This document defines system boundaries, canonical data contracts, and compile/r
 3. Work items: `plans/BACKLOG.md`
 4. Execution state and evidence: `plans/TRACKER.md`
 5. UI behavior contract: `UI_DESIGN.md`
-6. Layer-level contract details: `Authoring_Blueprint.md`
+6. Import compatibility + recovery contract: `references/import-compat-contract.md`
+7. Layer-level contract details: `Authoring_Blueprint.md`
 
 ## Core Intent
 
@@ -113,6 +114,7 @@ Execution note:
 3. Unknown channels, invalid mappings, and blocked retargets are never silent.
 4. Export validation checks runtime compatibility before writing assets.
 5. Import normalization and retargeting must be deterministic and idempotent.
+6. Import outcomes, bundle alias compatibility, root fallback behavior, migration rules, and fixture gate expectations are defined in `references/import-compat-contract.md`.
 
 ## Performance and Reactivity Constraints
 

@@ -8,11 +8,10 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
-2. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
-3. `F5.1` -> `F5.6` -> `F5.8`
-4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
-5. Blocks `A0` through `E4` are complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
+1. Block `F5` is implemented in the current working tree (`F5.1`-`F5.8`); source-of-truth contract is `docs/references/import-compat-contract.md`.
+2. Fixture matrix + validate path (`src/hooks/__tests__/importOutcomeMatrix.test.ts`) is the active regression gate for import outcome behavior.
+3. `QL3.3` remains open for broader boundary/docs sync work outside the import-compat contract scope.
+4. Blocks `A0` through `E4` remain complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -761,7 +760,7 @@ Completion notes (2026-02-19):
 
 ## Block F — Import Migration Reliability Integration
 
-### [ ] F5.1 Import Outcome-Class Contract
+### [x] F5.1 Import Outcome-Class Contract
 
 Priority and why this should still be done:
 
@@ -787,7 +786,17 @@ Acceptance checks:
 2. Outcome-class mapping is deterministic and does not rely on console-only interpretation.
 3. Architecture and UI contracts reference the same outcome-class definitions.
 
-### [ ] F5.2 Discrepancy Identity and Decision Replay
+Completion notes (2026-02-19):
+
+1. Added shared import outcome types + helpers in `apps/vizij-authoring/src/types/importOutcome.ts`:
+   - `success`
+   - `success_with_repair`
+   - `blocked_recoverable`
+   - `blocked_fatal`
+2. Rig and pose import paths now return typed import outcomes (`useRigGraphImport`, `usePoseGraphImport`), with consistent success classification via `isImportOutcomeSuccess`.
+3. UI import flows are now wired around typed outcomes (`App.tsx`, bundle synchronizer, remap wizard apply flow) instead of implicit status interpretation.
+
+### [x] F5.2 Discrepancy Identity and Decision Replay
 
 Priority and why this should still be done:
 
@@ -810,7 +819,13 @@ Acceptance checks:
 3. Changed imports cannot bypass discrepancy review.
 4. Supporting quality gates `QL0.1` and `QL2.4` are complete.
 
-### [ ] F5.3 Import Failure Surface Contract (Asset, Sample, Bundle)
+Completion notes (2026-02-19):
+
+1. Replaced length-based discrepancy identity with hash-based identity in `computeDiscrepancySignatureKey(...)` (`apps/vizij-authoring/src/hooks/useRigGraphImport.ts`).
+2. Acceptance replay now uses a deterministic accepted-signature set (`acceptedSignatureKeysRef`) rather than a fragile last-signature check.
+3. Added collision/regression coverage in `apps/vizij-authoring/src/hooks/useRigGraphImport.test.ts`.
+
+### [x] F5.3 Import Failure Surface Contract (Asset, Sample, Bundle)
 
 Priority and why this should still be done:
 
@@ -833,7 +848,17 @@ Acceptance checks:
 3. Failure states are recoverable without hard refresh.
 4. Supporting quality gates `QL0.2`, `QL0.3`, and `QL2.5` are complete.
 
-### [ ] F5.4 Compatibility Adapter in `@vizij/render`
+Completion notes (2026-02-19):
+
+1. Added user-visible, recoverable import failure stack UI in `apps/vizij-authoring/src/components/app/ImportFailureStack.tsx`, wired in `apps/vizij-authoring/src/App.tsx`.
+2. Sample-load and asset-load failures now set recoverable state with explicit retry actions.
+3. Bundle synchronizer failures now emit typed `onFailure` callbacks and appear in UI with retry token replay.
+4. Added regression coverage in:
+   - `apps/vizij-authoring/src/components/app/ImportFailureStack.test.tsx`
+   - `apps/vizij-authoring/src/hooks/__tests__/useBundleSynchronizer.test.ts`
+   - `apps/vizij-authoring/src/hooks/useVizijAssetLoader.test.tsx`
+
+### [x] F5.4 Compatibility Adapter in `@vizij/render`
 
 Priority and why this should still be done:
 
@@ -855,7 +880,14 @@ Acceptance checks:
 2. Multiple candidate bundle entries resolve via deterministic selection rules.
 3. Unsupported variants produce explicit diagnostics instead of silent drops.
 
-### [ ] F5.5 Root Detection and Scene Fallback Hardening
+Completion notes (2026-02-19):
+
+1. Added bundle compatibility adapter in `packages/@vizij/render/src/functions/gltf-loading/import-compat.ts` with deterministic alias + scope precedence.
+2. Extraction now exposes deterministic selection + diagnostics through `extractVizijBundleResult(...)` in `packages/@vizij/render/src/functions/vizij-bundle.ts`.
+3. Loader-facing compatibility types were added in `packages/@vizij/render/src/types/vizij-bundle.ts`.
+4. Added adapter coverage for alias precedence, multi-candidate resolution, and unsupported variant diagnostics in `packages/@vizij/render/tests/vizij-bundle.node-test.mjs`.
+
+### [x] F5.5 Root Detection and Scene Fallback Hardening
 
 Priority and why this should still be done:
 
@@ -877,7 +909,19 @@ Acceptance checks:
 2. Missing-root assets fail as `blocked_recoverable` with actionable remediation.
 3. No partial state mutation occurs before candidate asset validation succeeds.
 
-### [ ] F5.6 Deterministic Persistence Migration Registry
+Completion notes (2026-02-19):
+
+1. Added explicit root resolution contract in `apps/vizij-authoring/src/utils/world.ts`:
+   - metadata root bounds,
+   - derived root fallback,
+   - `blocked_recoverable` guidance when unresolved.
+2. `useVizijAssetLoader` now validates root resolution before resetting/applying world state, preventing partial mutation on blocked candidate load.
+3. `@vizij/render` now derives root bounds fallback for RobotData imports lacking metadata via `applyDerivedRootBoundsFallback(...)` in `packages/@vizij/render/src/functions/gltf-loading/traverse-three.ts`.
+4. Regression coverage added in:
+   - `apps/vizij-authoring/src/utils/world.test.ts`
+   - `apps/vizij-authoring/src/hooks/useVizijAssetLoader.test.tsx`
+
+### [x] F5.6 Deterministic Persistence Migration Registry
 
 Priority and why this should still be done:
 
@@ -899,7 +943,16 @@ Acceptance checks:
 2. Persisted fixtures for older versions migrate to current schema without loss.
 3. Storage failures (quota/private mode/unavailable storage) are surfaced to users.
 
-### [ ] F5.7 Pose Remap Completion: Create Missing Standard Input
+Completion notes (2026-02-19):
+
+1. Added deterministic ordered migration registry (`v1 -> v2 -> v3`) in `apps/vizij-authoring/src/rig/legacyMigration.ts`.
+2. `loadRigState(...)` now always migrates to `RIG_STATE_SCHEMA_VERSION` (`3`) in `apps/vizij-authoring/src/rig/persistence.ts`.
+3. Migration/storage failure outcomes are typed and surfaced through user-facing alerts in `apps/vizij-authoring/src/hooks/useRigPersistence.ts`.
+4. Coverage includes deterministic migration and failure paths in:
+   - `apps/vizij-authoring/src/rig/persistence.test.ts`
+   - `apps/vizij-authoring/src/rig/legacyMigration.test.ts`
+
+### [x] F5.7 Pose Remap Completion: Create Missing Standard Input
 
 Priority and why this should still be done:
 
@@ -921,7 +974,16 @@ Acceptance checks:
 2. Conflict and validation outcomes remain deterministic and test-covered.
 3. Remap completion no longer depends on manual canonical path typing for common unresolved cases.
 
-### [ ] F5.8 Import Fixture Matrix, CI Gate, and Contract Docs
+Completion notes (2026-02-19):
+
+1. Pose remap rows now support explicit `createMissingInput` flow in `apps/vizij-authoring/src/components/poseRig/PoseGraphRemapWizard.tsx`.
+2. Apply-plan builder in `apps/vizij-authoring/src/hooks/usePoseGraphImport.ts` now enforces deterministic outcomes (`ready`, `needs_creation`, `conflict`) with stable sorting for create/conflict plans.
+3. Apply flow can create missing standard inputs before final remap compile, and recoverably blocks when creation is unavailable or fails.
+4. Regression coverage added in:
+   - `apps/vizij-authoring/src/hooks/__tests__/usePoseGraphImport.test.ts`
+   - `apps/vizij-authoring/src/components/poseRig/PoseGraphRemapWizard.test.tsx`
+
+### [x] F5.8 Import Fixture Matrix, CI Gate, and Contract Docs
 
 Priority and why this should still be done:
 
@@ -942,6 +1004,13 @@ Acceptance checks:
 1. Fixture suite covers legacy, current, and malformed bundles with expected outcome classes.
 2. CI includes fixture matrix regression checks.
 3. Compatibility contract documentation is published and referenced by roadmap/tracker docs.
+
+Completion notes (2026-02-19):
+
+1. Added fixture matrix classes (`legacy`, `current`, `malformed`) in `apps/vizij-authoring/src/hooks/__fixtures__/import/*`.
+2. Added deterministic fixture-matrix gate in `apps/vizij-authoring/src/hooks/__tests__/importOutcomeMatrix.test.ts` (required classes, unique sorted IDs, expected outcome-class assertions).
+3. Fixture gate is executed by workspace validation (`pnpm --filter vizij-authoring run validate` -> `vitest --run`).
+4. Published import compatibility source-of-truth documentation in `apps/vizij-authoring/docs/references/import-compat-contract.md` and cross-linked planning/design docs.
 
 ## Recently Completed (Reference)
 

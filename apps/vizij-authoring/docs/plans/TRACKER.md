@@ -13,7 +13,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 5. Stage 3 (`D3.1`-`D3.4`) is complete, including the empirical Inputs-pane performance baseline capture.
 6. Stage 4 policy semantics are now complete: `E4.1` override-map contracts, `E4.2` priority compiler semantics, and `E4.3` design-pack guidance.
 7. Stage `4A` pose-control composition alignment is complete (`A0.4`-`A0.7`), including rig-side effective composition, per-channel compose-mode authoring, and Inputs-pane internal-path filtering/sync contracts.
-8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
+8. Stage 5 import migration reliability work is implemented in the current working tree (`F5.1`-`F5.8`), with source-of-truth behavior documented in `docs/references/import-compat-contract.md`.
 
 ## Backlog Status Board
 
@@ -43,16 +43,16 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 ## Import Migration Integration Board
 
-| ID   | Status  | Priority | Notes                                                                                                                                  |
-| ---- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| F5.1 | planned | P0       | Define explicit import outcome-class contract (`success`, `success_with_repair`, `blocked_recoverable`, `blocked_fatal`).              |
-| F5.2 | planned | P0       | Replace length-based discrepancy acceptance identity with content-hash identity and decision replay; aligned with `QL0.1` and `QL2.4`. |
-| F5.3 | planned | P0       | Remove console-only import failure paths across asset/sample/bundle flows; aligned with `QL0.2`, `QL0.3`, and `QL2.5`.                 |
-| F5.4 | planned | P1       | Add compatibility adapter in `@vizij/render` for metadata normalization, alias handling, and deterministic diagnostics.                |
-| F5.5 | planned | P1       | Harden root detection fallback chain with recoverable blocking behavior and no pre-validation state corruption.                        |
-| F5.6 | planned | P1       | Introduce deterministic persistence migration registry and user-visible storage/migration failures.                                    |
-| F5.7 | planned | P1       | Complete pose remap flow with "create missing standard input" path and deterministic conflict handling.                                |
-| F5.8 | planned | P1       | Land fixture matrix + CI gate + compatibility contract docs as source of truth for import behavior.                                    |
+| ID   | Status | Priority | Notes                                                                                                                                        |
+| ---- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| F5.1 | done   | P0       | Shared import outcome contract is implemented in `src/types/importOutcome.ts` and threaded through rig/pose import surfaces.                 |
+| F5.2 | done   | P0       | Discrepancy acceptance now uses content-hash signature keys with deterministic replay (`computeDiscrepancySignatureKey` + accepted key set). |
+| F5.3 | done   | P0       | Asset/sample/bundle import failures now surface as recoverable UI failures (`ImportFailureStack` + bundle sync failure callbacks).           |
+| F5.4 | done   | P1       | `@vizij/render` compatibility adapter now normalizes bundle aliases with deterministic selection and diagnostics (`import-compat.ts`).       |
+| F5.5 | done   | P1       | Root fallback chain and recoverable block behavior are implemented; asset loader validates root before mutating active state.                |
+| F5.6 | done   | P1       | Ordered persistence migration registry (`v1 -> v2 -> v3`) and user-visible storage/migration failures are implemented.                       |
+| F5.7 | done   | P1       | Pose remap supports row-level create-missing standard-input flow with deterministic apply-plan conflict/creation handling.                   |
+| F5.8 | done   | P1       | Fixture matrix gate is landed and this compatibility contract is source of truth (`docs/references/import-compat-contract.md`).              |
 
 ## Validation Gate Status
 
@@ -78,8 +78,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 1. Risk: Priority semantics are now implemented, but weighted-average activity-shaping heuristics remain policy guidance only.
    - Mitigation: keep `E4.3` scenario pack as reference for future heuristic rollout and guard with topology/diagnostic regression tests.
-2. Risk: Import behavior contracts remain partially implicit in code paths, increasing regression risk across compatibility variants.
-   - Mitigation: execute `F5.1`-`F5.8` in order, with linked quality gates (`QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, `QL2.5`) and fixture-matrix CI coverage.
+2. Risk: Import behavior can drift if future changes update code/tests without contract and fixture-matrix updates.
+   - Mitigation: keep `docs/references/import-compat-contract.md` and `src/hooks/__tests__/importOutcomeMatrix.test.ts` synchronized in every import-behavior change.
 3. Risk: Compose policy remains MVP-level (`add`/`average`) and may not cover future weighting/prioritization needs.
    - Mitigation: keep future-policy expansion tracked in roadmap horizon and gate rollout with deterministic topology/tests.
 
@@ -107,5 +107,13 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `E4.1` per-channel override contracts across config/IR with deterministic normalization, invalid-entry diagnostics, and store-projection retention coverage.
 - `E4.2` priority per-channel compile semantics with deterministic ordering/tie-break behavior and explanatory diagnostics for resolution changes.
 - `E4.3` overlap bias/activity heuristic design pack with representative overlap scenarios and expected policy outputs (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
+- `F5.1` explicit import outcome-class contract (`success`, `success_with_repair`, `blocked_recoverable`, `blocked_fatal`) across rig/pose import flows.
+- `F5.2` discrepancy acceptance identity + replay hardening with content-hash keys and deterministic accepted-signature replay.
+- `F5.3` user-visible, recoverable asset/sample/bundle import failure surfaces (`ImportFailureStack`, bundle sync failure callbacks, retry flow).
+- `F5.4` bundle alias compatibility adapter in `@vizij/render` with deterministic candidate precedence and compatibility diagnostics.
+- `F5.5` root fallback hardening (`metadata -> derived -> blocked_recoverable`) and load-time no-partial-mutation guard behavior.
+- `F5.6` deterministic persistence migration registry (`v1 -> v2 -> v3`) and typed storage/migration failure reporting.
+- `F5.7` pose remap create-missing standard-input path with deterministic creation/conflict handling.
+- `F5.8` fixture matrix gate plus compatibility contract source-of-truth docs (`docs/references/import-compat-contract.md`).
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).
