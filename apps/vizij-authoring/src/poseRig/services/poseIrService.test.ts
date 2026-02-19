@@ -79,6 +79,62 @@ describe("PoseIrService", () => {
     ).toBe(true);
   });
 
+  it("emits diagnostics when poses belong to multiple groups", () => {
+    const { warnings, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: {
+          smile: 0,
+        },
+        crossGroupBlendMode: "additive",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "additive",
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion", "viseme"],
+            values: {
+              smile: 0.8,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(
+      warnings.some((warning) =>
+        warning.includes("belongs to multiple groups (2)"),
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.code === "multi-group-membership" &&
+          diagnostic.location?.poseId === "pose_smile",
+      ),
+    ).toBe(true);
+  });
+
   it("converts pose IR back into legacy pose config payloads", () => {
     const ir: PoseRigIrFile = {
       version: 1,

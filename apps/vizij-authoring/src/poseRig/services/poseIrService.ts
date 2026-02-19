@@ -220,6 +220,9 @@ function mapConfigToPoseIr(
   const diagnosticSource = options?.diagnosticSource ?? "pose-config";
   const sourcePoses = Array.isArray(config.poses) ? config.poses : [];
   const fallbackGroupBlendMode = options?.defaultGroupBlendMode ?? "average";
+  const crossGroupPolicyMode = toPoseIrBlendMode(
+    options?.crossGroupBlendMode ?? config.crossGroupBlendMode ?? "additive",
+  );
   const normalizedGroups = normalizePoseGroups(
     sourcePoses,
     config.poseGroups,
@@ -251,6 +254,24 @@ function mapConfigToPoseIr(
       }
       groupIds = [fallbackId];
     }
+
+    if (groupIds.length > 1) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "multi-group-membership",
+        source: diagnosticSource,
+        message: `Pose "${pose.name ?? pose.id}" belongs to multiple groups (${groupIds.length}); cross-group "${crossGroupPolicyMode}" may amplify influence depending blend topology.`,
+        location: {
+          poseId: pose.id,
+        },
+        metadata: {
+          poseId: pose.id,
+          groupIds: [...groupIds],
+          crossGroupPolicyMode,
+        },
+      });
+    }
+
     groupIds.forEach((groupId) => {
       const list = groupPoseIds.get(groupId) ?? [];
       if (!list.includes(pose.id)) {
@@ -330,11 +351,7 @@ function mapConfigToPoseIr(
     },
     groups,
     crossGroupPolicy: {
-      mode: toPoseIrBlendMode(
-        options?.crossGroupBlendMode ??
-          config.crossGroupBlendMode ??
-          "additive",
-      ),
+      mode: crossGroupPolicyMode,
     },
     poses,
     lowLevel: config.lowLevel ?? null,
