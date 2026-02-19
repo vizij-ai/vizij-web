@@ -511,7 +511,7 @@ Completion notes (2026-02-19):
 Priority and why this should still be done:
 
 - Level: `P3`
-- Why: Needed for advanced channel-specific composition behavior, but intentionally deferred to keep MVP tractable.
+- Why: Needed for advanced channel-specific composition behavior and long-tail overlap tuning beyond global cross-group policy.
 
 Dependencies / blockers:
 
