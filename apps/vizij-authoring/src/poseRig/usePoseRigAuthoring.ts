@@ -34,10 +34,12 @@ export interface PoseLibrarySummary {
 export interface UsePoseRigAuthoringResult {
   ready: boolean;
   neutralInputs: Record<StandardInputId, number>;
+  neutralMode: "face-default" | "explicit";
   savedNeutral: Record<StandardInputId, number>;
   currentValues: Record<StandardInputId, number>;
   rigKind: "generic" | "face-specific";
   setRigKind: (kind: "generic" | "face-specific") => void;
+  setNeutralMode: (mode: "face-default" | "explicit") => void;
   blendMode: "average" | "additive";
   setBlendMode: (mode: "average" | "additive") => void;
   crossGroupBlendMode: "average" | "additive";
@@ -132,6 +134,7 @@ export function usePoseRigAuthoring(
   // Map store state to result
   const ready = store.isReady;
   const neutralInputs = store.neutralInputs;
+  const neutralMode = store.neutralMode;
   const currentValues = store.currentValues;
   const poses = store.poses;
   const selectedPoseId = store.selectedPoseId;
@@ -196,6 +199,7 @@ export function usePoseRigAuthoring(
   const setBlendMode = store.setBlendMode;
   const setCrossGroupBlendMode = store.setCrossGroupBlendMode;
   const setRigKind = store.setRigKind;
+  const setNeutralMode = store.setNeutralMode;
 
   // Derived actions
   const duplicatePose = store.duplicatePose;
@@ -436,6 +440,7 @@ export function usePoseRigAuthoring(
   return {
     ready,
     neutralInputs,
+    neutralMode,
     savedNeutral: neutralInputs,
     currentValues,
     blendMode,
@@ -444,6 +449,7 @@ export function usePoseRigAuthoring(
     setCrossGroupBlendMode,
     rigKind,
     setRigKind,
+    setNeutralMode,
     standardInputs: visibleStandardInputs,
     poses,
     createPoseGroup,

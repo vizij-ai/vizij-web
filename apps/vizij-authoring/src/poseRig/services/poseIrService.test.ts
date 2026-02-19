@@ -79,6 +79,40 @@ describe("PoseIrService", () => {
     ).toBe(true);
   });
 
+  it("round-trips neutral mode between config and IR", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralMode: "face-default",
+        neutralInputs: {
+          smile: 0.4,
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.neutral.mode).toBe("face-default");
+    expect(ir.neutral.values).toEqual({ smile: 0.4 });
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.neutralMode).toBe("face-default");
+    expect(config.neutralInputs).toEqual({ smile: 0.4 });
+  });
+
   it("emits diagnostics when poses belong to multiple groups", () => {
     const { warnings, diagnostics } = PoseIrService.fromConfig(
       {
@@ -131,6 +165,40 @@ describe("PoseIrService", () => {
           diagnostic.severity === "warning" &&
           diagnostic.code === "multi-group-membership" &&
           diagnostic.location?.poseId === "pose_smile",
+      ),
+    ).toBe(true);
+  });
+
+  it("warns when explicit neutral mode falls back to defaults", () => {
+    const { warnings, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralMode: "explicit",
+        neutralInputs: {},
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.7,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(
+      warnings.some((warning) => warning.includes("Neutral mode is explicit")),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "implicit-neutral-fallback",
       ),
     ).toBe(true);
   });

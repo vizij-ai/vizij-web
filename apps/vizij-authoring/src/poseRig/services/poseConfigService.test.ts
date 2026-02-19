@@ -16,6 +16,17 @@ describe("PoseConfigService", () => {
     expect(config.poses).toEqual([]);
   });
 
+  it("accepts face-default neutral mode without explicit neutral inputs", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralMode: "face-default" as const,
+      poses: [],
+    };
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.neutralMode).toBe("face-default");
+    expect(config.neutralInputs).toEqual({});
+  });
+
   it("preserves rigKind during normalize", () => {
     const input = {
       version: POSE_RIG_CONFIG_VERSION,
@@ -82,6 +93,23 @@ describe("PoseConfigService", () => {
     const { config } = PoseConfigService.normalize(parsed);
     expect(config.rigKind).toBe("generic");
     expect(config.faceId).toBe("face_a");
+  });
+
+  it("persists explicit neutral mode through create and normalize", () => {
+    const created = PoseConfigService.create(
+      [],
+      { a: 0.25 },
+      "Test Rig",
+      "face_a",
+      "generic",
+      undefined,
+      {
+        neutralMode: "explicit",
+      },
+    );
+    expect(created.neutralMode).toBe("explicit");
+    const { config } = PoseConfigService.normalize(created);
+    expect(config.neutralMode).toBe("explicit");
   });
 
   it("remaps legacy pose inputs by path/source-id before pruning", () => {

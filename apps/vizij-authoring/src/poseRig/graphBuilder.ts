@@ -1,6 +1,10 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
-import { buildPoseWeightPathMap, buildRigInputPath } from "./utils";
+import {
+  buildPoseWeightPathMap,
+  buildRigInputPath,
+  createNeutralInputs,
+} from "./utils";
 import {
   humanizePoseGroupName,
   normalizePoseGroupPath,
@@ -704,10 +708,17 @@ export function buildPoseGraphSpecFromIr(options: {
   const defaultGroupBlendMode = mapPoseIrBlendMode(
     groups[0]?.intraGroupBlendMode ?? "average",
   );
+  const neutralInputs =
+    poseIr.neutral?.mode === "face-default"
+      ? createNeutralInputs(standardInputs)
+      : {
+          ...createNeutralInputs(standardInputs),
+          ...(poseIr.neutral?.values ?? {}),
+        };
 
   return buildPoseGraphSpec({
     faceId: poseIr.faceId ?? options.faceId ?? null,
-    neutralInputs: { ...(poseIr.neutral?.values ?? {}) },
+    neutralInputs,
     poses: legacyPoses,
     standardInputs,
     poseGroups: legacyGroups,

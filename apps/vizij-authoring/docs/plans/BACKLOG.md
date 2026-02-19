@@ -154,7 +154,7 @@ Completion notes (2026-02-19):
 6. Validation evidence:
    - `2026-02-19 20:20Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 347 tests).
 
-### [ ] B1.2 Neutral Strategy Authoring and Round-Trip (`IR5`)
+### [x] B1.2 Neutral Strategy Authoring and Round-Trip (`IR5`)
 
 Priority and why this should still be done:
 
@@ -175,6 +175,23 @@ Acceptance checks:
 1. Neutral mode survives round-trip with no semantic drift.
 2. Compiler uses selected neutral mode deterministically.
 3. Diagnostics warn when neutral fallback is implicit.
+
+Completion notes (2026-02-19):
+
+1. Added explicit neutral strategy modeling across config + IR contracts (`neutralMode` in config; `neutral.mode` in IR) with round-trip mapping in `PoseConfigService` and `PoseIrService`.
+2. Store now tracks `neutralMode` and exposes `setNeutralMode`; neutral capture/edit paths promote mode to `explicit`.
+3. Compiler now respects neutral strategy deterministically:
+   - `face-default` compiles from standard-input defaults.
+   - `explicit` compiles from authored neutral values with default fallback only for missing channels.
+4. Added structured diagnostics (`implicit-neutral-fallback`) when `explicit` neutral mode is selected but required target channels are missing explicit neutral entries.
+5. Added regression coverage in:
+   - `src/poseRig/services/poseConfigService.test.ts`
+   - `src/poseRig/services/poseIrService.test.ts`
+   - `src/poseRig/services/poseGraphService.test.ts`
+   - `src/poseRig/store.test.ts`
+   - `src/hooks/__tests__/useVizijExport.test.tsx`
+6. Validation evidence:
+   - `2026-02-19 20:31Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 354 tests).
 
 ### [ ] B1.3 Enforce Ghost-Signal Boundary Contract
 

@@ -9,6 +9,7 @@ export const POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT =
 export type StandardInputId = StandardRigInput["id"];
 export type PoseBlendMode = "average" | "additive";
 export type PoseIrBlendMode = "average" | "add";
+export type PoseNeutralMode = "face-default" | "explicit";
 export type PoseDiagnosticSeverity = "warning" | "error" | "info";
 
 export interface PoseDiagnosticLocation {
@@ -40,7 +41,7 @@ export interface PoseIrContracts {
 }
 
 export interface PoseIrNeutralDefinition {
-  mode: "face-default" | "explicit";
+  mode: PoseNeutralMode;
   values: Record<StandardInputId, number>;
 }
 
@@ -144,6 +145,7 @@ export interface PoseRigConfigFile {
   description?: string;
   poseGroups?: PoseGroupDefinition[];
   crossGroupBlendMode?: PoseBlendMode;
+  neutralMode?: PoseNeutralMode;
   neutralInputs: Record<StandardInputId, number>;
   poses: PoseDefinition[];
   lowLevel?: LowLevelRigSummary | null;

@@ -50,7 +50,9 @@ Composition semantics currently supported:
 
 1. Intra-group: `average` or `additive` using pose input weights.
 2. Cross-group: `average` or `additive` composition over group outputs.
-3. Neutral fallback: explicit neutral values or standard-input defaults.
+3. Neutral strategy:
+   - `explicit`: authored neutral values with per-channel fallback to standard-input defaults when missing.
+   - `face-default`: compile directly from standard-input defaults.
 
 Deferred semantics (not MVP):
 

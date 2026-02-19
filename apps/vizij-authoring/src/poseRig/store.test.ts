@@ -42,6 +42,7 @@ describe("PoseRigStore", () => {
     expect(state.rigName).toBe("pose_rig");
     expect(state.poses).toEqual([]);
     expect(state.neutralInputs).toEqual({});
+    expect(state.neutralMode).toBe("face-default");
   });
 
   it("creates a pose", () => {
@@ -127,6 +128,36 @@ describe("PoseRigStore", () => {
 
     const pose = store.getState().poses[0];
     expect(pose.values).toEqual({ a: 1 });
+  });
+
+  it("switches neutral mode to explicit when neutral is captured", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().updateCurrentValues({ smile: 0.3 });
+
+    store.getState().captureNeutral();
+    const state = store.getState();
+    expect(state.neutralMode).toBe("explicit");
+    expect(state.neutralInputs.smile).toBeCloseTo(0.3, 6);
+    expect(state.poseIrDraft?.neutral.mode).toBe("explicit");
+  });
+
+  it("preserves authored neutral mode through IR projection", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().addPoseInput(poseId, "smile");
+    store.getState().setNeutralMode("face-default");
+    const state = store.getState();
+    expect(state.neutralMode).toBe("face-default");
+    expect(state.poseIrDraft?.neutral.mode).toBe("face-default");
+    expect(state.poseConfigDraft?.neutralMode).toBe("face-default");
   });
 
   it("preserves valid imported ids and resolves import collisions deterministically", () => {

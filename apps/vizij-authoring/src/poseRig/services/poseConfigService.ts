@@ -8,6 +8,7 @@ import type {
   PoseDefinition,
   PoseGroupDefinition,
   PoseBlendMode,
+  PoseNeutralMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
 import {
@@ -106,12 +107,21 @@ export const PoseConfigService = {
     if (!Array.isArray(candidate.poses)) {
       throw new Error("Pose rig config missing pose definitions.");
     }
+    const neutralMode: PoseNeutralMode =
+      candidate.neutralMode === "face-default" ||
+      candidate.neutralMode === "explicit"
+        ? candidate.neutralMode
+        : "explicit";
     if (
-      !candidate.neutralInputs ||
-      typeof candidate.neutralInputs !== "object"
+      neutralMode === "explicit" &&
+      (!candidate.neutralInputs || typeof candidate.neutralInputs !== "object")
     ) {
       throw new Error("Pose rig config missing neutral inputs.");
     }
+    const rawNeutralInputs =
+      candidate.neutralInputs && typeof candidate.neutralInputs === "object"
+        ? (candidate.neutralInputs as Record<string, number>)
+        : {};
 
     const warnings: string[] = [];
     const importedFaceId = candidate.faceId;
@@ -216,9 +226,7 @@ export const PoseConfigService = {
     const neutralInputs: Record<string, number> = {};
 
     const neutralSourcesByResolvedId = new Map<string, string>();
-    for (const [key, value] of Object.entries(
-      candidate.neutralInputs as Record<string, number>,
-    )) {
+    for (const [key, value] of Object.entries(rawNeutralInputs)) {
       if (validInputs.size === 0) {
         neutralInputs[key] = value;
         continue;
@@ -312,6 +320,7 @@ export const PoseConfigService = {
           candidate.crossGroupBlendMode === "additive"
             ? candidate.crossGroupBlendMode
             : "additive",
+        neutralMode,
         neutralInputs,
         poses: poses.map((p) => ({ ...p, values: { ...p.values } })),
         lowLevel:
@@ -339,6 +348,7 @@ export const PoseConfigService = {
       poseGroups?: PoseGroupDefinition[];
       defaultGroupBlendMode?: PoseBlendMode;
       crossGroupBlendMode?: PoseBlendMode;
+      neutralMode?: PoseNeutralMode;
     },
   ): PoseRigConfigFile {
     const defaultGroupBlendMode = options?.defaultGroupBlendMode ?? "average";
@@ -364,6 +374,7 @@ export const PoseConfigService = {
       faceId,
       rigKind,
       title: rigName,
+      neutralMode: options?.neutralMode ?? "explicit",
       neutralInputs: { ...neutralInputs },
       poseGroups,
       crossGroupBlendMode: options?.crossGroupBlendMode ?? "additive",

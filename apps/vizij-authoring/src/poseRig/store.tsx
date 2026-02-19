@@ -175,6 +175,7 @@ interface PoseStateProjectionOptions {
   rigName?: string;
   faceId?: string | null;
   rigKind?: "generic" | "face-specific";
+  neutralMode?: "face-default" | "explicit";
   blendMode?: "average" | "additive";
   crossGroupBlendMode?: "average" | "additive";
   standardInputSchema?: { id: string; version: string } | null;
@@ -187,6 +188,7 @@ export interface PoseRigState {
   rigName: string;
   rigKind: "generic" | "face-specific";
   neutralInputs: Record<StandardInputId, number>;
+  neutralMode: "face-default" | "explicit";
   currentValues: Record<StandardInputId, number>;
   standardInputs: StandardRigInput[];
   poses: PoseDefinition[];
@@ -219,6 +221,7 @@ export interface PoseRigState {
   // Actions
   setRigName: (name: string) => void;
   setRigKind: (kind: "generic" | "face-specific") => void;
+  setNeutralMode: (mode: "face-default" | "explicit") => void;
   setNeutralInputs: (inputs: Record<StandardInputId, number>) => void;
   setStandardInputs: (inputs: StandardRigInput[]) => void;
   updateCurrentValues: (values: Record<StandardInputId, number>) => void;
@@ -282,6 +285,7 @@ const defaultState: Omit<
   PoseRigState,
   | "setRigName"
   | "setRigKind"
+  | "setNeutralMode"
   | "setNeutralInputs"
   | "setStandardInputs"
   | "updateCurrentValues"
@@ -318,6 +322,7 @@ const defaultState: Omit<
   rigName: DEFAULT_RIG_NAME,
   rigKind: "face-specific",
   neutralInputs: {},
+  neutralMode: "face-default",
   currentValues: {},
   standardInputs: [],
   poses: [],
@@ -373,6 +378,7 @@ export function createPoseRigStore(
         defaultGroupBlendMode: overrides?.blendMode ?? snapshot.blendMode,
         crossGroupBlendMode:
           overrides?.crossGroupBlendMode ?? snapshot.crossGroupBlendMode,
+        neutralMode: overrides?.neutralMode ?? snapshot.neutralMode,
       },
     );
   };
@@ -416,6 +422,9 @@ export function createPoseRigStore(
       ...(overrides?.rigKind !== undefined
         ? { rigKind: overrides.rigKind }
         : {}),
+      ...(overrides?.neutralMode !== undefined
+        ? { neutralMode: overrides.neutralMode }
+        : {}),
       ...(overrides?.blendMode !== undefined
         ? { blendMode: overrides.blendMode }
         : {}),
@@ -440,6 +449,7 @@ export function createPoseRigStore(
       patch.poseIrDraft ||
         patch.poses ||
         patch.neutralInputs ||
+        patch.neutralMode ||
         patch.rigName ||
         patch.faceId ||
         patch.rigKind ||
@@ -501,6 +511,9 @@ export function createPoseRigStore(
       if (patch.rigKind === undefined) {
         nextState.rigKind = projectedConfig.rigKind ?? nextState.rigKind;
       }
+      if (patch.neutralMode === undefined) {
+        nextState.neutralMode = projectedConfig.neutralMode ?? "explicit";
+      }
       if (patch.blendMode === undefined) {
         nextState.blendMode =
           projectedConfig.poseGroups?.[0]?.blendMode ?? nextState.blendMode;
@@ -547,6 +560,7 @@ export function createPoseRigStore(
     PoseRigState,
     | "setRigName"
     | "setRigKind"
+    | "setNeutralMode"
     | "setNeutralInputs"
     | "setStandardInputs"
     | "updateCurrentValues"
@@ -591,6 +605,12 @@ export function createPoseRigStore(
         ...buildProjectedPoseIrPatch(prev, { rigKind: kind }),
       }));
     },
+    setNeutralMode: (mode) => {
+      setState((prev) => ({
+        neutralMode: mode,
+        ...buildProjectedPoseIrPatch(prev, { neutralMode: mode }),
+      }));
+    },
     setBlendMode: (mode) => {
       setState((prev) => ({
         blendMode: mode,
@@ -610,7 +630,11 @@ export function createPoseRigStore(
     },
     setNeutralInputs: (inputs) => {
       setState((prev) => ({
-        ...buildProjectedPoseIrPatch(prev, { neutralInputs: inputs }),
+        neutralMode: "explicit",
+        ...buildProjectedPoseIrPatch(prev, {
+          neutralInputs: inputs,
+          neutralMode: "explicit",
+        }),
       }));
     },
     setStandardInputs: (inputs) => {
@@ -1074,8 +1098,10 @@ export function createPoseRigStore(
     captureNeutral: () => {
       setState((prev) => {
         return {
+          neutralMode: "explicit",
           ...buildProjectedPoseIrPatch(prev, {
             neutralInputs: { ...prev.currentValues },
+            neutralMode: "explicit",
           }),
         };
       });
@@ -1136,6 +1162,7 @@ export function createPoseRigStore(
         currentValues: { ...newNeutralInputs },
         rigName: projectedConfig.title || DEFAULT_RIG_NAME,
         rigKind: projectedConfig.rigKind ?? "face-specific",
+        neutralMode: projectedConfig.neutralMode ?? "explicit",
         blendMode:
           projectedConfig.poseGroups?.[0]?.blendMode ??
           state.blendMode ??
@@ -1163,6 +1190,7 @@ export function createPoseRigStore(
         currentValues: { ...newNeutralInputs },
         rigName: normalized.title || DEFAULT_RIG_NAME,
         rigKind: normalized.rigKind ?? "face-specific",
+        neutralMode: normalized.neutralMode ?? "explicit",
         blendMode:
           normalized.poseGroups?.[0]?.blendMode ?? state.blendMode ?? "average",
         crossGroupBlendMode: normalized.crossGroupBlendMode ?? "additive",
@@ -1204,6 +1232,7 @@ export function createPoseRigStore(
       poseGroups: initialPoseGroups,
       defaultGroupBlendMode: state.blendMode,
       crossGroupBlendMode: state.crossGroupBlendMode,
+      neutralMode: state.neutralMode,
     },
   );
   const { ir: initialIr } = PoseIrService.fromConfig(

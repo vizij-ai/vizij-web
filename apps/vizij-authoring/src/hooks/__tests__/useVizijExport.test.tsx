@@ -415,6 +415,7 @@ describe("useVizijExport", () => {
     expect(mockedDownloadJsonFile).toHaveBeenCalledTimes(1);
     expect(mockedDownloadJsonFile.mock.calls[0]?.[0]).toMatchObject({
       title: "From IR",
+      neutralMode: "explicit",
       crossGroupBlendMode: "additive",
       neutralInputs: {
         input_a: 0.1,

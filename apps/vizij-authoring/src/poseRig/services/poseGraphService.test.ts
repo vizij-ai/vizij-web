@@ -243,6 +243,51 @@ describe("PoseGraphService", () => {
     ).toBeCloseTo(0.25, 6);
   });
 
+  it("uses face defaults when IR neutral mode is face-default", () => {
+    const inputs: StandardRigInput[] = [
+      createInput("smile", "/face/smile", 0.25),
+    ];
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "face-default",
+        values: { smile: 0.9 },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      crossGroupPolicy: { mode: "add" },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { spec } = PoseGraphService.buildSpecFromIr(ir, inputs);
+    const neutralNode = findNode(spec, "pose_neutral_record") as any;
+    expect(
+      neutralNode?.params?.value?.record?.values?.record?.smile?.float,
+    ).toBeCloseTo(0.25, 6);
+  });
+
   it("flags invalid specs", () => {
     const warnings = PoseGraphService.validate({ nodes: [] }, []);
     expect(warnings.length).toBeGreaterThan(0);

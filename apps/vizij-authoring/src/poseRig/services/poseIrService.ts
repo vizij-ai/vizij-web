@@ -13,6 +13,7 @@ import type {
   PoseGroupDefinition,
   PoseIrCompileResult,
   PoseIrBlendMode,
+  PoseNeutralMode,
   PoseRigConfigFile,
   PoseRigIrFile,
 } from "../types";
@@ -223,6 +224,8 @@ function mapConfigToPoseIr(
   const crossGroupPolicyMode = toPoseIrBlendMode(
     options?.crossGroupBlendMode ?? config.crossGroupBlendMode ?? "additive",
   );
+  const neutralMode: PoseNeutralMode =
+    config.neutralMode === "face-default" ? "face-default" : "explicit";
   const normalizedGroups = normalizePoseGroups(
     sourcePoses,
     config.poseGroups,
@@ -329,6 +332,38 @@ function mapConfigToPoseIr(
     }),
   }));
 
+  const neutralValues = canonicalizeInputValues(
+    config.neutralInputs,
+    canonicalInputs,
+    collector,
+    "Neutral",
+    diagnosticSource,
+  );
+
+  if (neutralMode === "explicit" && canonicalInputs.size > 0) {
+    const requiredNeutralIds = new Set<string>();
+    poses.forEach((pose) => {
+      Object.keys(pose.targets).forEach((inputId) => {
+        requiredNeutralIds.add(inputId);
+      });
+    });
+    const missingNeutralIds = Array.from(requiredNeutralIds)
+      .filter((inputId) => neutralValues[inputId] === undefined)
+      .sort();
+    if (missingNeutralIds.length > 0) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        code: "implicit-neutral-fallback",
+        source: diagnosticSource,
+        message: `Neutral mode is explicit but ${missingNeutralIds.length} target channel(s) are missing neutral values; compiler will fallback to face defaults for those channels.`,
+        metadata: {
+          neutralMode,
+          missingNeutralIds,
+        },
+      });
+    }
+  }
+
   return {
     version: POSE_RIG_IR_VERSION,
     faceId: config.faceId ?? null,
@@ -340,14 +375,8 @@ function mapConfigToPoseIr(
       syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
     },
     neutral: {
-      mode: "explicit",
-      values: canonicalizeInputValues(
-        config.neutralInputs,
-        canonicalInputs,
-        collector,
-        "Neutral",
-        diagnosticSource,
-      ),
+      mode: neutralMode,
+      values: neutralValues,
     },
     groups,
     crossGroupPolicy: {
@@ -399,6 +428,7 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
       blendMode: toPoseConfigBlendMode(group.intraGroupBlendMode),
     })),
     crossGroupBlendMode: toPoseConfigBlendMode(ir.crossGroupPolicy?.mode),
+    neutralMode: ir.neutral?.mode ?? "explicit",
     neutralInputs: { ...(ir.neutral?.values ?? {}) },
     poses,
     lowLevel: ir.lowLevel ?? null,
@@ -473,6 +503,7 @@ export const PoseIrService = {
     const candidate = payload as Partial<PoseRigIrFile> & {
       crossGroupBlendMode?: unknown;
       neutralInputs?: Record<string, number>;
+      neutralMode?: PoseNeutralMode;
     };
 
     if (candidate.version !== POSE_RIG_IR_VERSION) {
@@ -507,6 +538,11 @@ export const PoseIrService = {
       rigKind: candidate.rigKind ?? "face-specific",
       title: candidate.title,
       description: candidate.description,
+      neutralMode:
+        candidate.neutral?.mode === "face-default" ||
+        candidate.neutralMode === "face-default"
+          ? "face-default"
+          : "explicit",
       neutralInputs: {
         ...(candidate.neutral?.values ?? candidate.neutralInputs ?? {}),
       },
