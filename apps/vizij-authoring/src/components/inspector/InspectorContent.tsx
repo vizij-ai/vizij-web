@@ -227,6 +227,7 @@ export function InspectorContent() {
   const {
     poses,
     neutralInputs,
+    addPoseInput,
     updatePoseValue,
     removePoseInput,
     updatePoseName,
@@ -1188,37 +1189,55 @@ export function InspectorContent() {
 
       const handleAddVariable = (selection: VariableSelection) => {
         setShowSelector(false);
-        let variableId = "";
         if (selection.type === "variable") {
-          variableId = selection.id;
-        } else if (selection.type === "property") {
-          const nameSafe = selection.label.replace(/[^a-zA-Z0-9]/g, "_");
-          const newVar = handleCreateCustomStandardInput(`/${nameSafe}`);
-          if (!newVar) return;
-          variableId = newVar.id;
+          addPoseInput(pose.id, selection.id);
+          return;
+        }
+        if (selection.type !== "property") {
+          return;
+        }
+
+        const resolvedInputIds = new Set<string>();
+        const addResolvedInputId = (
+          candidateInputId: string | null | undefined,
+        ) => {
+          if (!candidateInputId) {
+            return;
+          }
+          const canonicalInputId = resolveRigMetadataInputId(
+            candidateInputId,
+            standardInputsById,
+          );
+          if (!standardInputsById.has(canonicalInputId)) {
+            return;
+          }
+          resolvedInputIds.add(canonicalInputId);
+        };
+
+        addResolvedInputId(selection.inputId);
+        (selection.inputIds ?? []).forEach((inputId) =>
+          addResolvedInputId(inputId),
+        );
+
+        if (resolvedInputIds.size === 0) {
           const targetIds = resolveAnimatablePropertyTargetIds(
             resolveSelectionTargetIds(selection, objects),
           );
-          if (targetIds.length === 0) {
-            alertDialog(
-              "Selected properties are not currently mapped to animatable targets.",
-            );
-            return;
-          }
-          const shouldApplyBulk =
-            targetIds.length === 1 ||
-            (typeof window !== "undefined" &&
-              window.confirm(
-                `Bind all ${targetIds.length} components for "${selection.label}" to this new variable?`,
-              ));
-          if (!shouldApplyBulk) {
-            return;
-          }
-          targetIds.forEach((targetId) =>
-            handleBindingInputChange(targetId, variableId),
-          );
+          targetIds.forEach((targetId) => {
+            addResolvedInputId(autorigInputIdByComponentId.get(targetId));
+          });
         }
-        if (variableId) updatePoseValue(pose.id, variableId, 0);
+
+        if (resolvedInputIds.size === 0) {
+          alertDialog(
+            "Selected properties are not currently mapped to existing rig variables.",
+          );
+          return;
+        }
+
+        Array.from(resolvedInputIds)
+          .sort((left, right) => left.localeCompare(right))
+          .forEach((inputId) => addPoseInput(pose.id, inputId));
       };
 
       const resolvePoseNeutralValue = (varId: string): number => {

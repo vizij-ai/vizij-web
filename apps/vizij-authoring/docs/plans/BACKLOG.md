@@ -898,6 +898,120 @@ Acceptance checks:
 2. Inspector relationships clearly show variable -> property and property -> variable traversal semantics while preserving runtime correctness.
 3. Debug/advanced mode still exposes autorig internals when needed for diagnostics.
 
+## Pose IR Full Implementation Roadmap (Post-MVP)
+
+These are ordered implementation chunks intended to ship as separate commits after the MVP baseline.
+
+### [ ] IR1 IR-First Store Source of Truth
+
+Intent:
+Make pose IR the canonical authoring state in store/hooks, with config/graph as derived projections.
+
+Acceptance checks:
+
+1. Edit flows mutate IR first (not config first).
+2. Config export remains deterministic as a projection from IR.
+3. Existing pose/group edit behavior remains intact.
+
+### [ ] IR2 Structured Compiler Diagnostics
+
+Intent:
+Return structured diagnostics from IR compile/normalize pipelines for UI, export, and tests.
+
+Acceptance checks:
+
+1. Compiler result includes machine-readable warning/error entries.
+2. Import/export/inspector surfaces consume diagnostics without console-only paths.
+3. Tests cover at least one hard error and one warning path.
+
+### [ ] IR3 Bundle Export Includes Pose IR + Diagnostics
+
+Intent:
+Export enough pose artifacts for runtime/debug auditing without recomputing local compile context.
+
+Acceptance checks:
+
+1. Bundle pose payload includes config, IR, and diagnostics metadata.
+2. Existing bundle consumers remain backward compatible.
+3. Export validation covers IR/diagnostic presence contracts.
+
+### [ ] IR4 Unified Pose Import Feedback UX
+
+Intent:
+Unify warning/error feedback across pose config, pose IR, and pose graph imports.
+
+Acceptance checks:
+
+1. Parse/normalize warnings are visible in UI for all pose import types.
+2. Fatal import errors surface actionable dialogs/messages.
+3. No pose import path relies solely on console output.
+
+### [ ] IR5 Neutral Mode Round-Trip and Authoring
+
+Intent:
+Preserve and expose neutral mode semantics (`face-default` vs `explicit`) end-to-end.
+
+Acceptance checks:
+
+1. Neutral mode survives import/edit/export round-trips unchanged.
+2. Compiler behavior reflects selected neutral mode deterministically.
+3. Tests cover both neutral strategies.
+
+### [ ] IR6 Multi-Stage Blend IR Primitives
+
+Intent:
+Introduce IR primitives for multi-stage (`n`-layer) blending topology.
+
+Acceptance checks:
+
+1. IR schema supports explicit stage chaining.
+2. Compiler emits deterministic topology for >1 stage.
+3. Stage-less payloads continue to compile via compatibility defaults.
+
+### [ ] IR7 Multi-Stage Blend Authoring UI
+
+Intent:
+Provide authoring controls for stage ordering and stage-level operations.
+
+Acceptance checks:
+
+1. Users can create/reorder stages and choose stage operations.
+2. Stage edits compile to expected graph changes.
+3. UI enforces minimal validity constraints before apply/export.
+
+### [ ] IR8 Golden Topology Fixture Coverage
+
+Intent:
+Lock down compile determinism and regression safety with golden fixtures.
+
+Acceptance checks:
+
+1. Fixture suite covers shared-channel overlaps, neutral fallback, and multi-stage chains.
+2. Snapshot/golden outputs are stable across deterministic rebuilds.
+3. Regression tests fail on unintended topology drift.
+
+### [ ] IR9 Per-Channel Override Policy
+
+Intent:
+Add optional per-channel operation overrides on top of global cross-group/stage policy.
+
+Acceptance checks:
+
+1. Override map compiles and applies per channel deterministically.
+2. Invalid/unknown channel overrides emit diagnostics.
+3. Default global policy behavior remains unchanged when overrides are absent.
+
+### [ ] IR10 Priority Resolution Semantics
+
+Intent:
+Define and implement deterministic priority behavior for overlapping contributors.
+
+Acceptance checks:
+
+1. Priority/tie-break rules are encoded in compiler behavior and docs.
+2. Tests cover conflicting overlap scenarios with expected resolution outcomes.
+3. Diagnostics explain when priority rules changed final channel output.
+
 ## Prioritized Manual QA Intake (Post-B5.3)
 
 These items come from manual validation findings and are prioritized by runtime correctness first, then workflow integrity, then UX polish.

@@ -18,6 +18,8 @@ export type VariableSelection =
       objectId: string;
       featureId: string;
       label: string;
+      inputId?: string;
+      inputIds?: string[];
       targetId?: string;
       targetIds?: string[];
     };
@@ -1061,6 +1063,16 @@ function InputList({
     }
 
     const ordered = Array.from(selectedPropertyTargetIds).sort(compareText);
+    const selectedInputIds = Array.from(
+      new Set(
+        filteredPropertyRows
+          .filter(
+            (row) =>
+              row.targetId && selectedPropertyTargetIds.has(row.targetId),
+          )
+          .map((row) => row.id),
+      ),
+    ).sort(compareText);
     if (ordered.length === 1) {
       const singleRow = filteredPropertyRows.find(
         (row) => row.targetId === ordered[0],
@@ -1071,6 +1083,7 @@ function InputList({
           objectId: singleRow.objectId ?? "autorig",
           featureId: singleRow.featureId ?? "autorig",
           label: singleRow.selectionLabel ?? singleRow.label,
+          inputId: singleRow.id,
           targetId: singleRow.targetId,
         });
         return;
@@ -1082,6 +1095,7 @@ function InputList({
       objectId: "autorig",
       featureId: "autorig",
       label: `Selected Properties (${ordered.length})`,
+      inputIds: selectedInputIds,
       targetIds: ordered,
     });
   };
@@ -1095,6 +1109,7 @@ function InputList({
       objectId: row.objectId ?? "autorig",
       featureId: row.featureId ?? "autorig",
       label: row.selectionLabel ?? row.label,
+      inputId: row.id,
       targetId: row.targetId,
     });
   };

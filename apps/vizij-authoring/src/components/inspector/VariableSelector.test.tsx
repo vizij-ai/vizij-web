@@ -143,6 +143,7 @@ describe("VariableSelector", () => {
       objectId: "face_mesh",
       featureId: "jaw",
       label: "Jaw X · /face/jaw/x",
+      inputId: "autorig_jaw_x",
       targetId: "comp_jaw_x",
     });
   });
@@ -292,6 +293,7 @@ describe("VariableSelector", () => {
       objectId: "autorig",
       featureId: "autorig",
       label: "Selected Properties (2)",
+      inputIds: ["eye_rotate_x", "eye_translate_x"],
       targetIds: ["comp_eye_rx", "comp_eye_tx"],
     });
   });
