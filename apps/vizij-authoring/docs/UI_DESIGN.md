@@ -108,7 +108,7 @@ Interaction requirements:
 3. Cross-group composition mode is configurable and visible.
 4. Multi-stage composition supports explicit stage ordering and operations (`add` / `average`) with stage source selection (group and prior-stage references).
 5. Stage editing blocks invalid topology before apply/export (self/forward references, unknown sources, duplicate/empty sources).
-6. Policy features such as per-channel override/priority are deferred and must be clearly marked when absent.
+6. Data contracts support per-channel cross-group overrides, including `priority` mode with deterministic ordering/tie-break semantics; import/export and diagnostics must preserve and explain these policies.
 
 ## Neutral and Value Semantics
 
@@ -133,6 +133,6 @@ Interaction requirements:
 
 ## Out of Scope (Current MVP Scope)
 
-1. Per-channel override and priority policy authoring.
+1. Dedicated visual editor workflows for per-channel override/priority policy authoring (beyond config/IR import-export parity).
 2. Full visual rebrand unrelated to authoring correctness/workflows.
 3. Runtime architecture redesign outside authoring contract needs.

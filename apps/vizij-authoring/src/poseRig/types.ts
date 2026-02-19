@@ -9,6 +9,9 @@ export const POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT =
 export type StandardInputId = StandardRigInput["id"];
 export type PoseBlendMode = "average" | "additive";
 export type PoseIrBlendMode = "average" | "add";
+export type PoseCrossGroupOverrideMode = PoseBlendMode | "priority";
+export type PoseIrCrossGroupOverrideMode = PoseIrBlendMode | "priority";
+export type PosePriorityTieBreak = "group-order" | "group-id";
 export type PoseNeutralMode = "face-default" | "explicit";
 export type PoseDiagnosticSeverity = "warning" | "error" | "info";
 
@@ -63,8 +66,29 @@ export interface PoseIrGroupDefinition {
   poseIds: string[];
 }
 
+export interface PoseCrossGroupChannelOverride {
+  mode: PoseCrossGroupOverrideMode;
+  priorityOrder?: string[];
+  tieBreak?: PosePriorityTieBreak;
+}
+
+export interface PoseIrCrossGroupChannelOverride {
+  mode: PoseIrCrossGroupOverrideMode;
+  priorityOrder?: string[];
+  tieBreak?: PosePriorityTieBreak;
+}
+
+export type PoseCrossGroupChannelOverrideMap = Partial<
+  Record<StandardInputId, PoseCrossGroupChannelOverride>
+>;
+
+export type PoseIrCrossGroupChannelOverrideMap = Partial<
+  Record<StandardInputId, PoseIrCrossGroupChannelOverride>
+>;
+
 export interface PoseIrCrossGroupPolicy {
   mode: PoseIrBlendMode;
+  overrides?: PoseIrCrossGroupChannelOverrideMap;
 }
 
 export interface PoseIrStageSource {
@@ -158,6 +182,7 @@ export interface PoseRigConfigFile {
   description?: string;
   poseGroups?: PoseGroupDefinition[];
   crossGroupBlendMode?: PoseBlendMode;
+  crossGroupChannelOverrides?: PoseCrossGroupChannelOverrideMap;
   neutralMode?: PoseNeutralMode;
   blendStages?: PoseIrBlendStageDefinition[];
   neutralInputs: Record<StandardInputId, number>;

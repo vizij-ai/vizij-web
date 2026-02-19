@@ -335,6 +335,174 @@ describe("PoseConfigService", () => {
     ).toBe(true);
   });
 
+  it("normalizes cross-group channel overrides and preserves deterministic ordering", () => {
+    const standardInputs = [
+      createStandardRigInput({
+        id: "mouth_open",
+        path: "/mouth/open",
+        sourceId: "legacy_mouth_open",
+        label: "Mouth Open",
+        group: "mouth",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+      createStandardRigInput({
+        id: "brow_raise",
+        path: "/brow/raise",
+        sourceId: "legacy_brow_raise",
+        label: "Brow Raise",
+        group: "brow",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+    ];
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      crossGroupBlendMode: "average" as const,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      crossGroupChannelOverrides: {
+        "/mouth/open": {
+          mode: "priority" as const,
+          priorityOrder: ["viseme", "emotion"],
+          tieBreak: "group-id" as const,
+        },
+        brow_raise: {
+          mode: "additive" as const,
+        },
+      },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { mouth_open: 0.5, brow_raise: 0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(
+      input,
+      standardInputs,
+    );
+    expect(config.crossGroupChannelOverrides).toEqual({
+      brow_raise: {
+        mode: "additive",
+        tieBreak: "group-order",
+      },
+      mouth_open: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+    expect(
+      warnings.some((warning) =>
+        warning.includes('Cross-group channel override "/mouth/open" remapped'),
+      ),
+    ).toBe(true);
+  });
+
+  it("drops invalid cross-group channel overrides with warnings", () => {
+    const standardInputs = [
+      createStandardRigInput({
+        id: "mouth_open",
+        path: "/mouth/open",
+        sourceId: "legacy_mouth_open",
+        label: "Mouth Open",
+        group: "mouth",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+      createStandardRigInput({
+        id: "brow_raise",
+        path: "/brow/raise",
+        sourceId: "legacy_brow_raise",
+        label: "Brow Raise",
+        group: "brow",
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      }),
+    ];
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      crossGroupBlendMode: "additive" as const,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      crossGroupChannelOverrides: {
+        mouth_open: {
+          mode: "priority" as const,
+          priorityOrder: ["unknown_group", "emotion", "emotion"],
+          tieBreak: "bad-tie-break",
+        },
+        brow_raise: {
+          mode: "invalid_mode",
+          priorityOrder: ["emotion"],
+        },
+        unknown_input: {
+          mode: "priority" as const,
+        },
+        malformed_entry: "bad",
+      },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { mouth_open: 0.5, brow_raise: 0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(
+      input,
+      standardInputs,
+    );
+    expect(config.crossGroupChannelOverrides).toEqual({
+      brow_raise: {
+        mode: "additive",
+        tieBreak: "group-order",
+      },
+      mouth_open: {
+        mode: "priority",
+        priorityOrder: ["emotion"],
+        tieBreak: "group-order",
+      },
+    });
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'Cross-group channel override "unknown_input" references missing input',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('Cross-group channel override "brow_raise" mode'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('priority group "unknown_group"'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('mode "additive" does not use it'),
+      ),
+    ).toBe(true);
+  });
+
   it("creates grouped config defaults with explicit strategies", () => {
     const created = PoseConfigService.create(
       [

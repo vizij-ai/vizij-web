@@ -320,6 +320,79 @@ describe("PoseRigStore", () => {
     expect(state.poseConfigDraft).toEqual(PoseIrService.toConfig(ir));
   });
 
+  it("preserves imported cross-group channel overrides through projection rebuilds", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    const config: PoseRigConfigFile = {
+      version: 1,
+      faceId: "face",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "average",
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      crossGroupChannelOverrides: {
+        smile: {
+          mode: "priority",
+          priorityOrder: ["viseme", "emotion"],
+          tieBreak: "group-id",
+        },
+      },
+      poses: [
+        makePose("pose_smile", "Smile", {
+          groupIds: ["emotion"],
+          groupId: "emotion",
+          group: "emotion",
+          values: { smile: 0.6 },
+        }),
+        makePose("pose_viseme", "Viseme", {
+          groupIds: ["viseme"],
+          groupId: "viseme",
+          group: "viseme",
+          values: { smile: -0.2 },
+        }),
+      ],
+    };
+
+    store.getState().importConfig(config);
+    expect(store.getState().poseIrDraft?.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+
+    const smilePoseId = store
+      .getState()
+      .poses.find((pose) => pose.id === "pose_smile")?.id;
+    expect(smilePoseId).toBeTruthy();
+    if (!smilePoseId) {
+      return;
+    }
+
+    store.getState().updateCurrentValues({ smile: 0.75 });
+    store.getState().capturePose(smilePoseId);
+
+    const state = store.getState();
+    expect(state.poseConfigDraft?.crossGroupChannelOverrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+    expect(state.poseIrDraft?.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+  });
+
   it("ignores pose input additions for non-canonical ids", () => {
     const store = createPoseRigStore();
     store.getState().setStandardInputs([createInput("smile")]);

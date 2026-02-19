@@ -94,7 +94,7 @@ Current status:
 - `done`
 - Progress: `D3.1`, `D3.2`, `D3.3`, and `D3.4` are complete; empirical baseline evidence is recorded in `docs/perf/inputs-pane-baseline-2026-02-19.md`.
 
-## Stage 4 — Deferred Policy Semantics
+## Stage 4 — Policy Semantics
 
 Objective:
 
@@ -111,5 +111,5 @@ Exit gate:
 
 Current status:
 
-- `deferred` (explicitly not required for MVP implementation)
-- Progress: `E4.3` docs-only design pack is complete (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`); `E4.1` and `E4.2` remain deferred.
+- `done`
+- Progress: `E4.1` and `E4.2` are implemented (per-channel override contracts + priority compile semantics with diagnostics) and `E4.3` remains the supporting design reference (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).

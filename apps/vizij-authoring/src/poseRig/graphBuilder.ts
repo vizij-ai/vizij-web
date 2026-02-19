@@ -13,6 +13,7 @@ import {
 } from "./groupMembership";
 import type {
   PoseBlendMode,
+  PoseCrossGroupChannelOverride,
   PoseDefinition,
   PoseGroupDefinition,
   PoseIrBlendStageDefinition,
@@ -257,6 +258,122 @@ function normalizeBlendStagesForCompile(
   return normalizedStages;
 }
 
+function normalizeCrossGroupChannelOverridesForCompile(
+  overrides: unknown,
+  orderedGroupIds: string[],
+  fallbackMode: PoseBlendMode,
+): Record<string, PoseCrossGroupChannelOverride> | undefined {
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return undefined;
+  }
+  const knownGroupIds = new Set(orderedGroupIds);
+  const normalizedEntries = new Map<string, PoseCrossGroupChannelOverride>();
+  Object.entries(overrides as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([rawInputId, override]) => {
+      const inputId = rawInputId.trim();
+      if (!inputId) {
+        return;
+      }
+      if (
+        !override ||
+        typeof override !== "object" ||
+        Array.isArray(override)
+      ) {
+        return;
+      }
+      const modeCandidate = (override as { mode?: unknown }).mode;
+      const mode: PoseCrossGroupChannelOverride["mode"] =
+        modeCandidate === "priority"
+          ? "priority"
+          : modeCandidate === "additive" || modeCandidate === "add"
+            ? "additive"
+            : modeCandidate === "average"
+              ? "average"
+              : fallbackMode;
+      const tieBreak =
+        (override as { tieBreak?: unknown }).tieBreak === "group-id"
+          ? "group-id"
+          : "group-order";
+      const priorityOrderCandidate = (override as { priorityOrder?: unknown })
+        .priorityOrder;
+      let priorityOrder: string[] | undefined;
+      if (Array.isArray(priorityOrderCandidate)) {
+        const seenGroups = new Set<string>();
+        const normalizedPriorityOrder: string[] = [];
+        priorityOrderCandidate.forEach((groupId) => {
+          if (typeof groupId !== "string" || groupId.trim().length === 0) {
+            return;
+          }
+          const trimmedGroupId = groupId.trim();
+          if (!knownGroupIds.has(trimmedGroupId)) {
+            return;
+          }
+          if (seenGroups.has(trimmedGroupId)) {
+            return;
+          }
+          seenGroups.add(trimmedGroupId);
+          normalizedPriorityOrder.push(trimmedGroupId);
+        });
+        if (normalizedPriorityOrder.length > 0) {
+          priorityOrder = normalizedPriorityOrder;
+        }
+      }
+      if (mode !== "priority") {
+        priorityOrder = undefined;
+      }
+      normalizedEntries.set(inputId, {
+        mode,
+        tieBreak,
+        ...(priorityOrder ? { priorityOrder } : {}),
+      });
+    });
+  if (normalizedEntries.size === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(normalizedEntries);
+}
+
+interface OrderedPriorityLayer {
+  groupId: string;
+  order: number;
+  layer: BlendSignalLayer;
+}
+
+function orderPriorityLayersForCompile(options: {
+  layersByGroupId: Map<string, BlendSignalLayer>;
+  activeGroupOrderById: Map<string, number>;
+  override: PoseCrossGroupChannelOverride;
+}): OrderedPriorityLayer[] {
+  const { layersByGroupId, activeGroupOrderById, override } = options;
+  const explicitPriorityOrder = new Map<string, number>(
+    (override.priorityOrder ?? []).map((groupId, index) => [groupId, index]),
+  );
+
+  return Array.from(layersByGroupId.entries())
+    .map(([groupId, layer]) => ({
+      groupId,
+      order: activeGroupOrderById.get(groupId) ?? Number.MAX_SAFE_INTEGER,
+      layer,
+    }))
+    .sort((left, right) => {
+      const leftPriority =
+        explicitPriorityOrder.get(left.groupId) ?? Number.MAX_SAFE_INTEGER;
+      const rightPriority =
+        explicitPriorityOrder.get(right.groupId) ?? Number.MAX_SAFE_INTEGER;
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+      if (override.tieBreak === "group-id") {
+        return left.groupId.localeCompare(right.groupId);
+      }
+      if (left.order !== right.order) {
+        return left.order - right.order;
+      }
+      return left.groupId.localeCompare(right.groupId);
+    });
+}
+
 function pushEdgeFromSignalRef(
   edges: EdgeSpec[],
   from: BlendSignalRef,
@@ -447,6 +564,139 @@ function buildAverageStageSignal(options: {
   };
 }
 
+function buildPriorityCrossGroupSignal(options: {
+  nodePrefix: string;
+  orderedLayers: OrderedPriorityLayer[];
+  neutralNodeId: string;
+  inputId: string;
+  nodes: NodeSpec[];
+  edges: EdgeSpec[];
+}): BlendSignalLayer | null {
+  const { nodePrefix, orderedLayers, neutralNodeId, inputId, nodes, edges } =
+    options;
+  if (orderedLayers.length === 0) {
+    return null;
+  }
+  if (orderedLayers.length === 1) {
+    return orderedLayers[0].layer;
+  }
+
+  let runningSignal = orderedLayers[orderedLayers.length - 1]!.layer;
+  for (let index = orderedLayers.length - 2; index >= 0; index -= 1) {
+    const prioritized = orderedLayers[index]!;
+    const step = orderedLayers.length - index;
+    const stepPrefix = `${nodePrefix}_${step}_${sanitizeId(prioritized.groupId)}`;
+    const deltaFromBaseNodeId = `${stepPrefix}_delta_from_base`;
+    const valuesJoinNodeId = `${stepPrefix}_values_join`;
+    const weightsJoinNodeId = `${stepPrefix}_weights_join`;
+    const maskNodeId = `${stepPrefix}_mask`;
+    const wsNodeId = `${stepPrefix}_ws`;
+    const overlayNodeId = `${stepPrefix}_overlay`;
+    const deltaFromNeutralNodeId = `${stepPrefix}_delta`;
+
+    nodes.push(
+      {
+        id: deltaFromBaseNodeId,
+        type: "subtract",
+      },
+      {
+        id: valuesJoinNodeId,
+        type: "join",
+      },
+      {
+        id: weightsJoinNodeId,
+        type: "join",
+      },
+      {
+        id: maskNodeId,
+        type: "constant",
+        params: {
+          value: { vector: [1] },
+        },
+      },
+      {
+        id: wsNodeId,
+        type: "weightedsumvector",
+      },
+      {
+        id: overlayNodeId,
+        type: "blendweightedaverageoverlay",
+      },
+      {
+        id: deltaFromNeutralNodeId,
+        type: "subtract",
+      },
+    );
+
+    edges.push(
+      {
+        from: { node_id: prioritized.layer.valueNodeId },
+        to: { node_id: deltaFromBaseNodeId, input: "lhs" },
+      },
+      {
+        from: { node_id: runningSignal.valueNodeId },
+        to: { node_id: deltaFromBaseNodeId, input: "rhs" },
+      },
+      {
+        from: { node_id: deltaFromBaseNodeId },
+        to: { node_id: valuesJoinNodeId, input: "operand_1" },
+      },
+    );
+    pushEdgeFromSignalRef(edges, prioritized.layer.activity, {
+      nodeId: weightsJoinNodeId,
+      input: "operand_1",
+    });
+
+    edges.push(
+      {
+        from: { node_id: valuesJoinNodeId },
+        to: { node_id: wsNodeId, input: "values" },
+      },
+      {
+        from: { node_id: weightsJoinNodeId },
+        to: { node_id: wsNodeId, input: "weights" },
+      },
+      {
+        from: { node_id: maskNodeId },
+        to: { node_id: wsNodeId, input: "masks" },
+      },
+      {
+        from: { node_id: wsNodeId, output: "total_weighted_sum" },
+        to: { node_id: overlayNodeId, input: "total_weighted_sum" },
+      },
+      {
+        from: { node_id: wsNodeId, output: "total_weight" },
+        to: { node_id: overlayNodeId, input: "total_weight" },
+      },
+      {
+        from: { node_id: wsNodeId, output: "max_effective_weight" },
+        to: { node_id: overlayNodeId, input: "max_effective_weight" },
+      },
+      {
+        from: { node_id: runningSignal.valueNodeId },
+        to: { node_id: overlayNodeId, input: "base" },
+      },
+      {
+        from: { node_id: overlayNodeId },
+        to: { node_id: deltaFromNeutralNodeId, input: "lhs" },
+      },
+      {
+        from: { node_id: neutralNodeId },
+        to: { node_id: deltaFromNeutralNodeId, input: "rhs" },
+        selector: [{ field: "values" }, { field: inputId }],
+      },
+    );
+
+    runningSignal = {
+      valueNodeId: overlayNodeId,
+      deltaNodeId: deltaFromNeutralNodeId,
+      activity: prioritized.layer.activity,
+    };
+  }
+
+  return runningSignal;
+}
+
 function buildBlendStageChain(options: {
   blendStages: PoseIrBlendStageDefinition[];
   inputId: string;
@@ -522,6 +772,7 @@ export function buildPoseGraphSpec(options: {
   poseGroups?: PoseGroupDefinition[];
   defaultGroupBlendMode?: PoseBlendMode;
   crossGroupBlendMode?: PoseBlendMode;
+  crossGroupChannelOverrides?: unknown;
   blendStages?: PoseIrBlendStageDefinition[];
   blendMode?: "average" | "additive";
   poseGroupSegment?: string | null;
@@ -553,6 +804,12 @@ export function buildPoseGraphSpec(options: {
     options.blendStages,
     resolvedGroups.map((group) => group.id),
   );
+  const crossGroupChannelOverrides =
+    normalizeCrossGroupChannelOverridesForCompile(
+      options.crossGroupChannelOverrides,
+      resolvedGroups.map((group) => group.id),
+      crossGroupBlendMode,
+    );
   const poseById = new Map(poses.map((pose) => [pose.id, pose]));
 
   poses.forEach((pose) => {
@@ -635,6 +892,7 @@ export function buildPoseGraphSpec(options: {
 
     const activeGroupLayers: BlendSignalLayer[] = [];
     const activeGroupLayersById = new Map<string, BlendSignalLayer>();
+    const activeGroupOrderById = new Map<string, number>();
 
     resolvedGroups.forEach((group, groupIndex) => {
       const deltas: number[] = [];
@@ -766,6 +1024,7 @@ export function buildPoseGraphSpec(options: {
         };
         activeGroupLayers.push(layer);
         activeGroupLayersById.set(group.id, layer);
+        activeGroupOrderById.set(group.id, groupIndex);
       } else {
         const overlayNodeId = `pose_group_overlay_${groupSuffix}`;
         nodes.push({
@@ -819,6 +1078,7 @@ export function buildPoseGraphSpec(options: {
         };
         activeGroupLayers.push(layer);
         activeGroupLayersById.set(group.id, layer);
+        activeGroupOrderById.set(group.id, groupIndex);
       }
     });
 
@@ -830,6 +1090,8 @@ export function buildPoseGraphSpec(options: {
     const typedPath = buildRigInputPath(faceSegment, path);
     const outputNodeId = `out_${sanitizeId(input.id)}`;
     const hasBlendStages = Boolean(blendStages && blendStages.length > 0);
+    const crossGroupMode =
+      crossGroupChannelOverrides?.[input.id]?.mode ?? crossGroupBlendMode;
     if (!hasBlendStages) {
       nodes.push({
         id: outputNodeId,
@@ -851,9 +1113,30 @@ export function buildPoseGraphSpec(options: {
       if (!finalSignal) {
         return;
       }
+    } else if (crossGroupMode === "priority") {
+      const override = crossGroupChannelOverrides?.[input.id] ?? {
+        mode: "priority",
+        tieBreak: "group-order",
+      };
+      const orderedPriorityLayers = orderPriorityLayersForCompile({
+        layersByGroupId: activeGroupLayersById,
+        activeGroupOrderById,
+        override,
+      });
+      finalSignal = buildPriorityCrossGroupSignal({
+        nodePrefix: `pose_priority_${sanitizeId(input.id)}`,
+        orderedLayers: orderedPriorityLayers,
+        neutralNodeId,
+        inputId: input.id,
+        nodes,
+        edges,
+      });
+      if (!finalSignal) {
+        return;
+      }
     } else if (activeGroupLayers.length === 1) {
       finalSignal = activeGroupLayers[0];
-    } else if (crossGroupBlendMode === "additive") {
+    } else if (crossGroupMode === "additive") {
       let runningDeltaNodeId = activeGroupLayers[0]?.deltaNodeId ?? null;
       activeGroupLayers.slice(1).forEach((layer, index) => {
         if (!runningDeltaNodeId) {
@@ -1159,6 +1442,7 @@ export function buildPoseGraphSpecFromIr(options: {
     defaultGroupBlendMode,
     crossGroupBlendMode:
       poseIr.crossGroupPolicy?.mode === "add" ? "additive" : "average",
+    crossGroupChannelOverrides: poseIr.crossGroupPolicy?.overrides,
     blendStages: normalizedBlendStages,
     poseGroupSegment: options.poseGroupSegment ?? null,
     rigKind: poseIr.rigKind ?? options.rigKind ?? "face-specific",

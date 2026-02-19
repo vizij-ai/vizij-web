@@ -117,6 +117,53 @@ describe("PoseGraphService", () => {
     expect(findNode(spec, "pose_cross_apply_smile")?.type).toBe("add");
   });
 
+  it("applies per-channel priority override topology from config", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "average",
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      crossGroupChannelOverrides: {
+        smile: {
+          mode: "priority",
+          priorityOrder: ["viseme", "emotion"],
+          tieBreak: "group-order",
+        },
+      },
+      poses: [
+        {
+          id: "pose_a",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+        {
+          id: "pose_b",
+          name: "Talk",
+          groupIds: ["viseme"],
+          values: { smile: -0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const { spec } = PoseGraphService.buildSpec(config, inputs, {
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "average",
+    });
+    expect(findNode(spec, "pose_priority_smile_2_viseme_overlay")?.type).toBe(
+      "blendweightedaverageoverlay",
+    );
+    expect(findNode(spec, "pose_cross_overlay_smile")).toBeUndefined();
+  });
+
   it("builds deterministic shared-pose graphs for equivalent membership sets", () => {
     const baseConfig = {
       version: 1 as const,
@@ -365,6 +412,73 @@ describe("PoseGraphService", () => {
       "add",
     );
     expect(findNode(spec, "pose_cross_apply_smile")).toBeUndefined();
+  });
+
+  it("applies per-channel priority override topology from IR", () => {
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_talk"],
+        },
+      ],
+      crossGroupPolicy: {
+        mode: "average",
+        overrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["viseme", "emotion"],
+            tieBreak: "group-order",
+          },
+        },
+      },
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+        {
+          id: "pose_talk",
+          name: "Talk",
+          groupIds: ["viseme"],
+          targets: { smile: -0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { spec } = PoseGraphService.buildSpecFromIr(ir, inputs);
+    expect(findNode(spec, "pose_priority_smile_2_viseme_overlay")?.type).toBe(
+      "blendweightedaverageoverlay",
+    );
+    expect(findNode(spec, "pose_cross_overlay_smile")).toBeUndefined();
   });
 
   it("flags invalid specs", () => {

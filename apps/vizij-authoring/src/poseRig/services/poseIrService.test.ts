@@ -290,6 +290,252 @@ describe("PoseIrService", () => {
     });
   });
 
+  it("maps per-channel cross-group overrides into IR and emits priority diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0 },
+        crossGroupBlendMode: "average",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+          },
+        ],
+        crossGroupChannelOverrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["viseme", "emotion"],
+            tieBreak: "group-id",
+          },
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_talk",
+            name: "Talk",
+            groupIds: ["viseme"],
+            values: { smile: -0.2 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "priority-cross-group-override-applied" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "priority-cross-group-override-resolution-change" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes invalid cross-group overrides with structured diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0 },
+        crossGroupBlendMode: "additive",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+          },
+        ],
+        crossGroupChannelOverrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["emotion", "unknown_group", "emotion"],
+            tieBreak: "bad-tie-break",
+          },
+          ghost_input: {
+            mode: "priority",
+          },
+          malformed: "bad",
+          brow: {
+            mode: "invalid_mode",
+            priorityOrder: ["emotion"],
+          },
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.crossGroupPolicy.overrides).toEqual({
+      brow: {
+        mode: "add",
+        tieBreak: "group-order",
+      },
+      smile: {
+        mode: "priority",
+        priorityOrder: ["emotion"],
+        tieBreak: "group-order",
+      },
+    });
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "non-canonical-cross-group-override-input-id" &&
+          diagnostic.location?.inputId === "malformed",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "non-canonical-cross-group-override-input-id" &&
+          diagnostic.location?.inputId === "ghost_input",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-group-override-mode" &&
+          diagnostic.location?.inputId === "brow",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-group-override-tie-break" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "unknown-cross-group-override-priority-group-id" &&
+          diagnostic.location?.groupId === "unknown_group",
+      ),
+    ).toBe(true);
+  });
+
+  it("round-trips IR cross-group overrides back to config payloads", () => {
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      crossGroupPolicy: {
+        mode: "add",
+        overrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["viseme", "emotion"],
+            tieBreak: "group-id",
+          },
+          brow: {
+            mode: "add",
+            tieBreak: "group-order",
+          },
+        },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.crossGroupChannelOverrides).toEqual({
+      brow: {
+        mode: "additive",
+        tieBreak: "group-order",
+      },
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+
+    const { ir: normalizedBack } = PoseIrService.fromConfig(
+      config,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+    expect(normalizedBack.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["emotion"],
+        tieBreak: "group-id",
+      },
+    });
+  });
+
   it("normalizes IR payloads that only provide group poseIds", () => {
     const { ir, warnings, diagnostics } = PoseIrService.normalize(
       {

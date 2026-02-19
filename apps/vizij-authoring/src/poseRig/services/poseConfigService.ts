@@ -6,11 +6,13 @@ import type {
   PoseRigConfigFile,
   LowLevelRigSummary,
   PoseDefinition,
+  PoseCrossGroupChannelOverride,
   PoseGroupDefinition,
   PoseBlendMode,
   PoseIrBlendMode,
   PoseIrBlendStageDefinition,
   PoseIrStageSource,
+  PosePriorityTieBreak,
   PoseNeutralMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
@@ -113,6 +115,219 @@ function cloneBlendStages(
       id: source.id,
     })),
   }));
+}
+
+function cloneCrossGroupChannelOverrides(
+  overrides: PoseRigConfigFile["crossGroupChannelOverrides"] | undefined,
+): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
+  if (!overrides) {
+    return undefined;
+  }
+  const entries = Object.entries(overrides).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const cloned = entries.map(([inputId, override]) => {
+    if (!override) {
+      return null;
+    }
+    const normalized: PoseCrossGroupChannelOverride = {
+      mode: override.mode,
+      ...(override.tieBreak ? { tieBreak: override.tieBreak } : {}),
+      ...(override.priorityOrder && override.priorityOrder.length > 0
+        ? { priorityOrder: [...override.priorityOrder] }
+        : {}),
+    };
+    return [inputId, normalized] as const;
+  });
+  const filtered = cloned.filter(
+    (entry): entry is readonly [string, PoseCrossGroupChannelOverride] =>
+      entry !== null,
+  );
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
+}
+
+function normalizeTieBreak(
+  value: unknown,
+  path: string,
+  pushWarning: (message: string) => void,
+): PosePriorityTieBreak {
+  if (value === undefined || value === null) {
+    return "group-order";
+  }
+  if (value === "group-order" || value === "group-id") {
+    return value;
+  }
+  pushWarning(
+    `Cross-group override "${path}" tieBreak "${String(value)}" is invalid; using "group-order".`,
+  );
+  return "group-order";
+}
+
+function normalizeCrossGroupChannelOverrides(
+  overrides: unknown,
+  options: {
+    validInputIds: Set<string>;
+    knownGroupIds: string[];
+    fallbackMode: PoseBlendMode;
+    resolveInputId: (rawKey: string) => {
+      id: string | null;
+      reason: "sourceId" | "path" | "normalized" | null;
+    };
+    pushWarning: (message: string) => void;
+  },
+): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
+  const {
+    validInputIds,
+    knownGroupIds,
+    fallbackMode,
+    resolveInputId,
+    pushWarning,
+  } = options;
+  if (overrides === undefined || overrides === null) {
+    return undefined;
+  }
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    pushWarning(
+      "Cross-group channel overrides were ignored because payload is not an object map.",
+    );
+    return undefined;
+  }
+
+  const knownGroupIdsSet = new Set(knownGroupIds);
+  const normalizedEntries = new Map<string, PoseCrossGroupChannelOverride>();
+  const rawEntries = Object.entries(overrides as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+  rawEntries.forEach(([rawInputKey, rawOverride]) => {
+    const trimmedInputKey = rawInputKey.trim();
+    if (!trimmedInputKey) {
+      pushWarning(
+        "Cross-group channel override entry with empty input id key was ignored.",
+      );
+      return;
+    }
+
+    const resolved = resolveInputId(trimmedInputKey);
+    if (!resolved.id) {
+      if (validInputIds.size > 0) {
+        pushWarning(
+          `Cross-group channel override "${trimmedInputKey}" references missing input and was ignored.`,
+        );
+        return;
+      }
+    }
+    const canonicalInputId = resolved.id ?? trimmedInputKey;
+    if (resolved.id && resolved.id !== trimmedInputKey) {
+      pushWarning(
+        `Cross-group channel override "${trimmedInputKey}" remapped to "${resolved.id}" via ${resolved.reason ?? "id"} match.`,
+      );
+    }
+
+    if (
+      !rawOverride ||
+      typeof rawOverride !== "object" ||
+      Array.isArray(rawOverride)
+    ) {
+      pushWarning(
+        `Cross-group channel override "${trimmedInputKey}" was ignored because it is not an object.`,
+      );
+      return;
+    }
+
+    const modeCandidate = (rawOverride as { mode?: unknown }).mode;
+    const mode: PoseCrossGroupChannelOverride["mode"] =
+      modeCandidate === "average" ||
+      modeCandidate === "additive" ||
+      modeCandidate === "priority"
+        ? modeCandidate
+        : fallbackMode;
+    if (
+      modeCandidate !== "average" &&
+      modeCandidate !== "additive" &&
+      modeCandidate !== "priority"
+    ) {
+      pushWarning(
+        `Cross-group channel override "${trimmedInputKey}" mode "${String(modeCandidate)}" is invalid; using "${mode}".`,
+      );
+    }
+
+    const tieBreak = normalizeTieBreak(
+      (rawOverride as { tieBreak?: unknown }).tieBreak,
+      trimmedInputKey,
+      pushWarning,
+    );
+
+    let priorityOrder: string[] | undefined;
+    const priorityOrderCandidate = (rawOverride as { priorityOrder?: unknown })
+      .priorityOrder;
+    if (
+      priorityOrderCandidate !== undefined &&
+      !Array.isArray(priorityOrderCandidate)
+    ) {
+      pushWarning(
+        `Cross-group channel override "${trimmedInputKey}" priorityOrder is invalid and was ignored.`,
+      );
+    } else if (Array.isArray(priorityOrderCandidate)) {
+      const seenGroups = new Set<string>();
+      const normalizedPriorityOrder: string[] = [];
+      priorityOrderCandidate.forEach((groupId) => {
+        if (typeof groupId !== "string" || groupId.trim().length === 0) {
+          pushWarning(
+            `Cross-group channel override "${trimmedInputKey}" contains an invalid priority group id and it was ignored.`,
+          );
+          return;
+        }
+        const trimmedGroupId = groupId.trim();
+        if (!knownGroupIdsSet.has(trimmedGroupId)) {
+          pushWarning(
+            `Cross-group channel override "${trimmedInputKey}" references unknown priority group "${trimmedGroupId}" and it was ignored.`,
+          );
+          return;
+        }
+        if (seenGroups.has(trimmedGroupId)) {
+          pushWarning(
+            `Cross-group channel override "${trimmedInputKey}" priority group "${trimmedGroupId}" is duplicated and was ignored.`,
+          );
+          return;
+        }
+        seenGroups.add(trimmedGroupId);
+        normalizedPriorityOrder.push(trimmedGroupId);
+      });
+      if (normalizedPriorityOrder.length > 0) {
+        priorityOrder = normalizedPriorityOrder;
+      }
+    }
+
+    if (mode !== "priority" && priorityOrder && priorityOrder.length > 0) {
+      pushWarning(
+        `Cross-group channel override "${trimmedInputKey}" provided priorityOrder but mode "${mode}" does not use it; dropping priorityOrder.`,
+      );
+      priorityOrder = undefined;
+    }
+
+    const existing = normalizedEntries.get(canonicalInputId);
+    if (existing && canonicalInputId !== trimmedInputKey) {
+      pushWarning(
+        `Cross-group channel overrides "${trimmedInputKey}" and "${canonicalInputId}" resolve to "${canonicalInputId}"; keeping value from "${trimmedInputKey}".`,
+      );
+    }
+    normalizedEntries.set(canonicalInputId, {
+      mode,
+      tieBreak,
+      ...(priorityOrder ? { priorityOrder } : {}),
+    });
+  });
+
+  if (normalizedEntries.size === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(normalizedEntries);
 }
 
 function normalizeBlendStages(
@@ -443,6 +658,17 @@ export const PoseConfigService = {
       resolveDefaultStageMode(crossGroupBlendMode),
       pushWarning,
     );
+    const normalizedCrossGroupChannelOverrides =
+      normalizeCrossGroupChannelOverrides(
+        candidate.crossGroupChannelOverrides,
+        {
+          validInputIds: validInputs,
+          knownGroupIds: normalizedGroups.map((group) => group.id),
+          fallbackMode: crossGroupBlendMode,
+          resolveInputId,
+          pushWarning,
+        },
+      );
 
     const poses = candidate.poses.map((pose) => {
       const values: Record<string, number> = {};
@@ -500,6 +726,9 @@ export const PoseConfigService = {
         description: candidate.description ?? undefined,
         poseGroups: normalizedGroups,
         crossGroupBlendMode,
+        crossGroupChannelOverrides: cloneCrossGroupChannelOverrides(
+          normalizedCrossGroupChannelOverrides,
+        ),
         blendStages: cloneBlendStages(normalizedBlendStages),
         neutralMode,
         neutralInputs,
@@ -529,6 +758,7 @@ export const PoseConfigService = {
       poseGroups?: PoseGroupDefinition[];
       defaultGroupBlendMode?: PoseBlendMode;
       crossGroupBlendMode?: PoseBlendMode;
+      crossGroupChannelOverrides?: PoseRigConfigFile["crossGroupChannelOverrides"];
       blendStages?: PoseRigConfigFile["blendStages"];
       neutralMode?: PoseNeutralMode;
     },
@@ -548,6 +778,19 @@ export const PoseConfigService = {
         // create() returns normalized payload; invalid blend stages are silently dropped.
       },
     );
+    const normalizedCrossGroupChannelOverrides =
+      normalizeCrossGroupChannelOverrides(options?.crossGroupChannelOverrides, {
+        validInputIds: new Set(),
+        knownGroupIds: poseGroups.map((group) => group.id),
+        fallbackMode: crossGroupBlendMode,
+        resolveInputId: (rawKey) => ({
+          id: rawKey.trim() || null,
+          reason: null,
+        }),
+        pushWarning: () => {
+          // create() returns normalized payload; invalid override entries are silently dropped.
+        },
+      });
 
     const normalizedPoses = poses.map((pose) => {
       const membership = resolvePoseMembership(pose, poseGroups);
@@ -569,6 +812,9 @@ export const PoseConfigService = {
       neutralInputs: { ...neutralInputs },
       poseGroups,
       crossGroupBlendMode,
+      crossGroupChannelOverrides: cloneCrossGroupChannelOverrides(
+        normalizedCrossGroupChannelOverrides,
+      ),
       blendStages: cloneBlendStages(normalizedBlendStages),
       poses: normalizedPoses,
       standardInputSchema: standardInputSchema ?? {

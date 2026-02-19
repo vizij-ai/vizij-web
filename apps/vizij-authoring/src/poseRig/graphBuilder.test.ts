@@ -247,6 +247,73 @@ describe("buildPoseGraphSpec", () => {
     );
   });
 
+  it("builds priority cross-group topology when channel override mode is priority", () => {
+    const groupedPoses = [
+      { ...poses[0], id: "pose_emotion", group: "emotion" },
+      {
+        ...poses[1],
+        id: "pose_viseme",
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "average",
+      crossGroupChannelOverrides: {
+        mouth_open: {
+          mode: "priority",
+          priorityOrder: ["viseme", "emotion"],
+          tieBreak: "group-order",
+        },
+      },
+    });
+
+    expect(
+      findNode(spec.nodes, "pose_priority_mouth_open_2_viseme_overlay")?.type,
+    ).toBe("blendweightedaverageoverlay");
+    expect(
+      findNode(spec.nodes, "pose_cross_overlay_mouth_open"),
+    ).toBeUndefined();
+    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")).toBeUndefined();
+  });
+
+  it("keeps default compile parity when cross-group overrides are absent or empty", () => {
+    const groupedPoses = [
+      { ...poses[0], group: "emotion" },
+      {
+        ...poses[1],
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const baseOptions = {
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      defaultGroupBlendMode: "average" as const,
+      crossGroupBlendMode: "average" as const,
+    };
+
+    const legacy = buildPoseGraphSpec(baseOptions);
+    const explicitEmptyOverride = buildPoseGraphSpec({
+      ...baseOptions,
+      crossGroupChannelOverrides: {},
+    });
+
+    expect(explicitEmptyOverride.spec).toEqual(legacy.spec);
+    expect(explicitEmptyOverride.summary).toEqual(legacy.summary);
+  });
+
   it("compiles explicit multi-stage blend chains", () => {
     const groupedPoses = [
       { ...poses[0], id: "pose_emotion", group: "emotion" },
@@ -444,5 +511,52 @@ describe("buildPoseGraphSpec", () => {
         "pose_stage_mouth_open_1_stage_base_apply",
       ),
     ).toBeTruthy();
+  });
+
+  it("keeps priority compile deterministic across groupIds order with group-id tie break", () => {
+    const sharedPose = {
+      ...poses[0],
+      id: "pose_shared",
+      name: "Shared Smile",
+      group: null,
+      groupId: null,
+      groupIds: ["viseme_main", "emotion_main"],
+      values: { mouth_open: 0.8, brow_raise: 0.4 },
+    };
+    const poseGroups = [
+      { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+      { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+    ];
+    const options = {
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      standardInputs,
+      poseGroups,
+      defaultGroupBlendMode: "average" as const,
+      crossGroupBlendMode: "average" as const,
+      crossGroupChannelOverrides: {
+        mouth_open: {
+          mode: "priority" as const,
+          tieBreak: "group-id" as const,
+        },
+      },
+    };
+
+    const firstCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [sharedPose],
+    });
+    const secondCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [
+        {
+          ...sharedPose,
+          groupIds: ["emotion_main", "viseme_main"],
+        },
+      ],
+    });
+
+    expect(secondCompile.spec).toEqual(firstCompile.spec);
+    expect(secondCompile.summary).toEqual(firstCompile.summary);
   });
 });

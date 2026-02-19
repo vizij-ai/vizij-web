@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import type {
+  PoseCrossGroupChannelOverride,
   PoseDiagnostic,
   PoseDefinition,
   PoseIrBlendMode,
@@ -79,6 +80,43 @@ function cloneBlendStages(
       id: source.id,
     })),
   }));
+}
+
+function cloneCrossGroupChannelOverrides(
+  overrides: PoseRigConfigFile["crossGroupChannelOverrides"] | undefined | null,
+): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
+  if (!overrides) {
+    return undefined;
+  }
+  const entries = Object.entries(overrides).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const clonedEntries: Array<readonly [string, PoseCrossGroupChannelOverride]> =
+    [];
+  entries.forEach(([inputId, override]) => {
+    if (!override) {
+      return;
+    }
+    clonedEntries.push([
+      inputId,
+      {
+        mode: override.mode,
+        ...(override.priorityOrder &&
+        Array.isArray(override.priorityOrder) &&
+        override.priorityOrder.length > 0
+          ? { priorityOrder: [...override.priorityOrder] }
+          : {}),
+        ...(override.tieBreak ? { tieBreak: override.tieBreak } : {}),
+      },
+    ]);
+  });
+  if (clonedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(clonedEntries);
 }
 
 interface BlendStageTopologyIssue {
@@ -378,6 +416,9 @@ interface PoseStateProjectionOptions {
   neutralMode?: "face-default" | "explicit";
   blendMode?: "average" | "additive";
   crossGroupBlendMode?: "average" | "additive";
+  crossGroupChannelOverrides?:
+    | PoseRigConfigFile["crossGroupChannelOverrides"]
+    | null;
   blendStages?: PoseRigConfigFile["blendStages"] | null;
   standardInputSchema?: { id: string; version: string } | null;
   poseGroups?: ConfiguredPoseGroup[];
@@ -591,6 +632,16 @@ export function createPoseRigStore(
           snapshot.lastImportedConfig?.blendStages ??
           undefined)
         : (overrides.blendStages ?? undefined);
+    const crossGroupChannelOverrides =
+      overrides?.crossGroupChannelOverrides === undefined
+        ? cloneCrossGroupChannelOverrides(
+            snapshot.poseConfigDraft?.crossGroupChannelOverrides ??
+              snapshot.lastImportedConfig?.crossGroupChannelOverrides ??
+              undefined,
+          )
+        : cloneCrossGroupChannelOverrides(
+            overrides.crossGroupChannelOverrides ?? undefined,
+          );
     return PoseConfigService.create(
       overrides?.poses ?? snapshot.poses,
       overrides?.neutralInputs ?? snapshot.neutralInputs,
@@ -603,6 +654,7 @@ export function createPoseRigStore(
         defaultGroupBlendMode: overrides?.blendMode ?? snapshot.blendMode,
         crossGroupBlendMode:
           overrides?.crossGroupBlendMode ?? snapshot.crossGroupBlendMode,
+        crossGroupChannelOverrides,
         blendStages,
         neutralMode: overrides?.neutralMode ?? snapshot.neutralMode,
       },

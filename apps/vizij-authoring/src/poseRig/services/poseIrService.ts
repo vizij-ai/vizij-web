@@ -9,12 +9,15 @@ import type {
   PoseDiagnostic,
   PoseDiagnosticLocation,
   PoseBlendMode,
+  PoseCrossGroupChannelOverride,
   PoseDefinition,
   PoseGroupDefinition,
   PoseIrCompileResult,
   PoseIrBlendMode,
+  PoseIrCrossGroupChannelOverride,
   PoseIrBlendStageDefinition,
   PoseIrStageSource,
+  PosePriorityTieBreak,
   PoseNeutralMode,
   PoseRigConfigFile,
   PoseRigIrFile,
@@ -39,6 +42,156 @@ function toPoseIrBlendMode(value: unknown): PoseIrBlendMode {
 
 function toPoseConfigBlendMode(value: unknown): PoseBlendMode {
   return value === "add" || value === "additive" ? "additive" : "average";
+}
+
+function toPoseIrCrossGroupOverrideMode(
+  value: unknown,
+  fallbackMode: PoseIrBlendMode,
+): PoseIrCrossGroupChannelOverride["mode"] {
+  if (value === "priority") {
+    return "priority";
+  }
+  if (value === "add" || value === "additive") {
+    return "add";
+  }
+  if (value === "average") {
+    return "average";
+  }
+  return fallbackMode;
+}
+
+function toPoseConfigCrossGroupOverrideMode(
+  value: unknown,
+): PoseCrossGroupChannelOverride["mode"] {
+  if (value === "priority") {
+    return "priority";
+  }
+  return value === "add" || value === "additive" ? "additive" : "average";
+}
+
+function cloneConfigCrossGroupChannelOverrides(
+  overrides: PoseRigConfigFile["crossGroupChannelOverrides"] | undefined,
+): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
+  if (!overrides) {
+    return undefined;
+  }
+  const entries = Object.entries(overrides).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const cloned = entries.map(([inputId, override]) => {
+    if (!override) {
+      return null;
+    }
+    return [
+      inputId,
+      {
+        mode: override.mode,
+        ...(override.tieBreak ? { tieBreak: override.tieBreak } : {}),
+        ...(override.priorityOrder && override.priorityOrder.length > 0
+          ? { priorityOrder: [...override.priorityOrder] }
+          : {}),
+      } satisfies PoseCrossGroupChannelOverride,
+    ] as const;
+  });
+  const filtered = cloned.filter(
+    (entry): entry is readonly [string, PoseCrossGroupChannelOverride] =>
+      entry !== null,
+  );
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
+}
+
+function cloneIrCrossGroupChannelOverrides(
+  overrides: PoseRigIrFile["crossGroupPolicy"]["overrides"] | undefined,
+): PoseRigIrFile["crossGroupPolicy"]["overrides"] | undefined {
+  if (!overrides) {
+    return undefined;
+  }
+  const entries = Object.entries(overrides).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const cloned = entries.map(([inputId, override]) => {
+    if (!override) {
+      return null;
+    }
+    return [
+      inputId,
+      {
+        mode: override.mode,
+        ...(override.tieBreak ? { tieBreak: override.tieBreak } : {}),
+        ...(override.priorityOrder && override.priorityOrder.length > 0
+          ? { priorityOrder: [...override.priorityOrder] }
+          : {}),
+      } satisfies PoseIrCrossGroupChannelOverride,
+    ] as const;
+  });
+  const filtered = cloned.filter(
+    (entry): entry is readonly [string, PoseIrCrossGroupChannelOverride] =>
+      entry !== null,
+  );
+  if (filtered.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(filtered);
+}
+
+function mapIrOverridesToConfig(
+  overrides: unknown,
+): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return undefined;
+  }
+  const mappedEntries = Object.entries(overrides as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([inputId, override]) => {
+      if (
+        !override ||
+        typeof override !== "object" ||
+        Array.isArray(override)
+      ) {
+        return null;
+      }
+      const modeCandidate = (override as { mode?: unknown }).mode;
+      const tieBreakCandidate = (override as { tieBreak?: unknown }).tieBreak;
+      const tieBreak =
+        tieBreakCandidate === "group-order" || tieBreakCandidate === "group-id"
+          ? tieBreakCandidate
+          : undefined;
+      const priorityOrderCandidate = (override as { priorityOrder?: unknown })
+        .priorityOrder;
+      const priorityOrder = Array.isArray(priorityOrderCandidate)
+        ? priorityOrderCandidate.filter(
+            (groupId): groupId is string =>
+              typeof groupId === "string" && groupId.trim().length > 0,
+          )
+        : undefined;
+      return [
+        inputId,
+        {
+          mode: toPoseConfigCrossGroupOverrideMode(modeCandidate),
+          ...(tieBreak ? { tieBreak } : {}),
+          ...(priorityOrder && priorityOrder.length > 0
+            ? { priorityOrder: [...priorityOrder] }
+            : {}),
+        } satisfies PoseCrossGroupChannelOverride,
+      ] as const;
+    })
+    .filter(
+      (entry): entry is readonly [string, PoseCrossGroupChannelOverride] =>
+        entry !== null,
+    );
+  if (mappedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(mappedEntries);
 }
 
 function isSyntheticPoseChannelId(inputId: string): boolean {
@@ -494,6 +647,300 @@ function normalizeBlendStages(
   return normalizedStages;
 }
 
+function normalizeOverrideTieBreak(
+  tieBreak: unknown,
+  collector: DiagnosticCollector,
+  source: "pose-config" | "pose-ir",
+  inputId: string,
+): PosePriorityTieBreak {
+  if (tieBreak === undefined || tieBreak === null) {
+    return "group-order";
+  }
+  if (tieBreak === "group-order" || tieBreak === "group-id") {
+    return tieBreak;
+  }
+  pushPoseDiagnostic(collector, {
+    severity: "warning",
+    source,
+    code: "invalid-cross-group-override-tie-break",
+    message: `Cross-group override for "${inputId}" has invalid tieBreak "${String(tieBreak)}"; using "group-order".`,
+    location: {
+      inputId,
+      path:
+        source === "pose-config"
+          ? `crossGroupChannelOverrides.${inputId}.tieBreak`
+          : `crossGroupPolicy.overrides.${inputId}.tieBreak`,
+    },
+    metadata: {
+      inputId,
+      tieBreak,
+      fallback: "group-order",
+    },
+  });
+  return "group-order";
+}
+
+function normalizeCrossGroupChannelOverridesForIr(
+  overrides: unknown,
+  options: {
+    canonicalInputs: Set<string>;
+    groupIds: string[];
+    fallbackMode: PoseIrBlendMode;
+    collector: DiagnosticCollector;
+    source: "pose-config" | "pose-ir";
+  },
+): PoseRigIrFile["crossGroupPolicy"]["overrides"] | undefined {
+  const { canonicalInputs, groupIds, fallbackMode, collector, source } =
+    options;
+  if (overrides === undefined || overrides === null) {
+    return undefined;
+  }
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: "invalid-cross-group-overrides-payload",
+      message:
+        "Cross-group channel overrides were ignored because payload is not an object map.",
+      location: {
+        path:
+          source === "pose-config"
+            ? "crossGroupChannelOverrides"
+            : "crossGroupPolicy.overrides",
+      },
+    });
+    return undefined;
+  }
+
+  const knownGroupIds = new Set(groupIds);
+  const normalizedEntries = new Map<string, PoseIrCrossGroupChannelOverride>();
+  const rawEntries = Object.entries(overrides as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+
+  rawEntries.forEach(([rawInputId, overridePayload]) => {
+    const inputId = rawInputId.trim();
+    if (!inputId) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "invalid-cross-group-override-input-id",
+        message:
+          "Cross-group channel override entry with an empty input id was ignored.",
+        location: {
+          path:
+            source === "pose-config"
+              ? "crossGroupChannelOverrides"
+              : "crossGroupPolicy.overrides",
+        },
+      });
+      return;
+    }
+
+    if (isSyntheticPoseChannelId(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "ghost-cross-group-override-input-id",
+        message: `Cross-group override for "${inputId}" ignored because synthetic pose channels are graph-internal only.`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}`
+              : `crossGroupPolicy.overrides.${inputId}`,
+        },
+      });
+      return;
+    }
+
+    if (canonicalInputs.size > 0 && !canonicalInputs.has(inputId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "non-canonical-cross-group-override-input-id",
+        message: `Cross-group override for "${inputId}" ignored because it is not a canonical standard input id.`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}`
+              : `crossGroupPolicy.overrides.${inputId}`,
+        },
+      });
+      return;
+    }
+
+    if (
+      !overridePayload ||
+      typeof overridePayload !== "object" ||
+      Array.isArray(overridePayload)
+    ) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "invalid-cross-group-override-entry",
+        message: `Cross-group override for "${inputId}" was ignored because it is not an object.`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}`
+              : `crossGroupPolicy.overrides.${inputId}`,
+        },
+      });
+      return;
+    }
+
+    const modeCandidate = (overridePayload as { mode?: unknown }).mode;
+    const mode = toPoseIrCrossGroupOverrideMode(modeCandidate, fallbackMode);
+    if (
+      modeCandidate !== "average" &&
+      modeCandidate !== "add" &&
+      modeCandidate !== "additive" &&
+      modeCandidate !== "priority"
+    ) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "invalid-cross-group-override-mode",
+        message: `Cross-group override for "${inputId}" mode "${String(modeCandidate)}" is invalid; using "${mode}".`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}.mode`
+              : `crossGroupPolicy.overrides.${inputId}.mode`,
+        },
+        metadata: {
+          inputId,
+          modeCandidate,
+          fallbackMode: mode,
+        },
+      });
+    }
+
+    const tieBreak = normalizeOverrideTieBreak(
+      (overridePayload as { tieBreak?: unknown }).tieBreak,
+      collector,
+      source,
+      inputId,
+    );
+
+    const priorityOrderCandidate = (
+      overridePayload as { priorityOrder?: unknown }
+    ).priorityOrder;
+    let priorityOrder: string[] | undefined;
+    if (
+      priorityOrderCandidate !== undefined &&
+      !Array.isArray(priorityOrderCandidate)
+    ) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "invalid-cross-group-override-priority-order",
+        message: `Cross-group override for "${inputId}" has invalid priorityOrder and it was ignored.`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}.priorityOrder`
+              : `crossGroupPolicy.overrides.${inputId}.priorityOrder`,
+        },
+      });
+    } else if (Array.isArray(priorityOrderCandidate)) {
+      const seenGroups = new Set<string>();
+      const normalizedPriorityOrder: string[] = [];
+      priorityOrderCandidate.forEach((groupId) => {
+        if (typeof groupId !== "string" || groupId.trim().length === 0) {
+          pushPoseDiagnostic(collector, {
+            severity: "warning",
+            source,
+            code: "invalid-cross-group-override-priority-group-id",
+            message: `Cross-group override for "${inputId}" contains an invalid priority group id and it was ignored.`,
+            location: {
+              inputId,
+              path:
+                source === "pose-config"
+                  ? `crossGroupChannelOverrides.${inputId}.priorityOrder`
+                  : `crossGroupPolicy.overrides.${inputId}.priorityOrder`,
+            },
+          });
+          return;
+        }
+        const trimmedGroupId = groupId.trim();
+        if (!knownGroupIds.has(trimmedGroupId)) {
+          pushPoseDiagnostic(collector, {
+            severity: "warning",
+            source,
+            code: "unknown-cross-group-override-priority-group-id",
+            message: `Cross-group override for "${inputId}" references unknown priority group "${trimmedGroupId}" and it was ignored.`,
+            location: {
+              inputId,
+              groupId: trimmedGroupId,
+              path:
+                source === "pose-config"
+                  ? `crossGroupChannelOverrides.${inputId}.priorityOrder`
+                  : `crossGroupPolicy.overrides.${inputId}.priorityOrder`,
+            },
+          });
+          return;
+        }
+        if (seenGroups.has(trimmedGroupId)) {
+          pushPoseDiagnostic(collector, {
+            severity: "warning",
+            source,
+            code: "duplicate-cross-group-override-priority-group-id",
+            message: `Cross-group override for "${inputId}" duplicated priority group "${trimmedGroupId}" and the duplicate was ignored.`,
+            location: {
+              inputId,
+              groupId: trimmedGroupId,
+              path:
+                source === "pose-config"
+                  ? `crossGroupChannelOverrides.${inputId}.priorityOrder`
+                  : `crossGroupPolicy.overrides.${inputId}.priorityOrder`,
+            },
+          });
+          return;
+        }
+        seenGroups.add(trimmedGroupId);
+        normalizedPriorityOrder.push(trimmedGroupId);
+      });
+      if (normalizedPriorityOrder.length > 0) {
+        priorityOrder = normalizedPriorityOrder;
+      }
+    }
+
+    if (mode !== "priority" && priorityOrder && priorityOrder.length > 0) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "unused-cross-group-override-priority-order",
+        message: `Cross-group override for "${inputId}" provided priorityOrder but mode "${mode}" does not use it; dropping priorityOrder.`,
+        location: {
+          inputId,
+          path:
+            source === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}.priorityOrder`
+              : `crossGroupPolicy.overrides.${inputId}.priorityOrder`,
+        },
+      });
+      priorityOrder = undefined;
+    }
+
+    normalizedEntries.set(inputId, {
+      mode,
+      tieBreak,
+      ...(priorityOrder ? { priorityOrder } : {}),
+    });
+  });
+
+  if (normalizedEntries.size === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(normalizedEntries);
+}
+
 function mapConfigToPoseIr(
   config: PoseRigConfigFile,
   standardInputs: StandardRigInput[],
@@ -618,6 +1065,16 @@ function mapConfigToPoseIr(
       return leftId.localeCompare(rightId);
     }),
   }));
+  const crossGroupOverrides = normalizeCrossGroupChannelOverridesForIr(
+    config.crossGroupChannelOverrides,
+    {
+      canonicalInputs,
+      groupIds: groups.map((group) => group.id),
+      fallbackMode: crossGroupPolicyMode,
+      collector,
+      source: diagnosticSource,
+    },
+  );
   const blendStages = normalizeBlendStages(
     config.blendStages,
     groups.map((group) => group.id),
@@ -625,6 +1082,75 @@ function mapConfigToPoseIr(
     collector,
     diagnosticSource,
   );
+
+  const overlapGroupIdsByInput = new Map<string, Set<string>>();
+  poses.forEach((pose) => {
+    const targetInputIds = Object.keys(pose.targets);
+    if (targetInputIds.length === 0) {
+      return;
+    }
+    targetInputIds.forEach((inputId) => {
+      const groupIdsForInput = overlapGroupIdsByInput.get(inputId) ?? new Set();
+      pose.groupIds.forEach((groupId) => {
+        groupIdsForInput.add(groupId);
+      });
+      overlapGroupIdsByInput.set(inputId, groupIdsForInput);
+    });
+  });
+
+  Object.entries(crossGroupOverrides ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([inputId, override]) => {
+      if (!override || override.mode !== "priority") {
+        return;
+      }
+      pushPoseDiagnostic(collector, {
+        severity: "info",
+        source: diagnosticSource,
+        code: "priority-cross-group-override-applied",
+        message: `Priority cross-group policy is active for channel "${inputId}".`,
+        location: {
+          inputId,
+          path:
+            diagnosticSource === "pose-config"
+              ? `crossGroupChannelOverrides.${inputId}`
+              : `crossGroupPolicy.overrides.${inputId}`,
+        },
+        metadata: {
+          inputId,
+          defaultMode: crossGroupPolicyMode,
+          priorityOrder: override.priorityOrder ?? [],
+          tieBreak: override.tieBreak ?? "group-order",
+        },
+      });
+
+      const overlappingGroupIds = Array.from(
+        overlapGroupIdsByInput.get(inputId) ?? [],
+      ).sort();
+      if (overlappingGroupIds.length > 1) {
+        pushPoseDiagnostic(collector, {
+          severity: "info",
+          source: diagnosticSource,
+          code: "priority-cross-group-override-resolution-change",
+          message: `Priority cross-group policy for "${inputId}" overrides default "${crossGroupPolicyMode}" resolution across ${overlappingGroupIds.length} contributing groups.`,
+          location: {
+            inputId,
+            path:
+              diagnosticSource === "pose-config"
+                ? `crossGroupChannelOverrides.${inputId}.mode`
+                : `crossGroupPolicy.overrides.${inputId}.mode`,
+          },
+          metadata: {
+            inputId,
+            defaultMode: crossGroupPolicyMode,
+            overridingMode: "priority",
+            overlappingGroupIds,
+            priorityOrder: override.priorityOrder ?? [],
+            tieBreak: override.tieBreak ?? "group-order",
+          },
+        });
+      }
+    });
 
   const neutralValues = canonicalizeInputValues(
     config.neutralInputs,
@@ -675,6 +1201,7 @@ function mapConfigToPoseIr(
     groups,
     crossGroupPolicy: {
       mode: crossGroupPolicyMode,
+      overrides: cloneIrCrossGroupChannelOverrides(crossGroupOverrides),
     },
     blendStages,
     poses,
@@ -723,6 +1250,9 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
       blendMode: toPoseConfigBlendMode(group.intraGroupBlendMode),
     })),
     crossGroupBlendMode: toPoseConfigBlendMode(ir.crossGroupPolicy?.mode),
+    crossGroupChannelOverrides: cloneConfigCrossGroupChannelOverrides(
+      mapIrOverridesToConfig(ir.crossGroupPolicy?.overrides),
+    ),
     blendStages: cloneBlendStages(ir.blendStages),
     neutralMode: ir.neutral?.mode ?? "explicit",
     neutralInputs: { ...(ir.neutral?.values ?? {}) },
@@ -798,6 +1328,7 @@ export const PoseIrService = {
 
     const candidate = payload as Partial<PoseRigIrFile> & {
       crossGroupBlendMode?: unknown;
+      crossGroupChannelOverrides?: unknown;
       neutralInputs?: Record<string, number>;
       neutralMode?: PoseNeutralMode;
     };
@@ -850,6 +1381,12 @@ export const PoseIrService = {
       })),
       crossGroupBlendMode: toPoseConfigBlendMode(
         candidate.crossGroupPolicy?.mode ?? candidate.crossGroupBlendMode,
+      ),
+      crossGroupChannelOverrides: cloneConfigCrossGroupChannelOverrides(
+        mapIrOverridesToConfig(
+          candidate.crossGroupPolicy?.overrides ??
+            candidate.crossGroupChannelOverrides,
+        ),
       ),
       blendStages: cloneBlendStages(candidate.blendStages),
       poses: (Array.isArray(candidate.poses) ? candidate.poses : []).map(

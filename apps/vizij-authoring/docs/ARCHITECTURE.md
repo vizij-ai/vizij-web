@@ -51,15 +51,18 @@ Composition semantics currently supported:
 1. Intra-group: `average` or `additive` using pose input weights.
 2. Cross-group compatibility mode: `average` or `additive` composition over group outputs when no explicit blend stages are authored.
 3. Ordered blend stages: explicit `blendStages[]` chain with deterministic `group`/`stage` sources and per-stage `average`/`add` operation.
-4. Neutral strategy:
+4. Per-channel cross-group overrides: optional channel map (`crossGroupChannelOverrides` / `crossGroupPolicy.overrides`) supporting `average`, `additive`, and `priority`.
+5. Priority semantics:
+   - deterministic ordering via explicit `priorityOrder`,
+   - deterministic tie-break via `group-order` or `group-id`,
+   - compiler realization via priority overlay chains using existing graph node types.
+6. Neutral strategy:
    - `explicit`: authored neutral values with per-channel fallback to standard-input defaults when missing.
    - `face-default`: compile directly from standard-input defaults.
 
-Deferred semantics (not MVP):
+Remaining deferred semantics:
 
-1. Per-channel override policies.
-2. Priority/tie-break rules for overlaps.
-3. Activity-weighting skew mitigation policy lock-in (design examples captured in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
+1. Activity-weighting skew mitigation policy lock-in (design examples captured in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
 
 ## Runtime Graph Packaging
 

@@ -11,7 +11,7 @@ This backlog is organized by semantic block, then by dependency order inside eac
 1. `A0.1` -> `A0.3` -> `B1.1` -> `B1.2` -> `C2.1` -> `C2.2` -> `C2.3`
 2. `A0.2` is a release blocker and can run in parallel, but must be done before release.
 3. `D3.1` and `D3.2` depend on `A0.1` and `B1.1`.
-4. `E4.*` remains intentionally deferred until the multi-stage model (`C2.*`) is stable.
+4. `E4.1` and `E4.2` are now unblocked and implemented after `C2.*` stabilization.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -504,9 +504,9 @@ Completion notes (2026-02-19):
    - `2026-02-19 06:11Z` — `pnpm --filter vizij-authoring run perf:inputs-baseline` -> pass; metrics: latency `avg=23.773ms`, `p95=67.314ms`, `max=67.314ms`; profiler commits `20 total / 19 update`, update `actualDuration total=70.852ms`, `max=15.424ms`.
    - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` + `typecheck` + `test` green; 67 passed files + 1 skipped perf file, 378 passed tests + 1 skipped perf test).
 
-## Block E — Deferred Policy R&D (Not MVP)
+## Block E — Advanced Policy Semantics
 
-### [ ] E4.1 Per-Channel Override Map (`IR9`)
+### [x] E4.1 Per-Channel Override Map (`IR9`)
 
 Priority and why this should still be done:
 
@@ -528,7 +528,23 @@ Acceptance checks:
 2. Invalid overrides emit structured diagnostics.
 3. Global default policy remains unchanged when overrides are absent.
 
-### [ ] E4.2 Priority Resolution Semantics (`IR10`)
+Completion notes (2026-02-19):
+
+1. Added optional per-channel cross-group override contracts to pose config and pose IR:
+   - config: `crossGroupChannelOverrides`
+   - IR: `crossGroupPolicy.overrides`
+2. Implemented deterministic override normalization in config/IR services (sorted map keys, sanitized `priorityOrder`, canonical channel filtering).
+3. Added structured diagnostics + warnings for malformed override payloads, invalid channels, invalid groups, and ignored fields.
+4. Preserved compatibility: when overrides are absent, compile path and topology remain unchanged.
+5. Round-trip support added for import/export (`config -> IR -> config`) with new override fields preserved.
+6. Regression coverage added in:
+   - `src/poseRig/services/poseConfigService.test.ts`
+   - `src/poseRig/services/poseIrService.test.ts`
+   - `src/poseRig/graphBuilder.test.ts`
+   - `src/poseRig/services/poseGraphService.test.ts`
+   - `src/poseRig/store.test.ts` (override retention through store projection rebuilds)
+
+### [x] E4.2 Priority Resolution Semantics (`IR10`)
 
 Priority and why this should still be done:
 
@@ -549,6 +565,20 @@ Acceptance checks:
 1. Priority behavior is encoded in compiler and documentation.
 2. Conflict scenarios have deterministic test coverage.
 3. Diagnostics explain when priority changed a channel output.
+
+Completion notes (2026-02-19):
+
+1. Added per-channel override mode `priority` with deterministic ordering + tie-break policy:
+   - explicit `priorityOrder` list,
+   - `tieBreak` strategy (`group-order` or `group-id`) for unresolved ties.
+2. Compiler now realizes priority mode using existing node types only (`subtract`, `join`, `weightedsumvector`, `blendweightedaverageoverlay`) via deterministic priority-overlay chains.
+3. Added IR diagnostics for priority policy application and resolution-change cases:
+   - `priority-cross-group-override-applied`
+   - `priority-cross-group-override-resolution-change`
+4. Added deterministic topology tests for priority mode and parity tests proving default behavior remains unchanged when overrides are absent.
+5. Validation evidence:
+   - `2026-02-19 06:41Z` — `pnpm --filter vizij-authoring exec vitest --run src/poseRig/store.test.ts src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts src/poseRig/graphBuilder.test.ts src/poseRig/services/poseGraphService.test.ts` -> pass (5 files / 82 tests).
+   - `2026-02-19 06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` + `typecheck` + `test`; 67 passed files + 1 skipped file, 389 passed tests + 1 skipped test).
 
 ### [x] E4.3 Overlap Bias / Activity Heuristic Design Pack
 
