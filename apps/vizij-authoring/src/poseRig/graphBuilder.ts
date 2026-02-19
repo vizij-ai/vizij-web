@@ -169,8 +169,7 @@ export function buildPoseGraphSpec(options: {
   poseGroupSegment?: string | null;
   rigKind?: "generic" | "face-specific";
 }): { spec: GraphSpec; summary: PoseRigGraphSummary } {
-  const { faceId, neutralInputs, poses, standardInputs, poseGroupSegment } =
-    options;
+  const { faceId, neutralInputs, poses, standardInputs } = options;
   const defaultGroupBlendMode =
     options.defaultGroupBlendMode ?? options.blendMode ?? "average";
   const crossGroupBlendMode = options.crossGroupBlendMode ?? "additive";
@@ -184,9 +183,7 @@ export function buildPoseGraphSpec(options: {
         ? trimmedFaceId
         : "face";
 
-  const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId, {
-    baseSegment: poseGroupSegment ?? undefined,
-  });
+  const poseWeightPathMap = buildPoseWeightPathMap(poses, faceId);
   const poseInputs = new Map<string, string>();
   const resolvedGroups = resolvePoseGroups(
     poses,

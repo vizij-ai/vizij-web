@@ -12,6 +12,7 @@ This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `p
 3. Progressive complexity: default flows stay simple; advanced internals are available when explicitly needed.
 4. Deterministic editing: equivalent user actions produce equivalent authored/compiled outputs.
 5. Dense-scene usability: search, hierarchy, and controls remain legible under large datasets.
+6. Consistent lifecycle patterns: create/edit/delete flows behave similarly across authoring entities.
 
 ## Information Architecture
 
@@ -40,7 +41,7 @@ Behavior requirements:
 Inspector must support chain traversal in both directions:
 
 1. Pose -> Rig -> Autorig -> Animatable
-2. Animatable -> Autorig -> Rig -> Pose source context
+2. Animatable -> Autorig -> Rig -> Pose sources
 
 Traversal must preserve context (no unexpected selection resets).
 
@@ -56,6 +57,11 @@ Traversal must preserve context (no unexpected selection resets).
    - regular rig inputs.
 
 ## Pose Authoring Contract
+
+### Variable Lifecycle
+
+1. Editable metadata: name/path/min/max/default.
+2. Variable create/edit/delete remains available from inspector-centric workflows.
 
 ### Pose Lifecycle
 

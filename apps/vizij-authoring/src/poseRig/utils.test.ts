@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPoseWeightInputSourceId,
+  buildPoseWeightRelativePath,
   buildRigInputPath,
   buildPoseWeightPathMap,
+  isPoseWeightInputPath,
+  parsePoseWeightInputSourceId,
   normalizePoseDefinitionIds,
   resolveDeterministicPoseId,
   slugifyLabel,
@@ -43,52 +47,56 @@ describe("buildPoseWeightPathMap", () => {
     updatedAt: new Date().toISOString(),
   };
 
-  it("defaults to /poses when no base segment specified", () => {
+  it("uses canonical /poses/{poseId}.weight paths", () => {
     const map = buildPoseWeightPathMap([basePose], "robot");
     const info = map.get(basePose.id);
-    expect(info?.relativePath.startsWith("/poses/")).toBe(true);
+    expect(info?.relativePath).toBe("/poses/pose_one.weight");
+    expect(info?.absolutePath).toBe("rig/robot/poses/pose_one.weight");
   });
 
-  it("uses custom base segment for relative and absolute paths", () => {
-    const map = buildPoseWeightPathMap([basePose], "robot", {
-      baseSegment: "emotions",
-    });
-    const info = map.get(basePose.id);
-    expect(info?.relativePath).toBe("/emotions/pose_one.weight");
-    expect(info?.absolutePath).toBe("rig/robot/emotions/pose_one.weight");
-  });
-
-  it("includes pose group label when assigned", () => {
+  it("is independent of group path metadata", () => {
     const groupedPose = { ...basePose, group: "happy vibes" };
     const map = buildPoseWeightPathMap([groupedPose], "robot");
-    const info = map.get(groupedPose.id);
-    expect(info?.relativePath).toBe("/happy_vibes/pose_one.weight");
-    expect(info?.absolutePath).toBe("rig/robot/happy_vibes/pose_one.weight");
+    const info = map.get(basePose.id);
+    expect(info?.relativePath).toBe("/poses/pose_one.weight");
+    expect(info?.absolutePath).toBe("rig/robot/poses/pose_one.weight");
   });
 
-  it("only deduplicates pose names within the same group", () => {
+  it("keys path segments by pose id and keeps ids distinct across groups", () => {
     const poseA: PoseDefinition = {
       ...basePose,
-      id: "pose_a",
+      id: "pose-a",
       name: "Smile",
       group: "emotions",
     };
     const poseB: PoseDefinition = {
       ...basePose,
-      id: "pose_b",
+      id: "pose_a",
       name: "Smile",
       group: "accents",
     };
-    const poseC: PoseDefinition = {
-      ...basePose,
-      id: "pose_c",
-      name: "Smile",
-      group: "emotions",
-    };
-    const map = buildPoseWeightPathMap([poseA, poseB, poseC], "face");
-    expect(map.get("pose_a")?.relativePath).toBe("/emotions/smile.weight");
-    expect(map.get("pose_b")?.relativePath).toBe("/accents/smile.weight");
-    expect(map.get("pose_c")?.relativePath).toBe("/emotions/smile_2.weight");
+    const map = buildPoseWeightPathMap([poseA, poseB], "face");
+    expect(map.get("pose-a")?.relativePath).toBe("/poses/pose-a.weight");
+    expect(map.get("pose_a")?.relativePath).toBe("/poses/pose_a.weight");
+  });
+});
+
+describe("pose weight input helpers", () => {
+  it("builds canonical relative path and detects pose-weight inputs", () => {
+    const relativePath = buildPoseWeightRelativePath("pose_smile");
+    expect(relativePath).toBe("/poses/pose_smile.weight");
+    expect(isPoseWeightInputPath(relativePath)).toBe(true);
+    expect(isPoseWeightInputPath("rig/robot/poses/pose_smile.weight")).toBe(
+      true,
+    );
+    expect(isPoseWeightInputPath("/autorig/mouth/smile")).toBe(false);
+  });
+
+  it("round-trips pose ids through source ids", () => {
+    const sourceId = buildPoseWeightInputSourceId("pose_smile");
+    expect(sourceId).toBe("pose-weight:pose_smile");
+    expect(parsePoseWeightInputSourceId(sourceId)).toBe("pose_smile");
+    expect(parsePoseWeightInputSourceId("custom:pose_smile")).toBeNull();
   });
 });
 

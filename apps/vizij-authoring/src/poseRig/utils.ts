@@ -4,6 +4,7 @@ import type {
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type {
   LowLevelBinding,
   LowLevelRigSummary,
@@ -262,59 +263,86 @@ export function sanitizePosePathSegment(
   return fromFallback || "pose";
 }
 
-function nextPosePathSegment(
-  pose: PoseDefinition,
-  usage: Map<string, number>,
-  groupSegment: string,
-): string {
-  const base = sanitizePosePathSegment(pose.name ?? "", pose.id);
-  const key = `${groupSegment}::${base}`;
-  const used = usage.get(key) ?? 0;
-  usage.set(key, used + 1);
-  if (used === 0) {
-    return base;
-  }
-  return `${base}_${used + 1}`;
-}
-
-function resolvePoseGroupSegment(
-  pose: PoseDefinition,
-  overrideGroupSegment: string | null,
-  fallbackSegment: string,
-): string {
-  if (overrideGroupSegment) {
-    return overrideGroupSegment;
-  }
-  return sanitizePosePathSegment(pose.group, fallbackSegment);
-}
-
 export interface PoseWeightPathInfo {
   segment: string;
   relativePath: string;
   absolutePath: string;
 }
 
+export const POSE_WEIGHT_INPUT_PATH_PREFIX = "/poses/";
+export const POSE_WEIGHT_INPUT_SOURCE_PREFIX = "pose-weight:";
+
+function normalizePoseWeightPathSegment(
+  value: string | null | undefined,
+): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return "pose";
+  }
+  const normalized = trimmed
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "pose";
+}
+
+export function buildPoseWeightInputPathSegment(
+  poseId: string | null | undefined,
+): string {
+  return normalizePoseWeightPathSegment(poseId);
+}
+
+export function buildPoseWeightRelativePath(
+  poseId: string | null | undefined,
+): string {
+  return `${POSE_WEIGHT_INPUT_PATH_PREFIX}${buildPoseWeightInputPathSegment(
+    poseId,
+  )}.weight`;
+}
+
+export function buildPoseWeightInputSourceId(
+  poseId: string | null | undefined,
+): string {
+  return `${POSE_WEIGHT_INPUT_SOURCE_PREFIX}${poseId?.trim() ?? ""}`;
+}
+
+export function parsePoseWeightInputSourceId(
+  sourceId: string | null | undefined,
+): string | null {
+  const trimmed = sourceId?.trim() ?? "";
+  if (!trimmed.startsWith(POSE_WEIGHT_INPUT_SOURCE_PREFIX)) {
+    return null;
+  }
+  const poseId = trimmed.slice(POSE_WEIGHT_INPUT_SOURCE_PREFIX.length).trim();
+  return poseId.length > 0 ? poseId : null;
+}
+
+export function isPoseWeightInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return (
+    normalized.startsWith(POSE_WEIGHT_INPUT_PATH_PREFIX) &&
+    normalized.endsWith(".weight")
+  );
+}
+
 export function buildPoseWeightPathMap(
   poses: PoseDefinition[],
   faceId: string | null,
-  options?: { baseSegment?: string | null },
 ): Map<string, PoseWeightPathInfo> {
   const trim = faceId?.trim();
   const faceSegment = trim && trim.length > 0 ? trim : "face";
-  const overrideSegment =
-    options?.baseSegment && options.baseSegment.trim().length > 0
-      ? sanitizePosePathSegment(options.baseSegment, "poses")
-      : null;
   const usage = new Map<string, number>();
   const map = new Map<string, PoseWeightPathInfo>();
   poses.forEach((pose) => {
-    const groupSegment = resolvePoseGroupSegment(
-      pose,
-      overrideSegment,
-      "poses",
-    );
-    const segment = nextPosePathSegment(pose, usage, groupSegment);
-    const relativePath = `/${groupSegment}/${segment}.weight`;
+    const baseSegment = buildPoseWeightInputPathSegment(pose.id);
+    const used = usage.get(baseSegment) ?? 0;
+    usage.set(baseSegment, used + 1);
+    const segment = used === 0 ? baseSegment : `${baseSegment}_${used + 1}`;
+    const relativePath = `${POSE_WEIGHT_INPUT_PATH_PREFIX}${segment}.weight`;
     const absolutePath = buildRigInputPath(faceSegment, relativePath);
     map.set(pose.id, { segment, relativePath, absolutePath });
   });

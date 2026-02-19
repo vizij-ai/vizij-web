@@ -27,7 +27,7 @@ function findNode(spec: GraphSpec, id: string) {
 }
 
 describe("PoseGraphService", () => {
-  it("builds pose graphs with group-based weight paths", () => {
+  it("builds pose graphs with canonical per-pose weight paths", () => {
     const config: any = {
       faceId: "robot",
       rigKind: "face-specific",
@@ -49,7 +49,7 @@ describe("PoseGraphService", () => {
     });
     const inputNode = findNode(spec, "pose_pose_a") as any;
     expect(inputNode?.type).toBe("input");
-    expect(inputNode?.params?.path).toBe("rig/robot/emotions/smile.weight");
+    expect(inputNode?.params?.path).toBe("rig/robot/poses/pose_a.weight");
   });
 
   it("applies additive blend mode when requested", () => {

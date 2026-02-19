@@ -16,7 +16,7 @@ author expressions and poses, validate against the runtime, and export bundled o
 - **Refine slots** – Add additional slot inputs, rename their aliases, and manage per-slot remaps without leaving the feature inspector.
 - **Vector-ready bindings** – Slots now retain whether they represent scalar or vector values, paving the way for richer vector editing workflows and more accurate export summaries.
 - **Auto-generated drivers** – Every animatable feature automatically receives a standard input. Drivers can be disabled (bindings drop away but metadata is preserved), filtered by root/subgroup, and re-enabled without rebuilding the rig. Exports now embed `source`/`root` metadata so imports restore the exact driver hierarchy.
-- **Pose rig workflow** – Assign each pose to a group in the Pose Editor (or multi-select poses from the library to batch-apply a group), review grouped/collapsible sections, and export a pose-driver graph per group. Rig paths now follow `rig/{face}/{group}/{pose}.weight`, so exports preserve the grouping structure automatically.
+- **Pose rig workflow** – Assign each pose to a group in the Pose Editor (or multi-select poses from the library to batch-apply a group), review grouped/collapsible sections, and export a pose-driver graph per group. Pose-weight controls now follow canonical paths `rig/{face}/poses/{poseId}.weight`, so one stable input controls each pose regardless of group membership.
 - **Rig graph import safety** – Importing `.graph.json` files now checks the embedded face id; when it disagrees with the loaded GLB you can remap the graph to the current face instead of juggling multiple assets.
 
 ### Standard Feature Spaces Editor

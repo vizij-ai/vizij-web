@@ -15,7 +15,7 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Block A — MVP Correctness and Release Blockers
 
-### [~] A0.1 Canonical Pose-Weight Inputs and Inputs Pane Visibility
+### [x] A0.1 Canonical Pose-Weight Inputs and Inputs Pane Visibility
 
 Priority and why this should still be done:
 
@@ -37,6 +37,16 @@ Acceptance checks:
 2. Pose weight controls appear in the Inputs pane and are editable like other inputs.
 3. Pose weight controls are excluded from pose target-channel selection (no self-targeting loops).
 4. Renaming or regrouping poses does not duplicate or orphan weight controls.
+
+Completion notes (2026-02-19):
+
+1. Canonical per-pose weight paths are now generated via pose-id-based helpers and used by graph compilation (`/poses/{poseId}.weight` with deterministic collision suffixing only when needed).
+2. Pose-weight controls are auto-synchronized into managed standard inputs with stable source IDs (`pose-weight:{poseId}`), labels, and `[0,1]` range/default constraints.
+3. Pose-weight inputs are filtered out of pose-target authoring channels while remaining available in Inputs.
+4. Sync cleanup now removes stale and duplicate custom pose-weight entries, including path-only entries missing source IDs.
+5. Added regression tests for provider sync behavior in `src/state/PoseRigProvider.test.tsx` plus updated utility/compiler tests for canonical path semantics.
+6. Validation evidence:
+   - `2026-02-19 03:45Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 341 tests).
 
 ### [ ] A0.2 Import Retarget Sequencing and Rebind Correctness (`Q0.1`)
 
@@ -400,5 +410,6 @@ Acceptance checks:
 
 - `Q0.2` Canonical pose target mapping and no-ghost-variable add flow guardrails.
 - `Q2.1` My Drivers binding/expression UX overhaul.
+- `B2.4 Inspector Chain Traversal Completion` landed in the prior execution cycle and remains a required contract baseline.
 - Pose IR diagnostics surfaced in authoring UI and bundle export metadata (`IR2`, `IR3`).
 - Pose "What I Drive" 3-row control redesign and pose duplication action.
