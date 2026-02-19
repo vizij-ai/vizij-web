@@ -19,10 +19,13 @@ import {
 } from "@vizij/utils";
 import {
   deleteRigState,
+  formatRigPersistenceError,
   loadRigState,
+  RIG_STATE_SCHEMA_VERSION,
   saveRigState,
   type PersistedAutoStandardInput,
   type PersistedGraphInsight,
+  type RigPersistenceError,
 } from "../rig/persistence";
 import { normalizePersistedStandardInputs } from "../rig/legacyMigration";
 import type { AutoInputState } from "../types/autoInputs";
@@ -30,8 +33,6 @@ import {
   FEATURE_FLAG_DEFAULTS,
   type FeatureFlagState,
 } from "./useFeatureLabels";
-
-const RIG_STATE_SCHEMA_VERSION = 3;
 
 interface UseRigPersistenceOptions {
   faceId: string | null;
@@ -104,7 +105,7 @@ export function useRigPersistence({
   setDisabledStandardInputIds,
   setHiddenDriverIds,
   setFeatureLabelOverrides,
-  setStandardInputSchema: _setStandardInputSchema,
+  setStandardInputSchema,
   setFeatureFlags,
   setGraphInsights,
   updateInputValues,
@@ -121,8 +122,25 @@ export function useRigPersistence({
   const rigStateSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const lastPersistenceErrorRef = useRef<string | null>(null);
   const localFaceRenameRef = useRef<string | null>(null);
   const renameRef = pendingFaceRenameRef ?? localFaceRenameRef;
+
+  const reportPersistenceError = useCallback(
+    (error: RigPersistenceError, prefix: string) => {
+      const message = `${prefix}\n${formatRigPersistenceError(error)}`;
+      if (lastPersistenceErrorRef.current === message) {
+        return;
+      }
+      lastPersistenceErrorRef.current = message;
+      alertDialog(message);
+    },
+    [alertDialog],
+  );
+
+  const clearPersistenceError = useCallback(() => {
+    lastPersistenceErrorRef.current = null;
+  }, []);
 
   const persistRigState = useCallback(() => {
     if (
@@ -175,7 +193,7 @@ export function useRigPersistence({
       bindingDefinitions[id] = bindingToDefinition(binding);
     });
 
-    saveRigState({
+    const saveResult = saveRigState({
       faceId,
       bindings,
       inputValues,
@@ -209,6 +227,11 @@ export function useRigPersistence({
       graphInsights: graphInsights ?? undefined,
       schemaVersion: RIG_STATE_SCHEMA_VERSION,
     });
+    if (!saveResult.ok) {
+      reportPersistenceError(saveResult.error, "Could not save rig state.");
+      return;
+    }
+    clearPersistenceError();
   }, [
     animatableComponents,
     autoInputs,
@@ -220,20 +243,29 @@ export function useRigPersistence({
     featureLabelOverrides,
     standardInputSchema,
     featureFlags,
-    standardInputSchema,
     graphInsights,
     inputBindings,
     inputValues,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     skipPersistRef,
+    clearPersistenceError,
+    reportPersistenceError,
   ]);
 
   const handleClearCachedState = useCallback(() => {
     if (!faceId) {
       return;
     }
-    deleteRigState(faceId);
+    const deleteResult = deleteRigState(faceId);
+    if (!deleteResult.ok) {
+      reportPersistenceError(
+        deleteResult.error,
+        "Could not clear saved rig state.",
+      );
+    } else {
+      clearPersistenceError();
+    }
     persistedAutoInputsRef.current = new Map();
     pendingInputBindingDefinitionsRef.current = null;
     skipPersistRef.current = true;
@@ -245,6 +277,7 @@ export function useRigPersistence({
     setSelectedStandardInputRoots([]);
     setSelectedStandardInputSubgroups([]);
     setFeatureLabelOverrides({});
+    setStandardInputSchema(null);
     setTimeout(() => {
       skipPersistRef.current = false;
       rebuildAutoInputs();
@@ -259,10 +292,13 @@ export function useRigPersistence({
     setBindings,
     setCustomInputs,
     setFeatureLabelOverrides,
+    setStandardInputSchema,
     setInputBindings,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
     skipPersistRef,
+    clearPersistenceError,
+    reportPersistenceError,
     updateInputValues,
   ]);
 
@@ -287,7 +323,16 @@ export function useRigPersistence({
       return;
     }
 
-    const persisted = loadRigState(faceId);
+    const persistedResult = loadRigState(faceId);
+    const persisted = persistedResult.ok ? persistedResult.value : null;
+    if (!persistedResult.ok) {
+      reportPersistenceError(
+        persistedResult.error,
+        "Could not load saved rig state. Resetting to defaults.",
+      );
+    } else {
+      clearPersistenceError();
+    }
     skipPersistRef.current = true;
     if (persisted) {
       const { autoEntries, legacyCustomInputs, idMismatches } =
@@ -336,6 +381,7 @@ export function useRigPersistence({
           : [],
       );
       setFeatureLabelOverrides(persisted.featureLabels ?? {});
+      setStandardInputSchema(persisted.standardInputSchema ?? null);
       setFeatureFlags({
         ...FEATURE_FLAG_DEFAULTS,
         ...(persisted.featureFlags ?? {}),
@@ -361,6 +407,7 @@ export function useRigPersistence({
       setSelectedStandardInputRoots([]);
       setSelectedStandardInputSubgroups([]);
       setFeatureLabelOverrides({});
+      setStandardInputSchema(null);
       setFeatureFlags({ ...FEATURE_FLAG_DEFAULTS });
       setGraphInsights(null);
       pendingInputBindingDefinitionsRef.current = null;
@@ -385,11 +432,14 @@ export function useRigPersistence({
     setDisabledStandardInputIds,
     setFeatureFlags,
     setFeatureLabelOverrides,
+    setStandardInputSchema,
     setGraphInsights,
     setInputBindings,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
     skipPersistRef,
+    clearPersistenceError,
+    reportPersistenceError,
     rebuildAutoInputs,
     updateInputValues,
   ]);

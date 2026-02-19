@@ -6,7 +6,141 @@ import {
   stripStandardInputPathPrefix,
 } from "@vizij/utils";
 import type { StandardRigInput } from "@vizij/utils";
-import type { PersistedAutoStandardInput } from "./persistence";
+import type {
+  PersistedAutoStandardInput,
+  PersistedRigState,
+} from "./persistence";
+
+export const RIG_STATE_INITIAL_SCHEMA_VERSION = 1;
+
+interface RigStateMigrationStep {
+  fromVersion: number;
+  toVersion: number;
+  migrate: (state: PersistedRigState) => PersistedRigState;
+}
+
+const RIG_STATE_MIGRATIONS: RigStateMigrationStep[] = [
+  {
+    fromVersion: 1,
+    toVersion: 2,
+    migrate: (state) => {
+      const bindingDefinitions =
+        state.inputBindingDefinitions ?? state.derivedStandardInputs;
+      return {
+        ...state,
+        inputBindingDefinitions: bindingDefinitions,
+        schemaVersion: 2,
+      };
+    },
+  },
+  {
+    fromVersion: 2,
+    toVersion: 3,
+    migrate: (state) => {
+      const bindingDefinitions =
+        state.inputBindingDefinitions ?? state.derivedStandardInputs;
+      return {
+        ...state,
+        inputBindingDefinitions: bindingDefinitions,
+        derivedStandardInputs:
+          state.derivedStandardInputs ?? bindingDefinitions,
+        schemaVersion: 3,
+      };
+    },
+  },
+];
+
+const MIGRATION_STEP_BY_VERSION = new Map<number, RigStateMigrationStep>(
+  RIG_STATE_MIGRATIONS.map((step) => [step.fromVersion, step]),
+);
+
+export class RigStateMigrationError extends Error {
+  readonly code:
+    | "invalid_schema_version"
+    | "unsupported_schema_version"
+    | "missing_migration_step";
+  readonly schemaVersion: number;
+  readonly targetVersion: number;
+
+  constructor(
+    code:
+      | "invalid_schema_version"
+      | "unsupported_schema_version"
+      | "missing_migration_step",
+    schemaVersion: number,
+    targetVersion: number,
+    detail?: string,
+  ) {
+    const message =
+      detail ??
+      `Rig state migration error (${code}): cannot migrate from schema v${schemaVersion} to v${targetVersion}.`;
+    super(message);
+    this.name = "RigStateMigrationError";
+    this.code = code;
+    this.schemaVersion = schemaVersion;
+    this.targetVersion = targetVersion;
+  }
+}
+
+function resolveSchemaVersion(
+  state: PersistedRigState,
+): number | RigStateMigrationError {
+  const raw = state.schemaVersion;
+  if (raw === undefined || raw === null) {
+    return RIG_STATE_INITIAL_SCHEMA_VERSION;
+  }
+  if (!Number.isInteger(raw) || raw < RIG_STATE_INITIAL_SCHEMA_VERSION) {
+    return new RigStateMigrationError(
+      "invalid_schema_version",
+      Number(raw),
+      RIG_STATE_INITIAL_SCHEMA_VERSION,
+      `Rig state schemaVersion must be an integer >= ${RIG_STATE_INITIAL_SCHEMA_VERSION}. Received: ${String(raw)}.`,
+    );
+  }
+  return raw;
+}
+
+export function migratePersistedRigState(
+  state: PersistedRigState,
+  targetVersion: number,
+): PersistedRigState {
+  const resolvedVersion = resolveSchemaVersion(state);
+  if (resolvedVersion instanceof RigStateMigrationError) {
+    throw resolvedVersion;
+  }
+  if (resolvedVersion > targetVersion) {
+    throw new RigStateMigrationError(
+      "unsupported_schema_version",
+      resolvedVersion,
+      targetVersion,
+      `Rig state schema v${resolvedVersion} is newer than supported v${targetVersion}.`,
+    );
+  }
+
+  let migrated: PersistedRigState = {
+    ...state,
+    schemaVersion: resolvedVersion,
+  };
+  let version = resolvedVersion;
+  while (version < targetVersion) {
+    const step = MIGRATION_STEP_BY_VERSION.get(version);
+    if (!step || step.toVersion !== version + 1) {
+      throw new RigStateMigrationError(
+        "missing_migration_step",
+        version,
+        targetVersion,
+        `No migration step registered for v${version} -> v${version + 1}.`,
+      );
+    }
+    migrated = step.migrate(migrated);
+    version = step.toVersion;
+  }
+
+  if (migrated.schemaVersion !== targetVersion) {
+    migrated = { ...migrated, schemaVersion: targetVersion };
+  }
+  return migrated;
+}
 
 export function resolvePersistedAutoKey(
   sourceId?: string | null,
