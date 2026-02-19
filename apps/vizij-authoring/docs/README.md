@@ -1,65 +1,51 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-18
+Last updated: 2026-02-19
 
-This folder is organized into active core docs, active references, and archived historical docs.
+This folder is organized into active execution docs, active contracts, references, and archive history.
 
-## Active Core Docs
-
-### Planning (execution source of truth)
+## Active Execution Docs
 
 1. `apps/vizij-authoring/docs/plans/GOAL.md`
-   Role: product/program objective and success criteria.
+   - Program mission and release-level outcomes.
 2. `apps/vizij-authoring/docs/plans/ROADMAP.md`
-   Role: stage ordering and exit gates.
+   - Stage order and stage exit gates.
 3. `apps/vizij-authoring/docs/plans/BACKLOG.md`
-   Role: implementation-ready task list.
+   - Active work backlog, grouped by semantic block and dependency order.
 4. `apps/vizij-authoring/docs/plans/TRACKER.md`
-   Role: live status and validation evidence.
+   - Current execution status, risk notes, and validation evidence.
 
-### Contracts
+## Active Contracts
 
-1. `apps/vizij-authoring/docs/UI_DESIGN.md`
-   Role: UI/UX behavior contract.
-2. `apps/vizij-authoring/docs/ARCHITECTURE.md`
-   Role: technical boundaries and invariants.
+1. `apps/vizij-authoring/docs/ARCHITECTURE.md`
+   - System boundaries, compile/runtime invariants, and path/identity contracts.
+2. `apps/vizij-authoring/docs/UI_DESIGN.md`
+   - UI behavior contract for authoring workflows.
 3. `apps/vizij-authoring/docs/Authoring_Blueprint.md`
-   Role: detailed layer and namespace contract.
+   - Detailed layer and namespace contract.
 
-## Active References
+## Active Notes and References
 
-1. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
-   Role: component-level inventory used for UI refactor planning (`B1`, `B5`).
-
-## Active Notes
-
-1. `apps/vizij-authoring/docs/notes/SYNTHESIS.md`
-   Role: notes relevance filter and archive triage summary.
-2. `apps/vizij-authoring/docs/notes/pose-rig-two-layer-blend-vision-2026-02-11.md`
-   Role: pose architecture intent reference.
-3. `apps/vizij-authoring/docs/notes/pose-rig-ir-design-2026-02-18.md`
-   Role: current-state vs target-state design for pose/group IR semantics and compile contract.
-4. `apps/vizij-authoring/docs/notes/CONTRIBUTOR_APPENDIX.md`
-   Role: contributor guardrails and practical checks.
+1. `apps/vizij-authoring/docs/notes/pose-rig-ir-design-2026-02-18.md`
+   - Pose/group IR design and delivery intent.
+2. `apps/vizij-authoring/docs/notes/SYNTHESIS.md`
+   - Notes triage summary.
+3. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
+   - UI component inventory for refactor planning.
 
 ## Archive
 
-Historical material is under:
+Historical material lives under:
 
 1. `apps/vizij-authoring/docs/archive/plans/`
 2. `apps/vizij-authoring/docs/archive/notes/`
 3. `apps/vizij-authoring/docs/archive/reports/`
 
-Notable archived evidence:
-
-1. `apps/vizij-authoring/docs/archive/reports/audit_authoring_report.md`
-   Role: detailed audit evidence feeding backlog `B5`.
-
-Archived docs are context only and should not be used as active execution sources.
+Archived docs are context only; active planning/execution should use the active docs listed above.
 
 ## Update Rules
 
-1. Keep each doc focused on its role; avoid duplicating task detail across core docs.
-2. Promote actionable items from notes/references/reports into `plans/BACKLOG.md`.
-3. Move completed/superseded notes and one-off reports to `docs/archive/`.
-4. Record validation evidence changes in `plans/TRACKER.md`.
+1. Keep `ROADMAP.md`, `BACKLOG.md`, and `TRACKER.md synchronized when priorities change.
+2. If behavior changes, update `UI_DESIGN.md` and `ARCHITECTURE.md` in the same change.
+3. Move superseded one-off planning docs into `docs/archive/`.
+4. Record new validation evidence in `TRACKER.md`.
