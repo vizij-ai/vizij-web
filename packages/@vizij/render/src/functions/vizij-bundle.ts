@@ -4,7 +4,6 @@ import type {
   VizijBundleExtension,
   VizijBundleExtractionResult,
 } from "../types";
-// @ts-ignore TS5097: node test loader resolves only explicit .ts specifiers.
 import {
   collectVizijBundleCandidates,
   resolveVizijBundleCandidates,
