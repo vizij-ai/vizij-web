@@ -1035,7 +1035,7 @@ Acceptance checks:
 2. Re-import remains idempotent after retargeting.
 3. Regression tests cover multi-step retarget/rebind sequencing.
 
-### [ ] Q0.2 Pose Target Authoring Must Reuse Existing Rig Inputs (No Ghost Variable Creation)
+### [x] Q0.2 Pose Target Authoring Must Reuse Existing Rig Inputs (No Ghost Variable Creation)
 
 Intent:
 Fix pose authoring so adding a property to a pose references existing autorig/rig input identities instead of creating unintended new variables per property.
@@ -1051,6 +1051,15 @@ Acceptance checks:
 1. Adding a property to a pose does not increase unrelated variable/input counts.
 2. Pose entries reference existing canonical input ids.
 3. Tests assert no implicit variable creation during pose target assignment.
+
+Completion notes (2026-02-19):
+
+1. Consolidated pose property selection canonicalization into `src/components/inspector/poseTargetSelection.ts` (`resolvePosePropertySelectionInputIds`) so property-add flows only resolve to existing canonical rig/autorig input IDs.
+2. Updated pose inspector add flow in `src/components/inspector/InspectorContent.tsx` to use the shared resolver and preserve explicit guardrail messaging when no canonical mapping exists.
+3. Added targeted regression tests in `src/components/inspector/poseTargetSelection.test.ts` covering:
+   - alias -> canonical input resolution,
+   - target-id fallback through `autorigInputIdByComponentId`,
+   - no canonical match => empty result (preventing implicit variable creation).
 
 ### Priority P1 (Core Workflow Reliability)
 

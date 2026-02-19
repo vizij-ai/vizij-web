@@ -66,6 +66,7 @@ import {
   computePoseContributionSemantics,
   formatContributionStrength,
 } from "./poseContributionSemantics";
+import { resolvePosePropertySelectionInputIds } from "./poseTargetSelection";
 import {
   appendOrRevisitInspectorChainPath,
   type InspectorChainNode,
@@ -1134,47 +1135,24 @@ export function InspectorContent() {
           return;
         }
 
-        const resolvedInputIds = new Set<string>();
-        const addResolvedInputId = (
-          candidateInputId: string | null | undefined,
-        ) => {
-          if (!candidateInputId) {
-            return;
-          }
-          const canonicalInputId = resolveRigMetadataInputId(
-            candidateInputId,
-            standardInputsById,
-          );
-          if (!standardInputsById.has(canonicalInputId)) {
-            return;
-          }
-          resolvedInputIds.add(canonicalInputId);
-        };
-
-        addResolvedInputId(selection.inputId);
-        (selection.inputIds ?? []).forEach((inputId) =>
-          addResolvedInputId(inputId),
+        const targetIds = resolveAnimatablePropertyTargetIds(
+          resolveSelectionTargetIds(selection, objects),
         );
+        const resolvedInputIds = resolvePosePropertySelectionInputIds({
+          selection,
+          standardInputsById,
+          fallbackTargetIds: targetIds,
+          autorigInputIdByComponentId,
+        });
 
-        if (resolvedInputIds.size === 0) {
-          const targetIds = resolveAnimatablePropertyTargetIds(
-            resolveSelectionTargetIds(selection, objects),
-          );
-          targetIds.forEach((targetId) => {
-            addResolvedInputId(autorigInputIdByComponentId.get(targetId));
-          });
-        }
-
-        if (resolvedInputIds.size === 0) {
+        if (resolvedInputIds.length === 0) {
           alertDialog(
             "Selected properties are not currently mapped to existing rig variables.",
           );
           return;
         }
 
-        Array.from(resolvedInputIds)
-          .sort((left, right) => left.localeCompare(right))
-          .forEach((inputId) => addPoseInput(pose.id, inputId));
+        resolvedInputIds.forEach((inputId) => addPoseInput(pose.id, inputId));
       };
 
       const resolvePoseNeutralValue = (varId: string): number => {
