@@ -72,6 +72,15 @@ const INPUT_C: StandardRigInput = {
   range: { min: -1, max: 1 },
 };
 
+const INPUT_OFFSET: StandardRigInput = {
+  id: "input_offset",
+  path: "/controls/offset",
+  label: "Control Offset",
+  group: "controls",
+  defaultValue: 0.25,
+  range: { min: -1, max: 1 },
+};
+
 const INPUT_D_LEGACY_PATH: StandardRigInput = {
   id: "autorig_eye_open",
   path: "/autorig/eye/open",
@@ -227,6 +236,11 @@ describe("buildRigGraphSpec", () => {
     const composeAddNode = spec.nodes.find(
       (node) => node.id === "input_compose_add_input_a" && node.type === "add",
     );
+    const normalizedAddNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_normalized_add_input_a" &&
+        node.type === "subtract",
+    );
     const effectiveNode = spec.nodes.find(
       (node) => node.id === "input_effective_input_a" && node.type === "clamp",
     );
@@ -235,6 +249,7 @@ describe("buildRigGraphSpec", () => {
       (poseControlNode?.params as { path?: string } | undefined)?.path,
     ).toBe("rig/robot/pose/control/input_a");
     expect(composeAddNode).toBeDefined();
+    expect(normalizedAddNode).toBeDefined();
     expect(effectiveNode?.input_defaults).toMatchObject({
       min: INPUT_A.range.min,
       max: INPUT_A.range.max,
@@ -249,9 +264,56 @@ describe("buildRigGraphSpec", () => {
     expect(
       (spec.edges ?? []).some(
         (edge) =>
-          edge.from?.node_id === "input_compose_add_input_a" &&
+          edge.from?.node_id === "input_compose_normalized_add_input_a" &&
           edge.to?.node_id === "input_effective_input_a" &&
           edge.to?.input === "in",
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes additive direct+pose composition against the input default", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_offset",
+        alias: "A",
+        inputId: INPUT_OFFSET.id,
+      },
+    ];
+    binding.inputId = INPUT_OFFSET.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_OFFSET.id, INPUT_OFFSET]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_OFFSET.id]: "add",
+      },
+    });
+    const normalizedAddNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_normalized_add_input_offset" &&
+        node.type === "subtract",
+    );
+    expect(normalizedAddNode).toBeDefined();
+    expect(normalizedAddNode?.input_defaults).toMatchObject({
+      rhs: INPUT_OFFSET.defaultValue,
+    });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_add_input_offset" &&
+          edge.to?.node_id === "input_compose_normalized_add_input_offset" &&
+          edge.to?.input === "lhs",
       ),
     ).toBe(true);
   });

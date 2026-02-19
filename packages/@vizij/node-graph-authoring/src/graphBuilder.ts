@@ -1529,15 +1529,27 @@ export function buildRigGraphSpec({
     );
 
     const composeMode = composeModeByInputId.get(input.id) ?? "add";
-    const composeOutputNodeId =
-      composeMode === "average"
-        ? `input_compose_average_${safeInputId}`
-        : composeAddNodeId;
+    let composeOutputNodeId = composeAddNodeId;
+    const composeBaseline = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
     if (composeMode === "average") {
+      composeOutputNodeId = `input_compose_average_${safeInputId}`;
       nodes.push({
         id: composeOutputNodeId,
         type: "divide",
         inputDefaults: { rhs: 2 },
+      });
+      edges.push({
+        from: { nodeId: composeAddNodeId },
+        to: { nodeId: composeOutputNodeId, portId: "lhs" },
+      });
+    } else {
+      composeOutputNodeId = `input_compose_normalized_add_${safeInputId}`;
+      nodes.push({
+        id: composeOutputNodeId,
+        type: "subtract",
+        inputDefaults: { rhs: composeBaseline },
       });
       edges.push({
         from: { nodeId: composeAddNodeId },
