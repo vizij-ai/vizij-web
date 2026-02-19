@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import type { StandardRigInput } from "@vizij/utils";
 import {
   createPoseRigStore,
   PoseRigStoreProvider,
@@ -23,6 +24,48 @@ function filterRecordByIds<T extends Record<string, number>>(
     }
   });
   return next as T;
+}
+
+function areStandardInputsEquivalent(
+  left: StandardRigInput[],
+  right: StandardRigInput[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    const leftInput = left[index];
+    const rightInput = right[index];
+    if (!leftInput || !rightInput) {
+      return false;
+    }
+    if (
+      leftInput.id !== rightInput.id ||
+      leftInput.path !== rightInput.path ||
+      leftInput.defaultValue !== rightInput.defaultValue ||
+      leftInput.range.min !== rightInput.range.min ||
+      leftInput.range.max !== rightInput.range.max
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSchemasEquivalent(
+  left: { id: string; version: string } | null,
+  right: { id: string; version: string } | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return left.id === right.id && left.version === right.version;
 }
 
 interface PoseRigProviderProps {
@@ -145,15 +188,30 @@ export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
       inputValues,
       new Set(visibleInputs.map((input) => input.id)),
     );
-    poseRigStore.setState((_state) => {
+    poseRigStore.setState((state) => {
       const isReady = Boolean(rootId && visibleInputs.length > 0);
-      return {
+      const patch: {
+        currentValues: Record<string, number>;
+        hiddenInputIds: string[];
+        isReady: boolean;
+        standardInputs?: StandardRigInput[];
+        standardInputSchema?: { id: string; version: string } | null;
+      } = {
         currentValues: filteredCurrent,
-        standardInputs: visibleInputs,
         hiddenInputIds: Array.from(hiddenSet),
-        standardInputSchema,
         isReady,
       };
+
+      if (!areStandardInputsEquivalent(state.standardInputs, visibleInputs)) {
+        patch.standardInputs = visibleInputs;
+      }
+      if (
+        !areSchemasEquivalent(state.standardInputSchema, standardInputSchema)
+      ) {
+        patch.standardInputSchema = standardInputSchema;
+      }
+
+      return patch;
     });
   }, [
     hiddenInputIds,
