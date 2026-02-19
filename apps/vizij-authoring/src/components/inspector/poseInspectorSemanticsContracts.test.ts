@@ -8,23 +8,29 @@ const inspectorContentTsx = readFileSync(
 );
 
 describe("B1.3 pose inspector value semantics contracts", () => {
-  it("defines explicit legend labels for target, applied, and contribution", () => {
+  it("defines explicit legend labels for target, direct, pose-driven, and contribution", () => {
     expect(inspectorContentTsx).toContain("Target Value");
-    expect(inspectorContentTsx).toContain("Current/Applied");
+    expect(inspectorContentTsx).toContain("Direct Input");
+    expect(inspectorContentTsx).toContain("Pose Driven");
     expect(inspectorContentTsx).toContain("Contribution Strength");
   });
 
-  it("uses runtime/autorig-authoritative path for applied values", () => {
-    expect(inspectorContentTsx).toContain("resolvePoseAppliedValue");
+  it("separates direct-input editing from pose-driven preview semantics", () => {
+    expect(inspectorContentTsx).toContain("resolveDirectInputValue");
+    expect(inspectorContentTsx).toContain("resolvePoseDrivenValue");
     expect(inspectorContentTsx).toContain(
-      "runtime/autorig-authoritative value currently applied",
+      "canonical rig input value edited directly",
+    );
+    expect(inspectorContentTsx).toContain(
+      "this pose's computed channel value at the current pose weight",
     );
     expect(inspectorContentTsx).toContain("computePoseContributionSemantics");
   });
 
-  it("removes ambiguous pose target labeling", () => {
-    expect(inspectorContentTsx).toContain("Current/Applied");
-    expect(inspectorContentTsx).toContain("Target Value");
+  it("removes ambiguous current/applied labeling", () => {
+    expect(inspectorContentTsx).not.toContain("Current/Applied");
+    expect(inspectorContentTsx).toContain("Target Value (100%)");
+    expect(inspectorContentTsx).toContain("Direct Input");
     expect(inspectorContentTsx).toContain(
       "title={poseSemanticTooltips.target}",
     );

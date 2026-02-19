@@ -157,6 +157,19 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+function clampToRange(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return value;
+  }
+  if (max <= min) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
+}
+
 function normalizePoseMembershipPath(
   value: string | null | undefined,
 ): string | null {
@@ -1292,8 +1305,8 @@ export function InspectorContent() {
         return 0;
       };
 
-      const resolvePoseAppliedValue = (varId: string): number => {
-        // Runtime-authoritative path: staged runtime/autorig input value with neutral fallback.
+      const resolveDirectInputValue = (varId: string): number => {
+        // Direct rig-input lane: canonical input value edited in Inputs pane.
         const staged = inputValues[varId];
         if (typeof staged === "number" && Number.isFinite(staged)) {
           return staged;
@@ -1301,13 +1314,31 @@ export function InspectorContent() {
         return resolvePoseNeutralValue(varId);
       };
 
+      const resolvePoseDrivenValue = (
+        varId: string,
+        poseTargetValue: number,
+        min: number,
+        max: number,
+      ): number => {
+        const neutralVal = resolvePoseNeutralValue(varId);
+        const activePoseWeight = usePoseWeightPreview
+          ? selectedPoseWeightValue
+          : blendAmount;
+        const interpolated =
+          neutralVal +
+          (poseTargetValue - neutralVal) * clamp01(activePoseWeight);
+        return clampToRange(interpolated, min, max);
+      };
+
       const poseSemanticTooltips = {
         target:
           "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
-        applied:
-          "Current/Applied Value: runtime/autorig-authoritative value currently applied to this rig input.",
+        direct:
+          "Direct Input: canonical rig input value edited directly (matches Inputs pane for this variable).",
+        poseDriven:
+          "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
         contribution:
-          "Contribution Strength: (Current/Applied - Neutral) / (Target - Neutral). Can be below 0% or above 100% when runtime values overshoot.",
+          "Contribution Strength: (Pose Driven - Neutral) / (Target - Neutral) for this pose channel.",
       };
 
       const handleBlend = (amount: number) => {
@@ -1480,9 +1511,15 @@ export function InspectorContent() {
               </span>
               <span
                 className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-                title={poseSemanticTooltips.applied}
+                title={poseSemanticTooltips.direct}
               >
-                Current/Applied
+                Direct Input
+              </span>
+              <span
+                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+                title={poseSemanticTooltips.poseDriven}
+              >
+                Pose Driven
               </span>
               <span
                 className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
@@ -1530,12 +1567,18 @@ export function InspectorContent() {
                     const label = cleanLabel(rawLabel, group.label);
                     const min = inputDef?.range?.min ?? -1;
                     const max = inputDef?.range?.max ?? 1;
-                    const appliedVal = resolvePoseAppliedValue(varId);
+                    const directVal = resolveDirectInputValue(varId);
                     const neutralVal = resolvePoseNeutralValue(varId);
+                    const poseDrivenVal = resolvePoseDrivenValue(
+                      varId,
+                      poseVal,
+                      min,
+                      max,
+                    );
                     const contributionSemantics =
                       computePoseContributionSemantics({
                         targetValue: poseVal,
-                        appliedValue: appliedVal,
+                        appliedValue: poseDrivenVal,
                         neutralValue: neutralVal,
                       });
                     const contributionLabel = formatContributionStrength(
@@ -1552,44 +1595,33 @@ export function InspectorContent() {
                       item.drivenPropertyCount > 0
                         ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
                         : null;
-                    const resolvePoseWeightFromAppliedValue = (
-                      nextAppliedValue: number,
-                    ): number => {
-                      const denominator = poseVal - neutralVal;
-                      if (Math.abs(denominator) <= 1e-6) {
-                        if (Math.abs(nextAppliedValue - neutralVal) <= 1e-6) {
-                          return 0;
-                        }
-                        return selectedPoseWeightValue;
-                      }
-                      const rawWeight =
-                        (nextAppliedValue - neutralVal) / denominator;
-                      return clamp01(rawWeight);
+                    const directDefaultValue = Number.isFinite(
+                      inputDef?.defaultValue,
+                    )
+                      ? (inputDef?.defaultValue ?? neutralVal)
+                      : neutralVal;
+                    const poseDrivenPercent =
+                      max > min
+                        ? clamp01((poseDrivenVal - min) / (max - min)) * 100
+                        : 0;
+                    const handleDirectInputChange = (nextDirect: number) => {
+                      handleInputValueChange(
+                        varId,
+                        clampToRange(nextDirect, min, max),
+                      );
                     };
-                    const handleAppliedValueChange = (nextApplied: number) => {
-                      if (usePoseWeightPreview) {
-                        handleBlend(
-                          resolvePoseWeightFromAppliedValue(nextApplied),
-                        );
-                        return;
-                      }
-                      handleInputValueChange(varId, nextApplied);
-                    };
-                    const handleAppliedReset = () => {
-                      if (usePoseWeightPreview) {
-                        handleBlend(
-                          resolvePoseWeightFromAppliedValue(neutralVal),
-                        );
-                        return;
-                      }
-                      handleInputValueChange(varId, neutralVal);
+                    const handleDirectReset = () => {
+                      handleInputValueChange(
+                        varId,
+                        clampToRange(directDefaultValue, min, max),
+                      );
                     };
                     const handleTargetValueChange = (nextTarget: number) => {
-                      updatePoseValue(pose.id, varId, nextTarget);
-                      if (usePoseWeightPreview) {
-                        return;
-                      }
-                      handleInputValueChange(varId, nextTarget);
+                      updatePoseValue(
+                        pose.id,
+                        varId,
+                        clampToRange(nextTarget, min, max),
+                      );
                     };
 
                     return (
@@ -1670,18 +1702,18 @@ export function InspectorContent() {
                         <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
                           <span
                             className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                            title={poseSemanticTooltips.applied}
+                            title={poseSemanticTooltips.direct}
                           >
-                            Current/Applied
+                            Direct Input
                           </span>
                           <Slider
                             min={min}
                             max={max}
                             step={0.0001}
-                            value={appliedVal}
+                            value={directVal}
                             className="flex-1 min-w-[120px]"
                             onChange={(val) =>
-                              handleAppliedValueChange(val as number)
+                              handleDirectInputChange(val as number)
                             }
                           />
                           <div
@@ -1695,17 +1727,17 @@ export function InspectorContent() {
                               max={max}
                               step={0.0001}
                               format={precisionFormat}
-                              value={appliedVal}
+                              value={directVal}
                               className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                              onChange={handleAppliedValueChange}
+                              onChange={handleDirectInputChange}
                             />
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-[10px]"
-                            title="Reset current value to neutral/default"
-                            onClick={handleAppliedReset}
+                            title="Reset direct input to default"
+                            onClick={handleDirectReset}
                           >
                             <RotateCcw size={11} />
                             Reset
@@ -1714,13 +1746,9 @@ export function InspectorContent() {
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-[10px]"
-                            title="Use current value as the new target value"
+                            title="Use direct input value as the new pose target"
                             onClick={() =>
-                              updatePoseValue(
-                                pose.id,
-                                varId,
-                                resolvePoseAppliedValue(varId),
-                              )
+                              updatePoseValue(pose.id, varId, directVal)
                             }
                           >
                             <Save size={11} />
@@ -1733,18 +1761,25 @@ export function InspectorContent() {
                             className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
                             title={poseSemanticTooltips.target}
                           >
-                            Target Value
+                            Target Value (100%)
                           </span>
-                          <Slider
-                            min={min}
-                            max={max}
-                            step={0.0001}
-                            value={poseVal}
-                            className="flex-1 min-w-[120px]"
-                            onChange={(val) =>
-                              handleTargetValueChange(val as number)
-                            }
-                          />
+                          <div className="relative flex-1 min-w-[120px]">
+                            <Slider
+                              min={min}
+                              max={max}
+                              step={0.0001}
+                              value={poseVal}
+                              className="w-full"
+                              onChange={(val) =>
+                                handleTargetValueChange(val as number)
+                              }
+                            />
+                            <span
+                              className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
+                              style={{ left: `${poseDrivenPercent}%` }}
+                              title={poseSemanticTooltips.poseDriven}
+                            />
+                          </div>
                           <div
                             className="inspector-numeric-control flex-shrink-0"
                             onMouseDown={(event) => event.stopPropagation()}
@@ -1761,6 +1796,12 @@ export function InspectorContent() {
                               onChange={handleTargetValueChange}
                             />
                           </div>
+                          <span
+                            className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
+                            title={poseSemanticTooltips.poseDriven}
+                          >
+                            Pose {poseDrivenVal.toFixed(4)}
+                          </span>
                           <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
                             Min {min.toFixed(4)}
                           </span>
