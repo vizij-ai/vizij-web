@@ -122,8 +122,8 @@ Interaction requirements:
 ## Autorig Visibility Contract
 
 1. Primary authoring UX should prioritize high-level variable/property semantics.
-2. Low-level autorig rows should be minimized in default flows.
-3. Advanced/debug views may expose full autorig internals.
+2. Low-level autorig rows are hidden/minimized in default inspector chain flows unless no high-level mapping exists.
+3. Advanced/debug view exposes full autorig internals through explicit `Show/Hide Autorig Internals` controls.
 
 ## Import/Export UX Contract
 

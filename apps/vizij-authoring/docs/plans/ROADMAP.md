@@ -91,7 +91,8 @@ Exit gate:
 
 Current status:
 
-- `planned`
+- `in_progress`
+- Progress: `D3.1` and `D3.3` complete; `D3.2` and `D3.4` remaining.
 
 ## Stage 4 — Deferred Policy Semantics
 

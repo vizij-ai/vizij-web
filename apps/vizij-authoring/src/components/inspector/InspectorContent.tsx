@@ -170,6 +170,7 @@ export function InspectorContent() {
   const [rigInspectorView, setRigInspectorView] = useState<
     "quick" | "bindings"
   >("quick");
+  const [showAutorigInternals, setShowAutorigInternals] = useState(false);
   const scrubValuesRef = useRef<Record<string, number>>({});
   const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
     null,
@@ -1853,13 +1854,14 @@ export function InspectorContent() {
       const downstreamAutorigInputs = downstreamConnections.filter(
         (entry) => entry.layer === "autorig",
       );
-      const parentRigInputs = collectBindingInputIds(parentBinding)
+      const parentRigInputRefs = collectBindingInputIds(parentBinding)
         .filter((candidateId) => candidateId !== input.id)
         .map((candidateId) => {
           const parentEntry = standardInputsById.get(candidateId);
           return {
             id: candidateId,
             label: parentEntry?.label || parentEntry?.path || candidateId,
+            isAutorig: isCanonicalAutorigInputPath(parentEntry?.path),
           };
         });
       const directDependents = collectDirectRigDependents({
@@ -1884,6 +1886,12 @@ export function InspectorContent() {
           ? count + 1
           : count;
       }, 0);
+      let hiddenAutorigDriverCount = 0;
+      let hiddenAutorigDrivenCount = 0;
+      const totalAutorigDriverCount = parentRigInputRefs.filter(
+        (entry) => entry.isAutorig,
+      ).length;
+      const totalAutorigDrivenCount = downstreamAutorigInputs.length;
 
       const parseDraftNumber = (valueText: string, label: string) => {
         const trimmed = valueText.trim();
@@ -2161,6 +2169,44 @@ export function InspectorContent() {
           return;
         }
       };
+      const parentRigChainItems: Array<{
+        key: string;
+        label: string;
+        kind: "variable" | "property" | "autorig";
+        onClick: () => void;
+      }> = [];
+      parentRigInputRefs.forEach((entry) => {
+        if (!entry.isAutorig) {
+          parentRigChainItems.push({
+            key: `variable:${entry.id}`,
+            label: entry.label,
+            kind: "variable",
+            onClick: () => openRigInspector(entry.id),
+          });
+          return;
+        }
+        const mappedTargetId = componentIdByInputId.get(entry.id) ?? null;
+        if (mappedTargetId && !showAutorigInternals) {
+          parentRigChainItems.push({
+            key: `property:${mappedTargetId}`,
+            label: targetLabelById.get(mappedTargetId) ?? entry.label,
+            kind: "property",
+            onClick: () => openSceneBindingInspector(mappedTargetId),
+          });
+          return;
+        }
+        if (!showAutorigInternals) {
+          hiddenAutorigDriverCount += 1;
+          return;
+        }
+        parentRigChainItems.push({
+          key: `autorig:${entry.id}`,
+          label: entry.label,
+          kind: "autorig",
+          onClick: () => openRigInspector(entry.id),
+        });
+      });
+
       const drivenChainItems: Array<{
         key: string;
         label: string;
@@ -2219,8 +2265,13 @@ export function InspectorContent() {
             key,
             label: targetLabelById.get(mappedTargetId) ?? entry.label,
             kind: "property",
+            drivenInputId: entry.id,
             onClick: () => openSceneBindingInspector(mappedTargetId),
           });
+          return;
+        }
+        if (!showAutorigInternals) {
+          hiddenAutorigDrivenCount += 1;
           return;
         }
         const key = `autorig:${entry.id}`;
@@ -2249,6 +2300,11 @@ export function InspectorContent() {
           onClick: () => openSceneBindingInspector(dependent.targetId),
         });
       });
+
+      const hiddenAutorigCount =
+        hiddenAutorigDriverCount + hiddenAutorigDrivenCount;
+      const hasAutorigInternals =
+        totalAutorigDriverCount + totalAutorigDrivenCount > 0;
 
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
@@ -2578,27 +2634,55 @@ export function InspectorContent() {
             <div className="flex items-center gap-2 px-1 py-0.5">
               <Sliders size={12} className="text-slate-500" />
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Chain · {parentRigInputs.length} drivers ·{" "}
+                Chain · {parentRigChainItems.length} drivers ·{" "}
                 {drivenChainItems.length} driven
               </span>
+              {hasAutorigInternals ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 ml-auto text-[10px] px-2"
+                  onClick={() =>
+                    setShowAutorigInternals((previous) => !previous)
+                  }
+                >
+                  {showAutorigInternals
+                    ? "Hide Autorig Internals"
+                    : `Show Autorig Internals${hiddenAutorigCount > 0 ? ` (${hiddenAutorigCount})` : ""}`}
+                </Button>
+              ) : null}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-2 items-start">
               <div className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
                 <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
                   Driven By
                 </div>
-                {parentRigInputs.length > 0 ? (
+                {parentRigChainItems.length > 0 ? (
                   <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto custom-scrollbar">
-                    {parentRigInputs.map((entry) => (
+                    {parentRigChainItems.map((entry) => (
                       <button
-                        key={entry.id}
+                        key={entry.key}
                         type="button"
                         className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                        onClick={() => openRigInspector(entry.id)}
+                        onClick={entry.onClick}
                         title={`Inspect ${entry.label}`}
                       >
-                        <div className="w-1.5 h-1.5 rounded-full bg-violet-500/60" />
+                        <div
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            entry.kind === "variable" && "bg-violet-500/60",
+                            entry.kind === "property" && "bg-blue-500/60",
+                            entry.kind === "autorig" && "bg-cyan-500/60",
+                          )}
+                        />
                         <span className="flex-1 truncate">{entry.label}</span>
+                        <span className="text-[9px] uppercase text-text-muted border border-border-default/60 rounded px-1 py-0.5">
+                          {entry.kind === "variable"
+                            ? "variable"
+                            : entry.kind === "property"
+                              ? "property"
+                              : "autorig"}
+                        </span>
                         <ChevronRight size={10} className="text-text-muted" />
                       </button>
                     ))}

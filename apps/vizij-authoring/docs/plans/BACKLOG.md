@@ -375,7 +375,7 @@ Completion notes (2026-02-19):
 
 ## Block D — UX Simplification and Maintainability
 
-### [ ] D3.1 Autorig Abstraction Cleanup (Primary UX)
+### [x] D3.1 Autorig Abstraction Cleanup (Primary UX)
 
 Priority and why this should still be done:
 
@@ -396,6 +396,17 @@ Acceptance checks:
 1. Default authoring workflows do not require direct autorig interaction.
 2. Inspector chain links show high-level relationships clearly in both directions.
 3. Advanced/debug mode can still expose autorig internals.
+
+Completion notes (2026-02-19):
+
+1. Rig inspector chain panels now default to high-level relationship framing (variables/properties), collapsing unmapped autorig internals from default view.
+2. Added explicit inspector toggle for advanced/debug access:
+   - `Show Autorig Internals` reveals low-level autorig links,
+   - `Hide Autorig Internals` restores simplified view.
+3. Upstream (`Driven By`) and downstream (`What This Drives`) lists now surface mapped property links directly when available, reducing forced low-level autorig navigation.
+4. Added contract-test assertions to keep the autorig abstraction toggle and chain affordances present in inspector implementation.
+5. Validation evidence:
+   - `2026-02-19 05:47Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 377 tests).
 
 ### [ ] D3.2 Inputs Pane IA for Group/Stage Controls
 

@@ -20,6 +20,9 @@ describe("B2.4 inspector chain traversal contracts", () => {
     expect(inspectorContentTsx).toContain("includeAutorig: true");
     expect(inspectorContentTsx).toContain("Autorig");
     expect(inspectorContentTsx).toContain("Driven By");
+    expect(inspectorContentTsx).toContain("showAutorigInternals");
+    expect(inspectorContentTsx).toContain("Show Autorig Internals");
+    expect(inspectorContentTsx).toContain("Hide Autorig Internals");
   });
 
   it("uses chain-path helper to preserve context on revisits", () => {
