@@ -13,6 +13,8 @@ import type {
   PoseGroupDefinition,
   PoseIrCompileResult,
   PoseIrBlendMode,
+  PoseIrBlendStageDefinition,
+  PoseIrStageSource,
   PoseNeutralMode,
   PoseRigConfigFile,
   PoseRigIrFile,
@@ -237,6 +239,261 @@ function canonicalizeInputValues(
   return normalized;
 }
 
+function cloneBlendStages(
+  blendStages: PoseIrBlendStageDefinition[] | undefined,
+): PoseIrBlendStageDefinition[] | undefined {
+  if (!blendStages || blendStages.length === 0) {
+    return undefined;
+  }
+  return blendStages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    mode: stage.mode,
+    sources: stage.sources.map((source) => ({
+      kind: source.kind,
+      id: source.id,
+    })),
+  }));
+}
+
+function normalizeBlendStages(
+  blendStages: unknown,
+  orderedGroupIds: string[],
+  fallbackMode: PoseIrBlendMode,
+  collector: DiagnosticCollector,
+  source: "pose-config" | "pose-ir",
+): PoseIrBlendStageDefinition[] | undefined {
+  if (blendStages === undefined || blendStages === null) {
+    return undefined;
+  }
+
+  const pushBlendDiagnostic = (params: {
+    code: string;
+    message: string;
+    path?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: params.code,
+      message: params.message,
+      location: params.path ? { path: params.path } : undefined,
+      metadata: params.metadata,
+    });
+  };
+
+  if (!Array.isArray(blendStages)) {
+    pushBlendDiagnostic({
+      code: "invalid-blend-stages-payload",
+      message: "Blend stages were ignored because payload is not an array.",
+      path: "blendStages",
+    });
+    return undefined;
+  }
+  if (blendStages.length === 0) {
+    return undefined;
+  }
+
+  const knownGroupIds = new Set(orderedGroupIds);
+  const knownStageIds = new Set<string>();
+  const normalizedStages: PoseIrBlendStageDefinition[] = [];
+
+  blendStages.forEach((stage, stageIndex) => {
+    const stagePath = `blendStages[${stageIndex}]`;
+    if (!stage || typeof stage !== "object") {
+      pushBlendDiagnostic({
+        code: "invalid-blend-stage",
+        message: `Blend stage #${stageIndex + 1} was ignored because it is not an object.`,
+        path: stagePath,
+      });
+      return;
+    }
+
+    const stageId = typeof stage.id === "string" ? stage.id.trim() : "";
+    if (!stageId) {
+      pushBlendDiagnostic({
+        code: "missing-blend-stage-id",
+        message: `Blend stage #${stageIndex + 1} is missing an id and was ignored.`,
+        path: `${stagePath}.id`,
+      });
+      return;
+    }
+
+    if (knownStageIds.has(stageId)) {
+      pushBlendDiagnostic({
+        code: "duplicate-blend-stage-id",
+        message: `Blend stage "${stageId}" is duplicated; later entry was ignored.`,
+        path: `${stagePath}.id`,
+        metadata: {
+          stageId,
+          stageIndex,
+        },
+      });
+      return;
+    }
+
+    const stageMode =
+      stage.mode === "add" || stage.mode === "average"
+        ? stage.mode
+        : fallbackMode;
+    if (stage.mode !== "add" && stage.mode !== "average") {
+      pushBlendDiagnostic({
+        code: "invalid-blend-stage-mode",
+        message: `Blend stage "${stageId}" mode "${String(stage.mode)}" is invalid; using "${stageMode}".`,
+        path: `${stagePath}.mode`,
+        metadata: {
+          stageId,
+          fallbackMode: stageMode,
+        },
+      });
+    }
+
+    const stageSources = Array.isArray(stage.sources) ? stage.sources : [];
+    if (!Array.isArray(stage.sources)) {
+      pushBlendDiagnostic({
+        code: "invalid-blend-stage-sources",
+        message: `Blend stage "${stageId}" sources are invalid and were normalized to an empty list.`,
+        path: `${stagePath}.sources`,
+      });
+    }
+
+    const seenSourceKeys = new Set<string>();
+    const normalizedSources: PoseIrStageSource[] = [];
+    stageSources.forEach((stageSource: any, sourceIndex: number) => {
+      const sourcePath = `${stagePath}.sources[${sourceIndex}]`;
+      if (!stageSource || typeof stageSource !== "object") {
+        pushBlendDiagnostic({
+          code: "invalid-blend-stage-source",
+          message: `Blend stage "${stageId}" source #${sourceIndex + 1} was ignored because it is not an object.`,
+          path: sourcePath,
+        });
+        return;
+      }
+      const sourceKind = stageSource.kind;
+      const sourceId =
+        typeof stageSource.id === "string" ? stageSource.id.trim() : "";
+      if (sourceKind !== "group" && sourceKind !== "stage") {
+        pushBlendDiagnostic({
+          code: "invalid-blend-stage-source-kind",
+          message: `Blend stage "${stageId}" source #${sourceIndex + 1} has invalid kind "${String(sourceKind)}" and was ignored.`,
+          path: `${sourcePath}.kind`,
+          metadata: {
+            stageId,
+            sourceIndex,
+            sourceKind,
+          },
+        });
+        return;
+      }
+      if (!sourceId) {
+        pushBlendDiagnostic({
+          code: "invalid-blend-stage-source-id",
+          message: `Blend stage "${stageId}" source #${sourceIndex + 1} is missing an id and was ignored.`,
+          path: `${sourcePath}.id`,
+        });
+        return;
+      }
+
+      if (sourceKind === "group") {
+        if (!knownGroupIds.has(sourceId)) {
+          pushBlendDiagnostic({
+            code: "unknown-blend-stage-group-source",
+            message: `Blend stage "${stageId}" group source "${sourceId}" does not exist and was ignored.`,
+            path: `${sourcePath}.id`,
+            metadata: {
+              stageId,
+              sourceId,
+            },
+          });
+          return;
+        }
+      } else {
+        if (sourceId === stageId) {
+          pushBlendDiagnostic({
+            code: "self-blend-stage-source",
+            message: `Blend stage "${stageId}" cannot source itself; source "${sourceId}" was ignored.`,
+            path: `${sourcePath}.id`,
+            metadata: {
+              stageId,
+              sourceId,
+            },
+          });
+          return;
+        }
+        if (!knownStageIds.has(sourceId)) {
+          pushBlendDiagnostic({
+            code: "unknown-blend-stage-source",
+            message: `Blend stage "${stageId}" stage source "${sourceId}" does not reference an earlier stage and was ignored.`,
+            path: `${sourcePath}.id`,
+            metadata: {
+              stageId,
+              sourceId,
+            },
+          });
+          return;
+        }
+      }
+
+      const sourceKey = `${sourceKind}:${sourceId}`;
+      if (seenSourceKeys.has(sourceKey)) {
+        pushBlendDiagnostic({
+          code: "duplicate-blend-stage-source",
+          message: `Blend stage "${stageId}" source "${sourceKey}" is duplicated and was ignored.`,
+          path: sourcePath,
+          metadata: {
+            stageId,
+            sourceKey,
+          },
+        });
+        return;
+      }
+
+      seenSourceKeys.add(sourceKey);
+      normalizedSources.push({
+        kind: sourceKind,
+        id: sourceId,
+      });
+    });
+
+    if (normalizedSources.length === 0) {
+      pushBlendDiagnostic({
+        code: "empty-blend-stage",
+        message: `Blend stage "${stageId}" has no valid sources and was ignored.`,
+        path: stagePath,
+        metadata: {
+          stageId,
+        },
+      });
+      return;
+    }
+
+    const stageName =
+      typeof stage.name === "string" && stage.name.trim().length > 0
+        ? stage.name.trim()
+        : undefined;
+    normalizedStages.push({
+      id: stageId,
+      name: stageName,
+      mode: stageMode,
+      sources: normalizedSources,
+    });
+    knownStageIds.add(stageId);
+  });
+
+  if (normalizedStages.length === 0) {
+    pushBlendDiagnostic({
+      code: "blend-stages-fallback",
+      message:
+        "Blend stages were provided but none were valid; compiler will use legacy cross-group compatibility blending.",
+      path: "blendStages",
+    });
+    return undefined;
+  }
+
+  return normalizedStages;
+}
+
 function mapConfigToPoseIr(
   config: PoseRigConfigFile,
   standardInputs: StandardRigInput[],
@@ -361,6 +618,13 @@ function mapConfigToPoseIr(
       return leftId.localeCompare(rightId);
     }),
   }));
+  const blendStages = normalizeBlendStages(
+    config.blendStages,
+    groups.map((group) => group.id),
+    crossGroupPolicyMode,
+    collector,
+    diagnosticSource,
+  );
 
   const neutralValues = canonicalizeInputValues(
     config.neutralInputs,
@@ -412,6 +676,7 @@ function mapConfigToPoseIr(
     crossGroupPolicy: {
       mode: crossGroupPolicyMode,
     },
+    blendStages,
     poses,
     lowLevel: config.lowLevel ?? null,
     metadata: config.metadata,
@@ -458,6 +723,7 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
       blendMode: toPoseConfigBlendMode(group.intraGroupBlendMode),
     })),
     crossGroupBlendMode: toPoseConfigBlendMode(ir.crossGroupPolicy?.mode),
+    blendStages: cloneBlendStages(ir.blendStages),
     neutralMode: ir.neutral?.mode ?? "explicit",
     neutralInputs: { ...(ir.neutral?.values ?? {}) },
     poses,
@@ -585,6 +851,7 @@ export const PoseIrService = {
       crossGroupBlendMode: toPoseConfigBlendMode(
         candidate.crossGroupPolicy?.mode ?? candidate.crossGroupBlendMode,
       ),
+      blendStages: cloneBlendStages(candidate.blendStages),
       poses: (Array.isArray(candidate.poses) ? candidate.poses : []).map(
         (pose) => {
           const fallbackGroupIds = membershipByPoseId.get(pose.id) ?? [];

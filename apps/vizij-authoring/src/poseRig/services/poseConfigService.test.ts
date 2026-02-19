@@ -260,6 +260,81 @@ describe("PoseConfigService", () => {
     });
   });
 
+  it("normalizes blend stages and warns on malformed sources", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "additive" as const,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average" as const,
+          sources: [
+            { kind: "group" as const, id: "emotion" },
+            { kind: "group" as const, id: "viseme" },
+          ],
+        },
+        {
+          id: "stage_final",
+          mode: "invalid_mode",
+          sources: [
+            { kind: "group", id: "unknown_group" },
+            { kind: "stage", id: "stage_base" },
+            { kind: "stage", id: "stage_base" },
+          ],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.5 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config, warnings } = PoseConfigService.normalize(input);
+    expect(config.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+      {
+        id: "stage_final",
+        name: undefined,
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_base" }],
+      },
+    ]);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('Blend stage "stage_final" mode "invalid_mode"'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('source group "unknown_group"'),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes('source "stage:stage_base" is duplicated'),
+      ),
+    ).toBe(true);
+  });
+
   it("creates grouped config defaults with explicit strategies", () => {
     const created = PoseConfigService.create(
       [

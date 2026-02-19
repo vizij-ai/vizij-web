@@ -247,6 +247,64 @@ describe("buildPoseGraphSpec", () => {
     );
   });
 
+  it("compiles explicit multi-stage blend chains", () => {
+    const groupedPoses = [
+      { ...poses[0], id: "pose_emotion", group: "emotion" },
+      {
+        ...poses[1],
+        id: "pose_viseme",
+        group: "viseme",
+        values: { mouth_open: -0.25, brow_raise: -0.5 },
+      },
+    ];
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      poses: groupedPoses,
+      standardInputs,
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "additive",
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average",
+          sources: [
+            { kind: "group", id: "emotion" },
+            { kind: "group", id: "viseme" },
+          ],
+        },
+        {
+          id: "stage_final",
+          mode: "add",
+          sources: [
+            { kind: "stage", id: "stage_base" },
+            { kind: "group", id: "emotion" },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      findNode(spec.nodes, "pose_stage_mouth_open_1_stage_base_overlay")?.type,
+    ).toBe("blendweightedaverageoverlay");
+    expect(
+      findNode(spec.nodes, "pose_stage_mouth_open_2_stage_final_apply")?.type,
+    ).toBe("add");
+    expect(
+      findEdge(
+        spec.edges,
+        "pose_stage_mouth_open_2_stage_final_apply",
+        "out_mouth_open",
+        "in",
+      ),
+    ).toBeTruthy();
+    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")).toBeUndefined();
+  });
+
   it("resolves pose memberships from canonical groupIds", () => {
     const groupedPoses = [
       {
@@ -329,5 +387,62 @@ describe("buildPoseGraphSpec", () => {
         edge.to.node_id.startsWith("pose_weights_group_"),
     );
     expect(sharedWeightEdges).toHaveLength(2);
+  });
+
+  it("keeps multi-stage compile output deterministic across groupIds order", () => {
+    const sharedPose = {
+      ...poses[0],
+      id: "pose_shared",
+      name: "Shared Smile",
+      group: null,
+      groupId: null,
+      groupIds: ["viseme_main", "emotion_main"],
+      values: { mouth_open: 0.8, brow_raise: 0.4 },
+    };
+    const poseGroups = [
+      { id: "emotion_main", name: "Emotion Main", path: "emotion/main" },
+      { id: "viseme_main", name: "Viseme Main", path: "viseme/main" },
+    ];
+    const options = {
+      faceId: "face",
+      neutralInputs: { mouth_open: 0, brow_raise: 0 },
+      standardInputs,
+      poseGroups,
+      defaultGroupBlendMode: "average" as const,
+      crossGroupBlendMode: "additive" as const,
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "add" as const,
+          sources: [
+            { kind: "group" as const, id: "emotion_main" },
+            { kind: "group" as const, id: "viseme_main" },
+          ],
+        },
+      ],
+    };
+
+    const firstCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [sharedPose],
+    });
+    const secondCompile = buildPoseGraphSpec({
+      ...options,
+      poses: [
+        {
+          ...sharedPose,
+          groupIds: ["emotion_main", "viseme_main"],
+        },
+      ],
+    });
+
+    expect(secondCompile.spec).toEqual(firstCompile.spec);
+    expect(secondCompile.summary).toEqual(firstCompile.summary);
+    expect(
+      findNode(
+        firstCompile.spec.nodes,
+        "pose_stage_mouth_open_1_stage_base_apply",
+      ),
+    ).toBeTruthy();
   });
 });

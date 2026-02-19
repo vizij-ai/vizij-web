@@ -15,6 +15,7 @@ import type {
   PoseBlendMode,
   PoseDefinition,
   PoseGroupDefinition,
+  PoseIrBlendStageDefinition,
   PoseRigIrFile,
   PoseRigGraphSummary,
   StandardInputId,
@@ -82,6 +83,17 @@ interface ResolvedPoseGroup {
   name: string;
   blendMode: PoseBlendMode;
   poseIds: string[];
+}
+
+interface BlendSignalRef {
+  nodeId: string;
+  output?: string;
+}
+
+interface BlendSignalLayer {
+  valueNodeId: string;
+  deltaNodeId: string;
+  activity: BlendSignalRef;
 }
 
 function resolvePoseGroups(
@@ -161,6 +173,347 @@ function resolvePoseGroups(
   return groups.filter((group) => group.poseIds.length > 0);
 }
 
+function normalizeBlendStagesForCompile(
+  blendStages: unknown,
+  orderedGroupIds: string[],
+): PoseIrBlendStageDefinition[] | undefined {
+  if (!Array.isArray(blendStages) || blendStages.length === 0) {
+    return undefined;
+  }
+
+  const knownGroupIds = new Set(orderedGroupIds);
+  const knownStageIds = new Set<string>();
+  const normalizedStages: PoseIrBlendStageDefinition[] = [];
+
+  blendStages.forEach((stage) => {
+    if (!stage || typeof stage !== "object") {
+      return;
+    }
+    const stageId = typeof stage.id === "string" ? stage.id.trim() : "";
+    if (!stageId || knownStageIds.has(stageId)) {
+      return;
+    }
+    const stageMode = stage.mode === "add" || stage.mode === "average";
+    if (!stageMode) {
+      return;
+    }
+    const stageSources = Array.isArray(stage.sources) ? stage.sources : [];
+    const seenSourceKeys = new Set<string>();
+    const sources = stageSources
+      .map((source: any) => {
+        if (!source || typeof source !== "object") {
+          return null;
+        }
+        const sourceKind = source.kind;
+        const sourceId = typeof source.id === "string" ? source.id.trim() : "";
+        if (!sourceId) {
+          return null;
+        }
+        if (sourceKind === "group") {
+          if (!knownGroupIds.has(sourceId)) {
+            return null;
+          }
+        } else if (sourceKind === "stage") {
+          if (sourceId === stageId || !knownStageIds.has(sourceId)) {
+            return null;
+          }
+        } else {
+          return null;
+        }
+        const sourceKey = `${sourceKind}:${sourceId}`;
+        if (seenSourceKeys.has(sourceKey)) {
+          return null;
+        }
+        seenSourceKeys.add(sourceKey);
+        return {
+          kind: sourceKind,
+          id: sourceId,
+        };
+      })
+      .filter(
+        (source: any): source is { kind: "group" | "stage"; id: string } =>
+          source !== null,
+      );
+
+    if (sources.length === 0) {
+      return;
+    }
+
+    normalizedStages.push({
+      id: stageId,
+      name:
+        typeof stage.name === "string" && stage.name.trim().length > 0
+          ? stage.name.trim()
+          : undefined,
+      mode: stage.mode,
+      sources,
+    });
+    knownStageIds.add(stageId);
+  });
+
+  if (normalizedStages.length === 0) {
+    return undefined;
+  }
+  return normalizedStages;
+}
+
+function pushEdgeFromSignalRef(
+  edges: EdgeSpec[],
+  from: BlendSignalRef,
+  to: { nodeId: string; input: string },
+): void {
+  edges.push({
+    from: from.output
+      ? { node_id: from.nodeId, output: from.output }
+      : { node_id: from.nodeId },
+    to: { node_id: to.nodeId, input: to.input },
+  });
+}
+
+function buildAddStageSignal(options: {
+  nodePrefix: string;
+  sources: BlendSignalLayer[];
+  neutralNodeId: string;
+  inputId: string;
+  nodes: NodeSpec[];
+  edges: EdgeSpec[];
+}): BlendSignalLayer {
+  const { nodePrefix, sources, neutralNodeId, inputId, nodes, edges } = options;
+  let runningDeltaRef: BlendSignalRef = { nodeId: sources[0].deltaNodeId };
+  sources.slice(1).forEach((source, index) => {
+    const addNodeId = `${nodePrefix}_delta_add_${index + 2}`;
+    nodes.push({
+      id: addNodeId,
+      type: "add",
+    });
+    edges.push(
+      {
+        from: { node_id: runningDeltaRef.nodeId },
+        to: { node_id: addNodeId, input: "a" },
+      },
+      {
+        from: { node_id: source.deltaNodeId },
+        to: { node_id: addNodeId, input: "b" },
+      },
+    );
+    runningDeltaRef = { nodeId: addNodeId };
+  });
+
+  let runningActivityRef: BlendSignalRef = sources[0].activity;
+  sources.slice(1).forEach((source, index) => {
+    const addNodeId = `${nodePrefix}_activity_add_${index + 2}`;
+    nodes.push({
+      id: addNodeId,
+      type: "add",
+    });
+    pushEdgeFromSignalRef(edges, runningActivityRef, {
+      nodeId: addNodeId,
+      input: "a",
+    });
+    pushEdgeFromSignalRef(edges, source.activity, {
+      nodeId: addNodeId,
+      input: "b",
+    });
+    runningActivityRef = { nodeId: addNodeId };
+  });
+
+  const applyNodeId = `${nodePrefix}_apply`;
+  nodes.push({
+    id: applyNodeId,
+    type: "add",
+  });
+  edges.push(
+    {
+      from: { node_id: runningDeltaRef.nodeId },
+      to: { node_id: applyNodeId, input: "a" },
+    },
+    {
+      from: { node_id: neutralNodeId },
+      to: { node_id: applyNodeId, input: "b" },
+      selector: [{ field: "values" }, { field: inputId }],
+    },
+  );
+
+  return {
+    valueNodeId: applyNodeId,
+    deltaNodeId: runningDeltaRef.nodeId,
+    activity: runningActivityRef,
+  };
+}
+
+function buildAverageStageSignal(options: {
+  nodePrefix: string;
+  sources: BlendSignalLayer[];
+  neutralNodeId: string;
+  inputId: string;
+  nodes: NodeSpec[];
+  edges: EdgeSpec[];
+}): BlendSignalLayer {
+  const { nodePrefix, sources, neutralNodeId, inputId, nodes, edges } = options;
+  const valuesJoinNodeId = `${nodePrefix}_values_join`;
+  const weightsJoinNodeId = `${nodePrefix}_weights_join`;
+  const maskNodeId = `${nodePrefix}_mask`;
+  const wsNodeId = `${nodePrefix}_ws`;
+  const overlayNodeId = `${nodePrefix}_overlay`;
+  const deltaNodeId = `${nodePrefix}_delta`;
+
+  nodes.push({
+    id: valuesJoinNodeId,
+    type: "join",
+  });
+  nodes.push({
+    id: weightsJoinNodeId,
+    type: "join",
+  });
+  nodes.push({
+    id: maskNodeId,
+    type: "constant",
+    params: {
+      value: { vector: sources.map(() => 1) },
+    },
+  });
+  nodes.push({
+    id: wsNodeId,
+    type: "weightedsumvector",
+  });
+  nodes.push({
+    id: overlayNodeId,
+    type: "blendweightedaverageoverlay",
+  });
+  nodes.push({
+    id: deltaNodeId,
+    type: "subtract",
+  });
+
+  sources.forEach((source, index) => {
+    edges.push({
+      from: { node_id: source.deltaNodeId },
+      to: { node_id: valuesJoinNodeId, input: `operand_${index + 1}` },
+    });
+    pushEdgeFromSignalRef(edges, source.activity, {
+      nodeId: weightsJoinNodeId,
+      input: `operand_${index + 1}`,
+    });
+  });
+
+  edges.push(
+    {
+      from: { node_id: valuesJoinNodeId },
+      to: { node_id: wsNodeId, input: "values" },
+    },
+    {
+      from: { node_id: weightsJoinNodeId },
+      to: { node_id: wsNodeId, input: "weights" },
+    },
+    {
+      from: { node_id: maskNodeId },
+      to: { node_id: wsNodeId, input: "masks" },
+    },
+    {
+      from: { node_id: wsNodeId, output: "total_weighted_sum" },
+      to: { node_id: overlayNodeId, input: "total_weighted_sum" },
+    },
+    {
+      from: { node_id: wsNodeId, output: "total_weight" },
+      to: { node_id: overlayNodeId, input: "total_weight" },
+    },
+    {
+      from: { node_id: wsNodeId, output: "max_effective_weight" },
+      to: { node_id: overlayNodeId, input: "max_effective_weight" },
+    },
+    {
+      from: { node_id: neutralNodeId },
+      to: { node_id: overlayNodeId, input: "base" },
+      selector: [{ field: "values" }, { field: inputId }],
+    },
+    {
+      from: { node_id: overlayNodeId },
+      to: { node_id: deltaNodeId, input: "lhs" },
+    },
+    {
+      from: { node_id: neutralNodeId },
+      to: { node_id: deltaNodeId, input: "rhs" },
+      selector: [{ field: "values" }, { field: inputId }],
+    },
+  );
+
+  return {
+    valueNodeId: overlayNodeId,
+    deltaNodeId,
+    activity: {
+      nodeId: wsNodeId,
+      output: "max_effective_weight",
+    },
+  };
+}
+
+function buildBlendStageChain(options: {
+  blendStages: PoseIrBlendStageDefinition[];
+  inputId: string;
+  neutralNodeId: string;
+  activeGroupLayersById: Map<string, BlendSignalLayer>;
+  nodes: NodeSpec[];
+  edges: EdgeSpec[];
+}): BlendSignalLayer | null {
+  const {
+    blendStages,
+    inputId,
+    neutralNodeId,
+    activeGroupLayersById,
+    nodes,
+    edges,
+  } = options;
+  if (blendStages.length === 0) {
+    return null;
+  }
+
+  const stageSignalsById = new Map<string, BlendSignalLayer>();
+  let lastStageSignal: BlendSignalLayer | null = null;
+
+  blendStages.forEach((stage, stageIndex) => {
+    const sources = stage.sources
+      .map((source) =>
+        source.kind === "group"
+          ? (activeGroupLayersById.get(source.id) ?? null)
+          : (stageSignalsById.get(source.id) ?? null),
+      )
+      .filter((source): source is BlendSignalLayer => source !== null);
+
+    if (sources.length === 0) {
+      return;
+    }
+    const stagePrefix = `pose_stage_${sanitizeId(inputId)}_${stageIndex + 1}_${sanitizeId(stage.id)}`;
+
+    let stageSignal: BlendSignalLayer;
+    if (sources.length === 1) {
+      stageSignal = sources[0];
+    } else if (stage.mode === "add") {
+      stageSignal = buildAddStageSignal({
+        nodePrefix: stagePrefix,
+        sources,
+        neutralNodeId,
+        inputId,
+        nodes,
+        edges,
+      });
+    } else {
+      stageSignal = buildAverageStageSignal({
+        nodePrefix: stagePrefix,
+        sources,
+        neutralNodeId,
+        inputId,
+        nodes,
+        edges,
+      });
+    }
+
+    stageSignalsById.set(stage.id, stageSignal);
+    lastStageSignal = stageSignal;
+  });
+
+  return lastStageSignal;
+}
+
 export function buildPoseGraphSpec(options: {
   faceId: string | null;
   neutralInputs: Record<StandardInputId, number>;
@@ -169,6 +522,7 @@ export function buildPoseGraphSpec(options: {
   poseGroups?: PoseGroupDefinition[];
   defaultGroupBlendMode?: PoseBlendMode;
   crossGroupBlendMode?: PoseBlendMode;
+  blendStages?: PoseIrBlendStageDefinition[];
   blendMode?: "average" | "additive";
   poseGroupSegment?: string | null;
   rigKind?: "generic" | "face-specific";
@@ -194,6 +548,10 @@ export function buildPoseGraphSpec(options: {
     poses,
     options.poseGroups,
     defaultGroupBlendMode,
+  );
+  const blendStages = normalizeBlendStagesForCompile(
+    options.blendStages,
+    resolvedGroups.map((group) => group.id),
   );
   const poseById = new Map(poses.map((pose) => [pose.id, pose]));
 
@@ -275,11 +633,8 @@ export function buildPoseGraphSpec(options: {
     const contributions: PoseRigGraphSummary["inputs"][number]["contributions"] =
       [];
 
-    const activeGroupLayers: Array<{
-      valueNodeId: string;
-      deltaNodeId: string;
-      wsNodeId: string;
-    }> = [];
+    const activeGroupLayers: BlendSignalLayer[] = [];
+    const activeGroupLayersById = new Map<string, BlendSignalLayer>();
 
     resolvedGroups.forEach((group, groupIndex) => {
       const deltas: number[] = [];
@@ -401,11 +756,16 @@ export function buildPoseGraphSpec(options: {
           },
         );
 
-        activeGroupLayers.push({
+        const layer: BlendSignalLayer = {
           valueNodeId: addNodeId,
           deltaNodeId: deltaFromNeutralNodeId,
-          wsNodeId,
-        });
+          activity: {
+            nodeId: wsNodeId,
+            output: "max_effective_weight",
+          },
+        };
+        activeGroupLayers.push(layer);
+        activeGroupLayersById.set(group.id, layer);
       } else {
         const overlayNodeId = `pose_group_overlay_${groupSuffix}`;
         nodes.push({
@@ -449,11 +809,16 @@ export function buildPoseGraphSpec(options: {
           },
         );
 
-        activeGroupLayers.push({
+        const layer: BlendSignalLayer = {
           valueNodeId: overlayNodeId,
           deltaNodeId: deltaFromNeutralNodeId,
-          wsNodeId,
-        });
+          activity: {
+            nodeId: wsNodeId,
+            output: "max_effective_weight",
+          },
+        };
+        activeGroupLayers.push(layer);
+        activeGroupLayersById.set(group.id, layer);
       }
     });
 
@@ -464,17 +829,30 @@ export function buildPoseGraphSpec(options: {
     const path = input.path;
     const typedPath = buildRigInputPath(faceSegment, path);
     const outputNodeId = `out_${sanitizeId(input.id)}`;
-    nodes.push({
-      id: outputNodeId,
-      type: "output",
-      params: { path: typedPath },
-    });
-
-    if (activeGroupLayers.length === 1) {
-      edges.push({
-        from: { node_id: activeGroupLayers[0].valueNodeId },
-        to: { node_id: outputNodeId, input: "in" },
+    const hasBlendStages = Boolean(blendStages && blendStages.length > 0);
+    if (!hasBlendStages) {
+      nodes.push({
+        id: outputNodeId,
+        type: "output",
+        params: { path: typedPath },
       });
+    }
+
+    let finalSignal: BlendSignalLayer | null = null;
+    if (hasBlendStages) {
+      finalSignal = buildBlendStageChain({
+        blendStages: blendStages!,
+        inputId: input.id,
+        neutralNodeId,
+        activeGroupLayersById,
+        nodes,
+        edges,
+      });
+      if (!finalSignal) {
+        return;
+      }
+    } else if (activeGroupLayers.length === 1) {
+      finalSignal = activeGroupLayers[0];
     } else if (crossGroupBlendMode === "additive") {
       let runningDeltaNodeId = activeGroupLayers[0]?.deltaNodeId ?? null;
       activeGroupLayers.slice(1).forEach((layer, index) => {
@@ -515,11 +893,14 @@ export function buildPoseGraphSpec(options: {
             to: { node_id: addNeutralNodeId, input: "b" },
             selector: [{ field: "values" }, { field: input.id }],
           },
-          {
-            from: { node_id: addNeutralNodeId },
-            to: { node_id: outputNodeId, input: "in" },
-          },
         );
+        finalSignal = {
+          valueNodeId: addNeutralNodeId,
+          deltaNodeId: runningDeltaNodeId,
+          activity: activeGroupLayers[0]?.activity ?? {
+            nodeId: runningDeltaNodeId,
+          },
+        };
       }
     } else {
       const valuesJoinNodeId = `pose_cross_values_join_${sanitizeId(input.id)}`;
@@ -561,10 +942,14 @@ export function buildPoseGraphSpec(options: {
             },
           },
           {
-            from: {
-              node_id: layer.wsNodeId,
-              output: "max_effective_weight",
-            },
+            from: layer.activity.output
+              ? {
+                  node_id: layer.activity.nodeId,
+                  output: layer.activity.output,
+                }
+              : {
+                  node_id: layer.activity.nodeId,
+                },
             to: {
               node_id: weightsJoinNodeId,
               input: `operand_${index + 1}`,
@@ -603,12 +988,34 @@ export function buildPoseGraphSpec(options: {
           to: { node_id: overlayNodeId, input: "base" },
           selector: [{ field: "values" }, { field: input.id }],
         },
-        {
-          from: { node_id: overlayNodeId },
-          to: { node_id: outputNodeId, input: "in" },
-        },
       );
+
+      finalSignal = {
+        valueNodeId: overlayNodeId,
+        deltaNodeId: overlayNodeId,
+        activity: {
+          nodeId: wsNodeId,
+          output: "max_effective_weight",
+        },
+      };
     }
+
+    if (!finalSignal) {
+      return;
+    }
+
+    if (hasBlendStages) {
+      nodes.push({
+        id: outputNodeId,
+        type: "output",
+        params: { path: typedPath },
+      });
+    }
+
+    edges.push({
+      from: { node_id: finalSignal.valueNodeId },
+      to: { node_id: outputNodeId, input: "in" },
+    });
 
     summary.inputs.push({
       id: input.id,
@@ -731,6 +1138,10 @@ export function buildPoseGraphSpecFromIr(options: {
   const defaultGroupBlendMode = mapPoseIrBlendMode(
     groups[0]?.intraGroupBlendMode ?? "average",
   );
+  const normalizedBlendStages = normalizeBlendStagesForCompile(
+    poseIr.blendStages,
+    legacyGroups.map((group) => group.id),
+  );
   const neutralInputs =
     poseIr.neutral?.mode === "face-default"
       ? createNeutralInputs(standardInputs)
@@ -748,6 +1159,7 @@ export function buildPoseGraphSpecFromIr(options: {
     defaultGroupBlendMode,
     crossGroupBlendMode:
       poseIr.crossGroupPolicy?.mode === "add" ? "additive" : "average",
+    blendStages: normalizedBlendStages,
     poseGroupSegment: options.poseGroupSegment ?? null,
     rigKind: poseIr.rigKind ?? options.rigKind ?? "face-specific",
   });

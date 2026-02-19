@@ -386,6 +386,165 @@ describe("PoseIrService", () => {
     expect(ir.crossGroupPolicy.mode).toBe("add");
   });
 
+  it("normalizes blend stages from config and reports malformed sources", () => {
+    const payload = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "additive",
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          blendMode: "average",
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          blendMode: "average",
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average",
+          sources: [
+            { kind: "group", id: "emotion" },
+            { kind: "group", id: "viseme" },
+          ],
+        },
+        {
+          id: "stage_final",
+          mode: "invalid_mode",
+          sources: [
+            { kind: "group", id: "missing_group" },
+            { kind: "stage", id: "stage_base" },
+            { kind: "stage", id: "stage_base" },
+          ],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    } as any;
+
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      payload,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+      {
+        id: "stage_final",
+        name: undefined,
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_base" }],
+      },
+    ]);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-blend-stage-mode" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-blend-stage-group-source" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "duplicate-blend-stage-source" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to legacy blending when all blend stages are malformed", () => {
+    const { ir, diagnostics } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0 },
+        },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            poseIds: ["pose_smile"],
+          },
+        ],
+        crossGroupPolicy: { mode: "add" },
+        blendStages: [
+          {
+            id: "stage_broken",
+            mode: "average",
+            sources: [{ kind: "group", id: "unknown_group" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.blendStages).toBeUndefined();
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-blend-stage-group-source" &&
+          diagnostic.source === "pose-ir",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "blend-stages-fallback" &&
+          diagnostic.source === "pose-ir",
+      ),
+    ).toBe(true);
+  });
+
   it("throws structured diagnostics for invalid payloads", () => {
     try {
       PoseIrService.normalize(null, [], "robot");

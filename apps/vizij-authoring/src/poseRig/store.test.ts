@@ -384,4 +384,61 @@ describe("PoseRigStore", () => {
     });
     expect(state.poseIrDraft?.poses[0]?.targets).toEqual({ smile: 0.8 });
   });
+
+  it("preserves imported blend stages across store projections", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "face",
+      rigKind: "face-specific",
+      title: "Imported IR",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      crossGroupPolicy: { mode: "add" },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "add",
+          sources: [{ kind: "group", id: "emotion" }],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    store.getState().importIr(ir);
+    expect(store.getState().poseIrDraft?.blendStages).toEqual(ir.blendStages);
+
+    // Trigger a config/IR projection path from normal authoring state updates.
+    store.getState().setRigName("Renamed");
+    expect(store.getState().poseIrDraft?.blendStages).toEqual(ir.blendStages);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(
+      ir.blendStages,
+    );
+  });
 });

@@ -8,6 +8,9 @@ import type {
   PoseDefinition,
   PoseGroupDefinition,
   PoseBlendMode,
+  PoseIrBlendMode,
+  PoseIrBlendStageDefinition,
+  PoseIrStageSource,
   PoseNeutralMode,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
@@ -87,6 +90,176 @@ function normalizePoseGroups(
   });
 
   return { poseGroups: groups, groupById, groupByPath };
+}
+
+function resolveDefaultStageMode(
+  crossGroupBlendMode: PoseBlendMode,
+): PoseIrBlendMode {
+  return crossGroupBlendMode === "additive" ? "add" : "average";
+}
+
+function cloneBlendStages(
+  blendStages: PoseIrBlendStageDefinition[] | undefined,
+): PoseIrBlendStageDefinition[] | undefined {
+  if (!blendStages || blendStages.length === 0) {
+    return undefined;
+  }
+  return blendStages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    mode: stage.mode,
+    sources: stage.sources.map((source) => ({
+      kind: source.kind,
+      id: source.id,
+    })),
+  }));
+}
+
+function normalizeBlendStages(
+  blendStages: unknown,
+  groupIds: string[],
+  fallbackMode: PoseIrBlendMode,
+  pushWarning: (message: string) => void,
+): PoseIrBlendStageDefinition[] | undefined {
+  if (blendStages === undefined || blendStages === null) {
+    return undefined;
+  }
+  if (!Array.isArray(blendStages)) {
+    pushWarning("Blend stages payload was ignored because it is not an array.");
+    return undefined;
+  }
+  if (blendStages.length === 0) {
+    return undefined;
+  }
+
+  const knownGroupIds = new Set(groupIds);
+  const knownStageIds = new Set<string>();
+  const normalizedStages: PoseIrBlendStageDefinition[] = [];
+
+  blendStages.forEach((stage, stageIndex) => {
+    if (!stage || typeof stage !== "object") {
+      pushWarning(
+        `Blend stage #${stageIndex + 1} was ignored because it is not an object.`,
+      );
+      return;
+    }
+
+    const stageId = typeof stage.id === "string" ? stage.id.trim() : "";
+    if (!stageId) {
+      pushWarning(
+        `Blend stage #${stageIndex + 1} is missing an id and was ignored.`,
+      );
+      return;
+    }
+    if (knownStageIds.has(stageId)) {
+      pushWarning(
+        `Blend stage "${stageId}" is duplicated and later entries were ignored.`,
+      );
+      return;
+    }
+
+    const stageMode =
+      stage.mode === "add" || stage.mode === "average"
+        ? stage.mode
+        : fallbackMode;
+    if (stage.mode !== "add" && stage.mode !== "average") {
+      pushWarning(
+        `Blend stage "${stageId}" mode "${String(stage.mode)}" is invalid; using "${stageMode}".`,
+      );
+    }
+
+    const stageSources = Array.isArray(stage.sources) ? stage.sources : [];
+    if (!Array.isArray(stage.sources)) {
+      pushWarning(
+        `Blend stage "${stageId}" sources are invalid and were normalized to an empty list.`,
+      );
+    }
+
+    const seenSourceKeys = new Set<string>();
+    const normalizedSources: PoseIrStageSource[] = [];
+    stageSources.forEach((source: any, sourceIndex: number) => {
+      if (!source || typeof source !== "object") {
+        pushWarning(
+          `Blend stage "${stageId}" source #${sourceIndex + 1} was ignored because it is not an object.`,
+        );
+        return;
+      }
+      const sourceKind = source.kind;
+      const sourceId = typeof source.id === "string" ? source.id.trim() : "";
+      if (sourceKind !== "group" && sourceKind !== "stage") {
+        pushWarning(
+          `Blend stage "${stageId}" source #${sourceIndex + 1} has invalid kind "${String(sourceKind)}" and was ignored.`,
+        );
+        return;
+      }
+      if (!sourceId) {
+        pushWarning(
+          `Blend stage "${stageId}" source #${sourceIndex + 1} is missing an id and was ignored.`,
+        );
+        return;
+      }
+      if (sourceKind === "group" && !knownGroupIds.has(sourceId)) {
+        pushWarning(
+          `Blend stage "${stageId}" source group "${sourceId}" does not exist and was ignored.`,
+        );
+        return;
+      }
+      if (sourceKind === "stage") {
+        if (sourceId === stageId) {
+          pushWarning(
+            `Blend stage "${stageId}" cannot source itself; source "${sourceId}" was ignored.`,
+          );
+          return;
+        }
+        if (!knownStageIds.has(sourceId)) {
+          pushWarning(
+            `Blend stage "${stageId}" source stage "${sourceId}" does not reference an earlier stage and was ignored.`,
+          );
+          return;
+        }
+      }
+      const sourceKey = `${sourceKind}:${sourceId}`;
+      if (seenSourceKeys.has(sourceKey)) {
+        pushWarning(
+          `Blend stage "${stageId}" source "${sourceKey}" is duplicated and was ignored.`,
+        );
+        return;
+      }
+      seenSourceKeys.add(sourceKey);
+      normalizedSources.push({
+        kind: sourceKind,
+        id: sourceId,
+      });
+    });
+
+    if (normalizedSources.length === 0) {
+      pushWarning(
+        `Blend stage "${stageId}" has no valid sources and was ignored.`,
+      );
+      return;
+    }
+
+    const stageName =
+      typeof stage.name === "string" && stage.name.trim().length > 0
+        ? stage.name.trim()
+        : undefined;
+    normalizedStages.push({
+      id: stageId,
+      name: stageName,
+      mode: stageMode,
+      sources: normalizedSources,
+    });
+    knownStageIds.add(stageId);
+  });
+
+  if (normalizedStages.length === 0) {
+    pushWarning(
+      "Blend stages were provided but none were valid; compiler will use legacy cross-group blending.",
+    );
+    return undefined;
+  }
+
+  return normalizedStages;
 }
 
 export const PoseConfigService = {
@@ -259,6 +432,17 @@ export const PoseConfigService = {
       candidate.poseGroups,
       defaultGroupBlendMode,
     );
+    const crossGroupBlendMode: PoseBlendMode =
+      candidate.crossGroupBlendMode === "average" ||
+      candidate.crossGroupBlendMode === "additive"
+        ? candidate.crossGroupBlendMode
+        : "additive";
+    const normalizedBlendStages = normalizeBlendStages(
+      candidate.blendStages,
+      normalizedGroups.map((group) => group.id),
+      resolveDefaultStageMode(crossGroupBlendMode),
+      pushWarning,
+    );
 
     const poses = candidate.poses.map((pose) => {
       const values: Record<string, number> = {};
@@ -315,11 +499,8 @@ export const PoseConfigService = {
         title: candidate.title ?? undefined,
         description: candidate.description ?? undefined,
         poseGroups: normalizedGroups,
-        crossGroupBlendMode:
-          candidate.crossGroupBlendMode === "average" ||
-          candidate.crossGroupBlendMode === "additive"
-            ? candidate.crossGroupBlendMode
-            : "additive",
+        crossGroupBlendMode,
+        blendStages: cloneBlendStages(normalizedBlendStages),
         neutralMode,
         neutralInputs,
         poses: poses.map((p) => ({ ...p, values: { ...p.values } })),
@@ -348,6 +529,7 @@ export const PoseConfigService = {
       poseGroups?: PoseGroupDefinition[];
       defaultGroupBlendMode?: PoseBlendMode;
       crossGroupBlendMode?: PoseBlendMode;
+      blendStages?: PoseRigConfigFile["blendStages"];
       neutralMode?: PoseNeutralMode;
     },
   ): PoseRigConfigFile {
@@ -356,6 +538,15 @@ export const PoseConfigService = {
       poses,
       options?.poseGroups,
       defaultGroupBlendMode,
+    );
+    const crossGroupBlendMode = options?.crossGroupBlendMode ?? "additive";
+    const normalizedBlendStages = normalizeBlendStages(
+      options?.blendStages,
+      poseGroups.map((group) => group.id),
+      resolveDefaultStageMode(crossGroupBlendMode),
+      () => {
+        // create() returns normalized payload; invalid blend stages are silently dropped.
+      },
     );
 
     const normalizedPoses = poses.map((pose) => {
@@ -377,7 +568,8 @@ export const PoseConfigService = {
       neutralMode: options?.neutralMode ?? "explicit",
       neutralInputs: { ...neutralInputs },
       poseGroups,
-      crossGroupBlendMode: options?.crossGroupBlendMode ?? "additive",
+      crossGroupBlendMode,
+      blendStages: cloneBlendStages(normalizedBlendStages),
       poses: normalizedPoses,
       standardInputSchema: standardInputSchema ?? {
         id: "vizij-standard-face",

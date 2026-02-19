@@ -262,7 +262,7 @@ Completion notes (2026-02-19):
 
 ## Block C — Blend Topology and Scale
 
-### [ ] C2.1 Multi-Stage Blend IR Primitives (`IR6`)
+### [x] C2.1 Multi-Stage Blend IR Primitives (`IR6`)
 
 Priority and why this should still be done:
 
@@ -283,6 +283,20 @@ Acceptance checks:
 1. IR schema supports ordered stage definitions and stage operations.
 2. Compiler emits deterministic topology for multi-stage payloads.
 3. Existing single-stage payloads compile through compatibility defaults.
+
+Completion notes (2026-02-19):
+
+1. Added stage-chain IR/config primitives (`blendStages`) with ordered stage sources (`group` and prior `stage`) and round-trip preservation.
+2. Added structured stage normalization diagnostics for malformed payloads (invalid mode/source/id, duplicate entries, empty stages) in `PoseIrService`; config normalization emits matching warnings.
+3. Compiler now supports deterministic multi-stage chaining (`add` / `average`) for group and stage sources while preserving legacy cross-group behavior when no valid stages are present.
+4. Store projection now preserves imported/normalized `blendStages` across subsequent authoring mutations.
+5. Regression coverage added for:
+   - config/IR stage normalization and fallback behavior,
+   - stage-aware graph compilation topology,
+   - stage-aware pose graph service compilation,
+   - store projection retention of stage definitions.
+6. Validation evidence:
+   - `2026-02-19 05:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 364 tests).
 
 ### [ ] C2.2 Multi-Stage Blend Authoring UI (`IR7`)
 

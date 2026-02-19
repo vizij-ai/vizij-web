@@ -288,6 +288,85 @@ describe("PoseGraphService", () => {
     ).toBeCloseTo(0.25, 6);
   });
 
+  it("consumes explicit blend stages from pose IR", () => {
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_talk"],
+        },
+      ],
+      crossGroupPolicy: { mode: "add" },
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average",
+          sources: [
+            { kind: "group", id: "emotion" },
+            { kind: "group", id: "viseme" },
+          ],
+        },
+        {
+          id: "stage_final",
+          mode: "add",
+          sources: [
+            { kind: "stage", id: "stage_base" },
+            { kind: "group", id: "emotion" },
+          ],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+        {
+          id: "pose_talk",
+          name: "Talk",
+          groupIds: ["viseme"],
+          targets: { smile: -0.2 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { spec } = PoseGraphService.buildSpecFromIr(ir, inputs);
+    expect(findNode(spec, "pose_stage_smile_1_stage_base_overlay")?.type).toBe(
+      "blendweightedaverageoverlay",
+    );
+    expect(findNode(spec, "pose_stage_smile_2_stage_final_apply")?.type).toBe(
+      "add",
+    );
+    expect(findNode(spec, "pose_cross_apply_smile")).toBeUndefined();
+  });
+
   it("flags invalid specs", () => {
     const warnings = PoseGraphService.validate({ nodes: [] }, []);
     expect(warnings.length).toBeGreaterThan(0);

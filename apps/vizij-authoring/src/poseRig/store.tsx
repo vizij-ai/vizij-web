@@ -178,6 +178,7 @@ interface PoseStateProjectionOptions {
   neutralMode?: "face-default" | "explicit";
   blendMode?: "average" | "additive";
   crossGroupBlendMode?: "average" | "additive";
+  blendStages?: PoseRigConfigFile["blendStages"] | null;
   standardInputSchema?: { id: string; version: string } | null;
   poseGroups?: ConfiguredPoseGroup[];
 }
@@ -371,6 +372,13 @@ export function createPoseRigStore(
         : (overrides.standardInputSchema ?? undefined);
     const poseGroups =
       overrides?.poseGroups ?? getConfiguredPoseGroups(snapshot);
+    const blendStages =
+      overrides?.blendStages === undefined
+        ? (snapshot.poseIrDraft?.blendStages ??
+          snapshot.poseConfigDraft?.blendStages ??
+          snapshot.lastImportedConfig?.blendStages ??
+          undefined)
+        : (overrides.blendStages ?? undefined);
     return PoseConfigService.create(
       overrides?.poses ?? snapshot.poses,
       overrides?.neutralInputs ?? snapshot.neutralInputs,
@@ -383,6 +391,7 @@ export function createPoseRigStore(
         defaultGroupBlendMode: overrides?.blendMode ?? snapshot.blendMode,
         crossGroupBlendMode:
           overrides?.crossGroupBlendMode ?? snapshot.crossGroupBlendMode,
+        blendStages,
         neutralMode: overrides?.neutralMode ?? snapshot.neutralMode,
       },
     );

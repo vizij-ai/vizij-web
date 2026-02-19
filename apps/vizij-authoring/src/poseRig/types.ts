@@ -67,6 +67,18 @@ export interface PoseIrCrossGroupPolicy {
   mode: PoseIrBlendMode;
 }
 
+export interface PoseIrStageSource {
+  kind: "group" | "stage";
+  id: string;
+}
+
+export interface PoseIrBlendStageDefinition {
+  id: string;
+  name?: string;
+  mode: PoseIrBlendMode;
+  sources: PoseIrStageSource[];
+}
+
 export interface PoseRigIrFile {
   version: 1;
   faceId: string | null;
@@ -77,6 +89,7 @@ export interface PoseRigIrFile {
   neutral: PoseIrNeutralDefinition;
   groups: PoseIrGroupDefinition[];
   crossGroupPolicy: PoseIrCrossGroupPolicy;
+  blendStages?: PoseIrBlendStageDefinition[];
   poses: PoseIrPoseDefinition[];
   lowLevel?: LowLevelRigSummary | null;
   metadata?: {
@@ -146,6 +159,7 @@ export interface PoseRigConfigFile {
   poseGroups?: PoseGroupDefinition[];
   crossGroupBlendMode?: PoseBlendMode;
   neutralMode?: PoseNeutralMode;
+  blendStages?: PoseIrBlendStageDefinition[];
   neutralInputs: Record<StandardInputId, number>;
   poses: PoseDefinition[];
   lowLevel?: LowLevelRigSummary | null;
