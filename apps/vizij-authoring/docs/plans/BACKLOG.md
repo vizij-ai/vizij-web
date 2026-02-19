@@ -298,7 +298,7 @@ Completion notes (2026-02-19):
 6. Validation evidence:
    - `2026-02-19 05:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 364 tests).
 
-### [ ] C2.2 Multi-Stage Blend Authoring UI (`IR7`)
+### [x] C2.2 Multi-Stage Blend Authoring UI (`IR7`)
 
 Priority and why this should still be done:
 
@@ -319,6 +319,24 @@ Acceptance checks:
 1. Users can create and reorder stages.
 2. Stage edits update compiled graph output as expected.
 3. UI blocks invalid stage topology before apply/export.
+
+Completion notes (2026-02-19):
+
+1. Pose Rig store now exposes stage authoring actions (`create`, `rename`, `mode`, `delete`, `reorder`, `sources`) with topology guards that reject invalid stage chains.
+2. `usePoseRigAuthoring` now surfaces `blendStages` plus stage-edit action methods to UI consumers.
+3. Pose Groups surface now includes a `Blend Stages` editor section with:
+   - stage create/rename/delete,
+   - up/down reorder controls,
+   - per-stage mode toggles (`average` / `add`),
+   - source toggles for group and prior-stage references.
+4. UI-side validation blocks invalid edits before dispatch (self-reference, forward-stage references, empty/duplicate sources, unknown group/stage references) and shows operator-facing messages.
+5. Existing cross-group blend controls remain available as compatibility fallback mode when no explicit stages are configured.
+6. Regression coverage added for:
+   - store-stage authoring and invalid-topology rejection,
+   - hook-level stage authoring lifecycle,
+   - Pose Groups UI interaction wiring and invalid-operation blocking.
+7. Validation evidence:
+   - `2026-02-19 05:33Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 370 tests).
 
 ### [ ] C2.3 Golden Topology Fixture Suite (`IR8`)
 

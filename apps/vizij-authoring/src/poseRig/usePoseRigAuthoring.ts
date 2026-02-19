@@ -5,6 +5,9 @@ import type {
   LowLevelRigSummary,
   PoseDiagnostic,
   PoseDefinition,
+  PoseIrBlendMode,
+  PoseIrBlendStageDefinition,
+  PoseIrStageSource,
   PoseRigConfigFile,
   PoseRigGraphSummary,
   PoseRigIrFile,
@@ -44,6 +47,13 @@ export interface UsePoseRigAuthoringResult {
   setBlendMode: (mode: "average" | "additive") => void;
   crossGroupBlendMode: "average" | "additive";
   setCrossGroupBlendMode: (mode: "average" | "additive") => void;
+  blendStages: PoseIrBlendStageDefinition[];
+  createBlendStage: (name?: string) => void;
+  renameBlendStage: (stageId: string, nextName: string) => void;
+  setBlendStageMode: (stageId: string, mode: PoseIrBlendMode) => void;
+  deleteBlendStage: (stageId: string) => void;
+  reorderBlendStage: (fromIndex: number, toIndex: number) => void;
+  setBlendStageSources: (stageId: string, sources: PoseIrStageSource[]) => void;
   createPoseGroup: (groupPath: string) => void;
   renamePoseGroup: (groupId: string, nextPath: string) => void;
   deletePoseGroup: (groupId: string) => void;
@@ -146,6 +156,8 @@ export function usePoseRigAuthoring(
   const poseGraphSummary = store.poseGraphSummary;
   const poseConfigDraft = store.poseConfigDraft;
   const poseIrDraft = store.poseIrDraft;
+  const blendStages =
+    poseConfigDraft?.blendStages ?? poseIrDraft?.blendStages ?? [];
   const poseConfigWarnings = store.warnings;
   const poseDiagnostics = store.poseDiagnostics;
   const poseGraphFileName = store.filenames.graph;
@@ -198,6 +210,12 @@ export function usePoseRigAuthoring(
   const resetPoseState = store.reset;
   const setBlendMode = store.setBlendMode;
   const setCrossGroupBlendMode = store.setCrossGroupBlendMode;
+  const createBlendStage = store.createBlendStage;
+  const renameBlendStage = store.renameBlendStage;
+  const setBlendStageMode = store.setBlendStageMode;
+  const deleteBlendStage = store.deleteBlendStage;
+  const reorderBlendStage = store.reorderBlendStage;
+  const setBlendStageSources = store.setBlendStageSources;
   const setRigKind = store.setRigKind;
   const setNeutralMode = store.setNeutralMode;
 
@@ -511,6 +529,13 @@ export function usePoseRigAuthoring(
     setBlendMode,
     crossGroupBlendMode,
     setCrossGroupBlendMode,
+    blendStages,
+    createBlendStage,
+    renameBlendStage,
+    setBlendStageMode,
+    deleteBlendStage,
+    reorderBlendStage,
+    setBlendStageSources,
     rigKind,
     setRigKind,
     setNeutralMode,

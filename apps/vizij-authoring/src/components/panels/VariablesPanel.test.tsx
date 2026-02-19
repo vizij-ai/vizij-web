@@ -20,6 +20,13 @@ const poseRigState = {
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
   deletePose: vi.fn(),
+  blendStages: [] as NonNullable<PoseRigConfigFile["blendStages"]>,
+  createBlendStage: vi.fn(),
+  renameBlendStage: vi.fn(),
+  setBlendStageMode: vi.fn(),
+  deleteBlendStage: vi.fn(),
+  reorderBlendStage: vi.fn(),
+  setBlendStageSources: vi.fn(),
   addPoseToGroup: vi.fn(),
   removePoseFromGroup: vi.fn(),
   updatePoseGroup: vi.fn(),
@@ -121,6 +128,13 @@ describe("VariablesPanel", () => {
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
     poseRigState.deletePose.mockReset();
+    poseRigState.blendStages = [];
+    poseRigState.createBlendStage.mockReset();
+    poseRigState.renameBlendStage.mockReset();
+    poseRigState.setBlendStageMode.mockReset();
+    poseRigState.deleteBlendStage.mockReset();
+    poseRigState.reorderBlendStage.mockReset();
+    poseRigState.setBlendStageSources.mockReset();
     poseRigState.addPoseToGroup.mockReset();
     poseRigState.removePoseFromGroup.mockReset();
     poseRigState.updatePoseGroup.mockReset();
@@ -602,6 +616,145 @@ describe("VariablesPanel", () => {
     expect(
       within(view.container).getAllByRole("button", { name: "Unassign" }),
     ).toHaveLength(2);
+  });
+
+  it("wires multi-stage blend authoring controls on pose-groups surface", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+    };
+    poseRigState.blendStages = [
+      {
+        id: "stage_base",
+        name: "Base",
+        mode: "add",
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+      {
+        id: "stage_final",
+        name: "Final",
+        mode: "average",
+        sources: [{ kind: "group", id: "viseme" }],
+      },
+    ];
+
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Base Layer");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "New Stage" }),
+    );
+    expect(poseRigState.createBlendStage).toHaveBeenCalledWith();
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Rename blend stage")[0]!,
+    );
+    expect(promptSpy).toHaveBeenCalledWith("Rename blend stage", "Base");
+    expect(poseRigState.renameBlendStage).toHaveBeenCalledWith(
+      "stage_base",
+      "Base Layer",
+    );
+
+    fireEvent.click(
+      within(view.container).getAllByRole("button", { name: "Add" })[0]!,
+    );
+    expect(poseRigState.setBlendStageMode).toHaveBeenCalledWith(
+      "stage_base",
+      "add",
+    );
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Toggle group source viseme")[0]!,
+    );
+    expect(poseRigState.setBlendStageSources).toHaveBeenCalledWith(
+      "stage_base",
+      [{ kind: "group", id: "emotion" }],
+    );
+
+    fireEvent.click(within(view.container).getAllByTitle("Move stage up")[1]!);
+    expect(poseRigState.reorderBlendStage).toHaveBeenCalledWith(1, 0);
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Delete blend stage")[0]!,
+    );
+    expect(confirmSpy).toHaveBeenCalledWith('Delete blend stage "Base"?');
+    expect(poseRigState.deleteBlendStage).toHaveBeenCalledWith("stage_base");
+
+    promptSpy.mockRestore();
+    confirmSpy.mockRestore();
+  });
+
+  it("blocks invalid stage topology interactions before dispatching actions", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [{ id: "emotion", name: "Emotion", path: "emotion" }],
+    };
+    poseRigState.blendStages = [
+      {
+        id: "stage_a",
+        name: "Stage A",
+        mode: "add",
+        sources: [{ kind: "group", id: "emotion" }],
+      },
+      {
+        id: "stage_b",
+        name: "Stage B",
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_a" }],
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+
+    expect(
+      within(view.container).queryByText(/No stages \(compatibility mode\)/),
+    ).toBeNull();
+    expect(
+      within(view.container).getByTitle(
+        "Delete blocked while later stages reference this stage",
+      ),
+    ).toHaveProperty("disabled", true);
+    const blockedMoveButtons = within(view.container).getAllByTitle(
+      'Stage "Stage B" must reference earlier stages only (invalid source "stage_a").',
+    );
+    expect(blockedMoveButtons).toHaveLength(2);
+    blockedMoveButtons.forEach((button) => {
+      expect(button).toHaveProperty("disabled", true);
+    });
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Toggle group source emotion")[0]!,
+    );
+
+    expect(within(view.container).getByRole("alert").textContent).toContain(
+      "requires at least one source",
+    );
+    expect(poseRigState.setBlendStageSources).not.toHaveBeenCalled();
+    expect(poseRigState.reorderBlendStage).not.toHaveBeenCalled();
+    expect(poseRigState.deleteBlendStage).not.toHaveBeenCalled();
   });
 
   it("clears stale pose-group selection when the backing group no longer exists", () => {

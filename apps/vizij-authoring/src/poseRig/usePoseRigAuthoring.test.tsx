@@ -821,6 +821,148 @@ describe("usePoseRigAuthoring", () => {
     ]);
   });
 
+  it("supports blend-stage authoring actions and projects updated graph output", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPoseGroup("emotion");
+      result.current?.createPoseGroup("viseme");
+      result.current?.createPose("Pose A");
+      result.current?.createPose("Pose B");
+    });
+
+    const poseIds = result.current?.poses.map((pose) => pose.id) ?? [];
+    expect(poseIds).toHaveLength(2);
+    const firstPoseId = poseIds[0];
+    const secondPoseId = poseIds[1];
+    expect(firstPoseId).toBeTruthy();
+    expect(secondPoseId).toBeTruthy();
+    if (!firstPoseId || !secondPoseId) {
+      return;
+    }
+
+    act(() => {
+      result.current?.updatePoseGroup(firstPoseId, "emotion");
+      result.current?.addPoseInput(firstPoseId, "smile");
+      result.current?.updatePoseValue(firstPoseId, "smile", 0.8);
+
+      result.current?.updatePoseGroup(secondPoseId, "viseme");
+      result.current?.addPoseInput(secondPoseId, "smile");
+      result.current?.updatePoseValue(secondPoseId, "smile", 0.4);
+    });
+
+    act(() => {
+      result.current?.createBlendStage("stage_base");
+      result.current?.setBlendStageSources("stage_base", [
+        { kind: "group", id: "emotion" },
+        { kind: "group", id: "viseme" },
+      ]);
+    });
+
+    expect(
+      result.current?.poseGraphSpec?.nodes.some(
+        (node: { id: string }) =>
+          node.id === "pose_stage_smile_1_stage_base_apply",
+      ),
+    ).toBe(true);
+
+    act(() => {
+      result.current?.setBlendStageMode("stage_base", "average");
+    });
+
+    expect(
+      result.current?.poseGraphSpec?.nodes.some(
+        (node: { id: string }) =>
+          node.id === "pose_stage_smile_1_stage_base_overlay",
+      ),
+    ).toBe(true);
+    expect(
+      result.current?.poseGraphSpec?.nodes.some(
+        (node: { id: string }) =>
+          node.id === "pose_stage_smile_1_stage_base_apply",
+      ),
+    ).toBe(false);
+
+    act(() => {
+      result.current?.renameBlendStage("stage_base", "Base Layer");
+      result.current?.createBlendStage("stage_final");
+      result.current?.setBlendStageSources("stage_final", [
+        { kind: "stage", id: "stage_base" },
+        { kind: "group", id: "viseme" },
+      ]);
+      result.current?.createBlendStage("stage_cleanup");
+      result.current?.reorderBlendStage(2, 1);
+    });
+
+    expect(result.current?.blendStages.map((stage) => stage.id)).toEqual([
+      "stage_base",
+      "stage_cleanup",
+      "stage_final",
+    ]);
+    expect(result.current?.blendStages[0]?.name).toBe("Base Layer");
+
+    act(() => {
+      result.current?.deleteBlendStage("stage_cleanup");
+    });
+    expect(result.current?.blendStages.map((stage) => stage.id)).toEqual([
+      "stage_base",
+      "stage_final",
+    ]);
+  });
+
+  it("blocks invalid blend-stage topology edits from hook actions", () => {
+    const { result } = hook!;
+
+    act(() => {
+      result.current?.createPoseGroup("emotion");
+      result.current?.createPoseGroup("viseme");
+      result.current?.createBlendStage("stage_a");
+      result.current?.createBlendStage("stage_b");
+      result.current?.setBlendStageSources("stage_b", [
+        { kind: "stage", id: "stage_a" },
+      ]);
+    });
+
+    const expected = [
+      {
+        id: "stage_a",
+        name: "stage_a",
+        mode: "add",
+        sources: [{ kind: "group", id: "emotion" }],
+      },
+      {
+        id: "stage_b",
+        name: "stage_b",
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_a" }],
+      },
+    ];
+    expect(result.current?.blendStages).toEqual(expected);
+
+    act(() => {
+      result.current?.setBlendStageSources("stage_a", [
+        { kind: "stage", id: "stage_b" },
+      ]);
+      result.current?.setBlendStageSources("stage_b", [
+        { kind: "stage", id: "stage_b" },
+      ]);
+      result.current?.setBlendStageSources("stage_b", [
+        { kind: "stage", id: "missing_stage" },
+      ]);
+      result.current?.setBlendStageSources("stage_b", [
+        { kind: "group", id: "missing_group" },
+      ]);
+      result.current?.setBlendStageSources("stage_b", [
+        { kind: "stage", id: "stage_a" },
+        { kind: "stage", id: "stage_a" },
+      ]);
+      result.current?.setBlendStageSources("stage_b", []);
+      result.current?.deleteBlendStage("stage_a");
+      result.current?.reorderBlendStage(1, 0);
+    });
+
+    expect(result.current?.blendStages).toEqual(expected);
+  });
+
   it("appends imported poses instead of overwriting existing ones", () => {
     const { result } = hook!;
     act(() => {

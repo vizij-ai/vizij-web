@@ -441,4 +441,155 @@ describe("PoseRigStore", () => {
       ir.blendStages,
     );
   });
+
+  it("supports blend-stage authoring actions and recompiles through IR projection", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPoseGroup("emotion");
+    store.getState().createPoseGroup("viseme");
+
+    store.getState().createPose("Emotion Pose", "emotion");
+    const emotionPoseId = store.getState().poses[0]?.id;
+    expect(emotionPoseId).toBeTruthy();
+    if (!emotionPoseId) {
+      return;
+    }
+    store.getState().updatePose(emotionPoseId, (pose) => ({
+      ...pose,
+      values: { smile: 0.8 },
+    }));
+
+    store.getState().createPose("Viseme Pose", "viseme");
+    const visemePoseId = store.getState().poses[1]?.id;
+    expect(visemePoseId).toBeTruthy();
+    if (!visemePoseId) {
+      return;
+    }
+    store.getState().updatePose(visemePoseId, (pose) => ({
+      ...pose,
+      values: { smile: 0.4 },
+    }));
+
+    store.getState().createBlendStage("stage_base");
+    store.getState().setBlendStageSources("stage_base", [
+      { kind: "group", id: "emotion" },
+      { kind: "group", id: "viseme" },
+    ]);
+
+    const applyNodeId = "pose_stage_smile_1_stage_base_apply";
+    expect(
+      store
+        .getState()
+        .poseGraphSpec?.nodes.some(
+          (node: { id: string }) => node.id === applyNodeId,
+        ),
+    ).toBe(true);
+
+    store.getState().setBlendStageMode("stage_base", "average");
+    const overlayNodeId = "pose_stage_smile_1_stage_base_overlay";
+    expect(
+      store
+        .getState()
+        .poseGraphSpec?.nodes.some(
+          (node: { id: string }) => node.id === overlayNodeId,
+        ),
+    ).toBe(true);
+    expect(
+      store
+        .getState()
+        .poseGraphSpec?.nodes.some(
+          (node: { id: string }) => node.id === applyNodeId,
+        ),
+    ).toBe(false);
+
+    store.getState().renameBlendStage("stage_base", "Base Layer");
+    expect(store.getState().poseConfigDraft?.blendStages?.[0]?.name).toBe(
+      "Base Layer",
+    );
+
+    store.getState().createBlendStage("stage_final");
+    store.getState().setBlendStageSources("stage_final", [
+      { kind: "stage", id: "stage_base" },
+      { kind: "group", id: "viseme" },
+    ]);
+
+    store.getState().createBlendStage("stage_cleanup");
+    store.getState().reorderBlendStage(2, 1);
+    expect(
+      store.getState().poseConfigDraft?.blendStages?.map((stage) => stage.id),
+    ).toEqual(["stage_base", "stage_cleanup", "stage_final"]);
+
+    store.getState().deleteBlendStage("stage_cleanup");
+    expect(
+      store.getState().poseConfigDraft?.blendStages?.map((stage) => stage.id),
+    ).toEqual(["stage_base", "stage_final"]);
+  });
+
+  it("blocks invalid blend-stage topology edits", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPoseGroup("emotion");
+    store.getState().createPoseGroup("viseme");
+
+    store.getState().createBlendStage("stage_a");
+    store.getState().createBlendStage("stage_b");
+    store
+      .getState()
+      .setBlendStageSources("stage_b", [{ kind: "stage", id: "stage_a" }]);
+
+    const expected = [
+      {
+        id: "stage_a",
+        name: "stage_a",
+        mode: "add",
+        sources: [{ kind: "group", id: "emotion" }],
+      },
+      {
+        id: "stage_b",
+        name: "stage_b",
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_a" }],
+      },
+    ];
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store
+      .getState()
+      .setBlendStageSources("stage_a", [{ kind: "stage", id: "stage_b" }]);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store
+      .getState()
+      .setBlendStageSources("stage_b", [{ kind: "stage", id: "stage_b" }]);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store
+      .getState()
+      .setBlendStageSources("stage_b", [
+        { kind: "stage", id: "missing_stage" },
+      ]);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store
+      .getState()
+      .setBlendStageSources("stage_b", [
+        { kind: "group", id: "missing_group" },
+      ]);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store.getState().setBlendStageSources("stage_b", [
+      { kind: "stage", id: "stage_a" },
+      { kind: "stage", id: "stage_a" },
+    ]);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store.getState().setBlendStageSources("stage_b", []);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store.getState().deleteBlendStage("stage_a");
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+
+    store.getState().reorderBlendStage(1, 0);
+    expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
+  });
 });

@@ -9,7 +9,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 1. Pose IR MVP path is landed (`config -> IR -> graph` compile with structured diagnostics surfaced in UI and export metadata).
 2. Pose target authoring no longer creates ghost variables (`Q0.2` landed).
 3. Pose "What I Drive" controls and pose duplication UX are landed.
-4. Stage 0 (`A0.1`-`A0.3`) and Stage 1 (`B1.1`-`B1.4`) are complete; Stage 2 has started with `C2.1` complete and `C2.2` next.
+4. Stage 0 (`A0.1`-`A0.3`) and Stage 1 (`B1.1`-`B1.4`) are complete; Stage 2 now has `C2.1` and `C2.2` complete with `C2.3` next.
 5. Lint warning baseline cleanup (`D3.3`) is complete; `vizij-authoring` lint now runs clean (0 warnings / 0 errors).
 
 ## Backlog Status Board
@@ -24,7 +24,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | B1.3 | done     | P1       | IR prunes synthetic ghost channel IDs and compiler guards authored-input/signal boundary contracts.            |
 | B1.4 | done     | P1       | Import feedback now uses unified structured diagnostics across config/IR/graph paths with actionable failures. |
 | C2.1 | done     | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics. |
-| C2.2 | planned  | P1       | Multi-stage authoring UI follows C2.1.                                                                         |
+| C2.2 | done     | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.          |
 | C2.3 | planned  | P1       | Golden fixture suite follows C2.1/C2.2.                                                                        |
 | D3.1 | planned  | P2       | Autorig abstraction cleanup remains a UX objective.                                                            |
 | D3.2 | planned  | P2       | Inputs pane IA for stage/group controls pending stage model.                                                   |
@@ -40,19 +40,19 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 05:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
+  - `2026-02-19 05:33Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
 
 ### Lint
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 05:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
+  - `2026-02-19 05:33Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
 
 ### Test
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 05:11Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 66 files / 364 tests passed).
+  - `2026-02-19 05:33Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 66 files / 370 tests passed).
 
 ## Active Risks and Mitigations
 
@@ -70,6 +70,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `B1.3` ghost-channel boundary enforcement with compiler/runtime contract guards and regression tests.
 - `B1.4` unified import diagnostics across config/IR/graph with actionable failure messages.
 - `C2.1` multi-stage blend IR primitives with ordered stage-chain compile, malformed-stage diagnostics, and compatibility fallback for legacy no-stage payloads.
+- `C2.2` multi-stage authoring UI controls (stage CRUD/reorder/source editing) with topology blocking before apply/export.
 - `D3.3` lint warning baseline cleanup (warning count reduced to zero).
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).

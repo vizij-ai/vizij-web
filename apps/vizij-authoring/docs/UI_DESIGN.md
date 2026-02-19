@@ -106,8 +106,9 @@ Interaction requirements:
 1. Pose groups are first-class entities with explicit membership editing.
 2. Group-local blend mode is configurable and visible.
 3. Cross-group composition mode is configurable and visible.
-4. Multi-stage composition is planned and must support explicit stage ordering and operations.
-5. Policy features such as per-channel override/priority are deferred and must be clearly marked when absent.
+4. Multi-stage composition supports explicit stage ordering and operations (`add` / `average`) with stage source selection (group and prior-stage references).
+5. Stage editing blocks invalid topology before apply/export (self/forward references, unknown sources, duplicate/empty sources).
+6. Policy features such as per-channel override/priority are deferred and must be clearly marked when absent.
 
 ## Neutral and Value Semantics
 

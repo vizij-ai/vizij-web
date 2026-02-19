@@ -70,7 +70,7 @@ Exit gate:
 Current status:
 
 - `in_progress`
-- Progress: `C2.1` done; `C2.2` next.
+- Progress: `C2.1` and `C2.2` done; `C2.3` next.
 
 ## Stage 3 — UX Simplification and Operational Hardening
 

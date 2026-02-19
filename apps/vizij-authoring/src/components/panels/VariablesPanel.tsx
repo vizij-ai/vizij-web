@@ -4,6 +4,8 @@ import {
   Copy,
   Folder,
   Zap,
+  ArrowDown,
+  ArrowUp,
   Activity,
   Play,
   Trash2,
@@ -26,7 +28,12 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
-import type { PoseBlendMode, PoseDefinition } from "../../poseRig/types";
+import type {
+  PoseBlendMode,
+  PoseDefinition,
+  PoseIrStageSource,
+  PoseRigConfigFile,
+} from "../../poseRig/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 import type {
@@ -84,6 +91,104 @@ function poseGroupDisplayLabel(path: string): string {
   return path === UNASSIGNED_POSE_GROUP_PATH
     ? UNASSIGNED_POSE_GROUP_LABEL
     : path;
+}
+
+type BlendStageDefinition = NonNullable<
+  PoseRigConfigFile["blendStages"]
+>[number];
+
+function blendStageDisplayName(
+  stage: BlendStageDefinition,
+  index: number,
+): string {
+  const trimmed = stage.name?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return `Stage ${index + 1}`;
+}
+
+function evaluateBlendStageTopology(
+  blendStages: BlendStageDefinition[],
+  knownGroupIds: Iterable<string>,
+): string | null {
+  if (blendStages.length === 0) {
+    return null;
+  }
+
+  const groupIdSet = new Set(knownGroupIds);
+  const allStageIds = new Set<string>();
+  const firstIndexById = new Map<string, number>();
+
+  blendStages.forEach((stage, index) => {
+    const stageId = stage.id.trim();
+    if (!stageId) {
+      return;
+    }
+    allStageIds.add(stageId);
+    if (!firstIndexById.has(stageId)) {
+      firstIndexById.set(stageId, index);
+    }
+  });
+
+  const priorStageIds = new Set<string>();
+  for (let stageIndex = 0; stageIndex < blendStages.length; stageIndex += 1) {
+    const stage = blendStages[stageIndex]!;
+    const stageId = stage.id.trim();
+    if (!stageId) {
+      return `Stage #${stageIndex + 1} is missing an id.`;
+    }
+    if (firstIndexById.get(stageId) !== stageIndex) {
+      return `Stage "${stageId}" is duplicated.`;
+    }
+
+    const stageSources = Array.isArray(stage.sources) ? stage.sources : [];
+    if (stageSources.length === 0) {
+      return `Stage "${blendStageDisplayName(stage, stageIndex)}" needs at least one source.`;
+    }
+
+    const sourceKeys = new Set<string>();
+    for (
+      let sourceIndex = 0;
+      sourceIndex < stageSources.length;
+      sourceIndex += 1
+    ) {
+      const source = stageSources[sourceIndex]!;
+      const sourceKind = source.kind;
+      const sourceId = source.id.trim();
+      if (!sourceId) {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" has a source with no id.`;
+      }
+      const sourceKey = `${sourceKind}:${sourceId}`;
+      if (sourceKeys.has(sourceKey)) {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" includes duplicate source "${sourceKey}".`;
+      }
+      sourceKeys.add(sourceKey);
+
+      if (sourceKind === "group") {
+        if (!groupIdSet.has(sourceId)) {
+          return `Stage "${blendStageDisplayName(stage, stageIndex)}" references unknown group "${sourceId}".`;
+        }
+        continue;
+      }
+      if (sourceKind !== "stage") {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" has unsupported source kind "${String(sourceKind)}".`;
+      }
+      if (sourceId === stageId) {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" cannot source itself.`;
+      }
+      if (!allStageIds.has(sourceId)) {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" references unknown stage "${sourceId}".`;
+      }
+      if (!priorStageIds.has(sourceId)) {
+        return `Stage "${blendStageDisplayName(stage, stageIndex)}" must reference earlier stages only (invalid source "${sourceId}").`;
+      }
+    }
+
+    priorStageIds.add(stageId);
+  }
+
+  return null;
 }
 
 export function formatSurfaceLabelWithCount(
@@ -603,7 +708,14 @@ export function VariablesPanel({
     deletePose,
     crossGroupBlendMode,
     blendMode,
+    blendStages,
     setCrossGroupBlendMode,
+    createBlendStage,
+    renameBlendStage,
+    setBlendStageMode,
+    deleteBlendStage,
+    reorderBlendStage,
+    setBlendStageSources,
     addPoseToGroup,
     removePoseFromGroup,
     poseConfigDraft,
@@ -611,6 +723,7 @@ export function VariablesPanel({
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
   const [searchQuery, setSearchQuery] = useState("");
+  const [stageEditMessage, setStageEditMessage] = useState<string | null>(null);
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
     blendMode ??
@@ -1622,6 +1735,124 @@ export function VariablesPanel({
     onSelectPoseGroup?.(null);
   };
 
+  const handleCreateBlendStage = () => {
+    if (stageGroupOptions.length === 0 && stageDefinitions.length === 0) {
+      setStageEditMessage(
+        "Create at least one configured pose group before adding a blend stage.",
+      );
+      return;
+    }
+    createBlendStage();
+    setStageEditMessage(null);
+  };
+
+  const handleRenameBlendStage = (
+    stage: BlendStageDefinition,
+    stageIndex: number,
+  ) => {
+    const currentName = blendStageDisplayName(stage, stageIndex);
+    const value = window.prompt("Rename blend stage", currentName);
+    if (value === null) {
+      return;
+    }
+    renameBlendStage(stage.id, value);
+    setStageEditMessage(null);
+  };
+
+  const handleDeleteBlendStage = (
+    stage: BlendStageDefinition,
+    stageIndex: number,
+  ) => {
+    const stageName = blendStageDisplayName(stage, stageIndex);
+    const referencedBy = stageDefinitions
+      .slice(stageIndex + 1)
+      .find((candidate) =>
+        candidate.sources.some(
+          (source) => source.kind === "stage" && source.id === stage.id,
+        ),
+      );
+    if (referencedBy) {
+      setStageEditMessage(
+        `Delete blocked: "${stageName}" is referenced by "${referencedBy.name?.trim() || referencedBy.id}".`,
+      );
+      return;
+    }
+    const ok = window.confirm(`Delete blend stage "${stageName}"?`);
+    if (!ok) {
+      return;
+    }
+    deleteBlendStage(stage.id);
+    setStageEditMessage(null);
+  };
+
+  const handleReorderBlendStage = (
+    stageIndex: number,
+    direction: "up" | "down",
+  ) => {
+    const toIndex = direction === "up" ? stageIndex - 1 : stageIndex + 1;
+    if (toIndex < 0 || toIndex >= stageDefinitions.length) {
+      return;
+    }
+    const nextStages = [...stageDefinitions];
+    const [moved] = nextStages.splice(stageIndex, 1);
+    if (!moved) {
+      return;
+    }
+    nextStages.splice(toIndex, 0, moved);
+    const topologyIssue = evaluateBlendStageTopology(nextStages, stageGroupIds);
+    if (topologyIssue) {
+      setStageEditMessage(`Reorder blocked: ${topologyIssue}`);
+      return;
+    }
+    reorderBlendStage(stageIndex, toIndex);
+    setStageEditMessage(null);
+  };
+
+  const handleToggleBlendStageSource = (
+    stage: BlendStageDefinition,
+    source: PoseIrStageSource,
+  ) => {
+    const hasSource = stage.sources.some(
+      (candidate) =>
+        candidate.kind === source.kind && candidate.id === source.id,
+    );
+    const nextSources = hasSource
+      ? stage.sources.filter(
+          (candidate) =>
+            !(candidate.kind === source.kind && candidate.id === source.id),
+        )
+      : [...stage.sources, source];
+    if (nextSources.length === 0) {
+      setStageEditMessage(
+        `Stage "${stage.name?.trim() || stage.id}" requires at least one source.`,
+      );
+      return;
+    }
+    const dedupedSources = Array.from(
+      new Map(
+        nextSources.map((candidate) => [
+          `${candidate.kind}:${candidate.id}`,
+          candidate,
+        ]),
+      ).values(),
+    );
+    const candidateStages = stageDefinitions.map((candidate) =>
+      candidate.id === stage.id
+        ? { ...candidate, sources: dedupedSources }
+        : candidate,
+    );
+    const topologyIssue = evaluateBlendStageTopology(
+      candidateStages,
+      stageGroupIds,
+    );
+    if (topologyIssue) {
+      setStageEditMessage(`Source update blocked: ${topologyIssue}`);
+      return;
+    }
+    setBlendStageSources(stage.id, dedupedSources);
+    setStageEditMessage(null);
+  };
+
   const showCreateOption =
     activeSurface === "variables" &&
     searchQuery.trim().length > 0 &&
@@ -1648,6 +1879,33 @@ export function VariablesPanel({
     });
     return list;
   }, [visiblePoseGroups]);
+  const stageGroupOptions = useMemo(() => {
+    const byId = new Map<string, { id: string; label: string }>();
+    poseGroupsFromConfig.forEach((group) => {
+      const id = typeof group.id === "string" ? group.id.trim() : "";
+      if (!id || byId.has(id)) {
+        return;
+      }
+      const path =
+        normalizePoseGroupPath(group.path) ||
+        normalizePoseGroupPath(group.name) ||
+        normalizePoseGroupPath(group.id) ||
+        id;
+      byId.set(id, {
+        id,
+        label: poseGroupDisplayLabel(path),
+      });
+    });
+    return Array.from(byId.values());
+  }, [poseGroupsFromConfig]);
+  const stageGroupIds = useMemo(
+    () => stageGroupOptions.map((group) => group.id),
+    [stageGroupOptions],
+  );
+  const stageDefinitions = useMemo(
+    () => (Array.isArray(blendStages) ? blendStages : []),
+    [blendStages],
+  );
   const totalCount =
     activeSurface === "variables"
       ? variableItemCount
@@ -1879,6 +2137,16 @@ export function VariablesPanel({
                       New Group
                     </Button>
                     <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCreateBlendStage}
+                      title="Create a new blend stage"
+                    >
+                      <Plus size={11} />
+                      New Stage
+                    </Button>
+                    <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
@@ -1910,52 +2178,350 @@ export function VariablesPanel({
                 )}
                 {isPoseGroups && (
                   <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                    Cross-group blend
+                    Compatibility blend
                   </span>
                 )}
               </div>
               {isPoseGroups && (
-                <div className="flex flex-wrap items-center gap-1 px-1">
-                  <span className="text-[10px] text-text-muted">
-                    {selectedPoseName
-                      ? `Selected pose: ${selectedPoseName}`
-                      : "Select a pose to edit membership"}
-                  </span>
-                  {selectedPoseName && (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {selectedPoseMemberships.map((membership) => (
-                        <span
-                          key={membership.path}
-                          className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
-                        >
-                          {membership.label}
-                        </span>
-                      ))}
+                <div className="flex flex-col gap-2 px-1">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] text-text-muted">
+                      {selectedPoseName
+                        ? `Selected pose: ${selectedPoseName}`
+                        : "Select a pose to edit membership"}
+                    </span>
+                    {selectedPoseName && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {selectedPoseMemberships.map((membership) => (
+                          <span
+                            key={membership.path}
+                            className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
+                          >
+                            {membership.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="ml-auto flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] text-text-muted">
+                        {stageDefinitions.length === 0
+                          ? "Legacy cross-group mode"
+                          : "Fallback mode"}
+                      </span>
+                      <Button
+                        variant={
+                          crossGroupBlendMode === "average"
+                            ? "primary"
+                            : "subtle"
+                        }
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setCrossGroupBlendMode("average")}
+                      >
+                        Average
+                      </Button>
+                      <Button
+                        variant={
+                          crossGroupBlendMode === "additive"
+                            ? "primary"
+                            : "subtle"
+                        }
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setCrossGroupBlendMode("additive")}
+                      >
+                        Additive
+                      </Button>
                     </div>
-                  )}
-                  <div className="ml-auto flex items-center gap-1">
-                    <Button
-                      variant={
-                        crossGroupBlendMode === "average" ? "primary" : "subtle"
-                      }
-                      size="sm"
-                      className="h-6 px-2 text-[10px]"
-                      onClick={() => setCrossGroupBlendMode("average")}
-                    >
-                      Average
-                    </Button>
-                    <Button
-                      variant={
-                        crossGroupBlendMode === "additive"
-                          ? "primary"
-                          : "subtle"
-                      }
-                      size="sm"
-                      className="h-6 px-2 text-[10px]"
-                      onClick={() => setCrossGroupBlendMode("additive")}
-                    >
-                      Additive
-                    </Button>
+                  </div>
+
+                  <div className="rounded border border-border-default/50 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Blend Stages
+                      </span>
+                      <span className="text-[10px] text-text-muted">
+                        {stageDefinitions.length === 0
+                          ? "No stages (compatibility mode)"
+                          : `${stageDefinitions.length} configured`}
+                      </span>
+                    </div>
+                    {stageEditMessage && (
+                      <div
+                        role="alert"
+                        className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100"
+                      >
+                        {stageEditMessage}
+                      </div>
+                    )}
+                    {stageDefinitions.length === 0 ? (
+                      <div className="text-[10px] text-text-muted">
+                        Add stages to author explicit multi-stage blending.
+                        Until then, cross-group blend mode above is used.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {stageDefinitions.map((stage, stageIndex) => {
+                          const stageName = blendStageDisplayName(
+                            stage,
+                            stageIndex,
+                          );
+                          const stageGroupSources = stage.sources.filter(
+                            (source) => source.kind === "group",
+                          );
+                          const stageStageSources = stage.sources.filter(
+                            (source) => source.kind === "stage",
+                          );
+                          const priorStageOptions = stageDefinitions.slice(
+                            0,
+                            stageIndex,
+                          );
+                          const referencesThisStage = stageDefinitions
+                            .slice(stageIndex + 1)
+                            .some((candidate) =>
+                              candidate.sources.some(
+                                (source) =>
+                                  source.kind === "stage" &&
+                                  source.id === stage.id,
+                              ),
+                            );
+
+                          const moveIssueFor = (
+                            direction: "up" | "down",
+                          ): string | null => {
+                            const toIndex =
+                              direction === "up"
+                                ? stageIndex - 1
+                                : stageIndex + 1;
+                            if (
+                              toIndex < 0 ||
+                              toIndex >= stageDefinitions.length
+                            ) {
+                              return "Boundary";
+                            }
+                            const nextStages = [...stageDefinitions];
+                            const [moved] = nextStages.splice(stageIndex, 1);
+                            if (!moved) {
+                              return "Missing stage";
+                            }
+                            nextStages.splice(toIndex, 0, moved);
+                            return evaluateBlendStageTopology(
+                              nextStages,
+                              stageGroupIds,
+                            );
+                          };
+
+                          const moveUpIssue = moveIssueFor("up");
+                          const moveDownIssue = moveIssueFor("down");
+
+                          return (
+                            <div
+                              key={stage.id}
+                              className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2"
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {stage.id}
+                                </span>
+                                <span className="text-xs text-text-primary">
+                                  {stageName}
+                                </span>
+                                <div className="ml-auto flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-1"
+                                    disabled={Boolean(moveUpIssue)}
+                                    onClick={() =>
+                                      handleReorderBlendStage(stageIndex, "up")
+                                    }
+                                    title={
+                                      moveUpIssue && moveUpIssue !== "Boundary"
+                                        ? moveUpIssue
+                                        : "Move stage up"
+                                    }
+                                  >
+                                    <ArrowUp size={11} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-1"
+                                    disabled={Boolean(moveDownIssue)}
+                                    onClick={() =>
+                                      handleReorderBlendStage(
+                                        stageIndex,
+                                        "down",
+                                      )
+                                    }
+                                    title={
+                                      moveDownIssue &&
+                                      moveDownIssue !== "Boundary"
+                                        ? moveDownIssue
+                                        : "Move stage down"
+                                    }
+                                  >
+                                    <ArrowDown size={11} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={() =>
+                                      handleRenameBlendStage(stage, stageIndex)
+                                    }
+                                    title="Rename blend stage"
+                                  >
+                                    Rename
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
+                                    disabled={referencesThisStage}
+                                    onClick={() =>
+                                      handleDeleteBlendStage(stage, stageIndex)
+                                    }
+                                    title={
+                                      referencesThisStage
+                                        ? "Delete blocked while later stages reference this stage"
+                                        : "Delete blend stage"
+                                    }
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-text-muted">
+                                  Mode
+                                </span>
+                                <Button
+                                  variant={
+                                    stage.mode === "average"
+                                      ? "primary"
+                                      : "subtle"
+                                  }
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={() =>
+                                    setBlendStageMode(stage.id, "average")
+                                  }
+                                >
+                                  Average
+                                </Button>
+                                <Button
+                                  variant={
+                                    stage.mode === "add" ? "primary" : "subtle"
+                                  }
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={() =>
+                                    setBlendStageMode(stage.id, "add")
+                                  }
+                                >
+                                  Add
+                                </Button>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-text-muted">
+                                  Group sources
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {stageGroupOptions.length === 0 ? (
+                                    <span className="text-[10px] text-text-muted">
+                                      No configured groups
+                                    </span>
+                                  ) : (
+                                    stageGroupOptions.map((group) => {
+                                      const selected = stageGroupSources.some(
+                                        (source) => source.id === group.id,
+                                      );
+                                      return (
+                                        <button
+                                          key={group.id}
+                                          type="button"
+                                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                            selected
+                                              ? "border-accent/50 bg-accent/10 text-accent"
+                                              : "border-border-default text-text-muted hover:text-text-primary"
+                                          }`}
+                                          aria-pressed={selected}
+                                          onClick={() =>
+                                            handleToggleBlendStageSource(
+                                              stage,
+                                              {
+                                                kind: "group",
+                                                id: group.id,
+                                              },
+                                            )
+                                          }
+                                          title={`Toggle group source ${group.label}`}
+                                        >
+                                          {group.label}
+                                        </button>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-text-muted">
+                                  Prior stage sources
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {priorStageOptions.length === 0 ? (
+                                    <span className="text-[10px] text-text-muted">
+                                      No prior stages
+                                    </span>
+                                  ) : (
+                                    priorStageOptions.map(
+                                      (sourceStage, sourceIndex) => {
+                                        const label = blendStageDisplayName(
+                                          sourceStage,
+                                          sourceIndex,
+                                        );
+                                        const selected = stageStageSources.some(
+                                          (source) =>
+                                            source.id === sourceStage.id,
+                                        );
+                                        return (
+                                          <button
+                                            key={sourceStage.id}
+                                            type="button"
+                                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                              selected
+                                                ? "border-accent/50 bg-accent/10 text-accent"
+                                                : "border-border-default text-text-muted hover:text-text-primary"
+                                            }`}
+                                            aria-pressed={selected}
+                                            onClick={() =>
+                                              handleToggleBlendStageSource(
+                                                stage,
+                                                {
+                                                  kind: "stage",
+                                                  id: sourceStage.id,
+                                                },
+                                              )
+                                            }
+                                            title={`Toggle stage source ${label}`}
+                                          >
+                                            {label}
+                                          </button>
+                                        );
+                                      },
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

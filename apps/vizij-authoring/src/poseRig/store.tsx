@@ -5,6 +5,9 @@ import type { StandardRigInput } from "@vizij/utils";
 import type {
   PoseDiagnostic,
   PoseDefinition,
+  PoseIrBlendMode,
+  PoseIrBlendStageDefinition,
+  PoseIrStageSource,
   PoseRigConfigFile,
   PoseRigGraphSummary,
   PoseRigIrFile,
@@ -38,6 +41,189 @@ function nextPoseGroupId(base: string, existing: Set<string>): string {
     counter += 1;
   }
   return `${sanitized}_${counter}`;
+}
+
+function sanitizeBlendStageId(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "stage";
+}
+
+function nextBlendStageId(base: string, existing: Set<string>): string {
+  const sanitized = sanitizeBlendStageId(base);
+  if (!existing.has(sanitized)) {
+    return sanitized;
+  }
+  let counter = 2;
+  while (existing.has(`${sanitized}_${counter}`)) {
+    counter += 1;
+  }
+  return `${sanitized}_${counter}`;
+}
+
+function cloneBlendStages(
+  blendStages: PoseRigConfigFile["blendStages"] | undefined | null,
+): PoseIrBlendStageDefinition[] {
+  if (!blendStages || blendStages.length === 0) {
+    return [];
+  }
+  return blendStages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    mode: stage.mode,
+    sources: stage.sources.map((source) => ({
+      kind: source.kind,
+      id: source.id,
+    })),
+  }));
+}
+
+interface BlendStageTopologyIssue {
+  code:
+    | "missing-stage-id"
+    | "duplicate-stage-id"
+    | "empty-stage-sources"
+    | "invalid-stage-mode"
+    | "invalid-source-kind"
+    | "missing-source-id"
+    | "duplicate-source"
+    | "unknown-group-source"
+    | "unknown-stage-source"
+    | "forward-stage-source"
+    | "self-stage-source";
+  message: string;
+}
+
+function validateBlendStageTopology(
+  blendStages: PoseIrBlendStageDefinition[],
+  knownGroupIds: Iterable<string>,
+): BlendStageTopologyIssue[] {
+  if (blendStages.length === 0) {
+    return [];
+  }
+
+  const issues: BlendStageTopologyIssue[] = [];
+  const groupIdSet = new Set(knownGroupIds);
+  const allStageIds = new Set<string>();
+  const stageIdByIndex: string[] = [];
+  const firstStageIndexById = new Map<string, number>();
+
+  blendStages.forEach((stage, index) => {
+    const stageId = typeof stage.id === "string" ? stage.id.trim() : "";
+    stageIdByIndex[index] = stageId;
+    if (!stageId) {
+      return;
+    }
+    allStageIds.add(stageId);
+    if (!firstStageIndexById.has(stageId)) {
+      firstStageIndexById.set(stageId, index);
+    }
+  });
+
+  const priorStageIds = new Set<string>();
+  blendStages.forEach((stage, stageIndex) => {
+    const stageId = stageIdByIndex[stageIndex] ?? "";
+    if (!stageId) {
+      issues.push({
+        code: "missing-stage-id",
+        message: `Stage #${stageIndex + 1} is missing an id.`,
+      });
+      return;
+    }
+    if (firstStageIndexById.get(stageId) !== stageIndex) {
+      issues.push({
+        code: "duplicate-stage-id",
+        message: `Stage "${stageId}" is duplicated.`,
+      });
+      return;
+    }
+    if (stage.mode !== "add" && stage.mode !== "average") {
+      issues.push({
+        code: "invalid-stage-mode",
+        message: `Stage "${stageId}" has invalid mode "${String(stage.mode)}".`,
+      });
+    }
+
+    const stageSources = Array.isArray(stage.sources) ? stage.sources : [];
+    const sourceKeys = new Set<string>();
+    let validSources = 0;
+
+    stageSources.forEach((source, sourceIndex) => {
+      const sourceKind = source?.kind;
+      const sourceId = typeof source?.id === "string" ? source.id.trim() : "";
+      if (sourceKind !== "group" && sourceKind !== "stage") {
+        issues.push({
+          code: "invalid-source-kind",
+          message: `Stage "${stageId}" source #${sourceIndex + 1} has invalid kind "${String(sourceKind)}".`,
+        });
+        return;
+      }
+      if (!sourceId) {
+        issues.push({
+          code: "missing-source-id",
+          message: `Stage "${stageId}" source #${sourceIndex + 1} is missing an id.`,
+        });
+        return;
+      }
+      const sourceKey = `${sourceKind}:${sourceId}`;
+      if (sourceKeys.has(sourceKey)) {
+        issues.push({
+          code: "duplicate-source",
+          message: `Stage "${stageId}" source "${sourceKey}" is duplicated.`,
+        });
+        return;
+      }
+      sourceKeys.add(sourceKey);
+
+      if (sourceKind === "group") {
+        if (!groupIdSet.has(sourceId)) {
+          issues.push({
+            code: "unknown-group-source",
+            message: `Stage "${stageId}" references unknown group "${sourceId}".`,
+          });
+          return;
+        }
+      } else {
+        if (sourceId === stageId) {
+          issues.push({
+            code: "self-stage-source",
+            message: `Stage "${stageId}" cannot source itself.`,
+          });
+          return;
+        }
+        if (!allStageIds.has(sourceId)) {
+          issues.push({
+            code: "unknown-stage-source",
+            message: `Stage "${stageId}" references unknown stage "${sourceId}".`,
+          });
+          return;
+        }
+        if (!priorStageIds.has(sourceId)) {
+          issues.push({
+            code: "forward-stage-source",
+            message: `Stage "${stageId}" references forward stage "${sourceId}".`,
+          });
+          return;
+        }
+      }
+
+      validSources += 1;
+    });
+
+    if (validSources === 0) {
+      issues.push({
+        code: "empty-stage-sources",
+        message: `Stage "${stageId}" has no valid sources.`,
+      });
+    }
+
+    priorStageIds.add(stageId);
+  });
+
+  return issues;
 }
 
 function normalizePoseGroupsForState(source: unknown): Array<{
@@ -86,6 +272,20 @@ function getConfiguredPoseGroups(
     return draftGroups;
   }
   return normalizePoseGroupsForState(state.lastImportedConfig?.poseGroups);
+}
+
+function getConfiguredBlendStages(
+  state: Pick<
+    PoseRigState,
+    "poseConfigDraft" | "poseIrDraft" | "lastImportedConfig"
+  >,
+): PoseIrBlendStageDefinition[] {
+  return cloneBlendStages(
+    state.poseConfigDraft?.blendStages ??
+      state.poseIrDraft?.blendStages ??
+      state.lastImportedConfig?.blendStages ??
+      undefined,
+  );
 }
 
 function ensurePoseGroupFromPath(
@@ -249,6 +449,12 @@ export interface PoseRigState {
   }) => void;
   setBlendMode: (mode: "average" | "additive") => void;
   setCrossGroupBlendMode: (mode: "average" | "additive") => void;
+  createBlendStage: (name?: string) => void;
+  renameBlendStage: (stageId: string, nextName: string) => void;
+  setBlendStageMode: (stageId: string, mode: PoseIrBlendMode) => void;
+  deleteBlendStage: (stageId: string) => void;
+  reorderBlendStage: (fromIndex: number, toIndex: number) => void;
+  setBlendStageSources: (stageId: string, sources: PoseIrStageSource[]) => void;
   updatePoseName: (poseId: string, name: string) => void;
   createPoseGroup: (groupPath: string) => void;
   renamePoseGroup: (groupId: string, nextPath: string) => void;
@@ -310,6 +516,12 @@ const defaultState: Omit<
   | "setFilenames"
   | "setBlendMode"
   | "setCrossGroupBlendMode"
+  | "createBlendStage"
+  | "renameBlendStage"
+  | "setBlendStageMode"
+  | "deleteBlendStage"
+  | "reorderBlendStage"
+  | "setBlendStageSources"
   | "updatePoseName"
   | "createPoseGroup"
   | "renamePoseGroup"
@@ -449,6 +661,25 @@ export function createPoseRigStore(
         ? { standardInputSchema: overrides.standardInputSchema }
         : {}),
     };
+  };
+
+  const buildBlendStagesProjectionPatch = (
+    snapshot: PoseRigState,
+    nextBlendStages: PoseIrBlendStageDefinition[],
+  ): Partial<PoseRigState> | undefined => {
+    const configuredGroups = getConfiguredPoseGroups(snapshot);
+    const topologyIssues = validateBlendStageTopology(
+      nextBlendStages,
+      configuredGroups.map((group) => group.id),
+    );
+    if (topologyIssues.length > 0) {
+      return;
+    }
+    return buildProjectedPoseIrPatch(snapshot, {
+      poseGroups: configuredGroups,
+      blendStages:
+        nextBlendStages.length > 0 ? cloneBlendStages(nextBlendStages) : null,
+    });
   };
 
   const setState = (updater: PoseRigStoreUpdate) => {
@@ -594,6 +825,12 @@ export function createPoseRigStore(
     | "setFilenames"
     | "setBlendMode"
     | "setCrossGroupBlendMode"
+    | "createBlendStage"
+    | "renameBlendStage"
+    | "setBlendStageMode"
+    | "deleteBlendStage"
+    | "reorderBlendStage"
+    | "setBlendStageSources"
     | "updatePoseName"
     | "createPoseGroup"
     | "renamePoseGroup"
@@ -639,6 +876,175 @@ export function createPoseRigStore(
           crossGroupBlendMode: mode,
         }),
       }));
+    },
+    createBlendStage: (name) => {
+      setState((prev) => {
+        const existingStages = getConfiguredBlendStages(prev);
+        const configuredGroups = getConfiguredPoseGroups(prev);
+        const defaultSource: PoseIrStageSource | null = configuredGroups[0]?.id
+          ? {
+              kind: "group",
+              id: configuredGroups[0].id,
+            }
+          : existingStages.length > 0
+            ? {
+                kind: "stage",
+                id: existingStages[existingStages.length - 1]!.id,
+              }
+            : null;
+        if (!defaultSource) {
+          return;
+        }
+
+        const trimmedName =
+          typeof name === "string" && name.trim().length > 0
+            ? name.trim()
+            : `Stage ${existingStages.length + 1}`;
+        const nextStageId = nextBlendStageId(
+          trimmedName,
+          new Set(existingStages.map((stage) => stage.id)),
+        );
+        const nextStage: PoseIrBlendStageDefinition = {
+          id: nextStageId,
+          name: trimmedName,
+          mode: prev.crossGroupBlendMode === "additive" ? "add" : "average",
+          sources: [defaultSource],
+        };
+
+        return buildBlendStagesProjectionPatch(prev, [
+          ...existingStages,
+          nextStage,
+        ]);
+      });
+    },
+    renameBlendStage: (stageId, nextName) => {
+      setState((prev) => {
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        const targetIndex = existingStages.findIndex(
+          (stage) => stage.id === trimmedStageId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const trimmedName = nextName.trim();
+        const nextStages = existingStages.map((stage, index) =>
+          index === targetIndex
+            ? {
+                ...stage,
+                name: trimmedName || undefined,
+              }
+            : stage,
+        );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    setBlendStageMode: (stageId, mode) => {
+      setState((prev) => {
+        if (mode !== "add" && mode !== "average") {
+          return;
+        }
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        const targetIndex = existingStages.findIndex(
+          (stage) => stage.id === trimmedStageId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        if (existingStages[targetIndex]?.mode === mode) {
+          return;
+        }
+        const nextStages = existingStages.map((stage, index) =>
+          index === targetIndex ? { ...stage, mode } : stage,
+        );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    deleteBlendStage: (stageId) => {
+      setState((prev) => {
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        if (!existingStages.some((stage) => stage.id === trimmedStageId)) {
+          return;
+        }
+        const nextStages = existingStages.filter(
+          (stage) => stage.id !== trimmedStageId,
+        );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    reorderBlendStage: (fromIndex, toIndex) => {
+      setState((prev) => {
+        if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        if (
+          fromIndex < 0 ||
+          toIndex < 0 ||
+          fromIndex >= existingStages.length ||
+          toIndex >= existingStages.length ||
+          fromIndex === toIndex
+        ) {
+          return;
+        }
+        const nextStages = [...existingStages];
+        const [moved] = nextStages.splice(fromIndex, 1);
+        if (!moved) {
+          return;
+        }
+        nextStages.splice(toIndex, 0, moved);
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    setBlendStageSources: (stageId, sources) => {
+      setState((prev) => {
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        const targetIndex = existingStages.findIndex(
+          (stage) => stage.id === trimmedStageId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const normalizedSources: PoseIrStageSource[] = [];
+        (Array.isArray(sources) ? sources : []).forEach((source) => {
+          if (!source || typeof source !== "object") {
+            return;
+          }
+          if (source.kind !== "group" && source.kind !== "stage") {
+            return;
+          }
+          const sourceId =
+            typeof source.id === "string" ? source.id.trim() : "";
+          if (!sourceId) {
+            return;
+          }
+          normalizedSources.push({
+            kind: source.kind,
+            id: sourceId,
+          });
+        });
+        const nextStages = existingStages.map((stage, index) =>
+          index === targetIndex
+            ? { ...stage, sources: normalizedSources }
+            : stage,
+        );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
     },
     setFilenames: (filenames) => {
       setState((prev) => ({ filenames: { ...prev.filenames, ...filenames } }));
@@ -1242,6 +1648,7 @@ export function createPoseRigStore(
     state.standardInputSchema ??
     undefined;
   const initialPoseGroups = getConfiguredPoseGroups(state);
+  const initialBlendStages = getConfiguredBlendStages(state);
   const initialConfig = PoseConfigService.create(
     state.poses,
     state.neutralInputs,
@@ -1253,6 +1660,8 @@ export function createPoseRigStore(
       poseGroups: initialPoseGroups,
       defaultGroupBlendMode: state.blendMode,
       crossGroupBlendMode: state.crossGroupBlendMode,
+      blendStages:
+        initialBlendStages.length > 0 ? initialBlendStages : undefined,
       neutralMode: state.neutralMode,
     },
   );
