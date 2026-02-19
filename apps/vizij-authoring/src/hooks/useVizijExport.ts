@@ -24,8 +24,13 @@ import { waitForNextFrame } from "../utils/frame";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
-import type { PoseDiagnostic, PoseRigConfigFile } from "../poseRig/types";
+import type {
+  PoseDiagnostic,
+  PoseRigConfigFile,
+  PoseRigIrFile,
+} from "../poseRig/types";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
+import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 
 interface CollectAnimatableExportStateResult {
@@ -97,6 +102,29 @@ interface VizijExportHandlers {
 
 const POSE_IR_SUPPORT_HINT =
   "Pose IR hooks unavailable. Expected core poseRig hooks: exportPoseIrData() and importPoseIr(file).";
+
+function isPoseRigIrFile(value: unknown): value is PoseRigIrFile {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Partial<PoseRigIrFile>;
+  return (
+    candidate.version === 1 &&
+    Array.isArray(candidate.poses) &&
+    Array.isArray(candidate.groups) &&
+    typeof candidate.neutral === "object" &&
+    candidate.neutral !== null
+  );
+}
+
+function resolvePoseConfigFromIr(
+  poseRig: Pick<PoseRigExportState, "poseIrDraft" | "poseConfigDraft">,
+): PoseRigConfigFile | null {
+  if (isPoseRigIrFile(poseRig.poseIrDraft)) {
+    return PoseIrService.toConfig(poseRig.poseIrDraft);
+  }
+  return poseRig.poseConfigDraft;
+}
 
 function resolveBundleContractViolationMessage(
   audits: Awaited<ReturnType<typeof auditBundleGraphs>>,
@@ -271,10 +299,11 @@ export function useVizijExport(
 
       const standardInputs = Array.from(standardInputsById.values());
       let poseGraphSpecForExport = poseRig.poseGraphSpec;
-      if (poseRig.poseConfigDraft) {
+      const poseConfigForExport = resolvePoseConfigFromIr(poseRig);
+      if (poseConfigForExport) {
         try {
           const { spec } = PoseGraphService.buildSpec(
-            poseRig.poseConfigDraft,
+            poseConfigForExport,
             standardInputs,
             {
               defaultGroupBlendMode: poseRig.blendMode ?? "average",
@@ -391,7 +420,8 @@ export function useVizijExport(
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
-    if (!poseRig.poseConfigDraft) {
+    const poseConfigForExport = resolvePoseConfigFromIr(poseRig);
+    if (!poseConfigForExport) {
       await alertDialog(
         "Capture a neutral pose or add pose data before exporting.",
       );
@@ -399,14 +429,10 @@ export function useVizijExport(
     }
     try {
       const inputs = Array.from(standardInputsById.values());
-      const { spec } = PoseGraphService.buildSpec(
-        poseRig.poseConfigDraft,
-        inputs,
-        {
-          defaultGroupBlendMode: poseRig.blendMode ?? "average",
-          crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
-        },
-      );
+      const { spec } = PoseGraphService.buildSpec(poseConfigForExport, inputs, {
+        defaultGroupBlendMode: poseRig.blendMode ?? "average",
+        crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
+      });
       const warnings = PoseGraphService.validate(spec, inputs);
       if (warnings.length > 0) {
         await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
@@ -429,13 +455,14 @@ export function useVizijExport(
   }, [
     alertDialog,
     faceId,
+    poseRig.poseIrDraft,
     poseRig.poseConfigDraft,
     poseRig.poseGraphFileName,
     standardInputsById,
   ]);
 
   const exportPoseConfigFile = useCallback(async () => {
-    const config = poseRig.poseConfigDraft;
+    const config = resolvePoseConfigFromIr(poseRig);
     if (!config) {
       await alertDialog(
         "Capture a neutral pose or add pose data before exporting.",
@@ -452,6 +479,7 @@ export function useVizijExport(
   }, [
     alertDialog,
     faceId,
+    poseRig.poseIrDraft,
     poseRig.poseConfigDraft,
     poseRig.poseConfigFileName,
   ]);
@@ -657,10 +685,9 @@ function buildVizijBundle(
     });
   }
 
-  const poseConfig: VizijPoseRigConfig | null = poseRig.poseConfigDraft
-    ? (cloneSerializable(
-        poseRig.poseConfigDraft,
-      ) as unknown as VizijPoseRigConfig)
+  const poseConfigForBundle = resolvePoseConfigFromIr(poseRig);
+  const poseConfig: VizijPoseRigConfig | null = poseConfigForBundle
+    ? (cloneSerializable(poseConfigForBundle) as unknown as VizijPoseRigConfig)
     : null;
   const poseIrForBundle = clonePoseIrForBundle(poseRig.poseIrDraft);
   const poseDiagnostics = cloneSerializable(

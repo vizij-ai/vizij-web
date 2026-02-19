@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createPoseRigStore } from "./store";
 import type { PoseDefinition, PoseRigConfigFile, PoseRigIrFile } from "./types";
+import { PoseIrService } from "./services/poseIrService";
 import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,
@@ -262,6 +263,30 @@ describe("PoseRigStore", () => {
       syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
     });
     expect(ir?.poses[0]?.targets).toEqual({ smile: 0.7 });
+  });
+
+  it("keeps pose config draft projected from the current pose IR", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().updateCurrentValues({ smile: 0.42 });
+    store.getState().addPoseInput(poseId, "smile");
+    store.getState().createPoseGroup("emotion/main");
+    store.getState().addPoseToGroup(poseId, "emotion/main");
+
+    const state = store.getState();
+    const ir = state.poseIrDraft;
+    expect(ir).toBeTruthy();
+    if (!ir) {
+      return;
+    }
+    expect(state.poseConfigDraft).toEqual(PoseIrService.toConfig(ir));
   });
 
   it("ignores pose input additions for non-canonical ids", () => {

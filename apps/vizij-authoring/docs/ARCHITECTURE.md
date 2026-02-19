@@ -41,7 +41,7 @@ Boundary invariant:
 
 Current compile path:
 
-1. Authoring state is normalized into pose IR (`PoseIrService`).
+1. Authoring store mutations land in pose IR first; config/UI views are projected from IR (`PoseIrService`).
 2. IR compiles into pose graph spec (`buildPoseGraphSpecFromIr`).
 3. Compiler resolves canonical target channels, neutral baseline, group contributions, and cross-group composition.
 4. Compiler emits output nodes bound to canonical rig input paths.

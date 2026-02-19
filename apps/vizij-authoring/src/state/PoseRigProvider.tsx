@@ -20,6 +20,7 @@ import {
   isPoseWeightInputPath,
   parsePoseWeightInputSourceId,
 } from "../poseRig/utils";
+import { PoseIrService } from "../poseRig/services/poseIrService";
 import { useBindingAuthoring, useGraphRuntime } from "./RigControllerProvider";
 
 function filterRecordByIds<T extends Record<string, number>>(
@@ -139,6 +140,16 @@ function PoseRigController({
     onInputValueChange: handleInputValueChange,
     applyInputBatch: applyStandardInputBatch,
   });
+  const projectedPoseConfig = useMemo(() => {
+    if (!poseRig.poseIrDraft) {
+      return poseRig.poseConfigDraft ?? null;
+    }
+    try {
+      return PoseIrService.toConfig(poseRig.poseIrDraft);
+    } catch {
+      return poseRig.poseConfigDraft ?? null;
+    }
+  }, [poseRig.poseConfigDraft, poseRig.poseIrDraft]);
 
   const poseWeightInputs = useMemo(() => {
     const pathMap = buildPoseWeightPathMap(poseRig.poses, faceId);
@@ -263,7 +274,7 @@ function PoseRigController({
         setGraphRuntimeState((prev) => ({
           ...prev,
           poseGraphSpec: null,
-          poseConfig: poseRig.poseConfigDraft ?? null,
+          poseConfig: projectedPoseConfig,
         }));
         return;
       }
@@ -274,7 +285,7 @@ function PoseRigController({
         setGraphRuntimeState((prev) => ({
           ...prev,
           poseGraphSpec: normalized,
-          poseConfig: poseRig.poseConfigDraft ?? null,
+          poseConfig: projectedPoseConfig,
         }));
       } catch (error) {
         console.warn("[poseRig] Failed to normalize pose graph", error);
@@ -282,7 +293,7 @@ function PoseRigController({
         setGraphRuntimeState((prev) => ({
           ...prev,
           poseGraphSpec: null,
-          poseConfig: poseRig.poseConfigDraft ?? null,
+          poseConfig: projectedPoseConfig,
         }));
       }
     };
@@ -292,7 +303,7 @@ function PoseRigController({
     return () => {
       cancelled = true;
     };
-  }, [poseRig.poseGraphSpec, poseRig.poseConfigDraft, setGraphRuntimeState]);
+  }, [poseRig.poseGraphSpec, projectedPoseConfig, setGraphRuntimeState]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>

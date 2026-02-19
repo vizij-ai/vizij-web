@@ -169,6 +169,18 @@ function withMembershipIds(
   };
 }
 
+interface PoseStateProjectionOptions {
+  poses?: PoseDefinition[];
+  neutralInputs?: Record<StandardInputId, number>;
+  rigName?: string;
+  faceId?: string | null;
+  rigKind?: "generic" | "face-specific";
+  blendMode?: "average" | "additive";
+  crossGroupBlendMode?: "average" | "additive";
+  standardInputSchema?: { id: string; version: string } | null;
+  poseGroups?: ConfiguredPoseGroup[];
+}
+
 export interface PoseRigState {
   // Core Data
   faceId: string | null;
@@ -336,6 +348,86 @@ export function createPoseRigStore(
   let state: PoseRigState;
   const listeners = new Set<() => void>();
 
+  const projectPoseConfig = (
+    snapshot: PoseRigState,
+    overrides?: PoseStateProjectionOptions,
+  ): PoseRigConfigFile => {
+    const standardInputSchema =
+      overrides?.standardInputSchema === undefined
+        ? (snapshot.poseConfigDraft?.standardInputSchema ??
+          snapshot.lastImportedConfig?.standardInputSchema ??
+          snapshot.standardInputSchema ??
+          undefined)
+        : (overrides.standardInputSchema ?? undefined);
+    const poseGroups =
+      overrides?.poseGroups ?? getConfiguredPoseGroups(snapshot);
+    return PoseConfigService.create(
+      overrides?.poses ?? snapshot.poses,
+      overrides?.neutralInputs ?? snapshot.neutralInputs,
+      overrides?.rigName ?? snapshot.rigName,
+      overrides?.faceId ?? snapshot.faceId,
+      overrides?.rigKind ?? snapshot.rigKind,
+      standardInputSchema,
+      {
+        poseGroups,
+        defaultGroupBlendMode: overrides?.blendMode ?? snapshot.blendMode,
+        crossGroupBlendMode:
+          overrides?.crossGroupBlendMode ?? snapshot.crossGroupBlendMode,
+      },
+    );
+  };
+
+  const compilePoseIrPatch = (
+    snapshot: PoseRigState,
+    config: PoseRigConfigFile,
+  ): Pick<PoseRigState, "poseIrDraft" | "warnings" | "poseDiagnostics"> => {
+    const { ir, warnings, diagnostics } = PoseIrService.fromConfig(
+      config,
+      snapshot.standardInputs,
+      snapshot.faceId,
+      {
+        defaultGroupBlendMode: config.poseGroups?.[0]?.blendMode,
+        crossGroupBlendMode: config.crossGroupBlendMode,
+      },
+    );
+    return {
+      poseIrDraft: ir,
+      warnings,
+      poseDiagnostics: diagnostics,
+    };
+  };
+
+  const buildProjectedPoseIrPatch = (
+    snapshot: PoseRigState,
+    overrides?: PoseStateProjectionOptions,
+  ): Partial<PoseRigState> => {
+    const config = projectPoseConfig(snapshot, overrides);
+    const projectedPoses = overrides?.poses ?? snapshot.poses;
+    return {
+      ...compilePoseIrPatch(snapshot, config),
+      poses: projectedPoses,
+      ...(overrides?.neutralInputs
+        ? { neutralInputs: overrides.neutralInputs }
+        : {}),
+      ...(overrides?.rigName !== undefined
+        ? { rigName: overrides.rigName }
+        : {}),
+      ...(overrides?.faceId !== undefined ? { faceId: overrides.faceId } : {}),
+      ...(overrides?.rigKind !== undefined
+        ? { rigKind: overrides.rigKind }
+        : {}),
+      ...(overrides?.blendMode !== undefined
+        ? { blendMode: overrides.blendMode }
+        : {}),
+      ...(overrides?.crossGroupBlendMode
+        ? { crossGroupBlendMode: overrides.crossGroupBlendMode }
+        : {}),
+      ...(overrides?.standardInputSchema !== undefined
+        ? { standardInputSchema: overrides.standardInputSchema }
+        : {}),
+    };
+  };
+
   const setState = (updater: PoseRigStoreUpdate) => {
     const patch = typeof updater === "function" ? updater(state) : updater;
     if (!patch) {
@@ -344,50 +436,94 @@ export function createPoseRigStore(
     const nextState = { ...state, ...patch } as PoseRigState;
 
     // Auto-update pose IR/config/graph drafts when authoring fields change.
-    if (
-      patch.poses ||
-      patch.neutralInputs ||
-      patch.rigName ||
-      patch.faceId ||
-      patch.rigKind ||
-      patch.standardInputs ||
-      patch.standardInputSchema ||
-      patch.blendMode ||
-      patch.crossGroupBlendMode ||
-      patch.poseConfigDraft ||
-      patch.poseIrDraft
-    ) {
-      const standardInputSchema =
-        nextState.poseConfigDraft?.standardInputSchema ??
-        nextState.lastImportedConfig?.standardInputSchema ??
-        nextState.standardInputSchema ??
-        undefined;
-      const poseGroups = getConfiguredPoseGroups(nextState);
+    const shouldRebuildPoseDrafts = Boolean(
+      patch.poseIrDraft ||
+        patch.poses ||
+        patch.neutralInputs ||
+        patch.rigName ||
+        patch.faceId ||
+        patch.rigKind ||
+        patch.standardInputs ||
+        patch.standardInputSchema ||
+        patch.blendMode ||
+        patch.crossGroupBlendMode ||
+        patch.poseConfigDraft,
+    );
 
-      const nextConfig = PoseConfigService.create(
-        nextState.poses,
-        nextState.neutralInputs,
-        nextState.rigName,
-        nextState.faceId,
-        nextState.rigKind,
-        standardInputSchema,
-        {
-          poseGroups,
-          defaultGroupBlendMode: nextState.blendMode,
-          crossGroupBlendMode: nextState.crossGroupBlendMode,
-        },
-      );
-      const { ir } = PoseIrService.fromConfig(
-        nextConfig,
-        nextState.standardInputs,
-        nextState.faceId,
-      );
-      nextState.poseIrDraft = ir;
-      nextState.poseConfigDraft = PoseIrService.toConfig(ir);
+    if (shouldRebuildPoseDrafts) {
+      let irResult:
+        | ReturnType<typeof PoseIrService.fromConfig>
+        | ReturnType<typeof PoseIrService.normalize>;
+
+      if (patch.poseIrDraft) {
+        irResult = PoseIrService.normalize(
+          nextState.poseIrDraft,
+          nextState.standardInputs,
+          nextState.faceId,
+        );
+      } else {
+        const projectedConfig = projectPoseConfig(nextState);
+        irResult = PoseIrService.fromConfig(
+          projectedConfig,
+          nextState.standardInputs,
+          nextState.faceId,
+          {
+            defaultGroupBlendMode: projectedConfig.poseGroups?.[0]?.blendMode,
+            crossGroupBlendMode: projectedConfig.crossGroupBlendMode,
+          },
+        );
+      }
+
+      const projectedConfig = PoseIrService.toConfig(irResult.ir);
+      const projectedPoses = normalizePoseDefinitionIds(projectedConfig.poses, {
+        reservedIds: [NEUTRAL_POSE_ID],
+      });
+      const projectedNeutralInputs = {
+        ...createNeutralInputs(nextState.standardInputs),
+        ...projectedConfig.neutralInputs,
+      };
+
+      nextState.poseIrDraft = irResult.ir;
+      nextState.poseConfigDraft = projectedConfig;
+      if (patch.poses === undefined) {
+        nextState.poses = projectedPoses;
+      } else {
+        nextState.poses = normalizePoseDefinitionIds(nextState.poses, {
+          reservedIds: [NEUTRAL_POSE_ID],
+        });
+      }
+      if (patch.neutralInputs === undefined) {
+        nextState.neutralInputs = projectedNeutralInputs;
+      }
+      if (patch.rigName === undefined) {
+        nextState.rigName = projectedConfig.title || nextState.rigName;
+      }
+      if (patch.rigKind === undefined) {
+        nextState.rigKind = projectedConfig.rigKind ?? nextState.rigKind;
+      }
+      if (patch.blendMode === undefined) {
+        nextState.blendMode =
+          projectedConfig.poseGroups?.[0]?.blendMode ?? nextState.blendMode;
+      }
+      if (patch.crossGroupBlendMode === undefined) {
+        nextState.crossGroupBlendMode =
+          projectedConfig.crossGroupBlendMode ?? nextState.crossGroupBlendMode;
+      }
+      if (patch.standardInputSchema === undefined) {
+        nextState.standardInputSchema =
+          projectedConfig.standardInputSchema ?? nextState.standardInputSchema;
+      }
+
+      if (patch.warnings === undefined) {
+        nextState.warnings = irResult.warnings;
+      }
+      if (patch.poseDiagnostics === undefined) {
+        nextState.poseDiagnostics = irResult.diagnostics;
+      }
 
       try {
         const { spec, summary } = PoseGraphService.buildSpecFromIr(
-          ir,
+          irResult.ir,
           nextState.standardInputs,
           {
             rigKind: nextState.rigKind,
@@ -397,8 +533,6 @@ export function createPoseRigStore(
         nextState.poseGraphSummary = summary;
       } catch (e) {
         console.error("Failed to build pose graph spec", e);
-        // Keep previous spec or set to null?
-        // nextState.poseGraphSpec = null;
       }
     }
 
@@ -446,22 +580,38 @@ export function createPoseRigStore(
     | "removePoseInput"
   > = {
     setRigName: (name) => {
-      setState({ rigName: name });
+      setState((prev) => ({
+        rigName: name,
+        ...buildProjectedPoseIrPatch(prev, { rigName: name }),
+      }));
     },
     setRigKind: (kind) => {
-      setState({ rigKind: kind });
+      setState((prev) => ({
+        rigKind: kind,
+        ...buildProjectedPoseIrPatch(prev, { rigKind: kind }),
+      }));
     },
     setBlendMode: (mode) => {
-      setState({ blendMode: mode });
+      setState((prev) => ({
+        blendMode: mode,
+        ...buildProjectedPoseIrPatch(prev, { blendMode: mode }),
+      }));
     },
     setCrossGroupBlendMode: (mode) => {
-      setState({ crossGroupBlendMode: mode });
+      setState((prev) => ({
+        crossGroupBlendMode: mode,
+        ...buildProjectedPoseIrPatch(prev, {
+          crossGroupBlendMode: mode,
+        }),
+      }));
     },
     setFilenames: (filenames) => {
       setState((prev) => ({ filenames: { ...prev.filenames, ...filenames } }));
     },
     setNeutralInputs: (inputs) => {
-      setState({ neutralInputs: inputs });
+      setState((prev) => ({
+        ...buildProjectedPoseIrPatch(prev, { neutralInputs: inputs }),
+      }));
     },
     setStandardInputs: (inputs) => {
       setState({ standardInputs: inputs });
@@ -489,8 +639,12 @@ export function createPoseRigStore(
           newPose,
           configuredGroups,
         );
+        const nextPoses = [...prev.poses, normalizedPose];
         return {
-          poses: [...prev.poses, normalizedPose],
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configuredGroups,
+          }),
           selectedPoseId: normalizedPose.id,
         };
       });
@@ -512,8 +666,12 @@ export function createPoseRigStore(
                 id: poseId,
               };
         const nextPose = canonicalizePoseMembership(withId, configuredGroups);
+        const nextPoses = [...prev.poses, nextPose];
         return {
-          poses: [...prev.poses, nextPose],
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configuredGroups,
+          }),
           selectedPoseId: poseId,
         };
       });
@@ -530,8 +688,12 @@ export function createPoseRigStore(
           }),
           configuredGroups,
         );
+        const nextPoses = [...prev.poses, duplicate];
         return {
-          poses: [...prev.poses, duplicate],
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configuredGroups,
+          }),
           selectedPoseId: duplicate.id,
         };
       });
@@ -544,15 +706,18 @@ export function createPoseRigStore(
           nextSelected = nextPoses[0]?.id ?? NEUTRAL_POSE_ID;
         }
         return {
-          poses: nextPoses,
+          ...buildProjectedPoseIrPatch(prev, { poses: nextPoses }),
           selectedPoseId: nextSelected,
         };
       });
     },
     updatePoseName: (poseId, name) => {
-      setState((prev) => ({
-        poses: prev.poses.map((p) => (p.id === poseId ? { ...p, name } : p)),
-      }));
+      setState((prev) => {
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId ? { ...p, name } : p,
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
+      });
     },
     createPoseGroup: (groupPath) => {
       setState((prev) => {
@@ -563,21 +728,9 @@ export function createPoseRigStore(
         if (!groupsChanged) {
           return;
         }
-        return {
-          poseConfigDraft: PoseConfigService.create(
-            prev.poses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: groups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
-        };
+        return buildProjectedPoseIrPatch(prev, {
+          poseGroups: groups,
+        });
       });
     },
     renamePoseGroup: (groupId, nextPath) => {
@@ -618,20 +771,10 @@ export function createPoseRigStore(
           return withMembershipIds(pose, membership.groupIds, nextGroups);
         });
         return {
-          poses: nextPoses,
-          poseConfigDraft: PoseConfigService.create(
-            nextPoses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: nextGroups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: nextGroups,
+          }),
         };
       });
     },
@@ -651,20 +794,10 @@ export function createPoseRigStore(
           return withMembershipIds(pose, nextIds, nextGroups);
         });
         return {
-          poses: nextPoses,
-          poseConfigDraft: PoseConfigService.create(
-            nextPoses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: nextGroups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: nextGroups,
+          }),
         };
       });
     },
@@ -684,21 +817,9 @@ export function createPoseRigStore(
         const nextGroups = configured.map((group, index) =>
           index === targetIndex ? { ...group, blendMode: mode } : group,
         );
-        return {
-          poseConfigDraft: PoseConfigService.create(
-            prev.poses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: nextGroups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
-        };
+        return buildProjectedPoseIrPatch(prev, {
+          poseGroups: nextGroups,
+        });
       });
     },
     addPoseToGroup: (poseId, group) => {
@@ -737,25 +858,10 @@ export function createPoseRigStore(
         if (!poseChanged && !groupsChanged) {
           return;
         }
-        if (!groupsChanged) {
-          return { poses: nextPoses };
-        }
-        return {
+        return buildProjectedPoseIrPatch(prev, {
           poses: nextPoses,
-          poseConfigDraft: PoseConfigService.create(
-            nextPoses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: groups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
-        };
+          poseGroups: groups,
+        });
       });
     },
     removePoseFromGroup: (poseId, group) => {
@@ -792,7 +898,9 @@ export function createPoseRigStore(
         if (!poseChanged) {
           return;
         }
-        return { poses: nextPoses };
+        return buildProjectedPoseIrPatch(prev, {
+          poses: nextPoses,
+        });
       });
     },
     updatePoseGroup: (poseId, group) => {
@@ -800,11 +908,13 @@ export function createPoseRigStore(
       if (!nextGroup) {
         setState((prev) => {
           const configured = getConfiguredPoseGroups(prev);
-          return {
-            poses: prev.poses.map((p) =>
-              p.id === poseId ? withMembershipIds(p, [], configured) : p,
-            ),
-          };
+          const nextPoses = prev.poses.map((p) =>
+            p.id === poseId ? withMembershipIds(p, [], configured) : p,
+          );
+          return buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configured,
+          });
         });
         return;
       }
@@ -812,16 +922,18 @@ export function createPoseRigStore(
       if (!normalizedGroup) {
         setState((prev) => {
           const configured = getConfiguredPoseGroups(prev);
-          return {
-            poses: prev.poses.map((p) =>
-              p.id === poseId ? withMembershipIds(p, [], configured) : p,
-            ),
-          };
+          const nextPoses = prev.poses.map((p) =>
+            p.id === poseId ? withMembershipIds(p, [], configured) : p,
+          );
+          return buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configured,
+          });
         });
         return;
       }
       setState((prev) => {
-        const { groupsChanged, groups, groupId } = ensurePoseGroupFromPath(
+        const { groups, groupId } = ensurePoseGroupFromPath(
           prev,
           normalizedGroup,
         );
@@ -831,25 +943,10 @@ export function createPoseRigStore(
         const nextPoses = prev.poses.map((p) =>
           p.id === poseId ? withMembershipIds(p, [groupId], groups) : p,
         );
-        if (!groupsChanged) {
-          return { poses: nextPoses };
-        }
-        return {
+        return buildProjectedPoseIrPatch(prev, {
           poses: nextPoses,
-          poseConfigDraft: PoseConfigService.create(
-            nextPoses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: groups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
-        };
+          poseGroups: groups,
+        });
       });
     },
     updatePoseGroupBatch: (poseIds, group) => {
@@ -858,11 +955,13 @@ export function createPoseRigStore(
       if (!nextGroup) {
         setState((prev) => {
           const configured = getConfiguredPoseGroups(prev);
-          return {
-            poses: prev.poses.map((p) =>
-              ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
-            ),
-          };
+          const nextPoses = prev.poses.map((p) =>
+            ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
+          );
+          return buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configured,
+          });
         });
         return;
       }
@@ -870,11 +969,13 @@ export function createPoseRigStore(
       if (!normalizedGroup) {
         setState((prev) => {
           const configured = getConfiguredPoseGroups(prev);
-          return {
-            poses: prev.poses.map((p) =>
-              ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
-            ),
-          };
+          const nextPoses = prev.poses.map((p) =>
+            ids.has(p.id) ? withMembershipIds(p, [], configured) : p,
+          );
+          return buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configured,
+          });
         });
         return;
       }
@@ -888,36 +989,22 @@ export function createPoseRigStore(
             ? withMembershipIds(p, groupId ? [groupId] : [], groups)
             : p,
         );
-        if (!groupId) {
-          return { poses: nextPoses };
+        if (!groupId && !groupsChanged) {
+          return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
         }
-        if (!groupsChanged) {
-          return { poses: nextPoses };
-        }
-        return {
+        return buildProjectedPoseIrPatch(prev, {
           poses: nextPoses,
-          poseConfigDraft: PoseConfigService.create(
-            nextPoses,
-            prev.neutralInputs,
-            prev.rigName,
-            prev.faceId,
-            prev.rigKind,
-            prev.standardInputSchema ?? undefined,
-            {
-              poseGroups: groups,
-              defaultGroupBlendMode: prev.blendMode,
-              crossGroupBlendMode: prev.crossGroupBlendMode,
-            },
-          ),
-        };
+          poseGroups: groups,
+        });
       });
     },
     clearPose: (poseId) => {
-      setState((prev) => ({
-        poses: prev.poses.map((p) =>
+      setState((prev) => {
+        const nextPoses = prev.poses.map((p) =>
           p.id === poseId ? { ...p, values: {} } : p,
-        ),
-      }));
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
+      });
     },
     addPoseInput: (poseId, inputId) => {
       setState((prev) => {
@@ -928,13 +1015,12 @@ export function createPoseRigStore(
         }
         const val =
           prev.currentValues[inputId] ?? prev.neutralInputs[inputId] ?? 0;
-        return {
-          poses: prev.poses.map((p) =>
-            p.id === poseId
-              ? { ...p, values: { ...p.values, [inputId]: val } }
-              : p,
-          ),
-        };
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId
+            ? { ...p, values: { ...p.values, [inputId]: val } }
+            : p,
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
     },
     removePoseInput: (poseId, inputId) => {
@@ -943,17 +1029,19 @@ export function createPoseRigStore(
         if (!pose) return;
         const nextValues = { ...pose.values };
         delete nextValues[inputId];
-        return {
-          poses: prev.poses.map((p) =>
-            p.id === poseId ? { ...p, values: nextValues } : p,
-          ),
-        };
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId ? { ...p, values: nextValues } : p,
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
     },
     updatePose: (poseId, updater) => {
-      setState((prev) => ({
-        poses: prev.poses.map((p) => (p.id === poseId ? updater(p) : p)),
-      }));
+      setState((prev) => {
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId ? updater(p) : p,
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
+      });
     },
     capturePose: (poseId) => {
       setState((prev) => {
@@ -970,9 +1058,10 @@ export function createPoseRigStore(
           values: captured.values,
           updatedAt: new Date().toISOString(),
         };
-        return {
-          poses: prev.poses.map((p) => (p.id === poseId ? updated : p)),
-        };
+        const nextPoses = prev.poses.map((p) =>
+          p.id === poseId ? updated : p,
+        );
+        return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
     },
     applyPose: (poseId) => {
@@ -985,7 +1074,9 @@ export function createPoseRigStore(
     captureNeutral: () => {
       setState((prev) => {
         return {
-          neutralInputs: { ...prev.currentValues },
+          ...buildProjectedPoseIrPatch(prev, {
+            neutralInputs: { ...prev.currentValues },
+          }),
         };
       });
     },
@@ -1001,33 +1092,59 @@ export function createPoseRigStore(
         state.standardInputs,
         state.faceId,
       );
-      const importedPoses = normalizePoseDefinitionIds(normalized.poses, {
+      const importedPoses = normalizePoseDefinitionIds([...normalized.poses], {
         reservedIds: [NEUTRAL_POSE_ID],
       });
+      const normalizedForImport: PoseRigConfigFile = {
+        ...normalized,
+        poses: importedPoses,
+      };
+      const {
+        ir,
+        warnings: irWarnings,
+        diagnostics,
+      } = PoseIrService.fromConfig(
+        normalizedForImport,
+        state.standardInputs,
+        state.faceId,
+        {
+          defaultGroupBlendMode:
+            normalizedForImport.poseGroups?.[0]?.blendMode ?? state.blendMode,
+          crossGroupBlendMode:
+            normalizedForImport.crossGroupBlendMode ??
+            state.crossGroupBlendMode,
+        },
+      );
+      const projectedConfig = PoseIrService.toConfig(ir);
       const newNeutralInputs = {
         ...createNeutralInputs(state.standardInputs),
-        ...normalized.neutralInputs,
+        ...projectedConfig.neutralInputs,
       };
-      setState({
-        poses: importedPoses,
-        neutralInputs: newNeutralInputs,
-        currentValues: { ...newNeutralInputs },
-        rigName: normalized.title || DEFAULT_RIG_NAME,
-        rigKind: normalized.rigKind ?? "face-specific",
-        blendMode:
-          normalized.poseGroups?.[0]?.blendMode ?? state.blendMode ?? "average",
-        crossGroupBlendMode: normalized.crossGroupBlendMode ?? "additive",
-        standardInputSchema: normalized.standardInputSchema ?? null,
-        lastImportedConfig: config,
-        poseConfigDraft: normalized,
-        warnings,
-        poseDiagnostics: warnings.map((message, index) => ({
+      const mergedWarnings = Array.from(new Set([...warnings, ...irWarnings]));
+      const mergedDiagnostics = [
+        ...diagnostics,
+        ...warnings.map((message, index) => ({
           id: `pose-config:legacy-warning:${index + 1}`,
-          severity: "warning",
+          severity: "warning" as const,
           code: "legacy-config-warning",
-          source: "pose-config",
+          source: "pose-config" as const,
           message,
         })),
+      ];
+      setState({
+        poseIrDraft: ir,
+        currentValues: { ...newNeutralInputs },
+        rigName: projectedConfig.title || DEFAULT_RIG_NAME,
+        rigKind: projectedConfig.rigKind ?? "face-specific",
+        blendMode:
+          projectedConfig.poseGroups?.[0]?.blendMode ??
+          state.blendMode ??
+          "average",
+        crossGroupBlendMode: projectedConfig.crossGroupBlendMode ?? "additive",
+        standardInputSchema: projectedConfig.standardInputSchema ?? null,
+        lastImportedConfig: projectedConfig,
+        warnings: mergedWarnings,
+        poseDiagnostics: mergedDiagnostics,
       });
     },
     importIr: (irPayload) => {
@@ -1037,16 +1154,12 @@ export function createPoseRigStore(
         state.faceId,
       );
       const normalized = PoseIrService.toConfig(ir);
-      const importedPoses = normalizePoseDefinitionIds(normalized.poses, {
-        reservedIds: [NEUTRAL_POSE_ID],
-      });
       const newNeutralInputs = {
         ...createNeutralInputs(state.standardInputs),
         ...normalized.neutralInputs,
       };
       setState({
-        poses: importedPoses,
-        neutralInputs: newNeutralInputs,
+        poseIrDraft: ir,
         currentValues: { ...newNeutralInputs },
         rigName: normalized.title || DEFAULT_RIG_NAME,
         rigKind: normalized.rigKind ?? "face-specific",
@@ -1055,8 +1168,6 @@ export function createPoseRigStore(
         crossGroupBlendMode: normalized.crossGroupBlendMode ?? "additive",
         standardInputSchema: normalized.standardInputSchema ?? null,
         lastImportedConfig: normalized,
-        poseConfigDraft: normalized,
-        poseIrDraft: ir,
         warnings,
         poseDiagnostics: diagnostics,
       });

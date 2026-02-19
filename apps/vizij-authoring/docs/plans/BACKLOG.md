@@ -120,7 +120,7 @@ Completion notes (2026-02-19):
 
 ## Block B — IR-First Authoring Foundation
 
-### [ ] B1.1 Make Pose IR the Store Source of Truth (`IR1`)
+### [x] B1.1 Make Pose IR the Store Source of Truth (`IR1`)
 
 Priority and why this should still be done:
 
@@ -141,6 +141,18 @@ Acceptance checks:
 1. Pose/group edit actions mutate IR first.
 2. Config export is generated from IR projections only.
 3. Existing pose/group workflows remain functionally equivalent.
+
+Completion notes (2026-02-19):
+
+1. Store pose/group mutations now route through IR patch compilation helpers; `poseIrDraft` is rebuilt on pose/group/neutral metadata mutations and `poseConfigDraft` is projected from IR in the store rebuild path.
+2. Action paths that previously wrote `poseConfigDraft` directly now project IR first, then derive config/graph drafts deterministically.
+3. Export paths now resolve pose config from Pose IR when available (with config fallback only when IR is unavailable), including GLB bundle `poses.config`, pose-graph rebuild, and pose-config file export.
+4. Runtime pose-config sync in provider now prefers IR-projected config when `poseIrDraft` is present.
+5. Regression coverage added:
+   - `src/poseRig/store.test.ts` now asserts `poseConfigDraft` equals `PoseIrService.toConfig(poseIrDraft)` after pose/group mutations.
+   - `src/hooks/__tests__/useVizijExport.test.tsx` now asserts pose-config export uses IR projection when IR/config drafts differ.
+6. Validation evidence:
+   - `2026-02-19 20:20Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 66 files / 347 tests).
 
 ### [ ] B1.2 Neutral Strategy Authoring and Round-Trip (`IR5`)
 

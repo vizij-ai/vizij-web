@@ -28,7 +28,7 @@ Exit gate:
 
 Current status:
 
-- `in_progress`
+- `done`
 
 ## Stage 1 — IR-First Foundation
 
@@ -49,7 +49,7 @@ Exit gate:
 
 Current status:
 
-- `planned`
+- `in_progress`
 
 ## Stage 2 — Multi-Stage Blend Topology
 

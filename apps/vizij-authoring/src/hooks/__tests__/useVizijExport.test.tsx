@@ -21,6 +21,10 @@ import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
+import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+} from "../../poseRig/types";
 import { auditBundleGraphs } from "../../utils/bundleAudit";
 
 vi.mock("@vizij/render", () => ({
@@ -344,6 +348,86 @@ describe("useVizijExport", () => {
         crossGroupBlendMode: "additive",
       }),
     );
+    hook.unmount();
+  });
+
+  it("exports pose config from the IR projection when IR is available", async () => {
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          title: "From Config",
+          neutralInputs: {},
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        poseIrDraft: {
+          version: 1,
+          faceId: "face",
+          title: "From IR",
+          contracts: {
+            targetIds: POSE_IR_TARGETING_CONTRACT,
+            syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+          },
+          neutral: {
+            mode: "explicit",
+            values: {
+              input_a: 0.1,
+            },
+          },
+          groups: [
+            {
+              id: "emotion",
+              name: "Emotion",
+              path: "emotion",
+              intraGroupBlendMode: "average",
+              poseIds: ["pose_smile"],
+            },
+          ],
+          crossGroupPolicy: {
+            mode: "add",
+          },
+          poses: [
+            {
+              id: "pose_smile",
+              name: "Smile",
+              groupIds: ["emotion"],
+              targets: {
+                input_a: 0.7,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
+        },
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseConfigFile();
+    });
+
+    expect(mockedDownloadJsonFile).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadJsonFile.mock.calls[0]?.[0]).toMatchObject({
+      title: "From IR",
+      crossGroupBlendMode: "additive",
+      neutralInputs: {
+        input_a: 0.1,
+      },
+      poses: [
+        expect.objectContaining({
+          id: "pose_smile",
+          values: {
+            input_a: 0.7,
+          },
+        }),
+      ],
+    });
     hook.unmount();
   });
 
