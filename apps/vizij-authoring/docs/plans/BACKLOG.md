@@ -8,10 +8,11 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `A0.1` -> `A0.3` -> `B1.1` -> `B1.2` -> `C2.1` -> `C2.2` -> `C2.3`
-2. `A0.2` is a release blocker and can run in parallel, but must be done before release.
-3. `D3.1` and `D3.2` depend on `A0.1` and `B1.1`.
-4. `E4.1` and `E4.2` are now unblocked and implemented after `C2.*` stabilization.
+1. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
+2. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
+3. `F5.1` -> `F5.6` -> `F5.8`
+4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
+5. Blocks `A0` through `E4` are complete and are prerequisite foundations for this import reliability wave.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -610,6 +611,190 @@ Completion notes (2026-02-19):
 4. The note includes an itemized follow-on implementation scope covering schema/compiler/diagnostics/UI/tests/rollout.
 5. Evidence reference:
    - `2026-02-19` — `apps/vizij-authoring/docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`
+
+## Block F — Import Migration Reliability Integration
+
+### [ ] F5.1 Import Outcome-Class Contract
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Import reliability remains partially implicit. We need one explicit contract for runtime behavior, diagnostics, and tests.
+
+Dependencies / blockers:
+
+- Depends on: none
+- Blocks: `F5.2`, `F5.3`, `F5.4`, `F5.6`, `F5.7`, `F5.8`
+
+Intent:
+
+- Define and enforce import outcomes across rig and pose import paths:
+  - `success`
+  - `success_with_repair`
+  - `blocked_recoverable`
+  - `blocked_fatal`
+
+Acceptance checks:
+
+1. Rig and pose import APIs produce one of the four outcome classes.
+2. Outcome-class mapping is deterministic and does not rely on console-only interpretation.
+3. Architecture and UI contracts reference the same outcome-class definitions.
+
+### [ ] F5.2 Discrepancy Identity and Decision Replay
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Current acceptance-key behavior can bypass required review for changed imports; repeated imports also lack robust decision replay semantics.
+
+Dependencies / blockers:
+
+- Depends on: `F5.1`
+- Blocks: `F5.8`
+
+Intent:
+
+- Replace length-based discrepancy acceptance identity with content-hash identity and persist safe review decisions by source signature.
+
+Acceptance checks:
+
+1. Acceptance identity uses canonical content hash (not string length).
+2. Re-importing the same artifact can reuse compatible prior decisions.
+3. Changed imports cannot bypass discrepancy review.
+4. Supporting quality gates `QL0.1` and `QL2.4` are complete.
+
+### [ ] F5.3 Import Failure Surface Contract (Asset, Sample, Bundle)
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Import and sample load failures still have console-only paths; operators need actionable in-app feedback.
+
+Dependencies / blockers:
+
+- Depends on: `F5.1`
+- Blocks: `F5.8`
+
+Intent:
+
+- Ensure all asset/sample/bundle import failures surface recoverable user-visible diagnostics.
+
+Acceptance checks:
+
+1. Asset-loader and sample-load failures are shown in UI with actionable remediation.
+2. Bundle synchronizer rig/pose import failures are surfaced in UI, not console-only.
+3. Failure states are recoverable without hard refresh.
+4. Supporting quality gates `QL0.2`, `QL0.3`, and `QL2.5` are complete.
+
+### [ ] F5.4 Compatibility Adapter in `@vizij/render`
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Metadata compatibility handling is still spread across paths and does not provide a single canonical diagnostics contract.
+
+Dependencies / blockers:
+
+- Depends on: `F5.1`
+- Blocks: `F5.5`, `F5.8`
+
+Intent:
+
+- Introduce a compatibility adapter that normalizes supported legacy/current bundle metadata before import execution.
+
+Acceptance checks:
+
+1. Multi-key extension discovery supports legacy and current aliases with deterministic precedence.
+2. Multiple candidate bundle entries resolve via deterministic selection rules.
+3. Unsupported variants produce explicit diagnostics instead of silent drops.
+
+### [ ] F5.5 Root Detection and Scene Fallback Hardening
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Root detection still relies on narrow assumptions; missing-root assets should fail recoverably with guidance.
+
+Dependencies / blockers:
+
+- Depends on: `F5.4`
+- Blocks: `F5.8`
+
+Intent:
+
+- Implement root fallback chain and recoverable blocking behavior that preserves existing authoring state until candidate validation completes.
+
+Acceptance checks:
+
+1. Root fallback chain is explicit: metadata -> derived bounds -> recoverable block guidance.
+2. Missing-root assets fail as `blocked_recoverable` with actionable remediation.
+3. No partial state mutation occurs before candidate asset validation succeeds.
+
+### [ ] F5.6 Deterministic Persistence Migration Registry
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: `schemaVersion` is persisted, but migrations are not currently a deterministic ordered registry with fixture coverage.
+
+Dependencies / blockers:
+
+- Depends on: `F5.1`
+- Blocks: `F5.8`
+
+Intent:
+
+- Add ordered migration registry (`vN -> vN+1`) for rig persistence and make migration failures user-visible.
+
+Acceptance checks:
+
+1. Load path dispatches through ordered migration steps by `schemaVersion`.
+2. Persisted fixtures for older versions migrate to current schema without loss.
+3. Storage failures (quota/private mode/unavailable storage) are surfaced to users.
+
+### [ ] F5.7 Pose Remap Completion: Create Missing Standard Input
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Remap workflow still requires manual path entry for unresolved outputs, which slows imports and increases operator error risk.
+
+Dependencies / blockers:
+
+- Depends on: `F5.1`, `F5.3`
+- Blocks: `F5.8`
+
+Intent:
+
+- Extend pose remap workflow with optional "create missing standard input" path and deterministic apply-plan validation.
+
+Acceptance checks:
+
+1. Wizard can create missing standard inputs inline when no mapping exists.
+2. Conflict and validation outcomes remain deterministic and test-covered.
+3. Remap completion no longer depends on manual canonical path typing for common unresolved cases.
+
+### [ ] F5.8 Import Fixture Matrix, CI Gate, and Contract Docs
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: We need deterministic regression detection and one source of truth for supported import formats and outcomes.
+
+Dependencies / blockers:
+
+- Depends on: `F5.2`, `F5.3`, `F5.4`, `F5.5`, `F5.6`, `F5.7`
+- Blocks: import reliability signoff
+
+Intent:
+
+- Add legacy/current/malformed fixture matrix with outcome-class assertions and establish contract docs as source of truth.
+
+Acceptance checks:
+
+1. Fixture suite covers legacy, current, and malformed bundles with expected outcome classes.
+2. CI includes fixture matrix regression checks.
+3. Compatibility contract documentation is published and referenced by roadmap/tracker docs.
 
 ## Recently Completed (Reference)
 

@@ -113,3 +113,27 @@ Current status:
 
 - `done`
 - Progress: `E4.1` and `E4.2` are implemented (per-channel override contracts + priority compile semantics with diagnostics) and `E4.3` remains the supporting design reference (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
+
+## Stage 5 — Import Migration Reliability
+
+Objective:
+
+- Convert import reliability from implicit behavior to explicit compatibility contracts with deterministic recovery and regression coverage.
+
+Backlog scope:
+
+- `F5.1`, `F5.2`, `F5.3`, `F5.4`, `F5.5`, `F5.6`, `F5.7`, `F5.8`
+
+Exit gate:
+
+1. Import outcome classes are explicit and consistent across rig/pose paths.
+2. Discrepancy identity and replay behavior are collision-safe and deterministic.
+3. Asset/sample/bundle import failures are user-visible and recoverable.
+4. Metadata compatibility and root fallback paths are deterministic and diagnostics-first.
+5. Persistence migration is versioned, ordered, and fixture-tested.
+6. Pose remap flow can create missing standard inputs without manual canonical-path typing for common unresolved cases.
+7. Legacy/current/malformed fixture matrix runs in CI and compatibility docs are source of truth.
+
+Current status:
+
+- `planned`
