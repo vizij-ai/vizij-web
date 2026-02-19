@@ -286,6 +286,7 @@ export function ExportDialog({
                 onImportPoseGraph={(file) => onImportPoseGraph(file)}
                 onImportPoseIr={(file) => importPoseIrFile(file)}
                 poseConfigWarnings={poseRig.poseConfigWarnings}
+                poseDiagnostics={poseRig.poseDiagnostics}
                 poseIrEnabled={canImportPoseIr}
                 poseIrSupportHint={poseIrSupportHint}
                 disabled={!poseRig.ready}
@@ -311,6 +312,7 @@ export function ExportDialog({
                 onExportPoseIr={() => {
                   void exportPoseIrFile();
                 }}
+                poseDiagnostics={poseRig.poseDiagnostics}
                 poseIrEnabled={canExportPoseIr}
                 poseIrSupportHint={poseIrSupportHint}
                 disabled={!poseRig.ready}

@@ -225,6 +225,7 @@ export function InspectorContent() {
     addPoseToGroup,
     removePoseFromGroup,
     poseConfigDraft,
+    poseDiagnostics,
   } = usePoseRig();
 
   const managedStandardInputs = useBindingAuthoring(
@@ -572,6 +573,54 @@ export function InspectorContent() {
     );
   };
 
+  const scopedPoseDiagnostics = useMemo(() => {
+    if (poseDiagnostics.length === 0) {
+      return [];
+    }
+    if (inspectorMode === "pose" && selectedPoseId) {
+      return poseDiagnostics.filter((diagnostic) => {
+        const poseId = diagnostic.location?.poseId;
+        return !poseId || poseId === selectedPoseId;
+      });
+    }
+    if (inspectorMode === "rig" && resolvedSelectedRigId) {
+      return poseDiagnostics.filter((diagnostic) => {
+        const inputId = diagnostic.location?.inputId;
+        if (!inputId) {
+          return true;
+        }
+        return (
+          resolveRigMetadataInputId(inputId, standardInputsById) ===
+          resolveRigMetadataInputId(resolvedSelectedRigId, standardInputsById)
+        );
+      });
+    }
+    return poseDiagnostics;
+  }, [
+    poseDiagnostics,
+    inspectorMode,
+    selectedPoseId,
+    resolvedSelectedRigId,
+    standardInputsById,
+  ]);
+
+  const scopedPoseDiagnosticSummary = useMemo(() => {
+    const errors = scopedPoseDiagnostics.filter(
+      (diagnostic) => diagnostic.severity === "error",
+    );
+    const warnings = scopedPoseDiagnostics.filter(
+      (diagnostic) => diagnostic.severity === "warning",
+    );
+    const info = scopedPoseDiagnostics.filter(
+      (diagnostic) => diagnostic.severity === "info",
+    );
+    return {
+      errors,
+      warnings,
+      info,
+    };
+  }, [scopedPoseDiagnostics]);
+
   const targetLabelById = useMemo(() => {
     const labels = new Map<string, string>();
     objects.forEach((objectNode) => {
@@ -807,6 +856,23 @@ export function InspectorContent() {
         {graphError ? (
           <span className="text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 bg-red-500/10 text-red-200 truncate max-w-[260px]">
             {graphError}
+          </span>
+        ) : null}
+        {scopedPoseDiagnosticSummary.errors.length > 0 ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 bg-red-500/10 text-red-200">
+            Pose diagnostics errors {scopedPoseDiagnosticSummary.errors.length}
+          </span>
+        ) : null}
+        {scopedPoseDiagnosticSummary.warnings.length > 0 ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200">
+            Pose diagnostics warnings{" "}
+            {scopedPoseDiagnosticSummary.warnings.length}
+          </span>
+        ) : null}
+        {scopedPoseDiagnostics.length > 0 ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-border-default/50 bg-bg-panel/30 text-text-muted truncate max-w-[340px]">
+            [{scopedPoseDiagnostics[0]?.code}]{" "}
+            {scopedPoseDiagnostics[0]?.message}
           </span>
         ) : null}
         <span className="text-[9px] px-1.5 py-0.5 rounded border border-border-default/50 bg-bg-panel/30 text-text-muted">

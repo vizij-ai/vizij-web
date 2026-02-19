@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
+import type { PoseDiagnostic } from "../../poseRig/types";
 import { Button, Card, CardHeader, CardBody, Input, Chip } from "../ui";
 
 interface PoseRigImportPanelProps {
@@ -7,6 +8,7 @@ interface PoseRigImportPanelProps {
   onImportPoseGraph: (file: File) => Promise<void>;
   onImportPoseIr: (file: File) => Promise<void>;
   poseConfigWarnings: readonly string[];
+  poseDiagnostics: readonly PoseDiagnostic[];
   poseIrEnabled?: boolean;
   poseIrSupportHint?: string;
   disabled?: boolean;
@@ -24,6 +26,7 @@ interface PoseRigExportPanelProps {
   poseIrFileName: string;
   onPoseIrFileNameChange: (value: string) => void;
   onExportPoseIr: () => void;
+  poseDiagnostics: readonly PoseDiagnostic[];
   poseIrEnabled?: boolean;
   poseIrSupportHint?: string;
   disabled?: boolean;
@@ -34,6 +37,7 @@ export function PoseRigImportPanel({
   onImportPoseGraph,
   onImportPoseIr,
   poseConfigWarnings,
+  poseDiagnostics,
   poseIrEnabled = false,
   poseIrSupportHint,
   disabled,
@@ -44,6 +48,15 @@ export function PoseRigImportPanel({
   const configInputId = useId();
   const graphInputId = useId();
   const poseIrInputId = useId();
+  const errorDiagnostics = poseDiagnostics.filter(
+    (diagnostic) => diagnostic.severity === "error",
+  );
+  const warningDiagnostics = poseDiagnostics.filter(
+    (diagnostic) => diagnostic.severity === "warning",
+  );
+  const infoDiagnostics = poseDiagnostics.filter(
+    (diagnostic) => diagnostic.severity === "info",
+  );
 
   const handleGraphImport = async (event: ChangeEvent<HTMLInputElement>) => {
     if (disabled || isImportingGraph) {
@@ -158,7 +171,28 @@ export function PoseRigImportPanel({
           Only needed for legacy tutorials. Prefer rebuilding configs in the
           workbench.
         </p>
-        {poseConfigWarnings.length > 0 && (
+        {poseDiagnostics.length > 0 ? (
+          <div className="pose-rig-warnings">
+            <strong>Pose diagnostics:</strong>
+            <ul>
+              {poseDiagnostics.map((diagnostic, index) => (
+                <li key={`${diagnostic.id}-${index}`}>
+                  <span className="uppercase text-[10px] font-mono mr-1">
+                    {diagnostic.severity}
+                  </span>
+                  <span className="font-mono text-[10px] mr-1">
+                    [{diagnostic.code}]
+                  </span>
+                  {diagnostic.message}
+                </li>
+              ))}
+            </ul>
+            <p className="asset-card__hint asset-card__hint--muted">
+              {errorDiagnostics.length} errors · {warningDiagnostics.length}{" "}
+              warnings · {infoDiagnostics.length} info
+            </p>
+          </div>
+        ) : poseConfigWarnings.length > 0 ? (
           <div className="pose-rig-warnings">
             <strong>Import warnings:</strong>
             <ul>
@@ -167,7 +201,7 @@ export function PoseRigImportPanel({
               ))}
             </ul>
           </div>
-        )}
+        ) : null}
       </CardBody>
     </Card>
   );
@@ -185,10 +219,18 @@ export function PoseRigExportPanel({
   poseIrFileName,
   onPoseIrFileNameChange,
   onExportPoseIr,
+  poseDiagnostics,
   poseIrEnabled = false,
   poseIrSupportHint,
   disabled,
 }: PoseRigExportPanelProps) {
+  const diagnosticErrors = poseDiagnostics.filter(
+    (diagnostic) => diagnostic.severity === "error",
+  );
+  const diagnosticWarnings = poseDiagnostics.filter(
+    (diagnostic) => diagnostic.severity === "warning",
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -269,6 +311,20 @@ export function PoseRigExportPanel({
           <p className="asset-card__hint asset-card__hint--muted">
             {poseIrSupportHint}
           </p>
+        ) : null}
+        {poseDiagnostics.length > 0 ? (
+          <div className="pose-rig-warnings">
+            <strong>Pose diagnostics in draft:</strong>
+            <p className="asset-card__hint asset-card__hint--muted">
+              {diagnosticErrors.length} errors · {diagnosticWarnings.length}{" "}
+              warnings
+            </p>
+            {diagnosticErrors.length > 0 ? (
+              <p className="asset-card__hint">
+                Resolve error diagnostics before relying on exported artifacts.
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </CardBody>
     </Card>

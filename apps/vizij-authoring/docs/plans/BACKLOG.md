@@ -913,7 +913,7 @@ Acceptance checks:
 2. Config export remains deterministic as a projection from IR.
 3. Existing pose/group edit behavior remains intact.
 
-### [ ] IR2 Structured Compiler Diagnostics
+### [x] IR2 Structured Compiler Diagnostics
 
 Intent:
 Return structured diagnostics from IR compile/normalize pipelines for UI, export, and tests.
@@ -924,12 +924,15 @@ Acceptance checks:
 2. Import/export/inspector surfaces consume diagnostics without console-only paths.
 3. Tests cover at least one hard error and one warning path.
 
-Progress notes (2026-02-19):
+Completion notes (2026-02-19):
 
 1. Added machine-readable diagnostics contracts and compile result shape (`PoseDiagnostic`, `PoseIrCompileResult`) in `src/poseRig/types.ts`.
 2. Updated `PoseIrService.fromConfig` / `normalize` to emit structured diagnostics alongside legacy warnings, including structured error diagnostics for invalid payload/version paths.
 3. Plumbed diagnostics through pose store + authoring hook (`poseDiagnostics`) while preserving existing warnings-based UI behavior.
 4. Added tests for warning and hard-error diagnostic paths in `src/poseRig/services/poseIrService.test.ts` and hook-level diagnostics exposure in `src/poseRig/usePoseRigAuthoring.test.tsx`.
+5. Surfaced diagnostics in import/export/inspector authoring UI:
+   - `src/components/app/PoseRigPanels.tsx` now renders structured diagnostics in pose import and export panels.
+   - `src/components/inspector/InspectorContent.tsx` now shows scoped diagnostic counts/messages in authoring status.
 
 ### [ ] IR3 Bundle Export Includes Pose IR + Diagnostics
 
