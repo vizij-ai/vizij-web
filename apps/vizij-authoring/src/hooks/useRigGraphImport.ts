@@ -99,10 +99,19 @@ export function useRigGraphImport({
       options?: { skipDiscrepancyCheck?: boolean },
     ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
+        const blueprint = buildAutoRigInputBlueprints(
+          world,
+          animatables,
+          animatableComponents,
+          featureLabelOverrides,
+        );
         const rehydrated = rehydrateRigDataFromGraph(spec, {
           faceId,
           animatables,
           components: animatableComponents,
+          provisionedAutorigInputs: blueprint.blueprints.map(
+            (entry) => entry.input,
+          ),
         });
 
         const importedFaceIdRaw = rehydrated.sourceFaceId;
@@ -129,13 +138,6 @@ export function useRigGraphImport({
             root: metadata.root,
           });
         });
-
-        const blueprint = buildAutoRigInputBlueprints(
-          world,
-          animatables,
-          animatableComponents,
-          featureLabelOverrides,
-        );
 
         const inputsByPath = new Map(
           rehydrated.standardInputs.map((input) => [input.path, input]),
@@ -260,12 +262,15 @@ export function useRigGraphImport({
         }
         const normalizationDiagnostics = rehydrated.normalizationDiagnostics;
         const normalizationCount =
+          normalizationDiagnostics.createdAutorigInputs.length +
           normalizationDiagnostics.inputIdRemaps.length +
           normalizationDiagnostics.targetIdRemaps.length +
           normalizationDiagnostics.animatableRetargets.length;
         if (normalizationCount > 0) {
           // eslint-disable-next-line no-console -- explicit import migration diagnostics
           console.warn("[vizij-authoring] Import normalization applied.", {
+            createdAutorigInputs:
+              normalizationDiagnostics.createdAutorigInputs.length,
             inputIdRemaps: normalizationDiagnostics.inputIdRemaps.length,
             targetIdRemaps: normalizationDiagnostics.targetIdRemaps.length,
             animatableRetargets:
@@ -387,6 +392,11 @@ export function useRigGraphImport({
             if (normalizationDiagnostics.targetIdRemaps.length > 0) {
               mismatchReasons.push(
                 `Target id normalization remaps applied: ${normalizationDiagnostics.targetIdRemaps.length}.`,
+              );
+            }
+            if (normalizationDiagnostics.createdAutorigInputs.length > 0) {
+              mismatchReasons.push(
+                `Autorig targets provisioned before rebinding: ${normalizationDiagnostics.createdAutorigInputs.length}.`,
               );
             }
             if (normalizationDiagnostics.inputIdRemaps.length > 0) {

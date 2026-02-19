@@ -349,6 +349,58 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(result.bindings[JAW_COMPONENT_ID]?.inputId).toBe("jaw_control");
   });
 
+  it("provisions missing autorig targets before retargeting direct animatable bindings", () => {
+    const provisionedAutorig = makeInput({
+      id: "autorig_jaw_open",
+      path: "/autorig/mouth/open",
+      group: "mouth",
+      sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: "jaw_control",
+          path: "/rig/control/jaw/open",
+          group: "custom",
+        }),
+      ],
+      bindings: [
+        makeBindingSummary({
+          targetId: JAW_COMPONENT_ID,
+          inputId: "jaw_control",
+        }),
+      ],
+    });
+
+    const result = rehydrateRigDataFromGraph(spec, {
+      faceId: "robot",
+      animatables: {},
+      components: [makeComponent()],
+      provisionedAutorigInputs: [provisionedAutorig],
+    });
+
+    expect(result.normalizationDiagnostics.createdAutorigInputs).toEqual([
+      {
+        inputId: "autorig_jaw_open",
+        path: "/autorig/mouth/open",
+        sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
+      },
+    ]);
+    expect(result.normalizationDiagnostics.animatableRetargets).toEqual([
+      {
+        animatableTargetId: JAW_COMPONENT_ID,
+        slotId: "s1",
+        fromInputId: "jaw_control",
+        toAutorigInputId: "autorig_jaw_open",
+      },
+    ]);
+    expect(result.normalizationDiagnostics.animatableFallbacks).toEqual([]);
+    expect(result.inputBindings.autorig_jaw_open?.inputId).toBe("jaw_control");
+  });
+
   it("is deterministic and idempotent for repeated re-imports", () => {
     const spec = makeSpec({
       faceId: "legacy_face",
@@ -405,5 +457,53 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(Array.from(twice.inputMetadata.entries())).toEqual(
       Array.from(once.inputMetadata.entries()),
     );
+  });
+
+  it("is deterministic for repeated imports with provisioned autorig targets", () => {
+    const provisionedAutorig = makeInput({
+      id: "autorig_jaw_open",
+      path: "/autorig/mouth/open",
+      group: "mouth",
+      sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: "jaw_control",
+          path: "/rig/control/jaw/open",
+          group: "custom",
+        }),
+      ],
+      bindings: [
+        makeBindingSummary({
+          targetId: JAW_COMPONENT_ID,
+          inputId: "jaw_control",
+        }),
+      ],
+    });
+
+    const options = {
+      faceId: "robot",
+      animatables: {},
+      components: [makeComponent()],
+      provisionedAutorigInputs: [provisionedAutorig],
+    };
+
+    const once = rehydrateRigDataFromGraph(spec, options);
+    const twice = rehydrateRigDataFromGraph(spec, options);
+
+    expect(twice.normalizationDiagnostics).toEqual(
+      once.normalizationDiagnostics,
+    );
+    expect(bindingDefinitions(twice.bindings)).toEqual(
+      bindingDefinitions(once.bindings),
+    );
+    expect(bindingDefinitions(twice.inputBindings)).toEqual(
+      bindingDefinitions(once.inputBindings),
+    );
+    expect(twice.standardInputs).toEqual(once.standardInputs);
   });
 });

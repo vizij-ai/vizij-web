@@ -16,6 +16,7 @@ import {
 import {
   SELF_BINDING_ID,
   createStandardRigInput,
+  createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
   isAutorigStandardInputPath,
   normalizeStandardRigInputPath,
@@ -101,7 +102,14 @@ interface AnimatableFallbackDiagnostic {
   reason: BindingFallbackReason;
 }
 
+interface AutorigInputCreatedDiagnostic {
+  inputId: string;
+  path: string;
+  sourceId?: string;
+}
+
 export interface ImportNormalizationDiagnostics {
+  createdAutorigInputs: AutorigInputCreatedDiagnostic[];
   inputIdRemaps: BindingInputRemapDiagnostic[];
   targetIdRemaps: BindingTargetRemapDiagnostic[];
   animatableRetargets: AnimatableRetargetDiagnostic[];
@@ -158,11 +166,30 @@ function coerceExpression(value: string | null | undefined, fallback: string) {
 
 function createNormalizationDiagnostics(): ImportNormalizationDiagnostics {
   return {
+    createdAutorigInputs: [],
     inputIdRemaps: [],
     targetIdRemaps: [],
     animatableRetargets: [],
     animatableFallbacks: [],
   };
+}
+
+function resolveUniqueImportedInputId(
+  baseId: string,
+  standardInputs: Map<string, StandardRigInput>,
+): string {
+  const trimmedBase = baseId.trim();
+  const seed = trimmedBase.length > 0 ? trimmedBase : "input";
+  if (!standardInputs.has(seed)) {
+    return seed;
+  }
+  let suffix = 2;
+  let candidate = `${seed}_${suffix}`;
+  while (standardInputs.has(candidate)) {
+    suffix += 1;
+    candidate = `${seed}_${suffix}`;
+  }
+  return candidate;
 }
 
 function normalizeBindingInputId(
@@ -593,6 +620,7 @@ export function rehydrateRigDataFromGraph(
     faceId: string;
     animatables: Record<string, AnimatableValue>;
     components: AnimatableComponent[];
+    provisionedAutorigInputs?: StandardRigInput[];
   },
 ): RehydratedRigData {
   const metadata = (spec as unknown as { metadata?: VizijMetadataContainer })
@@ -634,6 +662,59 @@ export function rehydrateRigDataFromGraph(
     });
     return created;
   });
+  const standardInputsById = new Map(
+    standardInputs.map((input) => [input.id, input]),
+  );
+  const standardInputsByPath = new Map(
+    standardInputs.map((input) => [
+      normalizeStandardRigInputPath(input.path),
+      input,
+    ]),
+  );
+  const createdAutorigInputs: AutorigInputCreatedDiagnostic[] = [];
+
+  (options.provisionedAutorigInputs ?? []).forEach((provisioned) => {
+    const normalizedPath = normalizeStandardRigInputPath(provisioned.path);
+    if (!isAutorigStandardInputPath(normalizedPath)) {
+      return;
+    }
+    if (standardInputsByPath.has(normalizedPath)) {
+      return;
+    }
+    const fallbackId = createStandardRigInputFromPath(normalizedPath).id;
+    const inputId = resolveUniqueImportedInputId(
+      provisioned.id ?? fallbackId,
+      standardInputsById,
+    );
+    const resolvedGroup =
+      provisioned.group?.trim() ||
+      deriveGroupFromNormalizedPath(normalizedPath) ||
+      "auto";
+    const created = createStandardRigInput({
+      id: inputId,
+      path: normalizedPath,
+      sourceId: provisioned.sourceId,
+      label: provisioned.label,
+      group: resolvedGroup,
+      defaultValue: provisioned.defaultValue,
+      range: {
+        min: provisioned.range.min,
+        max: provisioned.range.max,
+      },
+    });
+    standardInputs.push(created);
+    standardInputsById.set(created.id, created);
+    standardInputsByPath.set(normalizedPath, created);
+    inputMetadata.set(created.id, {
+      source: "auto",
+      root: resolvedGroup,
+    });
+    createdAutorigInputs.push({
+      inputId: created.id,
+      path: created.path,
+      sourceId: created.sourceId,
+    });
+  });
 
   const legacyAutorigInputPaths = new Set<string>();
 
@@ -643,15 +724,12 @@ export function rehydrateRigDataFromGraph(
     }
   });
 
-  const standardInputsById = new Map(
-    standardInputs.map((input) => [input.id, input]),
-  );
-
   const { summaries: normalizedSummaries, diagnostics } =
     normalizeImportedBindingSummaries(vizij.bindings, {
       components: options.components,
       standardInputs: standardInputsById,
     });
+  diagnostics.createdAutorigInputs.push(...createdAutorigInputs);
 
   const { bindings, inputBindings } = buildBindings(
     normalizedSummaries,

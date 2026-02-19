@@ -48,7 +48,7 @@ Completion notes (2026-02-19):
 6. Validation evidence:
    - `2026-02-19 03:45Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 341 tests).
 
-### [ ] A0.2 Import Retarget Sequencing and Rebind Correctness (`Q0.1`)
+### [x] A0.2 Import Retarget Sequencing and Rebind Correctness (`Q0.1`)
 
 Priority and why this should still be done:
 
@@ -69,6 +69,17 @@ Acceptance checks:
 1. Legacy invalid direct animatable writes are converted into valid autorig-mediated chains.
 2. Retargeting is idempotent across repeated imports.
 3. Diagnostics explicitly identify `created`, `rebound`, and `fallback` cases.
+
+Completion notes (2026-02-19):
+
+1. Importer now supports pre-provisioning autorig inputs before normalization/retarget evaluation, so boundary-invalid direct animatable writes are resolved after target provisioning rather than before it.
+2. Import diagnostics now include explicit `createdAutorigInputs` entries in addition to existing retarget/fallback diagnostics.
+3. Rig graph import now passes generated autorig blueprint inputs into importer rehydration, enforcing \"provision target first, then rebind\" sequencing in the default import path.
+4. Added regression tests in `src/rig/importer.test.ts` for:
+   - provisioning + retarget sequencing correctness,
+   - deterministic repeated imports with provisioned autorig targets.
+5. Validation evidence:
+   - `2026-02-19 03:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 343 tests).
 
 ### [ ] A0.3 Pose Authoring MVP Smoke Coverage
 
