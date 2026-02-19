@@ -298,6 +298,15 @@ describe("buildRigGraphSpec", () => {
         [INPUT_OFFSET.id]: "add",
       },
     });
+    const poseControlNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_pose_control_input_offset" && node.type === "input",
+    );
+    expect(
+      (poseControlNode?.params as { value?: { float?: number } } | undefined)
+        ?.value?.float,
+    ).toBe(INPUT_OFFSET.defaultValue);
+
     const normalizedAddNode = spec.nodes.find(
       (node) =>
         node.id === "input_compose_normalized_add_input_offset" &&

@@ -1551,11 +1551,19 @@ export function createPoseRigStore(
       setState((prev) => {
         const pose = prev.poses.find((p) => p.id === poseId);
         if (!pose) return;
-        if (!prev.standardInputs.some((input) => input.id === inputId)) {
+        const targetInput = prev.standardInputs.find(
+          (input) => input.id === inputId,
+        );
+        if (!targetInput) {
           return;
         }
+        // New channels should start neutral so adding a channel does not
+        // immediately change output when pose weight is already > 0.
         const val =
-          prev.currentValues[inputId] ?? prev.neutralInputs[inputId] ?? 0;
+          prev.neutralInputs[inputId] ??
+          (Number.isFinite(targetInput.defaultValue)
+            ? targetInput.defaultValue
+            : 0);
         const nextPoses = prev.poses.map((p) => {
           if (p.id !== poseId) {
             return p;

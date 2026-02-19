@@ -1502,13 +1502,16 @@ export function buildRigGraphSpec({
     }
 
     const safeInputId = sanitizeNodeId(input.id);
+    const composeBaseline = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
     const poseControlNodeId = `input_pose_control_${safeInputId}`;
     nodes.push({
       id: poseControlNodeId,
       type: "input",
       params: {
         path: buildPoseControlInputPath(faceId, input.id),
-        value: { float: 0 },
+        value: { float: composeBaseline },
       },
     });
 
@@ -1530,9 +1533,6 @@ export function buildRigGraphSpec({
 
     const composeMode = composeModeByInputId.get(input.id) ?? "add";
     let composeOutputNodeId = composeAddNodeId;
-    const composeBaseline = Number.isFinite(input.defaultValue)
-      ? input.defaultValue
-      : 0;
     if (composeMode === "average") {
       composeOutputNodeId = `input_compose_average_${safeInputId}`;
       nodes.push({

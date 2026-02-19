@@ -293,7 +293,23 @@ describe("PoseRigStore", () => {
       targetIds: POSE_IR_TARGETING_CONTRACT,
       syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
     });
-    expect(ir?.poses[0]?.targets).toEqual({ smile: 0.7 });
+    expect(ir?.poses[0]?.targets).toEqual({ smile: 0 });
+  });
+
+  it("adds new pose channels at neutral/default to avoid immediate output jumps", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().updateCurrentValues({ smile: 0.8 });
+    store.getState().addPoseInput(poseId, "smile");
+
+    expect(store.getState().poses[0]?.values).toEqual({ smile: 0 });
   });
 
   it("keeps pose config draft projected from the current pose IR", () => {
