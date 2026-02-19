@@ -18,8 +18,12 @@ import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
-import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
+import {
+  useBundleSynchronizer,
+  type BundleSyncFailure,
+} from "./hooks/useBundleSynchronizer";
 import { AppWizards } from "./components/app/AppWizards";
+import { ImportFailureStack } from "./components/app/ImportFailureStack";
 import {
   RigControllerProvider,
   useBindingAuthoring,
@@ -36,10 +40,14 @@ import type { PoseGroupInspectorSelection } from "./types/poseGroupInspector";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
-import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
+import { useRuntimeBaseBundle } from "./hooks/useRuntimeBaseBundle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import {
+  createPoseImportResult,
+  resolveImportSuccessStatus,
+} from "./types/importOutcome";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
@@ -70,6 +78,8 @@ function AppContent({ loader }: AppContentProps) {
     rootId,
     sourceName,
     isLoading,
+    error: loaderError,
+    clearError: clearLoaderError,
     loadFromFile,
     bundle: loadedBundle,
   } = loader;
@@ -80,14 +90,28 @@ function AppContent({ loader }: AppContentProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
+  const [sampleLoadFailure, setSampleLoadFailure] = useState<{
+    url: string;
+    filename: string;
+    message: string;
+  } | null>(null);
+  const [bundleSyncFailure, setBundleSyncFailure] =
+    useState<BundleSyncFailure | null>(null);
+  const [bundleSyncRetryToken, setBundleSyncRetryToken] = useState(0);
 
   // Reference Face State
 
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
+      clearLoaderError();
+      setSampleLoadFailure(null);
       try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch ${url} `);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch sample "${filename}" (${response.status} ${response.statusText}).`,
+          );
+        }
         const blob = await response.blob();
         const file = new File([blob], filename, { type: "model/gltf-binary" });
 
@@ -95,10 +119,11 @@ function AppContent({ loader }: AppContentProps) {
           loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
         );
       } catch (err) {
-        console.error("Failed to load asset from URL:", err);
+        const message = err instanceof Error ? err.message : String(err);
+        setSampleLoadFailure({ url, filename, message });
       }
     },
-    [loadFromFile],
+    [clearLoaderError, loadFromFile],
   );
 
   const handleLoadQuori = useCallback(() => {
@@ -129,11 +154,6 @@ function AppContent({ loader }: AppContentProps) {
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
-  useGraphRuntime((state) => state.graphSpec);
-  useGraphRuntime((state) => state.poseGraphSpec);
-  useGraphRuntime((state) => state.poseConfig);
-  useGraphRuntime((state) => state.discrepancyReview);
-  useGraphRuntime((state) => state.resolveDiscrepancyReview);
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
@@ -144,6 +164,9 @@ function AppContent({ loader }: AppContentProps) {
     (state) => state.standardInputsByPath,
   );
   const rigOutputLookup = useBindingAuthoring((state) => state.rigOutputLookup);
+  const createMissingStandardInput = useBindingAuthoring(
+    (state) => state.handleCreateCustomStandardInput,
+  );
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
@@ -172,7 +195,12 @@ function AppContent({ loader }: AppContentProps) {
         await showAlert(
           `Pose graph imported with ${warnings.length} warning(s). Review Pose diagnostics in the Pose Rig panel.`,
         );
+        return createPoseImportResult(
+          resolveImportSuccessStatus(true),
+          `Pose graph import applied with ${warnings.length} warning(s).`,
+        );
       }
+      return createPoseImportResult(resolveImportSuccessStatus(false));
     },
     [poseRig, showAlert],
   );
@@ -187,6 +215,7 @@ function AppContent({ loader }: AppContentProps) {
     standardInputs,
     rigOutputLookup,
     standardInputsByPath,
+    createMissingStandardInput,
     alertDialog: showAlert,
     applyPoseGraphImport,
   });
@@ -197,6 +226,12 @@ function AppContent({ loader }: AppContentProps) {
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
+  const handleBundleSyncFailure = useCallback((failure: BundleSyncFailure) => {
+    setBundleSyncFailure(failure);
+  }, []);
+  const handleBundleSyncSuccess = useCallback(() => {
+    setBundleSyncFailure(null);
+  }, []);
 
   useBundleSynchronizer({
     faceId,
@@ -204,8 +239,11 @@ function AppContent({ loader }: AppContentProps) {
     loadedBundle: loader.bundle,
     standardInputCount,
     skipDiscrepancyCheck,
+    retryToken: bundleSyncRetryToken,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
+    onFailure: handleBundleSyncFailure,
+    onSuccess: handleBundleSyncSuccess,
   });
 
   const { panels } = useWorkspaceStore();
@@ -259,12 +297,18 @@ function AppContent({ loader }: AppContentProps) {
 
   const handleNewClick = useCallback(() => {
     loader.reset();
-  }, [loader]);
+    clearLoaderError();
+    setSampleLoadFailure(null);
+    setBundleSyncFailure(null);
+  }, [clearLoaderError, loader]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
+      clearLoaderError();
+      setSampleLoadFailure(null);
+      setBundleSyncFailure(null);
 
       if (skipNextDiscrepancyCheck.current) {
         uiActions.setSkipDiscrepancyCheck(true);
@@ -278,7 +322,7 @@ function AppContent({ loader }: AppContentProps) {
       );
       event.target.value = "";
     },
-    [loadFromFile, uiActions],
+    [clearLoaderError, loadFromFile, uiActions],
   );
 
   const handleImportClick = useCallback(() => {
@@ -301,7 +345,7 @@ function AppContent({ loader }: AppContentProps) {
     />
   );
 
-  const runtimeBundle = buildRuntimeBaseBundle({
+  const runtimeBundle = useRuntimeBaseBundle({
     namespace: DEFAULT_NAMESPACE,
     world: runtimeWorld ?? null,
     animatables: runtimeAnimatables ?? null,
@@ -317,6 +361,57 @@ function AppContent({ loader }: AppContentProps) {
       }
       style={{ height: "100%", width: "100%" }}
     >
+      <ImportFailureStack
+        failures={[
+          ...(loaderError
+            ? [
+                {
+                  id: "asset-loader-failure",
+                  title: "Asset import failed",
+                  message: loaderError,
+                  retryLabel: "Retry Import",
+                  onRetry: handleImportClick,
+                  onDismiss: clearLoaderError,
+                },
+              ]
+            : []),
+          ...(sampleLoadFailure
+            ? [
+                {
+                  id: "sample-load-failure",
+                  title: "Sample load failed",
+                  message: sampleLoadFailure.message,
+                  retryLabel: "Retry Sample",
+                  onRetry: () =>
+                    void handleLoadAssetFromUrl(
+                      sampleLoadFailure.url,
+                      sampleLoadFailure.filename,
+                    ),
+                  onDismiss: () => setSampleLoadFailure(null),
+                },
+              ]
+            : []),
+          ...(bundleSyncFailure
+            ? [
+                {
+                  id: `bundle-sync-failure-${bundleSyncFailure.phase}`,
+                  title:
+                    bundleSyncFailure.phase === "rig"
+                      ? "Bundle rig import failed"
+                      : "Bundle pose import failed",
+                  message: bundleSyncFailure.message,
+                  retryLabel: "Retry Bundle Import",
+                  onRetry: () => {
+                    setBundleSyncFailure(null);
+                    setBundleSyncRetryToken((current) => current + 1);
+                  },
+                  onDismiss: () => setBundleSyncFailure(null),
+                },
+              ]
+            : []),
+        ]}
+      />
+
       {panels.referenceFace.isVisible ? (
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}

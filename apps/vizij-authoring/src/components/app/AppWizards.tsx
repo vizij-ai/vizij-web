@@ -1,8 +1,12 @@
 import React from "react";
 import { DiscrepancyWizard } from "../discrepancy/DiscrepancyWizard";
-import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
+import {
+  PoseGraphRemapWizard,
+  type PoseGraphRemapRow,
+} from "../poseRig/PoseGraphRemapWizard";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import type { PoseImportResult } from "../../types/importOutcome";
 import { ExportDialog } from "./ExportDialog";
 
 interface AppWizardsProps {
@@ -12,9 +16,11 @@ interface AppWizardsProps {
   sourceName: string | null;
   loadedBundle: any;
   canExport: boolean;
-  handleImportPoseGraphFile: (file: File) => Promise<void>;
+  handleImportPoseGraphFile: (file: File) => Promise<PoseImportResult>;
   poseGraphRemap: any;
-  handlePoseGraphRemapApply: (remappedGraph: any) => void;
+  handlePoseGraphRemapApply: (
+    rows: PoseGraphRemapRow[],
+  ) => Promise<PoseImportResult>;
   handlePoseGraphRemapCancel: () => void;
 }
 

@@ -28,6 +28,11 @@ import {
   rewriteGraphFaceNamespace,
 } from "../utils/graphDiff";
 import { sanitizeFaceId } from "../utils/faceId";
+import { computeObjectHash } from "../utils/hash";
+import {
+  resolveRigImportSuccessStatus,
+  type GraphImportResult,
+} from "../types/importOutcome";
 
 interface UseRigGraphImportOptions {
   faceId: string;
@@ -61,6 +66,21 @@ interface UseRigGraphImportOptions {
   debugLog: (...args: unknown[]) => void;
 }
 
+export async function computeDiscrepancySignatureKey(payload: {
+  importedComparable: unknown;
+  rebuiltComparable: unknown;
+  importedFaceId: string | null;
+  faceId: string;
+}): Promise<string> {
+  const hash = await computeObjectHash({
+    importedComparable: payload.importedComparable,
+    rebuiltComparable: payload.rebuiltComparable,
+    importedFaceId: payload.importedFaceId ?? "",
+    faceId: payload.faceId,
+  });
+  return `rig-import-v2:${hash}`;
+}
+
 export function useRigGraphImport({
   faceId,
   animatables,
@@ -88,7 +108,7 @@ export function useRigGraphImport({
   const pendingReviewRef = useRef<Promise<DiscrepancyResolutionResult> | null>(
     null,
   );
-  const lastAcceptedSignatureRef = useRef<string | null>(null);
+  const acceptedSignatureKeysRef = useRef<Set<string>>(new Set());
   // faceRenameRef is passed down so persistence can avoid clearing on rename.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const faceRenameRef = pendingFaceRenameRef;
@@ -97,7 +117,7 @@ export function useRigGraphImport({
     async (
       spec: GraphSpec,
       options?: { skipDiscrepancyCheck?: boolean },
-    ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
+    ): Promise<GraphImportResult> => {
       try {
         const blueprint = buildAutoRigInputBlueprints(
           world,
@@ -311,21 +331,25 @@ export function useRigGraphImport({
           (importedSignature !== rebuiltSignature ||
             missingBlueprintPaths.length > 0);
 
-        const signatureKey = [
-          importedSignature.length,
-          rebuiltSignature.length,
-          importedFaceId ?? "",
-          faceId ?? "",
-        ].join("|");
+        const signatureKey = await computeDiscrepancySignatureKey({
+          importedComparable,
+          rebuiltComparable,
+          importedFaceId,
+          faceId,
+        });
 
         if (
           shouldOpenDiscrepancyWizard &&
-          signatureKey === lastAcceptedSignatureRef.current
+          acceptedSignatureKeysRef.current.has(signatureKey)
         ) {
           debugLog("skip discrepancy – signature accepted previously", {
             signatureKey,
           });
-          return { faceChanged: false, importedFaceId: importedFaceId ?? null };
+          return {
+            status: "success_with_repair",
+            faceChanged: false,
+            importedFaceId: importedFaceId ?? null,
+          };
         }
 
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
@@ -427,7 +451,11 @@ export function useRigGraphImport({
           debugLog("discrepancy result", discrepancyResult);
 
           if (!discrepancyResult?.accepted) {
-            return { faceChanged: false, importedFaceId: null };
+            return {
+              status: "blocked_recoverable",
+              faceChanged: false,
+              importedFaceId: null,
+            };
           }
         }
 
@@ -470,7 +498,7 @@ export function useRigGraphImport({
         if (discrepancyResult) {
           debugLog("discrepancy resolution applied", discrepancyResult);
           if (discrepancyResult.accepted) {
-            lastAcceptedSignatureRef.current = signatureKey;
+            acceptedSignatureKeysRef.current.add(signatureKey);
           }
         }
 
@@ -502,6 +530,13 @@ export function useRigGraphImport({
         }
 
         return {
+          status: resolveRigImportSuccessStatus({
+            discrepancyReviewed: shouldOpenDiscrepancyWizard,
+            normalizationCount,
+            animatableFallbackCount:
+              normalizationDiagnostics.animatableFallbacks.length,
+            missingBlueprintPathCount: missingBlueprintPaths.length,
+          }),
           faceChanged: faceChangedDuringImport || Boolean(targetFaceId),
           importedFaceId: targetFaceId ?? importedFaceId ?? null,
         };
@@ -511,7 +546,11 @@ export function useRigGraphImport({
             error instanceof Error ? error.message : String(error)
           }`,
         );
-        return { faceChanged: false, importedFaceId: null };
+        return {
+          status: "blocked_fatal",
+          faceChanged: false,
+          importedFaceId: null,
+        };
       }
     },
     [

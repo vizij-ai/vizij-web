@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import type { StandardRigInput } from "@vizij/utils";
+import { ensureStandardPathInput } from "@vizij/authoring-shared";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Chip } from "../ui/Chip";
 import { cn } from "../../utils/cn";
+import type { PoseImportResult } from "../../types/importOutcome";
 
 export interface PoseGraphRemapOption {
   path: string;
@@ -26,6 +31,7 @@ export interface PoseGraphRemapRow {
   confidence?: PoseRemapConfidence;
   confidenceScore?: number;
   rationale?: string[];
+  createMissingInput?: boolean;
   status: "auto" | "review";
   reason?: string;
   needsReview?: boolean;
@@ -36,7 +42,9 @@ interface PoseGraphRemapWizardProps {
   autoRows: PoseGraphRemapRow[];
   rows: PoseGraphRemapRow[];
   standardInputs: StandardRigInput[];
-  onApply: (rows: PoseGraphRemapRow[]) => Promise<void> | void;
+  onApply: (
+    rows: PoseGraphRemapRow[],
+  ) => Promise<PoseImportResult> | PoseImportResult;
   onCancel: () => void;
 }
 
@@ -70,6 +78,17 @@ export function PoseGraphRemapWizard({
   });
   const [filterMode, setFilterMode] = useState<RemapFilterMode>("all");
   const [query, setQuery] = useState("");
+  const [createMissingByRow, setCreateMissingByRow] = useState<
+    Record<string, boolean>
+  >(() => {
+    const map: Record<string, boolean> = {};
+    allRows.forEach((row) => {
+      if (row.createMissingInput) {
+        map[row.id] = true;
+      }
+    });
+    return map;
+  });
   const nonDeltaCount = useMemo(
     () => allRows.filter((row) => row.isDeltaOutput === false).length,
     [allRows],
@@ -98,6 +117,27 @@ export function PoseGraphRemapWizard({
   }, [allRows]);
 
   useEffect(() => {
+    setCreateMissingByRow((current) => {
+      const next = { ...current };
+      let changed = false;
+      const rowIds = new Set(allRows.map((row) => row.id));
+      Object.keys(next).forEach((rowId) => {
+        if (!rowIds.has(rowId)) {
+          delete next[rowId];
+          changed = true;
+        }
+      });
+      allRows.forEach((row) => {
+        if (row.createMissingInput && !next[row.id]) {
+          next[row.id] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [allRows]);
+
+  useEffect(() => {
     if (nonDeltaCount === 0 && includeNonDelta) {
       setIncludeNonDelta(false);
     }
@@ -110,6 +150,16 @@ export function PoseGraphRemapWizard({
         path: input.path,
         label: input.label,
       })),
+    [standardInputs],
+  );
+
+  const knownStandardPaths = useMemo(
+    () =>
+      new Set(
+        standardInputs.map((input) =>
+          normalizeStandardRigInputPath(ensureStandardPathInput(input.path)),
+        ),
+      ),
     [standardInputs],
   );
 
@@ -127,10 +177,12 @@ export function PoseGraphRemapWizard({
       const rowsById = new Map(rowsForApply.map((row) => [row.id, row]));
       rowsForApply.forEach((row) => {
         const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
-        if (!resolvedPath) {
+        if (!resolvedPath.length) {
           return;
         }
-        const key = resolvedPath.toLowerCase();
+        const key = normalizeStandardRigInputPath(
+          ensureStandardPathInput(resolvedPath),
+        );
         const ids = rowIdsByPath.get(key) ?? [];
         ids.push(row.id);
         rowIdsByPath.set(key, ids);
@@ -161,6 +213,27 @@ export function PoseGraphRemapWizard({
       };
     }, [edits, rowsForApply]);
 
+  const missingCreateSelectionRowIds = useMemo(() => {
+    const ids = new Set<string>();
+    rowsForApply.forEach((row) => {
+      const resolvedPath = (edits[row.id] ?? row.suggestedPath ?? "").trim();
+      if (!resolvedPath) {
+        return;
+      }
+      const normalized = normalizeStandardRigInputPath(
+        ensureStandardPathInput(resolvedPath),
+      );
+      if (knownStandardPaths.has(normalized)) {
+        return;
+      }
+      if (createMissingByRow[row.id]) {
+        return;
+      }
+      ids.add(row.id);
+    });
+    return ids;
+  }, [createMissingByRow, edits, knownStandardPaths, rowsForApply]);
+
   const summary = useMemo(() => {
     let mapped = 0;
     let high = 0;
@@ -182,7 +255,8 @@ export function PoseGraphRemapWizard({
       if (
         row.needsReview ||
         row.confidence === "low" ||
-        conflictRowIds.has(row.id)
+        conflictRowIds.has(row.id) ||
+        missingCreateSelectionRowIds.has(row.id)
       ) {
         needsAttention += 1;
       }
@@ -198,6 +272,7 @@ export function PoseGraphRemapWizard({
       auto: autoRows.length,
       review: rows.length,
       conflicts: conflictRowIds.size,
+      missingCreateSelections: missingCreateSelectionRowIds.size,
       considered: rowsForApply.length,
       hiddenNonDelta: allRows.length - rowsForApply.length,
     };
@@ -206,6 +281,7 @@ export function PoseGraphRemapWizard({
     autoRows.length,
     conflictRowIds,
     edits,
+    missingCreateSelectionRowIds,
     rows.length,
     rowsForApply,
   ]);
@@ -215,7 +291,10 @@ export function PoseGraphRemapWizard({
     return rowsForApply.filter((row) => {
       const lowConfidence = row.confidence === "low";
       const needsAttention =
-        row.needsReview || lowConfidence || conflictRowIds.has(row.id);
+        row.needsReview ||
+        lowConfidence ||
+        conflictRowIds.has(row.id) ||
+        missingCreateSelectionRowIds.has(row.id);
       if (filterMode === "attention" && !needsAttention) {
         return false;
       }
@@ -242,7 +321,14 @@ export function PoseGraphRemapWizard({
         .toLowerCase();
       return haystack.includes(queryValue);
     });
-  }, [conflictRowIds, edits, filterMode, query, rowsForApply]);
+  }, [
+    conflictRowIds,
+    edits,
+    filterMode,
+    missingCreateSelectionRowIds,
+    query,
+    rowsForApply,
+  ]);
 
   const unresolvedRowsWithSuggestions = useMemo(
     () =>
@@ -258,7 +344,8 @@ export function PoseGraphRemapWizard({
     (rowsForApply.every((row) =>
       Boolean((edits[row.id] ?? row.suggestedPath)?.trim()),
     ) &&
-      !hasConflicts);
+      !hasConflicts &&
+      missingCreateSelectionRowIds.size === 0);
 
   const handleApplyTopSuggestions = () => {
     if (unresolvedRowsWithSuggestions.length === 0) {
@@ -278,12 +365,17 @@ export function PoseGraphRemapWizard({
 
   const handleResetMappings = () => {
     const next: Record<string, string> = {};
+    const nextCreateMissing: Record<string, boolean> = {};
     allRows.forEach((row) => {
       if (row.suggestedPath) {
         next[row.id] = row.suggestedPath;
       }
+      if (row.createMissingInput) {
+        nextCreateMissing[row.id] = true;
+      }
     });
     setEdits(next);
+    setCreateMissingByRow(nextCreateMissing);
   };
 
   const confidenceLabel = (confidence?: PoseRemapConfidence) => {
@@ -392,6 +484,11 @@ export function PoseGraphRemapWizard({
               </Chip>
               <Chip tone={summary.conflicts > 0 ? "danger" : "muted"}>
                 Conflicts {summary.conflicts}
+              </Chip>
+              <Chip
+                tone={summary.missingCreateSelections > 0 ? "warning" : "muted"}
+              >
+                Missing create decisions {summary.missingCreateSelections}
               </Chip>
               <Chip tone="info">Auto {summary.auto}</Chip>
               <Chip tone="default">Review {summary.review}</Chip>
@@ -546,124 +643,178 @@ export function PoseGraphRemapWizard({
             {rowsForApply.length > 0 ? (
               filteredRows.length > 0 ? (
                 <div className="space-y-3">
-                  {filteredRows.map((row) => (
-                    <article
-                      key={row.id}
-                      className={cn(
-                        "bg-slate-950 rounded-2xl border p-5 space-y-4 transition-all",
-                        row.needsReview || conflictRowIds.has(row.id)
-                          ? "border-amber-500/30 bg-amber-500/[0.02]"
-                          : "border-white/5",
-                      )}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <p className="text-xs font-bold text-slate-200">
-                            Pose {row.poseSlug ?? row.id}
-                          </p>
-                          {row.confidence && (
-                            <span
-                              className={cn(
-                                "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                                row.confidence === "high" &&
-                                  "bg-emerald-500/20 text-emerald-300",
-                                row.confidence === "medium" &&
-                                  "bg-sky-500/20 text-sky-300",
-                                row.confidence === "low" &&
-                                  "bg-amber-500/20 text-amber-300",
-                              )}
-                            >
-                              {confidenceLabel(row.confidence)}
-                            </span>
-                          )}
-                          {row.isDeltaOutput === false && (
-                            <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-indigo-500/20 text-indigo-300">
-                              Non-delta
-                            </span>
-                          )}
-                          <p className="text-[10px] text-slate-400 font-mono">
-                            Variable:{" "}
-                            {row.currentInputId ?? row.poseSlug ?? "(unknown)"}
-                          </p>
-                          <code className="text-[11px] text-slate-500 font-mono">
-                            {row.originalPath ?? "(missing path)"}
-                          </code>
-                          {row.reason && (
-                            <p className="text-[10px] text-amber-400/80 font-medium">
-                              {row.reason}
-                            </p>
-                          )}
-                          {row.rationale && row.rationale.length > 0 && (
-                            <p className="text-[10px] text-slate-500">
-                              {row.rationale.join(" · ")}
-                            </p>
-                          )}
-                          {conflictRowIds.has(row.id) && (
-                            <p className="text-[10px] text-amber-300 font-medium">
-                              This mapping conflicts with another output.
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                  {filteredRows.map((row) => {
+                    const resolvedPath = (
+                      edits[row.id] ??
+                      row.suggestedPath ??
+                      ""
+                    ).trim();
+                    const normalizedResolvedPath = resolvedPath
+                      ? normalizeStandardRigInputPath(
+                          ensureStandardPathInput(resolvedPath),
+                        )
+                      : null;
+                    const mapsToKnownInput = normalizedResolvedPath
+                      ? knownStandardPaths.has(normalizedResolvedPath)
+                      : false;
+                    const shouldCreateMissing = Boolean(
+                      createMissingByRow[row.id],
+                    );
+                    const requiresCreateDecision =
+                      Boolean(normalizedResolvedPath) && !mapsToKnownInput;
 
-                      <div className="space-y-3">
-                        <div className="space-y-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600">
-                          Map to standard input
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            id={`pose-remap-${row.id}`}
-                            className="flex-1 h-10 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            list="pose-remap-options"
-                            placeholder="/standard/face/..."
-                            value={edits[row.id] ?? ""}
-                            onChange={(event) =>
-                              setEdits((current) => ({
-                                ...current,
-                                [row.id]: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-
-                        {row.options && row.options.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-2">
-                            <span className="w-full text-[9px] font-black uppercase tracking-widest text-slate-700 mb-1">
-                              Suggestions
-                            </span>
-                            {row.options.map((option) => (
-                              <button
-                                key={`${row.id}-${option.path}`}
-                                type="button"
-                                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-[11px] font-bold text-slate-400 hover:text-slate-200 flex items-center gap-2"
-                                onClick={() =>
-                                  setEdits((current) => ({
-                                    ...current,
-                                    [row.id]: option.path,
-                                  }))
-                                }
-                              >
-                                {option.label ?? option.path}
-                                <span
-                                  className={cn(
-                                    "text-[9px] font-black px-1.5 py-0.5 rounded",
-                                    option.confidence === "high" &&
-                                      "text-emerald-300 bg-emerald-500/20",
-                                    option.confidence === "medium" &&
-                                      "text-sky-300 bg-sky-500/20",
-                                    option.confidence === "low" &&
-                                      "text-amber-300 bg-amber-500/20",
-                                  )}
-                                >
-                                  {(option.score * 100).toFixed(0)}%
-                                </span>
-                              </button>
-                            ))}
-                          </div>
+                    return (
+                      <article
+                        key={row.id}
+                        className={cn(
+                          "bg-slate-950 rounded-2xl border p-5 space-y-4 transition-all",
+                          row.needsReview ||
+                            conflictRowIds.has(row.id) ||
+                            missingCreateSelectionRowIds.has(row.id)
+                            ? "border-amber-500/30 bg-amber-500/[0.02]"
+                            : "border-white/5",
                         )}
-                      </div>
-                    </article>
-                  ))}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-slate-200">
+                              Pose {row.poseSlug ?? row.id}
+                            </p>
+                            {row.confidence && (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                                  row.confidence === "high" &&
+                                    "bg-emerald-500/20 text-emerald-300",
+                                  row.confidence === "medium" &&
+                                    "bg-sky-500/20 text-sky-300",
+                                  row.confidence === "low" &&
+                                    "bg-amber-500/20 text-amber-300",
+                                )}
+                              >
+                                {confidenceLabel(row.confidence)}
+                              </span>
+                            )}
+                            {row.isDeltaOutput === false && (
+                              <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-indigo-500/20 text-indigo-300">
+                                Non-delta
+                              </span>
+                            )}
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              Variable:{" "}
+                              {row.currentInputId ??
+                                row.poseSlug ??
+                                "(unknown)"}
+                            </p>
+                            <code className="text-[11px] text-slate-500 font-mono">
+                              {row.originalPath ?? "(missing path)"}
+                            </code>
+                            {row.reason && (
+                              <p className="text-[10px] text-amber-400/80 font-medium">
+                                {row.reason}
+                              </p>
+                            )}
+                            {row.rationale && row.rationale.length > 0 && (
+                              <p className="text-[10px] text-slate-500">
+                                {row.rationale.join(" · ")}
+                              </p>
+                            )}
+                            {conflictRowIds.has(row.id) && (
+                              <p className="text-[10px] text-amber-300 font-medium">
+                                This mapping conflicts with another output.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="space-y-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            Map to standard input
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              id={`pose-remap-${row.id}`}
+                              className="flex-1 h-10 bg-slate-900 border border-white/10 rounded-xl px-4 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors"
+                              list="pose-remap-options"
+                              placeholder="/standard/face/..."
+                              value={edits[row.id] ?? ""}
+                              onChange={(event) =>
+                                setEdits((current) => ({
+                                  ...current,
+                                  [row.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+
+                          {requiresCreateDecision && (
+                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-1">
+                              <p className="text-[10px] text-amber-200 font-medium">
+                                {normalizedResolvedPath} does not exist in
+                                current standard inputs.
+                              </p>
+                              <label className="flex items-center gap-2 text-[10px] text-amber-100">
+                                <input
+                                  type="checkbox"
+                                  className="h-3.5 w-3.5"
+                                  checked={shouldCreateMissing}
+                                  onChange={(event) =>
+                                    setCreateMissingByRow((current) => ({
+                                      ...current,
+                                      [row.id]: event.target.checked,
+                                    }))
+                                  }
+                                />
+                                Create missing standard input during apply
+                              </label>
+                              {!shouldCreateMissing && (
+                                <p className="text-[10px] text-amber-300/90">
+                                  Choose an existing path or enable creation to
+                                  continue.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {row.options && row.options.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              <span className="w-full text-[9px] font-black uppercase tracking-widest text-slate-700 mb-1">
+                                Suggestions
+                              </span>
+                              {row.options.map((option) => (
+                                <button
+                                  key={`${row.id}-${option.path}`}
+                                  type="button"
+                                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-[11px] font-bold text-slate-400 hover:text-slate-200 flex items-center gap-2"
+                                  onClick={() =>
+                                    setEdits((current) => ({
+                                      ...current,
+                                      [row.id]: option.path,
+                                    }))
+                                  }
+                                >
+                                  {option.label ?? option.path}
+                                  <span
+                                    className={cn(
+                                      "text-[9px] font-black px-1.5 py-0.5 rounded",
+                                      option.confidence === "high" &&
+                                        "text-emerald-300 bg-emerald-500/20",
+                                      option.confidence === "medium" &&
+                                        "text-sky-300 bg-sky-500/20",
+                                      option.confidence === "low" &&
+                                        "text-amber-300 bg-amber-500/20",
+                                    )}
+                                  >
+                                    {(option.score * 100).toFixed(0)}%
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="h-32 flex flex-col items-center justify-center bg-slate-950/50 rounded-2xl border border-white/5 border-dashed gap-2">
@@ -727,6 +878,7 @@ export function PoseGraphRemapWizard({
                 ...row,
                 suggestedPath:
                   edits[row.id]?.trim() || row.suggestedPath || null,
+                createMissingInput: Boolean(createMissingByRow[row.id]),
               }));
               void onApply(nextRows);
             }}

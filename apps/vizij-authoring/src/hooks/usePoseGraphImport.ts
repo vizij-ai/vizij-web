@@ -19,6 +19,10 @@ import {
 import { collectPoseGraphDeltaInputs } from "../poseRig/graphParser";
 import { remapPoseGraphInputIds } from "../poseRig/graphTransforms";
 import { buildRigInputPath } from "../poseRig/utils";
+import {
+  createPoseImportResult,
+  type PoseImportResult,
+} from "../types/importOutcome";
 import type {
   PoseGraphRemapOption,
   PoseGraphRemapRow,
@@ -37,17 +41,20 @@ interface UsePoseGraphImportOptions {
   standardInputs: StandardRigInput[];
   rigOutputLookup: ReadonlyMap<string, StandardRigInput>;
   standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
+  createMissingStandardInput?: (path: string) => StandardRigInput | null;
   alertDialog: (message: string) => Promise<void> | void;
   applyPoseGraphImport: (
     spec: GraphSpec,
     sourceNameHint: string,
-  ) => Promise<void> | void;
+  ) => Promise<PoseImportResult> | PoseImportResult;
 }
 
 export interface UsePoseGraphImportResult {
   poseGraphRemap: PoseGraphRemapState | null;
-  handleImportPoseGraphFile: (file: File) => Promise<void>;
-  handlePoseGraphRemapApply: (rows: PoseGraphRemapRow[]) => Promise<void>;
+  handleImportPoseGraphFile: (file: File) => Promise<PoseImportResult>;
+  handlePoseGraphRemapApply: (
+    rows: PoseGraphRemapRow[],
+  ) => Promise<PoseImportResult>;
   handlePoseGraphRemapCancel: () => void;
 }
 
@@ -68,7 +75,30 @@ export function resolvePoseGraphSourceInputId(
 
 export type PoseGraphRemapApplyPlan =
   | { status: "ready"; spec: GraphSpec }
+  | { status: "needs_creation"; paths: string[] }
   | { status: "conflict"; message: string };
+
+function compareRemapRows(left: PoseGraphRemapRow, right: PoseGraphRemapRow) {
+  const leftLabel = (
+    left.poseSlug ??
+    left.currentInputId ??
+    left.nodeId ??
+    left.id
+  ).toLowerCase();
+  const rightLabel = (
+    right.poseSlug ??
+    right.currentInputId ??
+    right.nodeId ??
+    right.id
+  ).toLowerCase();
+  if (leftLabel !== rightLabel) {
+    return leftLabel.localeCompare(rightLabel);
+  }
+  if (left.nodeId !== right.nodeId) {
+    return left.nodeId.localeCompare(right.nodeId);
+  }
+  return left.id.localeCompare(right.id);
+}
 
 export function buildPoseGraphRemapApplyPlan(params: {
   spec: GraphSpec;
@@ -77,11 +107,16 @@ export function buildPoseGraphRemapApplyPlan(params: {
   faceSegment: string;
 }): PoseGraphRemapApplyPlan {
   const { spec, rows, standardInputsByPath, faceSegment } = params;
-  const combinedRows = rows.filter((row) => row.suggestedPath);
+  const combinedRows = rows
+    .filter((row) => Boolean(row.suggestedPath?.trim()))
+    .sort(compareRemapRows);
   const targetToSourceMap = new Map<string, Set<string>>();
+  const targetLabels = new Map<string, string>();
   const idRemaps: Array<{ fromId: string; toId: string }> = [];
   const assigned = new Map<string, string>();
   const outputPathUpdates: Array<{ nodeId: string; path: string }> = [];
+  const missingCreateRows: Array<{ rowId: string; path: string }> = [];
+  const pathsToCreate = new Set<string>();
 
   combinedRows.forEach((row) => {
     const desired = row.suggestedPath?.trim();
@@ -93,11 +128,26 @@ export function buildPoseGraphRemapApplyPlan(params: {
     const normalizedStandardPath = normalizeStandardRigInputPath(standardPath);
     const targetInput = standardInputsByPath.get(normalizedStandardPath);
     const sourceInputId = resolvePoseGraphSourceInputId(row);
+    const shouldCreateMissing = Boolean(row.createMissingInput);
+    const targetKey = targetInput
+      ? targetInput.id
+      : `path:${normalizedStandardPath}`;
 
-    if (targetInput && sourceInputId) {
-      const sourceSet = targetToSourceMap.get(targetInput.id) ?? new Set();
+    targetLabels.set(targetKey, targetInput?.id ?? normalizedStandardPath);
+    if (!targetInput && shouldCreateMissing) {
+      pathsToCreate.add(normalizedStandardPath);
+    }
+    if (!targetInput && !shouldCreateMissing) {
+      missingCreateRows.push({
+        rowId: row.poseSlug ?? row.currentInputId ?? row.nodeId ?? row.id,
+        path: normalizedStandardPath,
+      });
+    }
+
+    if (sourceInputId) {
+      const sourceSet = targetToSourceMap.get(targetKey) ?? new Set();
       sourceSet.add(sourceInputId);
-      targetToSourceMap.set(targetInput.id, sourceSet);
+      targetToSourceMap.set(targetKey, sourceSet);
     }
 
     if (
@@ -116,14 +166,39 @@ export function buildPoseGraphRemapApplyPlan(params: {
     });
   });
 
+  if (missingCreateRows.length > 0) {
+    const details = missingCreateRows
+      .sort(
+        (left, right) =>
+          left.path.localeCompare(right.path) ||
+          left.rowId.localeCompare(right.rowId),
+      )
+      .map((entry) => `${entry.rowId} -> ${entry.path}`)
+      .join("\n");
+    return {
+      status: "conflict",
+      message:
+        "Resolve unknown standard inputs before applying remap:\n" +
+        `${details}\n` +
+        "Enable create-missing for each unknown row or choose an existing standard input.",
+    };
+  }
+
   const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
     ([, sourceSet]) => sourceSet.size > 1,
   );
   if (conflictingTargets.length > 0) {
     const conflictMessage = conflictingTargets
+      .sort(([left], [right]) =>
+        (targetLabels.get(left) ?? left).localeCompare(
+          targetLabels.get(right) ?? right,
+        ),
+      )
       .map(
         ([targetId, sourceSet]) =>
-          `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
+          `${targetLabels.get(targetId) ?? targetId} <= ${Array.from(sourceSet)
+            .sort((left, right) => left.localeCompare(right))
+            .join(", ")}`,
       )
       .join("\n");
     return {
@@ -132,12 +207,37 @@ export function buildPoseGraphRemapApplyPlan(params: {
     };
   }
 
+  if (pathsToCreate.size > 0) {
+    return {
+      status: "needs_creation",
+      paths: Array.from(pathsToCreate).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    };
+  }
+
   const nextSpec = cloneSerializable(spec) as GraphSpec;
-  outputPathUpdates.forEach(({ nodeId, path }) => {
-    updatePoseGraphOutputPath(nextSpec, nodeId, path);
-  });
+  outputPathUpdates
+    .slice()
+    .sort(
+      (left, right) =>
+        left.nodeId.localeCompare(right.nodeId) ||
+        left.path.localeCompare(right.path),
+    )
+    .forEach(({ nodeId, path }) => {
+      updatePoseGraphOutputPath(nextSpec, nodeId, path);
+    });
   if (idRemaps.length > 0) {
-    remapPoseGraphInputIds(nextSpec, idRemaps);
+    remapPoseGraphInputIds(
+      nextSpec,
+      idRemaps
+        .slice()
+        .sort(
+          (left, right) =>
+            left.fromId.localeCompare(right.fromId) ||
+            left.toId.localeCompare(right.toId),
+        ),
+    );
   }
 
   return { status: "ready", spec: nextSpec };
@@ -158,6 +258,7 @@ export function usePoseGraphImport({
   standardInputs,
   rigOutputLookup,
   standardInputsByPath,
+  createMissingStandardInput,
   alertDialog,
   applyPoseGraphImport,
 }: UsePoseGraphImportOptions): UsePoseGraphImportResult {
@@ -300,16 +401,23 @@ export function usePoseGraphImport({
             reviewRows,
             rigNameHint: file.name.replace(/\.json$/i, ""),
           });
-          return;
+          return createPoseImportResult(
+            "blocked_recoverable",
+            "Pose graph import requires remap decisions.",
+          );
         }
 
-        await applyPoseGraphImport(workingSpec, file.name);
+        return (
+          (await applyPoseGraphImport(workingSpec, file.name)) ??
+          createPoseImportResult("success")
+        );
       } catch (error) {
         await alertDialog(
           `Failed to import pose graph: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
+        return createPoseImportResult("blocked_fatal");
       }
     },
     [
@@ -325,24 +433,81 @@ export function usePoseGraphImport({
   const handlePoseGraphRemapApply = useCallback(
     async (rows: PoseGraphRemapRow[]) => {
       if (!poseGraphRemap) {
-        return;
+        return createPoseImportResult(
+          "blocked_recoverable",
+          "Pose graph remap state is not available.",
+        );
       }
-      const plan = buildPoseGraphRemapApplyPlan({
+      const workingStandardInputsByPath = new Map(standardInputsByPath);
+      let plan = buildPoseGraphRemapApplyPlan({
         spec: poseGraphRemap.spec,
         rows,
-        standardInputsByPath,
+        standardInputsByPath: workingStandardInputsByPath,
         faceSegment,
       });
+      if (plan.status === "needs_creation") {
+        if (!createMissingStandardInput) {
+          const message =
+            "Cannot create missing standard inputs in this import flow:\n" +
+            plan.paths.join("\n");
+          await alertDialog(message);
+          return createPoseImportResult("blocked_recoverable", message);
+        }
+
+        const createFailures: string[] = [];
+        for (const path of plan.paths) {
+          if (workingStandardInputsByPath.has(path)) {
+            continue;
+          }
+          const created = createMissingStandardInput(path);
+          if (!created) {
+            createFailures.push(`${path} (creation failed)`);
+            continue;
+          }
+          const createdPath = normalizeStandardRigInputPath(
+            ensureStandardPathInput(created.path),
+          );
+          workingStandardInputsByPath.set(createdPath, created);
+          if (createdPath !== path) {
+            createFailures.push(`${path} (created as ${createdPath})`);
+          }
+        }
+        if (createFailures.length > 0) {
+          const message =
+            "Failed to create required standard inputs:\n" +
+            createFailures.join("\n");
+          await alertDialog(message);
+          return createPoseImportResult("blocked_recoverable", message);
+        }
+
+        plan = buildPoseGraphRemapApplyPlan({
+          spec: poseGraphRemap.spec,
+          rows,
+          standardInputsByPath: workingStandardInputsByPath,
+          faceSegment,
+        });
+      }
+      if (plan.status === "needs_creation") {
+        const message =
+          "Missing standard inputs remain unresolved:\n" +
+          plan.paths.join("\n");
+        await alertDialog(message);
+        return createPoseImportResult("blocked_recoverable", message);
+      }
       if (plan.status === "conflict") {
         await alertDialog(plan.message);
-        return;
+        return createPoseImportResult("blocked_recoverable", plan.message);
       }
-      await applyPoseGraphImport(plan.spec, poseGraphRemap.rigNameHint);
+      const outcome =
+        (await applyPoseGraphImport(plan.spec, poseGraphRemap.rigNameHint)) ??
+        createPoseImportResult("success_with_repair");
       setPoseGraphRemap(null);
+      return outcome;
     },
     [
       alertDialog,
       applyPoseGraphImport,
+      createMissingStandardInput,
       faceSegment,
       poseGraphRemap,
       standardInputsByPath,

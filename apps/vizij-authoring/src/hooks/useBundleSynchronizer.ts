@@ -5,6 +5,10 @@ import type { PoseRigConfigFile } from "../poseRig/types";
 import { waitForNextFrame } from "../utils/frame";
 import { prepareSpecForImport } from "../utils/graphImport";
 import type { BundleGraphWithIr } from "../types/bundle";
+import {
+  isImportOutcomeSuccess,
+  type GraphImportResult,
+} from "../types/importOutcome";
 import { useLatestRef } from "./useLatestRef";
 
 export interface ImportGraphSpecOptions {
@@ -17,14 +21,19 @@ interface UseBundleSynchronizerOptions {
   loadedBundle: VizijBundleExtension | null;
   standardInputCount: number;
   skipDiscrepancyCheck: boolean;
+  retryToken?: number;
   importGraphSpec: (
     spec: GraphSpec,
     options?: ImportGraphSpecOptions,
-  ) => Promise<{
-    faceChanged: boolean;
-    importedFaceId: string | null;
-  } | void>;
+  ) => Promise<GraphImportResult>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  onFailure?: (failure: BundleSyncFailure) => void;
+  onSuccess?: () => void;
+}
+
+export interface BundleSyncFailure {
+  phase: "rig" | "pose";
+  message: string;
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
@@ -40,8 +49,11 @@ export function useBundleSynchronizer({
   loadedBundle,
   standardInputCount,
   skipDiscrepancyCheck,
+  retryToken = 0,
   importGraphSpec,
   importPoseConfigFromData,
+  onFailure,
+  onSuccess,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
   const appliedBundleFingerprintRef = useRef<string | null>(null);
@@ -76,8 +88,10 @@ export function useBundleSynchronizer({
         version: loadedBundle.version,
         graphs: loadedBundle.graphs ?? [],
         poses: loadedBundle.poses?.config ?? null,
+        retryToken,
       };
       const fingerprint = JSON.stringify(fingerprintPayload);
+      let hasFailure = false;
 
       if (fingerprint && appliedBundleFingerprintRef.current === fingerprint) {
         return;
@@ -103,9 +117,26 @@ export function useBundleSynchronizer({
           const result = await importGraphSpec(normalisedSpec, {
             skipDiscrepancyCheck,
           });
-          importedFaceIdFromRig = result?.importedFaceId ?? null;
-          rigImportedRef.current = true;
+          importedFaceIdFromRig = result.importedFaceId;
+          const importedRigSuccessfully = isImportOutcomeSuccess(result.status);
+          rigImportedRef.current = importedRigSuccessfully;
+          if (!importedRigSuccessfully) {
+            hasFailure = true;
+            onFailure?.({
+              phase: "rig",
+              message:
+                result.message ??
+                "Bundle rig import was blocked. Review import diagnostics and retry.",
+            });
+          }
         } catch (error) {
+          hasFailure = true;
+          const message =
+            error instanceof Error ? error.message : String(error);
+          onFailure?.({
+            phase: "rig",
+            message: `Bundle rig import failed: ${message}`,
+          });
           console.warn(
             "[vizij-authoring] Failed to import rig graph from bundle.",
             error,
@@ -132,6 +163,13 @@ export function useBundleSynchronizer({
             loadedBundle.poses.config as unknown as PoseRigConfigFile,
           );
         } catch (error) {
+          hasFailure = true;
+          const message =
+            error instanceof Error ? error.message : String(error);
+          onFailure?.({
+            phase: "pose",
+            message: `Bundle pose import failed: ${message}`,
+          });
           console.warn(
             "[vizij-authoring] Failed to import pose rig config from bundle.",
             error,
@@ -144,6 +182,9 @@ export function useBundleSynchronizer({
 
       if (fingerprint) {
         appliedBundleFingerprintRef.current = fingerprint;
+      }
+      if (!hasFailure) {
+        onSuccess?.();
       }
     };
 
@@ -158,7 +199,10 @@ export function useBundleSynchronizer({
     importPoseConfigFromData,
     loadedBundle,
     rootId,
+    retryToken,
     skipDiscrepancyCheck,
     standardInputCount,
+    onFailure,
+    onSuccess,
   ]);
 }

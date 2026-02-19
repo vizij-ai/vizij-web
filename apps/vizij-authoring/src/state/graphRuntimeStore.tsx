@@ -13,6 +13,7 @@ import type {
   DiscrepancyResolutionResult,
   DiscrepancyReviewState,
 } from "../types/discrepancy";
+import type { GraphImportResult } from "../types/importOutcome";
 
 type GraphStatus = "idle" | "loading" | "ready" | "error";
 type GraphPlaybackState = "playing" | "paused";
@@ -48,7 +49,7 @@ export interface GraphRuntimeState {
   handleImportGraphSpec: (
     spec: GraphSpec,
     options?: { skipDiscrepancyCheck?: boolean },
-  ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
+  ) => Promise<GraphImportResult>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
   stageRuntimeInput?: (graphPath: string, value: number) => void;
@@ -95,6 +96,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   resolveDiscrepancyReview: noop,
   getGraphIr: () => null,
   handleImportGraphSpec: async () => ({
+    status: "blocked_recoverable",
     faceChanged: false,
     importedFaceId: null,
   }),

@@ -17,6 +17,7 @@ import {
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
+import type { PoseImportResult } from "../../types/importOutcome";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
@@ -37,7 +38,7 @@ interface ExportDialogProps {
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   canExport: boolean;
-  onImportPoseGraph: (file: File) => Promise<void>;
+  onImportPoseGraph: (file: File) => Promise<PoseImportResult>;
 }
 
 export function ExportDialog({

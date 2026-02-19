@@ -1,9 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PoseDiagnostic } from "../../poseRig/types";
+import type { PoseImportResult } from "../../types/importOutcome";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
 
-const noopAsync = vi.fn(async () => {});
+const noopAsync = vi.fn(async (): Promise<void> => {});
+const noopPoseImport = vi.fn(
+  async (): Promise<PoseImportResult> => ({ status: "success" }),
+);
 const noop = vi.fn();
 
 afterEach(() => {
@@ -33,7 +37,7 @@ describe("PoseRigPanels diagnostics surfaces", () => {
     render(
       <PoseRigImportPanel
         onImportPoseConfig={noopAsync}
-        onImportPoseGraph={noopAsync}
+        onImportPoseGraph={noopPoseImport}
         onImportPoseIr={noopAsync}
         poseConfigWarnings={[]}
         poseDiagnostics={diagnostics}

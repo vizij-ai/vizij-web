@@ -1,11 +1,12 @@
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { PoseDiagnostic } from "../../poseRig/types";
+import type { PoseImportResult } from "../../types/importOutcome";
 import { Button, Card, CardHeader, CardBody, Input, Chip } from "../ui";
 
 interface PoseRigImportPanelProps {
   onImportPoseConfig: (file: File) => Promise<void>;
-  onImportPoseGraph: (file: File) => Promise<void>;
+  onImportPoseGraph: (file: File) => Promise<PoseImportResult>;
   onImportPoseIr: (file: File) => Promise<void>;
   poseConfigWarnings: readonly string[];
   poseDiagnostics: readonly PoseDiagnostic[];
