@@ -28,12 +28,14 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
+import { cn } from "../../utils/cn";
 import type {
   PoseBlendMode,
   PoseDefinition,
   PoseIrStageSource,
   PoseRigConfigFile,
 } from "../../poseRig/types";
+import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 import type {
@@ -77,7 +79,28 @@ interface InputListRow {
   value: number;
   min: number;
   max: number;
+  controlKind: "rig-input" | "pose-weight" | "group-output" | "stage-output";
+  provenance?: string;
+  editable: boolean;
+  selectable: boolean;
 }
+
+const INPUT_CONTROL_KIND_LABEL: Record<InputListRow["controlKind"], string> = {
+  "rig-input": "rig",
+  "pose-weight": "pose-weight",
+  "group-output": "group-output",
+  "stage-output": "stage-output",
+};
+
+const INPUT_CONTROL_KIND_BADGE_CLASS: Record<
+  InputListRow["controlKind"],
+  string
+> = {
+  "rig-input": "bg-slate-900/40 text-slate-200",
+  "pose-weight": "bg-violet-900/40 text-violet-200",
+  "group-output": "bg-teal-900/40 text-teal-200",
+  "stage-output": "bg-cyan-900/40 text-cyan-200",
+};
 
 function normalizePoseGroupPath(value: string | null | undefined): string {
   const trimmed = value?.trim();
@@ -485,38 +508,61 @@ function TreeRowWrapper({
       typeof inputData.value === "number" && Number.isFinite(inputData.value)
         ? inputData.value
         : 0;
+    const controlKindLabel = INPUT_CONTROL_KIND_LABEL[inputData.controlKind];
     return (
       <TreeRow
         depth={depth}
         label={node.label}
-        hasChildren={false}
+        hasChildren={true}
+        isExpanded={true}
         isSelected={!!isSelected}
         onToggle={() => {}}
-        onSelect={() => onSelect?.(node)}
+        onSelect={inputData.selectable ? () => onSelect?.(node) : undefined}
         highlightQuery={searchQuery}
         icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
         actions={
-          <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30">
-            {inputData.source}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30">
+              {inputData.source}
+            </span>
+            <span
+              className={cn(
+                "text-[9px] uppercase tracking-wide px-1 rounded",
+                INPUT_CONTROL_KIND_BADGE_CLASS[inputData.controlKind],
+              )}
+            >
+              {controlKindLabel}
+            </span>
+          </div>
         }
       >
-        <div className="px-2 pb-2">
-          <Slider
-            value={value}
-            min={inputData.min}
-            max={inputData.max}
-            step={0.01}
-            onChange={(nextValue) => {
-              const normalizedValue = Array.isArray(nextValue)
-                ? nextValue[0]
-                : nextValue;
-              if (!Number.isFinite(normalizedValue)) {
-                return;
-              }
-              onInputValueChange?.(inputData.inputId, normalizedValue);
-            }}
-          />
+        <div className="px-2 pb-2 flex flex-col gap-1">
+          {inputData.editable ? (
+            <Slider
+              value={value}
+              min={inputData.min}
+              max={inputData.max}
+              step={0.01}
+              onChange={(nextValue) => {
+                const normalizedValue = Array.isArray(nextValue)
+                  ? nextValue[0]
+                  : nextValue;
+                if (!Number.isFinite(normalizedValue)) {
+                  return;
+                }
+                onInputValueChange?.(inputData.inputId, normalizedValue);
+              }}
+            />
+          ) : (
+            <p className="text-[10px] text-text-muted">
+              Derived control (read-only)
+            </p>
+          )}
+          {inputData.provenance ? (
+            <p className="text-[10px] text-text-muted font-mono truncate">
+              {inputData.provenance}
+            </p>
+          ) : null}
         </div>
       </TreeRow>
     );
@@ -1095,11 +1141,51 @@ export function VariablesPanel({
   const effectiveSelectedRigId = resolvedSelectedRigId || selectedRigId || null;
 
   const inputRows = useMemo(() => {
-    return managedStandardInputs.map((entry) => {
+    const poseCountByGroupId = new Map<string, number>();
+    poses.forEach((pose) => {
+      const memberships =
+        pose.groupIds && pose.groupIds.length > 0
+          ? pose.groupIds
+          : pose.groupId
+            ? [pose.groupId]
+            : [];
+      memberships.forEach((groupId) => {
+        const trimmedGroupId = groupId?.trim();
+        if (!trimmedGroupId) {
+          return;
+        }
+        poseCountByGroupId.set(
+          trimmedGroupId,
+          (poseCountByGroupId.get(trimmedGroupId) ?? 0) + 1,
+        );
+      });
+    });
+
+    const groupLabelById = new Map<string, string>();
+    (poseConfigDraft?.poseGroups ?? []).forEach((group) => {
+      const groupId = group.id?.trim();
+      if (!groupId || groupLabelById.has(groupId)) {
+        return;
+      }
+      const normalizedPath =
+        normalizePoseGroupPath(group.path) ||
+        normalizePoseGroupPath(group.name) ||
+        normalizePoseGroupPath(group.id) ||
+        groupId;
+      groupLabelById.set(groupId, poseGroupDisplayLabel(normalizedPath));
+    });
+
+    const managedRows = managedStandardInputs.map((entry) => {
       const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
       const min = entry.input.range?.min ?? 0;
       const max = entry.input.range?.max ?? 1;
       const value = inputValues[entry.input.id];
+      const poseWeightPoseId = parsePoseWeightInputSourceId(
+        entry.input.sourceId,
+      );
+      const controlKind: InputListRow["controlKind"] = poseWeightPoseId
+        ? "pose-weight"
+        : "rig-input";
       return {
         id: entry.input.id,
         label: entry.input.label || entry.input.id,
@@ -1109,9 +1195,84 @@ export function VariablesPanel({
         value: Number.isFinite(value) ? value : (entry.input.defaultValue ?? 0),
         min,
         max,
+        controlKind,
+        provenance: poseWeightPoseId
+          ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
+          : undefined,
+        editable: true,
+        selectable: true,
       } as const;
     });
-  }, [inputValues, managedStandardInputs]);
+
+    const groupOutputRows = (poseConfigDraft?.poseGroups ?? []).map((group) => {
+      const groupId = group.id?.trim() || "group";
+      const path = normalizeStandardRigInputPath(
+        `/pose/groups/${groupId}.output`,
+      );
+      const blendMode =
+        group.blendMode === "additive" || group.blendMode === "average"
+          ? group.blendMode
+          : poseGroupBlendModeFallback;
+      const poseCount = poseCountByGroupId.get(groupId) ?? 0;
+      return {
+        id: `pose_group_output:${groupId}`,
+        label: `Group Output · ${groupLabelById.get(groupId) ?? groupId}`,
+        inputId: `__pose_group_output__:${groupId}`,
+        source: "auto" as const,
+        path,
+        value: 0,
+        min: 0,
+        max: 1,
+        controlKind: "group-output" as const,
+        provenance: `group:${groupId}; mode:${blendMode}; poses:${poseCount}`,
+        editable: false,
+        selectable: false,
+      };
+    });
+
+    const stageOutputRows = (poseConfigDraft?.blendStages ?? []).map(
+      (stage) => {
+        const stageId = stage.id.trim();
+        const stageName = stage.name?.trim() || stageId;
+        const path = normalizeStandardRigInputPath(
+          `/pose/stages/${stageId}.output`,
+        );
+        const sourceSummary =
+          stage.sources
+            .map((source) => {
+              if (source.kind === "group") {
+                return `group:${groupLabelById.get(source.id) ?? source.id}`;
+              }
+              return `stage:${source.id}`;
+            })
+            .join(", ") || "none";
+        return {
+          id: `pose_stage_output:${stageId}`,
+          label: `Stage Output · ${stageName}`,
+          inputId: `__pose_stage_output__:${stageId}`,
+          source: "auto" as const,
+          path,
+          value: 0,
+          min: 0,
+          max: 1,
+          controlKind: "stage-output" as const,
+          provenance: `stage:${stageId}; mode:${stage.mode}; sources:${sourceSummary}`,
+          editable: false,
+          selectable: false,
+        };
+      },
+    );
+
+    return [...managedRows, ...groupOutputRows, ...stageOutputRows];
+  }, [
+    inputValues,
+    managedStandardInputs,
+    poseConfigDraft?.blendStages,
+    poseConfigDraft?.poseGroups,
+    poseGroupBlendModeFallback,
+    poseNameById,
+    poses,
+  ]);
 
   const inputRootNode = useMemo(() => {
     const root: TreeNode = {

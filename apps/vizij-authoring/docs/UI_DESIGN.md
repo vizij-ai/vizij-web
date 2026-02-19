@@ -47,14 +47,14 @@ Traversal must preserve context (no unexpected selection resets).
 
 ## Inputs Pane Contract
 
-1. Inputs include canonical rig controls plus pose-weight controls.
+1. Inputs include canonical rig controls, canonical pose-weight controls, and derived group/stage output rows.
 2. Pose-weight controls are stable per pose and path-based (`rig/{face}/poses/{poseId}.weight`).
-3. Input rows show enough metadata to understand provenance (control type/source).
-4. Inputs remain editable with standard range/default semantics.
-5. As stage/group composition grows, Inputs must distinguish:
-   - pose-weight controls,
-   - group/stage composition controls,
-   - regular rig inputs.
+3. Derived composition rows use deterministic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`).
+4. Input rows must show provenance metadata (pose source for pose-weight controls; group/stage mode and source context for derived rows).
+5. Editability contract:
+   - regular rig and pose-weight controls remain editable/selectable with standard range/default semantics,
+   - derived group/stage rows are explicitly read-only and non-selectable.
+6. Inputs must visibly distinguish control kinds (`rig-input`, `pose-weight`, `group-output`, `stage-output`).
 
 ## Pose Authoring Contract
 

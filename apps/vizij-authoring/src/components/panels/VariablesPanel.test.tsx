@@ -348,6 +348,91 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 
+  it("distinguishes pose-weight inputs from group/stage derived controls", () => {
+    const regularInput = makeInput("jaw_open", "/standard/jaw/open", {
+      label: "Jaw Open",
+    });
+    const poseWeightInput = makeInput(
+      "pose_smile_weight",
+      "/poses/pose_smile.weight",
+      {
+        label: "Pose Weight Smile",
+        sourceId: "pose-weight:pose_smile",
+      },
+    );
+    bindingState.managedStandardInputs = [
+      { input: regularInput, source: "preset" },
+      { input: poseWeightInput, source: "custom" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/standard/jaw/open", regularInput],
+      ["/poses/pose_smile.weight", poseWeightInput],
+    ]);
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        values: {},
+        createdAt: "now",
+        updatedAt: "now",
+      } as PoseDefinition,
+    ];
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: poseRigState.poses,
+      poseGroups: [{ id: "emotion", name: "Emotion", path: "emotion" }],
+      blendStages: [
+        {
+          id: "stage_base",
+          name: "Base",
+          mode: "add",
+          sources: [{ kind: "group", id: "emotion" }],
+        },
+      ],
+    };
+    const onSelectRig = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        onSelectRig={onSelectRig}
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
+    expect(scoped.getByTitle("Pose Weight Smile")).toBeTruthy();
+    expect(scoped.getByText("pose-weight")).toBeTruthy();
+    expect(scoped.getByText("pose:Smile")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Group Output · emotion" } });
+    expect(scoped.getByTitle("Group Output · emotion")).toBeTruthy();
+    expect(scoped.getByText("group-output")).toBeTruthy();
+    expect(
+      scoped.getByText("group:emotion; mode:average; poses:0"),
+    ).toBeTruthy();
+    expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Stage Output · Base" } });
+    expect(scoped.getByTitle("Stage Output · Base")).toBeTruthy();
+    expect(scoped.getByText("stage-output")).toBeTruthy();
+    expect(
+      scoped.getByText("stage:stage_base; mode:add; sources:group:emotion"),
+    ).toBeTruthy();
+    expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Group Output · emotion" } });
+    fireEvent.click(scoped.getByTitle("Group Output · emotion"));
+    expect(onSelectRig).not.toHaveBeenCalled();
+
+    fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
+    fireEvent.click(scoped.getByTitle("Pose Weight Smile"));
+    expect(onSelectRig).toHaveBeenCalledWith("pose_smile_weight");
+  });
+
   it("requires confirmation before deleting a custom variable", () => {
     const customInput = makeInput("custom_smile", "/custom/smile", {
       label: "Smile",

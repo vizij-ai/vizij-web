@@ -408,7 +408,7 @@ Completion notes (2026-02-19):
 5. Validation evidence:
    - `2026-02-19 05:47Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 377 tests).
 
-### [ ] D3.2 Inputs Pane IA for Group/Stage Controls
+### [x] D3.2 Inputs Pane IA for Group/Stage Controls
 
 Priority and why this should still be done:
 
@@ -429,6 +429,14 @@ Acceptance checks:
 1. Input paths are deterministic and collision-safe.
 2. Users can distinguish pose-weight controls from stage/group controls.
 3. Group/stage wiring provenance is visible from inspector context.
+
+Completion notes (2026-02-19):
+
+1. Inputs pane rows now classify controls as `rig-input`, `pose-weight`, `group-output`, or `stage-output`, so authored controls and derived composition outputs are clearly separated.
+2. Pose-weight controls remain canonical and editable, while group/stage outputs now render as deterministic derived rows (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) with read-only behavior.
+3. Rows now include provenance metadata for ownership/wiring context (pose source, group mode + pose count, and stage mode + source summary).
+4. Validation evidence:
+   - `2026-02-19 21:55Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 378 tests).
 
 ### [x] D3.3 Lint Warning Baseline Cleanup (`VariablesPanel`)
 

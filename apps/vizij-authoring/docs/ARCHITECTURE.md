@@ -79,6 +79,9 @@ Important: rig and pose are still separate graph specs today, not one monolithic
 3. Pose-weight controls carry stable source IDs (`pose-weight:{poseId}`).
 4. Pose target references resolve to canonical existing input IDs.
 5. Ghost/intermediate blend signals are compile-time graph internals, not authored inputs.
+6. Inputs-pane IA distinguishes authored controls (`rig-input`, `pose-weight`) from derived composition outputs (`group-output`, `stage-output`).
+7. Derived composition outputs use deterministic synthetic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) for visibility and provenance.
+8. Derived group/stage outputs are read-only/non-selectable in Inputs; edits flow through pose/pose-group/stage authoring surfaces.
 
 ## Diagnostics and Validation Contracts
 

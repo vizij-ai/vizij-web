@@ -92,7 +92,7 @@ Exit gate:
 Current status:
 
 - `in_progress`
-- Progress: `D3.1` and `D3.3` complete; `D3.2` and `D3.4` remaining.
+- Progress: `D3.1`, `D3.2`, and `D3.3` are complete; `D3.4` is the only remaining Stage 3 item.
 
 ## Stage 4 — Deferred Policy Semantics
 
