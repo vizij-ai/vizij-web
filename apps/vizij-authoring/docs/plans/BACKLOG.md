@@ -81,7 +81,7 @@ Completion notes (2026-02-19):
 5. Validation evidence:
    - `2026-02-19 03:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 343 tests).
 
-### [ ] A0.3 Pose Authoring MVP Smoke Coverage
+### [x] A0.3 Pose Authoring MVP Smoke Coverage
 
 Priority and why this should still be done:
 
@@ -102,6 +102,21 @@ Acceptance checks:
 1. Test flow covers: create pose, add targets, duplicate pose, assign groups, adjust weights, preview output.
 2. No ghost variable creation occurs when adding pose targets.
 3. Export payload includes pose config + IR + diagnostics and remains runtime-loadable.
+
+Completion notes (2026-02-19):
+
+1. Added MVP lifecycle smoke coverage in `src/poseRig/usePoseRigAuthoring.test.tsx` for:
+   - create pose,
+   - add/update targets,
+   - assign pose group,
+   - duplicate pose,
+   - preview/apply pose output,
+   - pose graph canonical weight-path checks.
+2. Added ghost-target guard regression in `src/poseRig/usePoseRigAuthoring.test.tsx` to assert unknown input IDs are ignored and do not create synthetic pose channels.
+3. Export/runtime bundle coverage remains enforced in `src/hooks/__tests__/useVizijExport.test.tsx`, including pose config + pose IR + diagnostics metadata in exported bundles and successful runtime-contract export paths.
+4. Validation evidence:
+   - `2026-02-19 03:58Z` — `pnpm --filter vizij-authoring exec vitest --run src/poseRig/usePoseRigAuthoring.test.tsx src/hooks/__tests__/useVizijExport.test.tsx` -> pass (2 files / 37 tests).
+   - `2026-02-19 04:00Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 345 tests).
 
 ## Block B — IR-First Authoring Foundation
 

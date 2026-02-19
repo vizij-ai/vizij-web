@@ -326,6 +326,94 @@ describe("usePoseRigAuthoring", () => {
     expect(result.current?.currentValues.smile).toBeCloseTo(0.42, 6);
   });
 
+  it("covers MVP pose authoring lifecycle with group assignment and preview", () => {
+    const { result } = hook!;
+
+    act(() => {
+      result.current?.createPose("Smoke Pose");
+    });
+
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_smoke_pose");
+
+    act(() => {
+      if (poseId) {
+        result.current?.addPoseInput(poseId, "smile");
+        result.current?.updatePoseValue(poseId, "smile", 0.55);
+        result.current?.updatePoseGroup(poseId, "emotion/primary");
+      }
+    });
+
+    act(() => {
+      if (poseId) {
+        result.current?.duplicatePose(poseId);
+      }
+    });
+
+    const duplicateId = result.current?.poses[1]?.id;
+    expect(duplicateId).toBe("pose_smoke_pose_copy");
+
+    act(() => {
+      if (duplicateId) {
+        result.current?.updatePoseValue(duplicateId, "smile", 0.9);
+        result.current?.applyPose(duplicateId);
+      }
+    });
+
+    expect(result.current?.poses).toHaveLength(2);
+    expect(
+      result.current?.poses.find((pose) => pose.id === poseId)?.values.smile,
+    ).toBeCloseTo(0.55, 6);
+    expect(
+      result.current?.poses.find((pose) => pose.id === duplicateId)?.values
+        .smile,
+    ).toBeCloseTo(0.9, 6);
+    expect(
+      result.current?.poses.find((pose) => pose.id === poseId)?.group,
+    ).toBe("emotion/primary");
+    expect(result.current?.currentValues.smile).toBeCloseTo(0.9, 6);
+
+    const poseInputPaths = (result.current?.poseGraphSpec?.nodes ?? [])
+      .filter((node: unknown) => (node as { type?: string }).type === "input")
+      .map(
+        (node: unknown) =>
+          (node as { params?: { path?: string } }).params?.path,
+      );
+    expect(poseInputPaths).toEqual(
+      expect.arrayContaining([
+        "rig/face/poses/pose_smoke_pose.weight",
+        "rig/face/poses/pose_smoke_pose_copy.weight",
+      ]),
+    );
+    expect(result.current?.poseConfigDraft?.poses).toHaveLength(2);
+    expect(result.current?.poseIrDraft?.poses).toHaveLength(2);
+  });
+
+  it("does not create ghost pose targets for unknown input ids", () => {
+    const { result } = hook!;
+
+    act(() => {
+      result.current?.createPose("Ghost Guard");
+    });
+
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_ghost_guard");
+
+    act(() => {
+      if (poseId) {
+        result.current?.addPoseInput(poseId, "ghost_input");
+      }
+    });
+
+    const pose = result.current?.poses.find((entry) => entry.id === poseId);
+    expect(pose?.values).toEqual({});
+    expect(result.current?.standardInputs.map((input) => input.id)).toEqual([
+      "smile",
+      "brow_raise",
+    ]);
+    expect(result.current?.poseConfigDraft?.poses[0]?.values).toEqual({});
+  });
+
   it("imports pose config and reports warnings for missing inputs", async () => {
     const { result } = hook!;
 
