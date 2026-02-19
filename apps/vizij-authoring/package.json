@@ -13,6 +13,7 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "vitest --run --passWithNoTests",
+    "perf:inputs-baseline": "VIZIJ_CAPTURE_PERF=1 vitest --run src/components/panels/VariablesPanel.perf.test.tsx --reporter=verbose",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"

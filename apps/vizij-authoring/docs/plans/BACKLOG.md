@@ -436,7 +436,7 @@ Completion notes (2026-02-19):
 2. Pose-weight controls remain canonical and editable, while group/stage outputs now render as deterministic derived rows (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) with read-only behavior.
 3. Rows now include provenance metadata for ownership/wiring context (pose source, group mode + pose count, and stage mode + source summary).
 4. Validation evidence:
-   - `2026-02-19 21:55Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 378 tests).
+   - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green; 67 passed files + 1 skipped perf file, 378 passed tests + 1 skipped perf test).
 
 ### [x] D3.3 Lint Warning Baseline Cleanup (`VariablesPanel`)
 
@@ -466,7 +466,7 @@ Completion notes (2026-02-19):
 3. Validation evidence:
    - `2026-02-19 04:05Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` clean; typecheck + tests green, 66 files / 345 tests).
 
-### [ ] D3.4 Empirical Performance Baseline Capture
+### [x] D3.4 Empirical Performance Baseline Capture
 
 Priority and why this should still be done:
 
@@ -486,6 +486,23 @@ Acceptance checks:
 
 1. One reproducible profiling scenario is documented.
 2. Recorded metrics include interaction latency and rerender/compute evidence.
+
+Completion notes (2026-02-19):
+
+1. Added a reproducible dense Inputs-pane profiling scenario in `src/components/panels/VariablesPanel.perf.test.tsx` that seeds:
+   - 640 rig inputs,
+   - 160 pose-weight inputs,
+   - 20 group-output rows,
+   - 10 stage-output rows
+   - for a total of 830 Inputs rows, then runs six deterministic interactions (five searches + one row selection).
+2. Added executable baseline command support in `package.json`:
+   - `pnpm --filter vizij-authoring run perf:inputs-baseline`
+   - (script runs the perf scenario file directly with Vitest).
+3. Captured interaction-latency metrics and rerender/compute evidence via React Profiler commit and `actualDuration` aggregates.
+4. Recorded the baseline run in `docs/perf/inputs-pane-baseline-2026-02-19.md`.
+5. Validation evidence:
+   - `2026-02-19 06:11Z` — `pnpm --filter vizij-authoring run perf:inputs-baseline` -> pass; metrics: latency `avg=23.773ms`, `p95=67.314ms`, `max=67.314ms`; profiler commits `20 total / 19 update`, update `actualDuration total=70.852ms`, `max=15.424ms`.
+   - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` + `typecheck` + `test` green; 67 passed files + 1 skipped perf file, 378 passed tests + 1 skipped perf test).
 
 ## Block E — Deferred Policy R&D (Not MVP)
 

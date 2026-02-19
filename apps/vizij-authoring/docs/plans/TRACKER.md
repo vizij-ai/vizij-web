@@ -10,7 +10,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 2. Pose target authoring no longer creates ghost variables (`Q0.2` landed).
 3. Pose "What I Drive" controls and pose duplication UX are landed.
 4. Stage 0 (`A0.1`-`A0.3`), Stage 1 (`B1.1`-`B1.4`), and Stage 2 (`C2.1`-`C2.3`) are complete.
-5. Stage 3 is in progress: `D3.1`, `D3.2`, and `D3.3` are complete; `D3.4` remains.
+5. Stage 3 (`D3.1`-`D3.4`) is complete, including the empirical Inputs-pane performance baseline capture.
 
 ## Backlog Status Board
 
@@ -27,9 +27,9 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | C2.2 | done     | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
 | C2.3 | done     | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
 | D3.1 | done     | P2       | Inspector chain defaults now abstract autorig internals with explicit show/hide toggle for advanced access.                                                             |
-| D3.2 | done     | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 21:55Z`). |
+| D3.2 | done     | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
 | D3.3 | done     | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
-| D3.4 | planned  | P2       | Empirical performance baseline capture pending.                                                                                                                         |
+| D3.4 | done     | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
 | E4.1 | deferred | P3       | Per-channel override map intentionally deferred.                                                                                                                        |
 | E4.2 | deferred | P3       | Priority resolution semantics intentionally deferred.                                                                                                                   |
 | E4.3 | deferred | P3       | Overlap-bias heuristic design intentionally deferred.                                                                                                                   |
@@ -40,19 +40,19 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 21:55Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
+  - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
 
 ### Lint
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 21:55Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
+  - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
 
 ### Test
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 21:55Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 67 files / 378 tests passed).
+  - `2026-02-19 06:12Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 67 passed files + 1 skipped perf file, 378 passed tests + 1 skipped perf test).
 
 ## Active Risks and Mitigations
 
@@ -75,5 +75,6 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `D3.1` autorig abstraction cleanup in default inspector chains with opt-in `Show/Hide Autorig Internals` advanced toggle.
 - `D3.2` Inputs pane IA update for explicit pose-weight vs derived group/stage outputs, including provenance labeling and read-only derived controls.
 - `D3.3` lint warning baseline cleanup (warning count reduced to zero).
+- `D3.4` empirical dense Inputs-pane performance baseline capture with latency + React Profiler commit/duration evidence (`docs/perf/inputs-pane-baseline-2026-02-19.md`).
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).

@@ -91,8 +91,8 @@ Exit gate:
 
 Current status:
 
-- `in_progress`
-- Progress: `D3.1`, `D3.2`, and `D3.3` are complete; `D3.4` is the only remaining Stage 3 item.
+- `done`
+- Progress: `D3.1`, `D3.2`, `D3.3`, and `D3.4` are complete; empirical baseline evidence is recorded in `docs/perf/inputs-pane-baseline-2026-02-19.md`.
 
 ## Stage 4 — Deferred Policy Semantics
 
