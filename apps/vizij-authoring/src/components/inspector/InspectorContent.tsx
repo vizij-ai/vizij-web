@@ -258,9 +258,6 @@ export function InspectorContent() {
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
-  const applyStandardInputBatch = useBindingAuthoring(
-    (state) => state.applyStandardInputBatch,
-  );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const bindings = useBindingAuthoring((state) => state.bindings);
   const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
@@ -1346,18 +1343,7 @@ export function InspectorContent() {
         setBlendAmount(clampedAmount);
         if (usePoseWeightPreview && selectedPoseWeightInputId) {
           handleInputValueChange(selectedPoseWeightInputId, clampedAmount);
-          return;
         }
-        const updates: Record<string, number> = {};
-        managedStandardInputs.forEach((entry) => {
-          updates[entry.input.id] = resolvePoseNeutralValue(entry.input.id);
-        });
-        Object.entries(pose.values).forEach(([varId, targetVal]) => {
-          const neutralVal = resolvePoseNeutralValue(varId);
-          const newVal = neutralVal + (targetVal - neutralVal) * clampedAmount;
-          updates[varId] = newVal;
-        });
-        applyStandardInputBatch(updates, { replace: true });
       };
 
       return (

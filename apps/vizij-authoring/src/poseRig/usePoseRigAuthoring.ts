@@ -196,13 +196,10 @@ export function usePoseRigAuthoring(
   const applyPose = useCallback(
     (poseId: string) => {
       store.applyPose(poseId);
-      const pose = store.poses.find((p) => p.id === poseId);
-      if (pose && applyInputBatch) {
-        const newValues = PoseSnapshotService.apply(pose, store.neutralInputs);
-        applyInputBatch(newValues);
-      }
+      // Do not push pose target values directly into rig inputs here.
+      // Runtime pose preview/play should route through canonical pose-weight inputs.
     },
-    [store, applyInputBatch],
+    [store],
   );
 
   const captureNeutral = store.captureNeutral;

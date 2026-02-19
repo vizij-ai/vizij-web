@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
   Copy,
@@ -1015,6 +1015,9 @@ export function VariablesPanel({
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
   const handleCreateCustomStandardInput = useBindingAuthoring(
     (state) => state.handleCreateCustomStandardInput,
   );
@@ -1025,6 +1028,38 @@ export function VariablesPanel({
     (state) => state.handleDeleteCustomStandardInput,
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
+  const poseWeightInputIdByPoseId = useMemo(() => {
+    const map = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
+      if (!poseId || map.has(poseId)) {
+        return;
+      }
+      map.set(poseId, entry.input.id);
+    });
+    return map;
+  }, [managedStandardInputs]);
+
+  const setPoseWeightSolo = useCallback(
+    (poseId: string) => {
+      const updates: Record<string, number> = {};
+      let foundAny = false;
+      poses.forEach((pose) => {
+        const weightInputId = poseWeightInputIdByPoseId.get(pose.id);
+        if (!weightInputId) {
+          return;
+        }
+        updates[weightInputId] = pose.id === poseId ? 1 : 0;
+        foundAny = true;
+      });
+      if (!foundAny) {
+        return false;
+      }
+      applyStandardInputBatch(updates);
+      return true;
+    },
+    [applyStandardInputBatch, poseWeightInputIdByPoseId, poses],
+  );
   const referenceFace = useReferenceFace();
   const {
     policy: sharedSyncPolicy,
@@ -1724,7 +1759,9 @@ export function VariablesPanel({
   const handleAction = (node: TreeNode, action: string) => {
     if (node.type === "pose" && action === "play") {
       const poseData = node.data as PoseDefinition;
-      applyPose(poseData.id);
+      if (!setPoseWeightSolo(poseData.id)) {
+        applyPose(poseData.id);
+      }
       return;
     }
     if (node.type === "pose" && action === "duplicate-pose") {
@@ -1787,7 +1824,6 @@ export function VariablesPanel({
       } else {
         selectPose(poseData.id);
       }
-      applyPose(poseData.id); // Auto-play on selection
       // When selecting logic, we might also want to clear rig selection?
       onSelectRig?.(null);
     } else if (node.type === "rig") {

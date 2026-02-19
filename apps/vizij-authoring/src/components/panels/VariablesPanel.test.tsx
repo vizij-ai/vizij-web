@@ -67,6 +67,7 @@ const bindingState = {
   bindings: {} as Record<string, unknown>,
   inputBindings: {} as Record<string, unknown>,
   handleInputValueChange: vi.fn(),
+  applyStandardInputBatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
@@ -155,6 +156,7 @@ describe("VariablesPanel", () => {
     bindingState.bindings = {};
     bindingState.inputBindings = {};
     bindingState.handleInputValueChange.mockReset();
+    bindingState.applyStandardInputBatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();
@@ -567,12 +569,66 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(within(view.container).getByTitle("Smile"));
     expect(onSelectPose).toHaveBeenCalledWith("pose_smile");
-    expect(poseRigState.applyPose).toHaveBeenCalledWith("pose_smile");
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
 
     fireEvent.click(within(view.container).getByTitle("Delete Pose"));
     expect(confirmSpy).toHaveBeenCalledWith('Delete pose "Smile"?');
     expect(poseRigState.deletePose).toHaveBeenCalledWith("pose_smile");
     confirmSpy.mockRestore();
+  });
+
+  it("routes pose play action through canonical pose-weight inputs when available", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: null,
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+      {
+        id: "pose_frown",
+        name: "Frown",
+        description: "",
+        group: null,
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    bindingState.managedStandardInputs = [
+      {
+        input: makeInput("w_smile", "/poses/pose_smile.weight", {
+          sourceId: "pose-weight:pose_smile",
+        }),
+        source: "custom",
+      },
+      {
+        input: makeInput("w_frown", "/poses/pose_frown.weight", {
+          sourceId: "pose-weight:pose_frown",
+        }),
+        source: "custom",
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(within(view.container).getAllByTitle("Apply Pose")[0]!);
+
+    const updates = bindingState.applyStandardInputBatch.mock.calls[0]?.[0] as
+      | Record<string, number>
+      | undefined;
+    expect(updates).toBeDefined();
+    expect(Object.keys(updates ?? {}).sort()).toEqual(["w_frown", "w_smile"]);
+    expect(Object.values(updates ?? {}).sort()).toEqual([0, 1]);
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
   it("shows configured pose groups even when they have zero members", () => {

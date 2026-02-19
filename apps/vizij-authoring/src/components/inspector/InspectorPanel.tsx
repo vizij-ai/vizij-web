@@ -34,7 +34,6 @@ export function InspectorPanel({
     poseConfigDraft,
     blendMode,
     setPoseGroupBlendMode,
-    applyPose,
     selectPose,
     selectedPoseId,
   } = usePoseRig();
@@ -367,7 +366,7 @@ export function InspectorPanel({
                             className="h-6 px-2 text-[10px]"
                             onClick={() => {
                               selectPose(pose.id);
-                              applyPose(pose.id);
+                              handlePoseGroupSolo(pose.id);
                             }}
                             title="Select and play this pose"
                           >
