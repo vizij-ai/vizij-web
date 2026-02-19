@@ -23,7 +23,11 @@ describe("B1.3 pose inspector value semantics contracts", () => {
   });
 
   it("removes ambiguous pose target labeling", () => {
-    expect(inspectorContentTsx).toContain('defaultLabel="Target Value"');
+    expect(inspectorContentTsx).toContain("Current/Applied");
+    expect(inspectorContentTsx).toContain("Target Value");
+    expect(inspectorContentTsx).toContain(
+      "title={poseSemanticTooltips.target}",
+    );
     expect(inspectorContentTsx).not.toContain('defaultLabel="Pose Target"');
   });
 });

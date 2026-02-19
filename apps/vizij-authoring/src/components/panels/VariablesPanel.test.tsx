@@ -15,6 +15,7 @@ const poseRigState = {
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
@@ -115,6 +116,7 @@ describe("VariablesPanel", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
@@ -424,6 +426,9 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New Pose" }));
     expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(view.container).getByTitle("Duplicate this pose"));
+    expect(poseRigState.duplicatePose).toHaveBeenCalledWith("pose_smile");
 
     fireEvent.click(within(view.container).getByTitle("Smile"));
     expect(onSelectPose).toHaveBeenCalledWith("pose_smile");

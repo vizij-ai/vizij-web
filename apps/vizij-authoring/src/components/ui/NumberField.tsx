@@ -7,6 +7,7 @@ export interface NumberFieldProps {
   min?: number;
   max?: number;
   step?: number;
+  format?: Intl.NumberFormatOptions;
   onChange?: (value: number) => void;
   disabled?: boolean;
   className?: string;
@@ -19,6 +20,7 @@ export function NumberField({
   min,
   max,
   step = 1,
+  format,
   onChange,
   disabled = false,
   className,
@@ -31,6 +33,7 @@ export function NumberField({
       min={min}
       max={max}
       step={step}
+      format={format}
       onValueChange={(val) => {
         if (onChange && val !== null) {
           onChange(val);

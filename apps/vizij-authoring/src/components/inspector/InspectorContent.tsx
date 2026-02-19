@@ -2,15 +2,16 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Trash2,
   Plus,
+  Copy,
   Info,
   ChevronRight,
   Sliders,
   Palette,
   Box,
   Play,
+  RotateCcw,
+  Save,
 } from "lucide-react";
-import { HexColorPicker } from "react-colorful";
-import { Popover as BasePopover } from "@base-ui/react";
 import { normalizeStandardRigInputPath, SELF_BINDING_ID } from "@vizij/utils";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
@@ -31,13 +32,12 @@ import type {
 } from "../../scene/sceneGraph";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
-import { rgbToHex, hexToRgb } from "../../utils/color";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
 import { BindingEditor } from "../binding";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
-import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import { RiggingPropertyRow } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
@@ -72,24 +72,12 @@ import {
 } from "./inspectorChainPath";
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 
-type PoseVariableItem =
-  | {
-      type: "scalar";
-      varId: string;
-      poseVal: number;
-      drivenPropertyCount: number;
-      drivenVariableCount: number;
-    }
-  | {
-      type: "color";
-      label: string;
-      featureId: string;
-      components: {
-        varId: string;
-        poseVal: number;
-        channel: "r" | "g" | "b";
-      }[];
-    };
+type PoseVariableItem = {
+  varId: string;
+  poseVal: number;
+  drivenPropertyCount: number;
+  drivenVariableCount: number;
+};
 
 type RigLifecycleMessage = {
   tone: "error" | "info";
@@ -227,6 +215,7 @@ export function InspectorContent() {
   const {
     poses,
     neutralInputs,
+    duplicatePose,
     addPoseInput,
     updatePoseValue,
     removePoseInput,
@@ -1056,11 +1045,8 @@ export function InspectorContent() {
         const targetToFeature: Record<
           string,
           {
-            featureId: string;
-            featureKey: string;
             objectId: string;
             objectName: string;
-            componentKey: string;
           }
         > = {};
         for (const obj of objects) {
@@ -1068,11 +1054,8 @@ export function InspectorContent() {
             for (const comp of feat.components) {
               if (comp.targetId) {
                 targetToFeature[comp.targetId] = {
-                  featureId: feat.id,
-                  featureKey: feat.key,
                   objectId: obj.id,
                   objectName: obj.name,
-                  componentKey: comp.componentKey || comp.label,
                 };
               }
             }
@@ -1082,19 +1065,6 @@ export function InspectorContent() {
         const groups: Record<
           string,
           { label: string; items: PoseVariableItem[] }
-        > = {};
-        const colorFeatures: Record<
-          string,
-          {
-            label: string;
-            featureId: string;
-            groupKey: string;
-            components: {
-              varId: string;
-              poseVal: number;
-              channel: "r" | "g" | "b";
-            }[];
-          }
         > = {};
 
         Object.entries(pose.values).forEach(([varId, val]) => {
@@ -1125,58 +1095,25 @@ export function InspectorContent() {
             groupLabel = inputDef.group;
           }
 
-          if (featureInfo && featureInfo.featureKey.toLowerCase() === "color") {
-            const colorKey = `${featureInfo.objectId}:${featureInfo.featureId} `;
-            if (!colorFeatures[colorKey]) {
-              colorFeatures[colorKey] = {
-                label: "Color",
-                featureId: featureInfo.featureId,
-                groupKey,
-                components: [],
-              };
-            }
-            const channel = featureInfo.componentKey.toLowerCase() as
-              | "r"
-              | "g"
-              | "b";
-            colorFeatures[colorKey].components.push({
-              varId,
-              poseVal: val,
-              channel,
-            });
-          } else {
-            if (!groups[groupKey])
-              groups[groupKey] = { label: groupLabel, items: [] };
-            const drivenPropertyCount = collectRigDependents({
-              selectedRigId: varId,
-              bindings,
-              inputBindings,
-              objects,
-              standardInputsById,
-            }).length;
-            const drivenVariableCount = collectDirectDownstreamRigInputs({
-              selectedRigId: varId,
-              inputBindings,
-              standardInputsById,
-            }).length;
-            groups[groupKey].items.push({
-              type: "scalar",
-              varId,
-              poseVal: val,
-              drivenPropertyCount,
-              drivenVariableCount,
-            });
-          }
-        });
-
-        Object.values(colorFeatures).forEach((cf) => {
-          if (!groups[cf.groupKey])
-            groups[cf.groupKey] = { label: cf.label, items: [] };
-          groups[cf.groupKey].items.push({
-            type: "color",
-            label: cf.label,
-            featureId: cf.featureId,
-            components: cf.components,
+          if (!groups[groupKey])
+            groups[groupKey] = { label: groupLabel, items: [] };
+          const drivenPropertyCount = collectRigDependents({
+            selectedRigId: varId,
+            bindings,
+            inputBindings,
+            objects,
+            standardInputsById,
+          }).length;
+          const drivenVariableCount = collectDirectDownstreamRigInputs({
+            selectedRigId: varId,
+            inputBindings,
+            standardInputsById,
+          }).length;
+          groups[groupKey].items.push({
+            varId,
+            poseVal: val,
+            drivenPropertyCount,
+            drivenVariableCount,
           });
         });
 
@@ -1302,15 +1239,27 @@ export function InspectorContent() {
               <span className="text-[10px] uppercase tracking-wider font-bold text-text-secondary">
                 Pose Groups
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[10px]"
-                onClick={handlePromptAddPoseGroupMembership}
-              >
-                <Plus size={11} />
-                Add Group
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => duplicatePose(pose.id)}
+                  title="Duplicate this pose"
+                >
+                  <Copy size={11} />
+                  Duplicate
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={handlePromptAddPoseGroupMembership}
+                >
+                  <Plus size={11} />
+                  Add Group
+                </Button>
+              </div>
             </div>
             {membershipPaths.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1">
@@ -1465,450 +1414,207 @@ export function InspectorContent() {
                   </span>
                 </div>
                 <div className="flex flex-col gap-1.5 px-0.5">
-                  {group.items.map((item, idx) => {
-                    if (item.type === "scalar") {
-                      const varId = item.varId;
-                      const poseVal = item.poseVal;
-                      const mInput = managedStandardInputs.find(
-                        (m) => m.input.id === varId,
-                      );
-                      const inputDef = mInput?.input;
-                      const rawLabel = inputDef?.label || varId;
-                      const label = cleanLabel(rawLabel, group.label);
-                      const min = inputDef?.range?.min ?? -1;
-                      const max = inputDef?.range?.max ?? 1;
-                      const appliedVal = resolvePoseAppliedValue(varId);
-                      const neutralVal = resolvePoseNeutralValue(varId);
-                      const contributionSemantics =
-                        computePoseContributionSemantics({
-                          targetValue: poseVal,
-                          appliedValue: appliedVal,
-                          neutralValue: neutralVal,
-                        });
-                      const contributionLabel = formatContributionStrength(
-                        contributionSemantics.contributionStrength,
-                      );
-                      const isDifferent =
-                        Math.abs(appliedVal - poseVal) > 0.001;
-                      const canInspectVariable = standardInputsById.has(varId);
-                      const chainSummary =
-                        item.drivenVariableCount > 0 ||
-                        item.drivenPropertyCount > 0
-                          ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
-                          : null;
+                  {group.items.map((item) => {
+                    const varId = item.varId;
+                    const poseVal = item.poseVal;
+                    const mInput = managedStandardInputs.find(
+                      (m) => m.input.id === varId,
+                    );
+                    const inputDef = mInput?.input;
+                    const rawLabel = inputDef?.label || varId;
+                    const label = cleanLabel(rawLabel, group.label);
+                    const min = inputDef?.range?.min ?? -1;
+                    const max = inputDef?.range?.max ?? 1;
+                    const appliedVal = resolvePoseAppliedValue(varId);
+                    const neutralVal = resolvePoseNeutralValue(varId);
+                    const contributionSemantics =
+                      computePoseContributionSemantics({
+                        targetValue: poseVal,
+                        appliedValue: appliedVal,
+                        neutralValue: neutralVal,
+                      });
+                    const contributionLabel = formatContributionStrength(
+                      contributionSemantics.contributionStrength,
+                    );
+                    const precisionFormat = {
+                      minimumFractionDigits: 4,
+                      maximumFractionDigits: 4,
+                    } as const;
+                    const canInspectVariable = standardInputsById.has(varId);
+                    const chainSummary =
+                      item.drivenVariableCount > 0 ||
+                      item.drivenPropertyCount > 0
+                        ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
+                        : null;
 
-                      return (
-                        <RiggingPropertyRow
-                          key={varId}
-                          label={label}
-                          defaultLabel="Target Value"
-                          hasDifferentDefault={isDifferent}
-                          onResetToDefault={() =>
-                            handleInputValueChange(varId, poseVal)
-                          }
-                          onSaveToDefault={() =>
-                            updatePoseValue(
-                              pose.id,
-                              varId,
-                              resolvePoseAppliedValue(varId),
-                            )
-                          }
-                          onScrubStart={() => {
-                            scrubValuesRef.current[varId] =
-                              resolvePoseAppliedValue(varId);
-                          }}
-                          onScrub={(_, totalDelta) => {
-                            const step = 0.01;
-                            const startVal =
-                              scrubValuesRef.current[varId] ??
-                              resolvePoseAppliedValue(varId);
-                            handleInputValueChange(
-                              varId,
-                              startVal + totalDelta * step,
-                            );
-                          }}
-                          renderMainInput={() => (
-                            <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
-                              <Slider
-                                min={min}
-                                max={max}
-                                step={0.01}
-                                value={appliedVal}
-                                className="flex-1"
-                                onChange={(val) =>
-                                  handleInputValueChange(varId, val as number)
-                                }
-                              />
-                              <span
-                                className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                                title={poseSemanticTooltips.applied}
-                              >
-                                Applied
-                              </span>
-                              <div className="inspector-numeric-control flex-shrink-0">
-                                <NumberField
-                                  size="sm"
-                                  value={appliedVal}
-                                  className={cn(
-                                    "w-full bg-bg-input/80 border-border-default/80 text-right font-mono",
-                                    isDifferent
-                                      ? "text-accent font-bold"
-                                      : "text-text-muted",
-                                  )}
-                                  onChange={(val) =>
-                                    handleInputValueChange(varId, val)
-                                  }
-                                />
-                              </div>
-                              <span
-                                className={cn(
-                                  "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
-                                  contributionSemantics.contributionStrength ===
-                                    null
-                                    ? "text-text-muted border-border-default/50"
-                                    : "text-accent border-accent/40 bg-accent/10",
-                                )}
-                                title={poseSemanticTooltips.contribution}
-                              >
-                                Contrib {contributionLabel}
-                              </span>
-                              {chainSummary && (
-                                <span className="text-[9px] text-text-muted font-mono whitespace-nowrap">
-                                  {chainSummary}
-                                </span>
-                              )}
-                              {canInspectVariable && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
-                                    title={`Edit drivers for ${rawLabel} without leaving Pose`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setPoseBindingEditorInputId(varId);
-                                    }}
-                                  >
-                                    <Sliders size={12} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-text-secondary hover:text-text-primary"
-                                    title={`Inspect driver chain for ${rawLabel}`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      openRigInspector(varId, "bindings");
-                                    }}
-                                  >
-                                    <ChevronRight size={12} />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          renderDefaultInput={() => (
-                            <div className="flex items-center gap-2 flex-1 group/row">
-                              <ScrubbableLabel
-                                onScrub={(_, totalDelta) => {
-                                  const step = 0.01;
-                                  const startVal =
-                                    scrubValuesRef.current[varId] ?? 0;
-                                  const newVal = startVal + totalDelta * step;
-                                  updatePoseValue(pose.id, varId, newVal);
-                                  handleInputValueChange(varId, newVal);
-                                }}
-                                onScrubStart={() => {
-                                  scrubValuesRef.current[varId] = poseVal;
-                                }}
-                                className="h-full flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5 min-w-[88px]"
-                              >
-                                <Input
-                                  size="sm"
-                                  type="text"
-                                  value={poseVal.toFixed(2)}
-                                  title={poseSemanticTooltips.target}
-                                  className="border-none text-right font-mono text-[10px] text-text-muted cursor-ew-resize bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    if (!isNaN(v)) {
-                                      updatePoseValue(pose.id, varId, v);
-                                      handleInputValueChange(varId, v);
-                                    }
-                                  }}
-                                />
-                              </ScrubbableLabel>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-text-secondary hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                title="Remove from Pose"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removePoseInput(pose.id, varId);
-                                }}
-                              >
-                                <Trash2 size={12} />
-                              </Button>
-                            </div>
-                          )}
-                        />
-                      );
-                    } else if (item.type === "color") {
-                      const r = item.components.find((c) => c.channel === "r");
-                      const g = item.components.find((c) => c.channel === "g");
-                      const b = item.components.find((c) => c.channel === "b");
-                      const isDifferent = item.components.some(
-                        (c) =>
-                          Math.abs(
-                            resolvePoseAppliedValue(c.varId) - c.poseVal,
-                          ) > 0.001,
-                      );
-                      const colorContributionLabel = [
-                        { channel: "R", component: r },
-                        { channel: "G", component: g },
-                        { channel: "B", component: b },
-                      ]
-                        .map(({ channel, component }) => {
-                          if (!component) {
-                            return null;
-                          }
-                          const semantics = computePoseContributionSemantics({
-                            targetValue: component.poseVal,
-                            appliedValue: resolvePoseAppliedValue(
-                              component.varId,
-                            ),
-                            neutralValue: resolvePoseNeutralValue(
-                              component.varId,
-                            ),
-                          });
-                          return `${channel} ${formatContributionStrength(
-                            semantics.contributionStrength,
-                          )}`;
-                        })
-                        .filter((value): value is string => value !== null)
-                        .join(" · ");
-
-                      const handleBulkChange = (
-                        isPose: boolean,
-                        newR: number,
-                        newG: number,
-                        newB: number,
-                      ) => {
-                        if (isPose) {
-                          if (r) {
-                            updatePoseValue(pose.id, r.varId, newR);
-                            handleInputValueChange(r.varId, newR);
-                          }
-                          if (g) {
-                            updatePoseValue(pose.id, g.varId, newG);
-                            handleInputValueChange(g.varId, newG);
-                          }
-                          if (b) {
-                            updatePoseValue(pose.id, b.varId, newB);
-                            handleInputValueChange(b.varId, newB);
-                          }
-                        } else {
-                          if (r) handleInputValueChange(r.varId, newR);
-                          if (g) handleInputValueChange(g.varId, newG);
-                          if (b) handleInputValueChange(b.varId, newB);
-                        }
-                      };
-
-                      const renderColorInputs = (isPoseValue: boolean) => {
-                        const curR = isPoseValue
-                          ? (r?.poseVal ?? 0)
-                          : r?.varId
-                            ? resolvePoseAppliedValue(r.varId)
-                            : 0;
-                        const curG = isPoseValue
-                          ? (g?.poseVal ?? 0)
-                          : g?.varId
-                            ? resolvePoseAppliedValue(g.varId)
-                            : 0;
-                        const curB = isPoseValue
-                          ? (b?.poseVal ?? 0)
-                          : b?.varId
-                            ? resolvePoseAppliedValue(b.varId)
-                            : 0;
-                        const hex = rgbToHex(curR, curG, curB);
-
-                        return (
-                          <div className="flex items-center gap-2 flex-1 group/row">
-                            <span
-                              className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                              title={
-                                isPoseValue
-                                  ? poseSemanticTooltips.target
-                                  : poseSemanticTooltips.applied
+                    return (
+                      <div
+                        key={varId}
+                        className="flex flex-col gap-2 rounded border border-border-default/50 bg-bg-panel/30 p-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-text-primary">
+                            {label}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
+                              contributionSemantics.contributionStrength ===
+                                null
+                                ? "text-text-muted border-border-default/50"
+                                : "text-accent border-accent/40 bg-accent/10",
+                            )}
+                            title={poseSemanticTooltips.contribution}
+                          >
+                            Contrib {contributionLabel}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
+                            title={`Inspect variable ${varId}`}
+                            disabled={!canInspectVariable}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (canInspectVariable) {
+                                openRigInspector(varId, "bindings");
                               }
-                            >
-                              {isPoseValue ? "Target" : "Applied"}
-                            </span>
-                            <BasePopover.Root>
-                              <BasePopover.Trigger
-                                className="w-8 h-4 rounded border border-border-default shadow-sm transition-transform hover:scale-105"
-                                style={{ backgroundColor: hex }}
-                              />
-                              <BasePopover.Portal>
-                                <BasePopover.Positioner
-                                  side="bottom"
-                                  align="end"
-                                  sideOffset={5}
-                                  className="z-[100]"
-                                >
-                                  <BasePopover.Popup className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl mt-1">
-                                    <HexColorPicker
-                                      color={hex}
-                                      onChange={(h) => {
-                                        const rgb = hexToRgb(h);
-                                        if (rgb)
-                                          handleBulkChange(
-                                            isPoseValue,
-                                            rgb.r,
-                                            rgb.g,
-                                            rgb.b,
-                                          );
-                                      }}
-                                    />
-                                  </BasePopover.Popup>
-                                </BasePopover.Positioner>
-                              </BasePopover.Portal>
-                            </BasePopover.Root>
-                            <div className="flex gap-1 flex-1 min-w-0">
-                              {[
-                                { c: r, ch: "R" as const },
-                                { c: g, ch: "G" as const },
-                                { c: b, ch: "B" as const },
-                              ].map(({ c, ch }) => (
-                                <div
-                                  key={ch}
-                                  className="flex-1 flex items-center bg-bg-input/40 rounded border border-border-default/50 px-1 py-0.5"
-                                >
-                                  <ScrubbableLabel
-                                    label={ch}
-                                    onScrub={(_, totalDelta) => {
-                                      if (c?.varId) {
-                                        const step = 0.01;
-                                        const startVal =
-                                          scrubValuesRef.current[c.varId] ??
-                                          resolvePoseAppliedValue(c.varId);
-                                        const nextVal =
-                                          startVal + totalDelta * step;
-                                        if (isPoseValue) {
-                                          updatePoseValue(
-                                            pose.id,
-                                            c.varId,
-                                            nextVal,
-                                          );
-                                          handleInputValueChange(
-                                            c.varId,
-                                            nextVal,
-                                          );
-                                        } else
-                                          handleInputValueChange(
-                                            c.varId,
-                                            nextVal,
-                                          );
-                                      }
-                                    }}
-                                    onScrubStart={() => {
-                                      if (c?.varId) {
-                                        const baseline = isPoseValue
-                                          ? c.poseVal
-                                          : resolvePoseAppliedValue(c.varId);
-                                        scrubValuesRef.current[c.varId] =
-                                          baseline;
-                                      }
-                                    }}
-                                    className={cn(
-                                      "text-[9px] font-bold mr-1",
-                                      ch === "R"
-                                        ? "text-red-500"
-                                        : ch === "G"
-                                          ? "text-green-500"
-                                          : "text-blue-500",
-                                    )}
-                                  />
-                                  <Input
-                                    size="sm"
-                                    type="text"
-                                    value={(isPoseValue
-                                      ? (c?.poseVal ?? 0)
-                                      : c?.varId
-                                        ? resolvePoseAppliedValue(c.varId)
-                                        : 0
-                                    ).toFixed(2)}
-                                    className="border-none text-right font-mono text-[9px] text-text-primary bg-transparent h-auto p-0 shadow-none focus-within:ring-0"
-                                    onChange={(e) => {
-                                      const v = parseFloat(e.target.value);
-                                      if (!isNaN(v) && c) {
-                                        if (isPoseValue) {
-                                          updatePoseValue(pose.id, c.varId, v);
-                                          handleInputValueChange(c.varId, v);
-                                        } else
-                                          handleInputValueChange(c.varId, v);
-                                      }
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            {!isPoseValue && colorContributionLabel && (
-                              <span
-                                className="text-[9px] font-mono whitespace-nowrap rounded border border-accent/40 bg-accent/10 text-accent px-1 py-0.5"
-                                title={poseSemanticTooltips.contribution}
-                              >
-                                Contrib {colorContributionLabel}
-                              </span>
-                            )}
-                            {isPoseValue && (
-                              <div className="flex gap-0.5 ml-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 text-text-secondary hover:text-red-400 opacity-0 group-hover/row:opacity-100 transition-opacity"
-                                  onClick={() =>
-                                    item.components.forEach((c) =>
-                                      removePoseInput(pose.id, c.varId),
-                                    )
-                                  }
-                                  title="Remove all channels from Pose"
-                                >
-                                  <Trash2 size={12} />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      };
+                            }}
+                          >
+                            {varId}
+                            <ChevronRight size={11} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
+                            title="Remove from Pose"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removePoseInput(pose.id, varId);
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </Button>
+                        </div>
 
-                      return (
-                        <RiggingPropertyRow
-                          key={`color - ${item.featureId} -${idx} `}
-                          label={item.label}
-                          defaultLabel="Target Value"
-                          hasDifferentDefault={isDifferent}
-                          onResetToDefault={() =>
-                            item.components.forEach((c) =>
-                              handleInputValueChange(c.varId, c.poseVal),
-                            )
-                          }
-                          onSaveToDefault={() =>
-                            item.components.forEach((c) =>
+                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                          <span
+                            className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                            title={poseSemanticTooltips.applied}
+                          >
+                            Current/Applied
+                          </span>
+                          <Slider
+                            min={min}
+                            max={max}
+                            step={0.0001}
+                            value={appliedVal}
+                            className="flex-1 min-w-[120px]"
+                            onChange={(val) =>
+                              handleInputValueChange(varId, val as number)
+                            }
+                          />
+                          <div
+                            className="inspector-numeric-control flex-shrink-0"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            <NumberField
+                              size="sm"
+                              min={min}
+                              max={max}
+                              step={0.0001}
+                              format={precisionFormat}
+                              value={appliedVal}
+                              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                              onChange={(val) =>
+                                handleInputValueChange(varId, val)
+                              }
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            title="Reset current value to target value"
+                            onClick={() =>
+                              handleInputValueChange(varId, poseVal)
+                            }
+                          >
+                            <RotateCcw size={11} />
+                            Reset
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            title="Use current value as the new target value"
+                            onClick={() =>
                               updatePoseValue(
                                 pose.id,
-                                c.varId,
-                                resolvePoseAppliedValue(c.varId),
-                              ),
-                            )
-                          }
-                          renderMainInput={() => renderColorInputs(false)}
-                          renderDefaultInput={() => renderColorInputs(true)}
-                        />
-                      );
-                    }
-                    return null;
+                                varId,
+                                resolvePoseAppliedValue(varId),
+                              )
+                            }
+                          >
+                            <Save size={11} />
+                            Set Target
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                          <span
+                            className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                            title={poseSemanticTooltips.target}
+                          >
+                            Target Value
+                          </span>
+                          <Slider
+                            min={min}
+                            max={max}
+                            step={0.0001}
+                            value={poseVal}
+                            className="flex-1 min-w-[120px]"
+                            onChange={(val) => {
+                              const nextValue = val as number;
+                              updatePoseValue(pose.id, varId, nextValue);
+                              handleInputValueChange(varId, nextValue);
+                            }}
+                          />
+                          <div
+                            className="inspector-numeric-control flex-shrink-0"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            <NumberField
+                              size="sm"
+                              min={min}
+                              max={max}
+                              step={0.0001}
+                              format={precisionFormat}
+                              value={poseVal}
+                              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                              onChange={(val) => {
+                                updatePoseValue(pose.id, varId, val);
+                                handleInputValueChange(varId, val);
+                              }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+                            Min {min.toFixed(4)}
+                          </span>
+                          <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+                            Max {max.toFixed(4)}
+                          </span>
+                        </div>
+                        {chainSummary && (
+                          <div className="text-[9px] text-text-muted font-mono">
+                            {chainSummary}
+                          </div>
+                        )}
+                      </div>
+                    );
                   })}
                 </div>
               </div>

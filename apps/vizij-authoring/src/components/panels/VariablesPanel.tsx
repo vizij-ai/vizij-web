@@ -450,6 +450,18 @@ function TreeRowWrapper({
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-purple-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "duplicate-pose");
+                }}
+                title="Duplicate this pose"
+              >
+                <Copy size={10} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-5 w-5 p-0 hover:text-accent text-amber-300"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -585,6 +597,7 @@ export function VariablesPanel({
     selectPose,
     selectedPoseId: selectedPoseIdFromAuthoring,
     createPose,
+    duplicatePose,
     createPoseGroup,
     renamePoseGroup,
     deletePoseGroup,
@@ -1485,6 +1498,16 @@ export function VariablesPanel({
       applyPose(poseData.id);
       return;
     }
+    if (node.type === "pose" && action === "duplicate-pose") {
+      const poseData = node.data as PoseDefinition;
+      if (poseData.id === "__pose_rig_neutral__") {
+        return;
+      }
+      pendingPoseSelectionRef.current = true;
+      duplicatePose(poseData.id);
+      onSelectPoseGroup?.(null);
+      return;
+    }
     if (node.type === "pose" && action === "delete-pose") {
       const poseData = node.data as PoseDefinition;
       if (poseData.id === "__pose_rig_neutral__") {
@@ -1575,6 +1598,14 @@ export function VariablesPanel({
   const handleCreatePose = () => {
     pendingPoseSelectionRef.current = true;
     createPose();
+  };
+
+  const handleDuplicateSelectedPose = () => {
+    if (!selectedPoseId || selectedPoseId === "__pose_rig_neutral__") {
+      return;
+    }
+    pendingPoseSelectionRef.current = true;
+    duplicatePose(selectedPoseId);
   };
 
   const handleCopyReferenceToMain = () => {
@@ -1843,16 +1874,37 @@ export function VariablesPanel({
                   </Button>
                 )}
                 {isPoses && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] gap-1"
-                    onClick={handleCreatePose}
-                    title="Create a new pose and inspect it"
-                  >
-                    <Activity size={11} className="text-purple-400" />
-                    New Pose
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCreatePose}
+                      title="Create a new pose and inspect it"
+                    >
+                      <Activity size={11} className="text-purple-400" />
+                      New Pose
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleDuplicateSelectedPose}
+                      disabled={
+                        !selectedPoseId ||
+                        selectedPoseId === "__pose_rig_neutral__"
+                      }
+                      title={
+                        selectedPoseId &&
+                        selectedPoseId !== "__pose_rig_neutral__"
+                          ? "Duplicate selected pose"
+                          : "Select a pose to duplicate"
+                      }
+                    >
+                      <Copy size={11} />
+                      Duplicate Pose
+                    </Button>
+                  </>
                 )}
                 {isVariables && (
                   <Button
