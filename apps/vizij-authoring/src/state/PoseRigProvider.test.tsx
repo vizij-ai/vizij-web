@@ -20,13 +20,16 @@ const bindingState = {
   standardInputsByPath: new Map<string, StandardRigInput>(),
   managedStandardInputs: [] as ManagedEntry[],
   inputValues: {} as Record<string, number>,
-  hiddenDriverIds: [] as string[],
   standardInputSchema: null as { id: string; version: string } | null,
   handleInputValueChange: vi.fn(),
   applyStandardInputBatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
+};
+
+const rigUiState = {
+  hiddenDriverIds: new Set<string>(),
 };
 
 const graphRuntimeState = {
@@ -50,6 +53,8 @@ const usePoseRigAuthoringMock = vi.fn(
 vi.mock("./RigControllerProvider", () => ({
   useBindingAuthoring: (selector: (state: typeof bindingState) => unknown) =>
     selector(bindingState),
+  useRigUi: (selector: (state: typeof rigUiState) => unknown) =>
+    selector(rigUiState),
   useGraphRuntime: (selector: (state: typeof graphRuntimeState) => unknown) =>
     selector(graphRuntimeState),
   useGraphRuntimeStoreApi: () => graphRuntimeStoreApi,
@@ -96,7 +101,6 @@ describe("PoseRigProvider pose weight synchronization", () => {
     bindingState.standardInputsByPath = new Map();
     bindingState.managedStandardInputs = [];
     bindingState.inputValues = {};
-    bindingState.hiddenDriverIds = [];
     bindingState.standardInputSchema = null;
     bindingState.handleInputValueChange.mockReset();
     bindingState.applyStandardInputBatch.mockReset();
@@ -106,6 +110,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
 
     graphRuntimeState.faceId = "robot";
     graphRuntimeStoreApi.setState.mockReset();
+    rigUiState.hiddenDriverIds = new Set();
 
     poseRigAuthoringState.poses = [];
     poseRigAuthoringState.poseGraphSpec = null;

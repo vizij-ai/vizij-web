@@ -25,6 +25,7 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
   useGraphRuntimeStoreApi,
+  useRigUi,
 } from "./RigControllerProvider";
 
 function filterRecordByIds<T extends Record<string, number>>(
@@ -121,7 +122,7 @@ function PoseRigController({
     (state) => state.managedStandardInputs,
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
-  const hiddenInputIds = useBindingAuthoring((state) => state.hiddenDriverIds);
+  const hiddenInputIds = useRigUi((state) => state.hiddenDriverIds);
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -336,7 +337,7 @@ export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
     [standardInputs],
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
-  const hiddenInputIds = useBindingAuthoring((state) => state.hiddenDriverIds);
+  const hiddenInputIds = useRigUi((state) => state.hiddenDriverIds);
   const standardInputSchema = useBindingAuthoring(
     (state) => state.standardInputSchema,
   );

@@ -8,7 +8,10 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useRigUi,
+} from "../../state/RigControllerProvider";
 import {
   BindingEditor,
   normalizeSlotExpression,
@@ -74,16 +77,10 @@ export function FeatureList({
     (state) => state.handleInputValueChange,
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
-  const hiddenDriverIds = useBindingAuthoring((state) => state.hiddenDriverIds);
-  const handleHideDriver = useBindingAuthoring(
-    (state) => state.handleHideDriver,
-  );
-  const handleShowDriver = useBindingAuthoring(
-    (state) => state.handleShowDriver,
-  );
-  const handleShowAllDrivers = useBindingAuthoring(
-    (state) => state.handleShowAllDrivers,
-  );
+  const hiddenDriverIds = useRigUi((state) => state.hiddenDriverIds);
+  const handleHideDriver = useRigUi((state) => state.handleHideDriver);
+  const handleShowDriver = useRigUi((state) => state.handleShowDriver);
+  const handleShowAllDrivers = useRigUi((state) => state.handleShowAllDrivers);
 
   const handleToggleAnimated = useCallback(
     (featureId: string, animated: boolean) => {

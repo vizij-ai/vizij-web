@@ -23,6 +23,13 @@ import {
   type SelectionState,
   type SelectionStore,
 } from "./selectionStore";
+import {
+  RigUiStoreProvider,
+  createRigUiStore,
+  useRigUiStore,
+  type RigUiState,
+  type RigUiStore,
+} from "./rigUiStore";
 
 interface RigControllerProviderProps {
   namespace: string;
@@ -63,6 +70,16 @@ export function useSelectionStore<T = SelectionState>(
   return useSelectionStoreValue(resolvedSelector, equalityFn);
 }
 
+export function useRigUi<T = RigUiState>(
+  selector?: (state: RigUiState) => T,
+  equalityFn?: (a: T, b: T) => boolean,
+): T {
+  const resolvedSelector = (selector ?? ((state) => state as T)) as (
+    state: RigUiState,
+  ) => T;
+  return useRigUiStore(resolvedSelector, equalityFn);
+}
+
 export function RigControllerProvider({
   namespace,
   rootId,
@@ -87,21 +104,30 @@ export function RigControllerProvider({
   }
   const selectionStore = selectionStoreRef.current;
 
+  const rigUiStoreRef = useRef<RigUiStore | null>(null);
+  if (!rigUiStoreRef.current) {
+    rigUiStoreRef.current = createRigUiStore();
+  }
+  const rigUiStore = rigUiStoreRef.current;
+
   useRigController(
     { namespace, rootId, sourceName },
     {
       graphRuntimeStore,
       bindingAuthoringStore,
       selectionStore,
+      rigUiStore,
     },
   );
 
   return (
     <GraphRuntimeStoreProvider store={graphRuntimeStore}>
       <BindingAuthoringStoreProvider store={bindingAuthoringStore}>
-        <SelectionStoreProvider store={selectionStore}>
-          {children}
-        </SelectionStoreProvider>
+        <RigUiStoreProvider store={rigUiStore}>
+          <SelectionStoreProvider store={selectionStore}>
+            {children}
+          </SelectionStoreProvider>
+        </RigUiStoreProvider>
       </BindingAuthoringStoreProvider>
     </GraphRuntimeStoreProvider>
   );

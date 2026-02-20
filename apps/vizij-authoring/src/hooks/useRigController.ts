@@ -72,6 +72,7 @@ import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
 import type { SelectionStore } from "../state/selectionStore";
+import type { RigUiStore } from "../state/rigUiStore";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { useFeatureLabels } from "./useFeatureLabels";
@@ -217,6 +218,7 @@ interface UseRigControllerStores {
   graphRuntimeStore: GraphRuntimeStore;
   bindingAuthoringStore: BindingAuthoringStore;
   selectionStore: SelectionStore;
+  rigUiStore: RigUiStore;
 }
 
 interface RuntimeInputRoute {
@@ -230,7 +232,12 @@ export function useRigController(
   { namespace, rootId, sourceName }: UseRigControllerOptions,
   stores: UseRigControllerStores,
 ): RigController {
-  const { graphRuntimeStore, bindingAuthoringStore, selectionStore } = stores;
+  const {
+    graphRuntimeStore,
+    bindingAuthoringStore,
+    selectionStore,
+    rigUiStore,
+  } = stores;
   const poseConfigSnapshot = useSyncExternalStore(
     graphRuntimeStore.subscribe,
     () => graphRuntimeStore.getState().poseConfig,
@@ -352,11 +359,16 @@ export function useRigController(
   const autoInputsRef = useRef(autoInputs);
   const [customInputs, setCustomInputs] = useState<StandardRigInput[]>([]);
   const customInputsRef = useRef(customInputs);
-  const [selectedStandardInputRoots, setSelectedStandardInputRoots] = useState<
-    string[]
-  >([]);
-  const [selectedStandardInputSubgroups, setSelectedStandardInputSubgroups] =
-    useState<string[]>([]);
+  const selectedStandardInputRoots = useSyncExternalStore(
+    rigUiStore.subscribe,
+    () => rigUiStore.getState().selectedStandardInputRoots,
+    () => rigUiStore.getState().selectedStandardInputRoots,
+  );
+  const selectedStandardInputSubgroups = useSyncExternalStore(
+    rigUiStore.subscribe,
+    () => rigUiStore.getState().selectedStandardInputSubgroups,
+    () => rigUiStore.getState().selectedStandardInputSubgroups,
+  );
   const [disabledStandardInputIds, setDisabledStandardInputIds] = useState<
     string[]
   >([]);
@@ -364,9 +376,44 @@ export function useRigController(
     id: string;
     version: string;
   } | null>({ id: "vizij-standard-face", version: "v1" });
-  const [hiddenDriverIds, setHiddenDriverIds] = useState<Set<string>>(
-    () => new Set(),
+  const hiddenDriverIds = useSyncExternalStore(
+    rigUiStore.subscribe,
+    () => rigUiStore.getState().hiddenDriverIds,
+    () => rigUiStore.getState().hiddenDriverIds,
   );
+  const setSelectedStandardInputRoots = useCallback(
+    (value: SetStateAction<string[]>) => {
+      rigUiStore.getState().setSelectedStandardInputRoots(value);
+    },
+    [rigUiStore],
+  );
+  const setSelectedStandardInputSubgroups = useCallback(
+    (value: SetStateAction<string[]>) => {
+      rigUiStore.getState().setSelectedStandardInputSubgroups(value);
+    },
+    [rigUiStore],
+  );
+  const setHiddenDriverIds = useCallback(
+    (value: SetStateAction<Set<string>>) => {
+      rigUiStore.getState().setHiddenDriverIds(value);
+    },
+    [rigUiStore],
+  );
+  const handleHideDriver = useCallback(
+    (inputId: string) => {
+      rigUiStore.getState().handleHideDriver(inputId);
+    },
+    [rigUiStore],
+  );
+  const handleShowDriver = useCallback(
+    (inputId: string) => {
+      rigUiStore.getState().handleShowDriver(inputId);
+    },
+    [rigUiStore],
+  );
+  const handleShowAllDrivers = useCallback(() => {
+    rigUiStore.getState().handleShowAllDrivers();
+  }, [rigUiStore]);
   const viewerSelectionActiveRef = useRef(false);
   const [inputValues, setInputValues] = useState<StandardInputValues>({});
   const inputValuesRef = useRef<StandardInputValues>(inputValues);
@@ -414,36 +461,6 @@ export function useRigController(
     [],
   );
 
-  const handleHideDriver = useCallback((inputId: string) => {
-    setHiddenDriverIds((previous) => {
-      if (previous.has(inputId)) {
-        return previous;
-      }
-      const next = new Set(previous);
-      next.add(inputId);
-      return next;
-    });
-  }, []);
-
-  const handleShowDriver = useCallback((inputId: string) => {
-    setHiddenDriverIds((previous) => {
-      if (!previous.has(inputId)) {
-        return previous;
-      }
-      const next = new Set(previous);
-      next.delete(inputId);
-      return next;
-    });
-  }, []);
-
-  const handleShowAllDrivers = useCallback(() => {
-    setHiddenDriverIds((previous) => {
-      if (previous.size === 0) {
-        return previous;
-      }
-      return new Set();
-    });
-  }, []);
   const [graphInsights, setGraphInsights] =
     useState<PersistedGraphInsight | null>(null);
 

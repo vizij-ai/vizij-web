@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { SELF_BINDING_ID } from "@vizij/utils";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useRigUi,
+} from "../../state/RigControllerProvider";
 import { Panel, Chip, ListRow } from "../ui";
 
 function isMapped(binding: any): boolean {
@@ -24,7 +27,7 @@ export function StandardInputCoveragePanel({
 }: StandardInputCoveragePanelProps) {
   const managed = useBindingAuthoring((state) => state.managedStandardInputs);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
-  const hiddenIds = useBindingAuthoring((state) => state.hiddenDriverIds);
+  const hiddenIds = useRigUi((state) => state.hiddenDriverIds);
   const standardInputSchema = useBindingAuthoring(
     (state) => state.standardInputSchema,
   );

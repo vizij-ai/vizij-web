@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createGraphRuntimeStore } from "../graphRuntimeStore";
 import { createBindingAuthoringStore } from "../bindingAuthoringStore";
 import { createSelectionStore } from "../selectionStore";
+import { createRigUiStore } from "../rigUiStore";
 import { createPoseRigStore } from "../../poseRig/store";
 
 describe("graphRuntimeStore", () => {
@@ -46,6 +47,28 @@ describe("selectionStore", () => {
     unsubscribe();
     store.setState({ hoveredId: "demo" } as any);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("rigUiStore", () => {
+  it("tracks selection filters and hidden drivers", () => {
+    const store = createRigUiStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    store.getState().setSelectedStandardInputRoots(["face"]);
+    store.getState().setSelectedStandardInputSubgroups(["mouth"]);
+    store.getState().handleHideDriver("driver_1");
+    store.getState().handleShowDriver("driver_1");
+    store.getState().handleHideDriver("driver_2");
+    store.getState().handleShowAllDrivers();
+
+    expect(store.getState().selectedStandardInputRoots).toEqual(["face"]);
+    expect(store.getState().selectedStandardInputSubgroups).toEqual(["mouth"]);
+    expect(store.getState().hiddenDriverIds.size).toBe(0);
+    expect(listener).toHaveBeenCalledTimes(6);
+
+    unsubscribe();
   });
 });
 

@@ -14,20 +14,28 @@ type MockBindingState = {
       slots?: Array<{ inputId?: string | null }>;
     }
   >;
-  hiddenDriverIds: Set<string>;
   standardInputSchema: { id: string; version: string } | null;
+};
+
+type MockRigUiState = {
+  hiddenDriverIds: Set<string>;
 };
 
 const mockState: MockBindingState = {
   managedStandardInputs: [],
   inputBindings: {},
-  hiddenDriverIds: new Set<string>(),
   standardInputSchema: null,
+};
+
+const mockRigUiState: MockRigUiState = {
+  hiddenDriverIds: new Set<string>(),
 };
 
 vi.mock("../../state/RigControllerProvider", () => ({
   useBindingAuthoring: (selector: (state: MockBindingState) => unknown) =>
     selector(mockState),
+  useRigUi: (selector: (state: MockRigUiState) => unknown) =>
+    selector(mockRigUiState),
 }));
 
 describe("StandardInputCoveragePanel", () => {
@@ -41,7 +49,7 @@ describe("StandardInputCoveragePanel", () => {
       a: { slots: [{ inputId: "parent/input" }] },
       b: { slots: [{ inputId: null }] },
     };
-    mockState.hiddenDriverIds = new Set(["a"]);
+    mockRigUiState.hiddenDriverIds = new Set(["a"]);
     mockState.standardInputSchema = {
       id: "vizij-standard-face",
       version: "v1",
@@ -66,7 +74,7 @@ describe("StandardInputCoveragePanel", () => {
     mockState.inputBindings = {
       mapped: { slots: [{ inputId: "some-parent" }] },
     };
-    mockState.hiddenDriverIds = new Set();
+    mockRigUiState.hiddenDriverIds = new Set();
     mockState.standardInputSchema = null;
 
     render(<StandardInputCoveragePanel />);
