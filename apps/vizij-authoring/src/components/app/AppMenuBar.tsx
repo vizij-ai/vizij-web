@@ -16,6 +16,10 @@ interface AppMenuBarProps {
   onImportSkipChecks: () => void;
   onImportReferenceFace: () => void;
   onExport: () => void;
+  showSelectionGlow: boolean;
+  onToggleSelectionGlow: (enabled: boolean) => void;
+  includeAutorigInputs: boolean;
+  onToggleIncludeAutorigInputs: (enabled: boolean) => void;
 }
 
 export function AppMenuBar({
@@ -24,6 +28,10 @@ export function AppMenuBar({
   onImportSkipChecks,
   onImportReferenceFace,
   onExport,
+  showSelectionGlow,
+  onToggleSelectionGlow,
+  includeAutorigInputs,
+  onToggleIncludeAutorigInputs,
 }: AppMenuBarProps) {
   const { panels, togglePanel } = useWorkspaceStore();
 
@@ -115,6 +123,21 @@ export function AppMenuBar({
           onCheckedChange={() => togglePanel("debug")}
         >
           Debug
+        </MenuCheckboxItem>
+
+        <MenuSeparator />
+        <MenuLabel>Options</MenuLabel>
+        <MenuCheckboxItem
+          checked={showSelectionGlow}
+          onCheckedChange={onToggleSelectionGlow}
+        >
+          Face Outlines
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={includeAutorigInputs}
+          onCheckedChange={onToggleIncludeAutorigInputs}
+        >
+          Include Autorig Inputs
         </MenuCheckboxItem>
       </Menu>
 

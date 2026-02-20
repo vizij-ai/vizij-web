@@ -754,6 +754,7 @@ interface VariablesPanelProps {
   selectedRigId?: string | null;
   selectedPoseId?: string | null;
   selectedSceneId?: string | null;
+  includeAutorigInputs?: boolean;
   onSelectRig?: (id: string | null) => void;
   onSelectPose?: (id: string) => void;
   onSelectScene?: (id: string) => void;
@@ -768,6 +769,7 @@ export function VariablesPanel({
   selectedRigId,
   selectedPoseId: selectedPoseIdFromParent,
   selectedSceneId: _selectedSceneId,
+  includeAutorigInputs = true,
   onSelectRig,
   onSelectPose,
   onSelectScene: _onSelectScene,
@@ -1249,6 +1251,11 @@ export function VariablesPanel({
 
     const managedRows = managedStandardInputs
       .filter((entry) => !isPoseControlInputPath(entry.input.path))
+      .filter((entry) =>
+        includeAutorigInputs
+          ? true
+          : !isAutorigStandardInputPath(entry.input.path),
+      )
       .map((entry) => {
         const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
         const min = entry.input.range?.min ?? 0;
@@ -1352,6 +1359,7 @@ export function VariablesPanel({
 
     return [...managedRows, ...groupOutputRows, ...stageOutputRows];
   }, [
+    includeAutorigInputs,
     inputValues,
     managedStandardInputs,
     poseConfigDraft?.blendStages,

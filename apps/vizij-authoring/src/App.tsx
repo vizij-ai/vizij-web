@@ -85,6 +85,7 @@ function AppContent({ loader }: AppContentProps) {
 
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
+  const [includeAutorigInputs, setIncludeAutorigInputs] = useState(true);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
@@ -273,6 +274,10 @@ function AppContent({ loader }: AppContentProps) {
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
       onExport={() => setShowExportDialog(true)}
+      showSelectionGlow={showSelectionGlow}
+      onToggleSelectionGlow={setShowSelectionGlow}
+      includeAutorigInputs={includeAutorigInputs}
+      onToggleIncludeAutorigInputs={setIncludeAutorigInputs}
     />
   );
 
@@ -419,6 +424,7 @@ function AppContent({ loader }: AppContentProps) {
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
               selectedSceneId={selectedSceneId}
+              includeAutorigInputs={includeAutorigInputs}
               onSelectRig={handleSelectRig}
               onSelectPose={handleSelectPose}
               onSelectScene={handleSelectObject}

@@ -350,6 +350,40 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 
+  it("can exclude autorig inputs from the Inputs surface", () => {
+    const abstractInput = makeInput("abstract_jaw", "/mouth/open", {
+      label: "Jaw Open",
+    });
+    const autorigInput = makeInput("autorig_eye", "/autorig/eye/open", {
+      label: "Eye Open",
+    });
+    bindingState.managedStandardInputs = [
+      { input: abstractInput, source: "preset" },
+      { input: autorigInput, source: "auto" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/mouth/open", abstractInput],
+      ["/autorig/eye/open", autorigInput],
+    ]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        includeAutorigInputs={false}
+      />,
+    );
+
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Jaw Open" } });
+    expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Eye Open" } });
+    expect(scoped.queryByTitle("Eye Open")).toBeNull();
+  });
+
   it("hides internal pose-control channels on the Inputs surface", () => {
     const directInput = makeInput("jaw_open", "/standard/jaw/open", {
       label: "Jaw Open",
