@@ -35,6 +35,7 @@ interface RigControllerProviderProps {
   namespace: string;
   rootId: string | null;
   sourceName: string | null;
+  rigAutosaveEnabled?: boolean;
   children: ReactNode;
 }
 
@@ -84,6 +85,7 @@ export function RigControllerProvider({
   namespace,
   rootId,
   sourceName,
+  rigAutosaveEnabled = false,
   children,
 }: RigControllerProviderProps) {
   const graphRuntimeStoreRef = useRef<GraphRuntimeStore | null>(null);
@@ -111,7 +113,7 @@ export function RigControllerProvider({
   const rigUiStore = rigUiStoreRef.current;
 
   useRigController(
-    { namespace, rootId, sourceName },
+    { namespace, rootId, sourceName, rigAutosaveEnabled },
     {
       graphRuntimeStore,
       bindingAuthoringStore,

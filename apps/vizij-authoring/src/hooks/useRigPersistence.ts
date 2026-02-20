@@ -36,6 +36,7 @@ import {
 
 interface UseRigPersistenceOptions {
   faceId: string | null;
+  rigAutosaveEnabled: boolean;
   animatableComponents: AnimComponent[];
   autoInputs: Map<string, AutoInputState>;
   customInputs: StandardRigInput[];
@@ -82,6 +83,7 @@ interface UseRigPersistenceOptions {
 
 export function useRigPersistence({
   faceId,
+  rigAutosaveEnabled,
   animatableComponents,
   autoInputs,
   customInputs,
@@ -145,6 +147,7 @@ export function useRigPersistence({
   const persistRigState = useCallback(() => {
     if (
       !faceId ||
+      !rigAutosaveEnabled ||
       skipPersistRef.current ||
       animatableComponents.length === 0
     ) {
@@ -240,6 +243,7 @@ export function useRigPersistence({
     disabledStandardInputIds,
     hiddenDriverIds,
     faceId,
+    rigAutosaveEnabled,
     featureLabelOverrides,
     standardInputSchema,
     featureFlags,
@@ -447,6 +451,7 @@ export function useRigPersistence({
   useEffect(() => {
     if (
       !faceId ||
+      !rigAutosaveEnabled ||
       skipPersistRef.current ||
       animatableComponents.length === 0
     ) {
@@ -482,6 +487,7 @@ export function useRigPersistence({
     hiddenDriverIds,
     featureFlags,
     graphInsights,
+    rigAutosaveEnabled,
     persistRigState,
     skipPersistRef,
   ]);
@@ -491,10 +497,12 @@ export function useRigPersistence({
       if (rigStateSaveTimeoutRef.current) {
         clearTimeout(rigStateSaveTimeoutRef.current);
         rigStateSaveTimeoutRef.current = null;
-        persistRigState();
+        if (rigAutosaveEnabled) {
+          persistRigState();
+        }
       }
     };
-  }, [persistRigState]);
+  }, [persistRigState, rigAutosaveEnabled]);
 
   return { handleClearCachedState };
 }

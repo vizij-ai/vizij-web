@@ -20,6 +20,8 @@ interface AppMenuBarProps {
   onToggleSelectionGlow: (enabled: boolean) => void;
   includeAutorigInputs: boolean;
   onToggleIncludeAutorigInputs: (enabled: boolean) => void;
+  rigAutosaveEnabled: boolean;
+  onToggleRigAutosave: (enabled: boolean) => void;
 }
 
 export function AppMenuBar({
@@ -32,6 +34,8 @@ export function AppMenuBar({
   onToggleSelectionGlow,
   includeAutorigInputs,
   onToggleIncludeAutorigInputs,
+  rigAutosaveEnabled,
+  onToggleRigAutosave,
 }: AppMenuBarProps) {
   const { panels, togglePanel } = useWorkspaceStore();
 
@@ -138,6 +142,12 @@ export function AppMenuBar({
           onCheckedChange={onToggleIncludeAutorigInputs}
         >
           Include Autorig Inputs
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={rigAutosaveEnabled}
+          onCheckedChange={onToggleRigAutosave}
+        >
+          Rig Autosave
         </MenuCheckboxItem>
       </Menu>
 

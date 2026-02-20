@@ -212,6 +212,7 @@ interface UseRigControllerOptions {
   namespace: string;
   rootId: string | null;
   sourceName: string | null;
+  rigAutosaveEnabled: boolean;
 }
 
 interface UseRigControllerStores {
@@ -229,7 +230,12 @@ interface RuntimeInputRoute {
 export type RigController = void;
 
 export function useRigController(
-  { namespace, rootId, sourceName }: UseRigControllerOptions,
+  {
+    namespace,
+    rootId,
+    sourceName,
+    rigAutosaveEnabled,
+  }: UseRigControllerOptions,
   stores: UseRigControllerStores,
 ): RigController {
   const {
@@ -1125,6 +1131,7 @@ export function useRigController(
 
   const { handleClearCachedState } = useRigPersistence({
     faceId,
+    rigAutosaveEnabled,
     animatableComponents,
     autoInputs,
     customInputs,

@@ -52,16 +52,22 @@ type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
+  const [rigAutosaveEnabled, setRigAutosaveEnabled] = useState(false);
 
   return (
     <RigControllerProvider
       namespace={DEFAULT_NAMESPACE}
       rootId={assetLoader.rootId}
       sourceName={assetLoader.sourceName}
+      rigAutosaveEnabled={rigAutosaveEnabled}
     >
       <PoseRigProvider rootId={assetLoader.rootId}>
         <AuthoringUiProvider>
-          <AppContent loader={assetLoader} />
+          <AppContent
+            loader={assetLoader}
+            rigAutosaveEnabled={rigAutosaveEnabled}
+            onToggleRigAutosave={setRigAutosaveEnabled}
+          />
         </AuthoringUiProvider>
       </PoseRigProvider>
     </RigControllerProvider>
@@ -70,9 +76,15 @@ export default function App() {
 
 interface AppContentProps {
   loader: VizijAssetLoaderState;
+  rigAutosaveEnabled: boolean;
+  onToggleRigAutosave: (enabled: boolean) => void;
 }
 
-function AppContent({ loader }: AppContentProps) {
+function AppContent({
+  loader,
+  rigAutosaveEnabled,
+  onToggleRigAutosave,
+}: AppContentProps) {
   const {
     rootId,
     sourceName,
@@ -278,6 +290,8 @@ function AppContent({ loader }: AppContentProps) {
       onToggleSelectionGlow={setShowSelectionGlow}
       includeAutorigInputs={includeAutorigInputs}
       onToggleIncludeAutorigInputs={setIncludeAutorigInputs}
+      rigAutosaveEnabled={rigAutosaveEnabled}
+      onToggleRigAutosave={onToggleRigAutosave}
     />
   );
 
