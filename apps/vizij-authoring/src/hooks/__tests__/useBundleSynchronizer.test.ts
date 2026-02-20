@@ -12,7 +12,19 @@ function createBundleWithRigSpec(spec: GraphSpec) {
   return {
     version: 1,
     graphs: [{ kind: "rig", spec }],
-  } as VizijBundleExtension;
+  } as unknown as VizijBundleExtension;
+}
+
+function createBundleWithRigAndPoses(spec: GraphSpec) {
+  return {
+    version: 1,
+    graphs: [{ kind: "rig", spec }],
+    poses: {
+      config: {
+        poses: [],
+      },
+    },
+  } as unknown as VizijBundleExtension;
 }
 
 describe("useBundleSynchronizer failure surfaces", () => {
@@ -47,6 +59,95 @@ describe("useBundleSynchronizer failure surfaces", () => {
         message: "Rig import requires discrepancy review.",
       });
     });
+  });
+
+  it("does not re-import rig while waiting for standard inputs", async () => {
+    const importCalls = { count: 0 };
+    const importGraphSpec = vi.fn(async () => {
+      importCalls.count += 1;
+      return {
+        status: "success_with_repair" as const,
+        faceChanged: false,
+        importedFaceId: null,
+      };
+    });
+    const importPoseConfigFromData = vi.fn();
+    const baseProps = {
+      faceId: "robot",
+      rootId: "root",
+      loadedBundle: createBundleWithRigAndPoses({
+        nodes: [],
+        edges: [],
+      } as GraphSpec),
+      standardInputCount: 0,
+      skipDiscrepancyCheck: false,
+      importGraphSpec,
+      importPoseConfigFromData,
+      onFailure: vi.fn(),
+      onSuccess: vi.fn(),
+    };
+
+    const hook = renderHook(
+      (props: typeof baseProps) => useBundleSynchronizer(props),
+      {
+        initialProps: baseProps,
+      },
+    );
+
+    await waitFor(() => {
+      expect(importCalls.count).toBe(1);
+    });
+
+    hook.rerender({ ...baseProps, skipDiscrepancyCheck: true });
+
+    await waitFor(() => {
+      expect(importCalls.count).toBe(1);
+    });
+    expect(importPoseConfigFromData).toHaveBeenCalledTimes(0);
+  });
+
+  it("imports poses after standard inputs become available without rerunning rig import", async () => {
+    const importGraphSpec = vi.fn(async () => ({
+      status: "success_with_repair" as const,
+      faceChanged: false,
+      importedFaceId: null,
+    }));
+    const importPoseConfigFromData = vi.fn();
+    const onSuccess = vi.fn();
+    const baseProps = {
+      faceId: "robot",
+      rootId: "root",
+      loadedBundle: createBundleWithRigAndPoses({
+        nodes: [],
+        edges: [],
+      } as GraphSpec),
+      skipDiscrepancyCheck: false,
+      importGraphSpec,
+      importPoseConfigFromData,
+      onFailure: vi.fn(),
+      onSuccess,
+    };
+
+    const hook = renderHook(
+      (props: typeof baseProps & { standardInputCount: number }) =>
+        useBundleSynchronizer(props),
+      {
+        initialProps: { ...baseProps, standardInputCount: 0 },
+      },
+    );
+
+    await waitFor(() => {
+      expect(importGraphSpec).toHaveBeenCalledTimes(1);
+    });
+    expect(importPoseConfigFromData).toHaveBeenCalledTimes(0);
+
+    hook.rerender({ ...baseProps, standardInputCount: 1 });
+
+    await waitFor(() => {
+      expect(importPoseConfigFromData).toHaveBeenCalledTimes(1);
+    });
+    expect(importGraphSpec).toHaveBeenCalledTimes(1);
+    expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
   it("retries bundle sync when retryToken changes", async () => {

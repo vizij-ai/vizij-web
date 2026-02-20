@@ -57,7 +57,9 @@ export function useBundleSynchronizer({
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
   const appliedBundleFingerprintRef = useRef<string | null>(null);
+  const activeBundleFingerprintRef = useRef<string | null>(null);
   const rigImportedRef = useRef(false);
+  const poseImportedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +82,9 @@ export function useBundleSynchronizer({
     const applyBundleState = async () => {
       if (!rootId || !loadedBundle) {
         appliedBundleFingerprintRef.current = null;
+        activeBundleFingerprintRef.current = null;
         rigImportedRef.current = false;
+        poseImportedRef.current = false;
         return;
       }
 
@@ -97,8 +101,10 @@ export function useBundleSynchronizer({
         return;
       }
 
-      if (fingerprint && appliedBundleFingerprintRef.current !== fingerprint) {
+      if (fingerprint && activeBundleFingerprintRef.current !== fingerprint) {
+        activeBundleFingerprintRef.current = fingerprint;
         rigImportedRef.current = false;
+        poseImportedRef.current = false;
       }
 
       const bundleGraphs = loadedBundle.graphs as
@@ -147,11 +153,13 @@ export function useBundleSynchronizer({
         }
       }
 
-      if (standardInputCount === 0) {
-        return;
-      }
-
-      if (loadedBundle.poses?.config) {
+      if (loadedBundle.poses?.config && !poseImportedRef.current) {
+        if (standardInputCount === 0) {
+          if (hasFailure && fingerprint) {
+            appliedBundleFingerprintRef.current = fingerprint;
+          }
+          return;
+        }
         try {
           if (importedFaceIdFromRig) {
             await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
@@ -162,6 +170,7 @@ export function useBundleSynchronizer({
           importPoseConfigFromData(
             loadedBundle.poses.config as unknown as PoseRigConfigFile,
           );
+          poseImportedRef.current = true;
         } catch (error) {
           hasFailure = true;
           const message =
@@ -178,6 +187,10 @@ export function useBundleSynchronizer({
         if (cancelled) {
           return;
         }
+      }
+
+      if (!loadedBundle.poses?.config) {
+        poseImportedRef.current = true;
       }
 
       if (fingerprint) {
