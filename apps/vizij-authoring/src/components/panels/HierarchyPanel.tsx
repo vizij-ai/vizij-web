@@ -263,34 +263,29 @@ export function HierarchyPanel({
       description="Select objects via the tree or viewport to drive the inspector."
     >
       <div className="flex flex-col h-full gap-1 p-1">
+        {allowEditActions && (
+          <div className="flex items-center justify-between gap-2 p-1.5 rounded bg-bg-card border border-border-default/70 mb-1 mx-1">
+            <div className="flex flex-col leading-tight">
+              <span className="text-[11px] font-medium text-text-secondary">
+                Face Outlines
+              </span>
+              <span className="text-[10px] text-text-muted">
+                {showSelectionGlow ? "Visible" : "Hidden"}
+              </span>
+            </div>
+            <Button
+              variant={showSelectionGlow ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onToggleSelectionGlow(!showSelectionGlow)}
+              title="Toggle white selection outlines on the face"
+            >
+              {showSelectionGlow ? "Hide" : "Show"}
+            </Button>
+          </div>
+        )}
         {allowEditActions && selectedId && (
           <div className="flex items-center gap-1 p-1 rounded bg-accent/10 border border-accent/20 mb-1 mx-1">
-            <button
-              type="button"
-              onClick={() => onToggleSelectionGlow(!showSelectionGlow)}
-              className={cn(
-                "flex items-center justify-center h-6 w-6 rounded hover:bg-white/5 transition-colors",
-                showSelectionGlow
-                  ? "text-yellow-400"
-                  : "text-text-muted hover:text-text-primary",
-              )}
-              title="Toggle Selection Glow"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="5" />
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-              </svg>
-            </button>
-            <div className="w-px h-4 bg-accent/20 mx-1" />
             <Button
               variant="ghost"
               size="sm"

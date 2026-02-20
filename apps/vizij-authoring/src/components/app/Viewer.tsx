@@ -32,6 +32,66 @@ function RuntimeInputBridge() {
   return null;
 }
 
+interface RuntimeSelectionBridgeProps {
+  selectedSceneId: string | null;
+  onSelectSceneChange?: (id: string | null) => void;
+}
+
+function RuntimeSelectionBridge({
+  selectedSceneId,
+  onSelectSceneChange,
+}: RuntimeSelectionBridgeProps) {
+  const runtime = useVizijRuntime();
+  const runtimeSelection = runtime as typeof runtime & {
+    selectedElementId?: string | null;
+    selectElementById?: (id: string | null) => void;
+  };
+  const selectedElementId = runtimeSelection.selectedElementId ?? null;
+  const selectElementById =
+    runtimeSelection.selectElementById ?? (() => undefined);
+  const previousSelectedSceneIdRef = useRef<string | null>(selectedSceneId);
+  const previousRuntimeSelectionRef = useRef<string | null>(selectedElementId);
+
+  useEffect(() => {
+    const previousExternal = previousSelectedSceneIdRef.current;
+    const previousRuntime = previousRuntimeSelectionRef.current;
+    const externalChanged = selectedSceneId !== previousExternal;
+    const runtimeChanged = selectedElementId !== previousRuntime;
+
+    if (
+      externalChanged &&
+      !runtimeChanged &&
+      selectedElementId !== selectedSceneId
+    ) {
+      selectElementById(selectedSceneId);
+    } else if (
+      runtimeChanged &&
+      !externalChanged &&
+      selectedElementId !== selectedSceneId
+    ) {
+      onSelectSceneChange?.(selectedElementId);
+    } else if (!externalChanged && !runtimeChanged) {
+      if (selectedElementId !== selectedSceneId) {
+        if (selectedSceneId === null) {
+          onSelectSceneChange?.(selectedElementId);
+        } else {
+          selectElementById(selectedSceneId);
+        }
+      }
+    }
+
+    previousSelectedSceneIdRef.current = selectedSceneId;
+    previousRuntimeSelectionRef.current = selectedElementId;
+  }, [
+    onSelectSceneChange,
+    selectElementById,
+    selectedElementId,
+    selectedSceneId,
+  ]);
+
+  return null;
+}
+
 function RuntimeGraphBridge() {
   const { setGraphBundle } = useVizijRuntime();
   const graphSpecRevision = useGraphRuntime((state) => state.graphSpecRevision);
@@ -134,6 +194,8 @@ export interface ViewerProps {
   rootId: string | null;
   namespace: string;
   bundle: VizijAssetBundle | null;
+  selectedSceneId?: string | null;
+  onSelectSceneChange?: (id: string | null) => void;
   onClearSelection: () => void;
   showSelectionGlow: boolean;
   onImportClick: () => void;
@@ -145,6 +207,8 @@ export function Viewer({
   rootId,
   namespace: _namespace,
   bundle,
+  selectedSceneId = null,
+  onSelectSceneChange,
   onClearSelection,
   showSelectionGlow,
   onImportClick,
@@ -174,6 +238,10 @@ export function Viewer({
           <VizijRuntimeProvider assetBundle={bundle} autostart>
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
+            <RuntimeSelectionBridge
+              selectedSceneId={selectedSceneId}
+              onSelectSceneChange={onSelectSceneChange}
+            />
             <RuntimeStatusDebug />
             <div
               className="h-full w-full"

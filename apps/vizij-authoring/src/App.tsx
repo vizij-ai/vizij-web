@@ -221,6 +221,16 @@ function AppContent({ loader }: AppContentProps) {
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
+  const handleViewportSceneSelection = useCallback(
+    (id: string | null) => {
+      if (!id) {
+        handleClearSelection();
+        return;
+      }
+      handleSelectObject(id);
+    },
+    [handleClearSelection, handleSelectObject],
+  );
 
   const sharedVariableSync = useSharedVariableSync({
     mainInputsById: mainFaceInputsById,
@@ -340,6 +350,8 @@ function AppContent({ loader }: AppContentProps) {
               rootId={rootId}
               namespace={DEFAULT_NAMESPACE}
               bundle={rootId ? runtimeBundle : null}
+              selectedSceneId={selectedSceneId}
+              onSelectSceneChange={handleViewportSceneSelection}
               onClearSelection={handleClearSelection}
               showSelectionGlow={showSelectionGlow}
               onImportClick={handleImportClick}
@@ -366,6 +378,8 @@ function AppContent({ loader }: AppContentProps) {
           rootId={rootId}
           namespace={DEFAULT_NAMESPACE}
           bundle={rootId ? runtimeBundle : null}
+          selectedSceneId={selectedSceneId}
+          onSelectSceneChange={handleViewportSceneSelection}
           onClearSelection={handleClearSelection}
           showSelectionGlow={showSelectionGlow}
           onImportClick={handleImportClick}

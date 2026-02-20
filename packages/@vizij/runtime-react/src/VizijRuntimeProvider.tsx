@@ -1040,6 +1040,47 @@ function VizijRuntimeProviderInner({
     assetBundle.pose?.config?.faceId ??
     assetBundle.pose?.config?.faceId ??
     undefined;
+  const selectedElementId = store(
+    (state) => state.elementSelection[0]?.id ?? null,
+  );
+
+  const selectElementById = useCallback(
+    (id: string | null) => {
+      const current = store.getState().elementSelection ?? [];
+      if (!id) {
+        if (current.length === 0) {
+          return;
+        }
+        store.setState({ elementSelection: [] });
+        return;
+      }
+      const renderable = store.getState().world[id];
+      if (!renderable) {
+        return;
+      }
+      const selectionType: "shape" | "group" | "ellipse" | "rectangle" =
+        renderable.type === "group"
+          ? "group"
+          : renderable.type === "ellipse"
+            ? "ellipse"
+            : renderable.type === "rectangle"
+              ? "rectangle"
+              : "shape";
+      const top = current[0];
+      if (
+        current.length === 1 &&
+        top?.id === id &&
+        top.namespace === namespace &&
+        top.type === selectionType
+      ) {
+        return;
+      }
+      store.setState({
+        elementSelection: [{ id, namespace, type: selectionType }],
+      });
+    },
+    [namespace, store],
+  );
 
   const [status, setStatus] = useState<VizijRuntimeStatus>({
     loading: true,
@@ -2101,6 +2142,8 @@ function VizijRuntimeProviderInner({
     () => ({
       ...status,
       assetBundle,
+      selectedElementId,
+      selectElementById,
       setInput,
       setGraphBundle,
       setValue: setRendererValue,
@@ -2117,6 +2160,8 @@ function VizijRuntimeProviderInner({
     [
       status,
       assetBundle,
+      selectedElementId,
+      selectElementById,
       setInput,
       setGraphBundle,
       setRendererValue,

@@ -15,6 +15,8 @@ import { Viewer } from "./Viewer";
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const setGraphBundleSpy = vi.fn();
+const selectElementByIdSpy = vi.fn();
+let runtimeSelectedElementId: string | null = null;
 
 vi.mock("@vizij/runtime-react", () => ({
   VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
@@ -33,6 +35,8 @@ vi.mock("@vizij/runtime-react", () => ({
     controllers: { graphs: [] },
     outputPaths: [],
     setGraphBundle: setGraphBundleSpy,
+    selectedElementId: runtimeSelectedElementId,
+    selectElementById: selectElementByIdSpy,
   }),
 }));
 type ViewerProps = React.ComponentProps<typeof Viewer>;
@@ -73,6 +77,7 @@ describe("Viewer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRuntimePerfMetrics();
+    runtimeSelectedElementId = null;
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -149,6 +154,59 @@ describe("Viewer", () => {
     expect(stepSpy).not.toHaveBeenCalled();
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
     expect(getRuntimePerfMetricsSnapshot().graphBridgePublishes).toBe(1);
+  });
+
+  it("syncs external scene selection into runtime selection", () => {
+    renderViewer({
+      rootId: "root",
+      namespace: "vizij",
+      bundle: {
+        namespace: "vizij",
+        glb: {
+          kind: "world",
+          world: {} as any,
+          animatables: {} as any,
+          bundle: null,
+        },
+      },
+      selectedSceneId: "shape_1",
+      onSelectSceneChange: () => {},
+      onClearSelection: () => {},
+      showSelectionGlow: true,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+      onLoadHugo: () => {},
+    });
+
+    expect(selectElementByIdSpy).toHaveBeenCalledWith("shape_1");
+  });
+
+  it("emits runtime selection changes to app selection callback", () => {
+    runtimeSelectedElementId = "shape_2";
+    const onSelectSceneChange = vi.fn();
+
+    renderViewer({
+      rootId: "root",
+      namespace: "vizij",
+      bundle: {
+        namespace: "vizij",
+        glb: {
+          kind: "world",
+          world: {} as any,
+          animatables: {} as any,
+          bundle: null,
+        },
+      },
+      selectedSceneId: null,
+      onSelectSceneChange,
+      onClearSelection: () => {},
+      showSelectionGlow: true,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+      onLoadHugo: () => {},
+    });
+
+    expect(onSelectSceneChange).toHaveBeenCalledWith("shape_2");
   });
 
   it("registers rig and pose graph payloads concurrently", () => {

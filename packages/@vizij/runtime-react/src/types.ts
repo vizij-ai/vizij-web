@@ -210,6 +210,8 @@ export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
 
 export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
+  selectedElementId: string | null;
+  selectElementById: (id: string | null) => void;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   setGraphBundle: (
     bundle: RuntimeGraphBundle,
