@@ -397,3 +397,18 @@ Final gate after all chunks:
   1. `does not re-import rig while waiting for standard inputs`
   2. `imports poses after standard inputs become available without rerunning rig import`
 - 2026-02-20: Validation rerun for synchronizer hardening: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useBundleSynchronizer.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: `QL1.1` execution started with a dedicated rig UI filter store boundary (`src/state/rigUiStore.tsx`) for UI-only selection/filter state:
+  1. `selectedStandardInputRoots`
+  2. `selectedStandardInputSubgroups`
+  3. `hiddenDriverIds` + hide/show handlers
+- 2026-02-20: `RigControllerProvider` now owns and provides `rigUiStore`, and `useRigController` now reads/writes UI filter state through that store instead of local `useState` ownership (`src/state/RigControllerProvider.tsx`, `src/hooks/useRigController.ts`).
+- 2026-02-20: Compatibility bridge retained for this slice: binding authoring store still receives these values/handlers so existing UI consumers continue to work while boundary ownership is moved.
+- 2026-02-20: Added store regression coverage in `src/state/__tests__/stores.test.ts` (`rigUiStore` selection/filter mutations + subscriber notifications).
+- 2026-02-20: Validation rerun for QL1.1 slice: `pnpm --filter vizij-authoring exec vitest --run src/state/__tests__/stores.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: `QL1.1` follow-up completed for direct UI consumers:
+  1. `FeatureList` hidden-driver controls now consume `useRigUi`.
+  2. `StandardInputCoveragePanel` hidden-driver metrics now consume `useRigUi`.
+  3. `PoseRigProvider` hidden input filtering now consumes `useRigUi`.
+- 2026-02-20: Updated related tests/mocks for new UI-store boundary (`src/components/app/StandardInputCoveragePanel.test.tsx`, `src/state/PoseRigProvider.test.tsx`) and revalidated `stores.test.ts`.
+- 2026-02-20: Validation rerun for QL1.1 follow-up: `pnpm --filter vizij-authoring exec vitest --run src/components/app/StandardInputCoveragePanel.test.tsx src/state/PoseRigProvider.test.tsx src/state/__tests__/stores.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 13 (`QL1.2`) to extract compile/diff orchestration services from UI panels/hooks.
