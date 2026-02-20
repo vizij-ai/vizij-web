@@ -13,6 +13,7 @@ import { useLatestRef } from "./useLatestRef";
 
 export interface ImportGraphSpecOptions {
   skipDiscrepancyCheck?: boolean;
+  normalizedSpec?: GraphSpec;
 }
 
 interface UseBundleSynchronizerOptions {
@@ -56,8 +57,15 @@ export function useBundleSynchronizer({
   onSuccess,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
+  const importGraphSpecRef = useLatestRef(importGraphSpec);
+  const importPoseConfigFromDataRef = useLatestRef(importPoseConfigFromData);
+  const onFailureRef = useLatestRef(onFailure);
+  const onSuccessRef = useLatestRef(onSuccess);
+  const skipDiscrepancyCheckRef = useLatestRef(skipDiscrepancyCheck);
+
   const appliedBundleFingerprintRef = useRef<string | null>(null);
   const activeBundleFingerprintRef = useRef<string | null>(null);
+  const inFlightFingerprintRef = useRef<string | null>(null);
   const rigImportedRef = useRef(false);
   const poseImportedRef = useRef(false);
 
@@ -80,124 +88,147 @@ export function useBundleSynchronizer({
     };
 
     const applyBundleState = async () => {
-      if (!rootId || !loadedBundle) {
-        appliedBundleFingerprintRef.current = null;
-        activeBundleFingerprintRef.current = null;
-        rigImportedRef.current = false;
-        poseImportedRef.current = false;
-        return;
-      }
+      let fingerprint: string | null = null;
+      try {
+        if (!rootId || !loadedBundle) {
+          appliedBundleFingerprintRef.current = null;
+          activeBundleFingerprintRef.current = null;
+          inFlightFingerprintRef.current = null;
+          rigImportedRef.current = false;
+          poseImportedRef.current = false;
+          return;
+        }
 
-      const fingerprintPayload = {
-        version: loadedBundle.version,
-        graphs: loadedBundle.graphs ?? [],
-        poses: loadedBundle.poses?.config ?? null,
-        retryToken,
-      };
-      const fingerprint = JSON.stringify(fingerprintPayload);
-      let hasFailure = false;
+        const fingerprintPayload = {
+          version: loadedBundle.version,
+          graphs: loadedBundle.graphs ?? [],
+          poses: loadedBundle.poses?.config ?? null,
+          retryToken,
+        };
+        fingerprint = JSON.stringify(fingerprintPayload);
+        let hasFailure = false;
 
-      if (fingerprint && appliedBundleFingerprintRef.current === fingerprint) {
-        return;
-      }
+        if (
+          fingerprint &&
+          appliedBundleFingerprintRef.current === fingerprint
+        ) {
+          return;
+        }
 
-      if (fingerprint && activeBundleFingerprintRef.current !== fingerprint) {
-        activeBundleFingerprintRef.current = fingerprint;
-        rigImportedRef.current = false;
-        poseImportedRef.current = false;
-      }
+        if (fingerprint && inFlightFingerprintRef.current === fingerprint) {
+          return;
+        }
 
-      const bundleGraphs = loadedBundle.graphs as
-        | BundleGraphWithIr[]
-        | undefined;
-      const rigEntry =
-        bundleGraphs?.find((entry) => entry.kind?.toLowerCase?.() === "rig") ??
-        bundleGraphs?.[0];
+        if (fingerprint && activeBundleFingerprintRef.current !== fingerprint) {
+          activeBundleFingerprintRef.current = fingerprint;
+          rigImportedRef.current = false;
+          poseImportedRef.current = false;
+        }
+        inFlightFingerprintRef.current = fingerprint;
 
-      let importedFaceIdFromRig: string | null = null;
+        const bundleGraphs = loadedBundle.graphs as
+          | BundleGraphWithIr[]
+          | undefined;
+        const rigEntry =
+          bundleGraphs?.find(
+            (entry) => entry.kind?.toLowerCase?.() === "rig",
+          ) ?? bundleGraphs?.[0];
 
-      if (!rigImportedRef.current && rigEntry?.spec) {
-        try {
-          const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
-          const normalisedSpec = await normalizeGraphSpec(preparedSpec);
-          const result = await importGraphSpec(normalisedSpec, {
-            skipDiscrepancyCheck,
-          });
-          importedFaceIdFromRig = result.importedFaceId;
-          const importedRigSuccessfully = isImportOutcomeSuccess(result.status);
-          rigImportedRef.current = importedRigSuccessfully;
-          if (!importedRigSuccessfully) {
-            hasFailure = true;
-            onFailure?.({
-              phase: "rig",
-              message:
-                result.message ??
-                "Bundle rig import was blocked. Review import diagnostics and retry.",
+        let importedFaceIdFromRig: string | null = null;
+
+        if (!rigImportedRef.current && rigEntry?.spec) {
+          try {
+            const preparedSpec = prepareSpecForImport(
+              rigEntry.spec,
+              rigEntry.ir,
+            );
+            const normalizedSpec = await normalizeGraphSpec(preparedSpec);
+            const result = await importGraphSpecRef.current(normalizedSpec, {
+              skipDiscrepancyCheck: skipDiscrepancyCheckRef.current,
+              normalizedSpec,
             });
-          }
-        } catch (error) {
-          hasFailure = true;
-          const message =
-            error instanceof Error ? error.message : String(error);
-          onFailure?.({
-            phase: "rig",
-            message: `Bundle rig import failed: ${message}`,
-          });
-          console.warn(
-            "[vizij-authoring] Failed to import rig graph from bundle.",
-            error,
-          );
-        }
-        if (cancelled) {
-          return;
-        }
-      }
-
-      if (loadedBundle.poses?.config && !poseImportedRef.current) {
-        if (standardInputCount === 0) {
-          if (hasFailure && fingerprint) {
-            appliedBundleFingerprintRef.current = fingerprint;
-          }
-          return;
-        }
-        try {
-          if (importedFaceIdFromRig) {
-            await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
-            if (cancelled) {
-              return;
+            importedFaceIdFromRig = result.importedFaceId;
+            const importedRigSuccessfully = isImportOutcomeSuccess(
+              result.status,
+            );
+            rigImportedRef.current = importedRigSuccessfully;
+            if (!importedRigSuccessfully) {
+              hasFailure = true;
+              onFailureRef.current?.({
+                phase: "rig",
+                message:
+                  result.message ??
+                  "Bundle rig import was blocked. Review import diagnostics and retry.",
+              });
             }
+          } catch (error) {
+            hasFailure = true;
+            const message =
+              error instanceof Error ? error.message : String(error);
+            onFailureRef.current?.({
+              phase: "rig",
+              message: `Bundle rig import failed: ${message}`,
+            });
+            console.warn(
+              "[vizij-authoring] Failed to import rig graph from bundle.",
+              error,
+            );
           }
-          importPoseConfigFromData(
-            loadedBundle.poses.config as unknown as PoseRigConfigFile,
-          );
+          if (cancelled) {
+            return;
+          }
+        }
+
+        if (loadedBundle.poses?.config && !poseImportedRef.current) {
+          if (standardInputCount === 0) {
+            if (hasFailure && fingerprint) {
+              appliedBundleFingerprintRef.current = fingerprint;
+            }
+            return;
+          }
+          try {
+            if (importedFaceIdFromRig) {
+              await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
+              if (cancelled) {
+                return;
+              }
+            }
+            importPoseConfigFromDataRef.current(
+              loadedBundle.poses.config as unknown as PoseRigConfigFile,
+            );
+            poseImportedRef.current = true;
+          } catch (error) {
+            hasFailure = true;
+            const message =
+              error instanceof Error ? error.message : String(error);
+            onFailureRef.current?.({
+              phase: "pose",
+              message: `Bundle pose import failed: ${message}`,
+            });
+            console.warn(
+              "[vizij-authoring] Failed to import pose rig config from bundle.",
+              error,
+            );
+          }
+          if (cancelled) {
+            return;
+          }
+        }
+
+        if (!loadedBundle.poses?.config) {
           poseImportedRef.current = true;
-        } catch (error) {
-          hasFailure = true;
-          const message =
-            error instanceof Error ? error.message : String(error);
-          onFailure?.({
-            phase: "pose",
-            message: `Bundle pose import failed: ${message}`,
-          });
-          console.warn(
-            "[vizij-authoring] Failed to import pose rig config from bundle.",
-            error,
-          );
         }
-        if (cancelled) {
-          return;
+
+        if (fingerprint) {
+          appliedBundleFingerprintRef.current = fingerprint;
         }
-      }
-
-      if (!loadedBundle.poses?.config) {
-        poseImportedRef.current = true;
-      }
-
-      if (fingerprint) {
-        appliedBundleFingerprintRef.current = fingerprint;
-      }
-      if (!hasFailure) {
-        onSuccess?.();
+        if (!hasFailure) {
+          onSuccessRef.current?.();
+        }
+      } finally {
+        if (inFlightFingerprintRef.current === fingerprint) {
+          inFlightFingerprintRef.current = null;
+        }
       }
     };
 
@@ -206,16 +237,5 @@ export function useBundleSynchronizer({
     return () => {
       cancelled = true;
     };
-  }, [
-    faceIdRef,
-    importGraphSpec,
-    importPoseConfigFromData,
-    loadedBundle,
-    rootId,
-    retryToken,
-    skipDiscrepancyCheck,
-    standardInputCount,
-    onFailure,
-    onSuccess,
-  ]);
+  }, [faceIdRef, loadedBundle, rootId, retryToken, standardInputCount]);
 }

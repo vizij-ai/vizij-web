@@ -116,7 +116,10 @@ export function useRigGraphImport({
   return useCallback(
     async (
       spec: GraphSpec,
-      options?: { skipDiscrepancyCheck?: boolean },
+      options?: {
+        skipDiscrepancyCheck?: boolean;
+        normalizedSpec?: GraphSpec;
+      },
     ): Promise<GraphImportResult> => {
       try {
         const blueprint = buildAutoRigInputBlueprints(
@@ -235,7 +238,9 @@ export function useRigGraphImport({
         }).spec;
 
         const [importedNormalized, rebuiltNormalized] = await Promise.all([
-          normalizeGraphSpec(spec),
+          options?.normalizedSpec
+            ? Promise.resolve(options.normalizedSpec)
+            : normalizeGraphSpec(spec),
           normalizeGraphSpec(rebuiltSpec),
         ]);
         const importedComparable =

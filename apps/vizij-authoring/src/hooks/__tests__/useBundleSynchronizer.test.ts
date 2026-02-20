@@ -1,11 +1,13 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useBundleSynchronizer } from "../useBundleSynchronizer";
 
+const mockNormalizeGraphSpec = vi.fn(async (spec: GraphSpec) => spec);
+
 vi.mock("@vizij/node-graph-wasm", async () => ({
-  normalizeGraphSpec: vi.fn(async (spec: GraphSpec) => spec),
+  normalizeGraphSpec: (spec: GraphSpec) => mockNormalizeGraphSpec(spec),
 }));
 
 function createBundleWithRigSpec(spec: GraphSpec) {
@@ -27,6 +29,9 @@ function createBundleWithRigAndPoses(spec: GraphSpec) {
   } as unknown as VizijBundleExtension;
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 describe("useBundleSynchronizer failure surfaces", () => {
   it("reports recoverable rig import failures to the caller", async () => {
     const importGraphSpec = vi.fn(async () => ({
@@ -58,6 +63,42 @@ describe("useBundleSynchronizer failure surfaces", () => {
         phase: "rig",
         message: "Rig import requires discrepancy review.",
       });
+    });
+  });
+
+  it("normalizes the rig spec once and forwards it as canonical import input", async () => {
+    const rigSpec = {
+      nodes: [{ id: "n1", type: "input" }],
+      edges: [],
+    } as GraphSpec;
+    const importGraphSpec = vi.fn(async () => ({
+      status: "success" as const,
+      faceChanged: false,
+      importedFaceId: null,
+    }));
+
+    renderHook(() =>
+      useBundleSynchronizer({
+        faceId: "robot",
+        rootId: "root",
+        loadedBundle: createBundleWithRigSpec(rigSpec),
+        standardInputCount: 1,
+        skipDiscrepancyCheck: true,
+        importGraphSpec,
+        importPoseConfigFromData: vi.fn(),
+        onFailure: vi.fn(),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(importGraphSpec).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockNormalizeGraphSpec).toHaveBeenCalledTimes(1);
+    expect(mockNormalizeGraphSpec).toHaveBeenCalledWith(rigSpec);
+    expect(importGraphSpec).toHaveBeenCalledWith(rigSpec, {
+      skipDiscrepancyCheck: true,
+      normalizedSpec: rigSpec,
     });
   });
 

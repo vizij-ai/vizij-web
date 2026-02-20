@@ -50,7 +50,10 @@ export interface GraphRuntimeState {
   getGraphIr: () => BuildGraphResult["ir"] | null;
   handleImportGraphSpec: (
     spec: GraphSpec,
-    options?: { skipDiscrepancyCheck?: boolean },
+    options?: {
+      skipDiscrepancyCheck?: boolean;
+      normalizedSpec?: GraphSpec;
+    },
   ) => Promise<GraphImportResult>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
