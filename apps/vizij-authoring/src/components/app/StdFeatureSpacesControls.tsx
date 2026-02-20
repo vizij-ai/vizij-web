@@ -5,6 +5,10 @@ import { SidebarSection } from "../common/SidebarSection";
 import { Button, RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  buildStandardInputMapByNormalizedPath,
+  mergeReferenceAndMainStandardInputs,
+} from "../../utils/standardInputMerge";
 import { GroupMappingEditor } from "./StdFeatureSpacesMappingEditor";
 
 /**
@@ -141,49 +145,24 @@ export function StdFeatureSpacesControls() {
   // Build a union of standard inputs from both reference and main face
   // Deduplicate by normalized path (not id) since the same logical input may have different IDs in each face
   const combinedInputsByPath = useMemo(() => {
-    const byPath = new Map<string, StandardRigInput>();
-    const isStandardInput = (input: StandardRigInput) =>
-      input.path.includes("/standard/");
-
-    // Add reference face inputs first (only /standard/ paths)
-    for (const input of referenceFace.standardInputs) {
-      if (isStandardInput(input)) {
-        const normalizedPath = normalizeStandardRigInputPath(input.path);
-        byPath.set(normalizedPath, input);
-      }
-    }
-    // Add main face inputs (only /standard/ paths, won't override if already exists)
-    for (const input of mainFaceStandardInputs) {
-      if (isStandardInput(input)) {
-        const normalizedPath = normalizeStandardRigInputPath(input.path);
-        if (!byPath.has(normalizedPath)) {
-          byPath.set(normalizedPath, input);
-        }
-      }
-    }
-    return byPath;
+    return mergeReferenceAndMainStandardInputs(
+      referenceFace.standardInputs,
+      mainFaceStandardInputs,
+    );
   }, [referenceFace.standardInputs, mainFaceStandardInputs]);
 
   // Build lookup maps by normalized path for each face
   // Use the ById maps (authoritative source) rather than arrays
   const refInputsByPath = useMemo(() => {
-    const byPath = new Map<string, StandardRigInput>();
-    for (const input of referenceFace.standardInputsById.values()) {
-      if (input.path.includes("/standard/")) {
-        byPath.set(normalizeStandardRigInputPath(input.path), input);
-      }
-    }
-    return byPath;
+    return buildStandardInputMapByNormalizedPath(
+      referenceFace.standardInputsById.values(),
+    );
   }, [referenceFace.standardInputsById]);
 
   const mainInputsByPath = useMemo(() => {
-    const byPath = new Map<string, StandardRigInput>();
-    for (const input of mainFaceStandardInputsById.values()) {
-      if (input.path.includes("/standard/")) {
-        byPath.set(normalizeStandardRigInputPath(input.path), input);
-      }
-    }
-    return byPath;
+    return buildStandardInputMapByNormalizedPath(
+      mainFaceStandardInputsById.values(),
+    );
   }, [mainFaceStandardInputsById]);
 
   // Group standard inputs by namespace and channel

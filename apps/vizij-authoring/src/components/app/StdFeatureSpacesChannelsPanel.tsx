@@ -3,6 +3,10 @@ import type { StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import {
+  buildNormalizedPathSet,
+  mergeReferenceAndMainStandardInputs,
+} from "../../utils/standardInputMerge";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { Button, Panel, Chip, Input } from "../ui";
 import { cn } from "../../utils/cn";
@@ -150,17 +154,6 @@ function collectInputsUnderNode(node: TreeNode): StandardRigInput[] {
 }
 
 /**
- * Builds a set of normalized paths from inputs.
- */
-function buildNormalizedPathSet(inputs: StandardRigInput[]): Set<string> {
-  const paths = new Set<string>();
-  for (const input of inputs) {
-    paths.add(normalizeStandardRigInputPath(input.path));
-  }
-  return paths;
-}
-
-/**
  * Formats a segment name for display (e.g., "left_eye" -> "Left Eye").
  */
 function formatSegmentName(segment: string): string {
@@ -264,25 +257,12 @@ export function StdFeatureSpacesChannelsPanel() {
       return mainFaceStandardInputs;
     }
     // Single face mode - show whatever is loaded
-    const byId = new Map<string, StandardRigInput>();
-    const isStandardInput = (input: StandardRigInput) =>
-      input.path.includes("/standard/");
-
-    // Add reference face inputs first
-    for (const input of referenceFace.standardInputs) {
-      if (isStandardInput(input)) {
-        byId.set(input.id, input);
-      }
-    }
-
-    // Overlay main face inputs (takes precedence)
-    for (const input of mainFaceStandardInputs) {
-      if (isStandardInput(input)) {
-        byId.set(input.id, input);
-      }
-    }
-
-    return Array.from(byId.values());
+    return Array.from(
+      mergeReferenceAndMainStandardInputs(
+        referenceFace.standardInputs,
+        mainFaceStandardInputs,
+      ).values(),
+    );
   }, [referenceFace.standardInputs, mainFaceStandardInputs, bothFacesLoaded]);
 
   // Build the tree structure (for main/combined tree)

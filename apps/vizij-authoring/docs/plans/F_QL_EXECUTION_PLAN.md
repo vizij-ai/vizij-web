@@ -431,3 +431,10 @@ Final gate after all chunks:
 - 2026-02-20: Added QL1.3 regression coverage in `src/components/scene-composer/useHierarchySurfaceState.test.tsx` for selection/search-driven expansion behavior and blocked-parent descendant computation.
 - 2026-02-20: Validation rerun for QL1.3: `pnpm --filter vizij-authoring exec vitest --run src/components/scene-composer/useHierarchySurfaceState.test.tsx src/components/scene-composer/useHierarchyTreeState.test.tsx src/components/scene-composer/hierarchyFilters.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 15 (`QL1.4`) for standard-input merge consolidation.
+- 2026-02-20: `QL1.4` completed by centralizing standard-input merge/dedup logic in `src/utils/standardInputMerge.ts`.
+  1. Added shared normalized-path helpers: `buildStandardInputMapByNormalizedPath`, `mergeReferenceAndMainStandardInputs`, and `buildNormalizedPathSet`.
+  2. `StdFeatureSpacesControls` now consumes shared merge/map helpers for union and per-face normalized lookups.
+  3. `StdFeatureSpacesChannelsPanel` now consumes shared merge/path-set helpers for combined single-tree inputs and missing/adopt comparisons.
+- 2026-02-20: Added QL1.4 regression coverage in `src/utils/__tests__/standardInputMerge.test.ts` for normalized dedupe behavior, standard-path filtering, and deterministic merge ordering.
+- 2026-02-20: Validation rerun for QL1.4: `pnpm --filter vizij-authoring exec vitest --run src/utils/__tests__/standardInputMerge.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 16 (`QL1.5`, `QL1.6`, `QL1.7`) for type-safety hardening across scene features/material constraints/runtime payload writes.
