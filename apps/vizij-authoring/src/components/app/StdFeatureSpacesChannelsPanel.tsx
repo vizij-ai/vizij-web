@@ -5,8 +5,13 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import {
   buildNormalizedPathSet,
+  isStandardInputPath,
   mergeReferenceAndMainStandardInputs,
 } from "../../utils/standardInputMerge";
+import {
+  formatStandardSegmentName,
+  getStandardPathSegments,
+} from "../../utils/standardInputSegments";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { Button, Panel, Chip, Input } from "../ui";
 import { cn } from "../../utils/cn";
@@ -43,13 +48,8 @@ function buildInputTree(inputs: StandardRigInput[]): Map<string, TreeNode> {
   const root = new Map<string, TreeNode>();
 
   for (const input of inputs) {
-    // Extract the path after /standard/
-    const match = input.path.match(/\/standard\/(.+)$/);
-    if (!match) continue;
-
-    const pathAfterStandard = match[1];
-    const segments = pathAfterStandard.split("/").filter(Boolean);
-    if (segments.length === 0) continue;
+    const segments = getStandardPathSegments(input.path);
+    if (!segments || segments.length === 0) continue;
 
     let currentLevel = root;
     let currentPath = "";
@@ -154,16 +154,6 @@ function collectInputsUnderNode(node: TreeNode): StandardRigInput[] {
 }
 
 /**
- * Formats a segment name for display (e.g., "left_eye" -> "Left Eye").
- */
-function formatSegmentName(segment: string): string {
-  return segment
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/**
  * Validates a node name for use in paths.
  * Returns null if valid, or an error message if invalid.
  */
@@ -232,7 +222,7 @@ export function StdFeatureSpacesChannelsPanel() {
   // Filter reference face inputs to only /standard/ paths
   const refFaceStandardInputs = useMemo(() => {
     return referenceFace.standardInputs.filter((input) =>
-      input.path.includes("/standard/"),
+      isStandardInputPath(input.path),
     );
   }, [referenceFace.standardInputs]);
 
@@ -463,16 +453,13 @@ export function StdFeatureSpacesChannelsPanel() {
 
     // Update each input's path to include the new namespace
     for (const input of combinedInputs) {
-      // Extract path after /standard/
-      const match = input.path.match(/^\/standard\/(.+)$/);
-      if (!match) continue;
-
-      const pathAfterStandard = match[1];
+      const pathSegments = getStandardPathSegments(input.path);
+      if (!pathSegments) continue;
       // Insert namespace as the first segment
-      const newPath = `/standard/${namespaceName}/${pathAfterStandard}`;
+      const newPath = `/standard/${namespaceName}/${pathSegments.join("/")}`;
 
       // Update the label to include the namespace prefix
-      const formattedNamespace = formatSegmentName(namespaceName);
+      const formattedNamespace = formatStandardSegmentName(namespaceName);
       const currentLabel = input.label || "";
       const newLabel = currentLabel.startsWith(formattedNamespace + " ")
         ? currentLabel // Already has namespace prefix
@@ -558,10 +545,10 @@ export function StdFeatureSpacesChannelsPanel() {
 
       // Also update the label if it contains the old name
       const oldLabel = input.label || "";
-      const newLabel = oldLabel.includes(formatSegmentName(oldSegment))
+      const newLabel = oldLabel.includes(formatStandardSegmentName(oldSegment))
         ? oldLabel.replace(
-            formatSegmentName(oldSegment),
-            formatSegmentName(renameValue),
+            formatStandardSegmentName(oldSegment),
+            formatStandardSegmentName(renameValue),
           )
         : undefined;
 
@@ -721,10 +708,11 @@ export function StdFeatureSpacesChannelsPanel() {
       const hasChildren = node.children.size > 0;
       const expanded = isExpanded(node.id);
 
-      let displayName = node.input?.label || formatSegmentName(node.name);
+      let displayName =
+        node.input?.label || formatStandardSegmentName(node.name);
       if (node.input?.label && node.depth > 0) {
         const namespaceSegment = node.id.split("/")[0];
-        const formattedNamespace = formatSegmentName(namespaceSegment);
+        const formattedNamespace = formatStandardSegmentName(namespaceSegment);
         if (displayName.startsWith(formattedNamespace + " ")) {
           displayName = displayName.slice(formattedNamespace.length + 1);
         }
@@ -865,10 +853,11 @@ export function StdFeatureSpacesChannelsPanel() {
       const hasChildren = node.children.size > 0;
       const expanded = isRefExpanded(node.id);
 
-      let displayName = node.input?.label || formatSegmentName(node.name);
+      let displayName =
+        node.input?.label || formatStandardSegmentName(node.name);
       if (node.input?.label && node.depth > 0) {
         const namespaceSegment = node.id.split("/")[0];
-        const formattedNamespace = formatSegmentName(namespaceSegment);
+        const formattedNamespace = formatStandardSegmentName(namespaceSegment);
         if (displayName.startsWith(formattedNamespace + " ")) {
           displayName = displayName.slice(formattedNamespace.length + 1);
         }

@@ -59,7 +59,7 @@ Status legend:
    - Landed:
      - `apps/vizij-authoring/src/components/panels/DebugPanel.tsx`
 
-5. `open` - Continue reducing duplicated standard-input handling across binding/feature surfaces.
+5. `done` - Continue reducing duplicated standard-input handling across binding/feature surfaces.
    - Current files:
      - `apps/vizij-authoring/src/components/app/StdFeatureSpacesControls.tsx`
      - `apps/vizij-authoring/src/components/app/StdFeatureSpacesChannelsPanel.tsx`
@@ -68,6 +68,11 @@ Status legend:
      - Some normalization and comparison behavior is still repeated in UI layers.
    - Target:
      - Push shared standard-input normalization/comparison helpers into `src/utils`.
+   - Landed:
+     - `apps/vizij-authoring/src/utils/standardInputSegments.ts`
+     - `apps/vizij-authoring/src/utils/standardInputComparison.ts`
+     - `apps/vizij-authoring/src/components/app/StdFeatureSpacesControls.tsx`
+     - `apps/vizij-authoring/src/components/app/StdFeatureSpacesChannelsPanel.tsx`
 
 6. `open` - Evaluate further segmentation of pose-rig store compile/projection logic.
    - Current files:

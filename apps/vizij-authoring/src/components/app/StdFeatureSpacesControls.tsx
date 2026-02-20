@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
-import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { SidebarSection } from "../common/SidebarSection";
 import { Button, RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
@@ -9,6 +8,11 @@ import {
   buildStandardInputMapByNormalizedPath,
   mergeReferenceAndMainStandardInputs,
 } from "../../utils/standardInputMerge";
+import {
+  deriveStandardNamespaceAndChannel,
+  formatStandardSegmentName,
+} from "../../utils/standardInputSegments";
+import { describeStandardInputPresence } from "../../utils/standardInputComparison";
 import { GroupMappingEditor } from "./StdFeatureSpacesMappingEditor";
 
 /**
@@ -27,56 +31,6 @@ function getFaceStatusClass(status: FaceStatus): string {
       return "status-indicator--blue";
     case "bound":
       return "status-indicator--green";
-  }
-}
-
-/**
- * Derives namespace and channel from a standard input path.
- * Path structure with namespace: /standard/<namespace>/<channel>/<track>/<attribute>
- * Path structure without namespace: /standard/<channel>/<track>/<attribute>
- *
- * For paths like "/standard/semio/left_eye/pos/x", returns { namespace: "semio", channel: "left_eye" }
- * For paths like "/standard/left_eye/pos/x", returns { namespace: "", channel: "left_eye" }
- */
-function deriveNamespaceAndChannelFromPath(path: string): {
-  namespace: string;
-  channel: string;
-} {
-  // Extract the /standard/... portion from the path
-  const standardMatch = path.match(/\/standard\/(.+)/);
-  if (!standardMatch || !standardMatch[1]) {
-    // Fallback: try normalizing and splitting
-    const normalized = normalizeStandardRigInputPath(path);
-    const withoutLeading = normalized.startsWith("/")
-      ? normalized.slice(1)
-      : normalized;
-    if (!withoutLeading) return { namespace: "", channel: "custom" };
-    const segments = withoutLeading.split("/");
-    if (segments[0] === "standard" && segments.length > 1) {
-      // Check if there's a namespace (4+ parts after standard means namespace exists)
-      const afterStandard = segments.slice(1);
-      if (afterStandard.length >= 4) {
-        return {
-          namespace: afterStandard[0] || "",
-          channel: afterStandard[1] || "custom",
-        };
-      }
-      return { namespace: "", channel: afterStandard[0] || "custom" };
-    }
-    return { namespace: "", channel: segments[0] || "custom" };
-  }
-
-  const afterStandard = standardMatch[1];
-  const segments = afterStandard.split("/");
-
-  // Path structure: namespace/channel/track/attribute (4+ segments after /standard/)
-  // Or: channel/track/attribute (3 segments - no namespace)
-  if (segments.length >= 4) {
-    // Has namespace: namespace/channel/track/attribute
-    return { namespace: segments[0], channel: segments[1] || "custom" };
-  } else {
-    // No namespace: channel/track/attribute
-    return { namespace: "", channel: segments[0] || "custom" };
   }
 }
 
@@ -170,7 +124,7 @@ export function StdFeatureSpacesControls() {
   const groupedByNamespaceAndChannel = useMemo(() => {
     const namespaces = new Map<string, Map<string, StandardRigInput[]>>();
     for (const input of combinedInputsByPath.values()) {
-      const { namespace, channel } = deriveNamespaceAndChannelFromPath(
+      const { namespace, channel } = deriveStandardNamespaceAndChannel(
         input.path,
       );
       if (!namespaces.has(namespace)) {
@@ -245,33 +199,31 @@ export function StdFeatureSpacesControls() {
       let hasAnyUnbound = false;
 
       for (const input of inputs) {
-        const normalizedPath = normalizeStandardRigInputPath(input.path);
-        const refInput = refInputsByPath.get(normalizedPath);
-        const mainInput = mainInputsByPath.get(normalizedPath);
-
-        const existsInRef = referenceFace.isLoaded && refInput !== undefined;
-        const existsInMain = mainFaceIsLoaded && mainInput !== undefined;
+        const presence = describeStandardInputPresence(input.path, {
+          reference: {
+            inputsByPath: refInputsByPath,
+            inputIdsWithBindings,
+            isLoaded: referenceFace.isLoaded,
+          },
+          main: {
+            inputsByPath: mainInputsByPath,
+            inputIdsWithBindings: mainFaceInputIdsWithBindings,
+            isLoaded: mainFaceIsLoaded,
+          },
+        });
 
         // Check if track is missing from either face
         if (
-          (referenceFace.isLoaded && !existsInRef) ||
-          (mainFaceIsLoaded && !existsInMain)
+          (referenceFace.isLoaded && !presence.reference.exists) ||
+          (mainFaceIsLoaded && !presence.main.exists)
         ) {
           hasAnyMissing = true;
         }
 
-        // Check bindings
-        const hasRefBinding =
-          existsInRef && refInput && inputIdsWithBindings.has(refInput.id);
-        const hasMainBinding =
-          existsInMain &&
-          mainInput &&
-          mainFaceInputIdsWithBindings.has(mainInput.id);
-
         // Check if any track is unbound in either face
         if (
-          (existsInRef && !hasRefBinding) ||
-          (existsInMain && !hasMainBinding)
+          (presence.reference.exists && !presence.reference.hasBinding) ||
+          (presence.main.exists && !presence.main.hasBinding)
         ) {
           hasAnyUnbound = true;
         }
@@ -293,13 +245,6 @@ export function StdFeatureSpacesControls() {
     ],
   );
 
-  const formatGroupName = (name: string) => {
-    return name
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
   // Check if at least one face is loaded
   const anyFaceLoaded = referenceFace.isLoaded || mainFaceIsLoaded;
   const anyFaceLoading = referenceFace.isLoading;
@@ -307,23 +252,38 @@ export function StdFeatureSpacesControls() {
   // Handler to reset all control channels to their neutral/default values
   const handleResetPose = useCallback(() => {
     for (const input of combinedInputsByPath.values()) {
-      const normalizedPath = normalizeStandardRigInputPath(input.path);
+      const presence = describeStandardInputPresence(input.path, {
+        reference: {
+          inputsByPath: refInputsByPath,
+          inputIdsWithBindings,
+          isLoaded: referenceFace.isLoaded,
+        },
+        main: {
+          inputsByPath: mainInputsByPath,
+          inputIdsWithBindings: mainFaceInputIdsWithBindings,
+          isLoaded: mainFaceIsLoaded,
+        },
+      });
 
-      // Look up each face's actual input by path to get the correct ID
-      const refInput = refInputsByPath.get(normalizedPath);
-      const mainInput = mainInputsByPath.get(normalizedPath);
-
-      if (referenceFace.isLoaded && refInput) {
-        referenceFace.handleInputValueChange(refInput.id, input.defaultValue);
+      if (referenceFace.isLoaded && presence.reference.input) {
+        referenceFace.handleInputValueChange(
+          presence.reference.input.id,
+          input.defaultValue,
+        );
       }
-      if (mainFaceIsLoaded && mainInput) {
-        mainFaceHandleInputValueChange(mainInput.id, input.defaultValue);
+      if (mainFaceIsLoaded && presence.main.input) {
+        mainFaceHandleInputValueChange(
+          presence.main.input.id,
+          input.defaultValue,
+        );
       }
     }
   }, [
     combinedInputsByPath,
     refInputsByPath,
     mainInputsByPath,
+    inputIdsWithBindings,
+    mainFaceInputIdsWithBindings,
     referenceFace.isLoaded,
     referenceFace.handleInputValueChange,
     mainFaceIsLoaded,
@@ -364,7 +324,7 @@ export function StdFeatureSpacesControls() {
                           setSelectedChannel(null); // Reset channel when namespace changes
                         }}
                       >
-                        {ns === "" ? "Root" : formatGroupName(ns)}
+                        {ns === "" ? "Root" : formatStandardSegmentName(ns)}
                       </button>
                     ))}
                   </div>
@@ -386,7 +346,7 @@ export function StdFeatureSpacesControls() {
                           className={`group-selector__btn ${activeChannel === channel ? "group-selector__btn--active" : ""}`}
                           onClick={() => setSelectedChannel(channel)}
                         >
-                          {formatGroupName(channel)}
+                          {formatStandardSegmentName(channel)}
                           <span
                             className={`status-indicator ${getFaceStatusClass(channelStatus)}`}
                             title={`Channel status: ${channelStatus}`}
@@ -505,36 +465,27 @@ function MatchingInputGroup({
       </div>
       <div className="reference-input-group__inputs">
         {inputs.map((input) => {
-          const normalizedPath = normalizeStandardRigInputPath(input.path);
+          const presence = describeStandardInputPresence(input.path, {
+            reference: {
+              inputsByPath: refInputsByPath,
+              inputIdsWithBindings: refInputIdsWithBindings,
+              isLoaded: refIsLoaded,
+            },
+            main: {
+              inputsByPath: mainInputsByPath,
+              inputIdsWithBindings: mainInputIdsWithBindings,
+              isLoaded: mainIsLoaded,
+            },
+          });
 
-          // Look up inputs by normalized path
-          const refInput = refInputsByPath.get(normalizedPath);
-          const mainInput = mainInputsByPath.get(normalizedPath);
-
-          // Check which faces have this input
-          const existsInRef = refIsLoaded && refInput !== undefined;
-          const existsInMain = mainIsLoaded && mainInput !== undefined;
-
-          // Check if each face has a binding for this input (using the face's own input ID)
-          const hasRefBinding =
-            existsInRef && refInput && refInputIdsWithBindings.has(refInput.id);
-          const hasMainBinding =
-            existsInMain &&
-            mainInput &&
-            mainInputIdsWithBindings.has(mainInput.id);
-          const hasAnyBinding = hasRefBinding || hasMainBinding;
-
-          // Determine status for each face
-          const mainStatus: FaceStatus = !existsInMain
-            ? "missing"
-            : hasMainBinding
-              ? "bound"
-              : "unbound";
-          const refStatus: FaceStatus = !existsInRef
-            ? "missing"
-            : hasRefBinding
-              ? "bound"
-              : "unbound";
+          const refInput = presence.reference.input;
+          const mainInput = presence.main.input;
+          const existsInRef = presence.reference.exists;
+          const existsInMain = presence.main.exists;
+          const hasAnyBinding =
+            presence.reference.hasBinding || presence.main.hasBinding;
+          const mainStatus: FaceStatus = presence.main.status;
+          const refStatus: FaceStatus = presence.reference.status;
 
           // Get current value (prefer ref if loaded, else main)
           const refValue =
@@ -561,7 +512,7 @@ function MatchingInputGroup({
           if (!hasAnyBinding) {
             return (
               <div
-                key={normalizedPath}
+                key={presence.normalizedPath}
                 className="reference-input-row reference-input-row--no-binding"
               >
                 <span className="reference-input-row__label">
@@ -586,7 +537,7 @@ function MatchingInputGroup({
           }
 
           return (
-            <div key={normalizedPath} className="reference-input-row">
+            <div key={presence.normalizedPath} className="reference-input-row">
               <RowSlider
                 label={input.label}
                 value={value}
