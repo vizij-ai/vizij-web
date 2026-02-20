@@ -178,7 +178,7 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      { tier: "graphs", mutationClass: "topology" },
     );
   });
 
@@ -216,7 +216,7 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      { tier: "graphs", mutationClass: "topology" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
 
@@ -236,7 +236,7 @@ describe("Viewer", () => {
           config: undefined,
         },
       },
-      { tier: "graphs" },
+      { tier: "graphs", mutationClass: "pose" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
 
@@ -252,7 +252,7 @@ describe("Viewer", () => {
         rig: undefined,
         pose: undefined,
       },
-      { tier: "graphs" },
+      { tier: "graphs", mutationClass: "topology" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
   });
@@ -291,7 +291,7 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      { tier: "graphs", mutationClass: "topology" },
     );
   });
 });

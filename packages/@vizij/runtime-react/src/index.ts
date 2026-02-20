@@ -29,4 +29,5 @@ export type {
   RuntimeGraphBundle,
   RuntimeMutationClass,
   RuntimeGraphMutation,
+  RuntimeGraphBundleUpdateOptions,
 } from "./types";

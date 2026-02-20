@@ -38,6 +38,7 @@ import type { AnimatableValue, RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
   resolveRuntimeUpdatePlan,
+  resolveRuntimeUpdatePlanFromMutationClass,
   type RuntimeGraphBundle,
   type RuntimeUpdateTier,
 } from "./updatePolicy";
@@ -57,6 +58,7 @@ import type {
   VizijRuntimeContextValue,
   VizijRuntimeProviderProps,
   VizijRuntimeStatus,
+  RuntimeGraphBundleUpdateOptions,
 } from "./types";
 import {
   collectInputPathMap,
@@ -2033,7 +2035,8 @@ function VizijRuntimeProviderInner({
   }, [reportStatus]);
 
   const setGraphBundle = useCallback(
-    (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
+    (bundle: RuntimeGraphBundle, options?: RuntimeGraphBundleUpdateOptions) => {
+      const requestedTier = options?.tier ?? updateTierRef.current;
       const hasRigOverride = Object.prototype.hasOwnProperty.call(
         bundle,
         "rig",
@@ -2062,11 +2065,16 @@ function VizijRuntimeProviderInner({
         }
       }
 
-      const plan = resolveRuntimeUpdatePlan(
-        previousBundleRef.current,
-        nextAssetBundle,
-        options?.tier ?? updateTierRef.current,
-      );
+      const plan = options?.mutationClass
+        ? resolveRuntimeUpdatePlanFromMutationClass(
+            options.mutationClass,
+            requestedTier,
+          )
+        : resolveRuntimeUpdatePlan(
+            previousBundleRef.current,
+            nextAssetBundle,
+            requestedTier,
+          );
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       setAssetBundleOverride(nextAssetBundle);

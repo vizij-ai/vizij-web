@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveRuntimeUpdatePlan } from "../updatePolicy";
+import {
+  resolveRuntimeUpdatePlan,
+  resolveRuntimeUpdatePlanFromMutationClass,
+} from "../updatePolicy";
 import type { VizijAssetBundle } from "../types";
 
 const baseWorld = { id: "root", children: [] };
@@ -103,5 +106,20 @@ describe("resolveRuntimeUpdatePlan", () => {
     const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
     expect(plan.reloadAssets).toBe(false);
     expect(plan.reregisterGraphs).toBe(true);
+  });
+});
+
+describe("resolveRuntimeUpdatePlanFromMutationClass", () => {
+  it("trusts topology mutation intent for graph-tier updates", () => {
+    const plan = resolveRuntimeUpdatePlanFromMutationClass(
+      "topology",
+      "graphs",
+    );
+    expect(plan).toEqual({ reloadAssets: false, reregisterGraphs: true });
+  });
+
+  it("forces asset reload for assets-tier intent", () => {
+    const plan = resolveRuntimeUpdatePlanFromMutationClass("pose", "assets");
+    expect(plan).toEqual({ reloadAssets: true, reregisterGraphs: false });
   });
 });

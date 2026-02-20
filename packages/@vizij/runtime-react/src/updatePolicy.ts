@@ -3,9 +3,25 @@ import type {
   RuntimeUpdateTier,
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
+  RuntimeMutationClass,
 } from "./types";
 
 export type { RuntimeUpdateTier, RuntimeUpdatePlan, RuntimeGraphBundle };
+
+export function resolveRuntimeUpdatePlanFromMutationClass(
+  mutationClass: Exclude<RuntimeMutationClass, "value">,
+  tier: RuntimeUpdateTier,
+): RuntimeUpdatePlan {
+  if (tier === "assets") {
+    return { reloadAssets: true, reregisterGraphs: false };
+  }
+
+  if (mutationClass === "topology" || mutationClass === "pose") {
+    return { reloadAssets: false, reregisterGraphs: true };
+  }
+
+  return { reloadAssets: false, reregisterGraphs: false };
+}
 
 function normalizeSpecPayload(value: unknown): string {
   if (!value) {

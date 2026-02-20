@@ -212,11 +212,8 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   setGraphBundle: (
-    bundle: {
-      rig?: VizijGraphAsset;
-      pose?: VizijAssetBundle["pose"];
-    },
-    options?: { tier?: "auto" | "assets" | "graphs" },
+    bundle: RuntimeGraphBundle,
+    options?: RuntimeGraphBundleUpdateOptions,
   ) => void;
   setValue: (
     id: string,
@@ -278,4 +275,9 @@ export type RuntimeGraphMutation = {
   mutationClass: Exclude<RuntimeMutationClass, "value">;
   bundle: RuntimeGraphBundle;
   options: { tier: "graphs" };
+};
+
+export type RuntimeGraphBundleUpdateOptions = {
+  tier?: RuntimeUpdateTier;
+  mutationClass?: Exclude<RuntimeMutationClass, "value">;
 };

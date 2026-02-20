@@ -71,7 +71,10 @@ function RuntimeGraphBridge() {
         hasPoseConfig: Boolean(mutation.bundle.pose?.config),
       });
     }
-    setGraphBundle(mutation.bundle, mutation.options);
+    setGraphBundle(mutation.bundle, {
+      ...mutation.options,
+      mutationClass: mutation.mutationClass,
+    });
   }, [
     graphSpecRevision,
     poseRuntimeRevision,
