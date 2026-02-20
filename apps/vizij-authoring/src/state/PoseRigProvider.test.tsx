@@ -301,9 +301,41 @@ describe("PoseRigProvider pose weight synchronization", () => {
 
     await waitFor(() => {
       expect(mockNormalizeGraphSpec).toHaveBeenCalledWith(poseGraphSpec);
-      expect(graphRuntimeStoreApi.setState).toHaveBeenCalledWith({
-        poseGraphSpec,
+      const updaters = graphRuntimeStoreApi.setState.mock.calls
+        .map((call) => call[0] as unknown)
+        .filter(
+          (updater): updater is (state: any) => any =>
+            typeof updater === "function",
+        );
+
+      expect(updaters.length).toBeGreaterThanOrEqual(2);
+
+      const configPatch = updaters
+        .map((updater) =>
+          updater({
+            poseConfig: null,
+            poseGraphSpec: null,
+            poseRuntimeRevision: 0,
+          }),
+        )
+        .find((patch) => patch?.poseConfig === poseConfigDraft);
+      expect(configPatch).toEqual({
         poseConfig: poseConfigDraft,
+        poseRuntimeRevision: 1,
+      });
+
+      const graphPatch = updaters
+        .map((updater) =>
+          updater({
+            poseConfig: poseConfigDraft,
+            poseGraphSpec: null,
+            poseRuntimeRevision: 1,
+          }),
+        )
+        .find((patch) => patch?.poseGraphSpec === poseGraphSpec);
+      expect(graphPatch).toEqual({
+        poseGraphSpec,
+        poseRuntimeRevision: 2,
       });
     });
   });

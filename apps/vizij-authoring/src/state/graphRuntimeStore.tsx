@@ -26,6 +26,8 @@ export interface GraphRuntimeState {
   graphError: string | null;
   graphWarning?: string | null;
   graphSpec?: GraphSpec | null;
+  graphSpecRevision: number;
+  poseRuntimeRevision: number;
   poseGraphSpec?: GraphSpec | null;
   poseConfig?: PoseRigConfig | null;
   graphInputDefaults: Record<string, number>;
@@ -75,6 +77,8 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   graphError: null,
   graphWarning: null,
   graphSpec: null,
+  graphSpecRevision: 0,
+  poseRuntimeRevision: 0,
   poseGraphSpec: null,
   poseConfig: null,
   graphInputDefaults: {},

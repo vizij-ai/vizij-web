@@ -9,6 +9,8 @@ import {
 } from "../../state/RigControllerProvider";
 import {
   createRuntimeGraphMutation,
+  resolveRuntimeGraphMutationClass,
+  type RuntimeGraphBridgeRevisions,
   type RuntimeGraphBridgeState,
 } from "./runtimeGraphMutation";
 
@@ -31,25 +33,36 @@ function RuntimeInputBridge() {
 
 function RuntimeGraphBridge() {
   const { setGraphBundle } = useVizijRuntime();
+  const graphSpecRevision = useGraphRuntime((state) => state.graphSpecRevision);
+  const poseRuntimeRevision = useGraphRuntime(
+    (state) => state.poseRuntimeRevision,
+  );
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const lastGraphRefsRef = useRef<RuntimeGraphBridgeState | null>(null);
+  const lastRevisionRef = useRef<RuntimeGraphBridgeRevisions | null>(null);
 
   useEffect(() => {
-    const nextState: RuntimeGraphBridgeState = {
+    const nextRevisions: RuntimeGraphBridgeRevisions = {
+      graphSpecRevision,
+      poseRuntimeRevision,
+    };
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      lastRevisionRef.current,
+      nextRevisions,
+    );
+    if (!mutationClass) {
+      return;
+    }
+    lastRevisionRef.current = nextRevisions;
+
+    const state: RuntimeGraphBridgeState = {
       graphSpec,
       poseGraphSpec,
       poseConfig,
     };
-    const mutation = createRuntimeGraphMutation(
-      lastGraphRefsRef.current,
-      nextState,
-    );
-    if (!mutation) {
-      return;
-    }
-    lastGraphRefsRef.current = nextState;
+    const mutation = createRuntimeGraphMutation(state, mutationClass);
+
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][graph-bridge]", {
         mutationClass: mutation.mutationClass,
@@ -59,7 +72,14 @@ function RuntimeGraphBridge() {
       });
     }
     setGraphBundle(mutation.bundle, mutation.options);
-  }, [graphSpec, poseGraphSpec, poseConfig, setGraphBundle]);
+  }, [
+    graphSpecRevision,
+    poseRuntimeRevision,
+    graphSpec,
+    poseGraphSpec,
+    poseConfig,
+    setGraphBundle,
+  ]);
 
   return null;
 }

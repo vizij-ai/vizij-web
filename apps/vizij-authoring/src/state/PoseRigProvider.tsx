@@ -226,13 +226,30 @@ function PoseRigController({
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
+    graphRuntimeStore.setState((state) => {
+      if (state.poseConfig === projectedPoseConfig) {
+        return;
+      }
+      return {
+        poseConfig: projectedPoseConfig,
+        poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+      };
+    });
+  }, [graphRuntimeStore, projectedPoseConfig]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const syncPoseGraph = async () => {
       if (!poseRig.poseGraphSpec) {
-        graphRuntimeStore.setState({
-          poseGraphSpec: null,
-          poseConfig: projectedPoseConfig,
+        graphRuntimeStore.setState((state) => {
+          if (!state.poseGraphSpec) {
+            return;
+          }
+          return {
+            poseGraphSpec: null,
+            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+          };
         });
         return;
       }
@@ -240,16 +257,26 @@ function PoseRigController({
       try {
         const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
         if (cancelled) return;
-        graphRuntimeStore.setState({
-          poseGraphSpec: normalized,
-          poseConfig: projectedPoseConfig,
+        graphRuntimeStore.setState((state) => {
+          if (state.poseGraphSpec === normalized) {
+            return;
+          }
+          return {
+            poseGraphSpec: normalized,
+            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+          };
         });
       } catch (error) {
         console.warn("[poseRig] Failed to normalize pose graph", error);
         if (cancelled) return;
-        graphRuntimeStore.setState({
-          poseGraphSpec: null,
-          poseConfig: projectedPoseConfig,
+        graphRuntimeStore.setState((state) => {
+          if (!state.poseGraphSpec) {
+            return;
+          }
+          return {
+            poseGraphSpec: null,
+            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+          };
         });
       }
     };
@@ -259,7 +286,7 @@ function PoseRigController({
     return () => {
       cancelled = true;
     };
-  }, [graphRuntimeStore, poseRig.poseGraphSpec, projectedPoseConfig]);
+  }, [graphRuntimeStore, poseRig.poseGraphSpec]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>

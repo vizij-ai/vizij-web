@@ -224,6 +224,7 @@ describe("Viewer", () => {
       store.setState({
         poseGraphSpec: undefined,
         poseConfig: undefined,
+        poseRuntimeRevision: 1,
       });
     });
 
@@ -242,6 +243,7 @@ describe("Viewer", () => {
     act(() => {
       store.setState({
         graphSpec: undefined,
+        graphSpecRevision: 1,
       });
     });
 

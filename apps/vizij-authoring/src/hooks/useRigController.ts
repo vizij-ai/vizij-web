@@ -1430,8 +1430,15 @@ export function useRigController(
   );
 
   useEffect(() => {
-    graphRuntimeStore.setState({
-      graphSpec: runtimeGraphSpec.runtimeSpec?.spec ?? null,
+    const runtimeSpec = runtimeGraphSpec.runtimeSpec?.spec ?? null;
+    graphRuntimeStore.setState((state) => {
+      if (state.graphSpec === runtimeSpec) {
+        return;
+      }
+      return {
+        graphSpec: runtimeSpec,
+        graphSpecRevision: (state.graphSpecRevision ?? 0) + 1,
+      };
     });
   }, [graphRuntimeStore, runtimeGraphSpec.runtimeSpec]);
 

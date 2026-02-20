@@ -1,81 +1,114 @@
 import { describe, expect, it } from "vitest";
-import { createRuntimeGraphMutation } from "./runtimeGraphMutation";
+import {
+  createRuntimeGraphMutation,
+  resolveRuntimeGraphMutationClass,
+} from "./runtimeGraphMutation";
+
+describe("resolveRuntimeGraphMutationClass", () => {
+  it("returns topology on first publish", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(null, {
+      graphSpecRevision: 0,
+      poseRuntimeRevision: 0,
+    });
+
+    expect(mutationClass).toBe("topology");
+  });
+
+  it("returns topology when graph revision changes", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+      },
+      {
+        graphSpecRevision: 3,
+        poseRuntimeRevision: 5,
+      },
+    );
+
+    expect(mutationClass).toBe("topology");
+  });
+
+  it("returns pose when only pose revision changes", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+      },
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 6,
+      },
+    );
+
+    expect(mutationClass).toBe("pose");
+  });
+
+  it("returns null when revisions are unchanged", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+      },
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+      },
+    );
+
+    expect(mutationClass).toBeNull();
+  });
+});
 
 describe("createRuntimeGraphMutation", () => {
-  it("classifies rig spec changes as topology mutations", () => {
-    const previous = {
-      graphSpec: { nodes: [] } as any,
-      poseGraphSpec: null,
-      poseConfig: null,
-    };
-    const next = {
-      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
-      poseGraphSpec: null,
-      poseConfig: null,
-    };
+  it("builds a topology payload with rig graph", () => {
+    const graphSpec = { nodes: [{ id: "rig-1" }] } as any;
 
-    const mutation = createRuntimeGraphMutation(previous, next);
-
-    expect(mutation?.mutationClass).toBe("topology");
-    expect(mutation?.options).toEqual({ tier: "graphs" });
-    expect(mutation?.bundle).toEqual({
-      rig: { id: "rig", spec: next.graphSpec },
-      pose: {
-        graph: undefined,
-        config: undefined,
+    const mutation = createRuntimeGraphMutation(
+      {
+        graphSpec,
+        poseGraphSpec: null,
+        poseConfig: null,
       },
+      "topology",
+    );
+
+    expect(mutation).toEqual({
+      mutationClass: "topology",
+      bundle: {
+        rig: { id: "rig", spec: graphSpec },
+        pose: {
+          graph: undefined,
+          config: undefined,
+        },
+      },
+      options: { tier: "graphs" },
     });
   });
 
-  it("classifies pose-only changes as pose mutations", () => {
-    const previous = {
-      graphSpec: { nodes: [] } as any,
-      poseGraphSpec: { nodes: [] } as any,
-      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
-    };
-    const next = {
-      graphSpec: previous.graphSpec,
-      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
-      poseConfig: previous.poseConfig,
-    };
-
-    const mutation = createRuntimeGraphMutation(previous, next);
-
-    expect(mutation?.mutationClass).toBe("pose");
-    expect(mutation?.bundle).toEqual({
-      rig: { id: "rig", spec: previous.graphSpec },
-      pose: {
-        graph: { id: "pose", spec: next.poseGraphSpec },
-        config: previous.poseConfig,
-      },
-    });
-  });
-
-  it("returns null when nothing changed", () => {
-    const graphSpec = { nodes: [] } as any;
-    const poseGraphSpec = { nodes: [] } as any;
+  it("builds a pose payload when rig graph is absent", () => {
+    const poseGraphSpec = { nodes: [{ id: "pose-1" }] } as any;
     const poseConfig = { version: 1, neutralInputs: {}, poses: [] } as any;
-    const previous = { graphSpec, poseGraphSpec, poseConfig };
-    const next = { graphSpec, poseGraphSpec, poseConfig };
 
-    const mutation = createRuntimeGraphMutation(previous, next);
-
-    expect(mutation).toBeNull();
-  });
-
-  it("includes pose payload when only pose graph is present", () => {
-    const mutation = createRuntimeGraphMutation(null, {
-      graphSpec: undefined,
-      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
-      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
-    });
-
-    expect(mutation?.bundle).toEqual({
-      rig: undefined,
-      pose: {
-        graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
-        config: { version: 1, neutralInputs: {}, poses: [] },
+    const mutation = createRuntimeGraphMutation(
+      {
+        graphSpec: undefined,
+        poseGraphSpec,
+        poseConfig,
       },
+      "pose",
+    );
+
+    expect(mutation).toEqual({
+      mutationClass: "pose",
+      bundle: {
+        rig: undefined,
+        pose: {
+          graph: { id: "pose", spec: poseGraphSpec },
+          config: poseConfig,
+        },
+      },
+      options: { tier: "graphs" },
     });
   });
 });

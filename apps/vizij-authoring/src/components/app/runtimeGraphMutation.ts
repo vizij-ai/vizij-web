@@ -7,6 +7,11 @@ export interface RuntimeGraphBridgeState {
   poseConfig?: PoseRigConfig | null;
 }
 
+export interface RuntimeGraphBridgeRevisions {
+  graphSpecRevision: number;
+  poseRuntimeRevision: number;
+}
+
 export type RuntimeGraphMutationContract = {
   mutationClass: "topology" | "pose";
   bundle: {
@@ -19,33 +24,46 @@ export type RuntimeGraphMutationContract = {
   options: { tier: "graphs" };
 };
 
-export function createRuntimeGraphMutation(
-  previous: RuntimeGraphBridgeState | null,
-  next: RuntimeGraphBridgeState,
-): RuntimeGraphMutationContract | null {
-  const graphChanged = previous?.graphSpec !== next.graphSpec;
-  const poseGraphChanged = previous?.poseGraphSpec !== next.poseGraphSpec;
-  const poseConfigChanged = previous?.poseConfig !== next.poseConfig;
-
-  if (!graphChanged && !poseGraphChanged && !poseConfigChanged) {
+export function resolveRuntimeGraphMutationClass(
+  previous: RuntimeGraphBridgeRevisions | null,
+  next: RuntimeGraphBridgeRevisions,
+): RuntimeGraphMutationContract["mutationClass"] | null {
+  if (
+    previous &&
+    previous.graphSpecRevision === next.graphSpecRevision &&
+    previous.poseRuntimeRevision === next.poseRuntimeRevision
+  ) {
     return null;
   }
 
+  if (!previous) {
+    return "topology";
+  }
+
+  return previous.graphSpecRevision !== next.graphSpecRevision
+    ? "topology"
+    : "pose";
+}
+
+export function createRuntimeGraphMutation(
+  state: RuntimeGraphBridgeState,
+  mutationClass: RuntimeGraphMutationContract["mutationClass"],
+): RuntimeGraphMutationContract {
   const shouldIncludePosePayload =
-    Boolean(next.graphSpec) ||
-    Boolean(next.poseGraphSpec) ||
-    Boolean(next.poseConfig);
+    Boolean(state.graphSpec) ||
+    Boolean(state.poseGraphSpec) ||
+    Boolean(state.poseConfig);
 
   return {
-    mutationClass: graphChanged ? "topology" : "pose",
+    mutationClass,
     bundle: {
-      rig: next.graphSpec ? { id: "rig", spec: next.graphSpec } : undefined,
+      rig: state.graphSpec ? { id: "rig", spec: state.graphSpec } : undefined,
       pose: shouldIncludePosePayload
         ? {
-            graph: next.poseGraphSpec
-              ? { id: "pose", spec: next.poseGraphSpec }
+            graph: state.poseGraphSpec
+              ? { id: "pose", spec: state.poseGraphSpec }
               : undefined,
-            config: next.poseConfig ?? undefined,
+            config: state.poseConfig ?? undefined,
           }
         : undefined,
     },
