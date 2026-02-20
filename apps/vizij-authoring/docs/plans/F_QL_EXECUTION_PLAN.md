@@ -467,3 +467,8 @@ Final gate after all chunks:
   3. Verifies diagnostics synchronization for overlapping-group cases as override policies change.
 - 2026-02-20: Validation rerun for QL2.3: `pnpm --filter vizij-authoring exec vitest --run src/poseRig/store.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 20 (`QL3.1`, `QL3.2`, `QL3.3` remainder) for final performance/type/documentation ratchets.
+- 2026-02-20: `QL3.1` completed by adding runtime performance contract coverage in `src/__tests__/appRuntimeContracts.test.ts`.
+  1. Added static contract guard that `App.tsx` keeps runtime bundle construction routed through `useRuntimeBaseBundle`.
+  2. Added selector-contract guard that `App.tsx` does not reintroduce inert `useGraphRuntime` subscriptions (`graphSpec`, `poseGraphSpec`, `poseConfig`, discrepancy review selectors).
+- 2026-02-20: Validation rerun for QL3.1: `pnpm --filter vizij-authoring exec vitest --run src/__tests__/appRuntimeContracts.test.ts src/hooks/__tests__/useRuntimeBaseBundle.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to `QL3.2` for lint/type-safety ratchet coverage on reviewed modules.
