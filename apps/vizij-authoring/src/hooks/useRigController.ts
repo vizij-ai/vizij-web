@@ -65,6 +65,10 @@ import type {
   PersistedAutoStandardInput,
   PersistedGraphInsight,
 } from "../rig/persistence";
+import {
+  recordBuildRigGraphSpecRun,
+  recordResolveRuntimeGraphSpecRun,
+} from "../perf/runtimePerfMetrics";
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
@@ -97,6 +101,17 @@ import { useRigGraphImport } from "./useRigGraphImport";
 import { useRigPersistence } from "./useRigPersistence";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
+
+function getNowMs() {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
+}
 
 function resolvePersistedAutoKey(
   sourceId?: string | null,
@@ -1388,9 +1403,10 @@ export function useRigController(
     if (!faceId) {
       return null;
     }
+    const buildStartMs = getNowMs();
     const poseComposeModesByInputId =
       buildPoseComposeModeByInputId(poseConfigSnapshot);
-    return buildRigGraphSpec({
+    const result = buildRigGraphSpec({
       faceId,
       animatables,
       components: animatableComponents,
@@ -1400,6 +1416,8 @@ export function useRigController(
       inputMetadata: standardInputMetadataById,
       inputComposeModesById: poseComposeModesByInputId,
     });
+    recordBuildRigGraphSpecRun(getNowMs() - buildStartMs);
+    return result;
   }, [
     animatableComponents,
     animatables,
@@ -1412,10 +1430,12 @@ export function useRigController(
   ]);
 
   const runtimeGraphSpec = useMemo(() => {
+    const resolveStartMs = getNowMs();
     const resolved = resolveRuntimeGraphSpec(
       rigGraphBuild,
       lastKnownGoodRuntimeSpecRef.current,
     );
+    recordResolveRuntimeGraphSpecRun(getNowMs() - resolveStartMs);
     if (!resolved.blocked && resolved.runtimeSpec) {
       lastKnownGoodRuntimeSpecRef.current = resolved.runtimeSpec;
     }

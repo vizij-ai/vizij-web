@@ -33,6 +33,7 @@ import {
   resolveRigImportSuccessStatus,
   type GraphImportResult,
 } from "../types/importOutcome";
+import { recordRigGraphImportRun } from "../perf/runtimePerfMetrics";
 
 interface UseRigGraphImportOptions {
   faceId: string;
@@ -64,6 +65,17 @@ interface UseRigGraphImportOptions {
   }) => Promise<DiscrepancyResolutionResult>;
   alertDialog: (message: string) => void;
   debugLog: (...args: unknown[]) => void;
+}
+
+function getNowMs() {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
 }
 
 export async function computeDiscrepancySignatureKey(payload: {
@@ -121,6 +133,7 @@ export function useRigGraphImport({
         normalizedSpec?: GraphSpec;
       },
     ): Promise<GraphImportResult> => {
+      const importStartMs = getNowMs();
       try {
         const blueprint = buildAutoRigInputBlueprints(
           world,
@@ -551,6 +564,8 @@ export function useRigGraphImport({
           faceChanged: false,
           importedFaceId: null,
         };
+      } finally {
+        recordRigGraphImportRun(getNowMs() - importStartMs);
       }
     },
     [

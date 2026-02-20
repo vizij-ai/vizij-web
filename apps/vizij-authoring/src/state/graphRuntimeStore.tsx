@@ -71,6 +71,30 @@ export interface GraphRuntimeStore {
 }
 
 const noop = () => undefined;
+const PLACEHOLDER_IMPORT_HANDLER_TAG = Symbol(
+  "vizij-placeholder-import-handler",
+);
+
+type ImportGraphSpecHandler = GraphRuntimeState["handleImportGraphSpec"];
+
+const placeholderImportGraphSpecHandler: ImportGraphSpecHandler = Object.assign(
+  async () => ({
+    status: "blocked_recoverable" as const,
+    faceChanged: false,
+    importedFaceId: null,
+  }),
+  { [PLACEHOLDER_IMPORT_HANDLER_TAG]: true as const },
+);
+
+export function isPlaceholderGraphImportHandler(
+  handler: GraphRuntimeState["handleImportGraphSpec"],
+): boolean {
+  return Boolean(
+    (handler as unknown as Record<symbol, unknown>)[
+      PLACEHOLDER_IMPORT_HANDLER_TAG
+    ],
+  );
+}
 
 const defaultGraphRuntimeState: GraphRuntimeState = {
   faceId: "robot",
@@ -102,11 +126,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   stepGraph: noop,
   resolveDiscrepancyReview: noop,
   getGraphIr: () => null,
-  handleImportGraphSpec: async () => ({
-    status: "blocked_recoverable",
-    faceChanged: false,
-    importedFaceId: null,
-  }),
+  handleImportGraphSpec: placeholderImportGraphSpecHandler,
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
   setGraphPlaybackState: noop,
   stageRuntimeInput: undefined,

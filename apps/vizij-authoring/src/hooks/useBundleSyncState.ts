@@ -15,6 +15,7 @@ interface UseBundleSyncStateOptions {
   loadedBundle: VizijBundleExtension | null;
   standardInputCount: number;
   skipDiscrepancyCheck: boolean;
+  importGraphSpecReady?: boolean;
   importGraphSpec: (
     spec: GraphSpec,
     options?: ImportGraphSpecOptions,
@@ -32,6 +33,7 @@ export function useBundleSyncState({
   loadedBundle,
   standardInputCount,
   skipDiscrepancyCheck,
+  importGraphSpecReady = true,
   importGraphSpec,
   importPoseConfigFromData,
 }: UseBundleSyncStateOptions) {
@@ -59,6 +61,7 @@ export function useBundleSyncState({
     loadedBundle,
     standardInputCount,
     skipDiscrepancyCheck,
+    importGraphSpecReady,
     retryToken: bundleSyncRetryToken,
     importGraphSpec,
     importPoseConfigFromData,

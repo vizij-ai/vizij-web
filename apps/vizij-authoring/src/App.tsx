@@ -26,6 +26,7 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "./state/RigControllerProvider";
+import { isPlaceholderGraphImportHandler } from "./state/graphRuntimeStore";
 import {
   AuthoringUiProvider,
   useAuthoringUiActions,
@@ -201,6 +202,9 @@ function AppContent({
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
+  const importGraphSpecReady = !isPlaceholderGraphImportHandler(
+    handleImportGraphSpec,
+  );
   const {
     bundleSyncFailure,
     retryBundleSync,
@@ -212,6 +216,7 @@ function AppContent({
     loadedBundle: loader.bundle,
     standardInputCount,
     skipDiscrepancyCheck,
+    importGraphSpecReady,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
   });

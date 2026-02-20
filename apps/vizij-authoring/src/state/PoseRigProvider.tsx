@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
-import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import {
   createPoseRigStore,
@@ -18,6 +18,7 @@ import {
   parsePoseWeightInputSourceId,
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
+import { recordPoseNormalizeRun } from "../perf/runtimePerfMetrics";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -40,6 +41,20 @@ function isPoseInputNamespacePath(path: string | null | undefined): boolean {
 interface PoseRigProviderProps {
   rootId: string | null;
   children: ReactNode;
+}
+
+const NO_PENDING_POSE_SPEC = Symbol("no-pending-pose-spec");
+type PendingPoseGraphSpec = GraphSpec | null | typeof NO_PENDING_POSE_SPEC;
+
+function getNowMs() {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
 }
 
 const PoseRigContext = createContext<UsePoseRigAuthoringResult | null>(null);
@@ -224,6 +239,17 @@ function PoseRigController({
   ]);
 
   const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const pendingPoseGraphSpecRef =
+    useRef<PendingPoseGraphSpec>(NO_PENDING_POSE_SPEC);
+  const poseNormalizeInFlightRef = useRef(false);
+  const poseNormalizeUnmountedRef = useRef(false);
+
+  useEffect(() => {
+    poseNormalizeUnmountedRef.current = false;
+    return () => {
+      poseNormalizeUnmountedRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     graphRuntimeStore.setState((state) => {
@@ -238,54 +264,85 @@ function PoseRigController({
   }, [graphRuntimeStore, projectedPoseConfig]);
 
   useEffect(() => {
-    let cancelled = false;
+    pendingPoseGraphSpecRef.current = poseRig.poseGraphSpec ?? null;
 
     const syncPoseGraph = async () => {
-      if (!poseRig.poseGraphSpec) {
-        graphRuntimeStore.setState((state) => {
-          if (!state.poseGraphSpec) {
-            return;
-          }
-          return {
-            poseGraphSpec: null,
-            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
-          };
-        });
+      if (poseNormalizeInFlightRef.current) {
         return;
       }
+      poseNormalizeInFlightRef.current = true;
 
       try {
-        const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
-        if (cancelled) return;
-        graphRuntimeStore.setState((state) => {
-          if (state.poseGraphSpec === normalized) {
+        while (!poseNormalizeUnmountedRef.current) {
+          const nextSpec = pendingPoseGraphSpecRef.current;
+          pendingPoseGraphSpecRef.current = NO_PENDING_POSE_SPEC;
+          if (nextSpec === NO_PENDING_POSE_SPEC) {
             return;
           }
-          return {
-            poseGraphSpec: normalized,
-            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
-          };
-        });
-      } catch (error) {
-        console.warn("[poseRig] Failed to normalize pose graph", error);
-        if (cancelled) return;
-        graphRuntimeStore.setState((state) => {
-          if (!state.poseGraphSpec) {
-            return;
+
+          if (!nextSpec) {
+            graphRuntimeStore.setState((state) => {
+              if (!state.poseGraphSpec) {
+                return;
+              }
+              return {
+                poseGraphSpec: null,
+                poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+              };
+            });
+            continue;
           }
-          return {
-            poseGraphSpec: null,
-            poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
-          };
-        });
+
+          try {
+            const normalizeStartMs = getNowMs();
+            const normalized = await normalizeGraphSpec(nextSpec);
+            recordPoseNormalizeRun(getNowMs() - normalizeStartMs);
+            if (poseNormalizeUnmountedRef.current) {
+              return;
+            }
+            if (pendingPoseGraphSpecRef.current !== NO_PENDING_POSE_SPEC) {
+              continue;
+            }
+            graphRuntimeStore.setState((state) => {
+              if (state.poseGraphSpec === normalized) {
+                return;
+              }
+              return {
+                poseGraphSpec: normalized,
+                poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+              };
+            });
+          } catch (error) {
+            console.warn("[poseRig] Failed to normalize pose graph", error);
+            if (poseNormalizeUnmountedRef.current) {
+              return;
+            }
+            if (pendingPoseGraphSpecRef.current !== NO_PENDING_POSE_SPEC) {
+              continue;
+            }
+            graphRuntimeStore.setState((state) => {
+              if (!state.poseGraphSpec) {
+                return;
+              }
+              return {
+                poseGraphSpec: null,
+                poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
+              };
+            });
+          }
+        }
+      } finally {
+        poseNormalizeInFlightRef.current = false;
+        if (
+          !poseNormalizeUnmountedRef.current &&
+          pendingPoseGraphSpecRef.current !== NO_PENDING_POSE_SPEC
+        ) {
+          void syncPoseGraph();
+        }
       }
     };
 
     void syncPoseGraph();
-
-    return () => {
-      cancelled = true;
-    };
   }, [graphRuntimeStore, poseRig.poseGraphSpec]);
 
   return (

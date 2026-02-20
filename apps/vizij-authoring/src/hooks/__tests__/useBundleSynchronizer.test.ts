@@ -6,7 +6,10 @@ import {
   getRuntimePerfMetricsSnapshot,
   resetRuntimePerfMetrics,
 } from "../../perf/runtimePerfMetrics";
-import { useBundleSynchronizer } from "../useBundleSynchronizer";
+import {
+  __resetBundleSynchronizerNormalizeCacheForTests,
+  useBundleSynchronizer,
+} from "../useBundleSynchronizer";
 
 const mockNormalizeGraphSpec = vi.fn(async (spec: GraphSpec) => spec);
 
@@ -36,6 +39,7 @@ function createBundleWithRigAndPoses(spec: GraphSpec) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetRuntimePerfMetrics();
+  __resetBundleSynchronizerNormalizeCacheForTests();
 });
 describe("useBundleSynchronizer failure surfaces", () => {
   it("reports recoverable rig import failures to the caller", async () => {
@@ -255,8 +259,8 @@ describe("useBundleSynchronizer failure surfaces", () => {
     });
     expect(getRuntimePerfMetricsSnapshot()).toMatchObject({
       rigImportAttempts: 2,
-      rigNormalizeCalls: 2,
-      rigNormalizeCallsPerImport: 1,
+      rigNormalizeCalls: 1,
+      rigNormalizeCallsPerImport: 0.5,
     });
   });
 });

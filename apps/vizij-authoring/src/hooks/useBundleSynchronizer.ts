@@ -10,8 +10,11 @@ import {
   type GraphImportResult,
 } from "../types/importOutcome";
 import {
+  finalizeRuntimeImportPerfSession,
   recordRigImportAttempt,
+  recordRigPrepareSpecCall,
   recordRigNormalizeCall,
+  startRuntimeImportPerfSession,
 } from "../perf/runtimePerfMetrics";
 import { useLatestRef } from "./useLatestRef";
 
@@ -26,6 +29,7 @@ interface UseBundleSynchronizerOptions {
   loadedBundle: VizijBundleExtension | null;
   standardInputCount: number;
   skipDiscrepancyCheck: boolean;
+  importGraphSpecReady?: boolean;
   retryToken?: number;
   importGraphSpec: (
     spec: GraphSpec,
@@ -42,6 +46,91 @@ export interface BundleSyncFailure {
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
+const MAX_RIG_NORMALIZE_CACHE_ENTRIES = 6;
+
+const rigNormalizeCache = new Map<string, GraphSpec>();
+const rigNormalizeInFlightCache = new Map<string, Promise<GraphSpec>>();
+
+export function __resetBundleSynchronizerNormalizeCacheForTests() {
+  rigNormalizeCache.clear();
+  rigNormalizeInFlightCache.clear();
+}
+
+function cacheRigNormalizedSpec(cacheKey: string, spec: GraphSpec) {
+  if (rigNormalizeCache.has(cacheKey)) {
+    rigNormalizeCache.delete(cacheKey);
+  }
+  rigNormalizeCache.set(cacheKey, spec);
+  while (rigNormalizeCache.size > MAX_RIG_NORMALIZE_CACHE_ENTRIES) {
+    const oldestKey = rigNormalizeCache.keys().next().value;
+    if (typeof oldestKey !== "string") {
+      break;
+    }
+    rigNormalizeCache.delete(oldestKey);
+  }
+}
+
+function getNowMs() {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
+}
+
+function logImportPerfSummary(
+  summary: ReturnType<typeof finalizeRuntimeImportPerfSession>,
+) {
+  if (
+    !summary ||
+    process.env.NODE_ENV === "production" ||
+    process.env.NODE_ENV === "test"
+  ) {
+    return;
+  }
+  // eslint-disable-next-line no-console -- import performance diagnostics
+  console.info("[vizij-authoring] import perf summary", summary);
+}
+
+async function prepareAndNormalizeRigSpec(
+  cacheKey: string,
+  specPayload: unknown,
+  irPayload: unknown,
+) {
+  const cached = rigNormalizeCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const inFlight = rigNormalizeInFlightCache.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const normalizePromise = (async () => {
+    const prepareStartMs = getNowMs();
+    const preparedSpec = prepareSpecForImport(specPayload, irPayload);
+    recordRigPrepareSpecCall(getNowMs() - prepareStartMs);
+
+    const normalizeStartMs = getNowMs();
+    const normalizedSpec = await normalizeGraphSpec(preparedSpec);
+    recordRigNormalizeCall(getNowMs() - normalizeStartMs);
+    cacheRigNormalizedSpec(cacheKey, normalizedSpec);
+    return normalizedSpec;
+  })();
+
+  rigNormalizeInFlightCache.set(cacheKey, normalizePromise);
+  try {
+    return await normalizePromise;
+  } finally {
+    if (rigNormalizeInFlightCache.get(cacheKey) === normalizePromise) {
+      rigNormalizeInFlightCache.delete(cacheKey);
+    }
+  }
+}
 
 /**
  * Synchronises the loaded Vizij bundle with the authoring state by
@@ -54,6 +143,7 @@ export function useBundleSynchronizer({
   loadedBundle,
   standardInputCount,
   skipDiscrepancyCheck,
+  importGraphSpecReady = true,
   retryToken = 0,
   importGraphSpec,
   importPoseConfigFromData,
@@ -97,6 +187,7 @@ export function useBundleSynchronizer({
       let rigImportedThisPass = false;
       try {
         if (!rootId || !loadedBundle) {
+          finalizeRuntimeImportPerfSession("cancelled");
           appliedBundleFingerprintRef.current = null;
           activeBundleFingerprintRef.current = null;
           inFlightFingerprintRef.current = null;
@@ -111,8 +202,15 @@ export function useBundleSynchronizer({
           poses: loadedBundle.poses?.config ?? null,
           retryToken,
         };
+        const rigNormalizeCacheKey = JSON.stringify({
+          version: loadedBundle.version,
+          graphs: loadedBundle.graphs ?? [],
+        });
         fingerprint = JSON.stringify(fingerprintPayload);
         let hasFailure = false;
+        if (!importGraphSpecReady) {
+          return;
+        }
 
         if (
           fingerprint &&
@@ -126,6 +224,7 @@ export function useBundleSynchronizer({
         }
 
         if (fingerprint && activeBundleFingerprintRef.current !== fingerprint) {
+          startRuntimeImportPerfSession({ fingerprint, rootId });
           activeBundleFingerprintRef.current = fingerprint;
           rigImportedRef.current = false;
           poseImportedRef.current = false;
@@ -145,12 +244,11 @@ export function useBundleSynchronizer({
         if (!rigImportedRef.current && rigEntry?.spec) {
           try {
             recordRigImportAttempt();
-            const preparedSpec = prepareSpecForImport(
+            const normalizedSpec = await prepareAndNormalizeRigSpec(
+              rigNormalizeCacheKey,
               rigEntry.spec,
               rigEntry.ir,
             );
-            const normalizedSpec = await normalizeGraphSpec(preparedSpec);
-            recordRigNormalizeCall();
             const result = await importGraphSpecRef.current(normalizedSpec, {
               skipDiscrepancyCheck: skipDiscrepancyCheckRef.current,
               normalizedSpec,
@@ -201,6 +299,7 @@ export function useBundleSynchronizer({
           if (standardInputCount === 0) {
             if (hasFailure && fingerprint) {
               appliedBundleFingerprintRef.current = fingerprint;
+              logImportPerfSummary(finalizeRuntimeImportPerfSession("failure"));
             }
             return;
           }
@@ -240,7 +339,10 @@ export function useBundleSynchronizer({
         if (fingerprint) {
           appliedBundleFingerprintRef.current = fingerprint;
         }
-        if (!hasFailure) {
+        if (hasFailure) {
+          logImportPerfSummary(finalizeRuntimeImportPerfSession("failure"));
+        } else {
+          logImportPerfSummary(finalizeRuntimeImportPerfSession("success"));
           onSuccessRef.current?.();
         }
       } finally {
@@ -257,6 +359,7 @@ export function useBundleSynchronizer({
     };
   }, [
     faceIdRef,
+    importGraphSpecReady,
     loadedBundle,
     rigImportEpoch,
     rootId,
