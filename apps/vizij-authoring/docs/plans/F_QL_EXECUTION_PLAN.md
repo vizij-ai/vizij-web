@@ -424,3 +424,10 @@ Final gate after all chunks:
 - 2026-02-20: Added regression coverage in `src/hooks/__tests__/useMachineReportDiff.test.ts` for missing-report guard, invalid payload handling, valid report diffing, and close/reset behavior.
 - 2026-02-20: Validation rerun for QL1.2 follow-up: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useMachineReportDiff.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 14 (`QL1.3`) for hierarchy logic consolidation.
+- 2026-02-20: `QL1.3` completed by extracting shared hierarchy surface orchestration into `src/components/scene-composer/useHierarchySurfaceState.ts`.
+  1. Shared search/filter + expand-on-selection/search logic moved out of both `HierarchyPanel` and `SceneHierarchyPanel`.
+  2. Shared parent-reparent blocking logic extracted as `computeBlockedHierarchyParentIds`.
+  3. Both hierarchy surfaces now consume the shared hook/helper boundary.
+- 2026-02-20: Added QL1.3 regression coverage in `src/components/scene-composer/useHierarchySurfaceState.test.tsx` for selection/search-driven expansion behavior and blocked-parent descendant computation.
+- 2026-02-20: Validation rerun for QL1.3: `pnpm --filter vizij-authoring exec vitest --run src/components/scene-composer/useHierarchySurfaceState.test.tsx src/components/scene-composer/useHierarchyTreeState.test.tsx src/components/scene-composer/hierarchyFilters.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 15 (`QL1.4`) for standard-input merge consolidation.

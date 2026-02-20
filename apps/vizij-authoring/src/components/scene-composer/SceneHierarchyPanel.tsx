@@ -5,8 +5,10 @@ import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { Panel, Button, Select } from "../ui";
-import { useHierarchyTreeState } from "./useHierarchyTreeState";
-import { filterHierarchyNodes } from "./hierarchyFilters";
+import {
+  computeBlockedHierarchyParentIds,
+  useHierarchySurfaceState,
+} from "./useHierarchySurfaceState";
 
 interface SceneHierarchyPanelProps {
   allowEditActions?: boolean;
@@ -27,29 +29,23 @@ export function SceneHierarchyPanel({
   } = useSceneComposer();
   const selectionStack = useSelectionStore((state) => state.selectionStack);
   const selectedId = selectionStack[0]?.id ?? null;
-
-  const [search, setSearch] = useState("");
-
-  const nodesById = useMemo(
-    () => new Map(objects.map((node) => [node.id, node])),
-    [objects],
-  );
-  const nodeIds = useMemo(() => objects.map((node) => node.id), [objects]);
-
-  const { isExpanded, toggleNode, setExpanded } = useHierarchyTreeState(
-    DEFAULT_NAMESPACE,
-    nodeIds,
-  );
-
-  const { visibleIds, matchingIds } = useMemo(
-    () => filterHierarchyNodes(rootIds, nodesById, search),
-    [rootIds, nodesById, search],
-  );
-
-  const isNodeVisible = useCallback(
-    (nodeId: string) => !visibleIds || visibleIds.has(nodeId),
-    [visibleIds],
-  );
+  const {
+    search,
+    setSearch,
+    nodesById,
+    rootNodes,
+    matchingIds,
+    hasVisibleNodes,
+    isNodeVisible,
+    isExpanded,
+    toggleNode,
+  } = useHierarchySurfaceState({
+    namespace: DEFAULT_NAMESPACE,
+    objects,
+    rootIds,
+    selectedId,
+    getBreadcrumb,
+  });
 
   const selectedNode = selectedId ? (nodesById.get(selectedId) ?? null) : null;
   const [reparentTarget, setReparentTarget] = useState<string>(
@@ -60,58 +56,15 @@ export function SceneHierarchyPanel({
     setReparentTarget(selectedNode?.parentId ?? "");
   }, [selectedNode?.parentId]);
 
-  const rootNodes = useMemo(
-    () =>
-      rootIds
-        .map((id) => nodesById.get(id))
-        .filter((node): node is SceneObjectNode => Boolean(node)),
-    [nodesById, rootIds],
+  const blockedForParent = useMemo(
+    () => computeBlockedHierarchyParentIds(nodesById, selectedNode),
+    [nodesById, selectedNode],
   );
-
-  const blockedForParent = useMemo(() => {
-    if (!selectedNode) {
-      return new Set<string>();
-    }
-    const blocked = new Set<string>([selectedNode.id]);
-    const pending = [...selectedNode.childIds];
-    while (pending.length > 0) {
-      const current = pending.pop();
-      if (!current || blocked.has(current)) continue;
-      blocked.add(current);
-      const child = nodesById.get(current);
-      if (child) {
-        pending.push(...child.childIds);
-      }
-    }
-    return blocked;
-  }, [nodesById, selectedNode]);
 
   const parentOptions = useMemo(
     () => objects.filter((node) => !blockedForParent.has(node.id)),
     [blockedForParent, objects],
   );
-
-  useEffect(() => {
-    if (!selectedId) {
-      return;
-    }
-    const crumbs = getBreadcrumb(selectedId);
-    crumbs.forEach((node) => {
-      setExpanded(node.id, true);
-    });
-  }, [getBreadcrumb, selectedId, setExpanded]);
-
-  useEffect(() => {
-    if (!search.trim()) {
-      return;
-    }
-    matchingIds.forEach((nodeId) => {
-      const crumbs = getBreadcrumb(nodeId);
-      crumbs.slice(0, -1).forEach((crumb) => {
-        setExpanded(crumb.id, true);
-      });
-    });
-  }, [getBreadcrumb, matchingIds, search, setExpanded]);
 
   const handleDuplicateSelection = useCallback(() => {
     if (!selectedId) return;
@@ -137,10 +90,6 @@ export function SceneHierarchyPanel({
     }
     reparentNode(selectedId, target);
   }, [reparentNode, reparentTarget, selectedId, selectedNode?.parentId]);
-
-  const hasVisibleNodes = visibleIds
-    ? visibleIds.size > 0
-    : rootNodes.length > 0;
 
   const renderSubtree = useCallback(
     (node: SceneObjectNode, depth: number): JSX.Element | null => {

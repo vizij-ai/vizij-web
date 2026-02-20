@@ -10,8 +10,10 @@ import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel, Button, Select, PanelSearch, TreeRow } from "../ui";
-import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
-import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
+import {
+  computeBlockedHierarchyParentIds,
+  useHierarchySurfaceState,
+} from "../scene-composer/useHierarchySurfaceState";
 
 interface HierarchyPanelProps {
   allowEditActions?: boolean;
@@ -44,51 +46,23 @@ export function HierarchyPanel({
     [getNode, selectedId],
   );
   const referenceFace = useReferenceFace();
-
-  // Filtering
-  const [search, setSearch] = useState("");
-  const nodesById = useMemo(
-    () => new Map(objects.map((node) => [node.id, node])),
-    [objects],
-  );
-
-  // Use the optimized filters from hierarchyFilters.ts
-  const { visibleIds, matchingIds } = useMemo(
-    () => filterHierarchyNodes(rootIds, nodesById, search),
-    [rootIds, nodesById, search],
-  );
-
-  const isNodeVisible = useCallback(
-    (nodeId: string) => !visibleIds || visibleIds.has(nodeId),
-    [visibleIds],
-  );
-
-  // Tree State
-  const nodeIds = useMemo(() => objects.map((n) => n.id), [objects]);
-  const { isExpanded, toggleNode, setExpanded } = useHierarchyTreeState(
-    DEFAULT_NAMESPACE,
-    nodeIds,
-  );
-
-  // Sync expansion when selection changes
-  useEffect(() => {
-    if (!selectedId) return;
-    const crumbs = getBreadcrumb(selectedId);
-    crumbs.forEach((node) => {
-      setExpanded(node.id, true);
-    });
-  }, [getBreadcrumb, selectedId, setExpanded]);
-
-  // Sync expansion when search results change
-  useEffect(() => {
-    if (!search.trim()) return;
-    matchingIds.forEach((nodeId) => {
-      const crumbs = getBreadcrumb(nodeId);
-      crumbs.slice(0, -1).forEach((crumb) => {
-        setExpanded(crumb.id, true);
-      });
-    });
-  }, [getBreadcrumb, matchingIds, search, setExpanded]);
+  const {
+    search,
+    setSearch,
+    nodesById,
+    rootNodes,
+    hasVisibleNodes,
+    isNodeVisible,
+    isExpanded,
+    toggleNode,
+    setExpanded,
+  } = useHierarchySurfaceState({
+    namespace: DEFAULT_NAMESPACE,
+    objects,
+    rootIds,
+    selectedId,
+    getBreadcrumb,
+  });
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -133,19 +107,10 @@ export function HierarchyPanel({
     reparentNode(selectedId, target);
   }, [reparentNode, reparentTarget, selectedId, selectedNode?.parentId]);
 
-  const blockedForParent = useMemo(() => {
-    if (!selectedNode) return new Set<string>();
-    const blocked = new Set<string>([selectedNode.id]);
-    const pending = [...selectedNode.childIds];
-    while (pending.length > 0) {
-      const current = pending.pop();
-      if (!current || blocked.has(current)) continue;
-      blocked.add(current);
-      const child = nodesById.get(current);
-      if (child) pending.push(...child.childIds);
-    }
-    return blocked;
-  }, [nodesById, selectedNode]);
+  const blockedForParent = useMemo(
+    () => computeBlockedHierarchyParentIds(nodesById, selectedNode),
+    [nodesById, selectedNode],
+  );
 
   const parentOptions = useMemo(
     () => objects.filter((node) => !blockedForParent.has(node.id)),
@@ -215,18 +180,6 @@ export function HierarchyPanel({
       isExpanded,
     ],
   );
-
-  // --- Virtual Root Rendering ---
-  const rootNodes = useMemo(
-    () =>
-      rootIds
-        .map((id) => nodesById.get(id))
-        .filter((n): n is SceneObjectNode => !!n),
-    [nodesById, rootIds],
-  );
-  const hasVisibleNodes = visibleIds
-    ? visibleIds.size > 0
-    : rootNodes.length > 0;
 
   const renderMainFaceRoot = () => {
     const isMainExpanded = isExpanded("virtual_main_face");
