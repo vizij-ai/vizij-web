@@ -271,3 +271,11 @@ export type RuntimeGraphBundle = {
   rig?: VizijGraphAsset;
   pose?: VizijAssetBundle["pose"];
 };
+
+export type RuntimeMutationClass = "topology" | "pose" | "value";
+
+export type RuntimeGraphMutation = {
+  mutationClass: Exclude<RuntimeMutationClass, "value">;
+  bundle: RuntimeGraphBundle;
+  options: { tier: "graphs" };
+};

@@ -7,6 +7,10 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import {
+  createRuntimeGraphMutation,
+  type RuntimeGraphBridgeState,
+} from "./runtimeGraphMutation";
 
 function RuntimeInputBridge() {
   const { setInput, ready } = useVizijRuntime();
@@ -30,50 +34,31 @@ function RuntimeGraphBridge() {
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const lastGraphRefsRef = useRef<{
-    graphSpec: unknown;
-    poseGraphSpec: unknown;
-    poseConfig: unknown;
-  } | null>(null);
+  const lastGraphRefsRef = useRef<RuntimeGraphBridgeState | null>(null);
 
   useEffect(() => {
-    const previous = lastGraphRefsRef.current;
-    if (
-      previous &&
-      previous.graphSpec === graphSpec &&
-      previous.poseGraphSpec === poseGraphSpec &&
-      previous.poseConfig === poseConfig
-    ) {
-      return;
-    }
-    lastGraphRefsRef.current = {
+    const nextState: RuntimeGraphBridgeState = {
       graphSpec,
       poseGraphSpec,
       poseConfig,
     };
-
-    const shouldIncludePosePayload =
-      Boolean(graphSpec) || Boolean(poseGraphSpec) || Boolean(poseConfig);
-    const posePayload = shouldIncludePosePayload
-      ? {
-          graph: poseGraphSpec
-            ? { id: "pose", spec: poseGraphSpec }
-            : undefined,
-          config: poseConfig ?? undefined,
-        }
-      : undefined;
-    const payload = {
-      rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
-      pose: posePayload,
-    };
+    const mutation = createRuntimeGraphMutation(
+      lastGraphRefsRef.current,
+      nextState,
+    );
+    if (!mutation) {
+      return;
+    }
+    lastGraphRefsRef.current = nextState;
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][graph-bridge]", {
-        hasRig: Boolean(payload.rig),
-        hasPoseGraph: Boolean(payload.pose?.graph),
-        hasPoseConfig: Boolean(payload.pose?.config),
+        mutationClass: mutation.mutationClass,
+        hasRig: Boolean(mutation.bundle.rig),
+        hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
+        hasPoseConfig: Boolean(mutation.bundle.pose?.config),
       });
     }
-    setGraphBundle(payload, { tier: "graphs" });
+    setGraphBundle(mutation.bundle, mutation.options);
   }, [graphSpec, poseGraphSpec, poseConfig, setGraphBundle]);
 
   return null;

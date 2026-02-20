@@ -95,6 +95,25 @@ Execution note:
 1. Separate-graph packaging is intentional for MVP delivery speed and compatibility.
 2. Rig graph composition nodes consume both direct rig-control and pose-control signals to produce final effective values per channel.
 
+## Runtime Mutation Contract
+
+Runtime update intent is classified explicitly before publishing bundle updates:
+
+1. `topology` mutation:
+   - Trigger: rig graph payload changed.
+   - Required action: publish a graph-tier bundle update (`setGraphBundle(..., { tier: "graphs" })`) so runtime graph controllers re-register.
+2. `pose` mutation:
+   - Trigger: pose graph and/or pose config payload changed while rig graph payload remained stable.
+   - Required action: publish a graph-tier bundle update with the updated pose payload.
+3. `value` mutation:
+   - Trigger: standard-input value changes only.
+   - Required action: stage values through `stageRuntimeInput`/`setInput`; do not rebuild graph payloads.
+
+Implementation references:
+
+1. `apps/vizij-authoring/src/components/app/runtimeGraphMutation.ts`
+2. `apps/vizij-authoring/src/components/app/Viewer.tsx` (RuntimeGraphBridge)
+
 ## Authoring Boundary Contracts
 
 1. `useRigController` owns runtime orchestration concerns (graph/runtime reconciliation, import/compile integration).
