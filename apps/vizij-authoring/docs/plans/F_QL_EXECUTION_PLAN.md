@@ -485,3 +485,7 @@ Final gate after all chunks:
   1. `pnpm --filter vizij-authoring run validate` -> pass (`lint`, `typecheck`, `vitest --run`; 466 tests passed, 1 skipped).
   2. `pnpm run prep` -> pass (`format` + root `validate` affected-workspace gate).
 - 2026-02-20: Execution summary: all planned backlog slices `F5.1`-`F5.8` and `QL0.1`-`QL3.3` are complete in this worktree.
+- 2026-02-20: Post-QL readability/documentation pass started:
+  1. Extracting additional `App.tsx` orchestration into focused hooks for readability/modularity.
+  2. Adding `docs/guidebook/*` onboarding/codebase-map documentation.
+  3. Recording concrete DRY/modularity follow-ups in a dedicated guidebook backlog.

@@ -14,6 +14,7 @@ This document defines system boundaries, canonical data contracts, and compile/r
 5. UI behavior contract: `UI_DESIGN.md`
 6. Import compatibility + recovery contract: `references/import-compat-contract.md`
 7. Layer-level contract details: `Authoring_Blueprint.md`
+8. Onboarding/code map guidebook: `guidebook/README.md`
 
 ## Core Intent
 

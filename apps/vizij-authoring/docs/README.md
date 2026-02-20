@@ -1,8 +1,19 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-19
+Last updated: 2026-02-20
 
 This folder is organized into active execution docs, active contracts, references, and archive history.
+
+## Start Here
+
+1. `apps/vizij-authoring/docs/guidebook/README.md`
+   - Onboarding reading order and navigation through the docs.
+2. `apps/vizij-authoring/docs/guidebook/CODEBASE_MAP.md`
+   - Source directory ownership map and primary data flows.
+3. `apps/vizij-authoring/docs/guidebook/WORKFLOW_AND_VALIDATION.md`
+   - Day-to-day workflow and required validation gates.
+4. `apps/vizij-authoring/docs/guidebook/MODULARITY_AND_DRY_OPPORTUNITIES.md`
+   - Concrete modularity/DRY refactor backlog with file-level targets.
 
 ## Active Execution Docs
 
