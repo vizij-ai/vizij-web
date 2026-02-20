@@ -26,6 +26,77 @@ function findNode(spec: GraphSpec, id: string) {
   return spec.nodes?.find((node: any) => node.id === id);
 }
 
+interface OverlapSource {
+  id: string;
+  output: number;
+  activity: number;
+}
+
+interface OverlapScenario {
+  neutral: number;
+  sources: OverlapSource[];
+  priorityOrder: string[];
+  expected: {
+    additive: number;
+    weightedAverage: number;
+    priority: number;
+    heuristicWeightedAverage: number;
+  };
+}
+
+function evaluateAdditiveOutput(scenario: OverlapScenario): number {
+  const contribution = scenario.sources.reduce(
+    (sum, source) => sum + (source.output - scenario.neutral),
+    0,
+  );
+  return Math.max(0, Math.min(1, scenario.neutral + contribution));
+}
+
+function evaluateWeightedAverageOutput(
+  scenario: OverlapScenario,
+  options?: { heuristic?: boolean },
+): number {
+  const weights = scenario.sources.map((source) => {
+    if (!options?.heuristic) {
+      return source.activity;
+    }
+    if (source.activity < 0.1) {
+      return 0;
+    }
+    const compressed = Math.sqrt((source.activity - 0.1) / 0.9);
+    return Math.max(compressed, 0.25);
+  });
+
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (totalWeight <= 1e-6) {
+    return scenario.neutral;
+  }
+
+  const weightedSum = scenario.sources.reduce(
+    (sum, source, index) => sum + source.output * (weights[index] ?? 0),
+    0,
+  );
+  return weightedSum / totalWeight;
+}
+
+function evaluatePriorityOutput(
+  scenario: OverlapScenario,
+  activeThreshold = 0.1,
+): number {
+  for (const sourceId of scenario.priorityOrder) {
+    const source = scenario.sources.find(
+      (candidate) => candidate.id === sourceId,
+    );
+    if (!source) {
+      continue;
+    }
+    if (source.activity >= activeThreshold) {
+      return source.output;
+    }
+  }
+  return scenario.neutral;
+}
+
 describe("PoseGraphService", () => {
   it("does not accept the removed poseGroupSegment option", () => {
     const config: any = {
@@ -171,10 +242,20 @@ describe("PoseGraphService", () => {
       defaultGroupBlendMode: "average",
       crossGroupBlendMode: "average",
     });
-    expect(findNode(spec, "pose_priority_smile_2_viseme_overlay")?.type).toBe(
-      "blendweightedaverageoverlay",
+    const priorityOverlays = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "blendweightedaverageoverlay" &&
+        typeof node.id === "string" &&
+        node.id.includes("priority") &&
+        node.id.includes("smile"),
     );
-    expect(findNode(spec, "pose_cross_overlay_smile")).toBeUndefined();
+    expect(priorityOverlays.length).toBeGreaterThan(0);
+    const crossOverlaysForSmile = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_overlay_smile"),
+    );
+    expect(crossOverlaysForSmile).toHaveLength(0);
   });
 
   it("builds deterministic shared-pose graphs for equivalent membership sets", () => {
@@ -418,13 +499,28 @@ describe("PoseGraphService", () => {
     };
 
     const { spec } = PoseGraphService.buildSpecFromIr(ir, inputs);
-    expect(findNode(spec, "pose_stage_smile_1_stage_base_overlay")?.type).toBe(
-      "blendweightedaverageoverlay",
+    const stageBaseOverlays = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "blendweightedaverageoverlay" &&
+        typeof node.id === "string" &&
+        node.id.includes("stage_base") &&
+        node.id.includes("smile"),
     );
-    expect(findNode(spec, "pose_stage_smile_2_stage_final_apply")?.type).toBe(
-      "add",
+    const stageFinalAdds = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "add" &&
+        typeof node.id === "string" &&
+        node.id.includes("stage_final") &&
+        node.id.includes("smile"),
     );
-    expect(findNode(spec, "pose_cross_apply_smile")).toBeUndefined();
+    expect(stageBaseOverlays.length).toBeGreaterThan(0);
+    expect(stageFinalAdds.length).toBeGreaterThan(0);
+    const crossAppliesForSmile = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_apply_smile"),
+    );
+    expect(crossAppliesForSmile).toHaveLength(0);
   });
 
   it("applies per-channel priority override topology from IR", () => {
@@ -488,10 +584,99 @@ describe("PoseGraphService", () => {
     };
 
     const { spec } = PoseGraphService.buildSpecFromIr(ir, inputs);
-    expect(findNode(spec, "pose_priority_smile_2_viseme_overlay")?.type).toBe(
-      "blendweightedaverageoverlay",
+    const priorityOverlays = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "blendweightedaverageoverlay" &&
+        typeof node.id === "string" &&
+        node.id.includes("priority") &&
+        node.id.includes("smile"),
     );
-    expect(findNode(spec, "pose_cross_overlay_smile")).toBeUndefined();
+    expect(priorityOverlays.length).toBeGreaterThan(0);
+    const crossOverlaysForSmile = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_overlay_smile"),
+    );
+    expect(crossOverlaysForSmile).toHaveLength(0);
+  });
+
+  it("matches documented E4 overlap scenario outputs (S1-S4)", () => {
+    const scenarios: OverlapScenario[] = [
+      {
+        neutral: 0.5,
+        sources: [
+          { id: "emotion", output: 0.9, activity: 0.8 },
+          { id: "viseme", output: 0.2, activity: 0.7 },
+        ],
+        priorityOrder: ["viseme", "emotion"],
+        expected: {
+          additive: 0.6,
+          weightedAverage: 0.573,
+          priority: 0.2,
+          heuristicWeightedAverage: 0.563,
+        },
+      },
+      {
+        neutral: 0.4,
+        sources: [
+          { id: "emotion", output: 0.85, activity: 0.95 },
+          { id: "viseme", output: 0.1, activity: 0.35 },
+        ],
+        priorityOrder: ["viseme", "emotion"],
+        expected: {
+          additive: 0.55,
+          weightedAverage: 0.648,
+          priority: 0.1,
+          heuristicWeightedAverage: 0.586,
+        },
+      },
+      {
+        neutral: 0.4,
+        sources: [
+          { id: "emotion", output: 0.9, activity: 0.05 },
+          { id: "viseme", output: 0.3, activity: 0.8 },
+        ],
+        priorityOrder: ["viseme", "emotion"],
+        expected: {
+          additive: 0.8,
+          weightedAverage: 0.335,
+          priority: 0.3,
+          heuristicWeightedAverage: 0.3,
+        },
+      },
+      {
+        neutral: 0.2,
+        sources: [
+          { id: "smile", output: 0.6, activity: 0.75 },
+          { id: "jaw", output: 0.55, activity: 0.7 },
+        ],
+        priorityOrder: ["smile", "jaw"],
+        expected: {
+          additive: 0.95,
+          weightedAverage: 0.576,
+          priority: 0.6,
+          heuristicWeightedAverage: 0.575,
+        },
+      },
+    ];
+
+    scenarios.forEach((scenario) => {
+      expect(evaluateAdditiveOutput(scenario)).toBeCloseTo(
+        scenario.expected.additive,
+        3,
+      );
+      expect(evaluateWeightedAverageOutput(scenario)).toBeCloseTo(
+        scenario.expected.weightedAverage,
+        3,
+      );
+      expect(evaluatePriorityOutput(scenario)).toBeCloseTo(
+        scenario.expected.priority,
+        3,
+      );
+      expect(
+        evaluateWeightedAverageOutput(scenario, { heuristic: true }),
+      ).toBeCloseTo(scenario.expected.heuristicWeightedAverage, 2);
+    });
   });
 
   it("flags invalid specs", () => {

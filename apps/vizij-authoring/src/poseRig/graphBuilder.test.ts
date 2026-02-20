@@ -295,13 +295,27 @@ describe("buildPoseGraphSpec", () => {
       },
     });
 
-    expect(
-      findNode(spec.nodes, "pose_priority_mouth_open_2_viseme_overlay")?.type,
-    ).toBe("blendweightedaverageoverlay");
-    expect(
-      findNode(spec.nodes, "pose_cross_overlay_mouth_open"),
-    ).toBeUndefined();
-    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")).toBeUndefined();
+    const priorityOverlays = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "blendweightedaverageoverlay" &&
+        typeof node.id === "string" &&
+        node.id.includes("priority") &&
+        node.id.includes("mouth_open"),
+    );
+    expect(priorityOverlays.length).toBeGreaterThan(0);
+
+    const crossOverlayNodes = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_overlay_mouth_open"),
+    );
+    const crossApplyNodes = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_apply_mouth_open"),
+    );
+    expect(crossOverlayNodes).toHaveLength(0);
+    expect(crossApplyNodes).toHaveLength(0);
   });
 
   it("keeps default compile parity when cross-group overrides are absent or empty", () => {
@@ -373,12 +387,22 @@ describe("buildPoseGraphSpec", () => {
       ],
     });
 
-    expect(
-      findNode(spec.nodes, "pose_stage_mouth_open_1_stage_base_overlay")?.type,
-    ).toBe("blendweightedaverageoverlay");
-    expect(
-      findNode(spec.nodes, "pose_stage_mouth_open_2_stage_final_apply")?.type,
-    ).toBe("add");
+    const stageBaseOverlays = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "blendweightedaverageoverlay" &&
+        typeof node.id === "string" &&
+        node.id.includes("stage_base") &&
+        node.id.includes("mouth_open"),
+    );
+    const stageFinalAdds = (spec.nodes ?? []).filter(
+      (node: any) =>
+        node.type === "add" &&
+        typeof node.id === "string" &&
+        node.id.includes("stage_final") &&
+        node.id.includes("mouth_open"),
+    );
+    expect(stageBaseOverlays.length).toBeGreaterThan(0);
+    expect(stageFinalAdds.length).toBeGreaterThan(0);
     expect(
       findEdge(
         spec.edges,
@@ -387,7 +411,12 @@ describe("buildPoseGraphSpec", () => {
         "in",
       ),
     ).toBeTruthy();
-    expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")).toBeUndefined();
+    const crossApplyNodes = (spec.nodes ?? []).filter(
+      (node: any) =>
+        typeof node.id === "string" &&
+        node.id.startsWith("pose_cross_apply_mouth_open"),
+    );
+    expect(crossApplyNodes).toHaveLength(0);
   });
 
   it("resolves pose memberships from canonical groupIds", () => {

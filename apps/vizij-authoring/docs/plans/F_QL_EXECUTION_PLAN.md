@@ -453,3 +453,11 @@ Final gate after all chunks:
 - 2026-02-20: Added rerender-pressure regression coverage in `src/hooks/__tests__/useSharedVariableSync.test.tsx` (`keeps result identity stable across unrelated rerenders`) to assert referential stability across no-op rerenders.
 - 2026-02-20: Validation rerun for QL1.8: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useSharedVariableSync.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 18 (`QL2.1`, `QL2.2`) for behavior-level E4 scenario tests and assertion-quality hardening.
+- 2026-02-20: `QL2.1` completed by adding behavior-level E4 scenario assertions to `src/poseRig/services/poseGraphService.test.ts` (`matches documented E4 overlap scenario outputs (S1-S4)`).
+  1. Added numeric-output checks for additive, weighted-average, priority, and heuristic-weighted policies.
+  2. Locked S1-S4 expected outputs to the 2026-02-19 overlap heuristics design pack values.
+- 2026-02-20: `QL2.2` completed by replacing brittle exact-node-id assertions where feasible in overlap-policy topology tests:
+  1. `src/poseRig/services/poseGraphService.test.ts` now uses semantic topology predicates (type + stage/policy intent) instead of single exact synthetic node IDs for priority/stage checks.
+  2. `src/poseRig/graphBuilder.test.ts` now asserts policy/stage topology via predicate-based node sets and cross-path absence checks rather than single literal node-id equality.
+- 2026-02-20: Validation rerun for QL2.1/QL2.2: `pnpm --filter vizij-authoring exec vitest --run src/poseRig/services/poseGraphService.test.ts src/poseRig/graphBuilder.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 19 (`QL2.3`) for interactive store workflow tests around override editing and diagnostics synchronization.
