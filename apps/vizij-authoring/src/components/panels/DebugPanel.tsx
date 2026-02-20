@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   Activity,
   Play,
@@ -25,9 +23,9 @@ import { VizijBundleAuditPanel } from "../app/VizijBundleAuditPanel";
 import { GraphDiagnosticsPanel } from "../app/GraphDiagnosticsPanel";
 import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
+import { useBundleGraphMaintenance } from "../../hooks/useBundleGraphMaintenance";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
-import { cloneSerializable } from "../../utils/serialization";
 
 type HealthTabId =
   | "playback"
@@ -131,112 +129,14 @@ export function DebugPanel({
         ? "error"
         : "idle";
 
-  // Callbacks for Bundle Audit
-  const handleOverwriteBundleGraph = useCallback(
-    async (graphId: string) => {
-      if (!bundleAudit) {
-        await showAlert(
-          "Unable to find audit data. Run the bundle audit again and retry.",
-        );
-        return;
-      }
-      const target = bundleAudit.find((entry) => entry.id === graphId);
-      if (!target) {
-        await showAlert(
-          "Unable to find audit entry for the selected graph. Run the audit again and retry.",
-        );
-        return;
-      }
-      if (!target.compiledSpec) {
-        await showAlert(
-          "This graph did not produce a compiled IR spec, so it cannot be overwritten automatically.",
-        );
-        return;
-      }
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(target.compiledSpec as GraphSpec) as Record<
-              string,
-              unknown
-            >,
-            metadata: {
-              ...(graph.metadata ?? {}),
-              reconciledAt: new Date().toISOString(),
-            },
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
-      });
-    },
-    [bundleAudit, showAlert, updateBundle],
-  );
-
-  const handleRenameBundleOutput = useCallback(
-    async (graphId: string, nodeId: string, currentPath: string | null) => {
-      const targetGraph = loadedBundle?.graphs?.find(
-        (graph) => graph.id === graphId,
-      );
-      if (!targetGraph) {
-        await showAlert("Unable to locate the selected graph in the bundle.");
-        return;
-      }
-      if (!targetGraph.ir) {
-        await showAlert("This graph has no IR payload to edit.");
-        return;
-      }
-      const nextPath = await showPrompt(
-        "Enter the new output path for this node (e.g., rig/face/eyes/blink)",
-        currentPath ?? "",
-      );
-      if (nextPath === null) {
-        return;
-      }
-      const trimmed = nextPath.trim();
-      if (!trimmed) {
-        await showAlert("Output path cannot be empty.");
-        return;
-      }
-      const nextIr = cloneSerializable(targetGraph.ir) as unknown as IrGraph;
-      const targetNode = nextIr.nodes.find((node) => node.id === nodeId);
-      if (!targetNode) {
-        await showAlert("Unable to find the output node inside the IR graph.");
-        return;
-      }
-      targetNode.params = { ...(targetNode.params ?? {}), path: trimmed };
-      const compiled = compileIrGraph(nextIr, { preferLegacySpec: false });
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(compiled.spec) as Record<string, unknown>,
-            ir: cloneSerializable(nextIr) as unknown as Record<string, unknown>,
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
-      });
-    },
-    [loadedBundle, showAlert, showPrompt, updateBundle],
-  );
+  const { handleOverwriteBundleGraph, handleRenameBundleOutput } =
+    useBundleGraphMaintenance({
+      loadedBundle,
+      bundleAudit,
+      updateBundle,
+      alertDialog: showAlert,
+      promptDialog: showPrompt,
+    });
 
   const handleClearCachedRig = useCallback(async () => {
     const confirmed = await showConfirm(
