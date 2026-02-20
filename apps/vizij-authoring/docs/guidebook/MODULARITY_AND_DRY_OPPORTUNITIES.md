@@ -13,13 +13,16 @@ Status legend:
 
 ## Opportunities
 
-1. `open` - Extract App-level file import handlers into a focused hook.
+1. `done` - Extract App-level file import handlers into a focused hook.
    - Current files:
      - `apps/vizij-authoring/src/App.tsx`
    - Why:
      - `App.tsx` still owns hidden-input refs and skip-check import flow details.
    - Target:
      - `useImportFileHandlers` or equivalent hook to isolate imperative file input plumbing.
+   - Landed:
+     - `apps/vizij-authoring/src/hooks/useImportFileHandlers.ts`
+     - `apps/vizij-authoring/src/hooks/__tests__/useImportFileHandlers.test.ts`
 
 2. `open` - Split `PoseRigProvider` sync effects into explicit sync hooks.
    - Current files:

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
+import { useVizijStore } from "@vizij/render";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -40,6 +40,7 @@ import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useRuntimeBaseBundle } from "./hooks/useRuntimeBaseBundle";
 import { useSampleAssetLoader } from "./hooks/useSampleAssetLoader";
+import { useImportFileHandlers } from "./hooks/useImportFileHandlers";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 import {
@@ -231,25 +232,22 @@ function AppContent({ loader }: AppContentProps) {
       referenceFaceContextValue.handleInputValueChange,
   });
 
-  // Reference Face Import
-  const refFaceFileInputRef = useRef<HTMLInputElement>(null);
-  const handleRefFaceFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      referenceFaceContextValue.setFile(file);
-      event.target.value = "";
-    },
-    [referenceFaceContextValue],
-  );
-
-  const handleImportReferenceFaceClick = useCallback(() => {
-    refFaceFileInputRef.current?.click();
-  }, []);
-
-  // File Import Logic
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const skipNextDiscrepancyCheck = useRef(false);
+  const {
+    fileInputRef,
+    referenceFaceFileInputRef,
+    handleFileChange,
+    handleImportClick,
+    handleImportSkipChecksClick,
+    handleReferenceFaceFileChange,
+    handleImportReferenceFaceClick,
+  } = useImportFileHandlers({
+    clearLoaderError,
+    clearSampleLoadFailure,
+    resetBundleSyncState,
+    loadFromFile,
+    setSkipDiscrepancyCheck: uiActions.setSkipDiscrepancyCheck,
+    setReferenceFaceFile: referenceFaceContextValue.setFile,
+  });
 
   const handleNewClick = useCallback(() => {
     loader.reset();
@@ -257,45 +255,6 @@ function AppContent({ loader }: AppContentProps) {
     clearSampleLoadFailure();
     resetBundleSyncState();
   }, [clearLoaderError, clearSampleLoadFailure, loader, resetBundleSyncState]);
-
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      clearLoaderError();
-      clearSampleLoadFailure();
-      resetBundleSyncState();
-
-      if (skipNextDiscrepancyCheck.current) {
-        uiActions.setSkipDiscrepancyCheck(true);
-        skipNextDiscrepancyCheck.current = false;
-      } else {
-        uiActions.setSkipDiscrepancyCheck(false);
-      }
-
-      await loadFromFile(file, () =>
-        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
-      );
-      event.target.value = "";
-    },
-    [
-      clearLoaderError,
-      clearSampleLoadFailure,
-      loadFromFile,
-      resetBundleSyncState,
-      uiActions,
-    ],
-  );
-
-  const handleImportClick = useCallback(() => {
-    skipNextDiscrepancyCheck.current = false;
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleImportSkipChecksClick = useCallback(() => {
-    skipNextDiscrepancyCheck.current = true;
-    fileInputRef.current?.click();
-  }, []);
 
   const menuBar = (
     <AppMenuBar
@@ -417,11 +376,11 @@ function AppContent({ loader }: AppContentProps) {
 
       {/* Hidden file input for Reference Face import */}
       <input
-        ref={refFaceFileInputRef}
+        ref={referenceFaceFileInputRef}
         type="file"
         accept=".glb,.gltf"
         className="hidden"
-        onChange={handleRefFaceFileChange}
+        onChange={handleReferenceFaceFileChange}
       />
     </div>
   );
