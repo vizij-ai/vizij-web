@@ -472,3 +472,8 @@ Final gate after all chunks:
   2. Added selector-contract guard that `App.tsx` does not reintroduce inert `useGraphRuntime` subscriptions (`graphSpec`, `poseGraphSpec`, `poseConfig`, discrepancy review selectors).
 - 2026-02-20: Validation rerun for QL3.1: `pnpm --filter vizij-authoring exec vitest --run src/__tests__/appRuntimeContracts.test.ts src/hooks/__tests__/useRuntimeBaseBundle.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to `QL3.2` for lint/type-safety ratchet coverage on reviewed modules.
+- 2026-02-20: `QL3.2` completed by adding a scoped lint/type ratchet in root `eslint.config.mjs`.
+  1. Enforced `@typescript-eslint/no-explicit-any` on reviewed modules: `src/scene/featureEntries.ts`, `src/components/inspector/RiggingMaterialSection.tsx`, and `src/hooks/graphRuntime.ts`.
+  2. Keeps broad workspace lint defaults unchanged while preventing regressions in the hardened authoring/runtime paths.
+- 2026-02-20: Validation rerun for QL3.2: `pnpm --filter vizij-authoring run lint` and `pnpm --filter vizij-authoring run typecheck` both pass.
+- 2026-02-20: Next execution target set to `QL3.3` remainder for final architecture/UI documentation sync.

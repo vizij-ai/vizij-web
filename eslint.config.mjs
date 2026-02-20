@@ -102,4 +102,14 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: [
+      "apps/vizij-authoring/src/scene/featureEntries.ts",
+      "apps/vizij-authoring/src/components/inspector/RiggingMaterialSection.tsx",
+      "apps/vizij-authoring/src/hooks/graphRuntime.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+    },
+  },
 );
