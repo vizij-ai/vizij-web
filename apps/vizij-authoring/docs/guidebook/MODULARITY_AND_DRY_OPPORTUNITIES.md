@@ -24,13 +24,16 @@ Status legend:
      - `apps/vizij-authoring/src/hooks/useImportFileHandlers.ts`
      - `apps/vizij-authoring/src/hooks/__tests__/useImportFileHandlers.test.ts`
 
-2. `open` - Split `PoseRigProvider` sync effects into explicit sync hooks.
+2. `done` - Split `PoseRigProvider` sync effects into explicit sync hooks.
    - Current files:
      - `apps/vizij-authoring/src/state/PoseRigProvider.tsx`
    - Why:
      - Multiple large effects mix standard-input sync, schema sync, and neutral/current pruning.
    - Target:
      - Extract `usePoseRigStoreStateSync` and `usePoseRigNeutralSync` style boundaries.
+   - Landed:
+     - `apps/vizij-authoring/src/state/usePoseRigStoreSync.ts`
+     - `apps/vizij-authoring/src/state/PoseRigProvider.tsx`
 
 3. `open` - Reduce `GraphDiagnosticsPanel` component bloat.
    - Current files:
