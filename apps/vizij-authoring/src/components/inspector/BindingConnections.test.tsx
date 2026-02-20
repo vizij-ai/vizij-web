@@ -198,7 +198,7 @@ describe("BindingConnections routing", () => {
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
   });
 
-  it("traverses Pose -> Rig -> Animatable in both directions when autorig is passthrough", () => {
+  it("traverses Pose -> Rig -> Animatable in both directions while skipping autorig hops", () => {
     mockTrace = {
       targets: [
         {
@@ -260,11 +260,6 @@ describe("BindingConnections routing", () => {
       view.getByTestId("binding-traversal-current-kind").textContent,
     ).toContain("Pose");
 
-    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
-    expect(
-      view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Pose");
-
     fireEvent.click(view.getByTestId("binding-traversal-downstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
@@ -275,16 +270,17 @@ describe("BindingConnections routing", () => {
       view.getByTestId("binding-traversal-current-kind").textContent,
     ).toContain("Animatable");
 
-    fireEvent.click(view.getByTestId("binding-traversal-downstream"));
-    expect(
-      view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Animatable");
-
-    expect(onSelectRig).toHaveBeenCalledWith(
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      1,
       "rig/parent/jaw_open",
       "pose-group-output",
     );
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
+    expect(onSelectRig).toHaveBeenNthCalledWith(
+      2,
+      "rig/parent/jaw_open",
+      "pose-group-output",
+    );
     expect(onSelectTarget).toHaveBeenCalledWith("anim://mouth/open");
   });
 

@@ -17,6 +17,7 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import { usePoseRigStore } from "../../poseRig/store";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { Button, Chip } from "../ui";
+import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import {
   buildPoseRigFaceTrace,
   buildPoseRigTraversalIndex,
@@ -147,10 +148,26 @@ export function BindingConnections({
     if (!activeTraversalPath || !activeTraversalNode) {
       return -1;
     }
-    return activeTraversalPath.nodes.findIndex(
-      (node) => node.id === activeTraversalNode.id,
-    );
+    return activeTraversalPath.nodes
+      .filter((entry) => entry.kind !== "autorig")
+      .findIndex((node) => node.id === activeTraversalNode.id);
   }, [activeTraversalNode, activeTraversalPath]);
+  const visibleTraversalNodes = useMemo(() => {
+    if (!activeTraversalPath) {
+      return [] as PoseRigTraversalNode[];
+    }
+    return activeTraversalPath.nodes.filter(
+      (entry) => entry.kind !== "autorig",
+    );
+  }, [activeTraversalPath]);
+  const visibleConnectionRigs = useMemo(
+    () =>
+      connections.rigs.filter((rig) => {
+        const input = standardInputsById.get(rig.id);
+        return !isAutorigStandardInputPath(input?.path);
+      }),
+    [connections.rigs, standardInputsById],
+  );
 
   const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<Set<string>>(
     () => new Set(),
@@ -332,12 +349,6 @@ export function BindingConnections({
       setPreviewSuggestionId(null);
     }
   }, [previewSuggestionId, trace.suggestedFixes]);
-
-  useEffect(() => {
-    setTraversalSelection((current) =>
-      resolvePoseRigTraversalSelection(traversalPaths, current, traversalIndex),
-    );
-  }, [traversalIndex, traversalPaths]);
 
   useEffect(() => {
     if (!traceFeedback) {
@@ -541,6 +552,74 @@ export function BindingConnections({
     ],
   );
 
+  const coerceTraversalSelectionVisible = useCallback(
+    (
+      selection: PoseRigTraversalSelection | null,
+      preferredDirection: "upstream" | "downstream" = "downstream",
+    ): PoseRigTraversalSelection | null => {
+      const resolved = resolvePoseRigTraversalSelection(
+        traversalPaths,
+        selection,
+        traversalIndex,
+      );
+      if (!resolved) {
+        return null;
+      }
+      const resolvedNode = findPoseRigTraversalNode(
+        traversalPaths,
+        resolved,
+        traversalIndex,
+      );
+      if (!resolvedNode) {
+        return null;
+      }
+      if (resolvedNode.kind !== "autorig") {
+        return resolved;
+      }
+
+      const seekVisible = (
+        direction: "upstream" | "downstream",
+      ): PoseRigTraversalSelection | null => {
+        let cursor = resolved;
+        while (true) {
+          const next = movePoseRigTraversalSelection(
+            traversalPaths,
+            cursor,
+            direction,
+            traversalIndex,
+          );
+          if (
+            !next ||
+            (next.targetId === cursor.targetId && next.nodeId === cursor.nodeId)
+          ) {
+            return null;
+          }
+          const nextNode = findPoseRigTraversalNode(
+            traversalPaths,
+            next,
+            traversalIndex,
+          );
+          if (!nextNode) {
+            return null;
+          }
+          if (nextNode.kind !== "autorig") {
+            return next;
+          }
+          cursor = next;
+        }
+      };
+
+      const alternateDirection =
+        preferredDirection === "upstream" ? "downstream" : "upstream";
+      return (
+        seekVisible(preferredDirection) ??
+        seekVisible(alternateDirection) ??
+        null
+      );
+    },
+    [traversalIndex, traversalPaths],
+  );
+
   const handleSetTraversalTarget = useCallback(
     (targetId: string) => {
       setTraversalSelection((current) => {
@@ -567,42 +646,65 @@ export function BindingConnections({
           targetPath.nodes[targetPath.nodes.length - 1] ??
           targetPath.nodes[0] ??
           null;
-        return fallbackNode
-          ? {
-              targetId,
-              nodeId: fallbackNode.id,
-            }
-          : null;
+        return coerceTraversalSelectionVisible(
+          fallbackNode
+            ? {
+                targetId,
+                nodeId: fallbackNode.id,
+              }
+            : null,
+          "downstream",
+        );
       });
     },
-    [traversalIndex, traversalPaths],
+    [coerceTraversalSelectionVisible, traversalIndex, traversalPaths],
   );
 
   const handleTraverseDirection = useCallback(
     (direction: "upstream" | "downstream") => {
       setTraversalSelection((current) => {
+        const resolvedCurrent = coerceTraversalSelectionVisible(
+          current,
+          direction,
+        );
+        if (!resolvedCurrent) {
+          return null;
+        }
         const next = movePoseRigTraversalSelection(
           traversalPaths,
-          current,
+          resolvedCurrent,
           direction,
           traversalIndex,
         );
+        const visibleNext =
+          coerceTraversalSelectionVisible(next, direction) ?? resolvedCurrent;
         const nextNode = findPoseRigTraversalNode(
           traversalPaths,
-          next,
+          visibleNext,
           traversalIndex,
         );
         if (nextNode) {
           routeTraversalNode(nextNode);
         }
-        return next;
+        return visibleNext;
       });
     },
-    [routeTraversalNode, traversalIndex, traversalPaths],
+    [
+      coerceTraversalSelectionVisible,
+      routeTraversalNode,
+      traversalIndex,
+      traversalPaths,
+    ],
   );
 
+  useEffect(() => {
+    setTraversalSelection((current) =>
+      coerceTraversalSelectionVisible(current),
+    );
+  }, [coerceTraversalSelectionVisible]);
+
   if (
-    connections.rigs.length === 0 &&
+    visibleConnectionRigs.length === 0 &&
     connections.poses.length === 0 &&
     trace.targets.length === 0 &&
     trace.unmatchedPoseOutputs.length === 0 &&
@@ -657,8 +759,7 @@ export function BindingConnections({
                 className="h-6 text-[9px] px-2"
                 disabled={
                   activeTraversalNodeIndex < 0 ||
-                  activeTraversalNodeIndex >=
-                    activeTraversalPath.nodes.length - 1
+                  activeTraversalNodeIndex >= visibleTraversalNodes.length - 1
                 }
                 onClick={() => handleTraverseDirection("downstream")}
                 data-testid="binding-traversal-downstream"
@@ -667,7 +768,7 @@ export function BindingConnections({
               </Button>
             </div>
             <div className="flex flex-wrap gap-1">
-              {activeTraversalPath.nodes.map((node) => (
+              {visibleTraversalNodes.map((node) => (
                 <button
                   key={`${activeTraversalPath.targetId}:${node.id}`}
                   type="button"
@@ -803,12 +904,12 @@ export function BindingConnections({
         )}
 
         {/* Rigs */}
-        {connections.rigs.length > 0 && (
+        {visibleConnectionRigs.length > 0 && (
           <div className="flex flex-col gap-1">
             <span className="text-[9px] text-text-muted font-medium px-1">
               RIGS
             </span>
-            {connections.rigs.map((rig) => {
+            {visibleConnectionRigs.map((rig) => {
               const isExpanded = expandedRigIds.has(rig.id);
               const affectedTargets = trace.targets.filter((t) =>
                 t.upstreamRigInputIds.includes(rig.id),
@@ -945,33 +1046,41 @@ export function BindingConnections({
                 <div className="text-[9px] text-text-muted mt-1">
                   Rig chain:
                 </div>
-                {target.upstreamRigInputIds.length > 0 ? (
+                {target.upstreamRigInputIds.filter((rigId) => {
+                  const input = standardInputsById.get(rigId);
+                  return !isAutorigStandardInputPath(input?.path);
+                }).length > 0 ? (
                   <div className="flex flex-wrap gap-1 mt-0.5">
-                    {target.upstreamRigInputIds.map((rigId) =>
-                      onSelectRig ? (
-                        <button
-                          key={rigId}
-                          type="button"
-                          className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/40 hover:border-accent/50 hover:text-accent transition-colors text-[9px] font-mono"
-                          onClick={() =>
-                            onSelectRig(
-                              rigId,
-                              getTargetRigSourceKind(target, rigId),
-                            )
-                          }
-                          title={`Inspect rig input ${rigId}`}
-                        >
-                          {rigId}
-                        </button>
-                      ) : (
-                        <span
-                          key={rigId}
-                          className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/20 text-[9px] font-mono"
-                        >
-                          {rigId}
-                        </span>
-                      ),
-                    )}
+                    {target.upstreamRigInputIds
+                      .filter((rigId) => {
+                        const input = standardInputsById.get(rigId);
+                        return !isAutorigStandardInputPath(input?.path);
+                      })
+                      .map((rigId) =>
+                        onSelectRig ? (
+                          <button
+                            key={rigId}
+                            type="button"
+                            className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/40 hover:border-accent/50 hover:text-accent transition-colors text-[9px] font-mono"
+                            onClick={() =>
+                              onSelectRig(
+                                rigId,
+                                getTargetRigSourceKind(target, rigId),
+                              )
+                            }
+                            title={`Inspect rig input ${rigId}`}
+                          >
+                            {rigId}
+                          </button>
+                        ) : (
+                          <span
+                            key={rigId}
+                            className="px-1.5 py-0.5 rounded border border-border-default/40 bg-bg-panel/20 text-[9px] font-mono"
+                          >
+                            {rigId}
+                          </span>
+                        ),
+                      )}
                   </div>
                 ) : (
                   <div className="text-[9px] text-text-muted/70 mt-0.5">

@@ -23,6 +23,7 @@ import type {
   SceneObjectFeature,
   SceneFeatureComponent,
 } from "../../scene/sceneGraph";
+import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import {
   Button,
   CollapsibleGroup,
@@ -32,6 +33,7 @@ import {
   Chip,
 } from "../ui";
 import { cn } from "../../utils/cn";
+import { resolveEffectiveBindingInputId } from "./bindingSlotResolution";
 
 interface FeatureListProps {
   node: SceneObjectNode;
@@ -67,6 +69,7 @@ export function FeatureList({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
   const handleCreateCustomStandardInput = useBindingAuthoring(
     (state) => state.handleCreateCustomStandardInput,
   );
@@ -75,6 +78,30 @@ export function FeatureList({
   );
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
+  );
+  const handleEnsureParentBinding = useBindingAuthoring(
+    (state) => state.handleEnsureParentBinding,
+  );
+  const handleParentBindingInputChange = useBindingAuthoring(
+    (state) => state.handleParentBindingInputChange,
+  );
+  const handleParentAddBindingSlot = useBindingAuthoring(
+    (state) => state.handleParentAddBindingSlot,
+  );
+  const handleParentRemoveBindingSlot = useBindingAuthoring(
+    (state) => state.handleParentRemoveBindingSlot,
+  );
+  const handleParentBindingExpressionChange = useBindingAuthoring(
+    (state) => state.handleParentBindingExpressionChange,
+  );
+  const handleParentBindingSlotAliasChange = useBindingAuthoring(
+    (state) => state.handleParentBindingSlotAliasChange,
+  );
+  const handleParentBindingSlotValueTypeChange = useBindingAuthoring(
+    (state) => state.handleParentBindingSlotValueTypeChange,
+  );
+  const handleParentResetBinding = useBindingAuthoring(
+    (state) => state.handleParentResetBinding,
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const hiddenDriverIds = useRigUi((state) => state.hiddenDriverIds);
@@ -241,6 +268,73 @@ export function FeatureList({
     ],
   );
 
+  const handleNormalizeParentSlot = useCallback(
+    (
+      targetId: string,
+      slotId: string,
+      outputRange?: { min: number; max: number; default: number },
+    ) => {
+      const binding = inputBindings[targetId];
+      if (!binding || !binding.slots) return;
+
+      const slotIndex = binding.slots.findIndex((s) => s.id === slotId);
+      if (slotIndex === -1) return;
+      const slot = binding.slots[slotIndex];
+
+      if (!slot.inputId) return;
+
+      const aliasCandidate = slot.alias?.trim();
+      const slotAlias =
+        aliasCandidate && aliasCandidate.length > 0
+          ? aliasCandidate
+          : `s${slotIndex + 1}`;
+
+      const outMin = outputRange?.min ?? -1;
+      const outMax = outputRange?.max ?? 1;
+      const clampedDefault = outputRange?.default ?? 0;
+      const snippet = buildPiecewiseNormalizeSnippet(
+        slotAlias,
+        outMin,
+        clampedDefault,
+        outMax,
+      );
+      const normalizationResult = normalizeSlotExpression({
+        expression: binding.expression,
+        alias: slotAlias,
+        snippet,
+      });
+
+      if (normalizationResult.status === "alias-missing") {
+        alertDialog(
+          `Normalize input couldn't find "${slotAlias}" in the current expression. Update the expression manually, then try again.`,
+        );
+        return;
+      }
+      if (normalizationResult.status === "already-normalized") {
+        alertDialog(
+          `Slot "${slotAlias}" already includes a piecewise_remap. Edit it directly in the expression editor if you need to change it.`,
+        );
+        return;
+      }
+
+      handleParentBindingExpressionChange(
+        targetId,
+        normalizationResult.expression,
+      );
+      onUpdateStandardInput(slot.inputId, {
+        defaultValue: 0,
+        range: { min: -1, max: 1 },
+      });
+      handleInputValueChange(slot.inputId, 0);
+    },
+    [
+      handleInputValueChange,
+      handleParentBindingExpressionChange,
+      inputBindings,
+      onUpdateStandardInput,
+    ],
+  );
+
   return (
     <div className="flex flex-col gap-2">
       {mode === "bindings" && hiddenDriverIds.size > 0 && showHideControls && (
@@ -278,10 +372,24 @@ export function FeatureList({
             onBindingSlotAliasChange={setDriverSlotAlias}
             onBindingSlotValueTypeChange={setDriverSlotValueType}
             onNormalizeBindingSlot={handleNormalizeSlot}
+            onNormalizeParentBindingSlot={handleNormalizeParentSlot}
             onRequestCreateStandardInput={handleRequestCreateStandardInput}
             onResetBinding={handleResetBinding}
             onUpdateStandardInput={handleUpdateStandardInputWrapper}
             onInputValueChange={handleInputValueChange}
+            inputBindings={inputBindings}
+            onEnsureParentBinding={handleEnsureParentBinding}
+            onParentBindingInputChange={handleParentBindingInputChange}
+            onParentAddBindingSlot={handleParentAddBindingSlot}
+            onParentRemoveBindingSlot={handleParentRemoveBindingSlot}
+            onParentBindingExpressionChange={
+              handleParentBindingExpressionChange
+            }
+            onParentBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+            onParentBindingSlotValueTypeChange={
+              handleParentBindingSlotValueTypeChange
+            }
+            onParentResetBinding={handleParentResetBinding}
             hiddenDriverIds={hiddenDriverIds}
             onHideDriver={handleHideDriver}
             onShowDriver={handleShowDriver}
@@ -343,6 +451,11 @@ interface FeatureRowProps {
     slotId: string,
     outputRange?: { min: number; max: number; default: number },
   ) => void;
+  onNormalizeParentBindingSlot: (
+    targetId: string,
+    slotId: string,
+    outputRange?: { min: number; max: number; default: number },
+  ) => void;
   onRequestCreateStandardInput: (
     suggestedPath?: string,
   ) => StandardRigInput | null;
@@ -358,6 +471,30 @@ interface FeatureRowProps {
     },
   ) => void;
   onInputValueChange: (inputId: string, value: number) => void;
+  inputBindings: Record<string, BindingMap[string] | undefined>;
+  onEnsureParentBinding: (targetId: string) => void;
+  onParentBindingInputChange: (
+    targetId: string,
+    inputId: string | null,
+    slotId?: string,
+  ) => void;
+  onParentAddBindingSlot: (targetId: string) => void;
+  onParentRemoveBindingSlot: (targetId: string, slotId: string) => void;
+  onParentBindingExpressionChange: (
+    targetId: string,
+    expression: string,
+  ) => void;
+  onParentBindingSlotAliasChange: (
+    targetId: string,
+    slotId: string,
+    alias: string,
+  ) => void;
+  onParentBindingSlotValueTypeChange: (
+    targetId: string,
+    slotId: string,
+    valueType: BindingValueType,
+  ) => void;
+  onParentResetBinding: (targetId: string) => void;
   hiddenDriverIds?: Set<string>;
   onHideDriver?: (id: string) => void;
   onShowDriver?: (id: string) => void;
@@ -517,9 +654,25 @@ function FeatureRow(props: FeatureRowProps) {
             onBindingSlotAliasChange={props.onBindingSlotAliasChange}
             onBindingSlotValueTypeChange={props.onBindingSlotValueTypeChange}
             onNormalizeBindingSlot={props.onNormalizeBindingSlot}
+            onNormalizeParentBindingSlot={props.onNormalizeParentBindingSlot}
             onRequestCreateStandardInput={props.onRequestCreateStandardInput}
             onResetBinding={props.onResetBinding}
             onInputValueChange={props.onInputValueChange}
+            inputBindings={props.inputBindings}
+            onEnsureParentBinding={props.onEnsureParentBinding}
+            onParentBindingInputChange={props.onParentBindingInputChange}
+            onParentAddBindingSlot={props.onParentAddBindingSlot}
+            onParentRemoveBindingSlot={props.onParentRemoveBindingSlot}
+            onParentBindingExpressionChange={
+              props.onParentBindingExpressionChange
+            }
+            onParentBindingSlotAliasChange={
+              props.onParentBindingSlotAliasChange
+            }
+            onParentBindingSlotValueTypeChange={
+              props.onParentBindingSlotValueTypeChange
+            }
+            onParentResetBinding={props.onParentResetBinding}
             hiddenDriverIds={props.hiddenDriverIds}
             onHideDriver={props.onHideDriver}
             onShowDriver={props.onShowDriver}
@@ -550,9 +703,19 @@ interface FeatureBindingRowProps {
   onBindingSlotAliasChange: FeatureRowProps["onBindingSlotAliasChange"];
   onBindingSlotValueTypeChange: FeatureRowProps["onBindingSlotValueTypeChange"];
   onNormalizeBindingSlot: FeatureRowProps["onNormalizeBindingSlot"];
+  onNormalizeParentBindingSlot: FeatureRowProps["onNormalizeParentBindingSlot"];
   onRequestCreateStandardInput: FeatureRowProps["onRequestCreateStandardInput"];
   onResetBinding: FeatureRowProps["onResetBinding"];
   onInputValueChange: FeatureRowProps["onInputValueChange"];
+  inputBindings: FeatureRowProps["inputBindings"];
+  onEnsureParentBinding: FeatureRowProps["onEnsureParentBinding"];
+  onParentBindingInputChange: FeatureRowProps["onParentBindingInputChange"];
+  onParentAddBindingSlot: FeatureRowProps["onParentAddBindingSlot"];
+  onParentRemoveBindingSlot: FeatureRowProps["onParentRemoveBindingSlot"];
+  onParentBindingExpressionChange: FeatureRowProps["onParentBindingExpressionChange"];
+  onParentBindingSlotAliasChange: FeatureRowProps["onParentBindingSlotAliasChange"];
+  onParentBindingSlotValueTypeChange: FeatureRowProps["onParentBindingSlotValueTypeChange"];
+  onParentResetBinding: FeatureRowProps["onParentResetBinding"];
   hiddenDriverIds?: Set<string>;
   onHideDriver?: (id: string) => void;
   onShowDriver?: (id: string) => void;
@@ -576,9 +739,19 @@ function FeatureBindingRow({
   onBindingSlotAliasChange,
   onBindingSlotValueTypeChange,
   onNormalizeBindingSlot,
+  onNormalizeParentBindingSlot,
   onRequestCreateStandardInput,
   onResetBinding,
   onInputValueChange,
+  inputBindings,
+  onEnsureParentBinding,
+  onParentBindingInputChange,
+  onParentAddBindingSlot,
+  onParentRemoveBindingSlot,
+  onParentBindingExpressionChange,
+  onParentBindingSlotAliasChange,
+  onParentBindingSlotValueTypeChange,
+  onParentResetBinding,
   hiddenDriverIds,
   onHideDriver,
   onShowDriver,
@@ -600,14 +773,66 @@ function FeatureBindingRow({
     default: getDefaultValue(feature, component),
   };
 
+  const passthroughInputId = useMemo(() => {
+    if (!binding) {
+      return null;
+    }
+    const effectiveInputId = resolveEffectiveBindingInputId(binding);
+    if (!effectiveInputId) {
+      return null;
+    }
+    const sourceInput = standardInputLookup.get(effectiveInputId);
+    return isAutorigStandardInputPath(sourceInput?.path)
+      ? effectiveInputId
+      : null;
+  }, [binding, standardInputLookup]);
+  const isHiddenPassthrough = Boolean(passthroughInputId);
+  const bindingTargetId = passthroughInputId ?? targetId ?? "";
+  const displayedBinding =
+    passthroughInputId != null ? inputBindings[passthroughInputId] : binding;
+  const showCreateUpstreamBinding =
+    isHiddenPassthrough &&
+    passthroughInputId != null &&
+    displayedBinding == null;
+  const handleCreateUpstreamBinding = useCallback(() => {
+    if (!passthroughInputId) {
+      return;
+    }
+    onEnsureParentBinding(passthroughInputId);
+  }, [onEnsureParentBinding, passthroughInputId]);
+  const activeOnBindingInputChange = isHiddenPassthrough
+    ? onParentBindingInputChange
+    : onBindingInputChange;
+  const activeOnAddBindingSlot = isHiddenPassthrough
+    ? onParentAddBindingSlot
+    : onAddBindingSlot;
+  const activeOnRemoveBindingSlot = isHiddenPassthrough
+    ? onParentRemoveBindingSlot
+    : onRemoveBindingSlot;
+  const activeOnBindingExpressionChange = isHiddenPassthrough
+    ? onParentBindingExpressionChange
+    : onBindingExpressionChange;
+  const activeOnBindingSlotAliasChange = isHiddenPassthrough
+    ? onParentBindingSlotAliasChange
+    : onBindingSlotAliasChange;
+  const activeOnBindingSlotValueTypeChange = isHiddenPassthrough
+    ? onParentBindingSlotValueTypeChange
+    : onBindingSlotValueTypeChange;
+  const activeOnNormalizeBindingSlot = isHiddenPassthrough
+    ? onNormalizeParentBindingSlot
+    : onNormalizeBindingSlot;
+  const activeOnResetBinding = isHiddenPassthrough
+    ? onParentResetBinding
+    : onResetBinding;
+
   const { allHidden, hiddenSlotIds } = useMemo(() => {
-    if (!binding?.slots || binding.slots.length === 0) {
+    if (!displayedBinding?.slots || displayedBinding.slots.length === 0) {
       return { allHidden: false, hiddenSlotIds: [] as string[] };
     }
     if (!hiddenDriverIds || hiddenDriverIds.size === 0) {
       return { allHidden: false, hiddenSlotIds: [] as string[] };
     }
-    const resolved = binding.slots
+    const resolved = displayedBinding.slots
       .map((slot) =>
         resolveSlotDriverId(slot, standardInputs, standardInputLookup),
       )
@@ -617,7 +842,12 @@ function FeatureBindingRow({
       allHidden: hiddenIds.length > 0 && hiddenIds.length === resolved.length,
       hiddenSlotIds: hiddenIds,
     };
-  }, [binding?.slots, hiddenDriverIds, standardInputs, standardInputLookup]);
+  }, [
+    displayedBinding?.slots,
+    hiddenDriverIds,
+    standardInputs,
+    standardInputLookup,
+  ]);
 
   const isFocusedTarget = Boolean(targetId && focusedTargetId === targetId);
 
@@ -644,25 +874,25 @@ function FeatureBindingRow({
     hiddenSlotIds.forEach((id) => onShowDriver(id));
   };
 
-  const content = binding ? (
+  const content = displayedBinding ? (
     <BindingEditor
-      binding={binding}
-      targetId={targetId}
-      issues={bindingIssues.get(targetId)}
+      binding={displayedBinding}
+      targetId={bindingTargetId}
+      issues={bindingIssues.get(bindingTargetId) ?? bindingIssues.get(targetId)}
       label={`${feature.label} ${component.label ?? ""}`.trim()}
       standardInputs={standardInputs}
       standardInputLookup={standardInputLookup}
-      onBindingInputChange={onBindingInputChange}
-      onAddBindingSlot={onAddBindingSlot}
-      onRemoveBindingSlot={onRemoveBindingSlot}
-      onBindingExpressionChange={onBindingExpressionChange}
-      onBindingSlotAliasChange={onBindingSlotAliasChange}
-      onBindingSlotValueTypeChange={onBindingSlotValueTypeChange}
+      onBindingInputChange={activeOnBindingInputChange}
+      onAddBindingSlot={activeOnAddBindingSlot}
+      onRemoveBindingSlot={activeOnRemoveBindingSlot}
+      onBindingExpressionChange={activeOnBindingExpressionChange}
+      onBindingSlotAliasChange={activeOnBindingSlotAliasChange}
+      onBindingSlotValueTypeChange={activeOnBindingSlotValueTypeChange}
       onNormalizeBindingSlot={(tid, sid) =>
-        onNormalizeBindingSlot(tid, sid, range)
+        activeOnNormalizeBindingSlot(tid, sid, range)
       }
       onRequestCreateStandardInput={onRequestCreateStandardInput}
-      onResetBinding={onResetBinding}
+      onResetBinding={activeOnResetBinding}
       expandable={false}
       defaultExpanded={true}
       currentValues={inputValues}
@@ -677,9 +907,19 @@ function FeatureBindingRow({
       }}
     />
   ) : (
-    <p className="text-[11px] text-slate-500 italic py-2 px-3">
-      No binding active
-    </p>
+    <div className="px-3 py-2.5">
+      <p className="text-[11px] text-slate-500 italic">No binding active</p>
+      {showCreateUpstreamBinding && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-7 text-[10px] px-2.5 mt-2"
+          onClick={handleCreateUpstreamBinding}
+        >
+          Create driver binding
+        </Button>
+      )}
+    </div>
   );
 
   if (shouldOmit) {
@@ -689,14 +929,24 @@ function FeatureBindingRow({
   return (
     <div
       className={cn(
-        "rounded-lg border border-slate-800/60 bg-slate-950/10 mb-2 overflow-hidden",
+        "rounded-xl border border-border-default/60 bg-bg-panel/25 mb-1.5 overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.03)]",
         isGrey && "opacity-50 grayscale-[0.5]",
         isFocusedTarget &&
-          "ring-1 ring-accent/50 shadow-[0_0_0_1px_var(--color-accent-subtle)]",
+          "ring-1 ring-accent/60 shadow-[0_0_0_1px_var(--color-accent-subtle)]",
       )}
     >
+      {isHiddenPassthrough && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-default/40 bg-accent-subtle/20 text-[10px] text-text-secondary">
+          <Chip tone="info" className="h-4 text-[9px] px-1 uppercase">
+            Driver chain
+          </Chip>
+          <span className="font-medium">
+            Showing upstream driver binding for this animatable.
+          </span>
+        </div>
+      )}
       {isGrey && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/40 text-[10px] text-slate-400">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/35 text-[10px] text-slate-400 border-b border-border-default/30">
           <Chip tone="warning" className="h-4 text-[9px] px-1 uppercase">
             Hidden
           </Chip>

@@ -867,7 +867,7 @@ export function BindingEditor({
   }, [resolveSlotDiagnostics, slots, targetId]);
 
   const header = (
-    <div className="flex flex-wrap items-start gap-3 py-2 px-1 border-b border-white/5 mb-4 group">
+    <div className="flex flex-wrap items-start gap-3 py-2 px-1 border-b border-border-default/30 mb-3 group">
       {expandable && (
         <button
           type="button"
@@ -975,9 +975,9 @@ export function BindingEditor({
   }
 
   return (
-    <div className="w-full bg-bg-panel/40 border border-border-default/50 rounded-xl p-4">
+    <div className="w-full rounded-lg border border-border-default/45 bg-bg-panel/30 p-3.5">
       {header}
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         {issueList.length > 0 && (
           <div
             className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2"
@@ -1101,12 +1101,12 @@ export function BindingEditor({
             return (
               <div
                 key={slot.id ?? slotIdentifier}
-                className="bg-bg-input/40 border border-border-default/60 rounded-xl p-4 flex flex-col gap-4 group/slot hover:border-border-default transition-colors"
+                className="rounded-lg border border-border-default/45 bg-bg-panel/25 p-3.5 flex flex-col gap-3.5 group/slot hover:border-border-default/70 transition-colors"
                 data-testid={`binding-slot-${slotIdentifier}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <code className="text-[11px] bg-bg-input px-2 py-0.5 rounded border border-border-default text-accent font-mono font-semibold">
+                    <code className="text-[11px] bg-bg-panel/45 px-2 py-0.5 rounded border border-border-default/60 text-accent font-mono font-semibold">
                       {slotIdentifier}
                     </code>
                     <span
@@ -1144,7 +1144,7 @@ export function BindingEditor({
                       Alias
                     </span>
                     <input
-                      className="bg-bg-input border border-border-default/50 rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent/50 transition-colors placeholder:text-text-muted"
+                      className="bg-bg-panel/35 border border-border-default/45 rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent/50 transition-colors placeholder:text-text-muted"
                       value={slot.alias}
                       placeholder={slot.id}
                       onChange={(event) =>
@@ -1167,13 +1167,13 @@ export function BindingEditor({
                       <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                         Value type
                       </span>
-                      <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
+                      <div className="flex bg-bg-panel/35 border border-border-default/45 rounded-lg p-1 self-start">
                         <button
                           type="button"
                           className={cn(
                             "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
                             slotValueType === "scalar"
-                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              ? "bg-bg-panel/70 text-text-primary shadow-sm"
                               : "text-text-muted hover:text-text-primary",
                           )}
                           onClick={() => {
@@ -1193,7 +1193,7 @@ export function BindingEditor({
                           className={cn(
                             "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
                             slotValueType === "vector"
-                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              ? "bg-bg-panel/70 text-text-primary shadow-sm"
                               : "text-text-muted hover:text-text-primary",
                           )}
                           onClick={() => {
@@ -1289,7 +1289,7 @@ export function BindingEditor({
                         ) : undefined;
 
                       return (
-                        <div className="w-full mt-2 p-3 bg-bg-input rounded-xl border border-border-default/50">
+                        <div className="w-full mt-1 p-2.5 bg-bg-panel/20 rounded-lg border border-border-default/40">
                           <CollapsibleRow
                             id={`${targetId}-${slot.id}-driver`}
                             title={input.label ?? resolvedInputId ?? "Driver"}
@@ -1307,7 +1307,7 @@ export function BindingEditor({
                             actions={actions}
                             className="bg-transparent border-none p-0"
                             expandedContent={
-                              <div className="flex gap-4 p-3 bg-bg-secondary/60 rounded border border-border-default/50 text-[11px] text-text-muted font-medium">
+                              <div className="flex gap-4 p-2.5 bg-bg-panel/25 rounded border border-border-default/35 text-[11px] text-text-muted font-medium">
                                 <span className="flex items-center gap-1.5">
                                   <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
                                   Min:
@@ -1338,7 +1338,7 @@ export function BindingEditor({
                     })()}
                 </div>
                 {upstreamNodes.length > 0 && (
-                  <div className="mt-1 pt-3 border-t border-border-default/50">
+                  <div className="mt-1 pt-2.5 border-t border-border-default/35">
                     <Button
                       type="button"
                       variant="ghost"
@@ -1355,7 +1355,7 @@ export function BindingEditor({
                         {upstreamNodes.map((node) => (
                           <li
                             key={`${slotKey}-${node.id}`}
-                            className="flex flex-col gap-1 p-3 bg-bg-input rounded-lg border border-border-default/50"
+                            className="flex flex-col gap-1 p-2.5 bg-bg-panel/20 rounded-lg border border-border-default/35"
                           >
                             <span className="text-[11px] font-bold text-text-primary">
                               {node.label}
@@ -1380,7 +1380,7 @@ export function BindingEditor({
             );
           })}
         </div>
-        <div className="flex flex-col gap-4 rounded-xl border border-border-default/60 bg-bg-input/20 p-4">
+        <div className="flex flex-col gap-3.5 rounded-lg border border-border-default/45 bg-bg-panel/20 p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label
               htmlFor={`binding-expression-${targetId}`}
@@ -1468,10 +1468,10 @@ export function BindingEditor({
           )}
           {caseMetadata && <CaseMetadataSummary metadata={caseMetadata} />}
           {expressionFunctionGroups.length > 0 && (
-            <div className="mt-4 border-t border-white/5 pt-6">
+            <div className="mt-2 border-t border-border-default/30 pt-4">
               <button
                 type="button"
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors group"
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-default/40 bg-bg-panel/20 hover:bg-bg-panel/30 transition-colors group"
                 onClick={() =>
                   setFunctionReferenceExpanded((previous) => !previous)
                 }
@@ -1524,7 +1524,7 @@ export function BindingEditor({
                     className="w-full"
                   />
                   {selectedFunctionDetail ? (
-                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-6 space-y-6">
+                    <div className="bg-bg-panel/20 rounded-lg border border-border-default/40 p-4 space-y-4">
                       <div className="space-y-4">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                           <div className="space-y-1">
@@ -1564,7 +1564,7 @@ export function BindingEditor({
                           </div>
                         </div>
                         {functionSignaturePreview && (
-                          <div className="p-3 bg-bg-secondary/60 rounded-lg border border-border-default/50">
+                          <div className="p-3 bg-bg-panel/25 rounded-lg border border-border-default/35">
                             <code className="text-[11px] text-accent font-mono font-bold">
                               {functionSignaturePreview}
                             </code>
@@ -1608,7 +1608,7 @@ export function BindingEditor({
                       )}
 
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <div className="flex items-center justify-between border-b border-border-default/30 pb-2">
                           <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
                             Parameters
                           </span>
@@ -1680,7 +1680,7 @@ export function BindingEditor({
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-8 text-center">
+                    <div className="bg-bg-panel/20 rounded-lg border border-border-default/40 p-6 text-center">
                       <p className="text-xs text-text-muted italic">
                         Select a function to see its description and inputs.
                       </p>
@@ -1691,10 +1691,10 @@ export function BindingEditor({
             </div>
           )}
           {conditionalAuthoringEnabled && slotAliasOptions.length > 0 && (
-            <div className="mt-4 border-t border-white/5 pt-6">
+            <div className="mt-2 border-t border-border-default/30 pt-4">
               <button
                 type="button"
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-default/50 bg-bg-panel/50 hover:bg-bg-panel transition-colors group"
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-default/40 bg-bg-panel/20 hover:bg-bg-panel/30 transition-colors group"
                 onClick={() => setCaseBuilderExpanded((previous) => !previous)}
               >
                 <div className="flex items-center gap-2.5">
@@ -1731,7 +1731,7 @@ export function BindingEditor({
                 </svg>
               </button>
               {caseBuilderExpanded && (
-                <div className="mt-4 bg-bg-input rounded-xl border border-border-default/50 p-6 animate-in fade-in slide-in-from-top-2 duration-200 space-y-6">
+                <div className="mt-4 bg-bg-panel/20 rounded-lg border border-border-default/40 p-4 animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
@@ -1790,7 +1790,7 @@ export function BindingEditor({
                               "flex items-center gap-2.5 p-2 rounded border transition-all cursor-pointer",
                               checked
                                 ? "bg-accent/10 border-accent/20 text-accent"
-                                : "bg-bg-secondary border-border-default/50 text-text-muted hover:border-border-default",
+                                : "bg-bg-panel/25 border-border-default/45 text-text-muted hover:border-border-default/70",
                             )}
                             onClick={() =>
                               handleCaseBranchToggle(alias, !checked)
@@ -1857,7 +1857,7 @@ interface CaseMetadataSummaryProps {
 
 function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
   return (
-    <div className="bg-bg-secondary/60 rounded-xl border border-border-default/50 p-4 space-y-4">
+    <div className="bg-bg-panel/20 rounded-lg border border-border-default/40 p-3.5 space-y-3.5">
       <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted">
         CASE metadata
       </h4>
@@ -1888,7 +1888,7 @@ function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
             {metadata.branches.map((branch, index) => (
               <li
                 key={index}
-                className="flex items-center gap-3 p-2 bg-bg-input rounded border border-border-default/50 text-[10px]"
+                className="flex items-center gap-3 p-2 bg-bg-panel/25 rounded border border-border-default/35 text-[10px]"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
                 <span className="font-mono text-text-primary">
