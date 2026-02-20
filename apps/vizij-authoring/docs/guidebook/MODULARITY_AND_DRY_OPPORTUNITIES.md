@@ -74,13 +74,17 @@ Status legend:
      - `apps/vizij-authoring/src/components/app/StdFeatureSpacesControls.tsx`
      - `apps/vizij-authoring/src/components/app/StdFeatureSpacesChannelsPanel.tsx`
 
-6. `open` - Evaluate further segmentation of pose-rig store compile/projection logic.
+6. `done` - Evaluate further segmentation of pose-rig store compile/projection logic.
    - Current files:
      - `apps/vizij-authoring/src/poseRig/store.tsx`
    - Why:
      - Store projection and compile guards are comprehensive but concentrated in a very large module.
    - Target:
      - Move projection helpers/validation into `poseRig/services` submodules with focused tests.
+   - Landed:
+     - `apps/vizij-authoring/src/poseRig/services/poseRigProjectionService.ts`
+     - `apps/vizij-authoring/src/poseRig/services/poseRigProjectionService.test.ts`
+     - `apps/vizij-authoring/src/poseRig/store.tsx`
 
 ## Recently Landed Refactors
 
