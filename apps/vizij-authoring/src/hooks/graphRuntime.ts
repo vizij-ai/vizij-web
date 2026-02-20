@@ -102,6 +102,58 @@ export interface ApplyGraphOutputsOptions {
   resetDrivenAnimatables: () => void;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function extractWriteOps(result: unknown): {
+  writes: WriteOpJSON[];
+  invalidEntryCount: number;
+  invalidContainer: boolean;
+} {
+  if (!isRecord(result)) {
+    return {
+      writes: [],
+      invalidEntryCount: 0,
+      invalidContainer: false,
+    };
+  }
+
+  const rawWrites = result.writes;
+  if (rawWrites === undefined) {
+    return {
+      writes: [],
+      invalidEntryCount: 0,
+      invalidContainer: false,
+    };
+  }
+
+  if (!Array.isArray(rawWrites)) {
+    return {
+      writes: [],
+      invalidEntryCount: 0,
+      invalidContainer: true,
+    };
+  }
+
+  const writes: WriteOpJSON[] = [];
+  let invalidEntryCount = 0;
+
+  rawWrites.forEach((entry) => {
+    if (!isRecord(entry) || typeof entry.path !== "string") {
+      invalidEntryCount += 1;
+      return;
+    }
+    writes.push(entry as WriteOpJSON);
+  });
+
+  return {
+    writes,
+    invalidEntryCount,
+    invalidContainer: false,
+  };
+}
+
 export function applyGraphOutputsToAnimatables({
   result,
   animatables,
@@ -114,9 +166,19 @@ export function applyGraphOutputsToAnimatables({
     resetDrivenAnimatables();
     return;
   }
-  const writes: WriteOpJSON[] = Array.isArray((result as any)?.writes)
-    ? ((result as any).writes as WriteOpJSON[])
-    : [];
+  const { writes, invalidEntryCount, invalidContainer } =
+    extractWriteOps(result);
+  if (invalidContainer) {
+    console.warn(
+      "[vizij-authoring] Ignored graph runtime writes because payload.writes was not an array.",
+      result,
+    );
+  } else if (invalidEntryCount > 0) {
+    console.warn(
+      `[vizij-authoring] Ignored ${invalidEntryCount} invalid graph runtime write entries.`,
+      result,
+    );
+  }
   const nextDriven = new Set<string>();
 
   writes.forEach((write) => {

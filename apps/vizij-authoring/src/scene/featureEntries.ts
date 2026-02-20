@@ -11,14 +11,7 @@ export interface RenderableLike {
   id: string;
   name?: string;
   type: string;
-  features?: Record<
-    string,
-    | undefined
-    | {
-        animated: boolean;
-        value: any;
-      }
-  >;
+  features?: Record<string, Feature | undefined>;
 }
 
 export type SupportedKind =

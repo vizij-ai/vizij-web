@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Lock, LockOpen } from "lucide-react";
-import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
+import type { StandardRigInput, AnimatableValue, RawValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover as BasePopover } from "@base-ui/react";
 import type {
@@ -19,6 +19,70 @@ import {
   resolveFaceInspectorCurrentValue,
   toggleInspectorChannelLock,
 } from "./faceInspectorSemantics";
+
+interface BindingLike {
+  inputId?: string | null;
+  slots?: Array<{ inputId?: string | null }> | null;
+}
+
+type InspectorBindings = Record<string, BindingLike | undefined>;
+
+interface StandardInputUpdate {
+  defaultValue?: number;
+  label?: string;
+  path?: string;
+  range?: Partial<StandardRigInput["range"]>;
+}
+
+type ConstraintTuple3 = [number | null, number | null, number | null];
+
+const COLOR_CHANNEL_INDEX = {
+  r: 0,
+  g: 1,
+  b: 2,
+} as const;
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isColorAnimatable(
+  value: AnimatableValue,
+): value is Extract<AnimatableValue, { type: "rgb" | "hsl" }> {
+  return value.type === "rgb" || value.type === "hsl";
+}
+
+function cloneConstraintTuple(
+  value: ConstraintTuple3 | undefined,
+): ConstraintTuple3 {
+  return value ? [...value] : [null, null, null];
+}
+
+function normalizeColorChannel(
+  label: string,
+): keyof typeof COLOR_CHANNEL_INDEX {
+  const normalized = label.trim().toLowerCase();
+  if (normalized === "r" || normalized === "g" || normalized === "b") {
+    return normalized;
+  }
+  return "r";
+}
+
+function readStaticColor(value: RawValue | undefined): {
+  r: number;
+  g: number;
+  b: number;
+} {
+  if (value && typeof value === "object") {
+    const candidate = value as { r?: unknown; g?: unknown; b?: unknown };
+    return {
+      r: toFiniteNumber(candidate.r),
+      g: toFiniteNumber(candidate.g),
+      b: toFiniteNumber(candidate.b),
+    };
+  }
+  return { r: 0, g: 0, b: 0 };
+}
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -184,7 +248,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
 interface RiggingScalarRowProps {
   label: string;
   feature: SceneObjectFeature;
-  bindings: any;
+  bindings: InspectorBindings;
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
   inputBindings: Record<
@@ -203,11 +267,11 @@ interface RiggingScalarRowProps {
     value: number,
     channel?: string,
   ) => void;
-  onUpdateStandardInput: (id: string, updates: any) => void;
+  onUpdateStandardInput: (id: string, updates: StandardInputUpdate) => void;
   setStaticFeatureValue?: (
     nodeId: string,
     featureId: string,
-    value: any,
+    value: RawValue,
   ) => void;
   node?: SceneObjectNode;
 }
@@ -274,48 +338,56 @@ export function RiggingScalarRow({
     lockedChannels,
     channelLockId,
   );
+  const descriptorNumberConstraints =
+    feature.descriptor?.type === "number"
+      ? feature.descriptor.constraints
+      : undefined;
+  const currentValueNumber = toFiniteNumber(authority.currentValue);
 
   const minVal = isBound
     ? standardInput!.range.min
-    : ((feature.descriptor?.constraints as any)?.min ?? 0);
+    : (descriptorNumberConstraints?.min ?? 0);
   const maxVal = isBound
     ? standardInput!.range.max
-    : ((feature.descriptor?.constraints as any)?.max ?? 0);
-
-  const currentValue = authority.currentValue;
+    : (descriptorNumberConstraints?.max ?? 0);
 
   const defaultValue = isBound
     ? (standardInput!.defaultValue ?? 0)
     : (component.staticValue ?? 0);
+  const defaultValueNumber = toFiniteNumber(defaultValue);
 
   const hasDifferentDefault =
-    isBound &&
-    Math.abs((currentValue as number) - (defaultValue as number)) > 0.0001;
+    isBound && Math.abs(currentValueNumber - defaultValueNumber) > 0.0001;
 
   const handleReset = () => {
-    if (isBound && inputId) onValueChange(inputId, defaultValue as number);
+    if (isBound && inputId) onValueChange(inputId, defaultValueNumber);
   };
 
   const handleSaveToDefault = () => {
     if (isBound && inputId)
-      onUpdateStandardInput(inputId, { defaultValue: currentValue as number });
+      onUpdateStandardInput(inputId, { defaultValue: currentValueNumber });
   };
 
-  const hasMinChanged =
-    Math.abs((currentValue as number) - (minVal as number)) > 0.0001;
-  const hasMaxChanged =
-    Math.abs((currentValue as number) - (maxVal as number)) > 0.0001;
+  const hasMinChanged = Math.abs(currentValueNumber - minVal) > 0.0001;
+  const hasMaxChanged = Math.abs(currentValueNumber - maxVal) > 0.0001;
 
   const handleSaveToMin = () => {
     if (isBound && inputId) {
       onUpdateStandardInput(inputId, {
-        range: { min: currentValue as number },
+        range: { min: currentValueNumber },
       });
     } else if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        nextConstraints.min = currentValue;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+        if (curr.type !== "number") {
+          return curr;
+        }
+        return {
+          ...curr,
+          constraints: {
+            ...curr.constraints,
+            min: currentValueNumber,
+          },
+        };
       });
     }
   };
@@ -323,13 +395,20 @@ export function RiggingScalarRow({
   const handleSaveToMax = () => {
     if (isBound && inputId) {
       onUpdateStandardInput(inputId, {
-        range: { max: currentValue as number },
+        range: { max: currentValueNumber },
       });
     } else if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        nextConstraints.max = currentValue;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+        if (curr.type !== "number") {
+          return curr;
+        }
+        return {
+          ...curr,
+          constraints: {
+            ...curr.constraints,
+            max: currentValueNumber,
+          },
+        };
       });
     }
   };
@@ -339,10 +418,10 @@ export function RiggingScalarRow({
     let canEdit = true;
 
     if (type === "current") {
-      val = currentValue as number;
+      val = currentValueNumber;
       canEdit = !isChannelLocked && (isBound || !!onStaticValueChange);
     } else if (type === "default") {
-      val = defaultValue as number;
+      val = defaultValueNumber;
       canEdit = isBound;
     } else if (type === "min") {
       val = minVal;
@@ -396,14 +475,17 @@ export function RiggingScalarRow({
                 onConstraintChange?.(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
-                    const nextConstraints = {
-                      ...(curr.constraints || {}),
-                    } as any;
-                    nextConstraints[type === "min" ? "min" : "max"] = nextVal;
+                    if (curr.type !== "number") {
+                      return curr;
+                    }
+                    const kind = type === "min" ? "min" : "max";
                     return {
                       ...curr,
-                      constraints: nextConstraints,
-                    } as AnimatableValue;
+                      constraints: {
+                        ...curr.constraints,
+                        [kind]: nextVal,
+                      },
+                    };
                   },
                 );
               }
@@ -412,12 +494,10 @@ export function RiggingScalarRow({
           onScrubStart={() => {
             if (type === "current") {
               if (isBound && inputId)
-                scrubValuesRef.current[inputId] = (currentValue as number) ?? 0;
-              else
-                scrubValuesRef.current["current"] =
-                  (currentValue as number) ?? 0;
+                scrubValuesRef.current[inputId] = currentValueNumber;
+              else scrubValuesRef.current["current"] = currentValueNumber;
             } else if (type === "default" && inputId) {
-              scrubValuesRef.current[inputId] = (defaultValue as number) ?? 0;
+              scrubValuesRef.current[inputId] = defaultValueNumber;
             } else if (
               (type === "min" || type === "max") &&
               (inputId || feature.animatableId)
@@ -460,14 +540,17 @@ export function RiggingScalarRow({
                 onConstraintChange?.(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
-                    const nextConstraints = {
-                      ...(curr.constraints || {}),
-                    } as any;
-                    nextConstraints[type === "min" ? "min" : "max"] = num;
+                    if (curr.type !== "number") {
+                      return curr;
+                    }
+                    const kind = type === "min" ? "min" : "max";
                     return {
                       ...curr,
-                      constraints: nextConstraints,
-                    } as AnimatableValue;
+                      constraints: {
+                        ...curr.constraints,
+                        [kind]: num,
+                      },
+                    };
                   },
                 );
               }
@@ -682,15 +765,24 @@ export function RiggingColorRow({
 
     if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        const currentVals = { ...(nextConstraints.min || {}) };
+        if (!isColorAnimatable(curr)) {
+          return curr;
+        }
+        const nextMin = cloneConstraintTuple(curr.constraints.min);
         components.forEach((c) => {
           if (!c.isBound) {
-            currentVals[c.label.toLowerCase()] = c.currentValue;
+            const channel = normalizeColorChannel(c.label);
+            const index = COLOR_CHANNEL_INDEX[channel];
+            nextMin[index] = toFiniteNumber(c.currentValue);
           }
         });
-        nextConstraints.min = currentVals;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+        return {
+          ...curr,
+          constraints: {
+            ...curr.constraints,
+            min: nextMin,
+          },
+        };
       });
     }
   };
@@ -706,15 +798,24 @@ export function RiggingColorRow({
 
     if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        const currentVals = { ...(nextConstraints.max || {}) };
+        if (!isColorAnimatable(curr)) {
+          return curr;
+        }
+        const nextMax = cloneConstraintTuple(curr.constraints.max);
         components.forEach((c) => {
           if (!c.isBound) {
-            currentVals[c.label.toLowerCase()] = c.currentValue;
+            const channel = normalizeColorChannel(c.label);
+            const index = COLOR_CHANNEL_INDEX[channel];
+            nextMax[index] = toFiniteNumber(c.currentValue);
           }
         });
-        nextConstraints.max = currentVals;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
+        return {
+          ...curr,
+          constraints: {
+            ...curr.constraints,
+            max: nextMax,
+          },
+        };
       });
     }
   };
@@ -806,7 +907,7 @@ export function RiggingColorRow({
                 comp.label.toLowerCase(),
               );
             } else if (setStaticFeatureValue && node) {
-              const current = (feature.staticValue as any) || {};
+              const current = readStaticColor(feature.staticValue);
               setStaticFeatureValue(node.id, feature.id, {
                 ...current,
                 [comp.label.toLowerCase()]: val,
@@ -816,14 +917,18 @@ export function RiggingColorRow({
         });
       } else if (feature.animatableId) {
         onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
-          const nextConstraints = { ...(curr.constraints || {}) } as any;
+          if (!isColorAnimatable(curr)) {
+            return curr;
+          }
           const kind = type === "min" ? "min" : "max";
-          const currentVals = { ...(nextConstraints[kind] || {}) };
-          currentVals.r = rgb.r;
-          currentVals.g = rgb.g;
-          currentVals.b = rgb.b;
-          nextConstraints[kind] = currentVals;
-          return { ...curr, constraints: nextConstraints } as AnimatableValue;
+          const nextTuple: ConstraintTuple3 = [rgb.r, rgb.g, rgb.b];
+          return {
+            ...curr,
+            constraints: {
+              ...curr.constraints,
+              [kind]: nextTuple,
+            },
+          };
         });
       }
     };
@@ -922,7 +1027,7 @@ export function RiggingColorRow({
                             c.label.toLowerCase(),
                           );
                         } else if (setStaticFeatureValue && node) {
-                          const current = (feature.staticValue as any) || {};
+                          const current = readStaticColor(feature.staticValue);
                           setStaticFeatureValue(node.id, feature.id, {
                             ...current,
                             [c.label.toLowerCase()]: nextVal,
@@ -942,21 +1047,23 @@ export function RiggingColorRow({
                         onConstraintChange?.(
                           feature.animatableId,
                           (curr: AnimatableValue) => {
-                            const nextConstraints = {
-                              ...(curr.constraints || {}),
-                            } as any;
+                            if (!isColorAnimatable(curr)) {
+                              return curr;
+                            }
                             const kind = type === "min" ? "min" : "max";
-                            const currentVal = nextConstraints[kind] || {};
-                            nextConstraints[kind] = {
-                              ...(typeof currentVal === "object"
-                                ? currentVal
-                                : {}),
-                              [c.label.toLowerCase()]: nextVal,
-                            } as any;
+                            const nextTuple = cloneConstraintTuple(
+                              curr.constraints[kind],
+                            );
+                            const channel = normalizeColorChannel(c.label);
+                            const index = COLOR_CHANNEL_INDEX[channel];
+                            nextTuple[index] = nextVal;
                             return {
                               ...curr,
-                              constraints: nextConstraints,
-                            } as AnimatableValue;
+                              constraints: {
+                                ...curr.constraints,
+                                [kind]: nextTuple,
+                              },
+                            };
                           },
                         );
                       }
@@ -994,7 +1101,7 @@ export function RiggingColorRow({
                             c.label.toLowerCase(),
                           );
                         } else if (setStaticFeatureValue && node) {
-                          const current = (feature.staticValue as any) || {};
+                          const current = readStaticColor(feature.staticValue);
                           setStaticFeatureValue(node.id, feature.id, {
                             ...current,
                             [c.label.toLowerCase()]: num,
@@ -1012,21 +1119,23 @@ export function RiggingColorRow({
                         onConstraintChange?.(
                           feature.animatableId,
                           (curr: AnimatableValue) => {
-                            const nextConstraints = {
-                              ...(curr.constraints || {}),
-                            } as any;
+                            if (!isColorAnimatable(curr)) {
+                              return curr;
+                            }
                             const kind = type === "min" ? "min" : "max";
-                            const currentVal = nextConstraints[kind] || {};
-                            nextConstraints[kind] = {
-                              ...(typeof currentVal === "object"
-                                ? currentVal
-                                : {}),
-                              [c.label.toLowerCase()]: num,
-                            } as any;
+                            const nextTuple = cloneConstraintTuple(
+                              curr.constraints[kind],
+                            );
+                            const channel = normalizeColorChannel(c.label);
+                            const index = COLOR_CHANNEL_INDEX[channel];
+                            nextTuple[index] = num;
                             return {
                               ...curr,
-                              constraints: nextConstraints,
-                            } as AnimatableValue;
+                              constraints: {
+                                ...curr.constraints,
+                                [kind]: nextTuple,
+                              },
+                            };
                           },
                         );
                       }

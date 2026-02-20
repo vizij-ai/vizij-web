@@ -438,3 +438,14 @@ Final gate after all chunks:
 - 2026-02-20: Added QL1.4 regression coverage in `src/utils/__tests__/standardInputMerge.test.ts` for normalized dedupe behavior, standard-path filtering, and deterministic merge ordering.
 - 2026-02-20: Validation rerun for QL1.4: `pnpm --filter vizij-authoring exec vitest --run src/utils/__tests__/standardInputMerge.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 16 (`QL1.5`, `QL1.6`, `QL1.7`) for type-safety hardening across scene features/material constraints/runtime payload writes.
+- 2026-02-20: `QL1.5` completed by replacing weak scene-feature runtime typing in `src/scene/featureEntries.ts` with a concrete `Feature` union contract (`RenderableLike.features: Record<string, Feature | undefined>`), eliminating the local `value: any` path.
+- 2026-02-20: `QL1.6` completed by removing `as any` casts from material inspector constraint update paths in `src/components/inspector/RiggingMaterialSection.tsx`.
+  1. Added typed scalar + color constraint update helpers (`number` and tuple-based `rgb/hsl` constraint writes).
+  2. Replaced untyped static-color patching with typed `RawValue` color extraction helpers.
+  3. Removed `any` usage from inspector binding/update prop contracts in this section.
+- 2026-02-20: `QL1.7` completed by adding guarded runtime write payload extraction in `src/hooks/graphRuntime.ts`.
+  1. Runtime graph output application now validates write containers and entries via explicit record/path checks.
+  2. Invalid write containers/entries are ignored safely with diagnosable warnings instead of `unknown -> any` casts.
+- 2026-02-20: Added QL1.7 regression coverage in `src/hooks/__tests__/graphRuntime.test.ts` for malformed write containers/entries and mixed valid-invalid write replay behavior.
+- 2026-02-20: Validation rerun for QL1.5-QL1.7: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/graphRuntime.test.ts src/scene/featureEntries.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 17 (`QL1.8`) for shared variable sync context memoization and rerender-pressure coverage.
