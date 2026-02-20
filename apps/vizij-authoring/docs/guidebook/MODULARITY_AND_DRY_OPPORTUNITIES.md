@@ -35,13 +35,19 @@ Status legend:
      - `apps/vizij-authoring/src/state/usePoseRigStoreSync.ts`
      - `apps/vizij-authoring/src/state/PoseRigProvider.tsx`
 
-3. `open` - Reduce `GraphDiagnosticsPanel` component bloat.
+3. `done` - Reduce `GraphDiagnosticsPanel` component bloat.
    - Current files:
      - `apps/vizij-authoring/src/components/app/GraphDiagnosticsPanel.tsx`
    - Why:
      - Issue aggregation/filter effects and inspector-drawer rendering live in one large module.
    - Target:
      - Extract issue-filter hook and separate `IrInspectorDrawer`/diff list component modules.
+   - Landed:
+     - `apps/vizij-authoring/src/components/app/graphDiagnostics/useGraphDiagnosticsIssues.ts`
+     - `apps/vizij-authoring/src/components/app/graphDiagnostics/IssueListPanel.tsx`
+     - `apps/vizij-authoring/src/components/app/graphDiagnostics/IrInspectorDrawer.tsx`
+     - `apps/vizij-authoring/src/components/app/graphDiagnostics/DiffResultList.tsx`
+     - `apps/vizij-authoring/src/components/app/GraphDiagnosticsPanel.tsx`
 
 4. `open` - Data-drive DebugPanel tab rendering.
    - Current files:
