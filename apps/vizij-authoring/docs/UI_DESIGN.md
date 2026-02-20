@@ -1,6 +1,6 @@
 # Vizij Authoring UI Design
 
-Last updated: 2026-02-19
+Last updated: 2026-02-20
 Status: active
 
 This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `plans/ROADMAP.md` and `plans/BACKLOG.md`. Import compatibility behavior is source-of-truth in `references/import-compat-contract.md`.
@@ -44,6 +44,14 @@ Inspector must support chain traversal in both directions:
 2. Animatable -> Autorig -> Rig -> Pose sources
 
 Traversal must preserve context (no unexpected selection resets).
+
+## Boundary Ownership Contract
+
+1. Runtime orchestration and UI filtering are separate concerns:
+   - runtime orchestration remains in rig/runtime controller flows,
+   - UI-only filters/selection are owned by dedicated UI stores (`useRigUi`/`rigUiStore`).
+2. Debug/diagnostics panels must consume orchestration hooks rather than embedding heavy compile/diff logic directly in panel components.
+3. App runtime payload assembly must stay memoized via `useRuntimeBaseBundle`; App should not subscribe to inert graph-runtime selectors.
 
 ## Inputs Pane Contract
 
@@ -141,6 +149,12 @@ Direct+pose effective-channel contract:
 4. Import outcomes must map to the contract statuses (`success`, `success_with_repair`, `blocked_recoverable`, `blocked_fatal`) defined in `references/import-compat-contract.md`.
 5. Remap UX must support deterministic "create missing standard input" recovery for unresolved outputs.
 6. Asset-load, sample-load, and bundle-sync failures must be visible and recoverable with retry actions.
+7. Persistence failures (load/save/delete) must surface explicit, actionable user messaging instead of console-only logging.
+8. Export failures must surface actionable errors; hard compatibility blocks must allow explicit user override where safe.
+9. Import failure presentation contract:
+   - failures are surfaced through a stacked, dismissable failure surface (`ImportFailureStack`),
+   - surfaced categories include asset-load failures, sample-load/fetch failures, and bundle-sync import failures,
+   - each failure class exposes explicit retry semantics (reload sample/asset or replay bundle-sync import) without requiring full app refresh.
 
 ## Out of Scope (Current MVP Scope)
 

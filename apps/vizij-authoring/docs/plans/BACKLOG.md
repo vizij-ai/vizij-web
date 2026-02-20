@@ -10,7 +10,7 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 1. Block `F5` is implemented in the current working tree (`F5.1`-`F5.8`); source-of-truth contract is `docs/references/import-compat-contract.md`.
 2. Fixture matrix + validate path (`src/hooks/__tests__/importOutcomeMatrix.test.ts`) is the active regression gate for import outcome behavior.
-3. `QL3.3` remains open for broader boundary/docs sync work outside the import-compat contract scope.
+3. Quality backlog `QL0.1` through `QL3.3` is complete in the working tree, including non-import boundary/docs sync.
 4. Blocks `A0` through `E4` remain complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
 
 ## Block A — MVP Correctness and Release Blockers

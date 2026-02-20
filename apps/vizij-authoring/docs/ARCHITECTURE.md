@@ -1,6 +1,6 @@
 # Vizij Authoring Architecture
 
-Last updated: 2026-02-19
+Last updated: 2026-02-20
 Audience: engineers working on `apps/vizij-authoring`
 
 This document defines system boundaries, canonical data contracts, and compile/runtime invariants.
@@ -94,6 +94,25 @@ Execution note:
 1. Separate-graph packaging is intentional for MVP delivery speed and compatibility.
 2. Rig graph composition nodes consume both direct rig-control and pose-control signals to produce final effective values per channel.
 
+## Authoring Boundary Contracts
+
+1. `useRigController` owns runtime orchestration concerns (graph/runtime reconciliation, import/compile integration).
+2. UI-only selection/filter ownership lives in dedicated UI store boundaries (`rigUiStore` via `useRigUi`), not inside runtime orchestration hooks.
+   - `rigUiStore` owns selected standard-input roots/subgroups and hidden-driver state.
+   - `rigUiStore` exposes explicit UI mutation handlers (hide/show/reset driver visibility and filter selection updates).
+3. Panel-domain compile/report orchestration is extracted into service hooks:
+   - `useBundleGraphMaintenance` for DebugPanel bundle graph maintenance actions.
+   - `useMachineReportDiff` for GraphDiagnostics diff/report flows.
+4. `useBundleGraphMaintenance` contract:
+   - validates required graph/audit prerequisites before overwrite or rename operations,
+   - owns output-rename prompt/validation/compile sequencing for IR-backed graph maintenance operations.
+5. `useMachineReportDiff` contract:
+   - owns report-file parsing and invalid-payload failure messaging,
+   - owns diff lifecycle state (including reset-on-close behavior),
+   - owns bug-report template/CLI command derivation for diagnostics export workflows.
+6. Bundle/runtime base payload assembly in `App.tsx` must route through `useRuntimeBaseBundle` to keep identity stable.
+7. App-level graph runtime subscriptions are constrained to selectors required for orchestration (`faceSegment`, `faceId`, `handleImportGraphSpec`), with contract coverage in `src/__tests__/appRuntimeContracts.test.ts`.
+
 ## Canonical Path and Identity Contracts
 
 1. Generated low-level rig paths use `/autorig/...`.
@@ -122,6 +141,9 @@ Execution note:
 2. Hidden surfaces avoid expensive tree/filter work.
 3. Hot path canonical resolution uses indexed/cached lookups.
 4. Input synchronization logic must avoid update loops/churn.
+5. Runtime bundle identity and App subscription contracts are regression-gated by:
+   - `src/hooks/__tests__/useRuntimeBaseBundle.test.tsx`
+   - `src/__tests__/appRuntimeContracts.test.ts`
 
 ## Change Discipline
 

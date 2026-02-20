@@ -1,6 +1,6 @@
 # Vizij Authoring Quality Backlog
 
-Date: 2026-02-19  
+Date: 2026-02-20  
 Status legend: `[ ]` planned, `[~]` in progress, `[x]` done
 
 This backlog is derived from `docs/reports/code-quality-review-2026-02-19.md` and is organized for parallel execution.
@@ -15,7 +15,7 @@ Lane C: architecture + DRY + type safety + tests
 
 ## Wave 0 — User-Facing Correctness and Stability
 
-### [ ] QL0.1 Replace discrepancy acceptance signature with content-hash identity
+### [x] QL0.1 Replace discrepancy acceptance signature with content-hash identity
 
 Lane: A  
 Priority: P0  
@@ -30,7 +30,7 @@ Acceptance checks:
 1. Acceptance key includes robust content identity (hash/canonical payload), not length-only signatures.
 2. Regression test demonstrates prior collision case now re-opens review.
 
-### [ ] QL0.2 Surface asset-load and sample-load failures in UI
+### [x] QL0.2 Surface asset-load and sample-load failures in UI
 
 Lane: B  
 Priority: P0  
@@ -45,7 +45,7 @@ Acceptance checks:
 1. `useVizijAssetLoader` errors are visible in the app UI.
 2. Sample button fetch failures show actionable error messages.
 
-### [ ] QL0.3 Surface bundle synchronizer import failures beyond console
+### [x] QL0.3 Surface bundle synchronizer import failures beyond console
 
 Lane: B  
 Priority: P0  
@@ -60,7 +60,7 @@ Acceptance checks:
 1. Bundle import failure path emits user-visible alert/diagnostic state.
 2. Failure state is recoverable (retry/import alternate asset).
 
-### [ ] QL0.4 Stabilize `App` runtime bundle identity and reduce inert runtime subscriptions
+### [x] QL0.4 Stabilize `App` runtime bundle identity and reduce inert runtime subscriptions
 
 Lane: C  
 Priority: P0  
@@ -76,7 +76,7 @@ Acceptance checks:
 2. Unused `useGraphRuntime` selectors are removed or localized.
 3. Viewer runtime does not reinitialize on unrelated UI state changes.
 
-### [ ] QL0.5 Resolve `poseGroupSegment` contract mismatch (implement or remove)
+### [x] QL0.5 Resolve `poseGroupSegment` contract mismatch (implement or remove)
 
 Lane: A  
 Priority: P0  
@@ -93,7 +93,7 @@ Acceptance checks:
 
 ## Wave 1 — Architecture, DRY, and Type Safety Hardening
 
-### [ ] QL1.1 Split `useRigController` responsibilities by boundary
+### [x] QL1.1 Split `useRigController` responsibilities by boundary
 
 Lane: C  
 Priority: P1  
@@ -109,7 +109,7 @@ Acceptance checks:
 2. Runtime controller focuses on graph/runtime concerns only.
 3. Existing behavior and tests remain stable.
 
-### [ ] QL1.2 Extract diagnostics/compile orchestration from UI panels
+### [x] QL1.2 Extract diagnostics/compile orchestration from UI panels
 
 Lane: C  
 Priority: P1  
@@ -124,7 +124,7 @@ Acceptance checks:
 1. Panels consume a service/hook API for compile/diff actions.
 2. No direct heavy compile/diff domain logic remains in those components.
 
-### [ ] QL1.3 Consolidate duplicated hierarchy tree logic
+### [x] QL1.3 Consolidate duplicated hierarchy tree logic
 
 Lane: C  
 Priority: P1  
@@ -139,7 +139,7 @@ Acceptance checks:
 1. Shared hook/component handles tree filter/selection/reparent behavior.
 2. Both hierarchy surfaces use shared implementation.
 
-### [ ] QL1.4 Consolidate standard-input merge logic in feature-spaces panels
+### [x] QL1.4 Consolidate standard-input merge logic in feature-spaces panels
 
 Lane: C  
 Priority: P1  
@@ -154,7 +154,7 @@ Acceptance checks:
 1. Shared merge utility introduced and reused.
 2. Dedup strategy is deterministic and consistent across both panels.
 
-### [ ] QL1.5 Replace `any` in scene feature entries with typed runtime contract
+### [x] QL1.5 Replace `any` in scene feature entries with typed runtime contract
 
 Lane: C  
 Priority: P1  
@@ -169,7 +169,7 @@ Acceptance checks:
 1. `featureEntries` uses concrete feature types (no `value: any`).
 2. Downstream consumers compile without widening back to `any`.
 
-### [ ] QL1.6 Remove `as any` constraint updates in material inspector
+### [x] QL1.6 Remove `as any` constraint updates in material inspector
 
 Lane: C  
 Priority: P1  
@@ -184,7 +184,7 @@ Acceptance checks:
 1. Constraint updates use typed helper objects.
 2. No `as any` casts remain in the material constraint update path.
 
-### [ ] QL1.7 Add type guards for runtime graph write payloads
+### [x] QL1.7 Add type guards for runtime graph write payloads
 
 Lane: C  
 Priority: P1  
@@ -199,7 +199,7 @@ Acceptance checks:
 1. Runtime result payload is narrowed via explicit type guards.
 2. Invalid payload shapes fail gracefully and are diagnosable.
 
-### [ ] QL1.8 Memoize shared variable sync context value
+### [x] QL1.8 Memoize shared variable sync context value
 
 Lane: C  
 Priority: P1  
@@ -216,7 +216,7 @@ Acceptance checks:
 
 ## Wave 2 — Test Quality and Coverage Expansion
 
-### [ ] QL2.1 Add behavior-level E4 policy scenario tests (`S1`-`S4`)
+### [x] QL2.1 Add behavior-level E4 policy scenario tests (`S1`-`S4`)
 
 Lane: A  
 Priority: P1  
@@ -231,7 +231,7 @@ Acceptance checks:
 1. Tests assert channel outputs/contributions against documented scenario expectations.
 2. Priority and fallback behavior are verified numerically, not only topologically.
 
-### [ ] QL2.2 Replace brittle node-name assertions with behavior assertions where feasible
+### [x] QL2.2 Replace brittle node-name assertions with behavior assertions where feasible
 
 Lane: A  
 Priority: P1  
@@ -246,7 +246,7 @@ Acceptance checks:
 1. Critical tests assert semantic outputs/wiring behavior rather than fragile node-name strings.
 2. Remaining topology tests justify strict node checks where required.
 
-### [ ] QL2.3 Add interactive store workflow tests for override editing + diagnostics
+### [x] QL2.3 Add interactive store workflow tests for override editing + diagnostics
 
 Lane: C  
 Priority: P1  
@@ -261,7 +261,7 @@ Acceptance checks:
 1. Store tests simulate override edits and verify projected IR/config consistency.
 2. Diagnostics behavior is validated in overlapping-group cases.
 
-### [ ] QL2.4 Add regression test for discrepancy acceptance collision bug
+### [x] QL2.4 Add regression test for discrepancy acceptance collision bug
 
 Lane: A  
 Priority: P1  
@@ -275,7 +275,7 @@ Acceptance checks:
 
 1. Test demonstrates equal-length changed graphs still trigger discrepancy review.
 
-### [ ] QL2.5 Add resilience tests for user-visible load/import failure UX
+### [x] QL2.5 Add resilience tests for user-visible load/import failure UX
 
 Lane: B  
 Priority: P1  
@@ -291,7 +291,7 @@ Acceptance checks:
 
 ## Wave 3 — Ratchets and Documentation
 
-### [ ] QL3.1 Add performance contract tests around `App` runtime bundle stability
+### [x] QL3.1 Add performance contract tests around `App` runtime bundle stability
 
 Lane: C  
 Priority: P2  
@@ -305,7 +305,7 @@ Acceptance checks:
 
 1. Contract tests fail if bundle identity churn or inert subscription patterns are reintroduced.
 
-### [ ] QL3.2 Tighten lint/type safety ratchet for reviewed modules
+### [x] QL3.2 Tighten lint/type safety ratchet for reviewed modules
 
 Lane: C  
 Priority: P2  
@@ -319,7 +319,7 @@ Acceptance checks:
 
 1. Enforce no new `any`/unsafe casts in targeted modules via lint or codemod guardrails.
 
-### [~] QL3.3 Update architecture/docs for new boundaries and error-handling guarantees
+### [x] QL3.3 Update architecture/docs for new boundaries and error-handling guarantees
 
 Lane: C  
 Priority: P2  
@@ -333,11 +333,14 @@ Acceptance checks:
 
 1. `ARCHITECTURE.md` and `UI_DESIGN.md` reflect new service boundaries and failure-surface expectations.
 
-Progress notes (2026-02-19):
+Progress notes (2026-02-20):
 
 1. Import compatibility contracts are now centralized in `docs/references/import-compat-contract.md`.
 2. `ARCHITECTURE.md`, `UI_DESIGN.md`, `ROADMAP.md`, `TRACKER.md`, and `BACKLOG.md` now cross-link the import compatibility contract and align Stage 5/F5 status text with working-tree behavior.
-3. Remaining `QL3.3` scope stays open for non-import boundary/documentation updates.
+3. Runtime/App performance contracts are now regression-gated (`src/hooks/__tests__/useRuntimeBaseBundle.test.tsx`, `src/__tests__/appRuntimeContracts.test.ts`).
+4. Type-safety ratchet is now enforced for hardened modules through scoped lint rules in root `eslint.config.mjs`.
+5. Architecture/UI boundary docs are synchronized with implementation boundaries (`rigUiStore` split, panel orchestration hooks, failure-surface guarantees).
+6. `QL0.1` through `QL3.3` are complete in the working tree.
 
 ## Suggested Parallel Plan
 

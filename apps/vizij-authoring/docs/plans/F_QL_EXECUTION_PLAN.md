@@ -1,7 +1,7 @@
 # Import Reliability + Quality Execution Plan (`F5.*` + `QL*`)
 
 Last updated: 2026-02-20  
-Status: `in_progress`
+Status: `done`
 
 ## Goal
 
@@ -477,3 +477,11 @@ Final gate after all chunks:
   2. Keeps broad workspace lint defaults unchanged while preventing regressions in the hardened authoring/runtime paths.
 - 2026-02-20: Validation rerun for QL3.2: `pnpm --filter vizij-authoring run lint` and `pnpm --filter vizij-authoring run typecheck` both pass.
 - 2026-02-20: Next execution target set to `QL3.3` remainder for final architecture/UI documentation sync.
+- 2026-02-20: `QL3.3` remainder completed with architecture/UI contract synchronization:
+  1. Updated `docs/ARCHITECTURE.md` with explicit boundary ownership for `rigUiStore`, `useBundleGraphMaintenance`, and `useMachineReportDiff`.
+  2. Updated `docs/UI_DESIGN.md` with explicit boundary ownership + `ImportFailureStack` failure-surface contract (asset/sample/bundle sync retry and dismiss semantics).
+  3. Updated planning docs (`docs/plans/BACKLOG_QUALITY_2026-02-19.md`, `docs/plans/BACKLOG.md`) to reflect completed `QL0.1`-`QL3.3` status.
+- 2026-02-20: Final validation gates run after QL3.3 sync:
+  1. `pnpm --filter vizij-authoring run validate` -> pass (`lint`, `typecheck`, `vitest --run`; 466 tests passed, 1 skipped).
+  2. `pnpm run prep` -> pass (`format` + root `validate` affected-workspace gate).
+- 2026-02-20: Execution summary: all planned backlog slices `F5.1`-`F5.8` and `QL0.1`-`QL3.3` are complete in this worktree.
