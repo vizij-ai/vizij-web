@@ -7,7 +7,7 @@ import type {
 import {
   collectVizijBundleCandidates,
   resolveVizijBundleCandidates,
-} from "./gltf-loading/import-compat.ts";
+} from "./gltf-loading/import-compat";
 
 function cloneBundle<T>(value: T): T {
   return cloneDeepSafe(value);
