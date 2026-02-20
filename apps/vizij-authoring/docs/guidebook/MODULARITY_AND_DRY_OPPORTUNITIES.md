@@ -49,13 +49,15 @@ Status legend:
      - `apps/vizij-authoring/src/components/app/graphDiagnostics/DiffResultList.tsx`
      - `apps/vizij-authoring/src/components/app/GraphDiagnosticsPanel.tsx`
 
-4. `open` - Data-drive DebugPanel tab rendering.
+4. `done` - Data-drive DebugPanel tab rendering.
    - Current files:
      - `apps/vizij-authoring/src/components/panels/DebugPanel.tsx`
    - Why:
      - Large switch block is harder to maintain and extend.
    - Target:
      - Tab registry map + shared tab content wrapper.
+   - Landed:
+     - `apps/vizij-authoring/src/components/panels/DebugPanel.tsx`
 
 5. `open` - Continue reducing duplicated standard-input handling across binding/feature surfaces.
    - Current files:
