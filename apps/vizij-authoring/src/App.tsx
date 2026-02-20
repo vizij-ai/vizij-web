@@ -18,10 +18,7 @@ import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
-import {
-  useBundleSynchronizer,
-  type BundleSyncFailure,
-} from "./hooks/useBundleSynchronizer";
+import { useBundleSyncState } from "./hooks/useBundleSyncState";
 import { AppWizards } from "./components/app/AppWizards";
 import { ImportFailureStack } from "./components/app/ImportFailureStack";
 import {
@@ -42,6 +39,7 @@ import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useRuntimeBaseBundle } from "./hooks/useRuntimeBaseBundle";
+import { useSampleAssetLoader } from "./hooks/useSampleAssetLoader";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 import {
@@ -90,55 +88,18 @@ function AppContent({ loader }: AppContentProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
-  const [sampleLoadFailure, setSampleLoadFailure] = useState<{
-    url: string;
-    filename: string;
-    message: string;
-  } | null>(null);
-  const [bundleSyncFailure, setBundleSyncFailure] =
-    useState<BundleSyncFailure | null>(null);
-  const [bundleSyncRetryToken, setBundleSyncRetryToken] = useState(0);
 
   // Reference Face State
-
-  const handleLoadAssetFromUrl = useCallback(
-    async (url: string, filename: string) => {
-      clearLoaderError();
-      setSampleLoadFailure(null);
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch sample "${filename}" (${response.status} ${response.statusText}).`,
-          );
-        }
-        const blob = await response.blob();
-        const file = new File([blob], filename, { type: "model/gltf-binary" });
-
-        await loadFromFile(file, () =>
-          loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setSampleLoadFailure({ url, filename, message });
-      }
-    },
-    [clearLoaderError, loadFromFile],
-  );
-
-  const handleLoadQuori = useCallback(() => {
-    handleLoadAssetFromUrl(
-      "/assets/Quori_Latest_Rigged.glb",
-      "Quori_Latest_Rigged.glb",
-    );
-  }, [handleLoadAssetFromUrl]);
-
-  const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl(
-      "/assets/Hugo_Latest_Rigged.glb",
-      "Hugo_Latest_Rigged.glb",
-    );
-  }, [handleLoadAssetFromUrl]);
+  const {
+    sampleLoadFailure,
+    loadSampleAssetFromUrl,
+    loadQuoriSample,
+    loadHugoSample,
+    clearSampleLoadFailure,
+  } = useSampleAssetLoader({
+    clearLoaderError,
+    loadFromFile,
+  });
 
   const mainFaceHandleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
@@ -226,24 +187,19 @@ function AppContent({ loader }: AppContentProps) {
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
-  const handleBundleSyncFailure = useCallback((failure: BundleSyncFailure) => {
-    setBundleSyncFailure(failure);
-  }, []);
-  const handleBundleSyncSuccess = useCallback(() => {
-    setBundleSyncFailure(null);
-  }, []);
-
-  useBundleSynchronizer({
+  const {
+    bundleSyncFailure,
+    retryBundleSync,
+    clearBundleSyncFailure,
+    resetBundleSyncState,
+  } = useBundleSyncState({
     faceId,
     rootId: loader.rootId,
     loadedBundle: loader.bundle,
     standardInputCount,
     skipDiscrepancyCheck,
-    retryToken: bundleSyncRetryToken,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
-    onFailure: handleBundleSyncFailure,
-    onSuccess: handleBundleSyncSuccess,
   });
 
   const { panels } = useWorkspaceStore();
@@ -298,17 +254,17 @@ function AppContent({ loader }: AppContentProps) {
   const handleNewClick = useCallback(() => {
     loader.reset();
     clearLoaderError();
-    setSampleLoadFailure(null);
-    setBundleSyncFailure(null);
-  }, [clearLoaderError, loader]);
+    clearSampleLoadFailure();
+    resetBundleSyncState();
+  }, [clearLoaderError, clearSampleLoadFailure, loader, resetBundleSyncState]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
       clearLoaderError();
-      setSampleLoadFailure(null);
-      setBundleSyncFailure(null);
+      clearSampleLoadFailure();
+      resetBundleSyncState();
 
       if (skipNextDiscrepancyCheck.current) {
         uiActions.setSkipDiscrepancyCheck(true);
@@ -322,7 +278,13 @@ function AppContent({ loader }: AppContentProps) {
       );
       event.target.value = "";
     },
-    [clearLoaderError, loadFromFile, uiActions],
+    [
+      clearLoaderError,
+      clearSampleLoadFailure,
+      loadFromFile,
+      resetBundleSyncState,
+      uiActions,
+    ],
   );
 
   const handleImportClick = useCallback(() => {
@@ -382,12 +344,13 @@ function AppContent({ loader }: AppContentProps) {
                   title: "Sample load failed",
                   message: sampleLoadFailure.message,
                   retryLabel: "Retry Sample",
-                  onRetry: () =>
-                    void handleLoadAssetFromUrl(
+                  onRetry: () => {
+                    void loadSampleAssetFromUrl(
                       sampleLoadFailure.url,
                       sampleLoadFailure.filename,
-                    ),
-                  onDismiss: () => setSampleLoadFailure(null),
+                    );
+                  },
+                  onDismiss: clearSampleLoadFailure,
                 },
               ]
             : []),
@@ -401,11 +364,8 @@ function AppContent({ loader }: AppContentProps) {
                       : "Bundle pose import failed",
                   message: bundleSyncFailure.message,
                   retryLabel: "Retry Bundle Import",
-                  onRetry: () => {
-                    setBundleSyncFailure(null);
-                    setBundleSyncRetryToken((current) => current + 1);
-                  },
-                  onDismiss: () => setBundleSyncFailure(null),
+                  onRetry: retryBundleSync,
+                  onDismiss: clearBundleSyncFailure,
                 },
               ]
             : []),
@@ -424,8 +384,8 @@ function AppContent({ loader }: AppContentProps) {
               onClearSelection={handleClearSelection}
               showSelectionGlow={showSelectionGlow}
               onImportClick={handleImportClick}
-              onLoadQuori={handleLoadQuori}
-              onLoadHugo={handleLoadHugo}
+              onLoadQuori={loadQuoriSample}
+              onLoadHugo={loadHugoSample}
             />
           </ResizablePanel>
           <PanelResizeHandle
@@ -450,8 +410,8 @@ function AppContent({ loader }: AppContentProps) {
           onClearSelection={handleClearSelection}
           showSelectionGlow={showSelectionGlow}
           onImportClick={handleImportClick}
-          onLoadQuori={handleLoadQuori}
-          onLoadHugo={handleLoadHugo}
+          onLoadQuori={loadQuoriSample}
+          onLoadHugo={loadHugoSample}
         />
       )}
 
