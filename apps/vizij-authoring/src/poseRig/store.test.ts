@@ -409,6 +409,133 @@ describe("PoseRigStore", () => {
     });
   });
 
+  it("reprojects override edits through config draft and keeps diagnostics synchronized", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    const config: PoseRigConfigFile = {
+      version: 1,
+      faceId: "face",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "average",
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      crossGroupChannelOverrides: {
+        smile: {
+          mode: "priority",
+          priorityOrder: ["viseme", "emotion"],
+          tieBreak: "group-id",
+        },
+      },
+      poses: [
+        makePose("pose_smile", "Smile", {
+          groupIds: ["emotion"],
+          groupId: "emotion",
+          group: "emotion",
+          values: { smile: 0.6 },
+        }),
+        makePose("pose_viseme", "Viseme", {
+          groupIds: ["viseme"],
+          groupId: "viseme",
+          group: "viseme",
+          values: { smile: -0.2 },
+        }),
+      ],
+    };
+
+    store.getState().importConfig(config);
+    const initialCodes = new Set(
+      store.getState().poseDiagnostics.map((diagnostic) => diagnostic.code),
+    );
+    expect(initialCodes.has("priority-cross-group-override-applied")).toBe(
+      true,
+    );
+    expect(
+      initialCodes.has("priority-cross-group-override-resolution-change"),
+    ).toBe(true);
+
+    store.setState((prev) => {
+      if (!prev.poseConfigDraft) {
+        return;
+      }
+      return {
+        poseConfigDraft: {
+          ...prev.poseConfigDraft,
+          crossGroupChannelOverrides: {
+            smile: {
+              mode: "additive",
+            },
+          },
+        },
+      };
+    });
+
+    const additiveState = store.getState();
+    expect(
+      additiveState.poseConfigDraft?.crossGroupChannelOverrides?.smile?.mode,
+    ).toBe("additive");
+    expect(additiveState.poseIrDraft?.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "add",
+        tieBreak: "group-order",
+      },
+    });
+    const additiveCodes = new Set(
+      additiveState.poseDiagnostics.map((diagnostic) => diagnostic.code),
+    );
+    expect(additiveCodes.has("priority-cross-group-override-applied")).toBe(
+      false,
+    );
+    expect(
+      additiveCodes.has("priority-cross-group-override-resolution-change"),
+    ).toBe(false);
+
+    store.setState((prev) => {
+      if (!prev.poseConfigDraft) {
+        return;
+      }
+      return {
+        poseConfigDraft: {
+          ...prev.poseConfigDraft,
+          crossGroupChannelOverrides: {
+            smile: {
+              mode: "priority",
+              priorityOrder: ["unknown_group", "viseme", "viseme"],
+              tieBreak: "group-id",
+            },
+          },
+        },
+      };
+    });
+
+    const priorityState = store.getState();
+    expect(
+      priorityState.poseConfigDraft?.crossGroupChannelOverrides?.smile,
+    ).toEqual({
+      mode: "priority",
+      priorityOrder: ["viseme"],
+      tieBreak: "group-id",
+    });
+    expect(priorityState.poseIrDraft?.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme"],
+        tieBreak: "group-id",
+      },
+    });
+    const priorityCodes = new Set(
+      priorityState.poseDiagnostics.map((diagnostic) => diagnostic.code),
+    );
+    expect(priorityCodes.has("priority-cross-group-override-applied")).toBe(
+      true,
+    );
+    expect(
+      priorityCodes.has("priority-cross-group-override-resolution-change"),
+    ).toBe(true);
+  });
+
   it("ignores pose input additions for non-canonical ids", () => {
     const store = createPoseRigStore();
     store.getState().setStandardInputs([createInput("smile")]);

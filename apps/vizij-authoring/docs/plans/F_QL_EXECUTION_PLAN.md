@@ -461,3 +461,9 @@ Final gate after all chunks:
   2. `src/poseRig/graphBuilder.test.ts` now asserts policy/stage topology via predicate-based node sets and cross-path absence checks rather than single literal node-id equality.
 - 2026-02-20: Validation rerun for QL2.1/QL2.2: `pnpm --filter vizij-authoring exec vitest --run src/poseRig/services/poseGraphService.test.ts src/poseRig/graphBuilder.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 19 (`QL2.3`) for interactive store workflow tests around override editing and diagnostics synchronization.
+- 2026-02-20: `QL2.3` completed by adding an interactive override-edit workflow test in `src/poseRig/store.test.ts` (`reprojects override edits through config draft and keeps diagnostics synchronized`).
+  1. Simulates user edits to `poseConfigDraft.crossGroupChannelOverrides` via store updates.
+  2. Verifies projected config/IR override consistency across `priority -> additive -> priority` edits.
+  3. Verifies diagnostics synchronization for overlapping-group cases as override policies change.
+- 2026-02-20: Validation rerun for QL2.3: `pnpm --filter vizij-authoring exec vitest --run src/poseRig/store.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 20 (`QL3.1`, `QL3.2`, `QL3.3` remainder) for final performance/type/documentation ratchets.
