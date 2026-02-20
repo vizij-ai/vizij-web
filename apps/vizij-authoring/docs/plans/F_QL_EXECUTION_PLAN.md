@@ -411,4 +411,10 @@ Final gate after all chunks:
   3. `PoseRigProvider` hidden input filtering now consumes `useRigUi`.
 - 2026-02-20: Updated related tests/mocks for new UI-store boundary (`src/components/app/StandardInputCoveragePanel.test.tsx`, `src/state/PoseRigProvider.test.tsx`) and revalidated `stores.test.ts`.
 - 2026-02-20: Validation rerun for QL1.1 follow-up: `pnpm --filter vizij-authoring exec vitest --run src/components/app/StandardInputCoveragePanel.test.tsx src/state/PoseRigProvider.test.tsx src/state/__tests__/stores.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
-- 2026-02-20: Next execution target set to Wave 4 Chunk 13 (`QL1.2`) to extract compile/diff orchestration services from UI panels/hooks.
+- 2026-02-20: `QL1.2` started by extracting DebugPanel bundle graph compile/update orchestration into `src/hooks/useBundleGraphMaintenance.ts`.
+  1. `handleOverwriteBundleGraph` moved out of `DebugPanel` render module.
+  2. `handleRenameBundleOutput` moved out of `DebugPanel` render module.
+  3. `DebugPanel` now delegates bundle maintenance actions to the new hook.
+- 2026-02-20: Added `useBundleGraphMaintenance` regression coverage (`src/hooks/__tests__/useBundleGraphMaintenance.test.ts`) for overwrite path, empty-path validation, and IR rename+recompile path.
+- 2026-02-20: Validation rerun for QL1.2 slice: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useBundleGraphMaintenance.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target remains Wave 4 Chunk 13 (`QL1.2`) follow-up to extract IR diff/report orchestration from `GraphDiagnosticsPanel`.
