@@ -417,4 +417,10 @@ Final gate after all chunks:
   3. `DebugPanel` now delegates bundle maintenance actions to the new hook.
 - 2026-02-20: Added `useBundleGraphMaintenance` regression coverage (`src/hooks/__tests__/useBundleGraphMaintenance.test.ts`) for overwrite path, empty-path validation, and IR rename+recompile path.
 - 2026-02-20: Validation rerun for QL1.2 slice: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useBundleGraphMaintenance.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
-- 2026-02-20: Next execution target remains Wave 4 Chunk 13 (`QL1.2`) follow-up to extract IR diff/report orchestration from `GraphDiagnosticsPanel`.
+- 2026-02-20: `QL1.2` follow-up completed by extracting `GraphDiagnosticsPanel` IR diff/report orchestration into `src/hooks/useMachineReportDiff.ts`.
+  1. Diff compare/parse and file-load logic moved out of `IrInspectorDrawer`.
+  2. Bug-report template + CLI command derivation moved out of panel module.
+  3. `GraphDiagnosticsPanel` now consumes hook APIs for diff/report orchestration.
+- 2026-02-20: Added regression coverage in `src/hooks/__tests__/useMachineReportDiff.test.ts` for missing-report guard, invalid payload handling, valid report diffing, and close/reset behavior.
+- 2026-02-20: Validation rerun for QL1.2 follow-up: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useMachineReportDiff.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 14 (`QL1.3`) for hierarchy logic consolidation.
