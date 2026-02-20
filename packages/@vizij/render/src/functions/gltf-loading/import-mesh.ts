@@ -189,7 +189,7 @@ export function importMesh(
       ...geometryFeatures,
     },
     children: children.length > 0 ? children : undefined,
-    refs: namespaceArrayToRefs(namespaces),
+    refs: namespaceArrayToRefs<Mesh>(namespaces, mesh),
   };
   world = { ...world, [newShape.id]: newShape };
 

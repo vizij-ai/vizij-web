@@ -88,7 +88,7 @@ export function ExportDialog({
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
   const { includeVizijBundle, includeImportedAnimations } = uiState;
-  const { alert: showAlert } = useDialogQueue();
+  const { alert: showAlert, confirm: showConfirm } = useDialogQueue();
   const poseRig = usePoseRig();
   const poseRigWithIr = poseRig as typeof poseRig & PoseRigIrCapabilities;
   const [fallbackPoseIrFileName, setFallbackPoseIrFileName] =
@@ -139,6 +139,7 @@ export function ExportDialog({
     setStoreState,
     getExportableBodies,
     alertDialog: showAlert,
+    confirmDialog: showConfirm,
     poseRig: {
       poseGraphSpec: poseRig.poseGraphSpec,
       poseGraphFileName: poseRig.poseGraphFileName,

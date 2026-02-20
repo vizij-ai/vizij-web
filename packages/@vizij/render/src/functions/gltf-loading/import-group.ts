@@ -115,7 +115,7 @@ export function importGroup(
     root: Boolean(rootBounds),
     rootBounds,
     children,
-    refs: namespaceArrayToRefs<Group>(namespaces),
+    refs: namespaceArrayToRefs<Group>(namespaces, group),
   };
   world = { ...world, [newGroup.id]: newGroup };
 

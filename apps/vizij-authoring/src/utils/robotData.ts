@@ -5,12 +5,24 @@ type Traversable = {
   traverse: (callback: (object: Record<string, any>) => void) => void;
 };
 
+function isTraversable(value: unknown): value is Traversable {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "traverse" in value &&
+    typeof (value as { traverse?: unknown }).traverse === "function"
+  );
+}
+
 export function applyDefaultsToRobotData(
-  bodies: Traversable[],
+  bodies: Array<Traversable | null | undefined>,
   animatablesById: Record<string, AnimatableValue>,
   labelOverrides: Record<string, string> = {},
 ): void {
   bodies.forEach((root) => {
+    if (!isTraversable(root)) {
+      return;
+    }
     root.traverse((object: Record<string, any>) => {
       const robotData = object.userData?.gltfExtensions?.RobotData;
       if (!robotData || !robotData.features) {

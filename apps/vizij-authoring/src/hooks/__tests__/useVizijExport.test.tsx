@@ -311,6 +311,59 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("surfaces an alert when scene export fails", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedExportScene.mockRejectedValue(new Error("writer failed"));
+
+    const options = createOptions();
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      "Failed to export scene: writer failed",
+    );
+    hook.unmount();
+  });
+
+  it("guards against null exportable bodies", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const options = createOptions({
+      getExportableBodies: () => [null],
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).not.toHaveBeenCalled();
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      "Load a Vizij asset before exporting.",
+    );
+    hook.unmount();
+  });
+
   it("uses the current blend mode when exporting pose graphs", async () => {
     mockedPoseGraphService.buildSpec.mockReturnValue({
       spec: { nodes: [] } as GraphSpec,
@@ -326,7 +379,17 @@ describe("useVizijExport", () => {
           version: 1,
           faceId: "face",
           neutralInputs: {},
-          poses: [],
+          poses: [
+            {
+              id: "pose_smile",
+              name: "Smile",
+              description: "",
+              group: null,
+              values: { input_a: 0.7 },
+              createdAt: "2026-02-20T00:00:00.000Z",
+              updatedAt: "2026-02-20T00:00:00.000Z",
+            },
+          ],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
@@ -456,7 +519,17 @@ describe("useVizijExport", () => {
           version: 1,
           faceId: "face",
           neutralInputs: {},
-          poses: [],
+          poses: [
+            {
+              id: "pose_smile",
+              name: "Smile",
+              description: "",
+              group: null,
+              values: { input_a: 0.7 },
+              createdAt: "2026-02-20T00:00:00.000Z",
+              updatedAt: "2026-02-20T00:00:00.000Z",
+            },
+          ],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
@@ -637,6 +710,50 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("exports without a pose graph when pose config has zero poses", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: { nodes: [{ id: "stale_pose_graph" }] } as GraphSpec,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {},
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average",
+        crossGroupBlendMode: "additive",
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
+      bundle: {
+        graphs: [{ kind: "rig" }],
+      },
+    });
+    hook.unmount();
+  });
+
   it("blocks export when bundle audit reports runtime contract diff", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
@@ -714,6 +831,50 @@ describe("useVizijExport", () => {
     expect(options.alertDialog).toHaveBeenCalledWith(
       'Export blocked: graph "face" has output path "/unknown/output/path" that does not map to a runtime target.',
     );
+    hook.unmount();
+  });
+
+  it("allows overriding bundle target mismatch via confirm dialog", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedAuditBundleGraphs.mockResolvedValue([
+      {
+        id: "face",
+        kind: "rig",
+        status: "match",
+        faceId: "face",
+        diffCount: 0,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [
+          {
+            nodeId: "out_1",
+            path: "/unknown/output/path",
+            status: "missing-target",
+          },
+        ],
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+    ]);
+
+    const confirmDialog = vi.fn().mockResolvedValue(true);
+    const options = createOptions({ confirmDialog });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(confirmDialog).toHaveBeenCalledWith(
+      expect.stringContaining("Continue export anyway?"),
+    );
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
     hook.unmount();
   });
 

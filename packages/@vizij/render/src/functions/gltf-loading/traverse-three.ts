@@ -1,4 +1,3 @@
-import { createRef } from "react";
 import * as THREE from "three";
 import type { Group, Mesh, Material, Object3D } from "three";
 import type { AnimatableValue, RawVector2 } from "@vizij/utils";
@@ -14,6 +13,7 @@ import type {
   Rectangle,
   StoredAnimatedFeature,
 } from "../../types";
+import { namespaceArrayToRefs } from "../util";
 import { mapFeatures } from "./map-features";
 import { importScene } from "./import-scene";
 
@@ -57,10 +57,7 @@ export function traverseThree(
           case "group":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Group>() }),
-                {},
-              ),
+              refs: namespaceArrayToRefs<Group>(namespaces, child as Group),
             } as VizijGroup;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isGroupFeatures(mappedFeatures);
@@ -72,10 +69,7 @@ export function traverseThree(
             loadedData = {
               ...data,
               geometry: (child as Mesh).geometry,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
+              refs: namespaceArrayToRefs<Mesh>(namespaces, child as Mesh),
             } as Shape;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isShapeFeatures(mappedFeatures);
@@ -86,10 +80,7 @@ export function traverseThree(
           case "ellipse":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
+              refs: namespaceArrayToRefs<Mesh>(namespaces, child as Mesh),
             } as Ellipse;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isEllipseFeatures(mappedFeatures);
@@ -100,10 +91,7 @@ export function traverseThree(
           case "rectangle":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
+              refs: namespaceArrayToRefs<Mesh>(namespaces, child as Mesh),
             } as Rectangle;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isRectangleFeatures(mappedFeatures);

@@ -59,6 +59,32 @@ type TraversableBody = {
   traverse: (callback: (object: Record<string, any>) => void) => void;
 };
 
+function isTraversableBody(value: unknown): value is TraversableBody {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "traverse" in value &&
+    typeof (value as { traverse?: unknown }).traverse === "function"
+  );
+}
+
+async function resolveTraversableBodies(
+  getExportableBodies: (rootIds?: string[]) => unknown[],
+  rootId: string | null,
+): Promise<TraversableBody[]> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const bodies = getExportableBodies(rootId ? [rootId] : undefined);
+    const traversable = bodies.filter(isTraversableBody);
+    if (traversable.length > 0) {
+      return traversable;
+    }
+    if (attempt < 2) {
+      await waitForNextFrame();
+    }
+  }
+  return [];
+}
+
 interface UseVizijExportOptions {
   faceId: string | null;
   graphFileName: string;
@@ -84,6 +110,7 @@ interface UseVizijExportOptions {
   setStoreState: (updater: (state: VizijData) => VizijData) => void;
   getExportableBodies: (rootIds?: string[]) => unknown[];
   alertDialog: (message: string) => Promise<void> | void;
+  confirmDialog?: (message: string) => Promise<boolean> | boolean;
   poseRig: PoseRigExportState;
 }
 
@@ -182,6 +209,7 @@ export function useVizijExport(
     setStoreState,
     getExportableBodies,
     alertDialog,
+    confirmDialog,
     poseRig,
   } = options;
 
@@ -283,14 +311,18 @@ export function useVizijExport(
     try {
       await waitForNextFrame();
 
-      const bodies = getExportableBodies(rootId ? [rootId] : undefined);
-      if (!bodies.length) {
+      const traversableBodies = await resolveTraversableBodies(
+        getExportableBodies,
+        rootId,
+      );
+      if (!traversableBodies.length) {
         await alertDialog("Load a Vizij asset before exporting.");
         return;
       }
 
-      const primaryBody = bodies[0] as Parameters<typeof exportScene>[0];
-      const traversableBodies = bodies as TraversableBody[];
+      const primaryBody = traversableBodies[0] as Parameters<
+        typeof exportScene
+      >[0];
       applyDefaultsToRobotData(
         traversableBodies,
         animatablesForExport,
@@ -298,27 +330,34 @@ export function useVizijExport(
       );
 
       const standardInputs = Array.from(standardInputsById.values());
-      let poseGraphSpecForExport = poseRig.poseGraphSpec;
+      let poseGraphSpecForExport: GraphSpec | null | undefined = undefined;
       const poseConfigForExport = resolvePoseConfigFromIr(poseRig);
       if (poseConfigForExport) {
-        try {
-          const { spec } = PoseGraphService.buildSpec(
-            poseConfigForExport,
-            standardInputs,
-            {
-              defaultGroupBlendMode: poseRig.blendMode ?? "average",
-              crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
-            },
-          );
-          poseGraphSpecForExport = spec;
-        } catch (error) {
-          await alertDialog(
-            `Failed to build pose graph for export: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          return;
+        if ((poseConfigForExport.poses ?? []).length > 0) {
+          try {
+            const { spec } = PoseGraphService.buildSpec(
+              poseConfigForExport,
+              standardInputs,
+              {
+                defaultGroupBlendMode: poseRig.blendMode ?? "average",
+                crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
+              },
+            );
+            poseGraphSpecForExport = spec;
+          } catch (error) {
+            await alertDialog(
+              `Failed to build pose graph for export: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            return;
+          }
+        } else {
+          // No authored poses: export the rig/bundle without a pose-driver graph.
+          poseGraphSpecForExport = null;
         }
+      } else {
+        poseGraphSpecForExport = poseRig.poseGraphSpec;
       }
 
       const bundle = buildVizijBundle({
@@ -379,20 +418,37 @@ export function useVizijExport(
         const contractViolationMessage =
           resolveBundleContractViolationMessage(bundleAudits);
         if (contractViolationMessage) {
-          await alertDialog(contractViolationMessage);
-          return;
+          if (confirmDialog) {
+            const shouldContinue = await confirmDialog(
+              `${contractViolationMessage}\n\nContinue export anyway?`,
+            );
+            if (!shouldContinue) {
+              return;
+            }
+          } else {
+            await alertDialog(contractViolationMessage);
+            return;
+          }
         }
       }
 
-      exportScene(
-        primaryBody,
-        bundle
-          ? {
-              fileName: downloadName,
-              bundle,
-            }
-          : { fileName: downloadName },
-      );
+      try {
+        await exportScene(
+          primaryBody,
+          bundle
+            ? {
+                fileName: downloadName,
+                bundle,
+              }
+            : { fileName: downloadName },
+        );
+      } catch (error) {
+        await alertDialog(
+          `Failed to export scene: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     } finally {
       restoreOverrides();
     }
@@ -406,6 +462,7 @@ export function useVizijExport(
     faceId,
     featureLabelOverrides,
     getExportableBodies,
+    confirmDialog,
     includeImportedAnimations,
     includeVizijBundle,
     inputBindings,
@@ -648,7 +705,10 @@ function buildVizijBundle(
     : undefined;
   const rigSpec = cloneSerializable(rigGraphResult.spec);
   const slug = faceSlug(faceId);
-  const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
+  const poseGraphSpec =
+    options.poseGraphSpecForExport !== undefined
+      ? options.poseGraphSpecForExport
+      : poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [
     {

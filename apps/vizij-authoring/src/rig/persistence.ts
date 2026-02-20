@@ -98,6 +98,31 @@ function success<T>(value: T): RigPersistenceResult<T> {
   return { ok: true, value };
 }
 
+function getErrorMessage(cause: unknown): string | null {
+  if (!cause) {
+    return null;
+  }
+  if (cause instanceof Error) {
+    return cause.message || cause.name || null;
+  }
+  if (typeof cause === "string") {
+    return cause;
+  }
+  return null;
+}
+
+function isQuotaExceededCause(cause: unknown): boolean {
+  if (cause instanceof DOMException) {
+    return (
+      cause.name === "QuotaExceededError" ||
+      // Legacy Safari/WebKit quota code
+      cause.code === 22
+    );
+  }
+  const message = getErrorMessage(cause);
+  return typeof message === "string" && /quota/i.test(message);
+}
+
 function failure<T>(
   code: RigPersistenceErrorCode,
   message: string,
@@ -195,9 +220,12 @@ function writeAll(
     storageResult.value.setItem(STORAGE_KEY, JSON.stringify(next));
     return success(undefined);
   } catch (error) {
+    const causeMessage = getErrorMessage(error);
     return failure(
       "storage_write_failed",
-      `Failed to write rig persistence key "${STORAGE_KEY}".`,
+      causeMessage
+        ? `Failed to write rig persistence key "${STORAGE_KEY}" (${causeMessage}).`
+        : `Failed to write rig persistence key "${STORAGE_KEY}".`,
       operation,
       faceId,
       error,
@@ -242,7 +270,9 @@ export function formatRigPersistenceError(error: RigPersistenceError): string {
     case "storage_read_failed":
       return `Failed to read saved rig state (${error.message})`;
     case "storage_write_failed":
-      return `Failed to write saved rig state (${error.message})`;
+      return isQuotaExceededCause(error.cause)
+        ? `Failed to write saved rig state (${error.message}) Storage appears full or blocked. Clear site data for this origin or disable private browsing and retry.`
+        : `Failed to write saved rig state (${error.message})`;
     case "storage_parse_failed":
       return `Saved rig state is malformed (${error.message})`;
     case "unsupported_schema_version":

@@ -35,6 +35,14 @@ export function processTuple(val: string | null | undefined): number[] {
 
 export function namespaceArrayToRefs<T>(
   namespaces: string[],
+  sourceObject?: T | null,
 ): Record<string, RefObject<T>> {
-  return namespaces.reduce((acc, ns) => ({ ...acc, [ns]: createRef<T>() }), {});
+  const refs = namespaces.reduce<Record<string, RefObject<T>>>((acc, ns) => {
+    acc[ns] = createRef<T>() as unknown as RefObject<T>;
+    return acc;
+  }, {});
+  if (sourceObject) {
+    refs.__source__ = { current: sourceObject } as RefObject<T>;
+  }
+  return refs;
 }

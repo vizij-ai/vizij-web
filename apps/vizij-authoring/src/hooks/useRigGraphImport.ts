@@ -139,9 +139,6 @@ export function useRigGraphImport({
           importedFaceIdRaw && importedFaceIdRaw.trim().length > 0
             ? sanitizeFaceId(importedFaceIdRaw)
             : null;
-        const faceChangedDuringImport =
-          !!importedFaceId && importedFaceId !== faceId;
-
         const normalizedInputMetadata = new Map<
           string,
           { source?: "auto" | "custom" | "preset"; root?: string }
@@ -221,7 +218,8 @@ export function useRigGraphImport({
 
         const resolvedFaceId = importedFaceId ?? faceId ?? "face";
         // If the import carries a faceId and we don't have one, adopt it immediately
-        if (!faceId && importedFaceId) {
+        const adoptedMissingFaceId = !faceId && Boolean(importedFaceId);
+        if (adoptedMissingFaceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
         const rebuiltSpec = buildRigGraphSpec({
@@ -393,7 +391,6 @@ export function useRigGraphImport({
           if (canAutoResolveFaceRename) {
             discrepancyResult = {
               accepted: true,
-              renameFaceId: importedFaceId ?? undefined,
             };
           }
 
@@ -519,9 +516,7 @@ export function useRigGraphImport({
           discrepancyResult?.renameFaceId &&
           discrepancyResult.renameFaceId.trim().length > 0
             ? sanitizeFaceId(discrepancyResult.renameFaceId)
-            : importedFaceId && importedFaceId !== faceId
-              ? importedFaceId
-              : null;
+            : null;
         if (targetFaceId) {
           // mark this as a rename so downstream persistence can avoid clearing state
           pendingFaceRenameRef.current = targetFaceId;
@@ -537,7 +532,7 @@ export function useRigGraphImport({
               normalizationDiagnostics.animatableFallbacks.length,
             missingBlueprintPathCount: missingBlueprintPaths.length,
           }),
-          faceChanged: faceChangedDuringImport || Boolean(targetFaceId),
+          faceChanged: adoptedMissingFaceId || Boolean(targetFaceId),
           importedFaceId: targetFaceId ?? importedFaceId ?? null,
         };
       } catch (error) {

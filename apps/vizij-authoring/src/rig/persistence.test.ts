@@ -216,6 +216,9 @@ describe("rig persistence error surfacing", () => {
     expect(formatRigPersistenceError(saveResult.error)).toContain(
       "Failed to write saved rig state",
     );
+    expect(formatRigPersistenceError(saveResult.error)).toContain(
+      "Storage appears full or blocked",
+    );
   });
 
   it("returns typed migration failures for unsupported future schema versions", () => {
