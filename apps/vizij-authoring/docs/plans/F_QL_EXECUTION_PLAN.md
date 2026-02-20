@@ -1,6 +1,6 @@
 # Import Reliability + Quality Execution Plan (`F5.*` + `QL*`)
 
-Last updated: 2026-02-19  
+Last updated: 2026-02-20  
 Status: `in_progress`
 
 ## Goal
@@ -361,3 +361,39 @@ Final gate after all chunks:
 - 2026-02-19: Added explicit API-removal contract coverage in `src/poseRig/services/poseGraphService.test.ts` (`@ts-expect-error` assertion that `poseGroupSegment` is no longer accepted on `PoseGraphService.buildSpec`).
 - 2026-02-19: `QL0.5` validation gates run for touched `vizij-authoring` scope: `pnpm --filter vizij-authoring exec vitest --run src/poseRig/services/poseGraphService.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-19: Next execution target set to Wave 4 Chunk 12 (`QL1.1`) to split `useRigController` boundary responsibilities.
+- 2026-02-19: Post-import reliability follow-up: hardened GLB export failure surfacing. `packages/@vizij/render/src/functions/export.ts` now returns a `Promise` and rejects on async exporter failures (instead of silent no-op), and `apps/vizij-authoring/src/hooks/useVizijExport.ts` now catches export failures and shows actionable alert messaging.
+- 2026-02-19: Added export-failure regression coverage in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx` (`surfaces an alert when scene export fails`).
+- 2026-02-19: Export-failure hardening validation gates run for touched scopes: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, `pnpm --filter vizij-authoring run lint`, `pnpm --filter @vizij/render run typecheck`, and `pnpm --filter @vizij/render run lint` all pass.
+- 2026-02-19: Investigated export crash `Cannot read properties of null (reading 'traverse')` (`robotData.ts` via `useVizijExport.ts`). Root cause: `getExportableBodies` could include group refs whose `.current` was null during export.
+- 2026-02-19: Hardened exportable-body handling across layers:
+  1. `@vizij/render` store now filters `getExportableBodies` to mounted group refs only (`packages/@vizij/render/src/store.ts`).
+  2. Authoring export now sanitizes bodies with runtime `traverse` guard before selecting primary body (`apps/vizij-authoring/src/hooks/useVizijExport.ts`).
+  3. `applyDefaultsToRobotData` now skips null/non-traversable entries defensively (`apps/vizij-authoring/src/utils/robotData.ts`).
+- 2026-02-19: Added regression coverage `guards against null exportable bodies` in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
+- 2026-02-19: Null-body export hardening validation gates run for touched scopes: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, `pnpm --filter vizij-authoring run lint`, `pnpm --filter @vizij/render run typecheck`, and `pnpm --filter @vizij/render run lint` all pass.
+- 2026-02-19: Follow-up export readiness fix for false `Load a Vizij asset before exporting` warning on loaded assets.
+  1. `@vizij/render` `getExportableBodies(filterIds)` no longer requires `rootBounds` when explicit root IDs are provided (supports derived-root assets without metadata root bounds).
+  2. Authoring export now retries export-body discovery up to 3 frames before blocking, reducing transient null-ref timing misses.
+- 2026-02-19: Export body discovery hardened for runtime-viewer flows where render refs are not guaranteed to mount before export.
+  1. GLTF import now seeds per-node `__source__` refs with source `three` objects (`namespaceArrayToRefs(..., sourceObject)`), so export can resolve traversable bodies even without mounted `Vizij` render refs.
+  2. Applied across RobotData and aggressive-import paths (`traverse-three.ts`, `import-group.ts`, `import-mesh.ts`).
+- 2026-02-19: Export UX contract refinement based on runtime feedback:
+  1. GLB export no longer blocks on pose-graph validation when pose config has zero poses; in this case export omits pose-driver graph while preserving rig/bundle export.
+  2. Bundle contract violations (including missing runtime target outputs) now support explicit user override via confirm dialog (`Continue export anyway?`) instead of hard block-only behavior.
+- 2026-02-19: Import face-identity stabilization follow-up:
+  1. `useRigGraphImport` no longer auto-renames active face ID to `importedFaceId` on accepted imports by default.
+  2. Face-ID changes now occur only for explicit rename intent (`renameFaceId`) or missing-face adoption.
+  3. This prevents stale imported face metadata from leaking into later exports and triggering repeated face mismatch warnings on re-import.
+- 2026-02-19: Persistence warning messaging improved for save failures: storage write errors now include underlying cause text, and quota-like failures include actionable guidance (`Storage appears full or blocked...`) in `formatRigPersistenceError`.
+- 2026-02-19: Follow-up validation gates run for touched scopes: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx src/rig/persistence.test.ts`, `pnpm --filter vizij-authoring run typecheck`, `pnpm --filter vizij-authoring run lint`, and for `@vizij/render` `test`/`typecheck`/`lint` all pass.
+- 2026-02-19: Added export regression coverage in `src/hooks/__tests__/useVizijExport.test.tsx` for:
+  1. `exports without a pose graph when pose config has zero poses`
+  2. `allows overriding bundle target mismatch via confirm dialog`
+- 2026-02-19: Validation rerun after export contract refinement: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, `pnpm --filter vizij-authoring run lint`, `pnpm --filter @vizij/render run typecheck`, and `pnpm --filter @vizij/render run lint` all pass.
+- 2026-02-19: Validation rerun after import face-identity stabilization: `pnpm --filter vizij-authoring exec vitest --run src/hooks/useRigGraphImport.test.ts src/hooks/__tests__/useVizijExport.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Fixed bundle-sync import loop regression after face-identity stabilization follow-up. `useBundleSynchronizer` now tracks active fingerprint separately from completed fingerprint, so rig import runs once per bundle snapshot while pose import can wait for `standardInputCount > 0` without resetting rig import state.
+- 2026-02-20: Bundle-sync hardening now gates `standardInputCount` only for pose-config import paths and preserves retry behavior via `retryToken`; no-pose bundles can complete sync without unnecessary waiting.
+- 2026-02-20: Added regression coverage in `src/hooks/__tests__/useBundleSynchronizer.test.ts` for:
+  1. `does not re-import rig while waiting for standard inputs`
+  2. `imports poses after standard inputs become available without rerunning rig import`
+- 2026-02-20: Validation rerun for synchronizer hardening: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useBundleSynchronizer.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
