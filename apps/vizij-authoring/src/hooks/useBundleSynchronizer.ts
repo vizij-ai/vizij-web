@@ -9,6 +9,10 @@ import {
   isImportOutcomeSuccess,
   type GraphImportResult,
 } from "../types/importOutcome";
+import {
+  recordRigImportAttempt,
+  recordRigNormalizeCall,
+} from "../perf/runtimePerfMetrics";
 import { useLatestRef } from "./useLatestRef";
 
 export interface ImportGraphSpecOptions {
@@ -138,11 +142,13 @@ export function useBundleSynchronizer({
 
         if (!rigImportedRef.current && rigEntry?.spec) {
           try {
+            recordRigImportAttempt();
             const preparedSpec = prepareSpecForImport(
               rigEntry.spec,
               rigEntry.ir,
             );
             const normalizedSpec = await normalizeGraphSpec(preparedSpec);
+            recordRigNormalizeCall();
             const result = await importGraphSpecRef.current(normalizedSpec, {
               skipDiscrepancyCheck: skipDiscrepancyCheckRef.current,
               normalizedSpec,

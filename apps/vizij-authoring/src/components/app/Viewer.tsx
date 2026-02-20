@@ -7,6 +7,7 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import { recordGraphBridgeRun } from "../../perf/runtimePerfMetrics";
 import {
   createRuntimeGraphMutation,
   resolveRuntimeGraphMutationClass,
@@ -43,38 +44,56 @@ function RuntimeGraphBridge() {
   const lastRevisionRef = useRef<RuntimeGraphBridgeRevisions | null>(null);
 
   useEffect(() => {
-    const nextRevisions: RuntimeGraphBridgeRevisions = {
-      graphSpecRevision,
-      poseRuntimeRevision,
-    };
-    const mutationClass = resolveRuntimeGraphMutationClass(
-      lastRevisionRef.current,
-      nextRevisions,
-    );
-    if (!mutationClass) {
-      return;
-    }
-    lastRevisionRef.current = nextRevisions;
+    const startMs =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    let publishedMutationClass: "topology" | "pose" | null = null;
 
-    const state: RuntimeGraphBridgeState = {
-      graphSpec,
-      poseGraphSpec,
-      poseConfig,
-    };
-    const mutation = createRuntimeGraphMutation(state, mutationClass);
+    try {
+      const nextRevisions: RuntimeGraphBridgeRevisions = {
+        graphSpecRevision,
+        poseRuntimeRevision,
+      };
+      const mutationClass = resolveRuntimeGraphMutationClass(
+        lastRevisionRef.current,
+        nextRevisions,
+      );
+      if (!mutationClass) {
+        return;
+      }
+      lastRevisionRef.current = nextRevisions;
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[vizij-runtime][graph-bridge]", {
+      const state: RuntimeGraphBridgeState = {
+        graphSpec,
+        poseGraphSpec,
+        poseConfig,
+      };
+      const mutation = createRuntimeGraphMutation(state, mutationClass);
+      publishedMutationClass = mutation.mutationClass;
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[vizij-runtime][graph-bridge]", {
+          mutationClass: mutation.mutationClass,
+          hasRig: Boolean(mutation.bundle.rig),
+          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
+          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+        });
+      }
+      setGraphBundle(mutation.bundle, {
+        ...mutation.options,
         mutationClass: mutation.mutationClass,
-        hasRig: Boolean(mutation.bundle.rig),
-        hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
-        hasPoseConfig: Boolean(mutation.bundle.pose?.config),
       });
+    } finally {
+      const endMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const snapshot = recordGraphBridgeRun(
+        endMs - startMs,
+        publishedMutationClass,
+      );
+      if (process.env.NODE_ENV !== "production") {
+        (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+          snapshot;
+      }
     }
-    setGraphBundle(mutation.bundle, {
-      ...mutation.options,
-      mutationClass: mutation.mutationClass,
-    });
   }, [
     graphSpecRevision,
     poseRuntimeRevision,

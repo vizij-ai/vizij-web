@@ -6,6 +6,10 @@ import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
 } from "../../state/graphRuntimeStore";
+import {
+  getRuntimePerfMetricsSnapshot,
+  resetRuntimePerfMetrics,
+} from "../../perf/runtimePerfMetrics";
 import { Viewer } from "./Viewer";
 
 const stepSpy = vi.fn();
@@ -68,6 +72,7 @@ describe("Viewer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRuntimePerfMetrics();
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -142,6 +147,8 @@ describe("Viewer", () => {
 
     expect(setInputSpy).toHaveBeenCalled();
     expect(stepSpy).not.toHaveBeenCalled();
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+    expect(getRuntimePerfMetricsSnapshot().graphBridgePublishes).toBe(1);
   });
 
   it("registers rig and pose graph payloads concurrently", () => {
@@ -255,6 +262,11 @@ describe("Viewer", () => {
       { tier: "graphs", mutationClass: "topology" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
+    expect(getRuntimePerfMetricsSnapshot()).toMatchObject({
+      graphBridgePublishes: 3,
+      graphBridgeTopologyPublishes: 2,
+      graphBridgePosePublishes: 1,
+    });
   });
 
   it("registers pose graph only when rig graph is absent", () => {

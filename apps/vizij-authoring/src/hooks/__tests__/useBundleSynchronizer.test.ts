@@ -2,6 +2,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { VizijBundleExtension } from "@vizij/render";
+import {
+  getRuntimePerfMetricsSnapshot,
+  resetRuntimePerfMetrics,
+} from "../../perf/runtimePerfMetrics";
 import { useBundleSynchronizer } from "../useBundleSynchronizer";
 
 const mockNormalizeGraphSpec = vi.fn(async (spec: GraphSpec) => spec);
@@ -31,6 +35,7 @@ function createBundleWithRigAndPoses(spec: GraphSpec) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRuntimePerfMetrics();
 });
 describe("useBundleSynchronizer failure surfaces", () => {
   it("reports recoverable rig import failures to the caller", async () => {
@@ -99,6 +104,11 @@ describe("useBundleSynchronizer failure surfaces", () => {
     expect(importGraphSpec).toHaveBeenCalledWith(rigSpec, {
       skipDiscrepancyCheck: true,
       normalizedSpec: rigSpec,
+    });
+    expect(getRuntimePerfMetricsSnapshot()).toMatchObject({
+      rigImportAttempts: 1,
+      rigNormalizeCalls: 1,
+      rigNormalizeCallsPerImport: 1,
     });
   });
 
@@ -242,6 +252,11 @@ describe("useBundleSynchronizer failure surfaces", () => {
     });
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+    expect(getRuntimePerfMetricsSnapshot()).toMatchObject({
+      rigImportAttempts: 2,
+      rigNormalizeCalls: 2,
+      rigNormalizeCallsPerImport: 1,
     });
   });
 });
