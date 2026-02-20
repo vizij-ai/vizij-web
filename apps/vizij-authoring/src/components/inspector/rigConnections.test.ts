@@ -691,12 +691,11 @@ describe("pose rig traversal helpers", () => {
     standardInputsById,
   });
 
-  it("builds traversal path using Pose -> Rig -> Autorig -> Animatable semantics", () => {
+  it("hides direct autorig passthrough when an upstream rig parent exists", () => {
     expect(traversalPaths).toHaveLength(1);
     expect(traversalPaths[0]?.nodes.map((node) => node.kind)).toEqual([
       "pose",
       "rig",
-      "autorig",
       "animatable",
     ]);
   });
@@ -710,21 +709,21 @@ describe("pose rig traversal helpers", () => {
       initial,
       "upstream",
     );
-    expect(upstreamOne?.nodeId).toContain("autorig:");
+    expect(upstreamOne?.nodeId).toContain("rig:");
 
     const upstreamTwo = movePoseRigTraversalSelection(
       traversalPaths,
       upstreamOne,
       "upstream",
     );
-    expect(upstreamTwo?.nodeId).toContain("rig:");
+    expect(upstreamTwo?.nodeId).toContain("pose:");
 
     const upstreamThree = movePoseRigTraversalSelection(
       traversalPaths,
       upstreamTwo,
       "upstream",
     );
-    expect(upstreamThree?.nodeId).toContain("pose:");
+    expect(upstreamThree).toEqual(upstreamTwo);
 
     const downstreamOne = movePoseRigTraversalSelection(
       traversalPaths,
@@ -738,14 +737,14 @@ describe("pose rig traversal helpers", () => {
       downstreamOne,
       "downstream",
     );
-    expect(downstreamTwo?.nodeId).toContain("autorig:");
+    expect(downstreamTwo?.nodeId).toContain("animatable:");
 
     const downstreamThree = movePoseRigTraversalSelection(
       traversalPaths,
       downstreamTwo,
       "downstream",
     );
-    expect(downstreamThree?.nodeId).toContain("animatable:");
+    expect(downstreamThree).toEqual(downstreamTwo);
 
     const downstreamAtEnd = movePoseRigTraversalSelection(
       traversalPaths,
@@ -830,7 +829,7 @@ describe("pose rig traversal helpers", () => {
     );
 
     expect(initial?.nodeId).toContain("animatable:");
-    expect(next?.nodeId).toContain("autorig:");
-    expect(nextNode?.kind).toBe("autorig");
+    expect(next?.nodeId).toContain("rig:");
+    expect(nextNode?.kind).toBe("rig");
   });
 });

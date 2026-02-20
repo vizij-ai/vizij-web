@@ -386,6 +386,49 @@ describe("VariablesPanel", () => {
     expect(scoped.queryByTitle("Pose Control Jaw Open")).toBeNull();
   });
 
+  it("locks passthrough rig inputs on the Inputs surface and shows the reason", () => {
+    const parentInput = makeInput("jaw_open_parent", "/standard/jaw/open", {
+      label: "Jaw Open Parent",
+    });
+    const passthroughInput = makeInput(
+      "autorig_jaw_open",
+      "/autorig/face/jaw/open",
+      {
+        label: "Jaw Open Autorig",
+      },
+    );
+    bindingState.managedStandardInputs = [
+      { input: parentInput, source: "preset" },
+      { input: passthroughInput, source: "auto" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/standard/jaw/open", parentInput],
+      ["/autorig/face/jaw/open", passthroughInput],
+    ]);
+    bindingState.inputBindings = {
+      [passthroughInput.id]: {
+        targetId: passthroughInput.id,
+        inputId: parentInput.id,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: parentInput.id }],
+      },
+    };
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Jaw Open Autorig" } });
+    expect(scoped.getByTitle("Jaw Open Autorig")).toBeTruthy();
+    expect(scoped.getByText("locked")).toBeTruthy();
+    expect(scoped.getByText(/acts as an autorig passthrough/i)).toBeTruthy();
+  });
+
   it("distinguishes pose-weight inputs from group/stage derived controls", () => {
     const regularInput = makeInput("jaw_open", "/standard/jaw/open", {
       label: "Jaw Open",

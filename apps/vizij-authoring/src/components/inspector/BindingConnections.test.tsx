@@ -198,7 +198,7 @@ describe("BindingConnections routing", () => {
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
   });
 
-  it("traverses Pose -> Rig -> Autorig -> Animatable in both directions", () => {
+  it("traverses Pose -> Rig -> Animatable in both directions when autorig is passthrough", () => {
     mockTrace = {
       targets: [
         {
@@ -253,12 +253,12 @@ describe("BindingConnections routing", () => {
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Autorig");
+    ).toContain("Rig");
 
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Rig");
+    ).toContain("Pose");
 
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     expect(
@@ -273,34 +273,18 @@ describe("BindingConnections routing", () => {
     fireEvent.click(view.getByTestId("binding-traversal-downstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Autorig");
+    ).toContain("Animatable");
 
     fireEvent.click(view.getByTestId("binding-traversal-downstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
     ).toContain("Animatable");
 
-    expect(onSelectRig).toHaveBeenNthCalledWith(
-      1,
-      "autorig/mouth/open",
-      "pose-entry",
-    );
-    expect(onSelectRig).toHaveBeenNthCalledWith(
-      2,
+    expect(onSelectRig).toHaveBeenCalledWith(
       "rig/parent/jaw_open",
       "pose-group-output",
     );
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
-    expect(onSelectRig).toHaveBeenNthCalledWith(
-      3,
-      "rig/parent/jaw_open",
-      "pose-group-output",
-    );
-    expect(onSelectRig).toHaveBeenNthCalledWith(
-      4,
-      "autorig/mouth/open",
-      "pose-entry",
-    );
     expect(onSelectTarget).toHaveBeenCalledWith("anim://mouth/open");
   });
 
@@ -341,7 +325,6 @@ describe("BindingConnections routing", () => {
 
     const view = render(<BindingConnections node={node} />);
 
-    fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
 
     expect(

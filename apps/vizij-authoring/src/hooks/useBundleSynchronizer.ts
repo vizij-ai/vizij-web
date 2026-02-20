@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfigFile } from "../poseRig/types";
@@ -72,6 +72,7 @@ export function useBundleSynchronizer({
   const inFlightFingerprintRef = useRef<string | null>(null);
   const rigImportedRef = useRef(false);
   const poseImportedRef = useRef(false);
+  const [rigImportEpoch, setRigImportEpoch] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +94,7 @@ export function useBundleSynchronizer({
 
     const applyBundleState = async () => {
       let fingerprint: string | null = null;
+      let rigImportedThisPass = false;
       try {
         if (!rootId || !loadedBundle) {
           appliedBundleFingerprintRef.current = null;
@@ -158,6 +160,10 @@ export function useBundleSynchronizer({
               result.status,
             );
             rigImportedRef.current = importedRigSuccessfully;
+            rigImportedThisPass = importedRigSuccessfully;
+            if (importedRigSuccessfully) {
+              setRigImportEpoch((current) => current + 1);
+            }
             if (!importedRigSuccessfully) {
               hasFailure = true;
               onFailureRef.current?.({
@@ -183,6 +189,12 @@ export function useBundleSynchronizer({
           if (cancelled) {
             return;
           }
+        }
+
+        // Import poses on the next synchronization pass after a successful rig
+        // import so pose normalization runs against fresh standard-input state.
+        if (rigImportedThisPass && loadedBundle.poses?.config) {
+          return;
         }
 
         if (loadedBundle.poses?.config && !poseImportedRef.current) {
@@ -243,5 +255,12 @@ export function useBundleSynchronizer({
     return () => {
       cancelled = true;
     };
-  }, [faceIdRef, loadedBundle, rootId, retryToken, standardInputCount]);
+  }, [
+    faceIdRef,
+    loadedBundle,
+    rigImportEpoch,
+    rootId,
+    retryToken,
+    standardInputCount,
+  ]);
 }

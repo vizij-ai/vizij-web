@@ -29,6 +29,7 @@ import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncCont
 import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
+import { resolveControllableInputId } from "../inspector/bindingSlotResolution";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -86,6 +87,7 @@ interface InputListRow {
   provenance?: string;
   editable: boolean;
   selectable: boolean;
+  disabledReason?: string | null;
 }
 
 const INPUT_CONTROL_KIND_LABEL: Record<InputListRow["controlKind"], string> = {
@@ -512,6 +514,7 @@ function TreeRowWrapper({
         ? inputData.value
         : 0;
     const controlKindLabel = INPUT_CONTROL_KIND_LABEL[inputData.controlKind];
+    const hasDisabledReason = Boolean(inputData.disabledReason);
     return (
       <TreeRow
         depth={depth}
@@ -536,10 +539,24 @@ function TreeRowWrapper({
             >
               {controlKindLabel}
             </span>
+            {hasDisabledReason ? (
+              <span
+                className="text-[9px] uppercase tracking-wide px-1 rounded bg-amber-900/40 text-amber-200"
+                title={inputData.disabledReason ?? undefined}
+              >
+                locked
+              </span>
+            ) : null}
           </div>
         }
       >
-        <div className="px-2 pb-2 flex flex-col gap-1">
+        <div
+          className={cn(
+            "px-2 pb-2 flex flex-col gap-1",
+            hasDisabledReason && "opacity-75",
+          )}
+          title={inputData.disabledReason ?? undefined}
+        >
           {inputData.editable ? (
             <Slider
               value={value}
@@ -556,6 +573,22 @@ function TreeRowWrapper({
                 onInputValueChange?.(inputData.inputId, normalizedValue);
               }}
             />
+          ) : hasDisabledReason ? (
+            <>
+              <Slider
+                value={value}
+                min={inputData.min}
+                max={inputData.max}
+                step={0.01}
+                disabled
+              />
+              <p
+                className="text-[10px] text-amber-300/90 truncate"
+                title={inputData.disabledReason ?? undefined}
+              >
+                {inputData.disabledReason}
+              </p>
+            </>
           ) : (
             <p className="text-[10px] text-text-muted">
               Derived control (read-only)
@@ -1012,6 +1045,7 @@ export function VariablesPanel({
     (state) => state.standardInputsById,
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -1226,6 +1260,16 @@ export function VariablesPanel({
         const controlKind: InputListRow["controlKind"] = poseWeightPoseId
           ? "pose-weight"
           : "rig-input";
+        const controllableResolution =
+          controlKind === "rig-input"
+            ? resolveControllableInputId(entry.input.id, inputBindings)
+            : { inputId: entry.input.id, blockedReason: null };
+        const disabledReason = controllableResolution.blockedReason
+          ? controllableResolution.blockedReason
+          : controllableResolution.inputId &&
+              controllableResolution.inputId !== entry.input.id
+            ? `This variable is derived from "${controllableResolution.inputId}" and currently acts as an autorig passthrough. Edit the upstream variable or add local self control in My Drivers.`
+            : null;
         return {
           id: entry.input.id,
           label: entry.input.label || entry.input.id,
@@ -1241,8 +1285,9 @@ export function VariablesPanel({
           provenance: poseWeightPoseId
             ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
             : undefined,
-          editable: true,
+          editable: disabledReason === null,
           selectable: true,
+          disabledReason,
         } as const;
       });
 
@@ -1314,6 +1359,7 @@ export function VariablesPanel({
     poseGroupBlendModeFallback,
     poseNameById,
     poses,
+    inputBindings,
   ]);
 
   const inputRootNode = useMemo(() => {

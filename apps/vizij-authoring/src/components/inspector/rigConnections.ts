@@ -913,12 +913,17 @@ export function buildPoseRigTraversalPaths(params: {
       const directKind = isAutorigStandardInputPath(directInput?.path)
         ? "autorig"
         : "rig";
-      nodes.push({
-        id: `${directKind}:${directRigInputId}`,
-        kind: directKind,
-        label: rigInputLabel(directRigInputId, standardInputsById),
-        rigId: directRigInputId,
-      });
+      const hasVisibleUpstreamParent = upstreamRigInputIds.length > 0;
+      const shouldHideAutorigPassthrough =
+        directKind === "autorig" && hasVisibleUpstreamParent;
+      if (!shouldHideAutorigPassthrough) {
+        nodes.push({
+          id: `${directKind}:${directRigInputId}`,
+          kind: directKind,
+          label: rigInputLabel(directRigInputId, standardInputsById),
+          rigId: directRigInputId,
+        });
+      }
     }
 
     nodes.push({
