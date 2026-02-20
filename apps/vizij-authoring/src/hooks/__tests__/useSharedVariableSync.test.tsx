@@ -33,15 +33,17 @@ interface HookState {
 function setupHook(initial?: Partial<HookState>) {
   const mainInput = makeInput("main_jaw", "/standard/jaw/open");
   const referenceInput = makeInput("ref_jaw", "/standard/jaw/open");
+  const mainInputsById = new Map([[mainInput.id, mainInput]]);
+  const referenceInputs = [referenceInput];
   const onMainInputValueChange = vi.fn();
   const onReferenceInputValueChange = vi.fn();
 
   const useHookState = (state: HookState) =>
     useSharedVariableSync({
       initialPolicy: state.policy,
-      mainInputsById: new Map([[mainInput.id, mainInput]]),
+      mainInputsById,
       mainInputValues: { [mainInput.id]: state.mainValue },
-      referenceInputs: [referenceInput],
+      referenceInputs,
       referenceInputValues: { [referenceInput.id]: state.referenceValue },
       onMainInputValueChange,
       onReferenceInputValueChange,
@@ -188,5 +190,32 @@ describe("useSharedVariableSync", () => {
       expect(metrics.pairCount).toBe(1);
       expect(metrics.pairEvaluations).toBe(1);
     });
+  });
+
+  it("keeps result identity stable across unrelated rerenders", () => {
+    const mainInput = makeInput("main_jaw", "/standard/jaw/open");
+    const referenceInput = makeInput("ref_jaw", "/standard/jaw/open");
+    const mainInputsById = new Map([[mainInput.id, mainInput]]);
+    const mainInputValues = { [mainInput.id]: 0 };
+    const referenceInputs = [referenceInput];
+    const referenceInputValues = { [referenceInput.id]: 0 };
+    const onMainInputValueChange = vi.fn();
+    const onReferenceInputValueChange = vi.fn();
+
+    const hook = renderHook(() =>
+      useSharedVariableSync({
+        initialPolicy: "bidirectional",
+        mainInputsById,
+        mainInputValues,
+        referenceInputs,
+        referenceInputValues,
+        onMainInputValueChange,
+        onReferenceInputValueChange,
+      }),
+    );
+
+    const first = hook.result.current;
+    hook.rerender();
+    expect(hook.result.current).toBe(first);
   });
 });

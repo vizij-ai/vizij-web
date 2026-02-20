@@ -449,3 +449,7 @@ Final gate after all chunks:
 - 2026-02-20: Added QL1.7 regression coverage in `src/hooks/__tests__/graphRuntime.test.ts` for malformed write containers/entries and mixed valid-invalid write replay behavior.
 - 2026-02-20: Validation rerun for QL1.5-QL1.7: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/graphRuntime.test.ts src/scene/featureEntries.test.ts`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
 - 2026-02-20: Next execution target set to Wave 4 Chunk 17 (`QL1.8`) for shared variable sync context memoization and rerender-pressure coverage.
+- 2026-02-20: `QL1.8` completed by memoizing shared-variable sync context return identity in `src/hooks/useSharedVariableSync.ts` (stable `useMemo` return boundary over existing derived fields and handlers).
+- 2026-02-20: Added rerender-pressure regression coverage in `src/hooks/__tests__/useSharedVariableSync.test.tsx` (`keeps result identity stable across unrelated rerenders`) to assert referential stability across no-op rerenders.
+- 2026-02-20: Validation rerun for QL1.8: `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useSharedVariableSync.test.tsx`, `pnpm --filter vizij-authoring run typecheck`, and `pnpm --filter vizij-authoring run lint` all pass.
+- 2026-02-20: Next execution target set to Wave 4 Chunk 18 (`QL2.1`, `QL2.2`) for behavior-level E4 scenario tests and assertion-quality hardening.
