@@ -254,7 +254,13 @@ export type VizijRuntimeProviderProps = {
   autostart?: boolean;
   driveOrchestrator?: boolean;
   mergeStrategy?: MergeStrategyOptions;
-  onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
+  onRegisterControllers?: (
+    ids: { graphs: string[]; anims: string[] },
+    meta?: {
+      durationMs: number;
+      token: number;
+    },
+  ) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
   orchestratorScope?: "auto" | "shared" | "isolated";
 };

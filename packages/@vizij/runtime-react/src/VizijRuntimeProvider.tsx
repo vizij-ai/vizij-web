@@ -42,6 +42,7 @@ import {
   type RuntimeGraphBundle,
   type RuntimeUpdateTier,
 } from "./updatePolicy";
+import { createLatestTokenQueue } from "./registrationQueue";
 import type {
   AnimateValueOptions,
   InputDriverFactory,
@@ -928,7 +929,13 @@ type VizijRuntimeProviderInnerProps = {
   faceId?: string;
   updateTier: RuntimeUpdateTier;
   mergeStrategy?: MergeStrategyOptions;
-  onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
+  onRegisterControllers?: (
+    ids: { graphs: string[]; anims: string[] },
+    meta?: {
+      durationMs: number;
+      token: number;
+    },
+  ) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
   store: VizijStore;
   children: ReactNode;
@@ -976,6 +983,10 @@ function VizijRuntimeProviderInner({
   const previousBundleRef = useRef<VizijAssetBundle | null>(null);
   const pendingPlanRef = useRef<ReturnType<
     typeof resolveRuntimeUpdatePlan
+  > | null>(null);
+  const lastRegisteredGraphTokenRef = useRef(-1);
+  const registrationQueueRef = useRef<ReturnType<
+    typeof createLatestTokenQueue
   > | null>(null);
   const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
 
@@ -1410,223 +1421,262 @@ function VizijRuntimeProviderInner({
     }
   }, [ready, autoCreate, createOptions, createOrchestrator, pushError]);
 
-  const registerControllers = useCallback(async () => {
-    clearControllers();
+  const registerControllers = useCallback(
+    async (token: number) => {
+      const registrationStartMs = now();
+      clearControllers();
 
-    if (DEV_MODE) {
-      console.log("[vizij-runtime] registerControllers", {
-        hasRig: Boolean(assetBundle.rig),
-        hasPose: Boolean(assetBundle.pose?.graph),
-        namespace,
-      });
-    }
-
-    const baseOutputPaths = new Set<string>();
-    const namespacedOutputPaths = new Set<string>();
-    const recordOutputs = (paths: string[]) => {
-      paths.forEach((path) => {
-        const trimmed = path.trim();
-        if (!trimmed) return;
-        const basePath = stripNamespace(trimmed, namespace);
-        baseOutputPaths.add(basePath);
-        namespacedOutputPaths.add(namespaceTypedPath(trimmed, namespace));
-      });
-    };
-
-    const graphConfigs: GraphRegistrationConfig[] = [];
-    rigInputMapRef.current = {};
-
-    const rigAsset = assetBundle.rig;
-    if (rigAsset) {
-      const rigSpec = resolveGraphSpec(
-        rigAsset,
-        `${rigAsset.id ?? "rig"} graph`,
-      );
-      if (!rigSpec) {
-        pushError({
-          message: "Rig graph is missing a usable spec or IR payload.",
-          phase: "registration",
-          timestamp: performance.now(),
-        });
-      } else {
-        // Avoid logging here; browsers building DTS don't have `process` types.
-        const rigOutputs = collectOutputPaths(rigSpec);
-        const rigInputs = collectInputPaths(rigSpec);
-        rigInputMapRef.current = collectInputPathMap(rigSpec);
-        recordOutputs(rigOutputs);
-
-        const rigSubs = rigAsset.subscriptions ?? {
-          inputs: rigInputs,
-          outputs: rigOutputs,
-        };
-
-        graphConfigs.push({
-          id: namespaceControllerId(rigAsset.id, namespace, "graph"),
-          spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
-          subs: namespaceSubscriptions(rigSubs, namespace),
+      if (DEV_MODE) {
+        console.log("[vizij-runtime] registerControllers", {
+          hasRig: Boolean(assetBundle.rig),
+          hasPose: Boolean(assetBundle.pose?.graph),
+          namespace,
+          token,
         });
       }
-    }
 
-    const poseGraphAsset = assetBundle.pose?.graph;
-    if (poseGraphAsset) {
-      const poseSpec = resolveGraphSpec(
-        poseGraphAsset,
-        `${poseGraphAsset.id ?? "pose"} graph`,
-      );
-      if (poseSpec) {
-        const poseOutputs = collectOutputPaths(poseSpec);
-        const poseInputs = collectInputPaths(poseSpec);
-        recordOutputs(poseOutputs);
-
-        const poseSubs = poseGraphAsset.subscriptions ?? {
-          inputs: poseInputs,
-          outputs: poseOutputs,
-        };
-
-        graphConfigs.push({
-          id: namespaceControllerId(poseGraphAsset.id, namespace, "graph"),
-          spec: stripNulls(namespaceGraphSpec(poseSpec, namespace)),
-          subs: namespaceSubscriptions(poseSubs, namespace),
+      const baseOutputPaths = new Set<string>();
+      const namespacedOutputPaths = new Set<string>();
+      const recordOutputs = (paths: string[]) => {
+        paths.forEach((path) => {
+          const trimmed = path.trim();
+          if (!trimmed) return;
+          const basePath = stripNamespace(trimmed, namespace);
+          baseOutputPaths.add(basePath);
+          namespacedOutputPaths.add(namespaceTypedPath(trimmed, namespace));
         });
-      } else {
-        console.warn(
-          "[vizij-runtime] Pose graph is missing a usable spec or IR payload; skipping registration.",
+      };
+
+      const graphConfigs: GraphRegistrationConfig[] = [];
+      rigInputMapRef.current = {};
+
+      const rigAsset = assetBundle.rig;
+      if (rigAsset) {
+        const rigSpec = resolveGraphSpec(
+          rigAsset,
+          `${rigAsset.id ?? "rig"} graph`,
         );
-      }
-    }
-
-    outputPathsRef.current = namespacedOutputPaths;
-    baseOutputPathsRef.current = baseOutputPaths;
-    namespacedOutputPathsRef.current = namespacedOutputPaths;
-
-    const graphIds: string[] = [];
-
-    try {
-      if (graphConfigs.length > 1) {
-        const mergedId = registerMergedGraph({
-          id:
-            namespaceControllerId(
-              mergedGraphRef.current ?? `merged-${namespace}`,
-              namespace,
-              "merged",
-            ) ?? undefined,
-          graphs: graphConfigs,
-          strategy: mergeStrategy ?? DEFAULT_MERGE,
-        });
-        mergedGraphRef.current = mergedId;
-        graphIds.push(mergedId);
-      } else {
-        graphConfigs.forEach((cfg) => {
-          const id = registerGraph(cfg);
-          graphIds.push(id);
-        });
-      }
-    } catch (err: unknown) {
-      pushError({
-        message: "Failed to register rig graphs",
-        cause: err,
-        phase: "registration",
-        timestamp: performance.now(),
-      });
-    }
-
-    registeredGraphsRef.current = graphIds;
-    if (DEV_MODE) {
-      console.log("[vizij-runtime] registered graph ids", graphIds);
-    }
-
-    const animationIds: string[] = [];
-    for (const anim of assetBundle.animations ?? []) {
-      try {
-        const controllerId =
-          namespaceControllerId(anim.id, namespace, "animation") ?? anim.id;
-        const config: AnimationRegistrationConfig = {
-          id: controllerId,
-          setup: {
-            animation: anim.clip,
-            ...(anim.setup ?? {}),
-          } as AnimationRegistrationConfig["setup"],
-        };
-        const id = registerAnimation(config);
-        animationIds.push(id);
-      } catch (err: unknown) {
-        pushError({
-          message: `Failed to register animation ${anim.id}`,
-          cause: err,
-          phase: "animation",
-          timestamp: performance.now(),
-        });
-      }
-    }
-
-    registeredAnimationsRef.current = animationIds;
-
-    if (assetBundle.initialInputs) {
-      Object.entries(assetBundle.initialInputs).forEach(([path, value]) => {
-        try {
-          setInput(path, value);
-        } catch (err: unknown) {
+        if (!rigSpec) {
           pushError({
-            message: `Failed to stage initial input ${path}`,
-            cause: err,
+            message: "Rig graph is missing a usable spec or IR payload.",
             phase: "registration",
             timestamp: performance.now(),
           });
-        }
-      });
-    }
+        } else {
+          // Avoid logging here; browsers building DTS don't have `process` types.
+          const rigOutputs = collectOutputPaths(rigSpec);
+          const rigInputs = collectInputPaths(rigSpec);
+          rigInputMapRef.current = collectInputPathMap(rigSpec);
+          recordOutputs(rigOutputs);
 
-    const controllers = listControllers();
-    if (DEV_MODE) {
-      console.log("[vizij-runtime] controllers after register", {
+          const rigSubs = rigAsset.subscriptions ?? {
+            inputs: rigInputs,
+            outputs: rigOutputs,
+          };
+
+          graphConfigs.push({
+            id: namespaceControllerId(rigAsset.id, namespace, "graph"),
+            spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
+            subs: namespaceSubscriptions(rigSubs, namespace),
+          });
+        }
+      }
+
+      const poseGraphAsset = assetBundle.pose?.graph;
+      if (poseGraphAsset) {
+        const poseSpec = resolveGraphSpec(
+          poseGraphAsset,
+          `${poseGraphAsset.id ?? "pose"} graph`,
+        );
+        if (poseSpec) {
+          const poseOutputs = collectOutputPaths(poseSpec);
+          const poseInputs = collectInputPaths(poseSpec);
+          recordOutputs(poseOutputs);
+
+          const poseSubs = poseGraphAsset.subscriptions ?? {
+            inputs: poseInputs,
+            outputs: poseOutputs,
+          };
+
+          graphConfigs.push({
+            id: namespaceControllerId(poseGraphAsset.id, namespace, "graph"),
+            spec: stripNulls(namespaceGraphSpec(poseSpec, namespace)),
+            subs: namespaceSubscriptions(poseSubs, namespace),
+          });
+        } else {
+          console.warn(
+            "[vizij-runtime] Pose graph is missing a usable spec or IR payload; skipping registration.",
+          );
+        }
+      }
+
+      outputPathsRef.current = namespacedOutputPaths;
+      baseOutputPathsRef.current = baseOutputPaths;
+      namespacedOutputPathsRef.current = namespacedOutputPaths;
+
+      const graphIds: string[] = [];
+
+      try {
+        if (graphConfigs.length > 1) {
+          const mergedId = registerMergedGraph({
+            id:
+              namespaceControllerId(
+                mergedGraphRef.current ?? `merged-${namespace}`,
+                namespace,
+                "merged",
+              ) ?? undefined,
+            graphs: graphConfigs,
+            strategy: mergeStrategy ?? DEFAULT_MERGE,
+          });
+          mergedGraphRef.current = mergedId;
+          graphIds.push(mergedId);
+        } else {
+          graphConfigs.forEach((cfg) => {
+            const id = registerGraph(cfg);
+            graphIds.push(id);
+          });
+        }
+      } catch (err: unknown) {
+        pushError({
+          message: "Failed to register rig graphs",
+          cause: err,
+          phase: "registration",
+          timestamp: performance.now(),
+        });
+      }
+
+      registeredGraphsRef.current = graphIds;
+      if (DEV_MODE) {
+        console.log("[vizij-runtime] registered graph ids", graphIds);
+      }
+
+      const animationIds: string[] = [];
+      for (const anim of assetBundle.animations ?? []) {
+        try {
+          const controllerId =
+            namespaceControllerId(anim.id, namespace, "animation") ?? anim.id;
+          const config: AnimationRegistrationConfig = {
+            id: controllerId,
+            setup: {
+              animation: anim.clip,
+              ...(anim.setup ?? {}),
+            } as AnimationRegistrationConfig["setup"],
+          };
+          const id = registerAnimation(config);
+          animationIds.push(id);
+        } catch (err: unknown) {
+          pushError({
+            message: `Failed to register animation ${anim.id}`,
+            cause: err,
+            phase: "animation",
+            timestamp: performance.now(),
+          });
+        }
+      }
+
+      registeredAnimationsRef.current = animationIds;
+
+      if (assetBundle.initialInputs) {
+        Object.entries(assetBundle.initialInputs).forEach(([path, value]) => {
+          try {
+            setInput(path, value);
+          } catch (err: unknown) {
+            pushError({
+              message: `Failed to stage initial input ${path}`,
+              cause: err,
+              phase: "registration",
+              timestamp: performance.now(),
+            });
+          }
+        });
+      }
+
+      const controllers = listControllers();
+      if (DEV_MODE) {
+        console.log("[vizij-runtime] controllers after register", {
+          controllers,
+          graphIds,
+          animationIds,
+        });
+      }
+      reportStatus((prev) => ({
+        ...prev,
+        ready: true,
         controllers,
-        graphIds,
-        animationIds,
+        outputPaths: Array.from(outputPathsRef.current),
+      }));
+      onRegisterControllers?.(controllers, {
+        durationMs: Math.max(0, now() - registrationStartMs),
+        token,
       });
-    }
-    reportStatus((prev) => ({
-      ...prev,
-      ready: true,
-      controllers,
-      outputPaths: Array.from(outputPathsRef.current),
-    }));
-    onRegisterControllers?.(controllers);
-  }, [
-    assetBundle,
-    clearControllers,
-    listControllers,
-    mergeStrategy,
-    namespace,
-    onRegisterControllers,
-    pushError,
-    registerAnimation,
-    registerGraph,
-    registerMergedGraph,
-    reportStatus,
-    setInput,
-  ]);
+    },
+    [
+      assetBundle,
+      clearControllers,
+      listControllers,
+      mergeStrategy,
+      namespace,
+      onRegisterControllers,
+      pushError,
+      registerAnimation,
+      registerGraph,
+      registerMergedGraph,
+      reportStatus,
+      setInput,
+    ],
+  );
+
+  useEffect(() => {
+    const queue = createLatestTokenQueue(async (token) => {
+      try {
+        await registerControllers(token);
+        if (token > lastRegisteredGraphTokenRef.current) {
+          lastRegisteredGraphTokenRef.current = token;
+        }
+      } catch (err: unknown) {
+        pushError({
+          message: "Failed to register controllers",
+          cause: err,
+          phase: "registration",
+          timestamp: performance.now(),
+        });
+      }
+    });
+    registrationQueueRef.current = queue;
+    return () => {
+      queue.dispose();
+      if (registrationQueueRef.current === queue) {
+        registrationQueueRef.current = null;
+      }
+    };
+  }, [pushError, registerControllers]);
 
   useEffect(() => {
     if (!ready || status.loading) {
       return;
     }
-    const plan = pendingPlanRef.current;
     const hasRegistered =
       registeredGraphsRef.current.length > 0 ||
       registeredAnimationsRef.current.length > 0;
+    const plan = pendingPlanRef.current;
+    const needsInitialRegistration = !hasRegistered;
+    const needsGraphUpdateRegistration =
+      graphUpdateToken > lastRegisteredGraphTokenRef.current;
+
     if (plan && !plan.reregisterGraphs && hasRegistered) {
       return;
     }
-    registerControllers().catch((err: unknown) => {
-      pushError({
-        message: "Failed to register controllers",
-        cause: err,
-        phase: "registration",
-        timestamp: performance.now(),
-      });
-    });
-  }, [ready, status.loading, graphUpdateToken, registerControllers, pushError]);
+    if (!needsInitialRegistration && !needsGraphUpdateRegistration) {
+      return;
+    }
+    registrationQueueRef.current?.request(graphUpdateToken);
+  }, [ready, status.loading, graphUpdateToken]);
+
+  useEffect(() => {
+    if (status.loading) {
+      lastRegisteredGraphTokenRef.current = -1;
+    }
+  }, [status.loading]);
 
   useEffect(() => {
     if (!frame) {

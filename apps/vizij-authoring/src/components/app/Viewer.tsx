@@ -1,6 +1,6 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 import {
@@ -10,6 +10,7 @@ import {
 import {
   getLastRuntimeImportPerfSummary,
   recordGraphBridgeRun,
+  recordRuntimeControllerRegistrationRun,
   recordRuntimeFirstFrame,
   recordRuntimeReady,
 } from "../../perf/runtimePerfMetrics";
@@ -279,6 +280,19 @@ export function Viewer({
 }: ViewerProps) {
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
+  const handleRegisterControllers = useCallback(
+    (
+      _ids: { graphs: string[]; anims: string[] },
+      meta?: { durationMs: number; token: number },
+    ) => {
+      const snapshot = recordRuntimeControllerRegistrationRun(meta?.durationMs);
+      if (process.env.NODE_ENV !== "production") {
+        (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+          snapshot;
+      }
+    },
+    [],
+  );
   return (
     <main className="h-full w-full relative bg-bg-panel overflow-hidden">
       {(runtimeWarning || runtimeError) && (
@@ -297,7 +311,11 @@ export function Viewer({
       )}
       <div className="h-full w-full">
         {rootId && bundle ? (
-          <VizijRuntimeProvider assetBundle={bundle} autostart>
+          <VizijRuntimeProvider
+            assetBundle={bundle}
+            autostart
+            onRegisterControllers={handleRegisterControllers}
+          >
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <RuntimeLifecyclePerfBridge />

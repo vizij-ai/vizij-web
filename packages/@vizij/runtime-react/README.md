@@ -100,7 +100,7 @@ Namespace defaults to `assetBundle.namespace ?? "default"`. Face id falls back t
 - `driveOrchestrator`: defaults to `true`. In shared orchestrator setups, set this to `false` on non-driver runtimes so only one loop calls `stepRuntime` while others continue to stage inputs/animations.
 - `mergeStrategy`: orchestrator merge strategy, defaults to additive for outputs/intermediate values.
 - `orchestratorScope`: control orchestrator reuse. `"auto"` (default) reuses a parent `OrchestratorProvider` when present, `"shared"` requires one, and `"isolated"` always spins up a dedicated instance.
-- `onRegisterControllers(ids)`: observe graph and animation controller ids that were registered.
+- `onRegisterControllers(ids, meta?)`: observe graph/animation controller ids after registration (`meta.durationMs`, `meta.token`).
 - `onStatusChange(status)`: gets every status update (loading events, errors, controller updates).
 
 Inputs are staged in a per-frame buffer and flushed together before each `step()`, minimizing wasm boundary crossings even when multiple drivers write in the same tick.

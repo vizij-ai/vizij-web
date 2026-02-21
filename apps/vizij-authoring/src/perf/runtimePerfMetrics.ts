@@ -23,6 +23,9 @@ export type RuntimePerfMetricsSnapshot = {
   graphBridgeAverageMs: number;
   graphBridgePublishTotalMs: number;
   graphBridgePublishAverageMs: number;
+  controllerRegistrationRuns: number;
+  controllerRegistrationTotalMs: number;
+  controllerRegistrationAverageMs: number;
   rigImportAttempts: number;
   rigPrepareSpecCalls: number;
   rigPrepareSpecTotalMs: number;
@@ -60,6 +63,7 @@ type RuntimePerfMetricsState = Omit<
   RuntimePerfMetricsSnapshot,
   | "graphBridgeAverageMs"
   | "graphBridgePublishAverageMs"
+  | "controllerRegistrationAverageMs"
   | "rigPrepareSpecAverageMs"
   | "rigNormalizeCallsPerImport"
   | "rigNormalizeAverageMs"
@@ -83,6 +87,8 @@ function createInitialState(): RuntimePerfMetricsState {
     graphBridgeSkippedRuns: 0,
     graphBridgeTotalMs: 0,
     graphBridgePublishTotalMs: 0,
+    controllerRegistrationRuns: 0,
+    controllerRegistrationTotalMs: 0,
     rigImportAttempts: 0,
     rigPrepareSpecCalls: 0,
     rigPrepareSpecTotalMs: 0,
@@ -135,6 +141,8 @@ export type RuntimeImportPerfSummary = {
   graphBridgeTopologyPublishes: number;
   graphBridgePosePublishes: number;
   graphBridgePublishTotalMs: number;
+  controllerRegistrationRuns: number;
+  controllerRegistrationTotalMs: number;
   firstTopologyPublishAtMs: number | null;
   lastTopologyPublishAtMs: number | null;
   firstPosePublishAtMs: number | null;
@@ -278,6 +286,10 @@ function buildSnapshot(): RuntimePerfMetricsSnapshot {
       state.graphBridgePublishes > 0
         ? state.graphBridgePublishTotalMs / state.graphBridgePublishes
         : 0,
+    controllerRegistrationAverageMs:
+      state.controllerRegistrationRuns > 0
+        ? state.controllerRegistrationTotalMs / state.controllerRegistrationRuns
+        : 0,
     rigPrepareSpecAverageMs:
       state.rigPrepareSpecCalls > 0
         ? state.rigPrepareSpecTotalMs / state.rigPrepareSpecCalls
@@ -401,6 +413,8 @@ export function startRuntimeImportPerfSession(options: {
     graphBridgeTopologyPublishes: 0,
     graphBridgePosePublishes: 0,
     graphBridgePublishTotalMs: 0,
+    controllerRegistrationRuns: 0,
+    controllerRegistrationTotalMs: 0,
     firstTopologyPublishAtMs: null,
     lastTopologyPublishAtMs: null,
     firstPosePublishAtMs: null,
@@ -501,6 +515,30 @@ export function recordGraphBridgeRun(
     });
   }
 
+  return emitAndBuildSnapshot();
+}
+
+export function recordRuntimeControllerRegistrationRun(
+  durationMs?: number,
+): RuntimePerfMetricsSnapshot {
+  const sanitizedDuration = sanitizeDuration(durationMs ?? 0);
+  state.controllerRegistrationRuns += 1;
+  state.controllerRegistrationTotalMs += sanitizedDuration;
+  let sessionUpdated = false;
+  withActiveImportSession((session) => {
+    session.controllerRegistrationRuns += 1;
+    session.controllerRegistrationTotalMs += sanitizedDuration;
+    sessionUpdated = true;
+  });
+  if (!sessionUpdated && lastImportSummary) {
+    lastImportSummary = {
+      ...lastImportSummary,
+      controllerRegistrationRuns:
+        lastImportSummary.controllerRegistrationRuns + 1,
+      controllerRegistrationTotalMs:
+        lastImportSummary.controllerRegistrationTotalMs + sanitizedDuration,
+    };
+  }
   return emitAndBuildSnapshot();
 }
 

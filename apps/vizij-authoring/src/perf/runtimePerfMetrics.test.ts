@@ -13,6 +13,7 @@ import {
   recordResolveRuntimeGraphSpecRun,
   recordRigImportAttempt,
   recordRigGraphImportRun,
+  recordRuntimeControllerRegistrationRun,
   recordRuntimeFirstFrame,
   recordRuntimeReady,
   recordRigPrepareSpecCall,
@@ -42,6 +43,17 @@ describe("runtimePerfMetrics", () => {
       graphBridgeSkippedRuns: 1,
       graphBridgeTotalMs: 15,
       graphBridgeAverageMs: 5,
+      controllerRegistrationRuns: 0,
+    });
+  });
+
+  it("tracks runtime controller registration churn", () => {
+    const snapshot = recordRuntimeControllerRegistrationRun(12);
+
+    expect(snapshot).toMatchObject({
+      controllerRegistrationRuns: 1,
+      controllerRegistrationTotalMs: 12,
+      controllerRegistrationAverageMs: 12,
     });
   });
 
@@ -76,6 +88,7 @@ describe("runtimePerfMetrics", () => {
     recordPoseNormalizeRun(19);
     recordGraphBridgeRun(23, "topology", { publishedAtMs: 1234 });
     recordGraphBridgeRun(29, "pose", { publishedAtMs: 2345 });
+    recordRuntimeControllerRegistrationRun(31);
 
     const summary = finalizeRuntimeImportPerfSession("success");
     const snapshot = getRuntimePerfMetricsSnapshot();
@@ -104,6 +117,8 @@ describe("runtimePerfMetrics", () => {
       graphBridgeTopologyPublishes: 1,
       graphBridgePosePublishes: 1,
       graphBridgePublishTotalMs: 52,
+      controllerRegistrationRuns: 1,
+      controllerRegistrationTotalMs: 31,
       firstTopologyPublishAtMs: 1234,
       lastTopologyPublishAtMs: 1234,
       firstPosePublishAtMs: 2345,
@@ -121,8 +136,25 @@ describe("runtimePerfMetrics", () => {
       buildRigGraphSpecAverageMs: 13,
       resolveRuntimeGraphSpecAverageMs: 17,
       poseNormalizeAverageMs: 19,
+      controllerRegistrationAverageMs: 31,
     });
     expect(getLastRuntimeImportPerfSummary()).toEqual(summary);
+  });
+
+  it("applies late controller-registration samples to the latest completed summary", () => {
+    startRuntimeImportPerfSession({
+      fingerprint: "fingerprint-1",
+      rootId: "root",
+    });
+    finalizeRuntimeImportPerfSession("success");
+
+    recordRuntimeControllerRegistrationRun(5);
+    const summary = getLastRuntimeImportPerfSummary();
+
+    expect(summary).toMatchObject({
+      controllerRegistrationRuns: 1,
+      controllerRegistrationTotalMs: 5,
+    });
   });
 
   it("tracks asset-load, runtime-ready, and first-frame lifecycle timings", () => {
