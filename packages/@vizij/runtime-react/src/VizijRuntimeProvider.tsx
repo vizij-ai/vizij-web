@@ -2164,16 +2164,16 @@ function VizijRuntimeProviderInner({
         }
       }
 
-      const plan = options?.mutationClass
-        ? resolveRuntimeUpdatePlanFromMutationClass(
-            options.mutationClass,
-            requestedTier,
-          )
-        : resolveRuntimeUpdatePlan(
-            previousBundleRef.current,
-            nextAssetBundle,
-            requestedTier,
-          );
+      // Topology mutations can trust explicit intent. Pose mutations may
+      // be graph-shape or config-only, so defer to structural diffing.
+      const plan =
+        options?.mutationClass === "topology"
+          ? resolveRuntimeUpdatePlanFromMutationClass("topology", requestedTier)
+          : resolveRuntimeUpdatePlan(
+              previousBundleRef.current,
+              nextAssetBundle,
+              requestedTier,
+            );
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       setAssetBundleOverride(nextAssetBundle);

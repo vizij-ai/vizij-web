@@ -52,17 +52,12 @@ function graphSignature(graph?: VizijAssetBundle["rig"]): string {
   return `${id}:${normalizeSpecPayload(graph.spec ?? graph.ir ?? null)}`;
 }
 
-function poseSignature(pose?: VizijAssetBundle["pose"]): string {
-  if (!pose) {
+function poseGraphSignature(pose?: VizijAssetBundle["pose"]): string {
+  const graph = pose?.graph;
+  if (!graph) {
     return "";
   }
-  const graph = pose.graph;
-  const config = pose.config;
-  const graphPart = graph
-    ? graphSignature({ id: graph.id, spec: graph.spec })
-    : "";
-  const configPart = config ? normalizeSpecPayload(config) : "";
-  return `${graphPart}:${configPart}`;
+  return graphSignature({ id: graph.id, spec: graph.spec });
 }
 
 export function resolveRuntimeUpdatePlan(
@@ -76,17 +71,20 @@ export function resolveRuntimeUpdatePlan(
 
   const glbChanged = glbSignature(previous.glb) !== glbSignature(next.glb);
   const rigChanged = graphSignature(previous.rig) !== graphSignature(next.rig);
-  const poseChanged = poseSignature(previous.pose) !== poseSignature(next.pose);
+  const poseGraphChanged =
+    poseGraphSignature(previous.pose) !== poseGraphSignature(next.pose);
   const rigReferenceChanged =
     previous.rig?.id !== next.rig?.id ||
     previous.rig?.spec !== next.rig?.spec ||
     previous.rig?.ir !== next.rig?.ir;
-  const poseReferenceChanged =
+  const poseGraphReferenceChanged =
     previous.pose?.graph?.id !== next.pose?.graph?.id ||
-    previous.pose?.graph?.spec !== next.pose?.graph?.spec ||
-    previous.pose?.config !== next.pose?.config;
+    previous.pose?.graph?.spec !== next.pose?.graph?.spec;
   const graphsChanged =
-    rigChanged || poseChanged || rigReferenceChanged || poseReferenceChanged;
+    rigChanged ||
+    poseGraphChanged ||
+    rigReferenceChanged ||
+    poseGraphReferenceChanged;
 
   if (tier === "assets") {
     return { reloadAssets: true, reregisterGraphs: false };

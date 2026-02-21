@@ -88,6 +88,58 @@ describe("resolveRuntimeUpdatePlan", () => {
     expect(plan.reregisterGraphs).toBe(true);
   });
 
+  it("does not re-register when only pose config changes in graphs mode", () => {
+    const rigSpec = { nodes: [], edges: [] };
+    const poseSpec = { nodes: [], edges: [] };
+    const prev = makeBundle({
+      rig: { id: "rig", spec: rigSpec },
+      pose: {
+        graph: { id: "pose", spec: poseSpec },
+        config: { version: 1, neutralInputs: {}, poses: [] },
+      },
+    });
+    const next = makeBundle({
+      rig: { id: "rig", spec: rigSpec },
+      pose: {
+        graph: { id: "pose", spec: poseSpec },
+        config: {
+          version: 1,
+          neutralInputs: { "/standard/mouth/x": 0.25 },
+          poses: [],
+        },
+      },
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(false);
+  });
+
+  it("does not re-register when only pose config changes in auto mode", () => {
+    const rigSpec = { nodes: [], edges: [] };
+    const poseSpec = { nodes: [], edges: [] };
+    const prev = makeBundle({
+      rig: { id: "rig", spec: rigSpec },
+      pose: {
+        graph: { id: "pose", spec: poseSpec },
+        config: { version: 1, neutralInputs: {}, poses: [] },
+      },
+    });
+    const next = makeBundle({
+      rig: { id: "rig", spec: rigSpec },
+      pose: {
+        graph: { id: "pose", spec: poseSpec },
+        config: {
+          version: 1,
+          neutralInputs: {},
+          poses: [{ id: "smile", values: { "/standard/mouth/x": 0.5 } }],
+        },
+      },
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "auto");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(false);
+  });
+
   it("treats rig removal as graph re-registration in graphs mode", () => {
     const prev = makeBundle();
     const next = makeBundle({
