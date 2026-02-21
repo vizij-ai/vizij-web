@@ -12,6 +12,8 @@ The previous fix (structural classification by pose-graph revision only) was dir
 
 Implemented nudge-free fix: add an explicit `graphBridgeForceTopologyRevision` signal and bump it once after successful bundle pose import. This preserves pose data, avoids synthetic pose mutations, and uses explicit runtime intent.
 
+Status update (same day): the nudge-free path alone was not sufficient in Quori smoke. Current correctness path is explicit forced topology refresh plus deterministic structural nudge fallback.
+
 ## What Was Investigated
 
 ### 1. Import path and runtime publish path
@@ -153,3 +155,38 @@ Current behavior after this pass:
 
 1. Explicit topology refresh is now delayed until pose-graph settle probe and runtime-input bridge readiness probe complete.
 2. User-provided trace showed the prior probe had a false positive (topology churn advanced counters before forced-refresh publish landed), so structural nudge is now deterministic again after explicit refresh while traces remain in place for root-cause analysis.
+
+## Update: Trace Triaging and Nudge Hardening (2026-02-21)
+
+### What the latest user trace proved
+
+The provided trace included `post-pose-import-refresh-result` fields `registrationObserved` and `nudgeApplied: false`.
+
+That field set exists only in the older probe-gated refresh implementation and is not emitted by the current deterministic path. So that run was from the older probe build (or a stale dev server build), not the current refresh flow.
+
+### Hardening added after this trace
+
+`App.tsx` now emits refresh versioned debug payloads (`refreshVersion: "deterministic-nudge-v2"`) and records whether the nudge actually mutated pose data.
+
+Post-import result payload now includes:
+
+1. `nudgeAttempted`
+2. `nudgeApplied`
+3. `nudgeStrategy`
+4. `nudgeReason`
+5. `nudgePoseId` / `nudgeInputId`
+6. `nudgeWaitAttempts`
+
+### Nudge fallback made robust
+
+Primary strategy remains add/remove of a missing pose input (`add-remove-missing-input`).
+
+If no missing input is available, fallback now performs a structural remove/re-add on an existing pose input (`remove-readd-existing-input`) and restores original value/compose mode. This prevents silent no-op nudge runs.
+
+### Why this matters
+
+It removes ambiguity in smoke diagnosis:
+
+1. We can now distinguish stale-build traces from current code by event shape/version.
+2. We can prove whether the post-import nudge actually mutated structure.
+3. We retain correctness-first behavior while preserving data fidelity.

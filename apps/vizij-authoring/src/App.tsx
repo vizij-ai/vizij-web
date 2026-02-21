@@ -227,23 +227,65 @@ function AppContent({
     handleImportGraphSpec,
   );
   const poseRigRef = useRef(poseRig);
+
+  type PostPoseImportNudgeStrategy =
+    | "add-remove-missing-input"
+    | "remove-readd-existing-input";
+  type PostPoseImportNudgeResult = {
+    attempted: boolean;
+    applied: boolean;
+    strategy: PostPoseImportNudgeStrategy | null;
+    reason: string | null;
+    poseId: string | null;
+    inputId: string | null;
+    waitAttempts: number;
+  };
+
   useEffect(() => {
     poseRigRef.current = poseRig;
   }, [poseRig]);
-  const runPostPoseImportNudge = useCallback(async () => {
+  const runPostPoseImportNudge = useCallback<
+    () => Promise<PostPoseImportNudgeResult>
+  >(async () => {
     let snapshot = poseRigRef.current;
+    let waitAttempts = 0;
     for (
       let attempt = 0;
-      attempt < 20 &&
+      attempt < 45 &&
       (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0);
       attempt += 1
     ) {
+      waitAttempts = attempt + 1;
       await waitForNextFrame();
       snapshot = poseRigRef.current;
     }
-    if (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0) {
-      return;
+    if (snapshot.poses.length === 0) {
+      return {
+        attempted: false,
+        applied: false,
+        strategy: null,
+        reason: "no-poses",
+        poseId: null,
+        inputId: null,
+        waitAttempts,
+      };
     }
+    if (snapshot.standardInputs.length === 0) {
+      return {
+        attempted: false,
+        applied: false,
+        strategy: null,
+        reason: "no-standard-inputs",
+        poseId: null,
+        inputId: null,
+        waitAttempts,
+      };
+    }
+
+    const availableInputIds = new Set(
+      snapshot.standardInputs.map((input) => input.id),
+    );
+
     const target = snapshot.poses
       .map((pose) => {
         const currentInputs = new Set(Object.keys(pose.values));
@@ -255,12 +297,85 @@ function AppContent({
       .find((entry): entry is { poseId: string; inputId: string } =>
         Boolean(entry),
       );
-    if (!target) {
-      return;
+    if (target) {
+      snapshot.addPoseInput(target.poseId, target.inputId);
+      await waitForNextFrame();
+      poseRigRef.current.removePoseInput(target.poseId, target.inputId);
+      return {
+        attempted: true,
+        applied: true,
+        strategy: "add-remove-missing-input",
+        reason: null,
+        poseId: target.poseId,
+        inputId: target.inputId,
+        waitAttempts,
+      };
     }
-    snapshot.addPoseInput(target.poseId, target.inputId);
+
+    const fallbackTarget = snapshot.poses
+      .map((pose) => {
+        const existingInputId = Object.keys(pose.values).find((inputId) =>
+          availableInputIds.has(inputId),
+        );
+        return existingInputId
+          ? { poseId: pose.id, inputId: existingInputId }
+          : null;
+      })
+      .find((entry): entry is { poseId: string; inputId: string } =>
+        Boolean(entry),
+      );
+
+    if (!fallbackTarget) {
+      return {
+        attempted: false,
+        applied: false,
+        strategy: null,
+        reason: "no-reusable-pose-input",
+        poseId: null,
+        inputId: null,
+        waitAttempts,
+      };
+    }
+
+    const targetPose =
+      snapshot.poses.find((pose) => pose.id === fallbackTarget.poseId) ?? null;
+    const originalValue =
+      targetPose?.values[fallbackTarget.inputId] ?? undefined;
+    const originalComposeMode =
+      targetPose?.composeModes?.[fallbackTarget.inputId] ?? undefined;
+
+    snapshot.removePoseInput(fallbackTarget.poseId, fallbackTarget.inputId);
     await waitForNextFrame();
-    poseRigRef.current.removePoseInput(target.poseId, target.inputId);
+    poseRigRef.current.addPoseInput(
+      fallbackTarget.poseId,
+      fallbackTarget.inputId,
+    );
+    await waitForNextFrame();
+
+    if (typeof originalValue === "number" && Number.isFinite(originalValue)) {
+      poseRigRef.current.updatePoseValue(
+        fallbackTarget.poseId,
+        fallbackTarget.inputId,
+        originalValue,
+      );
+    }
+    if (originalComposeMode === "add" || originalComposeMode === "average") {
+      poseRigRef.current.setPoseInputComposeMode(
+        fallbackTarget.poseId,
+        fallbackTarget.inputId,
+        originalComposeMode,
+      );
+    }
+
+    return {
+      attempted: true,
+      applied: true,
+      strategy: "remove-readd-existing-input",
+      reason: null,
+      poseId: fallbackTarget.poseId,
+      inputId: fallbackTarget.inputId,
+      waitAttempts,
+    };
   }, []);
   const requestRuntimeTopologyRefresh = useCallback(async () => {
     const refreshStartMs =
@@ -273,8 +388,10 @@ function AppContent({
     const targetForceRevision = baselineForceRevision + 1;
     const metricsBeforeRefresh = getRuntimePerfMetricsSnapshot();
     recordRuntimeDebugEvent("post-pose-import-refresh-start", {
+      refreshVersion: "deterministic-nudge-v2",
       baselinePoseGraphRevision,
       baselineForceRevision,
+      targetForceRevision,
       baselineControllerRegistrationRuns:
         metricsBeforeRefresh.controllerRegistrationRuns,
       baselineTopologyPublishes:
@@ -345,10 +462,11 @@ function AppContent({
     // Deterministic correctness path: always apply the proven nudge after the
     // explicit forced refresh. Keep force deltas for continued root-cause work.
     await waitForNextFrame();
-    await runPostPoseImportNudge();
+    const nudgeResult = await runPostPoseImportNudge();
 
     const metricsAfterNudge = getRuntimePerfMetricsSnapshot();
     recordRuntimeDebugEvent("post-pose-import-refresh-result", {
+      refreshVersion: "deterministic-nudge-v2",
       poseGraphSettled,
       poseGraphSettleAttempts,
       runtimeBridgeReady,
@@ -357,7 +475,13 @@ function AppContent({
       forcePublishWaitAttempts,
       postForceTopologyDelta,
       postForceRegistrationDelta,
-      nudgeApplied: true,
+      nudgeApplied: nudgeResult.applied,
+      nudgeAttempted: nudgeResult.attempted,
+      nudgeStrategy: nudgeResult.strategy,
+      nudgeReason: nudgeResult.reason,
+      nudgePoseId: nudgeResult.poseId,
+      nudgeInputId: nudgeResult.inputId,
+      nudgeWaitAttempts: nudgeResult.waitAttempts,
       postNudgeTopologyDelta:
         metricsAfterNudge.graphBridgeTopologyPublishes -
         metricsBeforeRefresh.graphBridgeTopologyPublishes,
