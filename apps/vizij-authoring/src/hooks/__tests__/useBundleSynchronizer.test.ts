@@ -174,6 +174,7 @@ describe("useBundleSynchronizer failure surfaces", () => {
       importedFaceId: null,
     }));
     const importPoseConfigFromData = vi.fn();
+    const onPostPoseImport = vi.fn();
     const onSuccess = vi.fn();
     const baseProps = {
       faceId: "robot",
@@ -185,6 +186,7 @@ describe("useBundleSynchronizer failure surfaces", () => {
       skipDiscrepancyCheck: false,
       importGraphSpec,
       importPoseConfigFromData,
+      onPostPoseImport,
       onFailure: vi.fn(),
       onSuccess,
     };
@@ -206,6 +208,9 @@ describe("useBundleSynchronizer failure surfaces", () => {
 
     await waitFor(() => {
       expect(importPoseConfigFromData).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(onPostPoseImport).toHaveBeenCalledTimes(1);
     });
     expect(importGraphSpec).toHaveBeenCalledTimes(1);
     expect(onSuccess).toHaveBeenCalledTimes(1);

@@ -36,6 +36,7 @@ interface UseBundleSynchronizerOptions {
     options?: ImportGraphSpecOptions,
   ) => Promise<GraphImportResult>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  onPostPoseImport?: () => void | Promise<void>;
   onFailure?: (failure: BundleSyncFailure) => void;
   onSuccess?: () => void;
 }
@@ -147,12 +148,14 @@ export function useBundleSynchronizer({
   retryToken = 0,
   importGraphSpec,
   importPoseConfigFromData,
+  onPostPoseImport,
   onFailure,
   onSuccess,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
   const importGraphSpecRef = useLatestRef(importGraphSpec);
   const importPoseConfigFromDataRef = useLatestRef(importPoseConfigFromData);
+  const onPostPoseImportRef = useLatestRef(onPostPoseImport);
   const onFailureRef = useLatestRef(onFailure);
   const onSuccessRef = useLatestRef(onSuccess);
   const skipDiscrepancyCheckRef = useLatestRef(skipDiscrepancyCheck);
@@ -186,6 +189,7 @@ export function useBundleSynchronizer({
     const applyBundleState = async () => {
       let fingerprint: string | null = null;
       let rigImportedThisPass = false;
+      let poseImportedThisPass = false;
       try {
         if (!rootId || !loadedBundle) {
           finalizeRuntimeImportPerfSession("cancelled");
@@ -322,6 +326,7 @@ export function useBundleSynchronizer({
               loadedBundle.poses.config as unknown as PoseRigConfigFile,
             );
             poseImportedRef.current = true;
+            poseImportedThisPass = true;
             pendingImportedFaceIdRef.current = null;
           } catch (error) {
             hasFailure = true;
@@ -338,6 +343,23 @@ export function useBundleSynchronizer({
           }
           if (cancelled) {
             return;
+          }
+        }
+
+        if (
+          poseImportedThisPass &&
+          !hasFailure &&
+          onPostPoseImportRef.current
+        ) {
+          try {
+            await onPostPoseImportRef.current?.();
+          } catch (error) {
+            const detail =
+              error instanceof Error ? error.message : String(error);
+            console.warn(
+              "[vizij-authoring] Post-pose-import nudge failed.",
+              detail,
+            );
           }
         }
 

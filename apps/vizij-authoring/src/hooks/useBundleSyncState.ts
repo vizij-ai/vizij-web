@@ -21,6 +21,7 @@ interface UseBundleSyncStateOptions {
     options?: ImportGraphSpecOptions,
   ) => Promise<GraphImportResult>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  onPostPoseImport?: () => void | Promise<void>;
 }
 
 /**
@@ -36,6 +37,7 @@ export function useBundleSyncState({
   importGraphSpecReady = true,
   importGraphSpec,
   importPoseConfigFromData,
+  onPostPoseImport,
 }: UseBundleSyncStateOptions) {
   const [bundleSyncFailure, setBundleSyncFailure] =
     useState<BundleSyncFailure | null>(null);
@@ -65,6 +67,7 @@ export function useBundleSyncState({
     retryToken: bundleSyncRetryToken,
     importGraphSpec,
     importPoseConfigFromData,
+    onPostPoseImport,
     onFailure: setBundleSyncFailure,
     onSuccess: clearBundleSyncFailure,
   });
