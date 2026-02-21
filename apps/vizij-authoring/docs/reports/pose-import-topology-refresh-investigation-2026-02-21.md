@@ -101,3 +101,36 @@ Result: pass.
 1. This intentionally forces one topology refresh after pose import; it is correctness-first and may carry small extra churn.
 2. If we want further optimization, we should only reduce this once we have per-asset proof that the refresh is redundant.
 3. Existing React warning in app boot (`setState in render`) is unrelated but should be tracked separately.
+
+## Update: Post-Smoke Regression (2026-02-21)
+
+### What changed in findings
+
+Manual smoke validation showed the explicit-refresh-only commit (`edf5f64`) was not sufficient on Quori: imported poses could still require a manual add-variable action before becoming functional.
+
+### Multi-agent investigation summary
+
+Parallel review across commit timeline, pose store pipeline, and runtime registration path converged on this:
+
+1. The add/remove variable path remains a reliable recovery path because it guarantees a real structural pose mutation after import.
+2. A single explicit topology refresh can still miss the effective “settled pose graph” checkpoint in some runs.
+3. `normalizeGraphSpec` purity/reference behavior is not the culprit:
+   - targeted probes confirmed fresh returned objects,
+   - no in-place mutation side effects were observed.
+4. Therefore, the practical issue is sequencing/settling of the post-import transition, not corruption of graph payloads.
+
+### Current implementation direction (WIP)
+
+`App.tsx` now uses a hardened post-import routine:
+
+1. wait for pose-graph publication signals,
+2. force topology refresh explicitly,
+3. if pose-graph publication does not arrive in a bounded window, run the known-good add/remove pose-input nudge as fallback.
+
+This preserves correctness in worst-case paths while keeping a cleaner explicit-refresh path for healthy runs.
+
+### Why this is the current best tradeoff
+
+1. It keeps user-facing behavior reliable (no manual intervention requirement).
+2. It retains explicit runtime intent when possible.
+3. It limits cludge behavior to fallback conditions instead of making it the primary mechanism.

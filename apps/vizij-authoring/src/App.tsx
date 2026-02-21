@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
@@ -47,6 +47,7 @@ import { useSampleAssetLoader } from "./hooks/useSampleAssetLoader";
 import { useImportFileHandlers } from "./hooks/useImportFileHandlers";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import { waitForNextFrame } from "./utils/frame";
 import {
   createPoseImportResult,
   resolveImportSuccessStatus,
@@ -221,12 +222,73 @@ function AppContent({
   const importGraphSpecReady = !isPlaceholderGraphImportHandler(
     handleImportGraphSpec,
   );
-  const requestRuntimeTopologyRefresh = useCallback(() => {
+  const poseRigRef = useRef(poseRig);
+  useEffect(() => {
+    poseRigRef.current = poseRig;
+  }, [poseRig]);
+  const runPostPoseImportNudge = useCallback(async () => {
+    let snapshot = poseRigRef.current;
+    for (
+      let attempt = 0;
+      attempt < 20 &&
+      (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0);
+      attempt += 1
+    ) {
+      await waitForNextFrame();
+      snapshot = poseRigRef.current;
+    }
+    if (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0) {
+      return;
+    }
+    const target = snapshot.poses
+      .map((pose) => {
+        const currentInputs = new Set(Object.keys(pose.values));
+        const nudgeInput = snapshot.standardInputs.find(
+          (input) => !currentInputs.has(input.id),
+        );
+        return nudgeInput ? { poseId: pose.id, inputId: nudgeInput.id } : null;
+      })
+      .find((entry): entry is { poseId: string; inputId: string } =>
+        Boolean(entry),
+      );
+    if (!target) {
+      return;
+    }
+    snapshot.addPoseInput(target.poseId, target.inputId);
+    await waitForNextFrame();
+    poseRigRef.current.removePoseInput(target.poseId, target.inputId);
+  }, []);
+  const requestRuntimeTopologyRefresh = useCallback(async () => {
+    const baseline = graphRuntimeStore.getState();
+    const baselinePoseGraphRevision = baseline.poseGraphSpecRevision ?? 0;
+    const baselinePoseGraphSpec = baseline.poseGraphSpec ?? null;
+    let poseGraphSettled = false;
+
+    // Wait for the imported pose graph publication before forcing topology.
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      const next = graphRuntimeStore.getState();
+      const poseGraphRevisionAdvanced =
+        (next.poseGraphSpecRevision ?? 0) > baselinePoseGraphRevision;
+      const poseGraphReferenceChanged =
+        (next.poseGraphSpec ?? null) !== baselinePoseGraphSpec;
+      if (poseGraphRevisionAdvanced || poseGraphReferenceChanged) {
+        poseGraphSettled = true;
+        break;
+      }
+      await waitForNextFrame();
+    }
+
     graphRuntimeStore.setState((state) => ({
       graphBridgeForceTopologyRevision:
         (state.graphBridgeForceTopologyRevision ?? 0) + 1,
     }));
-  }, [graphRuntimeStore]);
+
+    // Fallback: if imported pose graph publication never materialized, use the
+    // known-good structural nudge path to guarantee a topology transition.
+    if (!poseGraphSettled) {
+      await runPostPoseImportNudge();
+    }
+  }, [graphRuntimeStore, runPostPoseImportNudge]);
   const {
     bundleSyncFailure,
     retryBundleSync,

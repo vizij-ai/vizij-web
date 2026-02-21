@@ -21,7 +21,8 @@ We recovered correctness from earlier publish-coalescing regressions and have ke
 Post-`0a45887` reruns now hit sub-5s in both OFF and ON modes on Quori with stable behavior: OFF mean `4049.137ms` and ON mean `4450.918ms` (latest 3x sets, page reload per run).  
 Prewarm ON still shifts time later in the pipeline (`rootAssignedToReadyMs` improves, but `readyToFirstFrameMs` increases), and OFF remains faster overall in this run set.  
 Registration churn stayed bounded in low single digits (OFF `1`, ON `3`), and update coverage stayed stable (`graphBridgeAccepted/Attempts = 23/32`).  
-Conclusion: keep payload-serialization caching and current staging behavior, keep prewarm default-off, and treat additional risky coalescing work as optional follow-up pending cross-asset validation.
+Conclusion: keep payload-serialization caching and current staging behavior, keep prewarm default-off, and treat additional risky coalescing work as optional follow-up pending cross-asset validation.  
+Pose-import wake-up note (latest smoke): explicit topology-refresh-only replacement did not fully hold; fallback structural nudge remains required unless a stronger settled-publication signal is proven.
 
 ## Timeline Of Attempts
 
@@ -42,7 +43,8 @@ Conclusion: keep payload-serialization caching and current staging behavior, kee
 | `ae53ee1`             | Ignored graph reference-only churn in registration policy     | Large readiness/churn win; correctness checks green.                                        |
 | `WIP (2026-02-21)`    | Added pose-graph structural revision classification path      | Improved mutation classification but did not fully close Quori pose wake-up gap.            |
 | `WIP (2026-02-21)`    | Added temporary add/remove pose-variable post-import nudge    | Confirmed forced structural transition restores imported pose function in user smoke tests. |
-| `WIP (2026-02-21)`    | Replaced nudge with explicit topology-refresh revision signal | Same runtime wake-up intent without mutating user pose data; validation pending commit.     |
+| `edf5f64`             | Replaced nudge with explicit topology-refresh revision signal | Targeted tests passed, but manual Quori smoke still required add-variable nudge.            |
+| `WIP (2026-02-21)`    | Added guarded explicit refresh + fallback nudge strategy      | Explicit refresh first; auto-fallback to structural nudge when pose publish never settles.  |
 
 ## What Failed
 
@@ -66,7 +68,7 @@ Conclusion: keep payload-serialization caching and current staging behavior, kee
 5. Instrumentation is now good enough to guide targeted optimization instead of guessing.
 6. Prewarm-on imports now show bounded registration churn (`3` runs/import mean in latest 3x), but still have a larger post-ready window than OFF (`readyToFirstFrameMs` ON `1595.768ms` vs OFF `14.798ms` mean).
 7. Structural pose-graph updates need explicit runtime mutation classification; treating them as config-like pose updates can miss required registration transitions.
-8. A deterministic post-import topology refresh signal is safer than synthetic pose-data mutations; it preserves correctness intent while avoiding add/remove variable hacks.
+8. A deterministic post-import topology refresh signal is directionally correct but was not sufficient alone in manual Quori smoke; fallback structural transition remains required until sequencing is fully pinned down.
 
 ## Guardrails (Do Not Break)
 
