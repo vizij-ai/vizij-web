@@ -1,6 +1,6 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 import {
@@ -9,6 +9,8 @@ import {
 } from "../../state/RigControllerProvider";
 import {
   getLastRuntimeImportPerfSummary,
+  markRuntimeGraphPublish,
+  markRuntimeLoadingState,
   recordGraphBridgeRun,
   recordRuntimeFirstFrame,
   recordRuntimeReady,
@@ -98,7 +100,8 @@ function RuntimeSelectionBridge({
 }
 
 function RuntimeGraphBridge() {
-  const { setGraphBundle } = useVizijRuntime();
+  const { ready, rootId, setGraphBundle } = useVizijRuntime();
+  const runtimeRootId = rootId ?? null;
   const graphSpecRevision = useGraphRuntime((state) => state.graphSpecRevision);
   const poseRuntimeRevision = useGraphRuntime(
     (state) => state.poseRuntimeRevision,
@@ -107,6 +110,41 @@ function RuntimeGraphBridge() {
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
   const lastRevisionRef = useRef<RuntimeGraphBridgeRevisions | null>(null);
+  const previousRootIdRef = useRef<string | null>(null);
+  const bootstrapPublishedRootRef = useRef<string | null>(null);
+  const queuedMutationRef = useRef<{
+    rootId: string;
+    mutation: ReturnType<typeof createRuntimeGraphMutation>;
+  } | null>(null);
+
+  const publishMutation = useCallback(
+    (mutation: ReturnType<typeof createRuntimeGraphMutation>) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[vizij-runtime][graph-bridge]", {
+          mutationClass: mutation.mutationClass,
+          hasRig: Boolean(mutation.bundle.rig),
+          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
+          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+        });
+      }
+      setGraphBundle(mutation.bundle, {
+        ...mutation.options,
+        mutationClass: mutation.mutationClass,
+      });
+      return mutation.mutationClass;
+    },
+    [setGraphBundle],
+  );
+
+  useEffect(() => {
+    if (previousRootIdRef.current === runtimeRootId) {
+      return;
+    }
+    previousRootIdRef.current = runtimeRootId;
+    bootstrapPublishedRootRef.current = null;
+    queuedMutationRef.current = null;
+    lastRevisionRef.current = null;
+  }, [runtimeRootId]);
 
   useEffect(() => {
     const startMs =
@@ -133,20 +171,22 @@ function RuntimeGraphBridge() {
         poseConfig,
       };
       const mutation = createRuntimeGraphMutation(state, mutationClass);
-      publishedMutationClass = mutation.mutationClass;
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[vizij-runtime][graph-bridge]", {
-          mutationClass: mutation.mutationClass,
-          hasRig: Boolean(mutation.bundle.rig),
-          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
-          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
-        });
+      if (!ready && runtimeRootId) {
+        if (bootstrapPublishedRootRef.current !== runtimeRootId) {
+          bootstrapPublishedRootRef.current = runtimeRootId;
+          queuedMutationRef.current = null;
+          publishedMutationClass = publishMutation(mutation);
+        } else {
+          queuedMutationRef.current = {
+            rootId: runtimeRootId,
+            mutation,
+          };
+        }
+        return;
       }
-      setGraphBundle(mutation.bundle, {
-        ...mutation.options,
-        mutationClass: mutation.mutationClass,
-      });
+      bootstrapPublishedRootRef.current = null;
+      publishedMutationClass = publishMutation(mutation);
     } finally {
       const endMs =
         typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -154,6 +194,9 @@ function RuntimeGraphBridge() {
         endMs - startMs,
         publishedMutationClass,
       );
+      if (publishedMutationClass && runtimeRootId) {
+        markRuntimeGraphPublish(runtimeRootId, publishedMutationClass);
+      }
       if (process.env.NODE_ENV !== "production") {
         (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
           snapshot;
@@ -165,19 +208,54 @@ function RuntimeGraphBridge() {
     graphSpec,
     poseGraphSpec,
     poseConfig,
-    setGraphBundle,
+    publishMutation,
+    ready,
+    runtimeRootId,
   ]);
+
+  useEffect(() => {
+    if (!ready || !runtimeRootId) {
+      return;
+    }
+    const queued = queuedMutationRef.current;
+    if (!queued || queued.rootId !== runtimeRootId) {
+      return;
+    }
+    queuedMutationRef.current = null;
+
+    const startMs =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    let publishedMutationClass: "topology" | "pose" | null = null;
+    try {
+      publishedMutationClass = publishMutation(queued.mutation);
+    } finally {
+      const endMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const snapshot = recordGraphBridgeRun(
+        endMs - startMs,
+        publishedMutationClass,
+      );
+      if (publishedMutationClass && runtimeRootId) {
+        markRuntimeGraphPublish(runtimeRootId, publishedMutationClass);
+      }
+      if (process.env.NODE_ENV !== "production") {
+        (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+          snapshot;
+      }
+    }
+  }, [publishMutation, ready, runtimeRootId]);
 
   return null;
 }
 
 function RuntimeLifecyclePerfBridge() {
-  const { ready, rootId } = useVizijRuntime();
+  const { loading, ready, rootId } = useVizijRuntime();
+  const runtimeRootId = rootId ?? null;
   const readyRootRef = useRef<string | null>(null);
   const firstFrameRootRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!rootId) {
+    if (!runtimeRootId) {
       readyRootRef.current = null;
       firstFrameRootRef.current = null;
       return;
@@ -185,13 +263,15 @@ function RuntimeLifecyclePerfBridge() {
     if (!ready) {
       readyRootRef.current = null;
       firstFrameRootRef.current = null;
+      markRuntimeLoadingState(runtimeRootId, loading);
       return;
     }
-    if (readyRootRef.current !== rootId) {
-      readyRootRef.current = rootId;
-      recordRuntimeReady(rootId);
+    markRuntimeLoadingState(runtimeRootId, loading);
+    if (readyRootRef.current !== runtimeRootId) {
+      readyRootRef.current = runtimeRootId;
+      recordRuntimeReady(runtimeRootId);
     }
-    if (firstFrameRootRef.current === rootId) {
+    if (firstFrameRootRef.current === runtimeRootId) {
       return;
     }
 
@@ -200,13 +280,13 @@ function RuntimeLifecyclePerfBridge() {
       if (cancelled) {
         return;
       }
-      firstFrameRootRef.current = rootId;
-      const snapshot = recordRuntimeFirstFrame(rootId);
+      firstFrameRootRef.current = runtimeRootId;
+      const snapshot = recordRuntimeFirstFrame(runtimeRootId);
       if (process.env.NODE_ENV !== "production") {
         (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
           snapshot;
         const importSummary = getLastRuntimeImportPerfSummary();
-        if (importSummary && importSummary.rootId === rootId) {
+        if (importSummary && importSummary.rootId === runtimeRootId) {
           // eslint-disable-next-line no-console -- import runtime diagnostics
           console.info("[vizij-authoring] import render perf summary", {
             ...importSummary,
@@ -219,7 +299,7 @@ function RuntimeLifecyclePerfBridge() {
       cancelled = true;
       cancelAnimationFrame(frameHandle);
     };
-  }, [ready, rootId]);
+  }, [loading, ready, runtimeRootId]);
 
   return null;
 }

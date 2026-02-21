@@ -17,6 +17,9 @@ const setInputSpy = vi.fn();
 const setGraphBundleSpy = vi.fn();
 const selectElementByIdSpy = vi.fn();
 let runtimeSelectedElementId: string | null = null;
+let runtimeReady = true;
+let runtimeLoading = false;
+let runtimeRootId = "root";
 
 vi.mock("@vizij/runtime-react", () => ({
   VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
@@ -28,9 +31,9 @@ vi.mock("@vizij/runtime-react", () => ({
   useVizijRuntime: () => ({
     setInput: setInputSpy,
     step: stepSpy,
-    ready: true,
-    loading: false,
-    rootId: "root",
+    ready: runtimeReady,
+    loading: runtimeLoading,
+    rootId: runtimeRootId,
     error: null,
     controllers: { graphs: [] },
     outputPaths: [],
@@ -78,6 +81,9 @@ describe("Viewer", () => {
     vi.clearAllMocks();
     resetRuntimePerfMetrics();
     runtimeSelectedElementId = null;
+    runtimeReady = true;
+    runtimeLoading = false;
+    runtimeRootId = "root";
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -360,6 +366,79 @@ describe("Viewer", () => {
           graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
+      },
+      { tier: "graphs", mutationClass: "topology" },
+    );
+  });
+
+  it("coalesces graph updates while runtime is not ready and flushes latest when ready", () => {
+    runtimeReady = false;
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+    });
+
+    const view = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setState({
+        poseGraphSpec: undefined,
+        poseConfig: undefined,
+        poseRuntimeRevision: 1,
+      });
+      store.setState({
+        graphSpec: undefined,
+        graphSpecRevision: 1,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    runtimeReady = true;
+    view.rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: undefined,
+        pose: undefined,
       },
       { tier: "graphs", mutationClass: "topology" },
     );
