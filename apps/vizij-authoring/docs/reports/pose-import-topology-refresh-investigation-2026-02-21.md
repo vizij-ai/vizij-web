@@ -134,3 +134,22 @@ This preserves correctness in worst-case paths while keeping a cleaner explicit-
 1. It keeps user-facing behavior reliable (no manual intervention requirement).
 2. It retains explicit runtime intent when possible.
 3. It limits cludge behavior to fallback conditions instead of making it the primary mechanism.
+
+## Update: Instrumentation Pass (2026-02-21)
+
+Added structured debug-event instrumentation to trace the failing path:
+
+1. `recordRuntimeDebugEvent(...)` + `getRuntimeDebugEvents()` in `runtimePerfMetrics`.
+2. Viewer graph bridge emits publish/skip events with revision counters and payload presence.
+3. Post-pose-import refresh emits start/result events including:
+   - pose-graph settle attempts,
+   - runtime bridge readiness,
+   - whether controller registration was observed after explicit refresh,
+   - whether fallback nudge was required.
+
+Debug traces are exposed on `window.__vizijRuntimeDebugEvents` for manual smoke runs.
+
+Current behavior after this pass:
+
+1. Explicit topology refresh is now delayed until pose-graph settle probe and runtime-input bridge readiness probe complete.
+2. Structural nudge is only used when explicit refresh does not lead to observed registration/publish progression within bounded frames.

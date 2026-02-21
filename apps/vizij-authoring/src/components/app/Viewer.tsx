@@ -11,6 +11,7 @@ import {
   getLastRuntimeImportPerfSummary,
   recordGraphBridgeRun,
   recordRuntimeControllerRegistrationRun,
+  recordRuntimeDebugEvent,
   recordRuntimeFirstFrame,
   recordRuntimeReady,
 } from "../../perf/runtimePerfMetrics";
@@ -132,6 +133,12 @@ function RuntimeGraphBridge() {
         nextRevisions,
       );
       if (!mutationClass) {
+        recordRuntimeDebugEvent("viewer-graph-bridge-skip", {
+          graphSpecRevision,
+          poseGraphSpecRevision,
+          poseRuntimeRevision,
+          graphBridgeForceTopologyRevision,
+        });
         return;
       }
       lastRevisionRef.current = nextRevisions;
@@ -143,6 +150,16 @@ function RuntimeGraphBridge() {
       };
       const mutation = createRuntimeGraphMutation(state, mutationClass);
       publishedMutationClass = mutation.mutationClass;
+      recordRuntimeDebugEvent("viewer-graph-bridge-publish", {
+        mutationClass: mutation.mutationClass,
+        graphSpecRevision,
+        poseGraphSpecRevision,
+        poseRuntimeRevision,
+        graphBridgeForceTopologyRevision,
+        hasRig: Boolean(mutation.bundle.rig),
+        hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
+        hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+      });
 
       if (process.env.NODE_ENV !== "production") {
         console.log("[vizij-runtime][graph-bridge]", {
@@ -202,6 +219,7 @@ function RuntimeLifecyclePerfBridge() {
     if (readyRootRef.current !== rootId) {
       readyRootRef.current = rootId;
       recordRuntimeReady(rootId);
+      recordRuntimeDebugEvent("viewer-runtime-ready", { rootId });
     }
     if (firstFrameRootRef.current === rootId) {
       return;
@@ -214,6 +232,7 @@ function RuntimeLifecyclePerfBridge() {
       }
       firstFrameRootRef.current = rootId;
       const snapshot = recordRuntimeFirstFrame(rootId);
+      recordRuntimeDebugEvent("viewer-runtime-first-frame", { rootId });
       if (process.env.NODE_ENV !== "production") {
         (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
           snapshot;

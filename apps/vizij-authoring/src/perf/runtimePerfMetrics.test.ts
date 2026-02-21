@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   finalizeRuntimeImportPerfSession,
   getActiveRuntimeImportPerfSession,
+  getRuntimeDebugEvents,
   getRuntimePerfMetricsSnapshot,
   getRuntimeImportPerfSessionSnapshot,
   getLastRuntimeImportPerfSummary,
   markRuntimeRootAssigned,
   recordAssetLoadRun,
+  recordRuntimeDebugEvent,
   recordBuildRigGraphSpecRun,
   recordGraphBridgeRun,
   recordPoseNormalizeRun,
@@ -206,5 +208,28 @@ describe("runtimePerfMetrics", () => {
     expect(snapshot.activeSession?.graphBridgeAcceptedUpdates).toBe(1);
 
     unsubscribe();
+  });
+
+  it("tracks and resets runtime debug events", () => {
+    recordRuntimeDebugEvent("post-pose-import-refresh-start", {
+      poseGraphRevision: 1,
+    });
+    recordRuntimeDebugEvent("post-pose-import-refresh-result", {
+      nudgeApplied: false,
+    });
+
+    const events = getRuntimeDebugEvents();
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      category: "post-pose-import-refresh-start",
+      detail: { poseGraphRevision: 1 },
+    });
+    expect(events[1]).toMatchObject({
+      category: "post-pose-import-refresh-result",
+      detail: { nudgeApplied: false },
+    });
+
+    resetRuntimePerfMetrics();
+    expect(getRuntimeDebugEvents()).toEqual([]);
   });
 });

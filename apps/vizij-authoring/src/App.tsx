@@ -49,6 +49,10 @@ import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 import { waitForNextFrame } from "./utils/frame";
 import {
+  getRuntimePerfMetricsSnapshot,
+  recordRuntimeDebugEvent,
+} from "./perf/runtimePerfMetrics";
+import {
   createPoseImportResult,
   resolveImportSuccessStatus,
 } from "./types/importOutcome";
@@ -259,21 +263,49 @@ function AppContent({
     poseRigRef.current.removePoseInput(target.poseId, target.inputId);
   }, []);
   const requestRuntimeTopologyRefresh = useCallback(async () => {
+    const refreshStartMs =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
     const baseline = graphRuntimeStore.getState();
     const baselinePoseGraphRevision = baseline.poseGraphSpecRevision ?? 0;
     const baselinePoseGraphSpec = baseline.poseGraphSpec ?? null;
+    const baselineForceRevision =
+      baseline.graphBridgeForceTopologyRevision ?? 0;
+    const metricsBeforeRefresh = getRuntimePerfMetricsSnapshot();
+    recordRuntimeDebugEvent("post-pose-import-refresh-start", {
+      baselinePoseGraphRevision,
+      baselineForceRevision,
+      baselineControllerRegistrationRuns:
+        metricsBeforeRefresh.controllerRegistrationRuns,
+      baselineTopologyPublishes:
+        metricsBeforeRefresh.graphBridgeTopologyPublishes,
+    });
+
+    let poseGraphSettled = false;
+    let poseGraphSettleAttempts = 0;
 
     // Wait for the imported pose graph publication before forcing topology.
     for (let attempt = 0; attempt < 45; attempt += 1) {
+      poseGraphSettleAttempts = attempt + 1;
       const next = graphRuntimeStore.getState();
       const poseGraphRevisionAdvanced =
         (next.poseGraphSpecRevision ?? 0) > baselinePoseGraphRevision;
       const poseGraphReferenceChanged =
         (next.poseGraphSpec ?? null) !== baselinePoseGraphSpec;
       if (poseGraphRevisionAdvanced || poseGraphReferenceChanged) {
+        poseGraphSettled = true;
         break;
       }
       await waitForNextFrame();
+    }
+
+    let runtimeBridgeReady =
+      typeof graphRuntimeStore.getState().stageRuntimeInput === "function";
+    let runtimeReadyAttempts = 0;
+    for (let attempt = 0; attempt < 90 && !runtimeBridgeReady; attempt += 1) {
+      runtimeReadyAttempts = attempt + 1;
+      await waitForNextFrame();
+      runtimeBridgeReady =
+        typeof graphRuntimeStore.getState().stageRuntimeInput === "function";
     }
 
     graphRuntimeStore.setState((state) => ({
@@ -281,11 +313,42 @@ function AppContent({
         (state.graphBridgeForceTopologyRevision ?? 0) + 1,
     }));
 
-    // Always execute the proven structural nudge path after explicit refresh.
-    // This guarantees the same runtime wake-up transition observed in manual
-    // smoke tests while we continue root-cause investigation.
-    await waitForNextFrame();
-    await runPostPoseImportNudge();
+    let registrationObserved = false;
+    let registrationWaitAttempts = 0;
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      registrationWaitAttempts = attempt + 1;
+      const metricsAfterRefresh = getRuntimePerfMetricsSnapshot();
+      if (
+        metricsAfterRefresh.controllerRegistrationRuns >
+          metricsBeforeRefresh.controllerRegistrationRuns ||
+        metricsAfterRefresh.graphBridgeTopologyPublishes >
+          metricsBeforeRefresh.graphBridgeTopologyPublishes
+      ) {
+        registrationObserved = true;
+        break;
+      }
+      await waitForNextFrame();
+    }
+
+    let nudgeApplied = false;
+    if (!registrationObserved) {
+      await waitForNextFrame();
+      await runPostPoseImportNudge();
+      nudgeApplied = true;
+    }
+
+    recordRuntimeDebugEvent("post-pose-import-refresh-result", {
+      poseGraphSettled,
+      poseGraphSettleAttempts,
+      runtimeBridgeReady,
+      runtimeReadyAttempts,
+      registrationObserved,
+      registrationWaitAttempts,
+      nudgeApplied,
+      elapsedMs:
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        refreshStartMs,
+    });
   }, [graphRuntimeStore, runPostPoseImportNudge]);
   const {
     bundleSyncFailure,

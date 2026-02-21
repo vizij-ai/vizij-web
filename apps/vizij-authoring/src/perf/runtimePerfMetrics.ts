@@ -1,5 +1,12 @@
 type RuntimeGraphMutationClass = "topology" | "pose";
 const MAX_TRACKED_ROOT_LIFECYCLES = 24;
+const MAX_RUNTIME_DEBUG_EVENTS = 256;
+
+export type RuntimeDebugEvent = {
+  atMs: number;
+  category: string;
+  detail: Record<string, unknown>;
+};
 
 type RuntimeRootLifecycle = {
   rootId: string;
@@ -168,6 +175,7 @@ let nextSessionId = 1;
 let activeImportSession: ActiveRuntimeImportPerfSession | null = null;
 let lastImportSummary: RuntimeImportPerfSummary | null = null;
 let rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
+let runtimeDebugEvents: RuntimeDebugEvent[] = [];
 const listeners = new Set<() => void>();
 
 function getNowMs() {
@@ -341,6 +349,10 @@ export function resetRuntimePerfMetrics() {
   lastImportSummary = null;
   nextSessionId = 1;
   rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
+  runtimeDebugEvents = [];
+  (
+    globalThis as { __vizijRuntimeDebugEvents?: RuntimeDebugEvent[] }
+  ).__vizijRuntimeDebugEvents = [];
   emitChange();
 }
 
@@ -362,6 +374,40 @@ export function getRuntimeImportPerfSessionSnapshot(): RuntimeImportPerfSessionS
     lastSummary: lastImportSummary ? { ...lastImportSummary } : null,
     metrics: buildSnapshot(),
   };
+}
+
+export function getRuntimeDebugEvents(): RuntimeDebugEvent[] {
+  return runtimeDebugEvents.map((event) => ({
+    atMs: event.atMs,
+    category: event.category,
+    detail: { ...event.detail },
+  }));
+}
+
+export function recordRuntimeDebugEvent(
+  category: string,
+  detail: Record<string, unknown> = {},
+): RuntimeDebugEvent {
+  const event: RuntimeDebugEvent = {
+    atMs: getNowMs(),
+    category,
+    detail,
+  };
+  runtimeDebugEvents.push(event);
+  if (runtimeDebugEvents.length > MAX_RUNTIME_DEBUG_EVENTS) {
+    runtimeDebugEvents = runtimeDebugEvents.slice(
+      runtimeDebugEvents.length - MAX_RUNTIME_DEBUG_EVENTS,
+    );
+  }
+  (
+    globalThis as { __vizijRuntimeDebugEvents?: RuntimeDebugEvent[] }
+  ).__vizijRuntimeDebugEvents = runtimeDebugEvents.map((entry) => ({
+    atMs: entry.atMs,
+    category: entry.category,
+    detail: { ...entry.detail },
+  }));
+  emitChange();
+  return event;
 }
 
 export function subscribeRuntimePerfMetrics(listener: () => void) {
