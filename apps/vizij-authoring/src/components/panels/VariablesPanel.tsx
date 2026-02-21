@@ -20,9 +20,14 @@ import {
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
+import { Modal } from "../ui/Modal";
 import { PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
-import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import {
+  useReferenceFace,
+  type ReferenceFacePose,
+  type ReferenceFacePoseGroup,
+} from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
@@ -30,6 +35,11 @@ import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
 import { resolveControllableInputId } from "../inspector/bindingSlotResolution";
+import {
+  humanizePoseGroupName,
+  sanitizePoseGroupId,
+} from "../../poseRig/groupMembership";
+import { PoseConfigService } from "../../poseRig/services/poseConfigService";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -70,8 +80,9 @@ interface PoseGroupSummary {
   path: string;
   label: string;
   blendMode: PoseBlendMode;
-  source: "configured" | "auto";
+  source: "configured" | "auto" | "reference";
   poseIds: string[];
+  referenceGroup?: ReferenceFacePoseGroup;
 }
 
 interface InputListRow {
@@ -88,6 +99,29 @@ interface InputListRow {
   editable: boolean;
   selectable: boolean;
   disabledReason?: string | null;
+  linkedMainInputId?: string | null;
+  referenceEntry?: RigNodeData;
+}
+
+interface PoseTreeNodeData {
+  kind: "pose";
+  source: "main" | "reference";
+  pose: PoseDefinition | ReferenceFacePose;
+  primaryGroupPath: string | null;
+}
+
+interface CopyConflictModalOption {
+  id: string;
+  label: string;
+  description: string;
+  variant?: "primary" | "ghost";
+}
+
+interface CopyConflictModalState {
+  title: string;
+  message: string;
+  options: CopyConflictModalOption[];
+  onResolve: (optionId: string) => void;
 }
 
 const INPUT_CONTROL_KIND_LABEL: Record<InputListRow["controlKind"], string> = {
@@ -119,6 +153,51 @@ function poseGroupDisplayLabel(path: string): string {
   return path === UNASSIGNED_POSE_GROUP_PATH
     ? UNASSIGNED_POSE_GROUP_LABEL
     : path;
+}
+
+function normalizePoseIdentityKey(
+  name: string | null | undefined,
+  groupPath: string | null | undefined,
+): string {
+  const normalizedName = (name ?? "").trim().toLowerCase();
+  const normalizedGroup = normalizePoseGroupPath(groupPath) || "";
+  return `${normalizedGroup}::${normalizedName}`;
+}
+
+function resolveReferencePoseGroupPaths(
+  pose: ReferenceFacePose,
+  groupPathById: Map<string, string>,
+): string[] {
+  const groupPaths = new Set<string>();
+
+  const pushPath = (rawPath: string | null | undefined) => {
+    const normalized = normalizePoseGroupPath(rawPath);
+    if (!normalized) {
+      return;
+    }
+    groupPaths.add(normalized);
+  };
+
+  const pushGroupId = (rawGroupId: string | null | undefined) => {
+    const trimmed = rawGroupId?.trim();
+    if (!trimmed) {
+      return;
+    }
+    const mapped = groupPathById.get(trimmed);
+    if (mapped) {
+      groupPaths.add(mapped);
+      return;
+    }
+    pushPath(trimmed);
+  };
+
+  pose.groupIds?.forEach((groupId) => {
+    pushGroupId(groupId);
+  });
+  pushGroupId(pose.groupId);
+  pushPath(pose.group);
+
+  return Array.from(groupPaths);
 }
 
 type BlendStageDefinition = NonNullable<
@@ -241,7 +320,7 @@ interface PoseGroupNodeData {
 }
 
 type TreeNodeData =
-  | PoseDefinition
+  | PoseTreeNodeData
   | RigNodeData
   | PoseGroupNodeData
   | InputListRow;
@@ -313,9 +392,18 @@ function collectPoseIds(node: TreeNode): string[] {
   const ids: string[] = [];
   const visit = (candidate: TreeNode) => {
     if (candidate.type === "pose") {
-      const pose = candidate.data as PoseDefinition | undefined;
-      if (pose?.id) {
-        ids.push(pose.id);
+      const poseData = candidate.data as
+        | PoseTreeNodeData
+        | PoseDefinition
+        | undefined;
+      if (poseData && "kind" in poseData && poseData.kind === "pose") {
+        if (poseData.pose.id) {
+          ids.push(poseData.pose.id);
+        }
+        return;
+      }
+      if (poseData && "id" in poseData && typeof poseData.id === "string") {
+        ids.push(poseData.id);
       }
       return;
     }
@@ -473,13 +561,23 @@ function TreeRowWrapper({
   const isPoseGroupFolder =
     node.type === "folder" &&
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
+  const poseNodeData =
+    node.type === "pose"
+      ? ((node.data as PoseTreeNodeData | undefined) ?? undefined)
+      : undefined;
+  const fallbackPoseData =
+    node.type === "pose"
+      ? ((node.data as PoseDefinition | undefined) ?? undefined)
+      : undefined;
 
   // Check selection
   const isSelected =
     selection &&
     ((node.type === "pose" &&
       selection.type === "pose" &&
-      (node.data as PoseDefinition)?.id === selection.id) ||
+      ((poseNodeData?.source === "main" &&
+        poseNodeData.pose.id === selection.id) ||
+        (!poseNodeData && fallbackPoseData?.id === selection.id))) ||
       (node.type === "rig" &&
         selection.type === "rig" &&
         (node.data as RigNodeData)?.input?.id === selection.id) ||
@@ -531,6 +629,20 @@ function TreeRowWrapper({
             <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30">
               {inputData.source}
             </span>
+            {inputData.source === "reference" && inputData.referenceEntry ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAction?.(node, "copy-input-to-main");
+                }}
+                title="Copy input to main face"
+              >
+                <Copy size={10} />
+              </Button>
+            ) : null}
             <span
               className={cn(
                 "text-[9px] uppercase tracking-wide px-1 rounded",
@@ -619,7 +731,7 @@ function TreeRowWrapper({
       icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
       actions={
         <>
-          {node.type === "pose" && (
+          {node.type === "pose" && poseNodeData?.source !== "reference" && (
             <>
               <Button
                 variant="ghost"
@@ -658,6 +770,20 @@ function TreeRowWrapper({
                 <Trash2 size={10} />
               </Button>
             </>
+          )}
+          {node.type === "pose" && poseNodeData?.source === "reference" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 hover:text-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction?.(node, "copy-pose-to-main");
+              }}
+              title="Copy pose to main face"
+            >
+              <Copy size={10} />
+            </Button>
           )}
 
           {node.type === "rig" &&
@@ -716,6 +842,17 @@ function TreeRowWrapper({
               }`}
             >
               {(node.data as RigNodeData).source}
+            </span>
+          )}
+          {node.type === "pose" && poseNodeData && (
+            <span
+              className={`text-[9px] font-mono px-1 rounded ${
+                poseNodeData.source === "main"
+                  ? "bg-violet-900/40 text-violet-200"
+                  : "bg-cyan-900/40 text-cyan-200"
+              }`}
+            >
+              {poseNodeData.source}
             </span>
           )}
         </>
@@ -785,10 +922,13 @@ export function VariablesPanel({
     selectPose,
     selectedPoseId: selectedPoseIdFromAuthoring,
     createPose,
+    addPoseDefinition,
+    replacePoseDefinition,
     duplicatePose,
     createPoseGroup,
     renamePoseGroup,
     deletePoseGroup,
+    setPoseGroupBlendMode,
     deletePose,
     crossGroupBlendMode,
     blendMode,
@@ -808,6 +948,8 @@ export function VariablesPanel({
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
   const [searchQuery, setSearchQuery] = useState("");
   const [stageEditMessage, setStageEditMessage] = useState<string | null>(null);
+  const [copyConflictModal, setCopyConflictModal] =
+    useState<CopyConflictModalState | null>(null);
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
     blendMode ??
@@ -818,8 +960,12 @@ export function VariablesPanel({
     () => new Map(poses.map((pose) => [pose.id, pose.name])),
     [poses],
   );
+  const mainPoseIds = useMemo(
+    () => new Set(poses.map((pose) => pose.id)),
+    [poses],
+  );
 
-  const poseGroups = useMemo(() => {
+  const mainPoseGroups = useMemo(() => {
     const byId = new Map<string, string>();
     const configuredPathOrder = new Map<string, number>();
     const groupsByPath = new Map<string, PoseGroupSummary>();
@@ -954,7 +1100,7 @@ export function VariablesPanel({
 
   const poseGroupsByPoseId = useMemo(() => {
     const next = new Map<string, string[]>();
-    poseGroups.forEach((group) => {
+    mainPoseGroups.forEach((group) => {
       group.poseIds.forEach((poseId) => {
         const existing = next.get(poseId);
         if (!existing) {
@@ -967,18 +1113,45 @@ export function VariablesPanel({
       });
     });
     return next;
-  }, [poseGroups]);
+  }, [mainPoseGroups]);
 
   const selectedPoseGroupPaths = selectedPoseId
     ? (poseGroupsByPoseId.get(selectedPoseId) ?? [])
     : [];
 
-  const visiblePoseGroups = useMemo(() => {
+  const mainPosePrimaryGroupPathById = useMemo(() => {
+    const map = new Map<string, string | null>();
+    poses.forEach((pose) => {
+      const groupedPaths = poseGroupsByPoseId.get(pose.id);
+      if (groupedPaths && groupedPaths.length > 0) {
+        map.set(pose.id, groupedPaths[0] ?? null);
+        return;
+      }
+      map.set(pose.id, normalizePoseGroupPath(pose.group) || null);
+    });
+    return map;
+  }, [poseGroupsByPoseId, poses]);
+
+  const mainPoseByIdentityKey = useMemo(() => {
+    const map = new Map<string, PoseDefinition>();
+    poses.forEach((pose) => {
+      const key = normalizePoseIdentityKey(
+        pose.name,
+        mainPosePrimaryGroupPathById.get(pose.id) ?? pose.group ?? null,
+      );
+      if (!map.has(key)) {
+        map.set(key, pose);
+      }
+    });
+    return map;
+  }, [mainPosePrimaryGroupPathById, poses]);
+
+  const visibleMainPoseGroups = useMemo(() => {
     const trimmed = searchQuery.trim().toLowerCase();
     if (!trimmed) {
-      return poseGroups;
+      return mainPoseGroups;
     }
-    return poseGroups.filter((group) => {
+    return mainPoseGroups.filter((group) => {
       if (
         poseGroupDisplayLabel(group.path).toLowerCase().includes(trimmed) ||
         group.path.toLowerCase().includes(trimmed) ||
@@ -993,7 +1166,7 @@ export function VariablesPanel({
       }
       return false;
     });
-  }, [poseGroups, poseNameById, searchQuery]);
+  }, [mainPoseGroups, poseNameById, searchQuery]);
 
   useEffect(() => {
     if (!selectedPoseGroup || !onSelectPoseGroup) {
@@ -1004,12 +1177,12 @@ export function VariablesPanel({
       normalizePoseGroupPath(selectedPoseGroup.groupPath) ??
       UNASSIGNED_POSE_GROUP_PATH;
     const matchingGroup = selectedPoseGroup.groupId
-      ? poseGroups.find(
+      ? mainPoseGroups.find(
           (group) =>
             group.source === "configured" &&
             group.id === selectedPoseGroup.groupId,
         )
-      : poseGroups.find((group) => group.path === selectedPath);
+      : mainPoseGroups.find((group) => group.path === selectedPath);
 
     if (!matchingGroup) {
       onSelectPoseGroup(null);
@@ -1035,7 +1208,7 @@ export function VariablesPanel({
     }
 
     onSelectPoseGroup(nextSelection);
-  }, [onSelectPoseGroup, poseGroups, selectedPoseGroup]);
+  }, [onSelectPoseGroup, mainPoseGroups, selectedPoseGroup]);
 
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -1097,6 +1270,14 @@ export function VariablesPanel({
     [applyStandardInputBatch, poseWeightInputIdByPoseId, poses],
   );
   const referenceFace = useReferenceFace();
+  const referencePoseGroupPathById = useMemo(() => {
+    const map = new Map<string, string>();
+    referenceFace.referencePoseGroups.forEach((group) => {
+      map.set(group.id, group.path);
+    });
+    return map;
+  }, [referenceFace.referencePoseGroups]);
+
   const {
     policy: sharedSyncPolicy,
     setPolicy: setSharedSyncPolicy,
@@ -1136,7 +1317,7 @@ export function VariablesPanel({
 
   // State for tree expansion
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    new Set(["root"]),
+    new Set(["root", "main_face", "ref_face", "main_poses", "reference_poses"]),
   );
 
   const mainFaceRigEntries = useMemo(() => {
@@ -1204,6 +1385,67 @@ export function VariablesPanel({
     referenceFace.file,
     referenceFace.isLoaded,
     referenceRigEntries,
+  ]);
+
+  const referencePoseGroupSummaries = useMemo(() => {
+    if (!referenceFace.file || !referenceFace.isLoaded) {
+      return [] as PoseGroupSummary[];
+    }
+
+    const byPath = new Map<string, PoseGroupSummary>();
+    referenceFace.referencePoseGroups.forEach((group) => {
+      const normalizedPath = normalizePoseGroupPath(group.path);
+      if (!normalizedPath || byPath.has(normalizedPath)) {
+        return;
+      }
+      byPath.set(normalizedPath, {
+        id: `reference:${group.id}`,
+        path: normalizedPath,
+        label: poseGroupDisplayLabel(normalizedPath),
+        blendMode:
+          group.blendMode === "average" || group.blendMode === "additive"
+            ? group.blendMode
+            : poseGroupBlendModeFallback,
+        source: "reference",
+        poseIds: [],
+        referenceGroup: group,
+      });
+    });
+
+    referenceFace.referencePoses.forEach((pose) => {
+      const groupPaths = resolveReferencePoseGroupPaths(
+        pose,
+        referencePoseGroupPathById,
+      );
+      const normalizedPaths =
+        groupPaths.length > 0 ? groupPaths : [UNASSIGNED_POSE_GROUP_PATH];
+      normalizedPaths.forEach((path) => {
+        let group = byPath.get(path);
+        if (!group) {
+          group = {
+            id: `reference:auto:${path}`,
+            path,
+            label: poseGroupDisplayLabel(path),
+            blendMode: poseGroupBlendModeFallback,
+            source: "reference",
+            poseIds: [],
+          };
+          byPath.set(path, group);
+        }
+        if (!group.poseIds.includes(pose.id)) {
+          group.poseIds.push(pose.id);
+        }
+      });
+    });
+
+    return Array.from(byPath.values());
+  }, [
+    poseGroupBlendModeFallback,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referenceFace.referencePoseGroups,
+    referenceFace.referencePoses,
+    referencePoseGroupPathById,
   ]);
 
   const resolvedSelectedRigId = useMemo(() => {
@@ -1357,7 +1599,40 @@ export function VariablesPanel({
       },
     );
 
-    return [...managedRows, ...groupOutputRows, ...stageOutputRows];
+    const referenceRows = referenceRigEntries.map((entry) => {
+      const normalizedPath = entry.normalizedPath
+        ? normalizeStandardRigInputPath(entry.normalizedPath)
+        : normalizeStandardRigInputPath(entry.input.path);
+      const value = referenceFace.inputValues[entry.input.id];
+      return {
+        id: `reference_input:${entry.input.id}`,
+        label: `Ref · ${entry.input.label || entry.input.id}`,
+        inputId: `__reference_input__:${entry.input.id}`,
+        source: "reference" as const,
+        path: normalizedPath,
+        value: Number.isFinite(value) ? value : (entry.input.defaultValue ?? 0),
+        min: entry.input.range.min,
+        max: entry.input.range.max,
+        controlKind: "rig-input" as const,
+        provenance: entry.linkedMainInputId
+          ? "linked-to-main"
+          : "reference-only",
+        editable: false,
+        selectable: true,
+        disabledReason: entry.linkedMainInputId
+          ? "Reference input: selecting this row will focus the linked main variable."
+          : "Reference input: copy to main to create an editable main-face variable.",
+        linkedMainInputId: entry.linkedMainInputId ?? null,
+        referenceEntry: entry,
+      };
+    });
+
+    return [
+      ...managedRows,
+      ...groupOutputRows,
+      ...stageOutputRows,
+      ...referenceRows,
+    ];
   }, [
     includeAutorigInputs,
     inputValues,
@@ -1368,6 +1643,8 @@ export function VariablesPanel({
     poseNameById,
     poses,
     inputBindings,
+    referenceFace.inputValues,
+    referenceRigEntries,
   ]);
 
   const inputRootNode = useMemo(() => {
@@ -1435,24 +1712,84 @@ export function VariablesPanel({
 
   const copyReferenceVariableToMain = (
     referenceEntry: RigNodeData,
-    options?: { select?: boolean },
+    options?: { select?: boolean; allowOverwrite?: boolean },
   ): string | null => {
     const select = options?.select ?? true;
+    const allowOverwrite = options?.allowOverwrite ?? false;
     if (referenceEntry.source !== "reference") {
       return null;
-    }
-    if (referenceEntry.linkedMainInputId) {
-      if (select) {
-        onSelectRig?.(referenceEntry.linkedMainInputId);
-        onSelectPoseGroup?.(null);
-      }
-      return referenceEntry.linkedMainInputId;
     }
     const normalizedPath = referenceEntry.normalizedPath
       ? normalizeStandardRigInputPath(referenceEntry.normalizedPath)
       : normalizeStandardRigInputPath(referenceEntry.input.path);
-    const existing = standardInputsByPath.get(normalizedPath);
+    const linkedMain = referenceEntry.linkedMainInputId
+      ? (standardInputsById.get(referenceEntry.linkedMainInputId) ?? null)
+      : null;
+    const existing = linkedMain ?? standardInputsByPath.get(normalizedPath);
     if (existing) {
+      const hasMetadataConflict =
+        normalizeStandardRigInputPath(existing.path) !== normalizedPath ||
+        existing.label !== referenceEntry.input.label ||
+        Math.abs(existing.defaultValue - referenceEntry.input.defaultValue) >
+          1e-6 ||
+        Math.abs(existing.range.min - referenceEntry.input.range.min) > 1e-6 ||
+        Math.abs(existing.range.max - referenceEntry.input.range.max) > 1e-6 ||
+        (existing.sourceId ?? null) !== (referenceEntry.input.sourceId ?? null);
+
+      if (hasMetadataConflict && !allowOverwrite) {
+        setCopyConflictModal({
+          title: "Variable Copy Conflict",
+          message: `Main face already has "${existing.label || existing.id}" on ${normalizedPath}. Choose how to resolve this copy.`,
+          options: [
+            {
+              id: "keep-main",
+              label: "Keep Main",
+              description: "Use the existing main-face variable and skip copy.",
+              variant: "ghost",
+            },
+            {
+              id: "overwrite-main",
+              label: "Overwrite Main",
+              description:
+                "Apply reference metadata (label/default/range/source) to the main variable.",
+              variant: "primary",
+            },
+            {
+              id: "cancel",
+              label: "Cancel",
+              description: "Close without applying any variable copy action.",
+              variant: "ghost",
+            },
+          ],
+          onResolve: (choice) => {
+            if (choice === "overwrite-main") {
+              copyReferenceVariableToMain(referenceEntry, {
+                select,
+                allowOverwrite: true,
+              });
+              return;
+            }
+            if (choice === "keep-main" && select) {
+              onSelectRig?.(existing.id);
+              onSelectPoseGroup?.(null);
+            }
+          },
+        });
+        return null;
+      }
+
+      if (hasMetadataConflict && allowOverwrite) {
+        handleUpdateStandardInput(existing.id, {
+          path: normalizedPath,
+          label: referenceEntry.input.label,
+          defaultValue: referenceEntry.input.defaultValue,
+          range: {
+            min: referenceEntry.input.range.min,
+            max: referenceEntry.input.range.max,
+          },
+          sourceId: referenceEntry.input.sourceId ?? null,
+        });
+      }
       if (select) {
         onSelectRig?.(existing.id);
         onSelectPoseGroup?.(null);
@@ -1477,6 +1814,322 @@ export function VariablesPanel({
       onSelectPoseGroup?.(null);
     }
     return created.id;
+  };
+
+  const normalizeReferencePoseForMain = useCallback(
+    (
+      referencePose: ReferenceFacePose,
+    ): {
+      pose: PoseDefinition | null;
+      poseGroups: NonNullable<PoseRigConfigFile["poseGroups"]>;
+    } => {
+      const referenceGroupPaths = resolveReferencePoseGroupPaths(
+        referencePose,
+        referencePoseGroupPathById,
+      );
+      const explicitGroups = referenceGroupPaths.map((path) => ({
+        id: sanitizePoseGroupId(path, path),
+        path,
+        name: humanizePoseGroupName(path),
+      }));
+      const now = new Date().toISOString();
+      const referenceDraftPose: PoseDefinition = {
+        id: referencePose.id,
+        name: referencePose.name || referencePose.id,
+        description: referencePose.description,
+        group: referenceGroupPaths[0] ?? null,
+        groupId: referenceGroupPaths[0]
+          ? sanitizePoseGroupId(referenceGroupPaths[0], referenceGroupPaths[0])
+          : null,
+        groupIds:
+          referenceGroupPaths.length > 0
+            ? referenceGroupPaths.map((path) => sanitizePoseGroupId(path, path))
+            : undefined,
+        values: { ...referencePose.values },
+        createdAt: now,
+        updatedAt: now,
+      };
+      const normalized = PoseConfigService.normalize(
+        {
+          version: 1,
+          faceId: null,
+          neutralInputs: {},
+          poses: [referenceDraftPose],
+          poseGroups: explicitGroups,
+        },
+        Array.from(standardInputsById.values()),
+        null,
+      ).config;
+      const normalizedPose = normalized.poses[0] ?? null;
+      return {
+        pose: normalizedPose,
+        poseGroups: normalized.poseGroups ?? [],
+      };
+    },
+    [referencePoseGroupPathById, standardInputsById],
+  );
+
+  const resolveNextPoseGroupIdForPath = useCallback(
+    (groupPath: string) => {
+      const normalizedPath = normalizePoseGroupPath(groupPath);
+      const baseId = sanitizePoseGroupId(normalizedPath, normalizedPath);
+      const existingIds = new Set(
+        poseGroupsFromConfig.map((group) => group.id).filter(Boolean),
+      );
+      if (!existingIds.has(baseId)) {
+        return baseId;
+      }
+      let counter = 1;
+      while (existingIds.has(`${baseId}_${counter}`)) {
+        counter += 1;
+      }
+      return `${baseId}_${counter}`;
+    },
+    [poseGroupsFromConfig],
+  );
+
+  const copyReferencePoseGroupToMain = (
+    group: PoseGroupSummary,
+    options?: { allowOverwrite?: boolean; select?: boolean },
+  ): boolean => {
+    if (group.source !== "reference") {
+      return false;
+    }
+    if (group.path === UNASSIGNED_POSE_GROUP_PATH) {
+      return false;
+    }
+    const allowOverwrite = options?.allowOverwrite ?? false;
+    const select = options?.select ?? true;
+    const existingGroup = poseGroupsFromConfig.find((entry) => {
+      const normalizedExistingPath = normalizePoseGroupPath(entry.path);
+      return normalizedExistingPath === group.path;
+    });
+
+    if (!existingGroup) {
+      const createdGroupId = resolveNextPoseGroupIdForPath(group.path);
+      createPoseGroup(group.path);
+      if (group.blendMode === "average" || group.blendMode === "additive") {
+        setPoseGroupBlendMode(createdGroupId, group.blendMode);
+      }
+      if (select) {
+        onSelectPoseGroup?.({
+          groupPath: group.path,
+          label: group.label,
+          groupId: createdGroupId,
+          poseIds: [],
+          nodeId: createdGroupId,
+        });
+      }
+      return true;
+    }
+
+    const existingBlendMode =
+      existingGroup.blendMode === "average" ||
+      existingGroup.blendMode === "additive"
+        ? existingGroup.blendMode
+        : poseGroupBlendModeFallback;
+    if (
+      (group.blendMode === "average" || group.blendMode === "additive") &&
+      existingBlendMode !== group.blendMode &&
+      !allowOverwrite
+    ) {
+      setCopyConflictModal({
+        title: "Pose Group Copy Conflict",
+        message: `Main face already has pose group "${group.label}" with blend mode "${existingBlendMode}".`,
+        options: [
+          {
+            id: "keep-main",
+            label: "Keep Main",
+            description: "Preserve the existing main-face group settings.",
+            variant: "ghost",
+          },
+          {
+            id: "overwrite-main",
+            label: "Overwrite Mode",
+            description: `Use reference blend mode "${group.blendMode}".`,
+            variant: "primary",
+          },
+          {
+            id: "cancel",
+            label: "Cancel",
+            description: "Close without applying a group update.",
+            variant: "ghost",
+          },
+        ],
+        onResolve: (choice) => {
+          if (choice === "overwrite-main") {
+            copyReferencePoseGroupToMain(group, {
+              allowOverwrite: true,
+              select,
+            });
+            return;
+          }
+          if (choice === "keep-main" && select) {
+            onSelectPoseGroup?.({
+              groupPath: group.path,
+              label: group.label,
+              groupId: existingGroup.id,
+              poseIds: [],
+              nodeId: existingGroup.id,
+            });
+          }
+        },
+      });
+      return false;
+    }
+
+    if (
+      allowOverwrite &&
+      (group.blendMode === "average" || group.blendMode === "additive")
+    ) {
+      setPoseGroupBlendMode(existingGroup.id, group.blendMode);
+    }
+    if (select) {
+      onSelectPoseGroup?.({
+        groupPath: group.path,
+        label: group.label,
+        groupId: existingGroup.id,
+        poseIds: [],
+        nodeId: existingGroup.id,
+      });
+    }
+    return true;
+  };
+
+  const copyReferencePoseToMain = (
+    referencePose: ReferenceFacePose,
+    options?: {
+      select?: boolean;
+      allowOverwrite?: boolean;
+      duplicate?: boolean;
+    },
+  ): boolean => {
+    const select = options?.select ?? true;
+    const allowOverwrite = options?.allowOverwrite ?? false;
+    const duplicate = options?.duplicate ?? false;
+    const normalized = normalizeReferencePoseForMain(referencePose);
+    const normalizedPose = normalized.pose;
+    if (!normalizedPose) {
+      return false;
+    }
+
+    const referenceGroupPath = normalizePoseGroupPath(normalizedPose.group);
+    const identityKey = normalizePoseIdentityKey(
+      normalizedPose.name,
+      referenceGroupPath,
+    );
+    const existingMainPose = mainPoseByIdentityKey.get(identityKey);
+    if (existingMainPose && !allowOverwrite && !duplicate) {
+      setCopyConflictModal({
+        title: "Pose Copy Conflict",
+        message: `Main face already has pose "${existingMainPose.name}" in this group.`,
+        options: [
+          {
+            id: "keep-main",
+            label: "Keep Main",
+            description: "Skip copy and keep the existing main pose.",
+            variant: "ghost",
+          },
+          {
+            id: "overwrite-main",
+            label: "Overwrite Main",
+            description:
+              "Replace the existing main pose definition with the reference pose.",
+            variant: "primary",
+          },
+          {
+            id: "duplicate",
+            label: "Copy as Duplicate",
+            description: "Create a second main pose with a unique name.",
+            variant: "ghost",
+          },
+          {
+            id: "cancel",
+            label: "Cancel",
+            description: "Close without copying this pose.",
+            variant: "ghost",
+          },
+        ],
+        onResolve: (choice) => {
+          if (choice === "overwrite-main") {
+            copyReferencePoseToMain(referencePose, {
+              select,
+              allowOverwrite: true,
+            });
+            return;
+          }
+          if (choice === "duplicate") {
+            copyReferencePoseToMain(referencePose, {
+              select,
+              duplicate: true,
+            });
+            return;
+          }
+          if (choice === "keep-main" && select) {
+            onSelectPose?.(existingMainPose.id);
+            onSelectRig?.(null);
+            onSelectPoseGroup?.(null);
+          }
+        },
+      });
+      return false;
+    }
+
+    normalized.poseGroups.forEach((group) => {
+      const normalizedPath = normalizePoseGroupPath(group.path);
+      if (!normalizedPath || normalizedPath === UNASSIGNED_POSE_GROUP_PATH) {
+        return;
+      }
+      const summary: PoseGroupSummary = {
+        id: `reference:normalized:${group.id}`,
+        path: normalizedPath,
+        label: poseGroupDisplayLabel(normalizedPath),
+        blendMode:
+          group.blendMode === "average" || group.blendMode === "additive"
+            ? group.blendMode
+            : poseGroupBlendModeFallback,
+        source: "reference",
+        poseIds: [referencePose.id],
+      };
+      copyReferencePoseGroupToMain(summary, {
+        allowOverwrite: true,
+        select: false,
+      });
+    });
+
+    if (existingMainPose && allowOverwrite) {
+      replacePoseDefinition(existingMainPose.id, {
+        ...normalizedPose,
+        id: existingMainPose.id,
+        createdAt: existingMainPose.createdAt,
+        updatedAt: new Date().toISOString(),
+      });
+      if (select) {
+        onSelectPose?.(existingMainPose.id);
+        onSelectRig?.(null);
+        onSelectPoseGroup?.(null);
+      }
+      return true;
+    }
+
+    const poseToAdd: PoseDefinition = duplicate
+      ? {
+          ...normalizedPose,
+          name: `${normalizedPose.name} (Ref)`,
+          id: `${normalizedPose.id}_reference_copy`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      : normalizedPose;
+    if (select) {
+      pendingPoseSelectionRef.current = true;
+    }
+    addPoseDefinition(poseToAdd);
+    if (select) {
+      onSelectRig?.(null);
+      onSelectPoseGroup?.(null);
+    }
+    return true;
   };
 
   // Build Variables tree
@@ -1642,14 +2295,30 @@ export function VariablesPanel({
       showChildren: true,
     };
 
-    const targetRoot: TreeNode = root;
+    const hasReferenceFace = Boolean(referenceFace.file);
+    const mainRoot: TreeNode = hasReferenceFace
+      ? {
+          id: "main_poses",
+          label: "Main Face",
+          type: "folder",
+          children: new Map(),
+          showChildren: true,
+        }
+      : root;
+
+    if (hasReferenceFace) {
+      root.children.set(mainRoot.id, mainRoot);
+    }
 
     poses.forEach((pose) => {
-      const groupParts = pose.group
-        ? pose.group.split("/").filter(Boolean)
+      const primaryGroupPath =
+        mainPosePrimaryGroupPathById.get(pose.id) ??
+        normalizePoseGroupPath(pose.group) ??
+        null;
+      const groupParts = primaryGroupPath
+        ? primaryGroupPath.split("/").filter(Boolean)
         : [];
-      let current = targetRoot;
-
+      let current = mainRoot;
       const groupPathParts: string[] = [];
       for (const part of groupParts) {
         groupPathParts.push(part);
@@ -1668,16 +2337,86 @@ export function VariablesPanel({
         }
       }
 
-      const poseKey = `pose_${pose.id}`;
+      const poseKey = `main_pose_${pose.id}`;
       current.children.set(poseKey, {
         id: `${current.id}/${poseKey}`,
         label: pose.name,
         type: "pose",
         children: new Map(),
         showChildren: false,
-        data: pose,
+        data: {
+          kind: "pose",
+          source: "main",
+          pose,
+          primaryGroupPath,
+        },
       });
     });
+
+    if (hasReferenceFace) {
+      const referenceRoot: TreeNode = {
+        id: "reference_poses",
+        label: "Reference Face",
+        type: "folder",
+        children: new Map(),
+        showChildren: true,
+      };
+
+      if (referenceFace.isLoaded) {
+        referenceFace.referencePoses.forEach((pose) => {
+          const groupPaths = resolveReferencePoseGroupPaths(
+            pose,
+            referencePoseGroupPathById,
+          );
+          const primaryGroupPath = groupPaths[0] ?? null;
+          const groupParts = primaryGroupPath
+            ? primaryGroupPath.split("/").filter(Boolean)
+            : [];
+          let current = referenceRoot;
+          const groupPathParts: string[] = [];
+          for (const part of groupParts) {
+            groupPathParts.push(part);
+            const groupPath = groupPathParts.join("/");
+            current = getOrCreateChild(current, part, part);
+            if (
+              current.type === "folder" &&
+              (!(current.data as PoseGroupNodeData | undefined) ||
+                (current.data as PoseGroupNodeData | undefined)?.kind !==
+                  "pose-group")
+            ) {
+              current.data = {
+                kind: "pose-group",
+                groupPath,
+              };
+            }
+          }
+          const poseKey = `reference_pose_${pose.id}`;
+          current.children.set(poseKey, {
+            id: `${current.id}/${poseKey}`,
+            label: pose.name || pose.id,
+            type: "pose",
+            children: new Map(),
+            showChildren: false,
+            data: {
+              kind: "pose",
+              source: "reference",
+              pose,
+              primaryGroupPath,
+            },
+          });
+        });
+      } else {
+        referenceRoot.children.set("placeholder", {
+          id: "reference_pose_placeholder",
+          label: referenceFace.isLoading ? "Loading..." : "Waiting for file...",
+          type: "folder",
+          children: new Map(),
+          showChildren: false,
+        });
+      }
+
+      root.children.set(referenceRoot.id, referenceRoot);
+    }
 
     const simplifiedChildren = new Map<string, TreeNode>();
     for (const [key, child] of root.children) {
@@ -1686,7 +2425,15 @@ export function VariablesPanel({
     root.children = simplifiedChildren;
 
     return root;
-  }, [poses]);
+  }, [
+    mainPosePrimaryGroupPathById,
+    poses,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referenceFace.isLoading,
+    referenceFace.referencePoses,
+    referencePoseGroupPathById,
+  ]);
 
   const visibleRoot = useMemo(
     () =>
@@ -1771,7 +2518,12 @@ export function VariablesPanel({
     if (poseIds.length === 0) {
       return;
     }
-    const matchingGroup = poseGroups.find(
+    const allMain = poseIds.every((poseId) => mainPoseIds.has(poseId));
+    if (!allMain) {
+      onSelectPoseGroup?.(null);
+      return;
+    }
+    const matchingGroup = mainPoseGroups.find(
       (group) => group.path === folderData.groupPath,
     );
     const nodeId = matchingGroup?.id ?? node.id;
@@ -1785,6 +2537,11 @@ export function VariablesPanel({
   };
 
   const selectPoseGroup = (group: PoseGroupSummary) => {
+    if (group.source === "reference") {
+      onSelectPoseGroup?.(null);
+      onSelectRig?.(null);
+      return;
+    }
     onSelectPoseGroup?.({
       groupPath: group.path,
       label: group.label,
@@ -1796,6 +2553,9 @@ export function VariablesPanel({
   };
 
   const handlePoseGroupMembershipToggle = (group: PoseGroupSummary) => {
+    if (group.source === "reference") {
+      return;
+    }
     if (!selectedPoseId || selectedPoseId === "__pose_rig_neutral__") {
       return;
     }
@@ -1811,15 +2571,37 @@ export function VariablesPanel({
   };
 
   const handleAction = (node: TreeNode, action: string) => {
+    const poseNodeData =
+      node.type === "pose"
+        ? ((node.data as PoseTreeNodeData | undefined) ?? undefined)
+        : undefined;
+    const fallbackPoseData =
+      node.type === "pose"
+        ? ((node.data as PoseDefinition | undefined) ?? undefined)
+        : undefined;
+    const isReferencePoseNode = poseNodeData?.source === "reference";
+    const mainPoseData =
+      !isReferencePoseNode && poseNodeData
+        ? (poseNodeData.pose as PoseDefinition)
+        : !isReferencePoseNode
+          ? fallbackPoseData
+          : undefined;
+
     if (node.type === "pose" && action === "play") {
-      const poseData = node.data as PoseDefinition;
+      if (!mainPoseData) {
+        return;
+      }
+      const poseData = mainPoseData;
       if (!setPoseWeightSolo(poseData.id)) {
         applyPose(poseData.id);
       }
       return;
     }
     if (node.type === "pose" && action === "duplicate-pose") {
-      const poseData = node.data as PoseDefinition;
+      if (!mainPoseData) {
+        return;
+      }
+      const poseData = mainPoseData;
       if (poseData.id === "__pose_rig_neutral__") {
         return;
       }
@@ -1829,7 +2611,10 @@ export function VariablesPanel({
       return;
     }
     if (node.type === "pose" && action === "delete-pose") {
-      const poseData = node.data as PoseDefinition;
+      if (!mainPoseData) {
+        return;
+      }
+      const poseData = mainPoseData;
       if (poseData.id === "__pose_rig_neutral__") {
         return;
       }
@@ -1840,10 +2625,26 @@ export function VariablesPanel({
       deletePose(poseData.id);
       return;
     }
+    if (node.type === "pose" && action === "copy-pose-to-main") {
+      if (!poseNodeData || poseNodeData.source !== "reference") {
+        return;
+      }
+      copyReferencePoseToMain(poseNodeData.pose as ReferenceFacePose, {
+        select: true,
+      });
+      return;
+    }
     if (node.type === "rig" && action === "copy-to-main") {
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
         copyReferenceVariableToMain(rigData, { select: true });
+      }
+      return;
+    }
+    if (node.type === "input" && action === "copy-input-to-main") {
+      const inputData = node.data as InputListRow;
+      if (inputData.source === "reference" && inputData.referenceEntry) {
+        copyReferenceVariableToMain(inputData.referenceEntry, { select: true });
       }
       return;
     }
@@ -1871,12 +2672,35 @@ export function VariablesPanel({
 
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
-      const poseData = node.data as PoseDefinition;
+      const poseData = node.data as
+        | PoseTreeNodeData
+        | PoseDefinition
+        | undefined;
+      const isReferencePose =
+        typeof poseData === "object" &&
+        poseData !== null &&
+        "kind" in poseData &&
+        poseData.kind === "pose" &&
+        poseData.source === "reference";
+      if (isReferencePose) {
+        onSelectPoseGroup?.(null);
+        onSelectRig?.(null);
+        return;
+      }
+      const poseId =
+        poseData && "kind" in poseData && poseData.kind === "pose"
+          ? poseData.pose.id
+          : poseData && "id" in poseData && typeof poseData.id === "string"
+            ? poseData.id
+            : null;
+      if (!poseId) {
+        return;
+      }
       onSelectPoseGroup?.(null);
       if (onSelectPose) {
-        onSelectPose(poseData.id);
+        onSelectPose(poseId);
       } else {
-        selectPose(poseData.id);
+        selectPose(poseId);
       }
       // When selecting logic, we might also want to clear rig selection?
       onSelectRig?.(null);
@@ -1900,7 +2724,11 @@ export function VariablesPanel({
       onSelectRig?.(null);
     } else if (node.type === "input") {
       const inputData = node.data as InputListRow;
-      onSelectRig?.(inputData.inputId);
+      if (inputData.source === "reference") {
+        onSelectRig?.(inputData.linkedMainInputId ?? null);
+      } else {
+        onSelectRig?.(inputData.inputId);
+      }
       onSelectPoseGroup?.(null);
     }
   };
@@ -1929,18 +2757,50 @@ export function VariablesPanel({
 
   const handleCopyReferenceToMain = () => {
     let firstCopied: string | null = null;
-    referenceRigEntries.forEach((entry) => {
+    const copiedPaths = new Set<string>();
+    for (const entry of referenceRigEntries) {
+      const normalizedPath = entry.normalizedPath
+        ? normalizeStandardRigInputPath(entry.normalizedPath)
+        : normalizeStandardRigInputPath(entry.input.path);
+      if (copiedPaths.has(normalizedPath)) {
+        continue;
+      }
+      copiedPaths.add(normalizedPath);
       if (entry.linkedMainInputId) {
-        return;
+        continue;
       }
       const copied = copyReferenceVariableToMain(entry, { select: false });
+      if (!copied) {
+        break;
+      }
       if (!firstCopied && copied) {
         firstCopied = copied;
       }
-    });
+    }
     if (firstCopied) {
       onSelectRig?.(firstCopied);
       onSelectPoseGroup?.(null);
+    }
+  };
+
+  const handleCopyReferencePosesToMain = () => {
+    for (const pose of referenceFace.referencePoses) {
+      const completed = copyReferencePoseToMain(pose, { select: false });
+      if (!completed) {
+        break;
+      }
+    }
+  };
+
+  const handleCopyReferencePoseGroupsToMain = () => {
+    for (const group of referencePoseGroupSummaries) {
+      if (group.path === UNASSIGNED_POSE_GROUP_PATH) {
+        continue;
+      }
+      const completed = copyReferencePoseGroupToMain(group, { select: false });
+      if (!completed) {
+        break;
+      }
     }
   };
 
@@ -2122,21 +2982,43 @@ export function VariablesPanel({
     mainFaceRigEntries.length +
     referenceRigEntries.length +
     sharedRigEntries.length;
-  const poseItemCount = poses.length;
-  const poseGroupItemCount = poseGroups.length;
+  const poseItemCount =
+    poses.length +
+    (referenceFace.isLoaded ? referenceFace.referencePoses.length : 0);
+  const poseGroupItemCount =
+    mainPoseGroups.length + referencePoseGroupSummaries.length;
   const inputItemCount = inputRows.length;
+  const visibleReferencePoseGroups = useMemo(() => {
+    const trimmed = searchQuery.trim().toLowerCase();
+    if (!trimmed) {
+      return referencePoseGroupSummaries;
+    }
+    return referencePoseGroupSummaries.filter((group) => {
+      if (
+        poseGroupDisplayLabel(group.path).toLowerCase().includes(trimmed) ||
+        group.path.toLowerCase().includes(trimmed) ||
+        group.poseIds.some((poseId) => poseId.toLowerCase().includes(trimmed))
+      ) {
+        return true;
+      }
+      return false;
+    });
+  }, [referencePoseGroupSummaries, searchQuery]);
   const poseGroupsForSurface = useMemo(() => {
-    const list = [...visiblePoseGroups];
+    const list = [...visibleMainPoseGroups, ...visibleReferencePoseGroups];
     list.sort((a, b) => {
       if (a.source !== b.source) {
-        return a.source === "configured" ? -1 : 1;
+        if (a.source === "configured") return -1;
+        if (b.source === "configured") return 1;
+        if (a.source === "auto") return -1;
+        if (b.source === "auto") return 1;
       }
       return poseGroupDisplayLabel(a.path).localeCompare(
         poseGroupDisplayLabel(b.path),
       );
     });
     return list;
-  }, [visiblePoseGroups]);
+  }, [visibleMainPoseGroups, visibleReferencePoseGroups]);
   const stageGroupOptions = useMemo(() => {
     const byId = new Map<string, { id: string; label: string }>();
     poseGroupsFromConfig.forEach((group) => {
@@ -2175,6 +3057,21 @@ export function VariablesPanel({
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
+  ).length;
+  const uncopiedReferencePoseCount = referenceFace.referencePoses.filter(
+    (pose) => {
+      const groupPaths = resolveReferencePoseGroupPaths(
+        pose,
+        referencePoseGroupPathById,
+      );
+      const key = normalizePoseIdentityKey(pose.name, groupPaths[0] ?? null);
+      return !mainPoseByIdentityKey.has(key);
+    },
+  ).length;
+  const uncopiedReferencePoseGroupCount = referencePoseGroupSummaries.filter(
+    (group) =>
+      group.path !== UNASSIGNED_POSE_GROUP_PATH &&
+      !mainPoseGroups.some((mainGroup) => mainGroup.path === group.path),
   ).length;
 
   // Search input ref
@@ -2368,6 +3265,17 @@ export function VariablesPanel({
                       <Copy size={11} />
                       Duplicate Pose
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                      onClick={handleCopyReferencePosesToMain}
+                      disabled={uncopiedReferencePoseCount === 0}
+                      title="Copy reference poses to main face"
+                    >
+                      <Copy size={11} />
+                      Copy Ref ({uncopiedReferencePoseCount})
+                    </Button>
                   </>
                 )}
                 {isVariables && (
@@ -2431,6 +3339,17 @@ export function VariablesPanel({
                       }
                     >
                       Delete
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                      onClick={handleCopyReferencePoseGroupsToMain}
+                      disabled={uncopiedReferencePoseGroupCount === 0}
+                      title="Copy reference pose groups to main face"
+                    >
+                      <Copy size={11} />
+                      Copy Ref ({uncopiedReferencePoseGroupCount})
                     </Button>
                   </>
                 )}
@@ -2979,7 +3898,9 @@ export function VariablesPanel({
                   ) : (
                     <div className="flex flex-col">
                       {poseGroupsForSurface.map((group) => {
+                        const isReferenceGroup = group.source === "reference";
                         const isMember =
+                          !isReferenceGroup &&
                           selectedPoseId &&
                           selectedPoseGroupPaths.includes(group.path);
                         const isUnassigned =
@@ -3009,27 +3930,49 @@ export function VariablesPanel({
                                 <span className="text-[10px] text-text-muted font-mono">
                                   {group.poseIds.length}
                                 </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px]"
-                                  disabled={!selectedPoseId || isUnassigned}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handlePoseGroupMembershipToggle(group);
-                                  }}
-                                  title={
-                                    !selectedPoseId
-                                      ? "Select a pose first"
-                                      : isUnassigned
-                                        ? "Unassigned membership is derived from poses with no groups"
-                                        : isMember
-                                          ? "Unassign selected pose"
-                                          : "Assign selected pose"
-                                  }
-                                >
-                                  {isMember ? "Unassign" : "Assign"}
-                                </Button>
+                                {isReferenceGroup ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={isUnassigned}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      copyReferencePoseGroupToMain(group, {
+                                        select: true,
+                                      });
+                                    }}
+                                    title={
+                                      isUnassigned
+                                        ? "Unassigned is derived and cannot be copied"
+                                        : "Copy pose group to main face"
+                                    }
+                                  >
+                                    Copy
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={!selectedPoseId || isUnassigned}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handlePoseGroupMembershipToggle(group);
+                                    }}
+                                    title={
+                                      !selectedPoseId
+                                        ? "Select a pose first"
+                                        : isUnassigned
+                                          ? "Unassigned membership is derived from poses with no groups"
+                                          : isMember
+                                            ? "Unassign selected pose"
+                                            : "Assign selected pose"
+                                    }
+                                  >
+                                    {isMember ? "Unassign" : "Assign"}
+                                  </Button>
+                                )}
                               </div>
                             }
                           />
@@ -3104,6 +4047,43 @@ export function VariablesPanel({
           );
         }}
       />
+      <Modal
+        open={Boolean(copyConflictModal)}
+        onClose={() => setCopyConflictModal(null)}
+        title={copyConflictModal?.title ?? "Copy Conflict"}
+        maxWidth="lg"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-secondary">
+            {copyConflictModal?.message ?? ""}
+          </p>
+          <div className="grid gap-2">
+            {(copyConflictModal?.options ?? []).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={cn(
+                  "w-full rounded border px-3 py-2 text-left transition-colors",
+                  option.variant === "primary"
+                    ? "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20"
+                    : "border-border-default text-text-primary hover:bg-bg-panel/40",
+                )}
+                onClick={() => {
+                  copyConflictModal?.onResolve(option.id);
+                  setCopyConflictModal(null);
+                }}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide">
+                  {option.label}
+                </div>
+                <div className="text-[11px] text-text-muted mt-1">
+                  {option.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
     </Panel>
   );
 }

@@ -35,10 +35,13 @@ const poseRigState = {
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  addPoseDefinition: vi.fn(),
+  replacePoseDefinition: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
+  setPoseGroupBlendMode: vi.fn(),
   deletePose: vi.fn(),
   blendStages: [] as NonNullable<PoseRigConfigFile["blendStages"]>,
   createBlendStage: vi.fn(),
@@ -49,6 +52,7 @@ const poseRigState = {
   setBlendStageSources: vi.fn(),
   addPoseToGroup: vi.fn(),
   removePoseFromGroup: vi.fn(),
+  updatePoseGroup: vi.fn(),
   setCrossGroupBlendMode: vi.fn(),
   crossGroupBlendMode: "additive" as const,
   blendMode: "average" as const,
@@ -57,10 +61,22 @@ const poseRigState = {
 
 const referenceFaceState = {
   file: null as File | null,
+  setFile: vi.fn(),
   isLoaded: false,
   isLoading: false,
+  inputIdsWithBindings: new Set<string>(),
+  inputValues: {} as Record<string, number>,
   standardInputs: [] as StandardRigInput[],
   standardInputsById: new Map<string, StandardRigInput>(),
+  referencePoses: [],
+  referencePoseGroups: [],
+  handleInputValueChange: vi.fn(),
+  handleResetAllInputValues: vi.fn(),
+  onStandardInputsReady: vi.fn(),
+  onLoadingStateChange: vi.fn(),
+  onAnimateValueReady: vi.fn(),
+  onStandardInputChange: vi.fn(),
+  onBundleReady: vi.fn(),
 };
 
 const bindingState = {
@@ -68,7 +84,9 @@ const bindingState = {
   standardInputsByPath: new Map<string, StandardRigInput>(),
   standardInputsById: new Map<string, StandardRigInput>(),
   inputValues: {} as Record<string, number>,
+  inputBindings: {} as Record<string, unknown>,
   handleInputValueChange: vi.fn(),
+  applyStandardInputBatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
@@ -239,10 +257,13 @@ describe("VariablesPanel inputs perf baseline", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.addPoseDefinition.mockReset();
+    poseRigState.replacePoseDefinition.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
+    poseRigState.setPoseGroupBlendMode.mockReset();
     poseRigState.deletePose.mockReset();
     poseRigState.createBlendStage.mockReset();
     poseRigState.renameBlendStage.mockReset();
@@ -252,6 +273,7 @@ describe("VariablesPanel inputs perf baseline", () => {
     poseRigState.setBlendStageSources.mockReset();
     poseRigState.addPoseToGroup.mockReset();
     poseRigState.removePoseFromGroup.mockReset();
+    poseRigState.updatePoseGroup.mockReset();
     poseRigState.setCrossGroupBlendMode.mockReset();
 
     referenceFaceState.file = null;
@@ -259,12 +281,18 @@ describe("VariablesPanel inputs perf baseline", () => {
     referenceFaceState.isLoading = false;
     referenceFaceState.standardInputs = [];
     referenceFaceState.standardInputsById = new Map();
+    referenceFaceState.inputIdsWithBindings = new Set();
+    referenceFaceState.inputValues = {};
+    referenceFaceState.referencePoses = [];
+    referenceFaceState.referencePoseGroups = [];
 
     bindingState.managedStandardInputs = [];
     bindingState.standardInputsByPath = new Map();
     bindingState.standardInputsById = new Map();
     bindingState.inputValues = {};
+    bindingState.inputBindings = {};
     bindingState.handleInputValueChange.mockReset();
+    bindingState.applyStandardInputBatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();

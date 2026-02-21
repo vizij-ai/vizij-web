@@ -5,7 +5,155 @@ import {
   extractBindingsFromBundle,
   getInputIdsWithBindings,
 } from "../utils/standardInputBindings";
-import type { ReferenceFaceState } from "../state/ReferenceFaceContext";
+import {
+  humanizePoseGroupName,
+  normalizePoseGroupPath,
+  sanitizePoseGroupId,
+} from "../poseRig/groupMembership";
+import type {
+  ReferenceFacePose,
+  ReferenceFacePoseGroup,
+  ReferenceFaceState,
+} from "../state/ReferenceFaceContext";
+
+function coerceFiniteNumber(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function normalizeReferencePoseGroupPath(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return normalizePoseGroupPath(value) ?? undefined;
+}
+
+function extractReferencePoseSnapshot(bundle: VizijBundleExtension | null): {
+  poses: ReferenceFacePose[];
+  poseGroups: ReferenceFacePoseGroup[];
+} {
+  const rawConfig = bundle?.poses?.config;
+  if (!rawConfig || typeof rawConfig !== "object") {
+    return { poses: [], poseGroups: [] };
+  }
+
+  const configObject = rawConfig as Record<string, unknown>;
+  const rawGroups = Array.isArray(configObject.poseGroups)
+    ? (configObject.poseGroups as unknown[])
+    : [];
+  const rawPoses = Array.isArray(configObject.poses)
+    ? (configObject.poses as unknown[])
+    : [];
+
+  const poseGroups: ReferenceFacePoseGroup[] = [];
+  const groupPathSet = new Set<string>();
+  const groupPathById = new Map<string, string>();
+
+  rawGroups.forEach((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const group = entry as Record<string, unknown>;
+    const normalizedPath =
+      normalizeReferencePoseGroupPath(group.path) ||
+      normalizeReferencePoseGroupPath(group.name) ||
+      normalizeReferencePoseGroupPath(group.id);
+    if (!normalizedPath || groupPathSet.has(normalizedPath)) {
+      return;
+    }
+    groupPathSet.add(normalizedPath);
+    const id = sanitizePoseGroupId(
+      typeof group.id === "string" ? group.id : null,
+      normalizedPath,
+    );
+    const name =
+      typeof group.name === "string" && group.name.trim().length > 0
+        ? group.name.trim()
+        : humanizePoseGroupName(normalizedPath);
+    const blendMode =
+      group.blendMode === "average" || group.blendMode === "additive"
+        ? group.blendMode
+        : undefined;
+    poseGroups.push({
+      id: id || `reference-group-${index + 1}`,
+      path: normalizedPath,
+      name,
+      blendMode,
+    });
+    groupPathById.set(id, normalizedPath);
+  });
+
+  const poses: ReferenceFacePose[] = rawPoses.map((entry, index) => {
+    const pose = entry && typeof entry === "object" ? entry : {};
+    const poseObject = pose as Record<string, unknown>;
+    const values: Record<string, number> = {};
+
+    if (poseObject.values && typeof poseObject.values === "object") {
+      Object.entries(poseObject.values as Record<string, unknown>).forEach(
+        ([key, value]) => {
+          const numericValue = coerceFiniteNumber(value);
+          if (numericValue === null) {
+            return;
+          }
+          values[key] = numericValue;
+        },
+      );
+    }
+
+    const rawGroupIds = Array.isArray(poseObject.groupIds)
+      ? (poseObject.groupIds as unknown[])
+      : [];
+    const resolvedGroupIds = rawGroupIds
+      .map((groupId) => (typeof groupId === "string" ? groupId.trim() : ""))
+      .filter((groupId) => groupId.length > 0);
+    const primaryGroupId =
+      typeof poseObject.groupId === "string" && poseObject.groupId.trim().length
+        ? poseObject.groupId.trim()
+        : (resolvedGroupIds[0] ?? null);
+    const explicitGroupPath = normalizeReferencePoseGroupPath(poseObject.group);
+    const groupFromId = primaryGroupId
+      ? (groupPathById.get(primaryGroupId) ??
+        normalizeReferencePoseGroupPath(primaryGroupId))
+      : undefined;
+    const primaryGroupPath = explicitGroupPath ?? groupFromId ?? null;
+
+    if (primaryGroupPath && !groupPathSet.has(primaryGroupPath)) {
+      groupPathSet.add(primaryGroupPath);
+      poseGroups.push({
+        id: sanitizePoseGroupId(primaryGroupPath, primaryGroupPath),
+        path: primaryGroupPath,
+        name: humanizePoseGroupName(primaryGroupPath),
+      });
+    }
+
+    const id =
+      typeof poseObject.id === "string" && poseObject.id.trim().length > 0
+        ? poseObject.id.trim()
+        : `reference-pose-${index + 1}`;
+    const name =
+      typeof poseObject.name === "string" && poseObject.name.trim().length > 0
+        ? poseObject.name.trim()
+        : id;
+    const description =
+      typeof poseObject.description === "string"
+        ? poseObject.description
+        : undefined;
+
+    return {
+      id,
+      name,
+      description,
+      group: primaryGroupPath,
+      groupId: primaryGroupId,
+      groupIds: resolvedGroupIds.length > 0 ? resolvedGroupIds : undefined,
+      values,
+    };
+  });
+
+  return { poses, poseGroups };
+}
 
 export function useReferenceFaceState(
   onStandardInputChangeProp?: (inputId: string, value: number) => void,
@@ -21,6 +169,10 @@ export function useReferenceFaceState(
     new Set(),
   );
   const [inputValues, setInputValues] = useState<Record<string, number>>({});
+  const [referencePoses, setReferencePoses] = useState<ReferenceFacePose[]>([]);
+  const [referencePoseGroups, setReferencePoseGroups] = useState<
+    ReferenceFacePoseGroup[]
+  >([]);
 
   const animateValueRef = useRef<
     ((path: string, value: number) => void) | undefined
@@ -30,17 +182,24 @@ export function useReferenceFaceState(
   useEffect(() => {
     if (!file) {
       setInputIdsWithBindings(new Set());
+      setReferencePoses([]);
+      setReferencePoseGroups([]);
     }
   }, [file]);
 
   const onBundleReady = useCallback((bundle: VizijBundleExtension | null) => {
     if (!bundle) {
       setInputIdsWithBindings(new Set());
+      setReferencePoses([]);
+      setReferencePoseGroups([]);
       return;
     }
     const bindingInfo = extractBindingsFromBundle(bundle);
     const idsWithBindings = getInputIdsWithBindings(bindingInfo);
     setInputIdsWithBindings(idsWithBindings);
+    const snapshot = extractReferencePoseSnapshot(bundle);
+    setReferencePoses(snapshot.poses);
+    setReferencePoseGroups(snapshot.poseGroups);
   }, []);
 
   const onStandardInputsReady = useCallback(
@@ -137,6 +296,8 @@ export function useReferenceFaceState(
       standardInputsById,
       inputIdsWithBindings,
       inputValues,
+      referencePoses,
+      referencePoseGroups,
       handleInputValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,
@@ -153,6 +314,8 @@ export function useReferenceFaceState(
       standardInputsById,
       inputIdsWithBindings,
       inputValues,
+      referencePoses,
+      referencePoseGroups,
       handleInputValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,

@@ -74,6 +74,8 @@ export interface UsePoseRigAuthoringResult {
   selectNeutral: () => void;
   selectPose: (poseId: string) => void;
   createPose: (name?: string) => void;
+  addPoseDefinition: (pose: PoseDefinition) => void;
+  replacePoseDefinition: (poseId: string, pose: PoseDefinition) => void;
   duplicatePose: (poseId: string) => void;
   deletePose: (poseId: string) => void;
   updatePoseName: (poseId: string, name: string) => void;
@@ -188,6 +190,18 @@ export function usePoseRigAuthoring(
   const createPose = useCallback(
     (name?: string) => store.createPose(name, selectedPose?.group),
     [store, selectedPose],
+  );
+  const addPoseDefinition = useCallback(
+    (pose: PoseDefinition) => {
+      store.addPose(pose);
+    },
+    [store],
+  );
+  const replacePoseDefinition = useCallback(
+    (poseId: string, pose: PoseDefinition) => {
+      store.updatePose(poseId, () => pose);
+    },
+    [store],
   );
   const deletePose = store.deletePose;
   // ... (lines 101-125)
@@ -574,6 +588,8 @@ export function usePoseRigAuthoring(
     selectNeutral,
     selectPose,
     createPose,
+    addPoseDefinition,
+    replacePoseDefinition,
     duplicatePose,
     deletePose,
     updatePoseName,

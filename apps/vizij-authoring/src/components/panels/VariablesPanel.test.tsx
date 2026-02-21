@@ -268,6 +268,35 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
 
+  it("deduplicates bulk variable copy by normalized reference path", () => {
+    const referenceA = makeInput("ref_brow_a", "/standard/brow/up", {
+      label: "Ref Brow Up A",
+    });
+    const referenceB = makeInput("ref_brow_b", "/standard/brow/up", {
+      label: "Ref Brow Up B",
+    });
+    const created = makeInput("standard_brow_up", "/standard/brow/up", {
+      label: "Brow Up",
+    });
+
+    referenceFaceState.standardInputs = [referenceA, referenceB];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceA.id, referenceA],
+      [referenceB.id, referenceB],
+    ]);
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
+
+    render(<VariablesPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (2)" }));
+
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
+      "/standard/brow/up",
+    );
+  });
+
   it("surfaces a modal when reference variable copy conflicts with existing main metadata", () => {
     const mainInput = makeInput("main_brow", "/x", {
       label: "Main Brow",
@@ -360,6 +389,104 @@ describe("VariablesPanel", () => {
       "emotion",
       "additive",
     );
+  });
+
+  it("does not mutate pose-group blend mode before resolving pose-copy conflicts", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          blendMode: "average",
+        },
+      ],
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_main_smile",
+        name: "Smile",
+        description: "",
+        group: "emotion",
+        groupId: "emotion",
+        groupIds: ["emotion"],
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    referenceFaceState.referencePoseGroups = [
+      {
+        id: "emotion",
+        path: "emotion",
+        name: "Emotion",
+        blendMode: "additive",
+      },
+      {
+        id: "viseme",
+        path: "viseme",
+        name: "Viseme",
+        blendMode: "average",
+      },
+    ];
+    referenceFaceState.referencePoses = [
+      {
+        id: "pose_ref_smile",
+        name: "Smile",
+        group: "emotion",
+        groupId: "emotion",
+        groupIds: ["emotion"],
+        values: {},
+      },
+      {
+        id: "pose_ref_viseme",
+        name: "Viseme A",
+        group: "viseme",
+        groupId: "viseme",
+        groupIds: ["viseme"],
+        values: {},
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle("Copy reference poses to main face"),
+    );
+    expect(screen.getByText("Pose Copy Conflict")).toBeTruthy();
+    expect(poseRigState.setPoseGroupBlendMode).not.toHaveBeenCalled();
+  });
+
+  it("disables copy action for derived unassigned reference pose group", () => {
+    referenceFaceState.referencePoses = [
+      {
+        id: "pose_ref_smile",
+        name: "Smile",
+        values: {},
+      },
+    ];
+    referenceFaceState.referencePoseGroups = [];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+
+    const copyButton = within(view.container).getByTitle(
+      "Unassigned is derived and cannot be copied",
+    ) as HTMLButtonElement;
+    expect(copyButton.disabled).toBe(true);
   });
 
   it("routes reference variable selection to linked main variable", () => {
@@ -748,6 +875,54 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Duplicate Pose" }));
     expect(poseRigState.duplicatePose).toHaveBeenCalledWith("pose_smile");
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("opens pose-group inspector selection from grouped poses", () => {
+    referenceFaceState.file = null;
+    referenceFaceState.isLoaded = false;
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+        },
+      ],
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: "emotion",
+        groupId: "emotion",
+        groupIds: ["emotion"],
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const onSelectPoseGroup = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPoseGroup={onSelectPoseGroup}
+      />,
+    );
+
+    fireEvent.click(within(view.container).getByTitle("emotion"));
+    expect(onSelectPoseGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupPath: "emotion",
+        poseIds: ["pose_smile"],
+      }),
+    );
   });
 
   it("routes pose play action through canonical pose-weight inputs when available", () => {

@@ -2,6 +2,23 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
 
+export interface ReferenceFacePose {
+  id: string;
+  name: string;
+  description?: string;
+  group?: string | null;
+  groupId?: string | null;
+  groupIds?: string[];
+  values: Record<string, number>;
+}
+
+export interface ReferenceFacePoseGroup {
+  id: string;
+  path: string;
+  name: string;
+  blendMode?: "average" | "additive";
+}
+
 export interface ReferenceFaceState {
   /** The reference face file loaded */
   file: File | null;
@@ -19,6 +36,10 @@ export interface ReferenceFaceState {
   inputIdsWithBindings: Set<string>;
   /** Current input values */
   inputValues: Record<string, number>;
+  /** Parsed pose definitions extracted from the reference bundle (if present). */
+  referencePoses: ReferenceFacePose[];
+  /** Parsed pose groups extracted from the reference bundle (if present). */
+  referencePoseGroups: ReferenceFacePoseGroup[];
   /** Handler to change an input value */
   handleInputValueChange: (inputId: string, value: number) => void;
   /** Handler to reset all input values to defaults */
@@ -46,6 +67,8 @@ const defaultState: ReferenceFaceState = {
   standardInputsById: new Map(),
   inputIdsWithBindings: new Set(),
   inputValues: {},
+  referencePoses: [],
+  referencePoseGroups: [],
   handleInputValueChange: () => {},
   handleResetAllInputValues: () => {},
   onStandardInputsReady: () => {},
