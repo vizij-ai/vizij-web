@@ -25,22 +25,24 @@ Conclusion: keep payload-serialization caching and current staging behavior, kee
 
 ## Timeline Of Attempts
 
-| Commit                | Change                                                    | Outcome                                                                                     |
-| --------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `03015cb`             | Added import-to-render lifecycle instrumentation          | Kept. Gave visibility into hidden runtime-ready delay.                                      |
-| `648390e`             | Coalesced pre-ready graph publishes + runtime diagnostics | Faster, but controls broke.                                                                 |
-| `2a85933`             | Preserved queued pose updates during coalescing           | Still function regressions.                                                                 |
-| `6f3d901` + `b3f5c76` | Reverted the two commits above                            | Correctness restored.                                                                       |
-| `471880a`             | Deduped pre-ready publishes by mutation class             | Faster again, controls still non-functional.                                                |
-| `803badc`             | Reverted dedupe commit                                    | Back to correct behavior baseline.                                                          |
-| `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype | Correctness preserved; better observability.                                                |
-| `bca8811`             | Added investigation/benchmark/roadmap docs                | Execution clarity improved.                                                                 |
-| `e585e99`             | Added bounded registration queue + durable churn metrics  | Correctness preserved; churn reduced but still high.                                        |
-| `71d8ede`             | Added bounded-frame rig/pose import responsiveness smoke  | Correctness guardrails strengthened.                                                        |
-| `900152d`             | Split first-frame vs controllable-ready runtime semantics | Gating semantics clarified across app/runtime.                                              |
-| `25aa9a5`             | Skipped re-registration for pose-config-only updates      | Churn reduced further; gap still present.                                                   |
-| `ae53ee1`             | Ignored graph reference-only churn in registration policy | Large readiness/churn win; correctness checks green.                                        |
-| `WIP (2026-02-21)`    | Added pose-graph structural revision classification path  | Targets the “target edit doesn’t wake imported poses” gap without fake pose-variable churn. |
+| Commit                | Change                                                        | Outcome                                                                                     |
+| --------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `03015cb`             | Added import-to-render lifecycle instrumentation              | Kept. Gave visibility into hidden runtime-ready delay.                                      |
+| `648390e`             | Coalesced pre-ready graph publishes + runtime diagnostics     | Faster, but controls broke.                                                                 |
+| `2a85933`             | Preserved queued pose updates during coalescing               | Still function regressions.                                                                 |
+| `6f3d901` + `b3f5c76` | Reverted the two commits above                                | Correctness restored.                                                                       |
+| `471880a`             | Deduped pre-ready publishes by mutation class                 | Faster again, controls still non-functional.                                                |
+| `803badc`             | Reverted dedupe commit                                        | Back to correct behavior baseline.                                                          |
+| `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype     | Correctness preserved; better observability.                                                |
+| `bca8811`             | Added investigation/benchmark/roadmap docs                    | Execution clarity improved.                                                                 |
+| `e585e99`             | Added bounded registration queue + durable churn metrics      | Correctness preserved; churn reduced but still high.                                        |
+| `71d8ede`             | Added bounded-frame rig/pose import responsiveness smoke      | Correctness guardrails strengthened.                                                        |
+| `900152d`             | Split first-frame vs controllable-ready runtime semantics     | Gating semantics clarified across app/runtime.                                              |
+| `25aa9a5`             | Skipped re-registration for pose-config-only updates          | Churn reduced further; gap still present.                                                   |
+| `ae53ee1`             | Ignored graph reference-only churn in registration policy     | Large readiness/churn win; correctness checks green.                                        |
+| `WIP (2026-02-21)`    | Added pose-graph structural revision classification path      | Improved mutation classification but did not fully close Quori pose wake-up gap.            |
+| `WIP (2026-02-21)`    | Added temporary add/remove pose-variable post-import nudge    | Confirmed forced structural transition restores imported pose function in user smoke tests. |
+| `WIP (2026-02-21)`    | Replaced nudge with explicit topology-refresh revision signal | Same runtime wake-up intent without mutating user pose data; validation pending commit.     |
 
 ## What Failed
 
@@ -64,6 +66,7 @@ Conclusion: keep payload-serialization caching and current staging behavior, kee
 5. Instrumentation is now good enough to guide targeted optimization instead of guessing.
 6. Prewarm-on imports now show bounded registration churn (`3` runs/import mean in latest 3x), but still have a larger post-ready window than OFF (`readyToFirstFrameMs` ON `1595.768ms` vs OFF `14.798ms` mean).
 7. Structural pose-graph updates need explicit runtime mutation classification; treating them as config-like pose updates can miss required registration transitions.
+8. A deterministic post-import topology refresh signal is safer than synthetic pose-data mutations; it preserves correctness intent while avoiding add/remove variable hacks.
 
 ## Guardrails (Do Not Break)
 

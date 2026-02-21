@@ -503,6 +503,54 @@ describe("Viewer", () => {
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("forces topology publish when explicit refresh revision changes", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+      poseGraphSpecRevision: 1,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setState({
+        graphBridgeForceTopologyRevision: 1,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          config: { version: 1, neutralInputs: {}, poses: [] },
+        },
+      },
+      { tier: "graphs", mutationClass: "topology" },
+    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("registers pose graph only when rig graph is absent", () => {
     const store = createGraphRuntimeStore({
       graphSpec: undefined,

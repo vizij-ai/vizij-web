@@ -53,5 +53,6 @@ describe("App runtime performance contracts", () => {
     expect(selectors).toContain("graphSpecRevision");
     expect(selectors).toContain("poseGraphSpecRevision");
     expect(selectors).toContain("poseRuntimeRevision");
+    expect(selectors).toContain("graphBridgeForceTopologyRevision");
   });
 });

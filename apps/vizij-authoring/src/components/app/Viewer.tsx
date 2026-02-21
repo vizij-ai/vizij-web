@@ -107,6 +107,9 @@ function RuntimeGraphBridge() {
   const poseRuntimeRevision = useGraphRuntime(
     (state) => state.poseRuntimeRevision,
   );
+  const graphBridgeForceTopologyRevision = useGraphRuntime(
+    (state) => state.graphBridgeForceTopologyRevision,
+  );
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
@@ -122,6 +125,7 @@ function RuntimeGraphBridge() {
         graphSpecRevision,
         poseGraphSpecRevision,
         poseRuntimeRevision,
+        graphBridgeForceTopologyRevision,
       };
       const mutationClass = resolveRuntimeGraphMutationClass(
         lastRevisionRef.current,
@@ -169,6 +173,7 @@ function RuntimeGraphBridge() {
     graphSpecRevision,
     poseGraphSpecRevision,
     poseRuntimeRevision,
+    graphBridgeForceTopologyRevision,
     graphSpec,
     poseGraphSpec,
     poseConfig,

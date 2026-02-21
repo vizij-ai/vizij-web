@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
@@ -27,6 +27,7 @@ import {
   RigControllerProvider,
   useBindingAuthoring,
   useGraphRuntime,
+  useGraphRuntimeStoreApi,
 } from "./state/RigControllerProvider";
 import { isPlaceholderGraphImportHandler } from "./state/graphRuntimeStore";
 import {
@@ -46,7 +47,6 @@ import { useSampleAssetLoader } from "./hooks/useSampleAssetLoader";
 import { useImportFileHandlers } from "./hooks/useImportFileHandlers";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
-import { waitForNextFrame } from "./utils/frame";
 import {
   createPoseImportResult,
   resolveImportSuccessStatus,
@@ -214,48 +214,19 @@ function AppContent({
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
   const importGraphSpecReady = !isPlaceholderGraphImportHandler(
     handleImportGraphSpec,
   );
-  const poseRigRef = useRef(poseRig);
-  useEffect(() => {
-    poseRigRef.current = poseRig;
-  }, [poseRig]);
-  const runPostPoseImportNudge = useCallback(async () => {
-    let snapshot = poseRigRef.current;
-    for (
-      let attempt = 0;
-      attempt < 20 &&
-      (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0);
-      attempt += 1
-    ) {
-      await waitForNextFrame();
-      snapshot = poseRigRef.current;
-    }
-    if (snapshot.poses.length === 0 || snapshot.standardInputs.length === 0) {
-      return;
-    }
-    const target = snapshot.poses
-      .map((pose) => {
-        const currentInputs = new Set(Object.keys(pose.values));
-        const nudgeInput = snapshot.standardInputs.find(
-          (input) => !currentInputs.has(input.id),
-        );
-        return nudgeInput ? { poseId: pose.id, inputId: nudgeInput.id } : null;
-      })
-      .find((entry): entry is { poseId: string; inputId: string } =>
-        Boolean(entry),
-      );
-    if (!target) {
-      return;
-    }
-    snapshot.addPoseInput(target.poseId, target.inputId);
-    await waitForNextFrame();
-    poseRigRef.current.removePoseInput(target.poseId, target.inputId);
-  }, []);
+  const requestRuntimeTopologyRefresh = useCallback(() => {
+    graphRuntimeStore.setState((state) => ({
+      graphBridgeForceTopologyRevision:
+        (state.graphBridgeForceTopologyRevision ?? 0) + 1,
+    }));
+  }, [graphRuntimeStore]);
   const {
     bundleSyncFailure,
     retryBundleSync,
@@ -270,7 +241,7 @@ function AppContent({
     importGraphSpecReady,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
-    onPostPoseImport: runPostPoseImportNudge,
+    onPostPoseImport: requestRuntimeTopologyRefresh,
   });
 
   const { panels } = useWorkspaceStore();

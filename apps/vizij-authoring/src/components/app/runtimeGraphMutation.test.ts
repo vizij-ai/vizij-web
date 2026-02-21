@@ -10,6 +10,7 @@ describe("resolveRuntimeGraphMutationClass", () => {
       graphSpecRevision: 0,
       poseRuntimeRevision: 0,
       poseGraphSpecRevision: 0,
+      graphBridgeForceTopologyRevision: 0,
     });
 
     expect(mutationClass).toBe("topology");
@@ -21,11 +22,13 @@ describe("resolveRuntimeGraphMutationClass", () => {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
       {
         graphSpecRevision: 3,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
     );
 
@@ -38,11 +41,13 @@ describe("resolveRuntimeGraphMutationClass", () => {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
       {
         graphSpecRevision: 3,
         poseRuntimeRevision: 6,
         poseGraphSpecRevision: 4,
+        graphBridgeForceTopologyRevision: 0,
       },
     );
 
@@ -55,11 +60,13 @@ describe("resolveRuntimeGraphMutationClass", () => {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 6,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
     );
 
@@ -72,11 +79,13 @@ describe("resolveRuntimeGraphMutationClass", () => {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 6,
         poseGraphSpecRevision: 4,
+        graphBridgeForceTopologyRevision: 0,
       },
     );
 
@@ -89,15 +98,36 @@ describe("resolveRuntimeGraphMutationClass", () => {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
         poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
       },
     );
 
     expect(mutationClass).toBeNull();
+  });
+
+  it("returns topology when explicit refresh revision changes", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 0,
+      },
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
+        graphBridgeForceTopologyRevision: 1,
+      },
+    );
+
+    expect(mutationClass).toBe("topology");
   });
 });
 

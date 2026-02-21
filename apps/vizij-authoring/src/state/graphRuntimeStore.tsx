@@ -29,6 +29,7 @@ export interface GraphRuntimeState {
   graphSpecRevision: number;
   poseRuntimeRevision: number;
   poseGraphSpecRevision: number;
+  graphBridgeForceTopologyRevision: number;
   poseGraphSpec?: GraphSpec | null;
   poseConfig?: PoseRigConfig | null;
   graphInputDefaults: Record<string, number>;
@@ -108,6 +109,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   graphSpecRevision: 0,
   poseRuntimeRevision: 0,
   poseGraphSpecRevision: 0,
+  graphBridgeForceTopologyRevision: 0,
   poseGraphSpec: null,
   poseConfig: null,
   graphInputDefaults: {},
