@@ -57,6 +57,10 @@ Primary rule: performance changes only land if controls/poses remain correct imm
     - ON still improves root-to-controllable timing (~`-8.70s` mean),
     - but still inflates ready-to-first-frame (~`+17.67s` mean),
     - controller registration churn improved vs post-B4 ON (`25 -> 19` in sampled runs) but remains elevated.
+14. Commit `ae53ee1` reduced reference-only re-registration churn in update policy:
+    - registration churn dropped to low single digits in the latest 3x set (OFF `2`, ON `4`),
+    - strict-path readiness improved strongly vs post-C2/C3 (`rootAssignedToReadyMs` OFF `39739 -> 20662`, ON `13372 -> 6994`),
+    - combined root-to-first-frame improved in ON mode by ~`5.13s` vs OFF in the same run set.
 
 ## Confidence Split
 
@@ -195,9 +199,10 @@ These items are potentially valuable but carry correctness risk or architecture 
 
 - Observed outcome:
 
-1. prewarm ON registration churn decreased (`30 -> 25` runs/import in benchmark medians),
-2. `readyToFirstFrameMs` is still materially inflated under prewarm ON,
-3. additional staging/gating work is still required.
+1. prewarm ON registration churn decreased across iterations (`30 -> 25 -> 19 -> 4` in sampled run sets),
+2. OFF churn is also now low-single-digit (`2`) in the latest run set,
+3. `readyToFirstFrameMs` is still materially higher under prewarm ON (`~8.54s` mean in latest 3x set),
+4. additional staging/gating and normalization-cost work is still required.
 
 - Expected spike deliverable:
 
