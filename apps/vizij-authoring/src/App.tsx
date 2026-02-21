@@ -262,7 +262,6 @@ function AppContent({
     const baseline = graphRuntimeStore.getState();
     const baselinePoseGraphRevision = baseline.poseGraphSpecRevision ?? 0;
     const baselinePoseGraphSpec = baseline.poseGraphSpec ?? null;
-    let poseGraphSettled = false;
 
     // Wait for the imported pose graph publication before forcing topology.
     for (let attempt = 0; attempt < 45; attempt += 1) {
@@ -272,7 +271,6 @@ function AppContent({
       const poseGraphReferenceChanged =
         (next.poseGraphSpec ?? null) !== baselinePoseGraphSpec;
       if (poseGraphRevisionAdvanced || poseGraphReferenceChanged) {
-        poseGraphSettled = true;
         break;
       }
       await waitForNextFrame();
@@ -283,11 +281,11 @@ function AppContent({
         (state.graphBridgeForceTopologyRevision ?? 0) + 1,
     }));
 
-    // Fallback: if imported pose graph publication never materialized, use the
-    // known-good structural nudge path to guarantee a topology transition.
-    if (!poseGraphSettled) {
-      await runPostPoseImportNudge();
-    }
+    // Always execute the proven structural nudge path after explicit refresh.
+    // This guarantees the same runtime wake-up transition observed in manual
+    // smoke tests while we continue root-cause investigation.
+    await waitForNextFrame();
+    await runPostPoseImportNudge();
   }, [graphRuntimeStore, runPostPoseImportNudge]);
   const {
     bundleSyncFailure,
