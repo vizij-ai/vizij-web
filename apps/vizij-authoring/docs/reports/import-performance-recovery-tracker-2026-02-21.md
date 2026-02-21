@@ -18,10 +18,10 @@ This document is the working tracker for:
 ## Current Bottom Line
 
 We recovered correctness from earlier publish-coalescing regressions and have kept it stable.  
-Post-`ae53ee1` reruns show a major churn and readiness improvement versus post-C2/C3 (`controllerRegistrationRuns`: OFF `7 -> 2`, ON `19 -> 4`; `rootAssignedToReadyMs`: OFF `39739 -> 20662`, ON `13372 -> 6994`).  
-Prewarm ON still keeps a meaningful post-ready stall (`readyToFirstFrameMs`: OFF `4.525` vs ON `8543.208` in the latest 3x set).  
-New A/B reruns for a `resolveRuntimeUpdatePlan` payload-serialization cache show a major strict-path win while preserving behavior: OFF `39168.667 -> 7899.333` mean duration and ON `29767.333 -> 8201.333` mean duration in the latest 3x sets (Quori).  
-Conclusion: keep the payload-serialization cache optimization, keep prewarm default-off for now, and continue staged ingestion work on additional assets.
+Post-`0a45887` reruns now hit sub-5s in both OFF and ON modes on Quori with stable behavior: OFF mean `4049.137ms` and ON mean `4450.918ms` (latest 3x sets, page reload per run).  
+Prewarm ON still shifts time later in the pipeline (`rootAssignedToReadyMs` improves, but `readyToFirstFrameMs` increases), and OFF remains faster overall in this run set.  
+Registration churn stayed bounded in low single digits (OFF `1`, ON `3`), and update coverage stayed stable (`graphBridgeAccepted/Attempts = 23/32`).  
+Conclusion: keep payload-serialization caching and current staging behavior, keep prewarm default-off, and treat additional risky coalescing work as optional follow-up pending cross-asset validation.
 
 ## Timeline Of Attempts
 
@@ -56,12 +56,12 @@ Conclusion: keep the payload-serialization cache optimization, keep prewarm defa
 
 ## What We Know Now
 
-1. Lifecycle timing remains highly sensitive to readiness semantics; latest strict-path runs improved from ~40s to ~20-21s end-to-end, but still miss the 3-5s target.
-2. There is still a substantial hidden delay after root assignment before runtime reaches controllable-ready (`rootAssignedToReadyMs` ~7s ON prewarm, ~20-21s OFF).
-3. Rig normalization and pose normalization are still major costs (`rigNormalizeTotalMs` ~5-5.6s and `poseNormalizeTotalMs` ~15.8-16.8s in latest runs).
+1. Latest Quori runs are now within target in both modes (3x mean: OFF `4049.137ms`, ON `4450.918ms`).
+2. Root-to-ready is no longer the dominant bottleneck (`rootAssignedToReadyMs` means: OFF `3786.078ms`, ON `1794.187ms`).
+3. Normalize work remains the largest consistent compute chunk (`rigNormalizeTotalMs` ~`923-992ms`, `poseNormalizeTotalMs` ~`1519-1579ms` means).
 4. Publish suppression is not safe unless we preserve the exact lifecycle semantics needed by runtime/controller wiring.
 5. Instrumentation is now good enough to guide targeted optimization instead of guessing.
-6. Prewarm-on imports now show bounded registration churn (`4` runs/import) but still have a large post-ready window; this indicates remaining cost is not only registration call count.
+6. Prewarm-on imports now show bounded registration churn (`3` runs/import mean in latest 3x), but still have a larger post-ready window than OFF (`readyToFirstFrameMs` ON `1595.768ms` vs OFF `14.798ms` mean).
 
 ## Guardrails (Do Not Break)
 
@@ -120,7 +120,7 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done
 
 ### Step 4: Reduce repeated heavy compute without changing semantics (medium risk)
 
-- Status: `[-]`
+- Status: `[x]`
 - Goal: keep exact lifecycle behavior but do less duplicate normalization/rebuild work.
 - Candidate work:
 
@@ -161,9 +161,9 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done
 
 - Remaining:
 
-1. hold ON/OFF churn at low single digits while additional optimizations land,
-2. shrink `readyToFirstFrameMs` under prewarm ON without regressing controls/poses,
-3. add import responsiveness smoke coverage for post-ready interaction correctness.
+1. validate low single-digit churn and sub-5 behavior on at least one additional large asset,
+2. decide whether prewarm should remain opt-in after cross-asset validation,
+3. keep import responsiveness smoke coverage current as lifecycle code evolves.
 
 ## Run Log (Fill Per Experiment)
 
@@ -419,6 +419,40 @@ Use one block per validation run.
 - Notes: post-reapply sanity check after revert/reapply loop confirmed the same direction as 3x sets.
 - Decision: keep.
 
+### Run 2026-02-21 01:10 (3x aggregate, post-`0a45887`, prewarm OFF)
+
+- Branch/commit: `authoring-features-restart` @ `0a45887`, `VITE_RUNTIME_PREWARM` unset.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `4049.137`
+  - rigNormalizeTotalMs: `923.457`
+  - poseNormalizeRuns: `5.000`
+  - poseNormalizeTotalMs: `1519.492`
+  - graphBridgeAccepted/Attempts: `23/32`
+  - controllerRegistrationRuns: `1.000`
+  - rootAssignedToReadyMs: `3786.078`
+  - readyToFirstFrameMs: `14.798`
+- Notes: first controlled 3x rerun after payload-cache landing (page reload between runs) confirms sub-5 user-visible import time in OFF mode.
+- Decision: keep.
+
+### Run 2026-02-21 01:12 (3x aggregate, post-`0a45887`, prewarm ON)
+
+- Branch/commit: `authoring-features-restart` @ `0a45887`, `VITE_RUNTIME_PREWARM=true`.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `4450.918`
+  - rigNormalizeTotalMs: `992.072`
+  - poseNormalizeRuns: `5.000`
+  - poseNormalizeTotalMs: `1579.023`
+  - graphBridgeAccepted/Attempts: `23/32`
+  - controllerRegistrationRuns: `3.000`
+  - rootAssignedToReadyMs: `1794.187`
+  - readyToFirstFrameMs: `1595.768`
+- Notes: ON remains under 5s but is slower than OFF due post-ready stall despite earlier ready signal.
+- Decision: keep prewarm default-off and treat ON as optional experiment mode.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -438,3 +472,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 10. Reran 3x OFF/ON post-C2/C3 benchmark; ON churn improved (`25 -> 19` in sampled runs) but prewarm still inflates ready-to-first-frame materially.
 11. Landed graph-reference churn filter (`ae53ee1`) and reran 3x OFF/ON: churn dropped to low single digits (OFF `2`, ON `4`) with large strict-path readiness gains and no functional regressions in targeted tests.
 12. Validated payload-serialization caching in runtime update policy (`packages/@vizij/runtime-react/src/updatePolicy.ts`) via reverted A/B runs plus targeted tests; observed large strict-path import-time reductions while preserving update coverage and responsiveness behavior.
+13. Reran controlled 3x OFF/ON Quori benchmarks post-`0a45887` with page reload per run; both modes now meet sub-5s target (OFF `4049.137ms`, ON `4450.918ms`) while preserving functional correctness.

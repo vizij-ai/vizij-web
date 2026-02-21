@@ -67,6 +67,10 @@ Primary rule: performance changes only land if controls/poses remain correct imm
       - ON mean duration `29767.333 -> 8201.333`
     - update coverage/churn class remained stable in sampled runs (`32/43` accepted/attempts; OFF registration runs `~2`, ON `~4`),
     - targeted runtime + authoring tests remained green.
+16. Post-landing controlled rerun checkpoint (3x OFF + 3x ON, page reload per run):
+    - OFF mean duration: `4049.137ms`,
+    - ON mean duration: `4450.918ms`,
+    - both modes meet the sub-5s user-visible target on Quori while preserving sampled correctness behavior.
 
 ## Confidence Split
 
@@ -205,10 +209,10 @@ These items are potentially valuable but carry correctness risk or architecture 
 
 - Observed outcome:
 
-1. prewarm ON registration churn decreased across iterations (`30 -> 25 -> 19 -> 4` in sampled run sets),
-2. OFF churn is also now low-single-digit (`2`) in the latest run set,
-3. `readyToFirstFrameMs` is still materially higher under prewarm ON (`~8.54s` mean in latest 3x set),
-4. additional staging/gating and normalization-cost work is still required.
+1. prewarm ON registration churn decreased across iterations (`30 -> 25 -> 19 -> 4 -> 3` in sampled run sets),
+2. OFF churn is now consistently low single-digit (`1` in latest 3x set),
+3. prewarm ON `readyToFirstFrameMs` is much lower than earlier probes (`~1.60s` mean in latest 3x set) but still above OFF (`~0.015s`),
+4. current optimization priority has shifted from core latency reduction to cross-asset validation and regression hardening.
 
 - Expected spike deliverable:
 
@@ -272,6 +276,8 @@ These items are potentially valuable but carry correctness risk or architecture 
 
 ## Recommended Execution Order
 
+Current checkpoint: sub-5s has been reached on Quori in both OFF and ON benchmark modes, so risky optimization work should pause unless cross-asset validation shows regressions.
+
 1. B4 first:
    - add durable runtime registration-churn metrics (in-app, not console patching),
    - implement bounded registration scheduling (single in-flight + latest pending token),
@@ -303,7 +309,7 @@ These items are potentially valuable but carry correctness risk or architecture 
 1. Commit 1: add import-level responsiveness smoke tests (done in `71d8ede`).
 2. Commit 2: separate runtime-ready vs frame/controllable-ready gating (done in `900152d`).
 3. Commit 3: reduce config-only graph churn/re-registration (done in `25aa9a5`).
-4. Commit 4: cache serialized runtime update-policy payloads (pending land in this worktree).
-5. Commit 5: isolate remaining OFF/ON registration churn sources and add targeted guard tests around expected registration counts.
-6. Commit 6: prototype guarded pose-normalization cache + invalidation matrix tests.
-7. Commit 7: worker-feasibility spike for expensive normalization/IR preparation paths.
+4. Commit 4: cache serialized runtime update-policy payloads (done in `0a45887`).
+5. Commit 5: cross-asset validation pass (repeat OFF/ON benchmark + responsiveness smoke on at least one additional large asset).
+6. Commit 6: isolate any remaining OFF/ON registration churn sources only if cross-asset data shows regressions.
+7. Commit 7: prototype guarded pose-normalization cache + invalidation matrix tests only if latency regresses above sub-5 on representative assets.
