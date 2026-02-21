@@ -162,6 +162,7 @@ export function useBundleSynchronizer({
   const inFlightFingerprintRef = useRef<string | null>(null);
   const rigImportedRef = useRef(false);
   const poseImportedRef = useRef(false);
+  const pendingImportedFaceIdRef = useRef<string | null>(null);
   const [rigImportEpoch, setRigImportEpoch] = useState(0);
 
   useEffect(() => {
@@ -193,6 +194,7 @@ export function useBundleSynchronizer({
           inFlightFingerprintRef.current = null;
           rigImportedRef.current = false;
           poseImportedRef.current = false;
+          pendingImportedFaceIdRef.current = null;
           return;
         }
 
@@ -228,6 +230,7 @@ export function useBundleSynchronizer({
           activeBundleFingerprintRef.current = fingerprint;
           rigImportedRef.current = false;
           poseImportedRef.current = false;
+          pendingImportedFaceIdRef.current = null;
         }
         inFlightFingerprintRef.current = fingerprint;
 
@@ -254,6 +257,9 @@ export function useBundleSynchronizer({
               normalizedSpec,
             });
             importedFaceIdFromRig = result.importedFaceId;
+            if (importedFaceIdFromRig) {
+              pendingImportedFaceIdRef.current = importedFaceIdFromRig;
+            }
             const importedRigSuccessfully = isImportOutcomeSuccess(
               result.status,
             );
@@ -304,8 +310,10 @@ export function useBundleSynchronizer({
             return;
           }
           try {
-            if (importedFaceIdFromRig) {
-              await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
+            const targetFaceId =
+              importedFaceIdFromRig ?? pendingImportedFaceIdRef.current;
+            if (targetFaceId) {
+              await waitForFaceIdMatch(targetFaceId, () => cancelled);
               if (cancelled) {
                 return;
               }
@@ -314,6 +322,7 @@ export function useBundleSynchronizer({
               loadedBundle.poses.config as unknown as PoseRigConfigFile,
             );
             poseImportedRef.current = true;
+            pendingImportedFaceIdRef.current = null;
           } catch (error) {
             hasFailure = true;
             const message =

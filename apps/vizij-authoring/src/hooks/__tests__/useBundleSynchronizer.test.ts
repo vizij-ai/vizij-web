@@ -12,9 +12,14 @@ import {
 } from "../useBundleSynchronizer";
 
 const mockNormalizeGraphSpec = vi.fn(async (spec: GraphSpec) => spec);
+const mockWaitForNextFrame = vi.fn(async () => undefined);
 
 vi.mock("@vizij/node-graph-wasm", async () => ({
   normalizeGraphSpec: (spec: GraphSpec) => mockNormalizeGraphSpec(spec),
+}));
+
+vi.mock("../../utils/frame", async () => ({
+  waitForNextFrame: () => mockWaitForNextFrame(),
 }));
 
 function createBundleWithRigSpec(spec: GraphSpec) {
@@ -40,6 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetRuntimePerfMetrics();
   __resetBundleSynchronizerNormalizeCacheForTests();
+  mockWaitForNextFrame.mockImplementation(async () => undefined);
 });
 describe("useBundleSynchronizer failure surfaces", () => {
   it("reports recoverable rig import failures to the caller", async () => {
@@ -203,6 +209,63 @@ describe("useBundleSynchronizer failure surfaces", () => {
     });
     expect(importGraphSpec).toHaveBeenCalledTimes(1);
     expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits a bounded number of frames for imported face-id alignment before applying poses", async () => {
+    const frameResolvers: Array<() => void> = [];
+    mockWaitForNextFrame.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          frameResolvers.push(resolve);
+        }),
+    );
+    const importGraphSpec = vi.fn(async () => ({
+      status: "success" as const,
+      faceChanged: false,
+      importedFaceId: "robot",
+    }));
+    const importPoseConfigFromData = vi.fn();
+    const onSuccess = vi.fn();
+    const baseProps = {
+      rootId: "root",
+      loadedBundle: createBundleWithRigAndPoses({
+        nodes: [],
+        edges: [],
+      } as GraphSpec),
+      standardInputCount: 1,
+      skipDiscrepancyCheck: false,
+      importGraphSpec,
+      importPoseConfigFromData,
+      onFailure: vi.fn(),
+      onSuccess,
+    };
+    const hook = renderHook(
+      (props: typeof baseProps & { faceId: string | null }) =>
+        useBundleSynchronizer(props),
+      {
+        initialProps: { ...baseProps, faceId: "legacy-face" },
+      },
+    );
+
+    await waitFor(() => {
+      expect(importGraphSpec).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(mockWaitForNextFrame).toHaveBeenCalledTimes(1);
+    });
+    expect(importPoseConfigFromData).toHaveBeenCalledTimes(0);
+
+    hook.rerender({ ...baseProps, faceId: "robot" });
+    const nextFrame = frameResolvers.shift();
+    expect(nextFrame).toBeTypeOf("function");
+    nextFrame?.();
+
+    await waitFor(() => {
+      expect(importPoseConfigFromData).toHaveBeenCalledTimes(1);
+    });
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(importGraphSpec).toHaveBeenCalledTimes(1);
+    expect(mockWaitForNextFrame.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   it("retries bundle sync when retryToken changes", async () => {
