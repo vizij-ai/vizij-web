@@ -1,6 +1,6 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 import {
@@ -19,6 +19,13 @@ import {
   type RuntimeGraphBridgeRevisions,
   type RuntimeGraphBridgeState,
 } from "./runtimeGraphMutation";
+
+type RuntimeGraphMutation = ReturnType<typeof createRuntimeGraphMutation>;
+type RuntimeGraphMutationClass = RuntimeGraphMutation["mutationClass"];
+type QueuedMutations = {
+  topology: RuntimeGraphMutation | null;
+  pose: RuntimeGraphMutation | null;
+};
 
 function RuntimeInputBridge() {
   const { setInput, ready } = useVizijRuntime();
@@ -98,7 +105,8 @@ function RuntimeSelectionBridge({
 }
 
 function RuntimeGraphBridge() {
-  const { setGraphBundle } = useVizijRuntime();
+  const { ready, rootId, setGraphBundle } = useVizijRuntime();
+  const runtimeRootId = rootId ?? null;
   const graphSpecRevision = useGraphRuntime((state) => state.graphSpecRevision);
   const poseRuntimeRevision = useGraphRuntime(
     (state) => state.poseRuntimeRevision,
@@ -107,6 +115,60 @@ function RuntimeGraphBridge() {
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
   const lastRevisionRef = useRef<RuntimeGraphBridgeRevisions | null>(null);
+  const previousRootIdRef = useRef<string | null>(runtimeRootId);
+  const previousReadyRef = useRef<boolean>(ready);
+  const preReadyPublishedByClassRef = useRef<
+    Record<RuntimeGraphMutationClass, boolean>
+  >({
+    topology: false,
+    pose: false,
+  });
+  const queuedMutationsRef = useRef<QueuedMutations>({
+    topology: null,
+    pose: null,
+  });
+
+  const resetPreReadyState = useCallback(() => {
+    preReadyPublishedByClassRef.current = {
+      topology: false,
+      pose: false,
+    };
+    queuedMutationsRef.current = {
+      topology: null,
+      pose: null,
+    };
+  }, []);
+
+  const publishMutation = useCallback(
+    (mutation: RuntimeGraphMutation): RuntimeGraphMutationClass => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[vizij-runtime][graph-bridge]", {
+          mutationClass: mutation.mutationClass,
+          hasRig: Boolean(mutation.bundle.rig),
+          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
+          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+        });
+      }
+      setGraphBundle(mutation.bundle, {
+        ...mutation.options,
+        mutationClass: mutation.mutationClass,
+      });
+      return mutation.mutationClass;
+    },
+    [setGraphBundle],
+  );
+
+  useEffect(() => {
+    if (previousRootIdRef.current !== runtimeRootId) {
+      previousRootIdRef.current = runtimeRootId;
+      lastRevisionRef.current = null;
+      resetPreReadyState();
+    }
+    if (previousReadyRef.current && !ready) {
+      resetPreReadyState();
+    }
+    previousReadyRef.current = ready;
+  }, [ready, resetPreReadyState, runtimeRootId]);
 
   useEffect(() => {
     const startMs =
@@ -133,20 +195,16 @@ function RuntimeGraphBridge() {
         poseConfig,
       };
       const mutation = createRuntimeGraphMutation(state, mutationClass);
-      publishedMutationClass = mutation.mutationClass;
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[vizij-runtime][graph-bridge]", {
-          mutationClass: mutation.mutationClass,
-          hasRig: Boolean(mutation.bundle.rig),
-          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
-          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
-        });
+      if (!ready && runtimeRootId) {
+        if (!preReadyPublishedByClassRef.current[mutation.mutationClass]) {
+          preReadyPublishedByClassRef.current[mutation.mutationClass] = true;
+          publishedMutationClass = publishMutation(mutation);
+        } else {
+          queuedMutationsRef.current[mutation.mutationClass] = mutation;
+        }
+        return;
       }
-      setGraphBundle(mutation.bundle, {
-        ...mutation.options,
-        mutationClass: mutation.mutationClass,
-      });
+      publishedMutationClass = publishMutation(mutation);
     } finally {
       const endMs =
         typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -165,8 +223,51 @@ function RuntimeGraphBridge() {
     graphSpec,
     poseGraphSpec,
     poseConfig,
-    setGraphBundle,
+    publishMutation,
+    ready,
+    runtimeRootId,
   ]);
+
+  useEffect(() => {
+    if (!ready || !runtimeRootId) {
+      return;
+    }
+
+    const pendingTopology = queuedMutationsRef.current.topology;
+    const pendingPose = queuedMutationsRef.current.pose;
+    if (!pendingTopology && !pendingPose) {
+      return;
+    }
+
+    queuedMutationsRef.current = { topology: null, pose: null };
+    const pendingMutations: RuntimeGraphMutation[] = [];
+    if (pendingTopology) {
+      pendingMutations.push(pendingTopology);
+    }
+    if (pendingPose) {
+      pendingMutations.push(pendingPose);
+    }
+
+    for (const pendingMutation of pendingMutations) {
+      const startMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      let publishedMutationClass: RuntimeGraphMutationClass | null = null;
+      try {
+        publishedMutationClass = publishMutation(pendingMutation);
+      } finally {
+        const endMs =
+          typeof performance !== "undefined" ? performance.now() : Date.now();
+        const snapshot = recordGraphBridgeRun(
+          endMs - startMs,
+          publishedMutationClass,
+        );
+        if (process.env.NODE_ENV !== "production") {
+          (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+            snapshot;
+        }
+      }
+    }
+  }, [publishMutation, ready, runtimeRootId]);
 
   return null;
 }
