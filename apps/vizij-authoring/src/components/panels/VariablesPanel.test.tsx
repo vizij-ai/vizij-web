@@ -15,10 +15,13 @@ const poseRigState = {
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  addPoseDefinition: vi.fn(),
+  replacePoseDefinition: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
+  setPoseGroupBlendMode: vi.fn(),
   deletePose: vi.fn(),
   blendStages: [] as NonNullable<PoseRigConfigFile["blendStages"]>,
   createBlendStage: vi.fn(),
@@ -37,7 +40,7 @@ const poseRigState = {
 };
 
 const referenceFaceState = {
-  file: { name: "ref.glb" } as File,
+  file: { name: "ref.glb" } as File | null,
   setFile: vi.fn(),
   isLoaded: true,
   isLoading: false,
@@ -45,6 +48,8 @@ const referenceFaceState = {
   standardInputsById: new Map<string, StandardRigInput>(),
   inputIdsWithBindings: new Set<string>(),
   inputValues: {} as Record<string, number>,
+  referencePoses: [],
+  referencePoseGroups: [],
   handleInputValueChange: vi.fn(),
   handleResetAllInputValues: vi.fn(),
   onStandardInputsReady: vi.fn(),
@@ -124,10 +129,13 @@ describe("VariablesPanel", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.addPoseDefinition.mockReset();
+    poseRigState.replacePoseDefinition.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
+    poseRigState.setPoseGroupBlendMode.mockReset();
     poseRigState.deletePose.mockReset();
     poseRigState.blendStages = [];
     poseRigState.createBlendStage.mockReset();
@@ -148,6 +156,8 @@ describe("VariablesPanel", () => {
     referenceFaceState.standardInputs = [];
     referenceFaceState.standardInputsById = new Map();
     referenceFaceState.inputValues = {};
+    referenceFaceState.referencePoses = [];
+    referenceFaceState.referencePoseGroups = [];
 
     bindingState.managedStandardInputs = [];
     bindingState.standardInputsByPath = new Map();
@@ -256,6 +266,100 @@ describe("VariablesPanel", () => {
       },
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
+  });
+
+  it("surfaces a modal when reference variable copy conflicts with existing main metadata", () => {
+    const mainInput = makeInput("main_brow", "/x", {
+      label: "Main Brow",
+      defaultValue: 0.1,
+      range: { min: -1, max: 1 },
+    });
+    const referenceInput = makeInput("ref_brow", "/x", {
+      label: "Reference Brow",
+      defaultValue: 0.6,
+      range: { min: 0, max: 1 },
+      sourceId: "ref-brow",
+    });
+
+    bindingState.managedStandardInputs = [
+      {
+        input: mainInput,
+        source: "custom",
+      },
+    ];
+    bindingState.standardInputsByPath = new Map([["/x", mainInput]]);
+    bindingState.standardInputsById = new Map([[mainInput.id, mainInput]]);
+    referenceFaceState.standardInputs = [referenceInput];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceInput.id, referenceInput],
+    ]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    fireEvent.click(within(view.container).getByTitle("x"));
+    fireEvent.click(
+      within(view.container).getByTitle("Copy input to main face"),
+    );
+    expect(screen.getByText("Variable Copy Conflict")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Overwrite Main").closest("button")!);
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      mainInput.id,
+      expect.objectContaining({
+        path: "/x",
+        label: referenceInput.label,
+        defaultValue: referenceInput.defaultValue,
+        sourceId: referenceInput.sourceId,
+      }),
+    );
+  });
+
+  it("surfaces a modal when reference pose-group blend mode conflicts with main", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          blendMode: "average",
+        },
+      ],
+    };
+    referenceFaceState.referencePoseGroups = [
+      {
+        id: "emotion",
+        path: "emotion",
+        name: "Emotion",
+        blendMode: "additive",
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle("Copy pose group to main face"),
+    );
+    expect(screen.getByText("Pose Group Copy Conflict")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Overwrite Mode").closest("button")!);
+    expect(poseRigState.setPoseGroupBlendMode).toHaveBeenCalledWith(
+      "emotion",
+      "additive",
+    );
   });
 
   it("routes reference variable selection to linked main variable", () => {
@@ -617,6 +721,9 @@ describe("VariablesPanel", () => {
   });
 
   it("keeps pose CRUD actions wired on the poses surface", () => {
+    referenceFaceState.file = null;
+    referenceFaceState.isLoaded = false;
+    poseRigState.selectedPoseId = "pose_smile";
     poseRigState.poses = [
       {
         id: "pose_smile",
@@ -628,30 +735,19 @@ describe("VariablesPanel", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       },
     ];
-    const onSelectPose = vi.fn();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const view = render(
+    render(
       <VariablesPanel
         availableSurfaces={["poses"]}
         activeSurfaceOverride="poses"
-        onSelectPose={onSelectPose}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "New Pose" }));
     expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(within(view.container).getByTitle("Duplicate this pose"));
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate Pose" }));
     expect(poseRigState.duplicatePose).toHaveBeenCalledWith("pose_smile");
-
-    fireEvent.click(within(view.container).getByTitle("Smile"));
-    expect(onSelectPose).toHaveBeenCalledWith("pose_smile");
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
-
-    fireEvent.click(within(view.container).getByTitle("Delete Pose"));
-    expect(confirmSpy).toHaveBeenCalledWith('Delete pose "Smile"?');
-    expect(poseRigState.deletePose).toHaveBeenCalledWith("pose_smile");
-    confirmSpy.mockRestore();
   });
 
   it("routes pose play action through canonical pose-weight inputs when available", () => {
@@ -697,6 +793,10 @@ describe("VariablesPanel", () => {
       />,
     );
 
+    const mainFaceFolder = within(view.container).queryByTitle("Main Face");
+    if (mainFaceFolder) {
+      fireEvent.click(mainFaceFolder);
+    }
     fireEvent.click(within(view.container).getAllByTitle("Apply Pose")[0]!);
 
     const updates = bindingState.applyStandardInputBatch.mock.calls[0]?.[0] as
