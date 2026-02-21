@@ -8,6 +8,8 @@ import type {
 
 export type { RuntimeUpdateTier, RuntimeUpdatePlan, RuntimeGraphBundle };
 
+const serializedPayloadCache = new WeakMap<object, string>();
+
 export function resolveRuntimeUpdatePlanFromMutationClass(
   mutationClass: Exclude<RuntimeMutationClass, "value">,
   tier: RuntimeUpdateTier,
@@ -26,6 +28,22 @@ export function resolveRuntimeUpdatePlanFromMutationClass(
 function normalizeSpecPayload(value: unknown): string {
   if (!value) {
     return "";
+  }
+  if (typeof value === "object") {
+    const objectValue = value as object;
+    const cached = serializedPayloadCache.get(objectValue);
+    if (cached !== undefined) {
+      return cached;
+    }
+    try {
+      const serialized = JSON.stringify(objectValue);
+      serializedPayloadCache.set(objectValue, serialized);
+      return serialized;
+    } catch {
+      const fallback = String(objectValue);
+      serializedPayloadCache.set(objectValue, fallback);
+      return fallback;
+    }
   }
   try {
     return JSON.stringify(value);

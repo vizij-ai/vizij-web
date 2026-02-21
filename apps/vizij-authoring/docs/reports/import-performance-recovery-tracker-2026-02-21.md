@@ -20,7 +20,8 @@ This document is the working tracker for:
 We recovered correctness from earlier publish-coalescing regressions and have kept it stable.  
 Post-`ae53ee1` reruns show a major churn and readiness improvement versus post-C2/C3 (`controllerRegistrationRuns`: OFF `7 -> 2`, ON `19 -> 4`; `rootAssignedToReadyMs`: OFF `39739 -> 20662`, ON `13372 -> 6994`).  
 Prewarm ON still keeps a meaningful post-ready stall (`readyToFirstFrameMs`: OFF `4.525` vs ON `8543.208` in the latest 3x set).  
-Conclusion: keep prewarm default-off and continue with staged, correctness-preserving runtime ingestion work.
+New A/B reruns for a `resolveRuntimeUpdatePlan` payload-serialization cache show a major strict-path win while preserving behavior: OFF `39168.667 -> 7899.333` mean duration and ON `29767.333 -> 8201.333` mean duration in the latest 3x sets (Quori).  
+Conclusion: keep the payload-serialization cache optimization, keep prewarm default-off for now, and continue staged ingestion work on additional assets.
 
 ## Timeline Of Attempts
 
@@ -119,7 +120,7 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done
 
 ### Step 4: Reduce repeated heavy compute without changing semantics (medium risk)
 
-- Status: `[ ]`
+- Status: `[-]`
 - Goal: keep exact lifecycle behavior but do less duplicate normalization/rebuild work.
 - Candidate work:
 
@@ -375,6 +376,49 @@ Use one block per validation run.
 - Notes: compared to post-C2/C3 ON baseline, this cut duration (`41458 -> 20162`), cut churn (`19 -> 4`), and halved ready-to-first-frame (`17720 -> 8543`) while preserving the same update coverage (`32/43`).
 - Decision: keep prewarm default-off for now; prewarm still shows a large post-ready stall despite better combined root-to-first-frame.
 
+### Run 2026-02-21 23:55 (3x aggregate, payload-serialization cache candidate, prewarm OFF)
+
+- Branch/commit: `authoring-features-restart` with uncommitted `packages/@vizij/runtime-react/src/updatePolicy.ts` payload cache.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses remained responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `7899.333`
+  - rigNormalizeTotalMs: `1542.422`
+  - poseNormalizeTotalMs: `5589.590`
+  - graphBridgeAccepted/Attempts: `32/43`
+  - rootAssignedToReadyMs: `6896.878`
+  - readyToFirstFrameMs: `2.345`
+  - controllerRegistrationRuns: `2.000`
+- Notes: compared to immediate reverted OFF baseline (3x mean `39168.667`, runs `34191/41568/41747`), this is a large strict-path reduction without changing mutation coverage/churn class.
+- Decision: keep and land with tests.
+
+### Run 2026-02-21 23:58 (3x aggregate, payload-serialization cache candidate, prewarm ON)
+
+- Branch/commit: `authoring-features-restart` with uncommitted `packages/@vizij/runtime-react/src/updatePolicy.ts` payload cache and `VITE_RUNTIME_PREWARM=true`.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses remained responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `8201.333`
+  - rigNormalizeTotalMs: `1608.035`
+  - poseNormalizeTotalMs: `5869.152`
+  - graphBridgeAccepted/Attempts: `32/43`
+  - rootAssignedToReadyMs: `2938.765`
+  - readyToFirstFrameMs: `2942.675`
+  - controllerRegistrationRuns: `4.000`
+- Notes: compared to immediate reverted ON baseline (3x mean `29767.333`, runs `41126/25250/22926`), this is a large strict-path reduction while preserving expected ON churn profile.
+- Decision: keep optimization; prewarm default remains off pending broader asset validation.
+
+### Run 2026-02-21 00:58 (single-run confirmation, payload cache)
+
+- Branch/commit: `authoring-features-restart` with uncommitted payload cache.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive.
+- Key metrics:
+  - OFF: `durationMs 6174`, `rootAssignedToReadyMs 5412.870`, `readyToFirstFrameMs 3.300`, `graphBridgeAccepted/Attempts 32/43`
+  - ON: `durationMs 5432`, `rootAssignedToReadyMs 2192.045`, `readyToFirstFrameMs 1910.335`, `graphBridgeAccepted/Attempts 32/43`
+- Notes: post-reapply sanity check after revert/reapply loop confirmed the same direction as 3x sets.
+- Decision: keep.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -393,3 +437,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 9. Landed readiness split (`900152d`) and config-only churn cut (`25aa9a5`).
 10. Reran 3x OFF/ON post-C2/C3 benchmark; ON churn improved (`25 -> 19` in sampled runs) but prewarm still inflates ready-to-first-frame materially.
 11. Landed graph-reference churn filter (`ae53ee1`) and reran 3x OFF/ON: churn dropped to low single digits (OFF `2`, ON `4`) with large strict-path readiness gains and no functional regressions in targeted tests.
+12. Validated payload-serialization caching in runtime update policy (`packages/@vizij/runtime-react/src/updatePolicy.ts`) via reverted A/B runs plus targeted tests; observed large strict-path import-time reductions while preserving update coverage and responsiveness behavior.

@@ -61,6 +61,12 @@ Primary rule: performance changes only land if controls/poses remain correct imm
     - registration churn dropped to low single digits in the latest 3x set (OFF `2`, ON `4`),
     - strict-path readiness improved strongly vs post-C2/C3 (`rootAssignedToReadyMs` OFF `39739 -> 20662`, ON `13372 -> 6994`),
     - combined root-to-first-frame improved in ON mode by ~`5.13s` vs OFF in the same run set.
+15. Implemented `updatePolicy` payload-serialization cache (`WeakMap<object, string>`) in `@vizij/runtime-react`:
+    - 3x reverted A/B showed large strict-path wins in Quori runs:
+      - OFF mean duration `39168.667 -> 7899.333`
+      - ON mean duration `29767.333 -> 8201.333`
+    - update coverage/churn class remained stable in sampled runs (`32/43` accepted/attempts; OFF registration runs `~2`, ON `~4`),
+    - targeted runtime + authoring tests remained green.
 
 ## Confidence Split
 
@@ -297,6 +303,7 @@ These items are potentially valuable but carry correctness risk or architecture 
 1. Commit 1: add import-level responsiveness smoke tests (done in `71d8ede`).
 2. Commit 2: separate runtime-ready vs frame/controllable-ready gating (done in `900152d`).
 3. Commit 3: reduce config-only graph churn/re-registration (done in `25aa9a5`).
-4. Commit 4: isolate remaining OFF/ON registration churn sources and add targeted guard tests around expected registration counts.
-5. Commit 5: prototype guarded pose-normalization cache + invalidation matrix tests.
-6. Commit 6: worker-feasibility spike for expensive normalization/IR preparation paths.
+4. Commit 4: cache serialized runtime update-policy payloads (pending land in this worktree).
+5. Commit 5: isolate remaining OFF/ON registration churn sources and add targeted guard tests around expected registration counts.
+6. Commit 6: prototype guarded pose-normalization cache + invalidation matrix tests.
+7. Commit 7: worker-feasibility spike for expensive normalization/IR preparation paths.
