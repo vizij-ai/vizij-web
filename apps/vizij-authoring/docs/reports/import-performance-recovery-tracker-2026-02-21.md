@@ -17,8 +17,9 @@ This document is the working tracker for:
 
 ## Current Bottom Line
 
-We made import much faster in raw pipeline time, but one optimization strategy (suppressing/coalescing pre-ready graph publishes) broke controls and pose behavior.  
-Conclusion: we should keep the current rollback state for correctness, and optimize with safer steps that preserve lifecycle semantics.
+We recovered correctness from earlier publish-coalescing regressions and have kept it stable.  
+The new B4 runtime registration scheduler/metrics commit reduced prewarm churn (`30 -> 25` registrations/import), but not enough to close the large `readyToFirstFrameMs` gap.  
+Conclusion: keep prewarm default-off and continue with staged, correctness-preserving runtime ingestion work.
 
 ## Timeline Of Attempts
 
@@ -30,6 +31,9 @@ Conclusion: we should keep the current rollback state for correctness, and optim
 | `6f3d901` + `b3f5c76` | Reverted the two commits above                            | Correctness restored.                                  |
 | `471880a`             | Deduped pre-ready publishes by mutation class             | Faster again, controls still non-functional.           |
 | `803badc`             | Reverted dedupe commit                                    | Back to correct behavior baseline.                     |
+| `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype | Correctness preserved; better observability.           |
+| `bca8811`             | Added investigation/benchmark/roadmap docs                | Execution clarity improved.                            |
+| `e585e99`             | Added bounded registration queue + durable churn metrics  | Correctness preserved; churn reduced but still high.   |
 
 ## What Failed
 
@@ -137,6 +141,21 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done
 1. all functional smoke tests pass,
 2. perf improves without lifecycle regressions.
 
+### Step 6: Bound runtime registration churn without dropping transitions (medium-high)
+
+- Status: `[-]`
+- Goal: keep required topology/pose transitions while avoiding repeated registration churn during import.
+- Delivered so far:
+
+1. bounded latest-token registration queue in runtime provider (`e585e99`),
+2. durable per-import `controllerRegistrationRuns` + `controllerRegistrationTotalMs` metrics.
+
+- Remaining:
+
+1. reduce ON churn from `25` toward low single digits,
+2. shrink `readyToFirstFrameMs` under prewarm ON without regressing controls/poses,
+3. add import responsiveness smoke coverage for post-ready interaction correctness.
+
 ## Run Log (Fill Per Experiment)
 
 Use one block per validation run.
@@ -230,6 +249,46 @@ Use one block per validation run.
 - Notes: compared to OFF churn probe medians, root-to-first-frame improved ~5.1s, but runtime registration churn increased drastically (`1 -> 30` median), matching the large post-ready stall.
 - Decision: prewarm remains default-off until we coalesce/stage registration churn safely.
 
+### Run 2026-02-21 21:32 (5x aggregate, post-B4, prewarm OFF)
+
+- Branch/commit: `authoring-features-restart` @ `e585e99`, `VITE_RUNTIME_PREWARM` unset.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in all sampled runs.
+- Key metrics (mean across 5):
+  - durationMs: `9642.612`
+  - rigNormalizeTotalMs: `5897.417`
+  - poseNormalizeTotalMs: `5229.029`
+  - graphBridgePublishes: `13`
+  - graphBridgeTopologyPublishes: `10`
+  - graphBridgePosePublishes: `3`
+  - rootAssignedToReadyMs: `27473.484`
+  - readyToFirstFrameMs: `1.865`
+  - rootToControllableMs: `26846.144`
+  - controllerRegistrationRuns: `1.000`
+  - controllerRegistrationTotalMs: `131.682`
+- Notes: OFF behavior remains stable with one registration/import and no responsiveness regressions.
+- Decision: keep as post-B4 OFF baseline.
+
+### Run 2026-02-21 21:37 (5x aggregate, post-B4, prewarm ON)
+
+- Branch/commit: `authoring-features-restart` @ `e585e99`, `VITE_RUNTIME_PREWARM=true`.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in sampled runs.
+- Key metrics (mean across 5):
+  - durationMs: `9379.704`
+  - rigNormalizeTotalMs: `5639.704`
+  - poseNormalizeTotalMs: `5102.069`
+  - graphBridgePublishes: `13`
+  - graphBridgeTopologyPublishes: `10`
+  - graphBridgePosePublishes: `3`
+  - rootAssignedToReadyMs: `6635.189`
+  - readyToFirstFrameMs: `16373.109`
+  - rootToControllableMs: `22355.697`
+  - controllerRegistrationRuns: `25.000`
+  - controllerRegistrationTotalMs: `494.905`
+- Notes: compared to post-B4 OFF, root-to-controllable improved by ~`4.49s` mean, but ready-to-first-frame remains inflated by ~`16.37s`; churn dropped from prior ON probe (`30 -> 25`) but is still high.
+- Decision: keep prewarm default-off; continue step 6 staging/churn reduction work.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -242,3 +301,5 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 3. Added default-off runtime prewarm prototype for controlled B1 cold-start experiments.
 4. Added before/after Quori benchmark run blocks (5 runs each, prewarm off/on) with mean deltas.
 5. Added churn probe runs with per-import `registerControllers` counting; confirmed prewarm creates heavy post-ready registration churn.
+6. Landed B4 initial runtime registration queue + durable churn metrics (`e585e99`).
+7. Reran 5x OFF/ON post-B4 benchmark set; ON churn improved (`30 -> 25`) but remains materially above OFF (`1`).

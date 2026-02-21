@@ -40,6 +40,13 @@ Primary rule: performance changes only land if controls/poses remain correct imm
 7. Added targeted churn probe:
    - Patched per-import counting for `[vizij-runtime] registerControllers`.
    - Confirmed large ON-vs-OFF churn increase (median `1 -> 30` registrations/import).
+8. `B4` initial implementation landed:
+   - Added bounded latest-token registration queue in runtime provider.
+   - Added durable `controllerRegistrationRuns` / `controllerRegistrationTotalMs` into import summary.
+9. `A3` rerun completed post-B4 with durable churn metrics:
+   - 5x OFF + 5x ON Quori runs captured.
+   - ON churn reduced from `30` to `25` registrations/import, but remains materially higher than OFF (`1`).
+   - `readyToFirstFrameMs` remains high under prewarm ON; prewarm remains default-off.
 
 ## Confidence Split
 
@@ -170,6 +177,18 @@ These items are potentially valuable but carry correctness risk or architecture 
 2. Can we prevent duplicate registrations caused by callback-identity re-triggers?
 3. Can we bound registration to one in-flight execution + one pending token?
 
+- Implemented in `e585e99`:
+
+1. latest-token queue (`createLatestTokenQueue`) with one in-flight run and coalesced pending token,
+2. runtime effect wiring that avoids callback-identity-triggered re-registration loops,
+3. durable import-summary fields for registration churn.
+
+- Observed outcome:
+
+1. prewarm ON registration churn decreased (`30 -> 25` runs/import in benchmark medians),
+2. `readyToFirstFrameMs` is still materially inflated under prewarm ON,
+3. additional staging/gating work is still required.
+
 - Expected spike deliverable:
 
 1. Design note for a token/epoch-based registration scheduler with explicit invariants.
@@ -260,8 +279,8 @@ These items are potentially valuable but carry correctness risk or architecture 
 
 ## Next Commit Candidates
 
-1. Commit 1: add durable `registerControllers` churn counters into runtime perf summary + tests.
-2. Commit 2: add registration scheduling/coalescing guard in runtime provider (no mutation-drop) + tests.
-3. Commit 3: rerun OFF/ON benchmarks (including churn counters) and update benchmark/tracker docs.
-4. Commit 4: add import-level responsiveness smoke tests (controls + poses usable immediately post-import).
-5. Commit 5: prototype guarded pose-normalization cache + invalidation matrix tests.
+1. Commit 1: add import-level responsiveness smoke tests (controls + poses usable within bounded frames after import).
+2. Commit 2: separate runtime-ready vs frame/controllable-ready gating in app/runtime wiring to reduce post-ready stall exposure.
+3. Commit 3: tighten graph update staging so topology/pose convergence emits fewer registration-triggering transitions during import.
+4. Commit 4: prototype guarded pose-normalization cache + invalidation matrix tests.
+5. Commit 5: worker-feasibility spike for expensive normalization/IR preparation paths.

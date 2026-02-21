@@ -134,3 +134,70 @@ Median values (less sensitive to OFF outlier run with 6 registrations):
 3. Audit `ready` consumers in `@vizij/runtime-react` and app code; gate interaction-critical behavior on first frame/controllable-frame where needed.
 4. Add prewarm-on smoke test: after import, controls and poses respond within bounded frame count.
 5. Repeat this benchmark on at least one additional large asset to validate whether the ~3.8s to ~5.1s `rootToFirstFrameMs` improvement generalizes.
+
+## Post-B4 Rerun (Durable Churn Metrics, 2026-02-21)
+
+Context:
+
+1. Commit: `e585e99` (`feat(runtime): coalesce controller registration and track registration churn metrics`).
+2. Churn measurement switched from console patching to durable summary fields:
+   - `controllerRegistrationRuns`
+   - `controllerRegistrationTotalMs`
+3. Flow remained the same (`Load Quori`, 5 runs OFF and 5 runs ON).
+4. This run set treats `rootToControllableMs` as the user-facing readiness KPI.
+
+### Raw Results (Prewarm OFF, post-B4, 5 runs)
+
+| Run | durationMs | rootAssignedToReadyMs | readyToFirstFrameMs | rootToControllableMs | controllerRegistrationRuns | controllerRegistrationTotalMs | rigNormalizeTotalMs | poseNormalizeTotalMs | graphBridgeAccepted/Attempts |
+| --- | ---------: | --------------------: | ------------------: | -------------------: | -------------------------: | ----------------------------: | ------------------: | -------------------: | ---------------------------- |
+| 1   |  10010.325 |             28759.615 |               1.775 |            28136.900 |                          1 |                       126.995 |            6207.710 |             5467.985 | 13/17                        |
+| 2   |   9843.875 |             28435.895 |               2.525 |            27789.005 |                          1 |                       142.495 |            5983.355 |             5374.175 | 13/17                        |
+| 3   |   9501.545 |             27013.620 |               1.770 |            26436.230 |                          1 |                       121.585 |            5893.335 |             5092.220 | 13/17                        |
+| 4   |   9476.195 |             26628.195 |               1.560 |            25956.115 |                          1 |                       110.575 |            5751.530 |             5117.660 | 13/17                        |
+| 5   |   9381.120 |             26530.095 |               1.695 |            25912.470 |                          1 |                       156.760 |            5651.155 |             5093.105 | 13/17                        |
+
+### Raw Results (Prewarm ON, post-B4, 5 runs)
+
+| Run | durationMs | rootAssignedToReadyMs | readyToFirstFrameMs | rootToControllableMs | controllerRegistrationRuns | controllerRegistrationTotalMs | rigNormalizeTotalMs | poseNormalizeTotalMs | graphBridgeAccepted/Attempts |
+| --- | ---------: | --------------------: | ------------------: | -------------------: | -------------------------: | ----------------------------: | ------------------: | -------------------: | ---------------------------- |
+| 1   |   9489.505 |              6621.980 |           16956.815 |            22967.190 |                         25 |                       513.810 |            5670.640 |             5159.920 | 13/17                        |
+| 2   |   9125.335 |              6357.610 |           16399.595 |            22143.130 |                         25 |                       480.850 |            5430.295 |             4983.250 | 13/17                        |
+| 3   |   9506.060 |              6666.895 |           16189.650 |            22215.925 |                         25 |                       467.350 |            5691.405 |             5140.940 | 13/17                        |
+| 4   |   9491.025 |              6812.410 |           16401.050 |            22532.995 |                         25 |                       490.605 |            5768.690 |             5258.740 | 13/17                        |
+| 5   |   9286.595 |              6717.050 |           15918.435 |            21919.245 |                         25 |                       521.910 |            5637.490 |             4967.495 | 13/17                        |
+
+### Aggregates (Post-B4)
+
+Mean values:
+
+| Metric                        |  OFF mean |   ON mean | Delta (ON-OFF) |
+| ----------------------------- | --------: | --------: | -------------: |
+| durationMs                    |  9642.612 |  9379.704 |       -262.908 |
+| rootAssignedToReadyMs         | 27473.484 |  6635.189 |     -20838.295 |
+| readyToFirstFrameMs           |     1.865 | 16373.109 |     +16371.244 |
+| rootToControllableMs          | 26846.144 | 22355.697 |      -4490.447 |
+| controllerRegistrationRuns    |     1.000 |    25.000 |        +24.000 |
+| controllerRegistrationTotalMs |   131.682 |   494.905 |       +363.223 |
+| rigNormalizeTotalMs           |  5897.417 |  5639.704 |       -257.713 |
+| poseNormalizeTotalMs          |  5229.029 |  5102.069 |       -126.960 |
+
+Median values:
+
+| Metric                        | OFF median | ON median | Delta (ON-OFF) |
+| ----------------------------- | ---------: | --------: | -------------: |
+| durationMs                    |   9501.545 |  9489.505 |        -12.040 |
+| rootAssignedToReadyMs         |  27013.620 |  6666.895 |     -20346.725 |
+| readyToFirstFrameMs           |      1.770 | 16399.595 |     +16397.825 |
+| rootToControllableMs          |  26436.230 | 22215.925 |      -4220.305 |
+| controllerRegistrationRuns    |      1.000 |    25.000 |        +24.000 |
+| controllerRegistrationTotalMs |    126.995 |   490.605 |       +363.610 |
+| rigNormalizeTotalMs           |   5893.335 |  5670.640 |       -222.695 |
+| poseNormalizeTotalMs          |   5117.660 |  5140.940 |        +23.280 |
+
+### Updated Interpretation
+
+1. B4 reduced observed prewarm ON churn relative to the previous probe (`~30 -> 25` registrations/import), but ON churn remains far above OFF (`25 vs 1`).
+2. Graph update acceptance is still stable (`13/17` in all post-B4 runs).
+3. Prewarm ON still materially improves root-to-controllable time (`-4.49s` mean), but still inflates `readyToFirstFrameMs` by ~`+16.37s`.
+4. Registration work itself increased by only ~`+363ms` mean (`controllerRegistrationTotalMs`), so the large ready-to-frame gap is not explained by registration CPU time alone.
+5. Decision remains unchanged: keep prewarm default-off until readiness semantics and post-ready staging are tightened enough to avoid the large post-ready stall window.
