@@ -9,6 +9,7 @@ describe("resolveRuntimeGraphMutationClass", () => {
     const mutationClass = resolveRuntimeGraphMutationClass(null, {
       graphSpecRevision: 0,
       poseRuntimeRevision: 0,
+      poseGraphSpecRevision: 0,
     });
 
     expect(mutationClass).toBe("topology");
@@ -19,10 +20,12 @@ describe("resolveRuntimeGraphMutationClass", () => {
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
       {
         graphSpecRevision: 3,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
     );
 
@@ -34,10 +37,12 @@ describe("resolveRuntimeGraphMutationClass", () => {
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
       {
         graphSpecRevision: 3,
         poseRuntimeRevision: 6,
+        poseGraphSpecRevision: 4,
       },
     );
 
@@ -49,14 +54,33 @@ describe("resolveRuntimeGraphMutationClass", () => {
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 6,
+        poseGraphSpecRevision: 3,
       },
     );
 
     expect(mutationClass).toBe("pose");
+  });
+
+  it("returns topology when pose graph revision changes", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
+      },
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 6,
+        poseGraphSpecRevision: 4,
+      },
+    );
+
+    expect(mutationClass).toBe("topology");
   });
 
   it("returns null when revisions are unchanged", () => {
@@ -64,10 +88,12 @@ describe("resolveRuntimeGraphMutationClass", () => {
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
       {
         graphSpecRevision: 2,
         poseRuntimeRevision: 5,
+        poseGraphSpecRevision: 3,
       },
     );
 

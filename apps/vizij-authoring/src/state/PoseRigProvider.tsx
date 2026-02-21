@@ -287,6 +287,7 @@ function PoseRigController({
               }
               return {
                 poseGraphSpec: null,
+                poseGraphSpecRevision: (state.poseGraphSpecRevision ?? 0) + 1,
                 poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
               };
             });
@@ -309,6 +310,7 @@ function PoseRigController({
               }
               return {
                 poseGraphSpec: normalized,
+                poseGraphSpecRevision: (state.poseGraphSpecRevision ?? 0) + 1,
                 poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
               };
             });
@@ -326,6 +328,7 @@ function PoseRigController({
               }
               return {
                 poseGraphSpec: null,
+                poseGraphSpecRevision: (state.poseGraphSpecRevision ?? 0) + 1,
                 poseRuntimeRevision: (state.poseRuntimeRevision ?? 0) + 1,
               };
             });

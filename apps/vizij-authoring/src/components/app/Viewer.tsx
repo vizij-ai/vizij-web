@@ -101,6 +101,9 @@ function RuntimeSelectionBridge({
 function RuntimeGraphBridge() {
   const { setGraphBundle } = useVizijRuntime();
   const graphSpecRevision = useGraphRuntime((state) => state.graphSpecRevision);
+  const poseGraphSpecRevision = useGraphRuntime(
+    (state) => state.poseGraphSpecRevision,
+  );
   const poseRuntimeRevision = useGraphRuntime(
     (state) => state.poseRuntimeRevision,
   );
@@ -117,6 +120,7 @@ function RuntimeGraphBridge() {
     try {
       const nextRevisions: RuntimeGraphBridgeRevisions = {
         graphSpecRevision,
+        poseGraphSpecRevision,
         poseRuntimeRevision,
       };
       const mutationClass = resolveRuntimeGraphMutationClass(
@@ -163,6 +167,7 @@ function RuntimeGraphBridge() {
     }
   }, [
     graphSpecRevision,
+    poseGraphSpecRevision,
     poseRuntimeRevision,
     graphSpec,
     poseGraphSpec,

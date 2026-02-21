@@ -71,6 +71,10 @@ Primary rule: performance changes only land if controls/poses remain correct imm
     - OFF mean duration: `4049.137ms`,
     - ON mean duration: `4450.918ms`,
     - both modes meet the sub-5s user-visible target on Quori while preserving sampled correctness behavior.
+17. Structural-mutation classification correction (in progress validation):
+    - added `poseGraphSpecRevision` to graph runtime store state and increment on pose-graph publish/clear,
+    - promoted runtime graph bridge mutation class to `topology` whenever pose-graph structural revision changes (while retaining `pose` for config-only revisions),
+    - added/updated contract tests in `runtimeGraphMutation`, `Viewer`, `PoseRigProvider`, and app runtime selector coverage.
 
 ## Confidence Split
 

@@ -51,6 +51,7 @@ describe("App runtime performance contracts", () => {
     const selectors = collectGraphRuntimeSelectors(source);
 
     expect(selectors).toContain("graphSpecRevision");
+    expect(selectors).toContain("poseGraphSpecRevision");
     expect(selectors).toContain("poseRuntimeRevision");
   });
 });

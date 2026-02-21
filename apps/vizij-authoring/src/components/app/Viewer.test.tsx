@@ -249,7 +249,7 @@ describe("Viewer", () => {
     );
   });
 
-  it("publishes topology then pose when pose data arrives after rig", () => {
+  it("publishes topology when pose graph data arrives after rig", () => {
     const store = createGraphRuntimeStore({
       graphSpec: { nodes: [{ id: "rig-1" }] } as any,
       poseGraphSpec: undefined,
@@ -291,6 +291,7 @@ describe("Viewer", () => {
       store.setState({
         poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
         poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+        poseGraphSpecRevision: 1,
         poseRuntimeRevision: 1,
       });
     });
@@ -303,7 +304,7 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs", mutationClass: "pose" },
+      { tier: "graphs", mutationClass: "topology" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
   });
@@ -346,6 +347,7 @@ describe("Viewer", () => {
           poses: [{ id: "p" }],
         } as any,
         graphSpecRevision: 1,
+        poseGraphSpecRevision: 1,
         poseRuntimeRevision: 1,
       });
     });
@@ -405,6 +407,7 @@ describe("Viewer", () => {
       store.setState({
         poseGraphSpec: undefined,
         poseConfig: undefined,
+        poseGraphSpecRevision: 1,
         poseRuntimeRevision: 1,
       });
     });
@@ -417,7 +420,7 @@ describe("Viewer", () => {
           config: undefined,
         },
       },
-      { tier: "graphs", mutationClass: "pose" },
+      { tier: "graphs", mutationClass: "topology" },
     );
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
 
@@ -438,9 +441,66 @@ describe("Viewer", () => {
     expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
     expect(getRuntimePerfMetricsSnapshot()).toMatchObject({
       graphBridgePublishes: 3,
-      graphBridgeTopologyPublishes: 2,
-      graphBridgePosePublishes: 1,
+      graphBridgeTopologyPublishes: 3,
+      graphBridgePosePublishes: 0,
     });
+  });
+
+  it("keeps pose mutation class for pose-config-only updates", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+      poseGraphSpecRevision: 1,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setState({
+        poseConfig: {
+          version: 1,
+          neutralInputs: {},
+          poses: [{ id: "pose_1", values: { smile: 0.4 } }],
+        } as any,
+        poseRuntimeRevision: 1,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          config: {
+            version: 1,
+            neutralInputs: {},
+            poses: [{ id: "pose_1", values: { smile: 0.4 } }],
+          },
+        },
+      },
+      { tier: "graphs", mutationClass: "pose" },
+    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
   });
 
   it("registers pose graph only when rig graph is absent", () => {

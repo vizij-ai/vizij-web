@@ -315,6 +315,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
           updater({
             poseConfig: null,
             poseGraphSpec: null,
+            poseGraphSpecRevision: 0,
             poseRuntimeRevision: 0,
           }),
         )
@@ -329,12 +330,14 @@ describe("PoseRigProvider pose weight synchronization", () => {
           updater({
             poseConfig: poseConfigDraft,
             poseGraphSpec: null,
+            poseGraphSpecRevision: 0,
             poseRuntimeRevision: 1,
           }),
         )
         .find((patch) => patch?.poseGraphSpec === poseGraphSpec);
       expect(graphPatch).toEqual({
         poseGraphSpec,
+        poseGraphSpecRevision: 1,
         poseRuntimeRevision: 2,
       });
     });

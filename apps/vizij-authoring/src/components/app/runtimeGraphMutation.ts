@@ -10,6 +10,7 @@ export interface RuntimeGraphBridgeState {
 export interface RuntimeGraphBridgeRevisions {
   graphSpecRevision: number;
   poseRuntimeRevision: number;
+  poseGraphSpecRevision: number;
 }
 
 export type RuntimeGraphMutationContract = {
@@ -31,7 +32,8 @@ export function resolveRuntimeGraphMutationClass(
   if (
     previous &&
     previous.graphSpecRevision === next.graphSpecRevision &&
-    previous.poseRuntimeRevision === next.poseRuntimeRevision
+    previous.poseRuntimeRevision === next.poseRuntimeRevision &&
+    previous.poseGraphSpecRevision === next.poseGraphSpecRevision
   ) {
     return null;
   }
@@ -40,7 +42,8 @@ export function resolveRuntimeGraphMutationClass(
     return "topology";
   }
 
-  return previous.graphSpecRevision !== next.graphSpecRevision
+  return previous.graphSpecRevision !== next.graphSpecRevision ||
+    previous.poseGraphSpecRevision !== next.poseGraphSpecRevision
     ? "topology"
     : "pose";
 }
