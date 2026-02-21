@@ -26,26 +26,27 @@ Pose-import wake-up note (latest smoke): explicit topology-refresh-only replacem
 
 ## Timeline Of Attempts
 
-| Commit                | Change                                                         | Outcome                                                                                     |
-| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `03015cb`             | Added import-to-render lifecycle instrumentation               | Kept. Gave visibility into hidden runtime-ready delay.                                      |
-| `648390e`             | Coalesced pre-ready graph publishes + runtime diagnostics      | Faster, but controls broke.                                                                 |
-| `2a85933`             | Preserved queued pose updates during coalescing                | Still function regressions.                                                                 |
-| `6f3d901` + `b3f5c76` | Reverted the two commits above                                 | Correctness restored.                                                                       |
-| `471880a`             | Deduped pre-ready publishes by mutation class                  | Faster again, controls still non-functional.                                                |
-| `803badc`             | Reverted dedupe commit                                         | Back to correct behavior baseline.                                                          |
-| `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype      | Correctness preserved; better observability.                                                |
-| `bca8811`             | Added investigation/benchmark/roadmap docs                     | Execution clarity improved.                                                                 |
-| `e585e99`             | Added bounded registration queue + durable churn metrics       | Correctness preserved; churn reduced but still high.                                        |
-| `71d8ede`             | Added bounded-frame rig/pose import responsiveness smoke       | Correctness guardrails strengthened.                                                        |
-| `900152d`             | Split first-frame vs controllable-ready runtime semantics      | Gating semantics clarified across app/runtime.                                              |
-| `25aa9a5`             | Skipped re-registration for pose-config-only updates           | Churn reduced further; gap still present.                                                   |
-| `ae53ee1`             | Ignored graph reference-only churn in registration policy      | Large readiness/churn win; correctness checks green.                                        |
-| `WIP (2026-02-21)`    | Added pose-graph structural revision classification path       | Improved mutation classification but did not fully close Quori pose wake-up gap.            |
-| `WIP (2026-02-21)`    | Added temporary add/remove pose-variable post-import nudge     | Confirmed forced structural transition restores imported pose function in user smoke tests. |
-| `edf5f64`             | Replaced nudge with explicit topology-refresh revision signal  | Targeted tests passed, but manual Quori smoke still required add-variable nudge.            |
-| `WIP (2026-02-21)`    | Added guarded explicit refresh + fallback nudge strategy       | Explicit refresh first; auto-fallback to structural nudge when pose publish never settles.  |
-| `WIP (2026-02-21)`    | Added runtime debug-event trace and refresh/registration probe | Captures whether explicit refresh leads to topology publish/registration before fallback.   |
+| Commit                | Change                                                              | Outcome                                                                                     |
+| --------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `03015cb`             | Added import-to-render lifecycle instrumentation                    | Kept. Gave visibility into hidden runtime-ready delay.                                      |
+| `648390e`             | Coalesced pre-ready graph publishes + runtime diagnostics           | Faster, but controls broke.                                                                 |
+| `2a85933`             | Preserved queued pose updates during coalescing                     | Still function regressions.                                                                 |
+| `6f3d901` + `b3f5c76` | Reverted the two commits above                                      | Correctness restored.                                                                       |
+| `471880a`             | Deduped pre-ready publishes by mutation class                       | Faster again, controls still non-functional.                                                |
+| `803badc`             | Reverted dedupe commit                                              | Back to correct behavior baseline.                                                          |
+| `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype           | Correctness preserved; better observability.                                                |
+| `bca8811`             | Added investigation/benchmark/roadmap docs                          | Execution clarity improved.                                                                 |
+| `e585e99`             | Added bounded registration queue + durable churn metrics            | Correctness preserved; churn reduced but still high.                                        |
+| `71d8ede`             | Added bounded-frame rig/pose import responsiveness smoke            | Correctness guardrails strengthened.                                                        |
+| `900152d`             | Split first-frame vs controllable-ready runtime semantics           | Gating semantics clarified across app/runtime.                                              |
+| `25aa9a5`             | Skipped re-registration for pose-config-only updates                | Churn reduced further; gap still present.                                                   |
+| `ae53ee1`             | Ignored graph reference-only churn in registration policy           | Large readiness/churn win; correctness checks green.                                        |
+| `WIP (2026-02-21)`    | Added pose-graph structural revision classification path            | Improved mutation classification but did not fully close Quori pose wake-up gap.            |
+| `WIP (2026-02-21)`    | Added temporary add/remove pose-variable post-import nudge          | Confirmed forced structural transition restores imported pose function in user smoke tests. |
+| `edf5f64`             | Replaced nudge with explicit topology-refresh revision signal       | Targeted tests passed, but manual Quori smoke still required add-variable nudge.            |
+| `WIP (2026-02-21)`    | Added guarded explicit refresh + fallback nudge strategy            | Explicit refresh first; auto-fallback to structural nudge when pose publish never settles.  |
+| `WIP (2026-02-21)`    | Added runtime debug-event trace and refresh/registration probe      | Captures whether explicit refresh leads to topology publish/registration before fallback.   |
+| `WIP (2026-02-21)`    | Fixed refresh-probe false positive and restored deterministic nudge | User trace showed topology churn satisfied probe before forced-refresh publish landed.      |
 
 ## What Failed
 
@@ -71,6 +72,7 @@ Pose-import wake-up note (latest smoke): explicit topology-refresh-only replacem
 7. Structural pose-graph updates need explicit runtime mutation classification; treating them as config-like pose updates can miss required registration transitions.
 8. A deterministic post-import topology refresh signal is directionally correct but was not sufficient alone in manual Quori smoke; fallback structural transition remains required until sequencing is fully pinned down.
 9. Added structured runtime debug events (`window.__vizijRuntimeDebugEvents`) to trace post-import refresh sequencing and whether fallback nudge was actually required.
+10. User trace confirmed probe false-positive: pre-existing topology churn advanced counters before forced refresh applied, so nudge was skipped despite still being required for correctness.
 
 ## Guardrails (Do Not Break)
 

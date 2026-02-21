@@ -270,6 +270,7 @@ function AppContent({
     const baselinePoseGraphSpec = baseline.poseGraphSpec ?? null;
     const baselineForceRevision =
       baseline.graphBridgeForceTopologyRevision ?? 0;
+    const targetForceRevision = baselineForceRevision + 1;
     const metricsBeforeRefresh = getRuntimePerfMetricsSnapshot();
     recordRuntimeDebugEvent("post-pose-import-refresh-start", {
       baselinePoseGraphRevision,
@@ -308,43 +309,61 @@ function AppContent({
         typeof graphRuntimeStore.getState().stageRuntimeInput === "function";
     }
 
+    const metricsBeforeForce = getRuntimePerfMetricsSnapshot();
+
     graphRuntimeStore.setState((state) => ({
       graphBridgeForceTopologyRevision:
         (state.graphBridgeForceTopologyRevision ?? 0) + 1,
     }));
 
-    let registrationObserved = false;
-    let registrationWaitAttempts = 0;
+    let forcePublishObserved = false;
+    let forcePublishWaitAttempts = 0;
     for (let attempt = 0; attempt < 45; attempt += 1) {
-      registrationWaitAttempts = attempt + 1;
-      const metricsAfterRefresh = getRuntimePerfMetricsSnapshot();
-      if (
-        metricsAfterRefresh.controllerRegistrationRuns >
-          metricsBeforeRefresh.controllerRegistrationRuns ||
-        metricsAfterRefresh.graphBridgeTopologyPublishes >
-          metricsBeforeRefresh.graphBridgeTopologyPublishes
-      ) {
-        registrationObserved = true;
-        break;
+      forcePublishWaitAttempts = attempt + 1;
+      const next = graphRuntimeStore.getState();
+      if ((next.graphBridgeForceTopologyRevision ?? 0) >= targetForceRevision) {
+        const metricsAfterForce = getRuntimePerfMetricsSnapshot();
+        if (
+          metricsAfterForce.graphBridgeTopologyPublishes >
+          metricsBeforeForce.graphBridgeTopologyPublishes
+        ) {
+          forcePublishObserved = true;
+          break;
+        }
       }
       await waitForNextFrame();
     }
 
-    let nudgeApplied = false;
-    if (!registrationObserved) {
-      await waitForNextFrame();
-      await runPostPoseImportNudge();
-      nudgeApplied = true;
-    }
+    const metricsAfterForce = getRuntimePerfMetricsSnapshot();
+    const postForceTopologyDelta =
+      metricsAfterForce.graphBridgeTopologyPublishes -
+      metricsBeforeForce.graphBridgeTopologyPublishes;
+    const postForceRegistrationDelta =
+      metricsAfterForce.controllerRegistrationRuns -
+      metricsBeforeForce.controllerRegistrationRuns;
 
+    // Deterministic correctness path: always apply the proven nudge after the
+    // explicit forced refresh. Keep force deltas for continued root-cause work.
+    await waitForNextFrame();
+    await runPostPoseImportNudge();
+
+    const metricsAfterNudge = getRuntimePerfMetricsSnapshot();
     recordRuntimeDebugEvent("post-pose-import-refresh-result", {
       poseGraphSettled,
       poseGraphSettleAttempts,
       runtimeBridgeReady,
       runtimeReadyAttempts,
-      registrationObserved,
-      registrationWaitAttempts,
-      nudgeApplied,
+      forcePublishObserved,
+      forcePublishWaitAttempts,
+      postForceTopologyDelta,
+      postForceRegistrationDelta,
+      nudgeApplied: true,
+      postNudgeTopologyDelta:
+        metricsAfterNudge.graphBridgeTopologyPublishes -
+        metricsBeforeRefresh.graphBridgeTopologyPublishes,
+      postNudgeRegistrationDelta:
+        metricsAfterNudge.controllerRegistrationRuns -
+        metricsBeforeRefresh.controllerRegistrationRuns,
       elapsedMs:
         (typeof performance !== "undefined" ? performance.now() : Date.now()) -
         refreshStartMs,

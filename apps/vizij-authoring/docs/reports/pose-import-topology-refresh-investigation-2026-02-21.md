@@ -144,12 +144,12 @@ Added structured debug-event instrumentation to trace the failing path:
 3. Post-pose-import refresh emits start/result events including:
    - pose-graph settle attempts,
    - runtime bridge readiness,
-   - whether controller registration was observed after explicit refresh,
-   - whether fallback nudge was required.
+   - force-refresh publish/registration deltas,
+   - whether deterministic nudge was applied.
 
 Debug traces are exposed on `window.__vizijRuntimeDebugEvents` for manual smoke runs.
 
 Current behavior after this pass:
 
 1. Explicit topology refresh is now delayed until pose-graph settle probe and runtime-input bridge readiness probe complete.
-2. Structural nudge is only used when explicit refresh does not lead to observed registration/publish progression within bounded frames.
+2. User-provided trace showed the prior probe had a false positive (topology churn advanced counters before forced-refresh publish landed), so structural nudge is now deterministic again after explicit refresh while traces remain in place for root-cause analysis.
