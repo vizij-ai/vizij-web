@@ -1,9 +1,24 @@
 import { useCallback, useState } from "react";
 import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import {
+  markRuntimeRootAssigned,
+  recordAssetLoadRun,
+} from "../perf/runtimePerfMetrics";
 import { resolveWorldRoot } from "../utils/world";
 
 type VizijLoader = () => Promise<LoadedVizijAsset>;
+
+function getNowMs() {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
+}
 
 export function useVizijAssetLoader() {
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
@@ -18,6 +33,7 @@ export function useVizijAssetLoader() {
 
   const loadVizij = useCallback(
     async (loader: VizijLoader, label: string) => {
+      const loadStartMs = getNowMs();
       setIsLoading(true);
       setError(null);
       try {
@@ -37,6 +53,9 @@ export function useVizijAssetLoader() {
           elementSelection: [],
         });
         addWorldElements(worldData, animatables, true);
+        const loadDurationMs = getNowMs() - loadStartMs;
+        recordAssetLoadRun(loadDurationMs);
+        markRuntimeRootAssigned(nextRootId, { assetLoadMs: loadDurationMs });
         setRootId(nextRootId);
         setSourceName(label);
         setBundle(loadedBundle ?? null);

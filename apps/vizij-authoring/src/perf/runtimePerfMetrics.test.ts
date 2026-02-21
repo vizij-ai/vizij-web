@@ -3,12 +3,16 @@ import {
   finalizeRuntimeImportPerfSession,
   getRuntimePerfMetricsSnapshot,
   getLastRuntimeImportPerfSummary,
+  markRuntimeRootAssigned,
+  recordAssetLoadRun,
   recordBuildRigGraphSpecRun,
   recordGraphBridgeRun,
   recordPoseNormalizeRun,
   recordResolveRuntimeGraphSpecRun,
   recordRigImportAttempt,
   recordRigGraphImportRun,
+  recordRuntimeFirstFrame,
+  recordRuntimeReady,
   recordRigPrepareSpecCall,
   recordRigNormalizeCall,
   resetRuntimePerfMetrics,
@@ -108,5 +112,35 @@ describe("runtimePerfMetrics", () => {
       poseNormalizeAverageMs: 19,
     });
     expect(getLastRuntimeImportPerfSummary()).toEqual(summary);
+  });
+
+  it("tracks asset-load, runtime-ready, and first-frame lifecycle timings", () => {
+    recordAssetLoadRun(31);
+    markRuntimeRootAssigned("root", { assetLoadMs: 31 });
+    startRuntimeImportPerfSession({
+      fingerprint: "fingerprint-1",
+      rootId: "root",
+    });
+
+    recordRuntimeReady("root");
+    recordRuntimeReady("root");
+    recordRuntimeFirstFrame("root");
+    recordRuntimeFirstFrame("root");
+
+    const summary = finalizeRuntimeImportPerfSession("success");
+    const snapshot = getRuntimePerfMetricsSnapshot();
+
+    expect(summary).toMatchObject({
+      assetLoadMs: 31,
+    });
+    expect(summary?.rootAssignedToReadyMs ?? -1).toBeGreaterThanOrEqual(0);
+    expect(summary?.readyToFirstFrameMs ?? -1).toBeGreaterThanOrEqual(0);
+    expect(snapshot).toMatchObject({
+      assetLoadRuns: 1,
+      assetLoadTotalMs: 31,
+      assetLoadAverageMs: 31,
+      runtimeReadyRuns: 1,
+      runtimeReadyToFirstFrameRuns: 1,
+    });
   });
 });

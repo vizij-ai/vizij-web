@@ -7,7 +7,12 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
-import { recordGraphBridgeRun } from "../../perf/runtimePerfMetrics";
+import {
+  getLastRuntimeImportPerfSummary,
+  recordGraphBridgeRun,
+  recordRuntimeFirstFrame,
+  recordRuntimeReady,
+} from "../../perf/runtimePerfMetrics";
 import {
   createRuntimeGraphMutation,
   resolveRuntimeGraphMutationClass,
@@ -166,6 +171,59 @@ function RuntimeGraphBridge() {
   return null;
 }
 
+function RuntimeLifecyclePerfBridge() {
+  const { ready, rootId } = useVizijRuntime();
+  const readyRootRef = useRef<string | null>(null);
+  const firstFrameRootRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!rootId) {
+      readyRootRef.current = null;
+      firstFrameRootRef.current = null;
+      return;
+    }
+    if (!ready) {
+      readyRootRef.current = null;
+      firstFrameRootRef.current = null;
+      return;
+    }
+    if (readyRootRef.current !== rootId) {
+      readyRootRef.current = rootId;
+      recordRuntimeReady(rootId);
+    }
+    if (firstFrameRootRef.current === rootId) {
+      return;
+    }
+
+    let cancelled = false;
+    const frameHandle = requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+      firstFrameRootRef.current = rootId;
+      const snapshot = recordRuntimeFirstFrame(rootId);
+      if (process.env.NODE_ENV !== "production") {
+        (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+          snapshot;
+        const importSummary = getLastRuntimeImportPerfSummary();
+        if (importSummary && importSummary.rootId === rootId) {
+          // eslint-disable-next-line no-console -- import runtime diagnostics
+          console.info("[vizij-authoring] import render perf summary", {
+            ...importSummary,
+          });
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameHandle);
+    };
+  }, [ready, rootId]);
+
+  return null;
+}
+
 function RuntimeStatusDebug() {
   const { loading, ready, rootId, error, controllers, outputPaths } =
     useVizijRuntime();
@@ -238,6 +296,7 @@ export function Viewer({
           <VizijRuntimeProvider assetBundle={bundle} autostart>
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
+            <RuntimeLifecyclePerfBridge />
             <RuntimeSelectionBridge
               selectedSceneId={selectedSceneId}
               onSelectSceneChange={onSelectSceneChange}

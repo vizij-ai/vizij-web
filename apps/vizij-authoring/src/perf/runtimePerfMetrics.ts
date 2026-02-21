@@ -1,4 +1,15 @@
 type RuntimeGraphMutationClass = "topology" | "pose";
+const MAX_TRACKED_ROOT_LIFECYCLES = 24;
+
+type RuntimeRootLifecycle = {
+  rootId: string;
+  assignedAtMs: number;
+  readyAtMs: number | null;
+  firstFrameAtMs: number | null;
+  assetLoadMs: number | null;
+  rootAssignedToReadyMs: number | null;
+  readyToFirstFrameMs: number | null;
+};
 
 export type RuntimePerfMetricsSnapshot = {
   graphBridgeRuns: number;
@@ -30,6 +41,15 @@ export type RuntimePerfMetricsSnapshot = {
   poseNormalizeRuns: number;
   poseNormalizeTotalMs: number;
   poseNormalizeAverageMs: number;
+  assetLoadRuns: number;
+  assetLoadTotalMs: number;
+  assetLoadAverageMs: number;
+  runtimeReadyRuns: number;
+  runtimeReadyTotalMs: number;
+  runtimeReadyAverageMs: number;
+  runtimeReadyToFirstFrameRuns: number;
+  runtimeReadyToFirstFrameTotalMs: number;
+  runtimeReadyToFirstFrameAverageMs: number;
   activeImportSessionId: number | null;
   completedImportSessions: number;
 };
@@ -45,6 +65,9 @@ type RuntimePerfMetricsState = Omit<
   | "buildRigGraphSpecAverageMs"
   | "resolveRuntimeGraphSpecAverageMs"
   | "poseNormalizeAverageMs"
+  | "assetLoadAverageMs"
+  | "runtimeReadyAverageMs"
+  | "runtimeReadyToFirstFrameAverageMs"
 >;
 
 function createInitialState(): RuntimePerfMetricsState {
@@ -69,6 +92,12 @@ function createInitialState(): RuntimePerfMetricsState {
     resolveRuntimeGraphSpecTotalMs: 0,
     poseNormalizeRuns: 0,
     poseNormalizeTotalMs: 0,
+    assetLoadRuns: 0,
+    assetLoadTotalMs: 0,
+    runtimeReadyRuns: 0,
+    runtimeReadyTotalMs: 0,
+    runtimeReadyToFirstFrameRuns: 0,
+    runtimeReadyToFirstFrameTotalMs: 0,
     activeImportSessionId: null,
     completedImportSessions: 0,
   };
@@ -100,6 +129,9 @@ export type RuntimeImportPerfSummary = {
   graphBridgeTopologyPublishes: number;
   graphBridgePosePublishes: number;
   graphBridgePublishTotalMs: number;
+  assetLoadMs: number | null;
+  rootAssignedToReadyMs: number | null;
+  readyToFirstFrameMs: number | null;
 };
 
 type ActiveRuntimeImportPerfSession = Omit<
@@ -111,6 +143,7 @@ let state: RuntimePerfMetricsState = createInitialState();
 let nextSessionId = 1;
 let activeImportSession: ActiveRuntimeImportPerfSession | null = null;
 let lastImportSummary: RuntimeImportPerfSummary | null = null;
+let rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
 
 function getNowMs() {
   if (
@@ -137,6 +170,61 @@ function withActiveImportSession(
     return;
   }
   updater(activeImportSession);
+}
+
+function cacheRootLifecycle(lifecycle: RuntimeRootLifecycle) {
+  if (rootLifecycleById.has(lifecycle.rootId)) {
+    rootLifecycleById.delete(lifecycle.rootId);
+  }
+  rootLifecycleById.set(lifecycle.rootId, lifecycle);
+  while (rootLifecycleById.size > MAX_TRACKED_ROOT_LIFECYCLES) {
+    const oldestKey = rootLifecycleById.keys().next().value;
+    if (typeof oldestKey !== "string") {
+      break;
+    }
+    rootLifecycleById.delete(oldestKey);
+  }
+}
+
+function getOrCreateRootLifecycle(rootId: string): RuntimeRootLifecycle {
+  const existing = rootLifecycleById.get(rootId);
+  if (existing) {
+    return existing;
+  }
+  const created: RuntimeRootLifecycle = {
+    rootId,
+    assignedAtMs: getNowMs(),
+    readyAtMs: null,
+    firstFrameAtMs: null,
+    assetLoadMs: null,
+    rootAssignedToReadyMs: null,
+    readyToFirstFrameMs: null,
+  };
+  cacheRootLifecycle(created);
+  return created;
+}
+
+function syncLifecycleIntoSummaries(
+  rootId: string,
+  lifecycle: RuntimeRootLifecycle,
+) {
+  withActiveImportSession((session) => {
+    if (session.rootId !== rootId) {
+      return;
+    }
+    session.assetLoadMs = lifecycle.assetLoadMs;
+    session.rootAssignedToReadyMs = lifecycle.rootAssignedToReadyMs;
+    session.readyToFirstFrameMs = lifecycle.readyToFirstFrameMs;
+  });
+  if (!lastImportSummary || lastImportSummary.rootId !== rootId) {
+    return;
+  }
+  lastImportSummary = {
+    ...lastImportSummary,
+    assetLoadMs: lifecycle.assetLoadMs,
+    rootAssignedToReadyMs: lifecycle.rootAssignedToReadyMs,
+    readyToFirstFrameMs: lifecycle.readyToFirstFrameMs,
+  };
 }
 
 function buildSnapshot(): RuntimePerfMetricsSnapshot {
@@ -179,6 +267,19 @@ function buildSnapshot(): RuntimePerfMetricsSnapshot {
       state.poseNormalizeRuns > 0
         ? state.poseNormalizeTotalMs / state.poseNormalizeRuns
         : 0,
+    assetLoadAverageMs:
+      state.assetLoadRuns > 0
+        ? state.assetLoadTotalMs / state.assetLoadRuns
+        : 0,
+    runtimeReadyAverageMs:
+      state.runtimeReadyRuns > 0
+        ? state.runtimeReadyTotalMs / state.runtimeReadyRuns
+        : 0,
+    runtimeReadyToFirstFrameAverageMs:
+      state.runtimeReadyToFirstFrameRuns > 0
+        ? state.runtimeReadyToFirstFrameTotalMs /
+          state.runtimeReadyToFirstFrameRuns
+        : 0,
   };
 }
 
@@ -187,6 +288,7 @@ export function resetRuntimePerfMetrics() {
   activeImportSession = null;
   lastImportSummary = null;
   nextSessionId = 1;
+  rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
 }
 
 export function getRuntimePerfMetricsSnapshot(): RuntimePerfMetricsSnapshot {
@@ -212,6 +314,8 @@ export function startRuntimeImportPerfSession(options: {
     finalizeRuntimeImportPerfSession("cancelled");
   }
 
+  const rootLifecycle =
+    options.rootId === null ? null : rootLifecycleById.get(options.rootId);
   const session: ActiveRuntimeImportPerfSession = {
     sessionId: nextSessionId++,
     fingerprint: options.fingerprint,
@@ -235,6 +339,9 @@ export function startRuntimeImportPerfSession(options: {
     graphBridgeTopologyPublishes: 0,
     graphBridgePosePublishes: 0,
     graphBridgePublishTotalMs: 0,
+    assetLoadMs: rootLifecycle?.assetLoadMs ?? null,
+    rootAssignedToReadyMs: rootLifecycle?.rootAssignedToReadyMs ?? null,
+    readyToFirstFrameMs: rootLifecycle?.readyToFirstFrameMs ?? null,
   };
   activeImportSession = session;
   state.activeImportSessionId = session.sessionId;
@@ -248,8 +355,19 @@ export function finalizeRuntimeImportPerfSession(
     return null;
   }
   const completedAtMs = getNowMs();
+  const rootLifecycle =
+    activeImportSession.rootId === null
+      ? null
+      : rootLifecycleById.get(activeImportSession.rootId);
   const summary: RuntimeImportPerfSummary = {
     ...activeImportSession,
+    assetLoadMs: rootLifecycle?.assetLoadMs ?? activeImportSession.assetLoadMs,
+    rootAssignedToReadyMs:
+      rootLifecycle?.rootAssignedToReadyMs ??
+      activeImportSession.rootAssignedToReadyMs,
+    readyToFirstFrameMs:
+      rootLifecycle?.readyToFirstFrameMs ??
+      activeImportSession.readyToFirstFrameMs,
     completedAtMs,
     durationMs: sanitizeDuration(
       completedAtMs - activeImportSession.startedAtMs,
@@ -383,5 +501,77 @@ export function recordPoseNormalizeRun(
     session.poseNormalizeRuns += 1;
     session.poseNormalizeTotalMs += sanitizedDuration;
   });
+  return buildSnapshot();
+}
+
+export function recordAssetLoadRun(
+  durationMs: number,
+): RuntimePerfMetricsSnapshot {
+  const sanitizedDuration = sanitizeDuration(durationMs);
+  state.assetLoadRuns += 1;
+  state.assetLoadTotalMs += sanitizedDuration;
+  return buildSnapshot();
+}
+
+export function markRuntimeRootAssigned(
+  rootId: string,
+  options?: {
+    assetLoadMs?: number | null;
+  },
+): RuntimePerfMetricsSnapshot {
+  const nowMs = getNowMs();
+  const existing = rootLifecycleById.get(rootId);
+  const lifecycle: RuntimeRootLifecycle = {
+    rootId,
+    assignedAtMs: nowMs,
+    readyAtMs: null,
+    firstFrameAtMs: null,
+    assetLoadMs:
+      options?.assetLoadMs === undefined
+        ? (existing?.assetLoadMs ?? null)
+        : sanitizeDuration(options.assetLoadMs ?? 0),
+    rootAssignedToReadyMs: null,
+    readyToFirstFrameMs: null,
+  };
+  cacheRootLifecycle(lifecycle);
+  syncLifecycleIntoSummaries(rootId, lifecycle);
+  return buildSnapshot();
+}
+
+export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
+  const lifecycle = getOrCreateRootLifecycle(rootId);
+  if (lifecycle.readyAtMs !== null) {
+    return buildSnapshot();
+  }
+  const nowMs = getNowMs();
+  lifecycle.readyAtMs = nowMs;
+  lifecycle.rootAssignedToReadyMs = sanitizeDuration(
+    nowMs - lifecycle.assignedAtMs,
+  );
+  cacheRootLifecycle(lifecycle);
+  state.runtimeReadyRuns += 1;
+  state.runtimeReadyTotalMs += lifecycle.rootAssignedToReadyMs;
+  syncLifecycleIntoSummaries(rootId, lifecycle);
+  return buildSnapshot();
+}
+
+export function recordRuntimeFirstFrame(
+  rootId: string,
+): RuntimePerfMetricsSnapshot {
+  const lifecycle = getOrCreateRootLifecycle(rootId);
+  if (lifecycle.firstFrameAtMs !== null) {
+    return buildSnapshot();
+  }
+  const nowMs = getNowMs();
+  lifecycle.firstFrameAtMs = nowMs;
+  if (lifecycle.readyAtMs === null) {
+    lifecycle.readyAtMs = nowMs;
+    lifecycle.rootAssignedToReadyMs = 0;
+  }
+  lifecycle.readyToFirstFrameMs = sanitizeDuration(nowMs - lifecycle.readyAtMs);
+  cacheRootLifecycle(lifecycle);
+  state.runtimeReadyToFirstFrameRuns += 1;
+  state.runtimeReadyToFirstFrameTotalMs += lifecycle.readyToFirstFrameMs;
+  syncLifecycleIntoSummaries(rootId, lifecycle);
   return buildSnapshot();
 }
