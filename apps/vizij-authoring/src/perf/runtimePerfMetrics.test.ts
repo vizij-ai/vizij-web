@@ -7,8 +7,6 @@ import {
   recordAssetLoadRun,
   recordBuildRigGraphSpecRun,
   recordGraphBridgeRun,
-  markRuntimeGraphPublish,
-  markRuntimeLoadingState,
   recordPoseNormalizeRun,
   recordResolveRuntimeGraphSpecRun,
   recordRigImportAttempt,
@@ -143,41 +141,6 @@ describe("runtimePerfMetrics", () => {
       assetLoadAverageMs: 31,
       runtimeReadyRuns: 1,
       runtimeReadyToFirstFrameRuns: 1,
-    });
-  });
-
-  it("tracks runtime publish and loading diagnostics before ready", () => {
-    markRuntimeRootAssigned("root");
-    startRuntimeImportPerfSession({
-      fingerprint: "fingerprint-runtime",
-      rootId: "root",
-    });
-    markRuntimeGraphPublish("root", "topology");
-    markRuntimeGraphPublish("root", "pose");
-    markRuntimeLoadingState("root", true);
-    markRuntimeLoadingState("root", false);
-    recordRuntimeReady("root");
-
-    const summary = finalizeRuntimeImportPerfSession("success");
-    const snapshot = getRuntimePerfMetricsSnapshot();
-
-    expect(summary).toMatchObject({
-      runtimePublishesBeforeReady: 2,
-      runtimeTopologyPublishesBeforeReady: 1,
-      runtimePosePublishesBeforeReady: 1,
-      runtimeLoadingRuns: 1,
-    });
-    expect(summary?.runtimeLoadingTotalMs ?? -1).toBeGreaterThanOrEqual(0);
-    expect(summary?.runtimeFirstPublishToReadyMs ?? -1).toBeGreaterThanOrEqual(
-      0,
-    );
-    expect(
-      summary?.runtimeFirstTopologyPublishToReadyMs ?? -1,
-    ).toBeGreaterThanOrEqual(0);
-    expect(snapshot).toMatchObject({
-      runtimeLoadingRuns: 1,
-      runtimePublishToReadyRuns: 1,
-      runtimeTopologyPublishToReadyRuns: 1,
     });
   });
 });

@@ -6,21 +6,8 @@ type RuntimeRootLifecycle = {
   assignedAtMs: number;
   readyAtMs: number | null;
   firstFrameAtMs: number | null;
-  firstPublishAtMs: number | null;
-  firstTopologyPublishAtMs: number | null;
-  lastPublishAtMs: number | null;
-  publishesBeforeReady: number;
-  topologyPublishesBeforeReady: number;
-  posePublishesBeforeReady: number;
-  loadingStartAtMs: number | null;
-  loadingTotalMs: number;
-  loadingRuns: number;
-  lastLoadingEndAtMs: number | null;
   assetLoadMs: number | null;
   rootAssignedToReadyMs: number | null;
-  firstPublishToReadyMs: number | null;
-  firstTopologyPublishToReadyMs: number | null;
-  lastLoadingEndToReadyMs: number | null;
   readyToFirstFrameMs: number | null;
 };
 
@@ -54,15 +41,6 @@ export type RuntimePerfMetricsSnapshot = {
   poseNormalizeRuns: number;
   poseNormalizeTotalMs: number;
   poseNormalizeAverageMs: number;
-  runtimeLoadingRuns: number;
-  runtimeLoadingTotalMs: number;
-  runtimeLoadingAverageMs: number;
-  runtimePublishToReadyRuns: number;
-  runtimePublishToReadyTotalMs: number;
-  runtimePublishToReadyAverageMs: number;
-  runtimeTopologyPublishToReadyRuns: number;
-  runtimeTopologyPublishToReadyTotalMs: number;
-  runtimeTopologyPublishToReadyAverageMs: number;
   assetLoadRuns: number;
   assetLoadTotalMs: number;
   assetLoadAverageMs: number;
@@ -87,9 +65,6 @@ type RuntimePerfMetricsState = Omit<
   | "buildRigGraphSpecAverageMs"
   | "resolveRuntimeGraphSpecAverageMs"
   | "poseNormalizeAverageMs"
-  | "runtimeLoadingAverageMs"
-  | "runtimePublishToReadyAverageMs"
-  | "runtimeTopologyPublishToReadyAverageMs"
   | "assetLoadAverageMs"
   | "runtimeReadyAverageMs"
   | "runtimeReadyToFirstFrameAverageMs"
@@ -117,12 +92,6 @@ function createInitialState(): RuntimePerfMetricsState {
     resolveRuntimeGraphSpecTotalMs: 0,
     poseNormalizeRuns: 0,
     poseNormalizeTotalMs: 0,
-    runtimeLoadingRuns: 0,
-    runtimeLoadingTotalMs: 0,
-    runtimePublishToReadyRuns: 0,
-    runtimePublishToReadyTotalMs: 0,
-    runtimeTopologyPublishToReadyRuns: 0,
-    runtimeTopologyPublishToReadyTotalMs: 0,
     assetLoadRuns: 0,
     assetLoadTotalMs: 0,
     runtimeReadyRuns: 0,
@@ -160,14 +129,6 @@ export type RuntimeImportPerfSummary = {
   graphBridgeTopologyPublishes: number;
   graphBridgePosePublishes: number;
   graphBridgePublishTotalMs: number;
-  runtimeLoadingRuns: number;
-  runtimeLoadingTotalMs: number;
-  runtimePublishesBeforeReady: number;
-  runtimeTopologyPublishesBeforeReady: number;
-  runtimePosePublishesBeforeReady: number;
-  runtimeFirstPublishToReadyMs: number | null;
-  runtimeFirstTopologyPublishToReadyMs: number | null;
-  runtimeLastLoadingEndToReadyMs: number | null;
   assetLoadMs: number | null;
   rootAssignedToReadyMs: number | null;
   readyToFirstFrameMs: number | null;
@@ -235,21 +196,8 @@ function getOrCreateRootLifecycle(rootId: string): RuntimeRootLifecycle {
     assignedAtMs: getNowMs(),
     readyAtMs: null,
     firstFrameAtMs: null,
-    firstPublishAtMs: null,
-    firstTopologyPublishAtMs: null,
-    lastPublishAtMs: null,
-    publishesBeforeReady: 0,
-    topologyPublishesBeforeReady: 0,
-    posePublishesBeforeReady: 0,
-    loadingStartAtMs: null,
-    loadingTotalMs: 0,
-    loadingRuns: 0,
-    lastLoadingEndAtMs: null,
     assetLoadMs: null,
     rootAssignedToReadyMs: null,
-    firstPublishToReadyMs: null,
-    firstTopologyPublishToReadyMs: null,
-    lastLoadingEndToReadyMs: null,
     readyToFirstFrameMs: null,
   };
   cacheRootLifecycle(created);
@@ -264,17 +212,6 @@ function syncLifecycleIntoSummaries(
     if (session.rootId !== rootId) {
       return;
     }
-    session.runtimeLoadingRuns = lifecycle.loadingRuns;
-    session.runtimeLoadingTotalMs = lifecycle.loadingTotalMs;
-    session.runtimePublishesBeforeReady = lifecycle.publishesBeforeReady;
-    session.runtimeTopologyPublishesBeforeReady =
-      lifecycle.topologyPublishesBeforeReady;
-    session.runtimePosePublishesBeforeReady =
-      lifecycle.posePublishesBeforeReady;
-    session.runtimeFirstPublishToReadyMs = lifecycle.firstPublishToReadyMs;
-    session.runtimeFirstTopologyPublishToReadyMs =
-      lifecycle.firstTopologyPublishToReadyMs;
-    session.runtimeLastLoadingEndToReadyMs = lifecycle.lastLoadingEndToReadyMs;
     session.assetLoadMs = lifecycle.assetLoadMs;
     session.rootAssignedToReadyMs = lifecycle.rootAssignedToReadyMs;
     session.readyToFirstFrameMs = lifecycle.readyToFirstFrameMs;
@@ -284,15 +221,6 @@ function syncLifecycleIntoSummaries(
   }
   lastImportSummary = {
     ...lastImportSummary,
-    runtimeLoadingRuns: lifecycle.loadingRuns,
-    runtimeLoadingTotalMs: lifecycle.loadingTotalMs,
-    runtimePublishesBeforeReady: lifecycle.publishesBeforeReady,
-    runtimeTopologyPublishesBeforeReady: lifecycle.topologyPublishesBeforeReady,
-    runtimePosePublishesBeforeReady: lifecycle.posePublishesBeforeReady,
-    runtimeFirstPublishToReadyMs: lifecycle.firstPublishToReadyMs,
-    runtimeFirstTopologyPublishToReadyMs:
-      lifecycle.firstTopologyPublishToReadyMs,
-    runtimeLastLoadingEndToReadyMs: lifecycle.lastLoadingEndToReadyMs,
     assetLoadMs: lifecycle.assetLoadMs,
     rootAssignedToReadyMs: lifecycle.rootAssignedToReadyMs,
     readyToFirstFrameMs: lifecycle.readyToFirstFrameMs,
@@ -338,19 +266,6 @@ function buildSnapshot(): RuntimePerfMetricsSnapshot {
     poseNormalizeAverageMs:
       state.poseNormalizeRuns > 0
         ? state.poseNormalizeTotalMs / state.poseNormalizeRuns
-        : 0,
-    runtimeLoadingAverageMs:
-      state.runtimeLoadingRuns > 0
-        ? state.runtimeLoadingTotalMs / state.runtimeLoadingRuns
-        : 0,
-    runtimePublishToReadyAverageMs:
-      state.runtimePublishToReadyRuns > 0
-        ? state.runtimePublishToReadyTotalMs / state.runtimePublishToReadyRuns
-        : 0,
-    runtimeTopologyPublishToReadyAverageMs:
-      state.runtimeTopologyPublishToReadyRuns > 0
-        ? state.runtimeTopologyPublishToReadyTotalMs /
-          state.runtimeTopologyPublishToReadyRuns
         : 0,
     assetLoadAverageMs:
       state.assetLoadRuns > 0
@@ -424,18 +339,6 @@ export function startRuntimeImportPerfSession(options: {
     graphBridgeTopologyPublishes: 0,
     graphBridgePosePublishes: 0,
     graphBridgePublishTotalMs: 0,
-    runtimeLoadingRuns: rootLifecycle?.loadingRuns ?? 0,
-    runtimeLoadingTotalMs: rootLifecycle?.loadingTotalMs ?? 0,
-    runtimePublishesBeforeReady: rootLifecycle?.publishesBeforeReady ?? 0,
-    runtimeTopologyPublishesBeforeReady:
-      rootLifecycle?.topologyPublishesBeforeReady ?? 0,
-    runtimePosePublishesBeforeReady:
-      rootLifecycle?.posePublishesBeforeReady ?? 0,
-    runtimeFirstPublishToReadyMs: rootLifecycle?.firstPublishToReadyMs ?? null,
-    runtimeFirstTopologyPublishToReadyMs:
-      rootLifecycle?.firstTopologyPublishToReadyMs ?? null,
-    runtimeLastLoadingEndToReadyMs:
-      rootLifecycle?.lastLoadingEndToReadyMs ?? null,
     assetLoadMs: rootLifecycle?.assetLoadMs ?? null,
     rootAssignedToReadyMs: rootLifecycle?.rootAssignedToReadyMs ?? null,
     readyToFirstFrameMs: rootLifecycle?.readyToFirstFrameMs ?? null,
@@ -458,29 +361,6 @@ export function finalizeRuntimeImportPerfSession(
       : rootLifecycleById.get(activeImportSession.rootId);
   const summary: RuntimeImportPerfSummary = {
     ...activeImportSession,
-    runtimeLoadingRuns:
-      rootLifecycle?.loadingRuns ?? activeImportSession.runtimeLoadingRuns,
-    runtimeLoadingTotalMs:
-      rootLifecycle?.loadingTotalMs ??
-      activeImportSession.runtimeLoadingTotalMs,
-    runtimePublishesBeforeReady:
-      rootLifecycle?.publishesBeforeReady ??
-      activeImportSession.runtimePublishesBeforeReady,
-    runtimeTopologyPublishesBeforeReady:
-      rootLifecycle?.topologyPublishesBeforeReady ??
-      activeImportSession.runtimeTopologyPublishesBeforeReady,
-    runtimePosePublishesBeforeReady:
-      rootLifecycle?.posePublishesBeforeReady ??
-      activeImportSession.runtimePosePublishesBeforeReady,
-    runtimeFirstPublishToReadyMs:
-      rootLifecycle?.firstPublishToReadyMs ??
-      activeImportSession.runtimeFirstPublishToReadyMs,
-    runtimeFirstTopologyPublishToReadyMs:
-      rootLifecycle?.firstTopologyPublishToReadyMs ??
-      activeImportSession.runtimeFirstTopologyPublishToReadyMs,
-    runtimeLastLoadingEndToReadyMs:
-      rootLifecycle?.lastLoadingEndToReadyMs ??
-      activeImportSession.runtimeLastLoadingEndToReadyMs,
     assetLoadMs: rootLifecycle?.assetLoadMs ?? activeImportSession.assetLoadMs,
     rootAssignedToReadyMs:
       rootLifecycle?.rootAssignedToReadyMs ??
@@ -646,87 +526,13 @@ export function markRuntimeRootAssigned(
     assignedAtMs: nowMs,
     readyAtMs: null,
     firstFrameAtMs: null,
-    firstPublishAtMs: null,
-    firstTopologyPublishAtMs: null,
-    lastPublishAtMs: null,
-    publishesBeforeReady: 0,
-    topologyPublishesBeforeReady: 0,
-    posePublishesBeforeReady: 0,
-    loadingStartAtMs: null,
-    loadingTotalMs: 0,
-    loadingRuns: 0,
-    lastLoadingEndAtMs: null,
     assetLoadMs:
       options?.assetLoadMs === undefined
         ? (existing?.assetLoadMs ?? null)
         : sanitizeDuration(options.assetLoadMs ?? 0),
     rootAssignedToReadyMs: null,
-    firstPublishToReadyMs: null,
-    firstTopologyPublishToReadyMs: null,
-    lastLoadingEndToReadyMs: null,
     readyToFirstFrameMs: null,
   };
-  cacheRootLifecycle(lifecycle);
-  syncLifecycleIntoSummaries(rootId, lifecycle);
-  return buildSnapshot();
-}
-
-export function markRuntimeGraphPublish(
-  rootId: string,
-  mutationClass: RuntimeGraphMutationClass,
-): RuntimePerfMetricsSnapshot {
-  const lifecycle = getOrCreateRootLifecycle(rootId);
-  const nowMs = getNowMs();
-
-  lifecycle.lastPublishAtMs = nowMs;
-  if (lifecycle.readyAtMs === null) {
-    if (lifecycle.firstPublishAtMs === null) {
-      lifecycle.firstPublishAtMs = nowMs;
-    }
-    lifecycle.publishesBeforeReady += 1;
-    if (mutationClass === "topology") {
-      if (lifecycle.firstTopologyPublishAtMs === null) {
-        lifecycle.firstTopologyPublishAtMs = nowMs;
-      }
-      lifecycle.topologyPublishesBeforeReady += 1;
-    } else {
-      lifecycle.posePublishesBeforeReady += 1;
-    }
-  }
-
-  cacheRootLifecycle(lifecycle);
-  syncLifecycleIntoSummaries(rootId, lifecycle);
-  return buildSnapshot();
-}
-
-export function markRuntimeLoadingState(
-  rootId: string,
-  loading: boolean,
-): RuntimePerfMetricsSnapshot {
-  const lifecycle = getOrCreateRootLifecycle(rootId);
-  const nowMs = getNowMs();
-
-  if (loading) {
-    if (lifecycle.loadingStartAtMs === null) {
-      lifecycle.loadingStartAtMs = nowMs;
-    }
-    cacheRootLifecycle(lifecycle);
-    syncLifecycleIntoSummaries(rootId, lifecycle);
-    return buildSnapshot();
-  }
-
-  if (lifecycle.loadingStartAtMs !== null) {
-    const loadingDuration = sanitizeDuration(
-      nowMs - lifecycle.loadingStartAtMs,
-    );
-    lifecycle.loadingTotalMs += loadingDuration;
-    lifecycle.loadingRuns += 1;
-    lifecycle.loadingStartAtMs = null;
-    lifecycle.lastLoadingEndAtMs = nowMs;
-    state.runtimeLoadingRuns += 1;
-    state.runtimeLoadingTotalMs += loadingDuration;
-  }
-
   cacheRootLifecycle(lifecycle);
   syncLifecycleIntoSummaries(rootId, lifecycle);
   return buildSnapshot();
@@ -738,45 +544,13 @@ export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
     return buildSnapshot();
   }
   const nowMs = getNowMs();
-  if (lifecycle.loadingStartAtMs !== null) {
-    const loadingDuration = sanitizeDuration(
-      nowMs - lifecycle.loadingStartAtMs,
-    );
-    lifecycle.loadingTotalMs += loadingDuration;
-    lifecycle.loadingRuns += 1;
-    lifecycle.loadingStartAtMs = null;
-    lifecycle.lastLoadingEndAtMs = nowMs;
-    state.runtimeLoadingRuns += 1;
-    state.runtimeLoadingTotalMs += loadingDuration;
-  }
   lifecycle.readyAtMs = nowMs;
   lifecycle.rootAssignedToReadyMs = sanitizeDuration(
     nowMs - lifecycle.assignedAtMs,
   );
-  lifecycle.firstPublishToReadyMs =
-    lifecycle.firstPublishAtMs === null
-      ? null
-      : sanitizeDuration(nowMs - lifecycle.firstPublishAtMs);
-  lifecycle.firstTopologyPublishToReadyMs =
-    lifecycle.firstTopologyPublishAtMs === null
-      ? null
-      : sanitizeDuration(nowMs - lifecycle.firstTopologyPublishAtMs);
-  lifecycle.lastLoadingEndToReadyMs =
-    lifecycle.lastLoadingEndAtMs === null
-      ? null
-      : sanitizeDuration(nowMs - lifecycle.lastLoadingEndAtMs);
   cacheRootLifecycle(lifecycle);
   state.runtimeReadyRuns += 1;
   state.runtimeReadyTotalMs += lifecycle.rootAssignedToReadyMs;
-  if (lifecycle.firstPublishToReadyMs !== null) {
-    state.runtimePublishToReadyRuns += 1;
-    state.runtimePublishToReadyTotalMs += lifecycle.firstPublishToReadyMs;
-  }
-  if (lifecycle.firstTopologyPublishToReadyMs !== null) {
-    state.runtimeTopologyPublishToReadyRuns += 1;
-    state.runtimeTopologyPublishToReadyTotalMs +=
-      lifecycle.firstTopologyPublishToReadyMs;
-  }
   syncLifecycleIntoSummaries(rootId, lifecycle);
   return buildSnapshot();
 }
