@@ -22,6 +22,18 @@ import {
   type RuntimeGraphBridgeState,
 } from "./runtimeGraphMutation";
 
+type RuntimeGraphMutation = ReturnType<typeof createRuntimeGraphMutation>;
+type QueuedRuntimeMutation = {
+  mutation: RuntimeGraphMutation;
+  sequence: number;
+};
+type QueuedRuntimeMutationState = {
+  rootId: string;
+  topology: QueuedRuntimeMutation | null;
+  pose: QueuedRuntimeMutation | null;
+  nextSequence: number;
+};
+
 function RuntimeInputBridge() {
   const { setInput, ready } = useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
@@ -112,13 +124,12 @@ function RuntimeGraphBridge() {
   const lastRevisionRef = useRef<RuntimeGraphBridgeRevisions | null>(null);
   const previousRootIdRef = useRef<string | null>(null);
   const bootstrapPublishedRootRef = useRef<string | null>(null);
-  const queuedMutationRef = useRef<{
-    rootId: string;
-    mutation: ReturnType<typeof createRuntimeGraphMutation>;
-  } | null>(null);
+  const queuedMutationStateRef = useRef<QueuedRuntimeMutationState | null>(
+    null,
+  );
 
   const publishMutation = useCallback(
-    (mutation: ReturnType<typeof createRuntimeGraphMutation>) => {
+    (mutation: RuntimeGraphMutation) => {
       if (process.env.NODE_ENV !== "production") {
         console.log("[vizij-runtime][graph-bridge]", {
           mutationClass: mutation.mutationClass,
@@ -136,13 +147,36 @@ function RuntimeGraphBridge() {
     [setGraphBundle],
   );
 
+  const queueMutation = useCallback(
+    (root: string, mutation: RuntimeGraphMutation) => {
+      let queue = queuedMutationStateRef.current;
+      if (!queue || queue.rootId !== root) {
+        queue = {
+          rootId: root,
+          topology: null,
+          pose: null,
+          nextSequence: 0,
+        };
+        queuedMutationStateRef.current = queue;
+      }
+      const sequence = queue.nextSequence;
+      queue.nextSequence += 1;
+      if (mutation.mutationClass === "topology") {
+        queue.topology = { mutation, sequence };
+      } else {
+        queue.pose = { mutation, sequence };
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (previousRootIdRef.current === runtimeRootId) {
       return;
     }
     previousRootIdRef.current = runtimeRootId;
     bootstrapPublishedRootRef.current = null;
-    queuedMutationRef.current = null;
+    queuedMutationStateRef.current = null;
     lastRevisionRef.current = null;
   }, [runtimeRootId]);
 
@@ -175,13 +209,10 @@ function RuntimeGraphBridge() {
       if (!ready && runtimeRootId) {
         if (bootstrapPublishedRootRef.current !== runtimeRootId) {
           bootstrapPublishedRootRef.current = runtimeRootId;
-          queuedMutationRef.current = null;
+          queuedMutationStateRef.current = null;
           publishedMutationClass = publishMutation(mutation);
         } else {
-          queuedMutationRef.current = {
-            rootId: runtimeRootId,
-            mutation,
-          };
+          queueMutation(runtimeRootId, mutation);
         }
         return;
       }
@@ -209,6 +240,7 @@ function RuntimeGraphBridge() {
     poseGraphSpec,
     poseConfig,
     publishMutation,
+    queueMutation,
     ready,
     runtimeRootId,
   ]);
@@ -217,30 +249,36 @@ function RuntimeGraphBridge() {
     if (!ready || !runtimeRootId) {
       return;
     }
-    const queued = queuedMutationRef.current;
-    if (!queued || queued.rootId !== runtimeRootId) {
+    const queue = queuedMutationStateRef.current;
+    if (!queue || queue.rootId !== runtimeRootId) {
       return;
     }
-    queuedMutationRef.current = null;
+    queuedMutationStateRef.current = null;
 
-    const startMs =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
-    let publishedMutationClass: "topology" | "pose" | null = null;
-    try {
-      publishedMutationClass = publishMutation(queued.mutation);
-    } finally {
-      const endMs =
+    const entries = [queue.topology, queue.pose]
+      .filter((entry): entry is QueuedRuntimeMutation => entry !== null)
+      .sort((a, b) => a.sequence - b.sequence);
+
+    for (const entry of entries) {
+      const startMs =
         typeof performance !== "undefined" ? performance.now() : Date.now();
-      const snapshot = recordGraphBridgeRun(
-        endMs - startMs,
-        publishedMutationClass,
-      );
-      if (publishedMutationClass && runtimeRootId) {
-        markRuntimeGraphPublish(runtimeRootId, publishedMutationClass);
-      }
-      if (process.env.NODE_ENV !== "production") {
-        (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
-          snapshot;
+      let publishedMutationClass: "topology" | "pose" | null = null;
+      try {
+        publishedMutationClass = publishMutation(entry.mutation);
+      } finally {
+        const endMs =
+          typeof performance !== "undefined" ? performance.now() : Date.now();
+        const snapshot = recordGraphBridgeRun(
+          endMs - startMs,
+          publishedMutationClass,
+        );
+        if (publishedMutationClass && runtimeRootId) {
+          markRuntimeGraphPublish(runtimeRootId, publishedMutationClass);
+        }
+        if (process.env.NODE_ENV !== "production") {
+          (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
+            snapshot;
+        }
       }
     }
   }, [publishMutation, ready, runtimeRootId]);
