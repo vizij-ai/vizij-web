@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
+import type { InputBindingMap } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
 
@@ -40,6 +41,10 @@ export interface ReferenceFaceState {
   referencePoses: ReferenceFacePose[];
   /** Parsed pose groups extracted from the reference bundle (if present). */
   referencePoseGroups: ReferenceFacePoseGroup[];
+  /** Parent/input binding definitions parsed from the reference rig graph metadata. */
+  referenceInputBindings: InputBindingMap;
+  /** Reference input ID -> normalized path map from rig graph metadata. */
+  referenceInputPathById: Record<string, string>;
   /** Handler to change an input value */
   handleInputValueChange: (inputId: string, value: number) => void;
   /** Handler to reset all input values to defaults */
@@ -69,6 +74,8 @@ const defaultState: ReferenceFaceState = {
   inputValues: {},
   referencePoses: [],
   referencePoseGroups: [],
+  referenceInputBindings: {},
+  referenceInputPathById: {},
   handleInputValueChange: () => {},
   handleResetAllInputValues: () => {},
   onStandardInputsReady: () => {},

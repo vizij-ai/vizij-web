@@ -70,6 +70,8 @@ const referenceFaceState = {
   standardInputsById: new Map<string, StandardRigInput>(),
   referencePoses: [],
   referencePoseGroups: [],
+  referenceInputBindings: {} as Record<string, unknown>,
+  referenceInputPathById: {} as Record<string, string>,
   handleInputValueChange: vi.fn(),
   handleResetAllInputValues: vi.fn(),
   onStandardInputsReady: vi.fn(),
@@ -87,6 +89,7 @@ const bindingState = {
   inputBindings: {} as Record<string, unknown>,
   handleInputValueChange: vi.fn(),
   applyStandardInputBatch: vi.fn(),
+  applyInputBindingPatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
@@ -285,6 +288,8 @@ describe("VariablesPanel inputs perf baseline", () => {
     referenceFaceState.inputValues = {};
     referenceFaceState.referencePoses = [];
     referenceFaceState.referencePoseGroups = [];
+    referenceFaceState.referenceInputBindings = {};
+    referenceFaceState.referenceInputPathById = {};
 
     bindingState.managedStandardInputs = [];
     bindingState.standardInputsByPath = new Map();
@@ -293,6 +298,7 @@ describe("VariablesPanel inputs perf baseline", () => {
     bindingState.inputBindings = {};
     bindingState.handleInputValueChange.mockReset();
     bindingState.applyStandardInputBatch.mockReset();
+    bindingState.applyInputBindingPatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();

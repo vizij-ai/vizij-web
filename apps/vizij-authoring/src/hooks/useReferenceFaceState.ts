@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { InputBindingMap } from "@vizij/node-graph-authoring";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
 import {
   extractBindingsFromBundle,
@@ -15,6 +18,7 @@ import type {
   ReferenceFacePoseGroup,
   ReferenceFaceState,
 } from "../state/ReferenceFaceContext";
+import { rehydrateRigDataFromGraph } from "../rig/importer";
 
 function coerceFiniteNumber(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -155,6 +159,44 @@ function extractReferencePoseSnapshot(bundle: VizijBundleExtension | null): {
   return { poses, poseGroups };
 }
 
+function extractReferenceInputBindingSnapshot(
+  bundle: VizijBundleExtension | null,
+): {
+  inputBindings: InputBindingMap;
+  inputPathById: Record<string, string>;
+} {
+  if (!bundle?.graphs?.length) {
+    return { inputBindings: {}, inputPathById: {} };
+  }
+
+  const rigGraphEntry =
+    bundle.graphs.find((graph) => graph.kind === "rig") ?? bundle.graphs[0];
+  if (!rigGraphEntry?.spec || typeof rigGraphEntry.spec !== "object") {
+    return { inputBindings: {}, inputPathById: {} };
+  }
+
+  try {
+    const rehydrated = rehydrateRigDataFromGraph(
+      rigGraphEntry.spec as GraphSpec,
+      {
+        faceId: "reference",
+        animatables: {},
+        components: [],
+      },
+    );
+    const inputPathById: Record<string, string> = {};
+    rehydrated.standardInputs.forEach((input) => {
+      inputPathById[input.id] = normalizeStandardRigInputPath(input.path);
+    });
+    return {
+      inputBindings: rehydrated.inputBindings,
+      inputPathById,
+    };
+  } catch {
+    return { inputBindings: {}, inputPathById: {} };
+  }
+}
+
 export function useReferenceFaceState(
   onStandardInputChangeProp?: (inputId: string, value: number) => void,
 ): ReferenceFaceState {
@@ -173,6 +215,11 @@ export function useReferenceFaceState(
   const [referencePoseGroups, setReferencePoseGroups] = useState<
     ReferenceFacePoseGroup[]
   >([]);
+  const [referenceInputBindings, setReferenceInputBindings] =
+    useState<InputBindingMap>({});
+  const [referenceInputPathById, setReferenceInputPathById] = useState<
+    Record<string, string>
+  >({});
 
   const animateValueRef = useRef<
     ((path: string, value: number) => void) | undefined
@@ -184,6 +231,8 @@ export function useReferenceFaceState(
       setInputIdsWithBindings(new Set());
       setReferencePoses([]);
       setReferencePoseGroups([]);
+      setReferenceInputBindings({});
+      setReferenceInputPathById({});
     }
   }, [file]);
 
@@ -192,6 +241,8 @@ export function useReferenceFaceState(
       setInputIdsWithBindings(new Set());
       setReferencePoses([]);
       setReferencePoseGroups([]);
+      setReferenceInputBindings({});
+      setReferenceInputPathById({});
       return;
     }
     const bindingInfo = extractBindingsFromBundle(bundle);
@@ -200,6 +251,9 @@ export function useReferenceFaceState(
     const snapshot = extractReferencePoseSnapshot(bundle);
     setReferencePoses(snapshot.poses);
     setReferencePoseGroups(snapshot.poseGroups);
+    const bindingSnapshot = extractReferenceInputBindingSnapshot(bundle);
+    setReferenceInputBindings(bindingSnapshot.inputBindings);
+    setReferenceInputPathById(bindingSnapshot.inputPathById);
   }, []);
 
   const onStandardInputsReady = useCallback(
@@ -298,6 +352,8 @@ export function useReferenceFaceState(
       inputValues,
       referencePoses,
       referencePoseGroups,
+      referenceInputBindings,
+      referenceInputPathById,
       handleInputValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,
@@ -316,6 +372,8 @@ export function useReferenceFaceState(
       inputValues,
       referencePoses,
       referencePoseGroups,
+      referenceInputBindings,
+      referenceInputPathById,
       handleInputValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,

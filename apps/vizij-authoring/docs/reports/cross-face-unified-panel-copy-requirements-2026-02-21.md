@@ -38,6 +38,49 @@ Reference payload extraction has been extended so the panel can render unified r
 
 Current scope is intentionally one-way. Reverse direction remains a separate decision gate.
 
+## Execution Update (2026-02-21, Follow-Up)
+
+Forward copy UX and behavior were extended with explicit copy modes and retarget handling:
+
+- Variables surface:
+  - Added clear one-way copy labeling (`Reference Face -> Main Face`).
+  - Added mode toggle:
+    - `Vars Only`
+    - `With Bindings`
+  - `With Bindings` now attempts to carry parent/input binding topology by remapping reference binding input IDs to main-face IDs via normalized path matching.
+  - Binding copy can auto-provision missing upstream variables when path metadata exists.
+  - If remapping is incomplete, a retarget modal now surfaces unresolved routes with explicit actions:
+    - `Apply Mapped Bindings`
+    - `Variable Only`
+    - `Cancel`
+
+- Poses surface:
+  - Added mode toggle:
+    - `Pose Only`
+    - `With Targets`
+  - `With Targets` remaps pose target channels from reference input IDs to main-face input IDs using normalized path mapping.
+  - If some targets cannot be mapped, a retarget modal now surfaces unresolved channels with actions:
+    - `Copy Mapped Targets`
+    - `Copy Pose Only`
+    - `Cancel`
+
+- Reference snapshot plumbing:
+  - `ReferenceFaceState` now carries:
+    - `referenceInputBindings`
+    - `referenceInputPathById`
+  - `useReferenceFaceState` extracts those from the reference rig graph via importer rehydration so copy logic can remap by stable path metadata.
+
+Validation executed for this update:
+
+- `eslint` on touched panel/reference-state files.
+- `typecheck` for `vizij-authoring` (`tsc --noEmit`).
+- Targeted `VariablesPanel` tests covering:
+  - variable copy with binding logic
+  - variable unresolved-retarget modal
+  - pose copy in pose-only mode
+  - pose unresolved-retarget modal
+  - existing conflict modal paths
+
 ## Current Baseline (What Exists Today)
 
 - `VariablesPanel` already has unified surfacing for variables with source buckets and badges (`Main Face`, `Reference Face`, `Shared`) and supports reference-to-main variable copy.

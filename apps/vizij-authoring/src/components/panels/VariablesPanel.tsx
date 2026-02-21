@@ -14,9 +14,14 @@ import {
   Users,
 } from "lucide-react";
 import {
+  SELF_BINDING_ID,
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import type {
+  AnimatableBinding,
+  InputBindingMap,
+} from "@vizij/node-graph-authoring";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -120,6 +125,23 @@ interface CopyConflictModalOption {
 interface CopyConflictModalState {
   title: string;
   message: string;
+  options: CopyConflictModalOption[];
+  onResolve: (optionId: string) => void;
+}
+
+type VariableCopyMode = "variable-only" | "with-bindings";
+type PoseCopyMode = "pose-only" | "with-targets";
+
+interface CopyRetargetIssue {
+  referenceInputId: string;
+  path: string | null;
+  reason: string;
+}
+
+interface CopyRetargetModalState {
+  title: string;
+  message: string;
+  issues: CopyRetargetIssue[];
   options: CopyConflictModalOption[];
   onResolve: (optionId: string) => void;
 }
@@ -633,7 +655,7 @@ function TreeRowWrapper({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
+                className="h-5 px-1.5 text-[9px] gap-1 hover:text-accent"
                 onClick={(event) => {
                   event.stopPropagation();
                   onAction?.(node, "copy-input-to-main");
@@ -641,6 +663,7 @@ function TreeRowWrapper({
                 title="Copy input to main face"
               >
                 <Copy size={10} />
+                To Main
               </Button>
             ) : null}
             <span
@@ -775,7 +798,7 @@ function TreeRowWrapper({
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 w-5 p-0 hover:text-accent"
+              className="h-5 px-1.5 text-[9px] gap-1 hover:text-accent"
               onClick={(e) => {
                 e.stopPropagation();
                 onAction?.(node, "copy-pose-to-main");
@@ -783,6 +806,7 @@ function TreeRowWrapper({
               title="Copy pose to main face"
             >
               <Copy size={10} />
+              To Main
             </Button>
           )}
 
@@ -791,7 +815,7 @@ function TreeRowWrapper({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
+                className="h-5 px-1.5 text-[9px] gap-1 hover:text-accent"
                 onClick={(e) => {
                   e.stopPropagation();
                   onAction?.(node, "copy-to-main");
@@ -799,6 +823,7 @@ function TreeRowWrapper({
                 title="Copy variable to main face"
               >
                 <Copy size={10} />
+                To Main
               </Button>
             )}
           {node.type === "rig" &&
@@ -950,6 +975,12 @@ export function VariablesPanel({
   const [stageEditMessage, setStageEditMessage] = useState<string | null>(null);
   const [copyConflictModal, setCopyConflictModal] =
     useState<CopyConflictModalState | null>(null);
+  const [copyRetargetModal, setCopyRetargetModal] =
+    useState<CopyRetargetModalState | null>(null);
+  const [variableCopyMode, setVariableCopyMode] =
+    useState<VariableCopyMode>("variable-only");
+  const [poseCopyMode, setPoseCopyMode] =
+    useState<PoseCopyMode>("with-targets");
   const poseGroupBlendModeFallback =
     poseConfigDraft?.poseGroups?.find((group) => group.blendMode)?.blendMode ??
     blendMode ??
@@ -1221,6 +1252,9 @@ export function VariablesPanel({
   );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const applyInputBindingPatch = useBindingAuthoring(
+    (state) => state.applyInputBindingPatch,
+  );
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -1351,6 +1385,51 @@ export function VariablesPanel({
         };
       });
   }, [mainFaceRigEntries, referenceFace.standardInputs]);
+
+  const referenceInputPathById = useMemo(() => {
+    const map = new Map<string, string>();
+    referenceFace.standardInputs.forEach((input) => {
+      if (!input.id || !input.path) {
+        return;
+      }
+      map.set(input.id, normalizeStandardRigInputPath(input.path));
+    });
+    Object.entries(referenceFace.referenceInputPathById ?? {}).forEach(
+      ([inputId, path]) => {
+        if (!inputId || typeof path !== "string" || !path.trim()) {
+          return;
+        }
+        if (!map.has(inputId)) {
+          map.set(inputId, normalizeStandardRigInputPath(path));
+        }
+      },
+    );
+    return map;
+  }, [referenceFace.referenceInputPathById, referenceFace.standardInputs]);
+
+  const referenceRigEntryByPath = useMemo(() => {
+    const map = new Map<string, RigNodeData>();
+    referenceRigEntries.forEach((entry) => {
+      const normalizedPath = entry.normalizedPath
+        ? normalizeStandardRigInputPath(entry.normalizedPath)
+        : normalizeStandardRigInputPath(entry.input.path);
+      if (!map.has(normalizedPath)) {
+        map.set(normalizedPath, entry);
+      }
+    });
+    return map;
+  }, [referenceRigEntries]);
+
+  const mainInputByNormalizedPath = useMemo(() => {
+    const map = new Map<string, StandardRigInput>();
+    standardInputsById.forEach((input) => {
+      if (!input.path) {
+        return;
+      }
+      map.set(normalizeStandardRigInputPath(input.path), input);
+    });
+    return map;
+  }, [standardInputsById]);
 
   const sharedRigEntries = useMemo(() => {
     if (!referenceFace.file || !referenceFace.isLoaded) {
@@ -1710,12 +1789,47 @@ export function VariablesPanel({
     resolveSharedSyncConflict(conflict.path, winner);
   };
 
+  const buildReferenceRigEntryForInputId = (
+    referenceInputId: string,
+  ): RigNodeData | null => {
+    const mappedPath = referenceInputPathById.get(referenceInputId);
+    const directReferenceInput =
+      referenceFace.standardInputsById.get(referenceInputId);
+    const resolvedPath = mappedPath
+      ? normalizeStandardRigInputPath(mappedPath)
+      : directReferenceInput?.path
+        ? normalizeStandardRigInputPath(directReferenceInput.path)
+        : null;
+    if (!resolvedPath) {
+      return null;
+    }
+    const existing = referenceRigEntryByPath.get(resolvedPath);
+    if (existing) {
+      return existing;
+    }
+    if (!directReferenceInput) {
+      return null;
+    }
+    return {
+      input: directReferenceInput,
+      source: "reference",
+      normalizedPath: resolvedPath,
+      linkedMainInputId:
+        mainInputByNormalizedPath.get(resolvedPath)?.id ?? null,
+    };
+  };
+
   const copyReferenceVariableToMain = (
     referenceEntry: RigNodeData,
-    options?: { select?: boolean; allowOverwrite?: boolean },
+    options?: {
+      select?: boolean;
+      allowOverwrite?: boolean;
+      copyMode?: VariableCopyMode;
+    },
   ): string | null => {
     const select = options?.select ?? true;
     const allowOverwrite = options?.allowOverwrite ?? false;
+    const copyMode = options?.copyMode ?? variableCopyMode;
     if (referenceEntry.source !== "reference") {
       return null;
     }
@@ -1763,9 +1877,10 @@ export function VariablesPanel({
           ],
           onResolve: (choice) => {
             if (choice === "overwrite-main") {
-              copyReferenceVariableToMain(referenceEntry, {
+              copyReferenceVariableToMainWithMode(referenceEntry, {
                 select,
                 allowOverwrite: true,
+                copyMode,
               });
               return;
             }
@@ -1816,58 +1931,474 @@ export function VariablesPanel({
     return created.id;
   };
 
-  const normalizeReferencePoseForMain = useCallback(
-    (
-      referencePose: ReferenceFacePose,
-    ): {
-      pose: PoseDefinition | null;
-      poseGroups: NonNullable<PoseRigConfigFile["poseGroups"]>;
-    } => {
-      const referenceGroupPaths = resolveReferencePoseGroupPaths(
-        referencePose,
-        referencePoseGroupPathById,
+  const buildVariableBindingCopyPlan = (
+    referenceTargetInputId: string,
+    targetMainInputId: string,
+    options?: { createMissingUpstreams?: boolean },
+  ): { bindingsToApply: InputBindingMap; unresolved: CopyRetargetIssue[] } => {
+    const createMissingUpstreams = options?.createMissingUpstreams ?? true;
+    const bindingsToApply: InputBindingMap = {};
+    const unresolved: CopyRetargetIssue[] = [];
+    const unresolvedKeys = new Set<string>();
+    const referenceToMainId = new Map<string, string>();
+    const mainIdByPath = new Map<string, string>();
+    mainInputByNormalizedPath.forEach((input, path) => {
+      mainIdByPath.set(path, input.id);
+    });
+    referenceToMainId.set(referenceTargetInputId, targetMainInputId);
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+
+    const pushIssue = (
+      referenceInputId: string,
+      path: string | null,
+      reason: string,
+    ) => {
+      const key = `${referenceInputId}|${path ?? ""}|${reason}`;
+      if (unresolvedKeys.has(key)) {
+        return;
+      }
+      unresolvedKeys.add(key);
+      unresolved.push({ referenceInputId, path, reason });
+    };
+
+    const resolveMainInputIdForReference = (
+      referenceInputId: string,
+    ): string | null => {
+      if (!referenceInputId) {
+        return null;
+      }
+      if (referenceInputId === SELF_BINDING_ID) {
+        return SELF_BINDING_ID;
+      }
+      const mapped = referenceToMainId.get(referenceInputId);
+      if (mapped) {
+        return mapped;
+      }
+      const existingMainById = standardInputsById.get(referenceInputId);
+      if (existingMainById) {
+        referenceToMainId.set(referenceInputId, existingMainById.id);
+        return existingMainById.id;
+      }
+      const mappedPath = referenceInputPathById.get(referenceInputId);
+      const directReferenceInput =
+        referenceFace.standardInputsById.get(referenceInputId);
+      const resolvedPath = mappedPath
+        ? normalizeStandardRigInputPath(mappedPath)
+        : directReferenceInput?.path
+          ? normalizeStandardRigInputPath(directReferenceInput.path)
+          : null;
+      if (!resolvedPath) {
+        pushIssue(
+          referenceInputId,
+          null,
+          "Reference binding points to an input with no resolved path.",
+        );
+        return null;
+      }
+
+      const cachedMainId = mainIdByPath.get(resolvedPath);
+      if (cachedMainId) {
+        referenceToMainId.set(referenceInputId, cachedMainId);
+        return cachedMainId;
+      }
+
+      const existingMainByPath = mainInputByNormalizedPath.get(resolvedPath);
+      if (existingMainByPath) {
+        referenceToMainId.set(referenceInputId, existingMainByPath.id);
+        mainIdByPath.set(resolvedPath, existingMainByPath.id);
+        return existingMainByPath.id;
+      }
+
+      if (!createMissingUpstreams) {
+        pushIssue(
+          referenceInputId,
+          resolvedPath,
+          `Main face has no variable on ${resolvedPath}.`,
+        );
+        return null;
+      }
+
+      const referenceEntry = buildReferenceRigEntryForInputId(referenceInputId);
+      if (!referenceEntry) {
+        pushIssue(
+          referenceInputId,
+          resolvedPath,
+          "Reference metadata was not available for this binding source.",
+        );
+        return null;
+      }
+      const createdMainId = copyReferenceVariableToMain(referenceEntry, {
+        select: false,
+        allowOverwrite: false,
+        copyMode: "variable-only",
+      });
+      if (!createdMainId) {
+        pushIssue(
+          referenceInputId,
+          resolvedPath,
+          "Creating the required upstream variable failed.",
+        );
+        return null;
+      }
+      referenceToMainId.set(referenceInputId, createdMainId);
+      mainIdByPath.set(resolvedPath, createdMainId);
+      return createdMainId;
+    };
+
+    const remapBindingInputId = (
+      rawInputId: string | null | undefined,
+      ownerReferenceInputId: string,
+      reasonPrefix: string,
+    ): string | null => {
+      if (!rawInputId) {
+        return null;
+      }
+      if (rawInputId === SELF_BINDING_ID) {
+        return SELF_BINDING_ID;
+      }
+      const resolved = resolveMainInputIdForReference(rawInputId);
+      if (resolved && resolved !== SELF_BINDING_ID) {
+        return resolved;
+      }
+      const sourcePath = referenceInputPathById.get(rawInputId) ?? null;
+      pushIssue(
+        rawInputId,
+        sourcePath,
+        `${reasonPrefix} for "${ownerReferenceInputId}" could not be remapped.`,
       );
-      const explicitGroups = referenceGroupPaths.map((path) => ({
-        id: sanitizePoseGroupId(path, path),
-        path,
-        name: humanizePoseGroupName(path),
-      }));
-      const now = new Date().toISOString();
-      const referenceDraftPose: PoseDefinition = {
-        id: referencePose.id,
-        name: referencePose.name || referencePose.id,
-        description: referencePose.description,
-        group: referenceGroupPaths[0] ?? null,
-        groupId: referenceGroupPaths[0]
-          ? sanitizePoseGroupId(referenceGroupPaths[0], referenceGroupPaths[0])
-          : null,
-        groupIds:
-          referenceGroupPaths.length > 0
-            ? referenceGroupPaths.map((path) => sanitizePoseGroupId(path, path))
-            : undefined,
-        values: { ...referencePose.values },
-        createdAt: now,
-        updatedAt: now,
+      return null;
+    };
+
+    const copyBindingForReferenceInput = (referenceInputId: string): void => {
+      if (!referenceInputId || visited.has(referenceInputId)) {
+        return;
+      }
+      if (visiting.has(referenceInputId)) {
+        return;
+      }
+      visiting.add(referenceInputId);
+
+      const targetMainInputIdResolved =
+        resolveMainInputIdForReference(referenceInputId);
+      if (
+        !targetMainInputIdResolved ||
+        targetMainInputIdResolved === SELF_BINDING_ID
+      ) {
+        visiting.delete(referenceInputId);
+        visited.add(referenceInputId);
+        return;
+      }
+      const binding = referenceFace.referenceInputBindings[
+        referenceInputId
+      ] as AnimatableBinding | null;
+      if (!binding) {
+        visiting.delete(referenceInputId);
+        visited.add(referenceInputId);
+        return;
+      }
+
+      const upstreamReferenceInputIds = new Set<string>();
+      if (binding.inputId && binding.inputId !== SELF_BINDING_ID) {
+        upstreamReferenceInputIds.add(binding.inputId);
+      }
+      (binding.slots ?? []).forEach((slot) => {
+        if (!slot?.inputId || slot.inputId === SELF_BINDING_ID) {
+          return;
+        }
+        upstreamReferenceInputIds.add(slot.inputId);
+      });
+      upstreamReferenceInputIds.forEach((upstreamReferenceInputId) => {
+        const upstreamMainInputId = resolveMainInputIdForReference(
+          upstreamReferenceInputId,
+        );
+        if (
+          !upstreamMainInputId ||
+          upstreamMainInputId === SELF_BINDING_ID ||
+          visited.has(upstreamReferenceInputId)
+        ) {
+          return;
+        }
+        copyBindingForReferenceInput(upstreamReferenceInputId);
+      });
+
+      const remappedBinding: AnimatableBinding = {
+        ...binding,
+        targetId: targetMainInputIdResolved,
+        inputId: remapBindingInputId(
+          binding.inputId,
+          referenceInputId,
+          "Primary binding input",
+        ),
+        slots: (binding.slots ?? []).map((slot) => ({
+          ...slot,
+          inputId: remapBindingInputId(
+            slot.inputId,
+            referenceInputId,
+            `Binding slot "${slot.alias || slot.id}"`,
+          ),
+        })),
       };
-      const normalized = PoseConfigService.normalize(
-        {
-          version: 1,
-          faceId: null,
-          neutralInputs: {},
-          poses: [referenceDraftPose],
-          poseGroups: explicitGroups,
-        },
-        Array.from(standardInputsById.values()),
-        null,
-      ).config;
-      const normalizedPose = normalized.poses[0] ?? null;
-      return {
-        pose: normalizedPose,
-        poseGroups: normalized.poseGroups ?? [],
-      };
+      bindingsToApply[targetMainInputIdResolved] = remappedBinding;
+
+      visiting.delete(referenceInputId);
+      visited.add(referenceInputId);
+    };
+
+    copyBindingForReferenceInput(referenceTargetInputId);
+
+    return {
+      bindingsToApply,
+      unresolved,
+    };
+  };
+
+  const applyVariableBindingCopyPlan = (bindingsToApply: InputBindingMap) => {
+    const entries = Object.entries(bindingsToApply);
+    if (entries.length === 0) {
+      return;
+    }
+    applyInputBindingPatch((previous) => {
+      const next: InputBindingMap = { ...previous };
+      let changed = false;
+      entries.forEach(([targetInputId, binding]) => {
+        if (!binding) {
+          return;
+        }
+        if (next[targetInputId] === binding) {
+          return;
+        }
+        next[targetInputId] = binding;
+        changed = true;
+      });
+      return changed ? next : previous;
+    });
+  };
+
+  function copyReferenceVariableToMainWithMode(
+    referenceEntry: RigNodeData,
+    options?: {
+      select?: boolean;
+      allowOverwrite?: boolean;
+      copyMode?: VariableCopyMode;
     },
-    [referencePoseGroupPathById, standardInputsById],
-  );
+  ): string | null {
+    const select = options?.select ?? true;
+    const copyMode = options?.copyMode ?? variableCopyMode;
+    const copiedId = copyReferenceVariableToMain(referenceEntry, {
+      select: false,
+      allowOverwrite: options?.allowOverwrite,
+      copyMode,
+    });
+    if (!copiedId) {
+      return null;
+    }
+
+    if (copyMode === "with-bindings") {
+      const plan = buildVariableBindingCopyPlan(
+        referenceEntry.input.id,
+        copiedId,
+        {
+          createMissingUpstreams: true,
+        },
+      );
+      if (plan.unresolved.length > 0) {
+        setCopyRetargetModal({
+          title: "Variable Binding Retargeting Needed",
+          message: `Copied "${referenceEntry.input.label || referenceEntry.input.id}" to main, but ${plan.unresolved.length} binding route(s) could not be mapped exactly.`,
+          issues: plan.unresolved,
+          options: [
+            {
+              id: "apply-mapped-bindings",
+              label: "Apply Mapped Bindings",
+              description:
+                "Apply the binding logic that could be resolved and leave unresolved routes disconnected.",
+              variant: "primary",
+            },
+            {
+              id: "copy-variable-only",
+              label: "Variable Only",
+              description:
+                "Keep only variable metadata on main and skip binding logic.",
+              variant: "ghost",
+            },
+            {
+              id: "cancel",
+              label: "Cancel",
+              description:
+                "Close this dialog and keep the copied metadata only.",
+              variant: "ghost",
+            },
+          ],
+          onResolve: (choice) => {
+            if (choice === "apply-mapped-bindings") {
+              applyVariableBindingCopyPlan(plan.bindingsToApply);
+            }
+            if (
+              select &&
+              (choice === "apply-mapped-bindings" ||
+                choice === "copy-variable-only")
+            ) {
+              onSelectRig?.(copiedId);
+              onSelectPoseGroup?.(null);
+            }
+          },
+        });
+        return null;
+      } else {
+        applyVariableBindingCopyPlan(plan.bindingsToApply);
+        if (select) {
+          onSelectRig?.(copiedId);
+          onSelectPoseGroup?.(null);
+        }
+      }
+      return copiedId;
+    }
+
+    if (select) {
+      onSelectRig?.(copiedId);
+      onSelectPoseGroup?.(null);
+    }
+    return copiedId;
+  }
+
+  const mapReferencePoseValuesToMain = (
+    referencePose: ReferenceFacePose,
+    copyMode: PoseCopyMode,
+  ): { values: Record<string, number>; unresolved: CopyRetargetIssue[] } => {
+    if (copyMode === "pose-only") {
+      return { values: {}, unresolved: [] };
+    }
+    const values: Record<string, number> = {};
+    const unresolved: CopyRetargetIssue[] = [];
+    const unresolvedKeys = new Set<string>();
+    const pushIssue = (
+      referenceInputId: string,
+      path: string | null,
+      reason: string,
+    ) => {
+      const key = `${referenceInputId}|${path ?? ""}|${reason}`;
+      if (unresolvedKeys.has(key)) {
+        return;
+      }
+      unresolvedKeys.add(key);
+      unresolved.push({
+        referenceInputId,
+        path,
+        reason,
+      });
+    };
+
+    Object.entries(referencePose.values ?? {}).forEach(
+      ([referenceInputId, value]) => {
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        const directMainInput = standardInputsById.get(referenceInputId);
+        if (directMainInput) {
+          values[directMainInput.id] = value;
+          return;
+        }
+        const mappedPath = referenceInputPathById.get(referenceInputId);
+        const referenceInput =
+          referenceFace.standardInputsById.get(referenceInputId);
+        const resolvedPath = mappedPath
+          ? normalizeStandardRigInputPath(mappedPath)
+          : referenceInput?.path
+            ? normalizeStandardRigInputPath(referenceInput.path)
+            : null;
+        if (resolvedPath) {
+          const mappedMainInput = mainInputByNormalizedPath.get(resolvedPath);
+          if (mappedMainInput) {
+            values[mappedMainInput.id] = value;
+          } else {
+            pushIssue(
+              referenceInputId,
+              resolvedPath,
+              `Main face has no variable on ${resolvedPath}.`,
+            );
+          }
+          return;
+        }
+        const pathCandidate = normalizeStandardRigInputPath(referenceInputId);
+        const byPathCandidate = mainInputByNormalizedPath.get(pathCandidate);
+        if (byPathCandidate) {
+          values[byPathCandidate.id] = value;
+          return;
+        }
+        pushIssue(
+          referenceInputId,
+          null,
+          `No main-face variable mapping was found for "${referenceInputId}".`,
+        );
+      },
+    );
+
+    return {
+      values,
+      unresolved,
+    };
+  };
+
+  const normalizeReferencePoseForMain = (
+    referencePose: ReferenceFacePose,
+    options?: {
+      copyMode?: PoseCopyMode;
+    },
+  ): {
+    pose: PoseDefinition | null;
+    poseGroups: NonNullable<PoseRigConfigFile["poseGroups"]>;
+    unresolved: CopyRetargetIssue[];
+  } => {
+    const copyMode = options?.copyMode ?? poseCopyMode;
+    const referenceGroupPaths = resolveReferencePoseGroupPaths(
+      referencePose,
+      referencePoseGroupPathById,
+    );
+    const explicitGroups = referenceGroupPaths.map((path) => ({
+      id: sanitizePoseGroupId(path, path),
+      path,
+      name: humanizePoseGroupName(path),
+    }));
+    const remappedPoseValues = mapReferencePoseValuesToMain(
+      referencePose,
+      copyMode,
+    );
+    const now = new Date().toISOString();
+    const referenceDraftPose: PoseDefinition = {
+      id: referencePose.id,
+      name: referencePose.name || referencePose.id,
+      description: referencePose.description,
+      group: referenceGroupPaths[0] ?? null,
+      groupId: referenceGroupPaths[0]
+        ? sanitizePoseGroupId(referenceGroupPaths[0], referenceGroupPaths[0])
+        : null,
+      groupIds:
+        referenceGroupPaths.length > 0
+          ? referenceGroupPaths.map((path) => sanitizePoseGroupId(path, path))
+          : undefined,
+      values: remappedPoseValues.values,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const normalized = PoseConfigService.normalize(
+      {
+        version: 1,
+        faceId: null,
+        neutralInputs: {},
+        poses: [referenceDraftPose],
+        poseGroups: explicitGroups,
+      },
+      Array.from(standardInputsById.values()),
+      null,
+    ).config;
+    const normalizedPose = normalized.poses[0] ?? null;
+    return {
+      pose: normalizedPose,
+      poseGroups: normalized.poseGroups ?? [],
+      unresolved: remappedPoseValues.unresolved,
+    };
+  };
 
   const resolveNextPoseGroupIdForPath = useCallback(
     (groupPath: string) => {
@@ -2002,14 +2533,71 @@ export function VariablesPanel({
       select?: boolean;
       allowOverwrite?: boolean;
       duplicate?: boolean;
+      copyMode?: PoseCopyMode;
+      allowPartialTargets?: boolean;
     },
   ): boolean => {
     const select = options?.select ?? true;
     const allowOverwrite = options?.allowOverwrite ?? false;
     const duplicate = options?.duplicate ?? false;
-    const normalized = normalizeReferencePoseForMain(referencePose);
+    const copyMode = options?.copyMode ?? poseCopyMode;
+    const allowPartialTargets = options?.allowPartialTargets ?? false;
+    const normalized = normalizeReferencePoseForMain(referencePose, {
+      copyMode,
+    });
     const normalizedPose = normalized.pose;
     if (!normalizedPose) {
+      return false;
+    }
+    if (
+      copyMode === "with-targets" &&
+      normalized.unresolved.length > 0 &&
+      !allowPartialTargets
+    ) {
+      setCopyRetargetModal({
+        title: "Pose Target Retargeting Needed",
+        message: `Pose "${referencePose.name || referencePose.id}" references ${normalized.unresolved.length} target channel(s) that are not available on the main face.`,
+        issues: normalized.unresolved,
+        options: [
+          {
+            id: "copy-mapped-targets",
+            label: "Copy Mapped Targets",
+            description:
+              "Copy this pose with target values that could be mapped; unresolved targets are omitted.",
+            variant: "primary",
+          },
+          {
+            id: "copy-pose-only",
+            label: "Copy Pose Only",
+            description:
+              "Copy only pose metadata/groups so you can author target values manually.",
+            variant: "ghost",
+          },
+          {
+            id: "cancel",
+            label: "Cancel",
+            description: "Close this dialog without copying this pose.",
+            variant: "ghost",
+          },
+        ],
+        onResolve: (choice) => {
+          if (choice === "copy-mapped-targets") {
+            copyReferencePoseToMain(referencePose, {
+              ...options,
+              copyMode: "with-targets",
+              allowPartialTargets: true,
+            });
+            return;
+          }
+          if (choice === "copy-pose-only") {
+            copyReferencePoseToMain(referencePose, {
+              ...options,
+              copyMode: "pose-only",
+              allowPartialTargets: true,
+            });
+          }
+        },
+      });
       return false;
     }
 
@@ -2055,6 +2643,8 @@ export function VariablesPanel({
             copyReferencePoseToMain(referencePose, {
               select,
               allowOverwrite: true,
+              copyMode,
+              allowPartialTargets,
             });
             return;
           }
@@ -2062,6 +2652,8 @@ export function VariablesPanel({
             copyReferencePoseToMain(referencePose, {
               select,
               duplicate: true,
+              copyMode,
+              allowPartialTargets,
             });
             return;
           }
@@ -2631,20 +3223,27 @@ export function VariablesPanel({
       }
       copyReferencePoseToMain(poseNodeData.pose as ReferenceFacePose, {
         select: true,
+        copyMode: poseCopyMode,
       });
       return;
     }
     if (node.type === "rig" && action === "copy-to-main") {
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
-        copyReferenceVariableToMain(rigData, { select: true });
+        copyReferenceVariableToMainWithMode(rigData, {
+          select: true,
+          copyMode: variableCopyMode,
+        });
       }
       return;
     }
     if (node.type === "input" && action === "copy-input-to-main") {
       const inputData = node.data as InputListRow;
       if (inputData.source === "reference" && inputData.referenceEntry) {
-        copyReferenceVariableToMain(inputData.referenceEntry, { select: true });
+        copyReferenceVariableToMainWithMode(inputData.referenceEntry, {
+          select: true,
+          copyMode: variableCopyMode,
+        });
       }
       return;
     }
@@ -2769,7 +3368,10 @@ export function VariablesPanel({
       if (entry.linkedMainInputId) {
         continue;
       }
-      const copied = copyReferenceVariableToMain(entry, { select: false });
+      const copied = copyReferenceVariableToMainWithMode(entry, {
+        select: false,
+        copyMode: variableCopyMode,
+      });
       if (!copied) {
         break;
       }
@@ -2785,7 +3387,10 @@ export function VariablesPanel({
 
   const handleCopyReferencePosesToMain = () => {
     for (const pose of referenceFace.referencePoses) {
-      const completed = copyReferencePoseToMain(pose, { select: false });
+      const completed = copyReferencePoseToMain(pose, {
+        select: false,
+        copyMode: poseCopyMode,
+      });
       if (!completed) {
         break;
       }
@@ -3200,6 +3805,14 @@ export function VariablesPanel({
           const isPoses = id === "poses";
           const isInputs = id === "inputs";
           const filteredSearch = searchQuery.trim().toLowerCase();
+          const hasReferenceFace = Boolean(referenceFace.file);
+          const surfaceCopyScope = isVariables
+            ? "variables"
+            : isPoses
+              ? "poses"
+              : isPoseGroups
+                ? "pose groups"
+                : "inputs";
 
           return (
             <div className="flex flex-col h-full min-h-0 gap-1 p-2">
@@ -3221,7 +3834,24 @@ export function VariablesPanel({
                   }
                 />
               </div>
-              <div className="flex items-center gap-1 px-1 mb-1">
+              {hasReferenceFace && (
+                <div className="mx-1 mb-2 rounded border border-border-default/50 bg-bg-panel/40 px-2 py-1.5 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                    Copy Flow
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-900/40 text-cyan-200">
+                    Reference Face
+                  </span>
+                  <span className="text-[10px] text-text-muted">→</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-900/40 text-violet-200">
+                    Main Face
+                  </span>
+                  <span className="text-[10px] text-text-muted">
+                    {`Copy ${surfaceCopyScope} from reference to main.`}
+                  </span>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-1 px-1 mb-1">
                 {isVariables && (
                   <Button
                     variant="ghost"
@@ -3234,6 +3864,49 @@ export function VariablesPanel({
                     New Variable
                   </Button>
                 )}
+                {isVariables && hasReferenceFace && (
+                  <div className="flex items-center gap-1 rounded border border-border-default/40 px-1.5 py-0.5">
+                    <span className="text-[10px] text-text-muted">Mode</span>
+                    <button
+                      type="button"
+                      className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                        variableCopyMode === "variable-only"
+                          ? "border-accent/50 bg-accent/10 text-accent"
+                          : "border-border-default text-text-muted hover:text-text-primary"
+                      }`}
+                      onClick={() => setVariableCopyMode("variable-only")}
+                      title="Copy variable metadata only"
+                    >
+                      Vars Only
+                    </button>
+                    <button
+                      type="button"
+                      className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                        variableCopyMode === "with-bindings"
+                          ? "border-accent/50 bg-accent/10 text-accent"
+                          : "border-border-default text-text-muted hover:text-text-primary"
+                      }`}
+                      onClick={() => setVariableCopyMode("with-bindings")}
+                      title="Copy variable metadata and parent/input binding logic"
+                    >
+                      With Bindings
+                    </button>
+                  </div>
+                )}
+                {isVariables && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                    onClick={handleCopyReferenceToMain}
+                    disabled={uncopiedReferenceCount === 0}
+                    title="Copy reference-only variables to main face (one-way)"
+                  >
+                    <Copy size={11} />
+                    Copy Ref Vars → Main ({uncopiedReferenceCount})
+                  </Button>
+                )}
+
                 {isPoses && (
                   <>
                     <Button
@@ -3265,32 +3938,51 @@ export function VariablesPanel({
                       <Copy size={11} />
                       Duplicate Pose
                     </Button>
+                    {hasReferenceFace && (
+                      <div className="flex items-center gap-1 rounded border border-border-default/40 px-1.5 py-0.5">
+                        <span className="text-[10px] text-text-muted">
+                          Mode
+                        </span>
+                        <button
+                          type="button"
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                            poseCopyMode === "pose-only"
+                              ? "border-accent/50 bg-accent/10 text-accent"
+                              : "border-border-default text-text-muted hover:text-text-primary"
+                          }`}
+                          onClick={() => setPoseCopyMode("pose-only")}
+                          title="Copy pose metadata/groups only"
+                        >
+                          Pose Only
+                        </button>
+                        <button
+                          type="button"
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                            poseCopyMode === "with-targets"
+                              ? "border-accent/50 bg-accent/10 text-accent"
+                              : "border-border-default text-text-muted hover:text-text-primary"
+                          }`}
+                          onClick={() => setPoseCopyMode("with-targets")}
+                          title="Copy pose targets mapped to main-face variables"
+                        >
+                          With Targets
+                        </button>
+                      </div>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
                       onClick={handleCopyReferencePosesToMain}
                       disabled={uncopiedReferencePoseCount === 0}
-                      title="Copy reference poses to main face"
+                      title="Copy reference poses to main face (one-way)"
                     >
                       <Copy size={11} />
-                      Copy Ref ({uncopiedReferencePoseCount})
+                      Copy Ref Poses → Main ({uncopiedReferencePoseCount})
                     </Button>
                   </>
                 )}
-                {isVariables && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-                    onClick={handleCopyReferenceToMain}
-                    disabled={uncopiedReferenceCount === 0}
-                    title="Copy reference-only variables to main face"
-                  >
-                    <Copy size={11} />
-                    Copy Ref ({uncopiedReferenceCount})
-                  </Button>
-                )}
+
                 {isPoseGroups && (
                   <>
                     <Button
@@ -3346,17 +4038,15 @@ export function VariablesPanel({
                       className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
                       onClick={handleCopyReferencePoseGroupsToMain}
                       disabled={uncopiedReferencePoseGroupCount === 0}
-                      title="Copy reference pose groups to main face"
+                      title="Copy reference pose groups to main face (one-way)"
                     >
                       <Copy size={11} />
-                      Copy Ref ({uncopiedReferencePoseGroupCount})
+                      Copy Ref Groups → Main ({uncopiedReferencePoseGroupCount})
                     </Button>
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                      Compatibility blend
+                    </span>
                   </>
-                )}
-                {isPoseGroups && (
-                  <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                    Compatibility blend
-                  </span>
                 )}
               </div>
               {isPoseGroups && (
@@ -3948,7 +4638,7 @@ export function VariablesPanel({
                                         : "Copy pose group to main face"
                                     }
                                   >
-                                    Copy
+                                    Copy → Main
                                   </Button>
                                 ) : (
                                   <Button
@@ -4071,6 +4761,70 @@ export function VariablesPanel({
                 onClick={() => {
                   copyConflictModal?.onResolve(option.id);
                   setCopyConflictModal(null);
+                }}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide">
+                  {option.label}
+                </div>
+                <div className="text-[11px] text-text-muted mt-1">
+                  {option.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={Boolean(copyRetargetModal)}
+        onClose={() => setCopyRetargetModal(null)}
+        title={copyRetargetModal?.title ?? "Retargeting Needed"}
+        maxWidth="lg"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-secondary">
+            {copyRetargetModal?.message ?? ""}
+          </p>
+          {copyRetargetModal && copyRetargetModal.issues.length > 0 && (
+            <div className="rounded border border-border-default/50 bg-bg-panel/40 p-2 max-h-56 overflow-y-auto">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+                Unresolved Routes ({copyRetargetModal.issues.length})
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {copyRetargetModal.issues.slice(0, 20).map((issue, index) => (
+                  <div
+                    key={`${issue.referenceInputId}:${issue.path ?? "none"}:${index}`}
+                    className="rounded border border-border-default/40 bg-bg-panel/30 px-2 py-1"
+                  >
+                    <div className="text-[10px] font-mono text-text-primary">
+                      {issue.referenceInputId}
+                    </div>
+                    {issue.path && (
+                      <div className="text-[10px] text-text-muted font-mono">
+                        {issue.path}
+                      </div>
+                    )}
+                    <div className="text-[10px] text-text-muted">
+                      {issue.reason}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid gap-2">
+            {(copyRetargetModal?.options ?? []).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={cn(
+                  "w-full rounded border px-3 py-2 text-left transition-colors",
+                  option.variant === "primary"
+                    ? "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20"
+                    : "border-border-default text-text-primary hover:bg-bg-panel/40",
+                )}
+                onClick={() => {
+                  copyRetargetModal?.onResolve(option.id);
+                  setCopyRetargetModal(null);
                 }}
               >
                 <div className="text-xs font-semibold uppercase tracking-wide">

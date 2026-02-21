@@ -2,6 +2,10 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
+import type {
+  ReferenceFacePose,
+  ReferenceFacePoseGroup,
+} from "../../state/ReferenceFaceContext";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
@@ -48,8 +52,10 @@ const referenceFaceState = {
   standardInputsById: new Map<string, StandardRigInput>(),
   inputIdsWithBindings: new Set<string>(),
   inputValues: {} as Record<string, number>,
-  referencePoses: [],
-  referencePoseGroups: [],
+  referencePoses: [] as ReferenceFacePose[],
+  referencePoseGroups: [] as ReferenceFacePoseGroup[],
+  referenceInputBindings: {} as Record<string, unknown>,
+  referenceInputPathById: {} as Record<string, string>,
   handleInputValueChange: vi.fn(),
   handleResetAllInputValues: vi.fn(),
   onStandardInputsReady: vi.fn(),
@@ -73,6 +79,7 @@ const bindingState = {
   inputBindings: {} as Record<string, unknown>,
   handleInputValueChange: vi.fn(),
   applyStandardInputBatch: vi.fn(),
+  applyInputBindingPatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
@@ -158,6 +165,8 @@ describe("VariablesPanel", () => {
     referenceFaceState.inputValues = {};
     referenceFaceState.referencePoses = [];
     referenceFaceState.referencePoseGroups = [];
+    referenceFaceState.referenceInputBindings = {};
+    referenceFaceState.referenceInputPathById = {};
 
     bindingState.managedStandardInputs = [];
     bindingState.standardInputsByPath = new Map();
@@ -167,6 +176,7 @@ describe("VariablesPanel", () => {
     bindingState.inputBindings = {};
     bindingState.handleInputValueChange.mockReset();
     bindingState.applyStandardInputBatch.mockReset();
+    bindingState.applyInputBindingPatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();
@@ -251,7 +261,9 @@ describe("VariablesPanel", () => {
     const onSelectRig = vi.fn();
     render(<VariablesPanel onSelectRig={onSelectRig} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (1)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Ref Vars → Main (1)" }),
+    );
 
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
       "/standard/brow/up",
@@ -287,7 +299,9 @@ describe("VariablesPanel", () => {
     bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
 
     render(<VariablesPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (2)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Ref Vars → Main (2)" }),
+    );
 
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledTimes(
       1,
@@ -295,6 +309,121 @@ describe("VariablesPanel", () => {
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
       "/standard/brow/up",
     );
+  });
+
+  it("copies reference variable binding logic when using With Bindings mode", () => {
+    const mainDriver = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+    });
+    const referenceDriver = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Ref Jaw Open",
+    });
+    const referenceTarget = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+    });
+    const createdTarget = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.standardInputs = [referenceDriver, referenceTarget];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceDriver.id, referenceDriver],
+      [referenceTarget.id, referenceTarget],
+    ]);
+    referenceFaceState.referenceInputPathById = {
+      [referenceDriver.id]: "/standard/jaw/open",
+      [referenceTarget.id]: "/standard/mouth/smile",
+    };
+    referenceFaceState.referenceInputBindings = {
+      [referenceTarget.id]: {
+        targetId: referenceTarget.id,
+        inputId: referenceDriver.id,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: referenceDriver.id }],
+      },
+    };
+    bindingState.managedStandardInputs = [
+      { input: mainDriver, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([[mainDriver.id, mainDriver]]);
+    bindingState.standardInputsByPath = new Map([
+      [mainDriver.path, mainDriver],
+    ]);
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(createdTarget);
+    let nextBindings: Record<string, any> = {};
+    bindingState.applyInputBindingPatch.mockImplementation((updater: any) => {
+      nextBindings = updater(nextBindings);
+      bindingState.inputBindings = nextBindings;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "With Bindings" }),
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Vars → Main (1)",
+      }),
+    );
+
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
+    expect(nextBindings[createdTarget.id]).toEqual(
+      expect.objectContaining({
+        targetId: createdTarget.id,
+        inputId: mainDriver.id,
+      }),
+    );
+    expect(nextBindings[createdTarget.id]?.slots?.[0]?.inputId).toBe(
+      mainDriver.id,
+    );
+  });
+
+  it("shows variable retargeting modal when unresolved binding routes remain", () => {
+    const referenceTarget = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+    });
+    const createdTarget = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.standardInputs = [referenceTarget];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceTarget.id, referenceTarget],
+    ]);
+    referenceFaceState.referenceInputPathById = {
+      [referenceTarget.id]: "/standard/mouth/smile",
+    };
+    referenceFaceState.referenceInputBindings = {
+      [referenceTarget.id]: {
+        targetId: referenceTarget.id,
+        inputId: "missing_reference_input",
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "missing_reference_input" }],
+      },
+    };
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(createdTarget);
+    let nextBindings: Record<string, any> = {};
+    bindingState.applyInputBindingPatch.mockImplementation((updater: any) => {
+      nextBindings = updater(nextBindings);
+      bindingState.inputBindings = nextBindings;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "With Bindings" }),
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Vars → Main (1)",
+      }),
+    );
+
+    expect(
+      screen.getByText("Variable Binding Retargeting Needed"),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByText("Apply Mapped Bindings").closest("button")!,
+    );
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
+    expect(nextBindings[createdTarget.id]?.inputId).toBeNull();
   });
 
   it("surfaces a modal when reference variable copy conflicts with existing main metadata", () => {
@@ -332,7 +461,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(within(view.container).getByTitle("x"));
     fireEvent.click(
-      within(view.container).getByTitle("Copy input to main face"),
+      within(view.container).getByTitle(/Copy input to main face/),
     );
     expect(screen.getByText("Variable Copy Conflict")).toBeTruthy();
 
@@ -346,6 +475,109 @@ describe("VariablesPanel", () => {
         sourceId: referenceInput.sourceId,
       }),
     );
+  });
+
+  it("copies pose metadata only when Pose Only mode is selected", () => {
+    const mainTarget = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+    });
+    bindingState.standardInputsById = new Map([[mainTarget.id, mainTarget]]);
+    bindingState.standardInputsByPath = new Map([
+      [mainTarget.path, mainTarget],
+    ]);
+    bindingState.managedStandardInputs = [
+      { input: mainTarget, source: "custom" },
+    ];
+    referenceFaceState.referencePoses = [
+      {
+        id: "pose_ref_smile",
+        name: "Smile",
+        values: {
+          [mainTarget.id]: 0.75,
+        },
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "Pose Only" }),
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Poses → Main (1)",
+      }),
+    );
+
+    const copiedPose = poseRigState.addPoseDefinition.mock.calls[0]?.[0] as
+      | PoseDefinition
+      | undefined;
+    expect(copiedPose).toBeDefined();
+    expect(copiedPose?.values).toEqual({});
+  });
+
+  it("offers pose retarget options when with-targets copy cannot fully map channels", () => {
+    const mainTarget = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+    });
+    const referenceMapped = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Ref Jaw Open",
+    });
+    const referenceMissing = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+    });
+    bindingState.standardInputsById = new Map([[mainTarget.id, mainTarget]]);
+    bindingState.standardInputsByPath = new Map([
+      [mainTarget.path, mainTarget],
+    ]);
+    bindingState.managedStandardInputs = [
+      { input: mainTarget, source: "custom" },
+    ];
+    referenceFaceState.standardInputs = [referenceMapped, referenceMissing];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceMapped.id, referenceMapped],
+      [referenceMissing.id, referenceMissing],
+    ]);
+    referenceFaceState.referenceInputPathById = {
+      [referenceMapped.id]: "/standard/jaw/open",
+      [referenceMissing.id]: "/standard/mouth/smile",
+    };
+    referenceFaceState.referencePoses = [
+      {
+        id: "pose_ref_smile",
+        name: "Smile",
+        values: {
+          [referenceMapped.id]: 0.4,
+          [referenceMissing.id]: 0.8,
+        },
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Poses → Main (1)",
+      }),
+    );
+
+    expect(screen.getByText("Pose Target Retargeting Needed")).toBeTruthy();
+    fireEvent.click(screen.getByText("Copy Mapped Targets").closest("button")!);
+    const copiedPose = poseRigState.addPoseDefinition.mock.calls[0]?.[0] as
+      | PoseDefinition
+      | undefined;
+    expect(copiedPose).toBeDefined();
+    expect(copiedPose?.values).toEqual({
+      [mainTarget.id]: 0.4,
+    });
   });
 
   it("surfaces a modal when reference pose-group blend mode conflicts with main", () => {
@@ -380,7 +612,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose group to main face"),
+      within(view.container).getByTitle(/Copy pose group to main face/),
     );
     expect(screen.getByText("Pose Group Copy Conflict")).toBeTruthy();
 
@@ -460,7 +692,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy reference poses to main face"),
+      within(view.container).getByTitle(/Copy reference poses to main face/),
     );
     expect(screen.getByText("Pose Copy Conflict")).toBeTruthy();
     expect(poseRigState.setPoseGroupBlendMode).not.toHaveBeenCalled();
