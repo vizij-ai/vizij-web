@@ -751,6 +751,8 @@ describe("VariablesPanel", () => {
   });
 
   it("routes pose play action through canonical pose-weight inputs when available", () => {
+    referenceFaceState.file = null;
+    referenceFaceState.isLoaded = false;
     poseRigState.poses = [
       {
         id: "pose_smile",
@@ -793,9 +795,15 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    const mainFaceFolder = within(view.container).queryByTitle("Main Face");
-    if (mainFaceFolder) {
-      fireEvent.click(mainFaceFolder);
+    const unassignedFolder = within(view.container).queryByTitle(
+      "__unassigned__",
+    );
+    if (unassignedFolder) {
+      const folderRow = unassignedFolder.closest('div[style*="padding-left"]');
+      const toggle = folderRow?.querySelector("button");
+      if (toggle) {
+        fireEvent.click(toggle);
+      }
     }
     fireEvent.click(within(view.container).getAllByTitle("Apply Pose")[0]!);
 
