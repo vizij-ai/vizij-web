@@ -215,8 +215,8 @@ describe("useBundleSynchronizer failure surfaces", () => {
     const frameResolvers: Array<() => void> = [];
     mockWaitForNextFrame.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          frameResolvers.push(resolve);
+        new Promise<undefined>((resolve) => {
+          frameResolvers.push(() => resolve(undefined));
         }),
     );
     const importGraphSpec = vi.fn(async () => ({

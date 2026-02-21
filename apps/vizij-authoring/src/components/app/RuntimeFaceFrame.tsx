@@ -25,13 +25,20 @@ export function RuntimeFaceFrame({
   onCanvasClick,
   skipBounds: _skipBounds = false,
 }: RuntimeFaceFrameProps) {
-  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
+  const {
+    ready,
+    loading,
+    error,
+    firstFrameReady,
+    controllableReady,
+    stagePoseNeutral,
+  } = useVizijRuntime();
 
   useEffect(() => {
-    if (ready) {
+    if (controllableReady) {
       stagePoseNeutral();
     }
-  }, [ready, stagePoseNeutral]);
+  }, [controllableReady, stagePoseNeutral]);
 
   return (
     <div
@@ -67,7 +74,13 @@ export function RuntimeFaceFrame({
         onClick={onCanvasClick}
       >
         <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
-        <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
+        <RuntimeStatusBadge
+          ready={ready}
+          loading={loading}
+          firstFrameReady={firstFrameReady}
+          controllableReady={controllableReady}
+          error={error}
+        />
         {overlay}
       </div>
       {footer && (
@@ -82,12 +95,16 @@ type RuntimeErrorLike = ReturnType<typeof useVizijRuntime>["error"];
 type RuntimeStatusBadgeProps = {
   ready: boolean;
   loading: boolean;
+  firstFrameReady: boolean;
+  controllableReady: boolean;
   error: RuntimeErrorLike | Error | null | undefined;
 };
 
 function RuntimeStatusBadge({
   ready,
   loading,
+  firstFrameReady,
+  controllableReady,
   error,
 }: RuntimeStatusBadgeProps) {
   if (error) {
@@ -107,12 +124,22 @@ function RuntimeStatusBadge({
       </div>
     );
   }
-  if (loading) {
+  if (loading || !firstFrameReady) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-400 bg-slate-950/85 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-2">
           <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
           <span>Loading face…</span>
+        </div>
+      </div>
+    );
+  }
+  if (!controllableReady) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-400 bg-slate-950/85 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+          <span>Preparing controls…</span>
         </div>
       </div>
     );

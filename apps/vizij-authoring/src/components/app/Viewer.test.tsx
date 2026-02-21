@@ -29,6 +29,8 @@ vi.mock("@vizij/runtime-react", () => ({
     setInput: setInputSpy,
     step: stepSpy,
     ready: true,
+    firstFrameReady: true,
+    controllableReady: true,
     loading: false,
     rootId: "root",
     error: null,

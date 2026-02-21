@@ -150,6 +150,10 @@ export type RuntimeError = {
 export type VizijRuntimeStatus = {
   loading: boolean;
   ready: boolean;
+  /** True after the runtime has produced at least one merged frame write. */
+  firstFrameReady: boolean;
+  /** True once controllers are registered and input staging is safe. */
+  controllableReady: boolean;
   error: RuntimeError | null;
   errors: RuntimeError[];
   namespace: string;

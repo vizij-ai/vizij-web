@@ -168,7 +168,8 @@ function ReferenceFaceBridge({
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
   const {
-    ready,
+    firstFrameReady,
+    controllableReady,
     loading,
     animateValue,
     setInput,
@@ -196,7 +197,7 @@ function ReferenceFaceBridge({
   // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById, standardInputsByPath } =
     useMemo(() => {
-      if (!ready || !inputConstraints) {
+      if (!controllableReady || !inputConstraints) {
         return {
           standardInputs: [],
           standardInputsById: new Map<string, StandardRigInput>(),
@@ -262,7 +263,7 @@ function ReferenceFaceBridge({
         standardInputsById: byId,
         standardInputsByPath: byPath,
       };
-    }, [ready, inputConstraints]);
+    }, [controllableReady, inputConstraints]);
 
   // Keep a ref of standardInputsByPath for use in callbacks
   const standardInputsByPathRef = useRef(standardInputsByPath);
@@ -272,32 +273,42 @@ function ReferenceFaceBridge({
 
   // Report loading state changes
   useEffect(() => {
-    onLoadingStateChange?.(loading, ready);
-  }, [loading, ready, onLoadingStateChange]);
+    const isLoaded = controllableReady;
+    const isLoading = loading || !firstFrameReady || !controllableReady;
+    onLoadingStateChange?.(isLoading, isLoaded);
+  }, [controllableReady, firstFrameReady, loading, onLoadingStateChange]);
 
   // Report bundle when ready (only once per bundle)
   const lastReportedBundleRef = useRef<typeof assetBundle.bundle | undefined>(
     undefined,
   );
   useEffect(() => {
-    if (ready && assetBundle.bundle !== lastReportedBundleRef.current) {
+    if (
+      controllableReady &&
+      assetBundle.bundle !== lastReportedBundleRef.current
+    ) {
       lastReportedBundleRef.current = assetBundle.bundle;
       onBundleReady?.(assetBundle.bundle ?? null);
     }
-  }, [ready, assetBundle.bundle, onBundleReady]);
+  }, [controllableReady, assetBundle.bundle, onBundleReady]);
 
   // Report standard inputs when they change (and clear when none are available)
   useEffect(() => {
-    if (!ready) {
+    if (!controllableReady) {
       onStandardInputsReady?.([], new Map());
       return;
     }
     onStandardInputsReady?.(standardInputs, standardInputsById);
-  }, [ready, standardInputs, standardInputsById, onStandardInputsReady]);
+  }, [
+    controllableReady,
+    standardInputs,
+    standardInputsById,
+    onStandardInputsReady,
+  ]);
 
   // Create and report the animate function
   useEffect(() => {
-    if (!ready) {
+    if (!controllableReady) {
       onAnimateValueReady?.(undefined);
       return;
     }
@@ -320,7 +331,14 @@ function ReferenceFaceBridge({
     };
 
     onAnimateValueReady?.(animateFn);
-  }, [ready, onAnimateValueReady]);
+  }, [controllableReady, onAnimateValueReady]);
+
+  const isLoading = loading || !firstFrameReady || !controllableReady;
+  const statusText = isLoading
+    ? firstFrameReady
+      ? "Preparing controls…"
+      : "Loading…"
+    : "Ready";
 
   const formattedFps =
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
@@ -335,15 +353,15 @@ function ReferenceFaceBridge({
           <div className="flex items-center gap-1.5">
             <div
               className={`w-1.5 h-1.5 rounded-full ${
-                ready
+                controllableReady
                   ? "bg-green-500"
-                  : loading
+                  : isLoading
                     ? "bg-accent animate-pulse"
                     : "bg-text-muted"
               }`}
             />
             <p className="m-0 text-[10px] text-text-secondary font-bold">
-              {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
+              {statusText}
             </p>
           </div>
         </div>

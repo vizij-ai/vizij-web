@@ -1096,6 +1096,8 @@ function VizijRuntimeProviderInner({
   const [status, setStatus] = useState<VizijRuntimeStatus>({
     loading: true,
     ready: false,
+    firstFrameReady: false,
+    controllableReady: false,
     error: null,
     errors: [],
     namespace,
@@ -1314,6 +1316,8 @@ function VizijRuntimeProviderInner({
       loading: true,
       rootId: null,
       ready: false,
+      firstFrameReady: false,
+      controllableReady: false,
       outputPaths: [],
       controllers: { graphs: [], anims: [] },
     }));
@@ -1602,6 +1606,7 @@ function VizijRuntimeProviderInner({
       reportStatus((prev) => ({
         ...prev,
         ready: true,
+        controllableReady: true,
         controllers,
         outputPaths: Array.from(outputPathsRef.current),
       }));
@@ -1686,6 +1691,9 @@ function VizijRuntimeProviderInner({
     if (!writes.length) {
       return;
     }
+    reportStatus((prev) =>
+      prev.firstFrameReady ? prev : { ...prev, firstFrameReady: true },
+    );
     const setWorldValues = store.getState().setValues;
     const namespaceValue = status.namespace;
     const batched: Array<{ id: string; namespace: string; value: RawValue }> =
@@ -2177,6 +2185,8 @@ function VizijRuntimeProviderInner({
           ...prev,
           loading: true,
           ready: false,
+          firstFrameReady: false,
+          controllableReady: false,
         }));
       } else {
         reportStatus((prev) => ({

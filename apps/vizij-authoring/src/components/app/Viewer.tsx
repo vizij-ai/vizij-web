@@ -22,18 +22,18 @@ import {
 } from "./runtimeGraphMutation";
 
 function RuntimeInputBridge() {
-  const { setInput, ready } = useVizijRuntime();
+  const { setInput, controllableReady } = useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
     graphRuntimeStore.setState({
-      stageRuntimeInput: ready
+      stageRuntimeInput: controllableReady
         ? (graphPath: string, value: number) => {
             setInput(graphPath, { float: value });
           }
         : undefined,
     });
-  }, [graphRuntimeStore, ready, setInput]);
+  }, [controllableReady, graphRuntimeStore, setInput]);
 
   return null;
 }
@@ -174,7 +174,7 @@ function RuntimeGraphBridge() {
 }
 
 function RuntimeLifecyclePerfBridge() {
-  const { ready, rootId } = useVizijRuntime();
+  const { controllableReady, rootId } = useVizijRuntime();
   const readyRootRef = useRef<string | null>(null);
   const firstFrameRootRef = useRef<string | null>(null);
 
@@ -184,7 +184,7 @@ function RuntimeLifecyclePerfBridge() {
       firstFrameRootRef.current = null;
       return;
     }
-    if (!ready) {
+    if (!controllableReady) {
       readyRootRef.current = null;
       firstFrameRootRef.current = null;
       return;
@@ -224,31 +224,58 @@ function RuntimeLifecyclePerfBridge() {
       cancelled = true;
       cancelAnimationFrame(frameHandle);
     };
-  }, [ready, rootId]);
+  }, [controllableReady, rootId]);
 
   return null;
 }
 
 function RuntimeStatusDebug() {
-  const { loading, ready, rootId, error, controllers, outputPaths } =
-    useVizijRuntime();
+  const {
+    loading,
+    ready,
+    firstFrameReady,
+    controllableReady,
+    rootId,
+    error,
+    controllers,
+    outputPaths,
+  } = useVizijRuntime();
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][viewer]", {
         loading,
         ready,
+        firstFrameReady,
+        controllableReady,
         rootId,
         error,
         controllers,
         outputPaths: outputPaths.length,
       });
     }
-  }, [loading, ready, rootId, error, controllers, outputPaths.length]);
+  }, [
+    controllableReady,
+    controllers,
+    error,
+    firstFrameReady,
+    loading,
+    outputPaths.length,
+    ready,
+    rootId,
+  ]);
   return (
     <div className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-      {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
-        rootId ?? "null"
-      } | graphs: ${controllers.graphs.length}`}
+      {`runtime: ${
+        controllableReady
+          ? "controllable"
+          : firstFrameReady
+            ? "frame-ready"
+            : ready
+              ? "registered"
+              : loading
+                ? "loading"
+                : "idle"
+      } | rootId: ${rootId ?? "null"} | graphs: ${controllers.graphs.length}`}
     </div>
   );
 }
