@@ -170,6 +170,16 @@ export type RuntimeImportPerfSessionSnapshot = {
   metrics: RuntimePerfMetricsSnapshot;
 };
 
+export type RuntimeImportProgressSnapshot = {
+  activeSession: ActiveRuntimeImportPerfSession | null;
+  lastSummary: RuntimeImportPerfSummary | null;
+};
+
+type RuntimeDebugGlobal = {
+  __vizijRuntimeDebugCaptureEnabled?: boolean;
+  __vizijRuntimeDebugEvents?: RuntimeDebugEvent[];
+};
+
 let state: RuntimePerfMetricsState = createInitialState();
 let nextSessionId = 1;
 let activeImportSession: ActiveRuntimeImportPerfSession | null = null;
@@ -224,6 +234,12 @@ function emitAndBuildSnapshot(): RuntimePerfMetricsSnapshot {
   const snapshot = buildSnapshot();
   emitChange();
   return snapshot;
+}
+
+function isRuntimeDebugCaptureEnabled() {
+  return Boolean(
+    (globalThis as RuntimeDebugGlobal).__vizijRuntimeDebugCaptureEnabled,
+  );
 }
 
 function cacheRootLifecycle(lifecycle: RuntimeRootLifecycle) {
@@ -376,6 +392,18 @@ export function getRuntimeImportPerfSessionSnapshot(): RuntimeImportPerfSessionS
   };
 }
 
+export function getRuntimeImportProgressSnapshot(): RuntimeImportProgressSnapshot {
+  return {
+    activeSession: cloneActiveImportSession(activeImportSession),
+    lastSummary: lastImportSummary ? { ...lastImportSummary } : null,
+  };
+}
+
+export function setRuntimeDebugCaptureEnabled(enabled: boolean) {
+  (globalThis as RuntimeDebugGlobal).__vizijRuntimeDebugCaptureEnabled =
+    enabled;
+}
+
 export function getRuntimeDebugEvents(): RuntimeDebugEvent[] {
   return runtimeDebugEvents.map((event) => ({
     atMs: event.atMs,
@@ -387,7 +415,10 @@ export function getRuntimeDebugEvents(): RuntimeDebugEvent[] {
 export function recordRuntimeDebugEvent(
   category: string,
   detail: Record<string, unknown> = {},
-): RuntimeDebugEvent {
+): void {
+  if (!isRuntimeDebugCaptureEnabled()) {
+    return;
+  }
   const event: RuntimeDebugEvent = {
     atMs: getNowMs(),
     category,
@@ -399,15 +430,12 @@ export function recordRuntimeDebugEvent(
       runtimeDebugEvents.length - MAX_RUNTIME_DEBUG_EVENTS,
     );
   }
-  (
-    globalThis as { __vizijRuntimeDebugEvents?: RuntimeDebugEvent[] }
-  ).__vizijRuntimeDebugEvents = runtimeDebugEvents.map((entry) => ({
-    atMs: entry.atMs,
-    category: entry.category,
-    detail: { ...entry.detail },
-  }));
-  emitChange();
-  return event;
+  (globalThis as RuntimeDebugGlobal).__vizijRuntimeDebugEvents =
+    runtimeDebugEvents.map((entry) => ({
+      atMs: entry.atMs,
+      category: entry.category,
+      detail: { ...entry.detail },
+    }));
 }
 
 export function subscribeRuntimePerfMetrics(listener: () => void) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  getRuntimeImportPerfSessionSnapshot,
-  type RuntimeImportPerfSessionSnapshot,
+  getRuntimeImportProgressSnapshot,
+  type RuntimeImportProgressSnapshot,
   subscribeRuntimePerfMetrics,
 } from "../../perf/runtimePerfMetrics";
 import { resolveImportProgressState } from "../../perf/importProgress";
@@ -9,6 +9,59 @@ import { resolveImportProgressState } from "../../perf/importProgress";
 interface ImportProgressStatusProps {
   isAssetLoading: boolean;
   rootId: string | null;
+}
+
+function areActiveSessionsEquivalent(
+  previous: RuntimeImportProgressSnapshot["activeSession"],
+  next: RuntimeImportProgressSnapshot["activeSession"],
+) {
+  if (!previous && !next) {
+    return true;
+  }
+  if (!previous || !next) {
+    return false;
+  }
+  return (
+    previous.sessionId === next.sessionId &&
+    previous.rigNormalizeCalls === next.rigNormalizeCalls &&
+    previous.rigGraphImportRuns === next.rigGraphImportRuns &&
+    previous.poseNormalizeRuns === next.poseNormalizeRuns &&
+    previous.graphBridgeAcceptedUpdates === next.graphBridgeAcceptedUpdates &&
+    previous.graphBridgePublishAttempts === next.graphBridgePublishAttempts &&
+    previous.firstControllableFrameAtMs === next.firstControllableFrameAtMs
+  );
+}
+
+function areSummariesEquivalent(
+  previous: RuntimeImportProgressSnapshot["lastSummary"],
+  next: RuntimeImportProgressSnapshot["lastSummary"],
+) {
+  if (!previous && !next) {
+    return true;
+  }
+  if (!previous || !next) {
+    return false;
+  }
+  return (
+    previous.sessionId === next.sessionId &&
+    previous.rootId === next.rootId &&
+    previous.status === next.status &&
+    previous.durationMs === next.durationMs &&
+    previous.rootAssignedToReadyMs === next.rootAssignedToReadyMs &&
+    previous.readyToFirstFrameMs === next.readyToFirstFrameMs &&
+    previous.graphBridgeAcceptedUpdates === next.graphBridgeAcceptedUpdates &&
+    previous.graphBridgePublishAttempts === next.graphBridgePublishAttempts
+  );
+}
+
+function areProgressSnapshotsEquivalent(
+  previous: RuntimeImportProgressSnapshot,
+  next: RuntimeImportProgressSnapshot,
+) {
+  return (
+    areActiveSessionsEquivalent(previous.activeSession, next.activeSession) &&
+    areSummariesEquivalent(previous.lastSummary, next.lastSummary)
+  );
 }
 
 function resolveProgressFillClass(
@@ -31,18 +84,28 @@ export function ImportProgressStatus({
   rootId,
 }: ImportProgressStatusProps) {
   const [sessionSnapshot, setSessionSnapshot] =
-    useState<RuntimeImportPerfSessionSnapshot>(() =>
-      getRuntimeImportPerfSessionSnapshot(),
+    useState<RuntimeImportProgressSnapshot>(() =>
+      getRuntimeImportProgressSnapshot(),
     );
 
   useEffect(() => {
     return subscribeRuntimePerfMetrics(() => {
-      setSessionSnapshot(getRuntimeImportPerfSessionSnapshot());
+      const nextSnapshot = getRuntimeImportProgressSnapshot();
+      setSessionSnapshot((previous) =>
+        areProgressSnapshotsEquivalent(previous, nextSnapshot)
+          ? previous
+          : nextSnapshot,
+      );
     });
   }, []);
 
   useEffect(() => {
-    setSessionSnapshot(getRuntimeImportPerfSessionSnapshot());
+    const nextSnapshot = getRuntimeImportProgressSnapshot();
+    setSessionSnapshot((previous) =>
+      areProgressSnapshotsEquivalent(previous, nextSnapshot)
+        ? previous
+        : nextSnapshot,
+    );
   }, [isAssetLoading, rootId]);
 
   const progressState = resolveImportProgressState({

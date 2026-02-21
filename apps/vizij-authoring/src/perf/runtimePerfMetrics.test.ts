@@ -21,6 +21,7 @@ import {
   recordRigPrepareSpecCall,
   recordRigNormalizeCall,
   resetRuntimePerfMetrics,
+  setRuntimeDebugCaptureEnabled,
   subscribeRuntimePerfMetrics,
   startRuntimeImportPerfSession,
 } from "./runtimePerfMetrics";
@@ -28,6 +29,7 @@ import {
 describe("runtimePerfMetrics", () => {
   beforeEach(() => {
     resetRuntimePerfMetrics();
+    setRuntimeDebugCaptureEnabled(false);
   });
 
   it("tracks graph bridge mutation mix and average duration", () => {
@@ -211,6 +213,7 @@ describe("runtimePerfMetrics", () => {
   });
 
   it("tracks and resets runtime debug events", () => {
+    setRuntimeDebugCaptureEnabled(true);
     recordRuntimeDebugEvent("post-pose-import-refresh-start", {
       poseGraphRevision: 1,
     });
@@ -230,6 +233,14 @@ describe("runtimePerfMetrics", () => {
     });
 
     resetRuntimePerfMetrics();
+    expect(getRuntimeDebugEvents()).toEqual([]);
+  });
+
+  it("skips runtime debug event capture when disabled", () => {
+    setRuntimeDebugCaptureEnabled(false);
+    recordRuntimeDebugEvent("post-pose-import-refresh-start", {
+      poseGraphRevision: 1,
+    });
     expect(getRuntimeDebugEvents()).toEqual([]);
   });
 });

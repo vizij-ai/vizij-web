@@ -48,6 +48,7 @@ Pose-import wake-up note (latest smoke): explicit topology-refresh-only replacem
 | `WIP (2026-02-21)`    | Added runtime debug-event trace and refresh/registration probe      | Captures whether explicit refresh leads to topology publish/registration before fallback.                   |
 | `WIP (2026-02-21)`    | Fixed refresh-probe false positive and restored deterministic nudge | User trace showed topology churn satisfied probe before forced-refresh publish landed.                      |
 | `WIP (2026-02-21)`    | Hardened deterministic nudge with mutation-result telemetry         | Added versioned refresh events + robust fallback (`remove/readd existing input`) to avoid no-op nudge runs. |
+| `WIP (2026-02-21)`    | Trimmed steady-state instrumentation overhead                       | Runtime debug-event capture is now opt-in; import progress now skips no-op rerenders while idle.            |
 
 ## What Failed
 
@@ -75,6 +76,7 @@ Pose-import wake-up note (latest smoke): explicit topology-refresh-only replacem
 9. Added structured runtime debug events (`window.__vizijRuntimeDebugEvents`) to trace post-import refresh sequencing and whether fallback nudge was actually required.
 10. User trace confirmed probe false-positive: pre-existing topology churn advanced counters before forced refresh applied, so nudge was skipped despite still being required for correctness.
 11. New refresh payload versioning (`refreshVersion: "deterministic-nudge-v2"`) disambiguates stale probe builds from current deterministic path and reports whether nudge actually mutated structure.
+12. Runtime debug-event capture is opt-in via `window.__vizijRuntimeDebugCaptureEnabled = true`; default steady-state authoring no longer pays debug cloning costs.
 
 ## Guardrails (Do Not Break)
 

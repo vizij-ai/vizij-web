@@ -150,6 +150,8 @@ Added structured debug-event instrumentation to trace the failing path:
    - whether deterministic nudge was applied.
 
 Debug traces are exposed on `window.__vizijRuntimeDebugEvents` for manual smoke runs.
+Enable capture before reproducing with:
+`window.__vizijRuntimeDebugCaptureEnabled = true`.
 
 Current behavior after this pass:
 

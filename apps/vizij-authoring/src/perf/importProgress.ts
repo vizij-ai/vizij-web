@@ -1,4 +1,4 @@
-import type { RuntimeImportPerfSessionSnapshot } from "./runtimePerfMetrics";
+import type { RuntimeImportProgressSnapshot } from "./runtimePerfMetrics";
 
 export type ImportProgressPhase =
   | "idle"
@@ -31,7 +31,7 @@ export type ImportProgressState = {
 interface ResolveImportProgressOptions {
   isAssetLoading: boolean;
   rootId: string | null;
-  sessionSnapshot: RuntimeImportPerfSessionSnapshot;
+  sessionSnapshot: RuntimeImportProgressSnapshot;
 }
 
 function clampProgress(value: number): number {
@@ -53,7 +53,7 @@ function formatDuration(durationMs: number | null | undefined): string {
 }
 
 function buildSummaryDetail(
-  summary: RuntimeImportPerfSessionSnapshot["lastSummary"],
+  summary: RuntimeImportProgressSnapshot["lastSummary"],
 ): string {
   if (!summary) {
     return "";
