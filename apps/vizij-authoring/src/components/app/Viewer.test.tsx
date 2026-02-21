@@ -371,7 +371,7 @@ describe("Viewer", () => {
     );
   });
 
-  it("coalesces graph updates while runtime is not ready and flushes queued classes when ready", () => {
+  it("coalesces graph updates while runtime is not ready and flushes latest when ready", () => {
     runtimeReady = false;
     const store = createGraphRuntimeStore({
       graphSpec: { nodes: [{ id: "rig-1" }] } as any,
@@ -406,9 +406,6 @@ describe("Viewer", () => {
         poseConfig: undefined,
         poseRuntimeRevision: 1,
       });
-    });
-
-    act(() => {
       store.setState({
         graphSpec: undefined,
         graphSpecRevision: 1,
@@ -437,18 +434,7 @@ describe("Viewer", () => {
       </GraphRuntimeStoreProvider>,
     );
 
-    expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
-    expect(setGraphBundleSpy).toHaveBeenNthCalledWith(
-      2,
-      {
-        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
-        pose: {
-          graph: undefined,
-          config: undefined,
-        },
-      },
-      { tier: "graphs", mutationClass: "pose" },
-    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
     expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
       {
         rig: undefined,
