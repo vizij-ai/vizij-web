@@ -6,6 +6,7 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { useVizijStore } from "@vizij/render";
+import { prewarmVizijRuntime } from "@vizij/runtime-react";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -21,6 +22,7 @@ import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSyncState } from "./hooks/useBundleSyncState";
 import { AppWizards } from "./components/app/AppWizards";
 import { ImportFailureStack } from "./components/app/ImportFailureStack";
+import { ImportProgressStatus } from "./components/app/ImportProgressStatus";
 import {
   RigControllerProvider,
   useBindingAuthoring,
@@ -50,6 +52,11 @@ import {
 } from "./types/importOutcome";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
+const runtimePrewarmFlag = (
+  import.meta.env.VITE_RUNTIME_PREWARM ?? ""
+).toLowerCase();
+const ENABLE_RUNTIME_PREWARM =
+  runtimePrewarmFlag === "1" || runtimePrewarmFlag === "true";
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
@@ -152,6 +159,13 @@ function AppContent({
   const poseRig = usePoseRig();
 
   const { alert: showAlert } = useDialogQueue();
+
+  useEffect(() => {
+    if (!ENABLE_RUNTIME_PREWARM) {
+      return;
+    }
+    void prewarmVizijRuntime();
+  }, []);
 
   useEffect(() => {
     uiActions.setIncludeVizijBundle(true);
@@ -457,7 +471,12 @@ function AppContent({
           leftMiddleVisible={false}
           // Center
           topPanel={
-            <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
+            <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default">
+              <ImportProgressStatus
+                isAssetLoading={isLoading}
+                rootId={rootId}
+              />
+            </div>
           }
           viewport={viewerContent}
           bottomVisible={panels.animation.isVisible}

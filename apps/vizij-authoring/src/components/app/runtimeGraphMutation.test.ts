@@ -29,6 +29,21 @@ describe("resolveRuntimeGraphMutationClass", () => {
     expect(mutationClass).toBe("topology");
   });
 
+  it("returns topology when graph and pose revisions both change", () => {
+    const mutationClass = resolveRuntimeGraphMutationClass(
+      {
+        graphSpecRevision: 2,
+        poseRuntimeRevision: 5,
+      },
+      {
+        graphSpecRevision: 3,
+        poseRuntimeRevision: 6,
+      },
+    );
+
+    expect(mutationClass).toBe("topology");
+  });
+
   it("returns pose when only pose revision changes", () => {
     const mutationClass = resolveRuntimeGraphMutationClass(
       {

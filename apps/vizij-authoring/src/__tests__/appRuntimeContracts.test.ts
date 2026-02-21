@@ -7,9 +7,17 @@ const appSourcePath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../App.tsx",
 );
+const viewerSourcePath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../components/app/Viewer.tsx",
+);
 
 function readAppSource() {
   return readFileSync(appSourcePath, "utf8");
+}
+
+function readViewerSource() {
+  return readFileSync(viewerSourcePath, "utf8");
 }
 
 function collectGraphRuntimeSelectors(source: string): string[] {
@@ -36,5 +44,13 @@ describe("App runtime performance contracts", () => {
     expect(selectors).not.toContain("poseConfig");
     expect(selectors).not.toContain("discrepancyReview");
     expect(selectors).not.toContain("resolveDiscrepancyReview");
+  });
+
+  it("keeps Viewer runtime graph bridge driven by revision selectors", () => {
+    const source = readViewerSource();
+    const selectors = collectGraphRuntimeSelectors(source);
+
+    expect(selectors).toContain("graphSpecRevision");
+    expect(selectors).toContain("poseRuntimeRevision");
   });
 });

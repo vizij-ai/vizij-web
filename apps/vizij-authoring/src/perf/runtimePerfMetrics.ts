@@ -13,6 +13,8 @@ type RuntimeRootLifecycle = {
 
 export type RuntimePerfMetricsSnapshot = {
   graphBridgeRuns: number;
+  graphBridgePublishAttempts: number;
+  graphBridgeAcceptedUpdates: number;
   graphBridgePublishes: number;
   graphBridgeTopologyPublishes: number;
   graphBridgePosePublishes: number;
@@ -73,6 +75,8 @@ type RuntimePerfMetricsState = Omit<
 function createInitialState(): RuntimePerfMetricsState {
   return {
     graphBridgeRuns: 0,
+    graphBridgePublishAttempts: 0,
+    graphBridgeAcceptedUpdates: 0,
     graphBridgePublishes: 0,
     graphBridgeTopologyPublishes: 0,
     graphBridgePosePublishes: 0,
@@ -125,10 +129,16 @@ export type RuntimeImportPerfSummary = {
   poseNormalizeRuns: number;
   poseNormalizeTotalMs: number;
   graphBridgeRuns: number;
+  graphBridgePublishAttempts: number;
+  graphBridgeAcceptedUpdates: number;
   graphBridgePublishes: number;
   graphBridgeTopologyPublishes: number;
   graphBridgePosePublishes: number;
   graphBridgePublishTotalMs: number;
+  firstTopologyPublishAtMs: number | null;
+  lastTopologyPublishAtMs: number | null;
+  firstPosePublishAtMs: number | null;
+  firstControllableFrameAtMs: number | null;
   assetLoadMs: number | null;
   rootAssignedToReadyMs: number | null;
   readyToFirstFrameMs: number | null;
@@ -139,11 +149,18 @@ type ActiveRuntimeImportPerfSession = Omit<
   "completedAtMs" | "durationMs" | "status"
 >;
 
+export type RuntimeImportPerfSessionSnapshot = {
+  activeSession: ActiveRuntimeImportPerfSession | null;
+  lastSummary: RuntimeImportPerfSummary | null;
+  metrics: RuntimePerfMetricsSnapshot;
+};
+
 let state: RuntimePerfMetricsState = createInitialState();
 let nextSessionId = 1;
 let activeImportSession: ActiveRuntimeImportPerfSession | null = null;
 let lastImportSummary: RuntimeImportPerfSummary | null = null;
 let rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
+const listeners = new Set<() => void>();
 
 function getNowMs() {
   if (
@@ -170,6 +187,27 @@ function withActiveImportSession(
     return;
   }
   updater(activeImportSession);
+}
+
+function cloneActiveImportSession(
+  session: ActiveRuntimeImportPerfSession | null,
+): ActiveRuntimeImportPerfSession | null {
+  if (!session) {
+    return null;
+  }
+  return { ...session };
+}
+
+function emitChange() {
+  listeners.forEach((listener) => {
+    listener();
+  });
+}
+
+function emitAndBuildSnapshot(): RuntimePerfMetricsSnapshot {
+  const snapshot = buildSnapshot();
+  emitChange();
+  return snapshot;
 }
 
 function cacheRootLifecycle(lifecycle: RuntimeRootLifecycle) {
@@ -215,6 +253,7 @@ function syncLifecycleIntoSummaries(
     session.assetLoadMs = lifecycle.assetLoadMs;
     session.rootAssignedToReadyMs = lifecycle.rootAssignedToReadyMs;
     session.readyToFirstFrameMs = lifecycle.readyToFirstFrameMs;
+    session.firstControllableFrameAtMs = lifecycle.firstFrameAtMs;
   });
   if (!lastImportSummary || lastImportSummary.rootId !== rootId) {
     return;
@@ -224,6 +263,7 @@ function syncLifecycleIntoSummaries(
     assetLoadMs: lifecycle.assetLoadMs,
     rootAssignedToReadyMs: lifecycle.rootAssignedToReadyMs,
     readyToFirstFrameMs: lifecycle.readyToFirstFrameMs,
+    firstControllableFrameAtMs: lifecycle.firstFrameAtMs,
   };
 }
 
@@ -289,6 +329,7 @@ export function resetRuntimePerfMetrics() {
   lastImportSummary = null;
   nextSessionId = 1;
   rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
+  emitChange();
 }
 
 export function getRuntimePerfMetricsSnapshot(): RuntimePerfMetricsSnapshot {
@@ -297,6 +338,25 @@ export function getRuntimePerfMetricsSnapshot(): RuntimePerfMetricsSnapshot {
 
 export function getLastRuntimeImportPerfSummary(): RuntimeImportPerfSummary | null {
   return lastImportSummary;
+}
+
+export function getActiveRuntimeImportPerfSession(): ActiveRuntimeImportPerfSession | null {
+  return cloneActiveImportSession(activeImportSession);
+}
+
+export function getRuntimeImportPerfSessionSnapshot(): RuntimeImportPerfSessionSnapshot {
+  return {
+    activeSession: cloneActiveImportSession(activeImportSession),
+    lastSummary: lastImportSummary ? { ...lastImportSummary } : null,
+    metrics: buildSnapshot(),
+  };
+}
+
+export function subscribeRuntimePerfMetrics(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function startRuntimeImportPerfSession(options: {
@@ -335,16 +395,23 @@ export function startRuntimeImportPerfSession(options: {
     poseNormalizeRuns: 0,
     poseNormalizeTotalMs: 0,
     graphBridgeRuns: 0,
+    graphBridgePublishAttempts: 0,
+    graphBridgeAcceptedUpdates: 0,
     graphBridgePublishes: 0,
     graphBridgeTopologyPublishes: 0,
     graphBridgePosePublishes: 0,
     graphBridgePublishTotalMs: 0,
+    firstTopologyPublishAtMs: null,
+    lastTopologyPublishAtMs: null,
+    firstPosePublishAtMs: null,
+    firstControllableFrameAtMs: rootLifecycle?.firstFrameAtMs ?? null,
     assetLoadMs: rootLifecycle?.assetLoadMs ?? null,
     rootAssignedToReadyMs: rootLifecycle?.rootAssignedToReadyMs ?? null,
     readyToFirstFrameMs: rootLifecycle?.readyToFirstFrameMs ?? null,
   };
   activeImportSession = session;
   state.activeImportSessionId = session.sessionId;
+  emitChange();
   return session.sessionId;
 }
 
@@ -361,6 +428,9 @@ export function finalizeRuntimeImportPerfSession(
       : rootLifecycleById.get(activeImportSession.rootId);
   const summary: RuntimeImportPerfSummary = {
     ...activeImportSession,
+    firstControllableFrameAtMs:
+      rootLifecycle?.firstFrameAtMs ??
+      activeImportSession.firstControllableFrameAtMs,
     assetLoadMs: rootLifecycle?.assetLoadMs ?? activeImportSession.assetLoadMs,
     rootAssignedToReadyMs:
       rootLifecycle?.rootAssignedToReadyMs ??
@@ -378,28 +448,37 @@ export function finalizeRuntimeImportPerfSession(
   activeImportSession = null;
   state.activeImportSessionId = null;
   state.completedImportSessions += 1;
+  emitChange();
   return summary;
 }
 
 export function recordGraphBridgeRun(
   durationMs: number,
   mutationClass: RuntimeGraphMutationClass | null,
+  options?: {
+    publishedAtMs?: number;
+  },
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
+  const publishedAtMs = sanitizeDuration(options?.publishedAtMs ?? getNowMs());
   state.graphBridgeRuns += 1;
+  state.graphBridgePublishAttempts += 1;
   state.graphBridgeTotalMs += sanitizedDuration;
   withActiveImportSession((session) => {
     session.graphBridgeRuns += 1;
+    session.graphBridgePublishAttempts += 1;
   });
 
   if (mutationClass === null) {
     state.graphBridgeSkippedRuns += 1;
-    return buildSnapshot();
+    return emitAndBuildSnapshot();
   }
 
+  state.graphBridgeAcceptedUpdates += 1;
   state.graphBridgePublishes += 1;
   state.graphBridgePublishTotalMs += sanitizedDuration;
   withActiveImportSession((session) => {
+    session.graphBridgeAcceptedUpdates += 1;
     session.graphBridgePublishes += 1;
     session.graphBridgePublishTotalMs += sanitizedDuration;
   });
@@ -407,15 +486,22 @@ export function recordGraphBridgeRun(
     state.graphBridgeTopologyPublishes += 1;
     withActiveImportSession((session) => {
       session.graphBridgeTopologyPublishes += 1;
+      if (session.firstTopologyPublishAtMs === null) {
+        session.firstTopologyPublishAtMs = publishedAtMs;
+      }
+      session.lastTopologyPublishAtMs = publishedAtMs;
     });
   } else {
     state.graphBridgePosePublishes += 1;
     withActiveImportSession((session) => {
       session.graphBridgePosePublishes += 1;
+      if (session.firstPosePublishAtMs === null) {
+        session.firstPosePublishAtMs = publishedAtMs;
+      }
     });
   }
 
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRigImportAttempt(): RuntimePerfMetricsSnapshot {
@@ -423,7 +509,7 @@ export function recordRigImportAttempt(): RuntimePerfMetricsSnapshot {
   withActiveImportSession((session) => {
     session.rigImportAttempts += 1;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRigPrepareSpecCall(
@@ -436,7 +522,7 @@ export function recordRigPrepareSpecCall(
     session.rigPrepareSpecCalls += 1;
     session.rigPrepareSpecTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRigNormalizeCall(
@@ -449,7 +535,7 @@ export function recordRigNormalizeCall(
     session.rigNormalizeCalls += 1;
     session.rigNormalizeTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRigGraphImportRun(
@@ -462,7 +548,7 @@ export function recordRigGraphImportRun(
     session.rigGraphImportRuns += 1;
     session.rigGraphImportTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordBuildRigGraphSpecRun(
@@ -475,7 +561,7 @@ export function recordBuildRigGraphSpecRun(
     session.buildRigGraphSpecRuns += 1;
     session.buildRigGraphSpecTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordResolveRuntimeGraphSpecRun(
@@ -488,7 +574,7 @@ export function recordResolveRuntimeGraphSpecRun(
     session.resolveRuntimeGraphSpecRuns += 1;
     session.resolveRuntimeGraphSpecTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordPoseNormalizeRun(
@@ -501,7 +587,7 @@ export function recordPoseNormalizeRun(
     session.poseNormalizeRuns += 1;
     session.poseNormalizeTotalMs += sanitizedDuration;
   });
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordAssetLoadRun(
@@ -510,7 +596,7 @@ export function recordAssetLoadRun(
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.assetLoadRuns += 1;
   state.assetLoadTotalMs += sanitizedDuration;
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function markRuntimeRootAssigned(
@@ -535,13 +621,13 @@ export function markRuntimeRootAssigned(
   };
   cacheRootLifecycle(lifecycle);
   syncLifecycleIntoSummaries(rootId, lifecycle);
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
   const lifecycle = getOrCreateRootLifecycle(rootId);
   if (lifecycle.readyAtMs !== null) {
-    return buildSnapshot();
+    return emitAndBuildSnapshot();
   }
   const nowMs = getNowMs();
   lifecycle.readyAtMs = nowMs;
@@ -552,7 +638,7 @@ export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
   state.runtimeReadyRuns += 1;
   state.runtimeReadyTotalMs += lifecycle.rootAssignedToReadyMs;
   syncLifecycleIntoSummaries(rootId, lifecycle);
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }
 
 export function recordRuntimeFirstFrame(
@@ -560,7 +646,7 @@ export function recordRuntimeFirstFrame(
 ): RuntimePerfMetricsSnapshot {
   const lifecycle = getOrCreateRootLifecycle(rootId);
   if (lifecycle.firstFrameAtMs !== null) {
-    return buildSnapshot();
+    return emitAndBuildSnapshot();
   }
   const nowMs = getNowMs();
   lifecycle.firstFrameAtMs = nowMs;
@@ -572,6 +658,14 @@ export function recordRuntimeFirstFrame(
   cacheRootLifecycle(lifecycle);
   state.runtimeReadyToFirstFrameRuns += 1;
   state.runtimeReadyToFirstFrameTotalMs += lifecycle.readyToFirstFrameMs;
+  withActiveImportSession((session) => {
+    if (
+      session.rootId === rootId &&
+      session.firstControllableFrameAtMs === null
+    ) {
+      session.firstControllableFrameAtMs = lifecycle.firstFrameAtMs;
+    }
+  });
   syncLifecycleIntoSummaries(rootId, lifecycle);
-  return buildSnapshot();
+  return emitAndBuildSnapshot();
 }

@@ -247,6 +247,120 @@ describe("Viewer", () => {
     );
   });
 
+  it("publishes topology then pose when pose data arrives after rig", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: undefined,
+      poseConfig: undefined,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: {
+          graph: undefined,
+          config: undefined,
+        },
+      },
+      { tier: "graphs", mutationClass: "topology" },
+    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setState({
+        poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+        poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+        poseRuntimeRevision: 1,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
+          config: { version: 1, neutralInputs: {}, poses: [] },
+        },
+      },
+      { tier: "graphs", mutationClass: "pose" },
+    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps topology mutation class when graph and pose revisions bump together", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+    });
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <Viewer
+          rootId="root"
+          namespace="default"
+          bundle={{
+            namespace: "default",
+            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+            bundle: null,
+          }}
+          onClearSelection={() => {}}
+          showSelectionGlow={false}
+          onImportClick={() => {}}
+          onLoadQuori={() => {}}
+          onLoadHugo={() => {}}
+        />
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.setState({
+        graphSpec: { nodes: [{ id: "rig-2" }] } as any,
+        poseGraphSpec: { nodes: [{ id: "pose-2" }] } as any,
+        poseConfig: {
+          version: 1,
+          neutralInputs: {},
+          poses: [{ id: "p" }],
+        } as any,
+        graphSpecRevision: 1,
+        poseRuntimeRevision: 1,
+      });
+    });
+
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      {
+        rig: { id: "rig", spec: { nodes: [{ id: "rig-2" }] } },
+        pose: {
+          graph: { id: "pose", spec: { nodes: [{ id: "pose-2" }] } },
+          config: { version: 1, neutralInputs: {}, poses: [{ id: "p" }] },
+        },
+      },
+      { tier: "graphs", mutationClass: "topology" },
+    );
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("emits add/update/remove graph bundle transitions", () => {
     const store = createGraphRuntimeStore({
       graphSpec: { nodes: [{ id: "rig-1" }] } as any,

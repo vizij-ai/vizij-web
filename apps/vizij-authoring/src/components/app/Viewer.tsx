@@ -153,6 +153,7 @@ function RuntimeGraphBridge() {
       const snapshot = recordGraphBridgeRun(
         endMs - startMs,
         publishedMutationClass,
+        { publishedAtMs: endMs },
       );
       if (process.env.NODE_ENV !== "production") {
         (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
@@ -207,6 +208,9 @@ function RuntimeLifecyclePerfBridge() {
           snapshot;
         const importSummary = getLastRuntimeImportPerfSummary();
         if (importSummary && importSummary.rootId === rootId) {
+          (
+            globalThis as { __vizijImportPerfSummary?: unknown }
+          ).__vizijImportPerfSummary = importSummary;
           // eslint-disable-next-line no-console -- import runtime diagnostics
           console.info("[vizij-authoring] import render perf summary", {
             ...importSummary,

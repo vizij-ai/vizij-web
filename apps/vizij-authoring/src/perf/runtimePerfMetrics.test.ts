@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   finalizeRuntimeImportPerfSession,
+  getActiveRuntimeImportPerfSession,
   getRuntimePerfMetricsSnapshot,
+  getRuntimeImportPerfSessionSnapshot,
   getLastRuntimeImportPerfSummary,
   markRuntimeRootAssigned,
   recordAssetLoadRun,
@@ -16,6 +18,7 @@ import {
   recordRigPrepareSpecCall,
   recordRigNormalizeCall,
   resetRuntimePerfMetrics,
+  subscribeRuntimePerfMetrics,
   startRuntimeImportPerfSession,
 } from "./runtimePerfMetrics";
 
@@ -31,6 +34,8 @@ describe("runtimePerfMetrics", () => {
 
     expect(snapshot).toMatchObject({
       graphBridgeRuns: 3,
+      graphBridgePublishAttempts: 3,
+      graphBridgeAcceptedUpdates: 2,
       graphBridgePublishes: 2,
       graphBridgeTopologyPublishes: 1,
       graphBridgePosePublishes: 1,
@@ -69,7 +74,8 @@ describe("runtimePerfMetrics", () => {
     recordBuildRigGraphSpecRun(13);
     recordResolveRuntimeGraphSpecRun(17);
     recordPoseNormalizeRun(19);
-    recordGraphBridgeRun(23, "topology");
+    recordGraphBridgeRun(23, "topology", { publishedAtMs: 1234 });
+    recordGraphBridgeRun(29, "pose", { publishedAtMs: 2345 });
 
     const summary = finalizeRuntimeImportPerfSession("success");
     const snapshot = getRuntimePerfMetricsSnapshot();
@@ -91,19 +97,24 @@ describe("runtimePerfMetrics", () => {
       resolveRuntimeGraphSpecTotalMs: 17,
       poseNormalizeRuns: 1,
       poseNormalizeTotalMs: 19,
-      graphBridgeRuns: 1,
-      graphBridgePublishes: 1,
+      graphBridgeRuns: 2,
+      graphBridgePublishAttempts: 2,
+      graphBridgeAcceptedUpdates: 2,
+      graphBridgePublishes: 2,
       graphBridgeTopologyPublishes: 1,
-      graphBridgePosePublishes: 0,
-      graphBridgePublishTotalMs: 23,
+      graphBridgePosePublishes: 1,
+      graphBridgePublishTotalMs: 52,
+      firstTopologyPublishAtMs: 1234,
+      lastTopologyPublishAtMs: 1234,
+      firstPosePublishAtMs: 2345,
     });
     expect(summary?.durationMs ?? 0).toBeGreaterThanOrEqual(0);
 
     expect(snapshot).toMatchObject({
       activeImportSessionId: null,
       completedImportSessions: 1,
-      graphBridgePublishTotalMs: 23,
-      graphBridgePublishAverageMs: 23,
+      graphBridgePublishTotalMs: 52,
+      graphBridgePublishAverageMs: 26,
       rigPrepareSpecAverageMs: 5,
       rigNormalizeAverageMs: 7,
       rigGraphImportAverageMs: 11,
@@ -133,6 +144,7 @@ describe("runtimePerfMetrics", () => {
     expect(summary).toMatchObject({
       assetLoadMs: 31,
     });
+    expect(summary?.firstControllableFrameAtMs ?? -1).toBeGreaterThanOrEqual(0);
     expect(summary?.rootAssignedToReadyMs ?? -1).toBeGreaterThanOrEqual(0);
     expect(summary?.readyToFirstFrameMs ?? -1).toBeGreaterThanOrEqual(0);
     expect(snapshot).toMatchObject({
@@ -142,5 +154,25 @@ describe("runtimePerfMetrics", () => {
       runtimeReadyRuns: 1,
       runtimeReadyToFirstFrameRuns: 1,
     });
+  });
+
+  it("publishes active-session updates through the perf subscription", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeRuntimePerfMetrics(listener);
+
+    startRuntimeImportPerfSession({
+      fingerprint: "fingerprint-1",
+      rootId: "root",
+    });
+    recordGraphBridgeRun(4, "topology", { publishedAtMs: 3456 });
+
+    const active = getActiveRuntimeImportPerfSession();
+    const snapshot = getRuntimeImportPerfSessionSnapshot();
+
+    expect(listener).toHaveBeenCalled();
+    expect(active?.firstTopologyPublishAtMs).toBe(3456);
+    expect(snapshot.activeSession?.graphBridgeAcceptedUpdates).toBe(1);
+
+    unsubscribe();
   });
 });

@@ -4,6 +4,7 @@ export { useVizijRuntime } from "./hooks/useVizijRuntime";
 export { useVizijOutputs } from "./hooks/useVizijOutputs";
 export { useRigInput } from "./hooks/useRigInput";
 export { resolveRuntimeUpdatePlan } from "./updatePolicy";
+export { prewarmVizijRuntime } from "./prewarm";
 
 export type {
   VizijAssetBundle,
