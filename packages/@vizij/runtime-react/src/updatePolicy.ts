@@ -73,18 +73,7 @@ export function resolveRuntimeUpdatePlan(
   const rigChanged = graphSignature(previous.rig) !== graphSignature(next.rig);
   const poseGraphChanged =
     poseGraphSignature(previous.pose) !== poseGraphSignature(next.pose);
-  const rigReferenceChanged =
-    previous.rig?.id !== next.rig?.id ||
-    previous.rig?.spec !== next.rig?.spec ||
-    previous.rig?.ir !== next.rig?.ir;
-  const poseGraphReferenceChanged =
-    previous.pose?.graph?.id !== next.pose?.graph?.id ||
-    previous.pose?.graph?.spec !== next.pose?.graph?.spec;
-  const graphsChanged =
-    rigChanged ||
-    poseGraphChanged ||
-    rigReferenceChanged ||
-    poseGraphReferenceChanged;
+  const graphsChanged = rigChanged || poseGraphChanged;
 
   if (tier === "assets") {
     return { reloadAssets: true, reregisterGraphs: false };

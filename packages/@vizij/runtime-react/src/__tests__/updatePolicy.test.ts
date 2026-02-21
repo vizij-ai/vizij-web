@@ -140,6 +140,42 @@ describe("resolveRuntimeUpdatePlan", () => {
     expect(plan.reregisterGraphs).toBe(false);
   });
 
+  it("does not re-register when rig spec reference changes but structure matches", () => {
+    const spec = { nodes: [{ id: "n1", kind: "input" }], edges: [] };
+    const prev = makeBundle({
+      rig: { id: "rig", spec },
+    });
+    const next = makeBundle({
+      rig: {
+        id: "rig",
+        spec: { nodes: [{ id: "n1", kind: "input" }], edges: [] },
+      },
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(false);
+  });
+
+  it("does not re-register when pose graph spec reference changes but structure matches", () => {
+    const poseSpec = { nodes: [{ id: "pose-1", kind: "input" }], edges: [] };
+    const prev = makeBundle({
+      pose: {
+        graph: { id: "pose", spec: poseSpec },
+      },
+    });
+    const next = makeBundle({
+      pose: {
+        graph: {
+          id: "pose",
+          spec: { nodes: [{ id: "pose-1", kind: "input" }], edges: [] },
+        },
+      },
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(false);
+  });
+
   it("treats rig removal as graph re-registration in graphs mode", () => {
     const prev = makeBundle();
     const next = makeBundle({
