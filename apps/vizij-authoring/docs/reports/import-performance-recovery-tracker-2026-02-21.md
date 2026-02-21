@@ -18,7 +18,7 @@ This document is the working tracker for:
 ## Current Bottom Line
 
 We recovered correctness from earlier publish-coalescing regressions and have kept it stable.  
-The new B4 runtime registration scheduler/metrics commit reduced prewarm churn (`30 -> 25` registrations/import), but not enough to close the large `readyToFirstFrameMs` gap.  
+Post-C2/C3 reruns show prewarm-on churn reduced further (`25 -> 19` registrations/import in sampled runs), but the large `readyToFirstFrameMs` gap remains.  
 Conclusion: keep prewarm default-off and continue with staged, correctness-preserving runtime ingestion work.
 
 ## Timeline Of Attempts
@@ -34,6 +34,9 @@ Conclusion: keep prewarm default-off and continue with staged, correctness-prese
 | `ff60a65`             | Added lifecycle metrics + progress UX + prewarm prototype | Correctness preserved; better observability.           |
 | `bca8811`             | Added investigation/benchmark/roadmap docs                | Execution clarity improved.                            |
 | `e585e99`             | Added bounded registration queue + durable churn metrics  | Correctness preserved; churn reduced but still high.   |
+| `71d8ede`             | Added bounded-frame rig/pose import responsiveness smoke  | Correctness guardrails strengthened.                   |
+| `900152d`             | Split first-frame vs controllable-ready runtime semantics | Gating semantics clarified across app/runtime.         |
+| `25aa9a5`             | Skipped re-registration for pose-config-only updates      | Churn reduced further; gap still present.              |
 
 ## What Failed
 
@@ -50,7 +53,7 @@ Conclusion: keep prewarm default-off and continue with staged, correctness-prese
 
 ## What We Know Now
 
-1. Import work itself is down substantially from earlier runs (from ~20s+ down to ~8-10s in many runs).
+1. Lifecycle timing remains highly sensitive to readiness semantics; post-C2/C3 runs are currently showing ~40s end-to-end duration in this stricter measurement path.
 2. There is still a large hidden delay after root assignment before runtime is truly ready (`rootAssignedToReadyMs` often ~18-25s in problematic runs before fixes, and still non-trivial now).
 3. Rig normalization and pose normalization are still major costs (`rigNormalizeTotalMs` and `poseNormalizeTotalMs` dominate import summary totals).
 4. Publish suppression is not safe unless we preserve the exact lifecycle semantics needed by runtime/controller wiring.
@@ -149,10 +152,12 @@ Status legend: `[ ]` not started, `[-]` in progress, `[x]` done
 
 1. bounded latest-token registration queue in runtime provider (`e585e99`),
 2. durable per-import `controllerRegistrationRuns` + `controllerRegistrationTotalMs` metrics.
+3. readiness split for first-frame vs controllable-ready app/runtime gates (`900152d`).
+4. config-only churn cut in update policy (`25aa9a5`).
 
 - Remaining:
 
-1. reduce ON churn from `25` toward low single digits,
+1. reduce ON churn from `19` toward low single digits and bring OFF churn back toward low single digits as well,
 2. shrink `readyToFirstFrameMs` under prewarm ON without regressing controls/poses,
 3. add import responsiveness smoke coverage for post-ready interaction correctness.
 
@@ -289,6 +294,46 @@ Use one block per validation run.
 - Notes: compared to post-B4 OFF, root-to-controllable improved by ~`4.49s` mean, but ready-to-first-frame remains inflated by ~`16.37s`; churn dropped from prior ON probe (`30 -> 25`) but is still high.
 - Decision: keep prewarm default-off; continue step 6 staging/churn reduction work.
 
+### Run 2026-02-21 22:33 (3x aggregate, post-C2/C3, prewarm OFF)
+
+- Branch/commit: `authoring-features-restart` @ `25aa9a5`, `VITE_RUNTIME_PREWARM` unset.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `40053.000`
+  - rigNormalizeTotalMs: `10263.470`
+  - poseNormalizeTotalMs: `30665.253`
+  - graphBridgePublishes: `32`
+  - graphBridgeTopologyPublishes: `22`
+  - graphBridgePosePublishes: `10`
+  - rootAssignedToReadyMs: `39739.395`
+  - readyToFirstFrameMs: `47.920`
+  - rootToControllableMs: `39787.315`
+  - controllerRegistrationRuns: `7.000`
+  - controllerRegistrationTotalMs: `438.018`
+- Notes: this run uses post-readiness-split semantics (`rootAssignedToReadyMs` now reflects a stricter controllable-ready gate), so absolute values are not directly comparable to pre-split sections without that caveat.
+- Decision: keep as post-C2/C3 OFF baseline.
+
+### Run 2026-02-21 22:36 (3x aggregate, post-C2/C3, prewarm ON)
+
+- Branch/commit: `authoring-features-restart` @ `25aa9a5`, `VITE_RUNTIME_PREWARM=true`.
+- Asset: Quori sample (`Load Quori`).
+- Functional result: import completed; controls/poses responsive in sampled runs.
+- Key metrics (mean across 3):
+  - durationMs: `41458.667`
+  - rigNormalizeTotalMs: `10540.128`
+  - poseNormalizeTotalMs: `31665.078`
+  - graphBridgePublishes: `32`
+  - graphBridgeTopologyPublishes: `22`
+  - graphBridgePosePublishes: `10`
+  - rootAssignedToReadyMs: `13372.130`
+  - readyToFirstFrameMs: `17720.132`
+  - rootToControllableMs: `31092.262`
+  - controllerRegistrationRuns: `19.000`
+  - controllerRegistrationTotalMs: `887.825`
+- Notes: compared to post-C2/C3 OFF, ON improved root-to-controllable by ~`8.70s` mean and reduced ON churn vs post-B4 ON (`25 -> 19`), but still kept a large ready-to-first-frame inflation (~`+17.67s`) and elevated churn.
+- Decision: prewarm remains default-off; continue staged churn reduction and registration-source isolation.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -303,3 +348,6 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 5. Added churn probe runs with per-import `registerControllers` counting; confirmed prewarm creates heavy post-ready registration churn.
 6. Landed B4 initial runtime registration queue + durable churn metrics (`e585e99`).
 7. Reran 5x OFF/ON post-B4 benchmark set; ON churn improved (`30 -> 25`) but remains materially above OFF (`1`).
+8. Landed import responsiveness smoke coverage (`71d8ede`).
+9. Landed readiness split (`900152d`) and config-only churn cut (`25aa9a5`).
+10. Reran 3x OFF/ON post-C2/C3 benchmark; ON churn improved (`25 -> 19` in sampled runs) but prewarm still inflates ready-to-first-frame materially.

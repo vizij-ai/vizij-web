@@ -47,6 +47,16 @@ Primary rule: performance changes only land if controls/poses remain correct imm
    - 5x OFF + 5x ON Quori runs captured.
    - ON churn reduced from `30` to `25` registrations/import, but remains materially higher than OFF (`1`).
    - `readyToFirstFrameMs` remains high under prewarm ON; prewarm remains default-off.
+10. Commit `71d8ede` landed import responsiveness smoke coverage:
+    - bounded-frame rig-to-pose alignment test for `useBundleSynchronizer`.
+11. Commit `900152d` split readiness semantics:
+    - added `firstFrameReady` + `controllableReady` in runtime status and updated app gating/overlays.
+12. Commit `25aa9a5` cut config-only re-registration churn:
+    - update policy now ignores pose-config-only diffs for re-registration decisions.
+13. Post-C2/C3 benchmark rerun (3x OFF + 3x ON) recorded:
+    - ON still improves root-to-controllable timing (~`-8.70s` mean),
+    - but still inflates ready-to-first-frame (~`+17.67s` mean),
+    - controller registration churn improved vs post-B4 ON (`25 -> 19` in sampled runs) but remains elevated.
 
 ## Confidence Split
 
@@ -279,8 +289,9 @@ These items are potentially valuable but carry correctness risk or architecture 
 
 ## Next Commit Candidates
 
-1. Commit 1: add import-level responsiveness smoke tests (controls + poses usable within bounded frames after import).
-2. Commit 2: separate runtime-ready vs frame/controllable-ready gating in app/runtime wiring to reduce post-ready stall exposure.
-3. Commit 3: tighten graph update staging so topology/pose convergence emits fewer registration-triggering transitions during import.
-4. Commit 4: prototype guarded pose-normalization cache + invalidation matrix tests.
-5. Commit 5: worker-feasibility spike for expensive normalization/IR preparation paths.
+1. Commit 1: add import-level responsiveness smoke tests (done in `71d8ede`).
+2. Commit 2: separate runtime-ready vs frame/controllable-ready gating (done in `900152d`).
+3. Commit 3: reduce config-only graph churn/re-registration (done in `25aa9a5`).
+4. Commit 4: isolate remaining OFF/ON registration churn sources and add targeted guard tests around expected registration counts.
+5. Commit 5: prototype guarded pose-normalization cache + invalidation matrix tests.
+6. Commit 6: worker-feasibility spike for expensive normalization/IR preparation paths.
