@@ -9,7 +9,7 @@ Worktree: `authoring-features`
 - `[x]` U0 Baseline Lock + Metrics Matrix (captured 5x OFF/ON Quori + Hugo and logged in tracker)
 - `[x]` U1 Extract Shared Face Runtime Adapter (shared runtime input dispatcher hook used by main + reference paths)
 - `[x]` U2 Unify Phase Model and Import Summary Shape (face-scoped perf sessions and shared `ImportProgressStatus` schema support)
-- `[ ]` U3 Normalize Publish Semantics Through One Mutation Contract
+- `[x]` U3 Normalize Publish Semantics Through One Mutation Contract (single decision helper now governs publish/skip semantics and mutation ordering tests)
 - `[ ]` U4 Introduce Staged User-Visible Loading Policy
 - `[ ]` U5 Reference Runtime Load/Step Throttling Policy
 - `[ ]` U6 Cross-Face Contract Tests

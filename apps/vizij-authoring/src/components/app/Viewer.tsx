@@ -17,10 +17,9 @@ import {
 } from "../../perf/runtimePerfMetrics";
 import { useRuntimeInputDispatcher } from "../../hooks/useRuntimeInputDispatcher";
 import {
-  createRuntimeGraphMutation,
-  resolveRuntimeGraphMutationClass,
+  resolveRuntimeGraphMutationDecision,
+  type RuntimeGraphMutationClass,
   type RuntimeGraphBridgeRevisions,
-  type RuntimeGraphBridgeState,
 } from "./runtimeGraphMutation";
 
 function RuntimeInputBridge() {
@@ -117,7 +116,7 @@ function RuntimeGraphBridge() {
   useEffect(() => {
     const startMs =
       typeof performance !== "undefined" ? performance.now() : Date.now();
-    let publishedMutationClass: "topology" | "pose" | null = null;
+    let publishedMutationClass: RuntimeGraphMutationClass | null = null;
 
     try {
       const nextRevisions: RuntimeGraphBridgeRevisions = {
@@ -126,12 +125,18 @@ function RuntimeGraphBridge() {
         poseRuntimeRevision,
         graphBridgeForceTopologyRevision,
       };
-      const mutationClass = resolveRuntimeGraphMutationClass(
+      const decision = resolveRuntimeGraphMutationDecision(
         lastRevisionRef.current,
         nextRevisions,
+        {
+          graphSpec,
+          poseGraphSpec,
+          poseConfig,
+        },
       );
-      if (!mutationClass) {
+      if (decision.kind !== "publish") {
         recordRuntimeDebugEvent("viewer-graph-bridge-skip", {
+          reason: decision.reason,
           graphSpecRevision,
           poseGraphSpecRevision,
           poseRuntimeRevision,
@@ -139,38 +144,31 @@ function RuntimeGraphBridge() {
         });
         return;
       }
-      lastRevisionRef.current = nextRevisions;
-
-      const state: RuntimeGraphBridgeState = {
-        graphSpec,
-        poseGraphSpec,
-        poseConfig,
-      };
-      const mutation = createRuntimeGraphMutation(state, mutationClass);
-      publishedMutationClass = mutation.mutationClass;
+      publishedMutationClass = decision.mutationClass;
       recordRuntimeDebugEvent("viewer-graph-bridge-publish", {
-        mutationClass: mutation.mutationClass,
+        mutationClass: decision.mutation.mutationClass,
         graphSpecRevision,
         poseGraphSpecRevision,
         poseRuntimeRevision,
         graphBridgeForceTopologyRevision,
-        hasRig: Boolean(mutation.bundle.rig),
-        hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
-        hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+        hasRig: Boolean(decision.mutation.bundle.rig),
+        hasPoseGraph: Boolean(decision.mutation.bundle.pose?.graph),
+        hasPoseConfig: Boolean(decision.mutation.bundle.pose?.config),
       });
 
       if (process.env.NODE_ENV !== "production") {
         console.log("[vizij-runtime][graph-bridge]", {
-          mutationClass: mutation.mutationClass,
-          hasRig: Boolean(mutation.bundle.rig),
-          hasPoseGraph: Boolean(mutation.bundle.pose?.graph),
-          hasPoseConfig: Boolean(mutation.bundle.pose?.config),
+          mutationClass: decision.mutation.mutationClass,
+          hasRig: Boolean(decision.mutation.bundle.rig),
+          hasPoseGraph: Boolean(decision.mutation.bundle.pose?.graph),
+          hasPoseConfig: Boolean(decision.mutation.bundle.pose?.config),
         });
       }
-      setGraphBundle(mutation.bundle, {
-        ...mutation.options,
-        mutationClass: mutation.mutationClass,
+      setGraphBundle(decision.mutation.bundle, {
+        ...decision.mutation.options,
+        mutationClass: decision.mutation.mutationClass,
       });
+      lastRevisionRef.current = decision.revisions;
     } finally {
       const endMs =
         typeof performance !== "undefined" ? performance.now() : Date.now();

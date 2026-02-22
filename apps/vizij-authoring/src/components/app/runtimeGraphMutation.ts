@@ -14,8 +14,10 @@ export interface RuntimeGraphBridgeRevisions {
   graphBridgeForceTopologyRevision: number;
 }
 
+export type RuntimeGraphMutationClass = "topology" | "pose";
+
 export type RuntimeGraphMutationContract = {
-  mutationClass: "topology" | "pose";
+  mutationClass: RuntimeGraphMutationClass;
   bundle: {
     rig?: { id: string; spec: GraphSpec };
     pose?: {
@@ -26,10 +28,23 @@ export type RuntimeGraphMutationContract = {
   options: { tier: "graphs" };
 };
 
+export type RuntimeGraphMutationDecision =
+  | {
+      kind: "publish";
+      mutationClass: RuntimeGraphMutationClass;
+      mutation: RuntimeGraphMutationContract;
+      revisions: RuntimeGraphBridgeRevisions;
+    }
+  | {
+      kind: "skip";
+      reason: "unchanged-revisions" | "empty-payload";
+      revisions: RuntimeGraphBridgeRevisions;
+    };
+
 export function resolveRuntimeGraphMutationClass(
   previous: RuntimeGraphBridgeRevisions | null,
   next: RuntimeGraphBridgeRevisions,
-): RuntimeGraphMutationContract["mutationClass"] | null {
+): RuntimeGraphMutationClass | null {
   if (
     previous &&
     previous.graphSpecRevision === next.graphSpecRevision &&
@@ -55,7 +70,7 @@ export function resolveRuntimeGraphMutationClass(
 
 export function createRuntimeGraphMutation(
   state: RuntimeGraphBridgeState,
-  mutationClass: RuntimeGraphMutationContract["mutationClass"],
+  mutationClass: RuntimeGraphMutationClass,
 ): RuntimeGraphMutationContract {
   const shouldIncludePosePayload =
     Boolean(state.graphSpec) ||
@@ -76,5 +91,44 @@ export function createRuntimeGraphMutation(
         : undefined,
     },
     options: { tier: "graphs" },
+  };
+}
+
+export function resolveRuntimeGraphMutationDecision(
+  previous: RuntimeGraphBridgeRevisions | null,
+  next: RuntimeGraphBridgeRevisions,
+  state: RuntimeGraphBridgeState,
+): RuntimeGraphMutationDecision {
+  const mutationClass = resolveRuntimeGraphMutationClass(previous, next);
+  if (!mutationClass) {
+    return {
+      kind: "skip",
+      reason: "unchanged-revisions",
+      revisions: next,
+    };
+  }
+
+  const mutation = createRuntimeGraphMutation(state, mutationClass);
+  const hasPayload =
+    Boolean(mutation.bundle.rig) ||
+    Boolean(mutation.bundle.pose?.graph) ||
+    Boolean(mutation.bundle.pose?.config);
+
+  const shouldSkipEmptyPayload =
+    !hasPayload && (!previous || mutationClass === "pose");
+
+  if (shouldSkipEmptyPayload) {
+    return {
+      kind: "skip",
+      reason: "empty-payload",
+      revisions: next,
+    };
+  }
+
+  return {
+    kind: "publish",
+    mutationClass,
+    mutation,
+    revisions: next,
   };
 }

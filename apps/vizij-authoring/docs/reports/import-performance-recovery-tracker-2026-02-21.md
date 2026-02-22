@@ -500,6 +500,20 @@ Notes:
 - Notes: ON remains under 5s but is slower than OFF due post-ready stall despite earlier ready signal.
 - Decision: keep prewarm default-off and treat ON as optional experiment mode.
 
+### Run 2026-02-22 18:11 (U3 contract validation, mutation semantics)
+
+- Branch/commit: `authoring-features-restart` working tree (pre-commit U3)
+- Asset: N/A (unit/integration contract pass)
+- Functional result: graph-bridge mutation contract now resolves through one decision path (`publish` vs `skip`) and preserves required topology-removal transition.
+- Validation:
+  - `pnpm --filter vizij-authoring test -- src/components/app/runtimeGraphMutation.test.ts src/components/app/Viewer.test.tsx`
+  - `pnpm --filter vizij-authoring typecheck`
+- Notes:
+  - Added explicit `empty-payload` skip only for initial empty publish / pose-only empty revisions.
+  - Preserved topology publish when clearing rig/pose payload after prior publish to avoid stale runtime graphs.
+  - Added ordering invariant coverage for `topology -> topology -> pose` sequence.
+- Decision: keep.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -526,3 +540,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 17. U2 landed face-scoped import-session telemetry (`main` + `reference`) in `runtimePerfMetrics`, added face-scoped progress snapshot access, and extended import-progress resolver/status to consume either scope with the same schema.
 18. U2 wiring update: `ReferenceFaceRuntime` now starts/finalizes reference import sessions and records ready/first-frame lifecycle signals so the reference face emits comparable summaries without schema branching.
 19. U2 validation pass: `pnpm --filter vizij-authoring test -- src/perf/runtimePerfMetrics.test.ts src/perf/importProgress.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useBundleSynchronizer.test.ts` and `pnpm --filter vizij-authoring typecheck` both green.
+20. U3 normalized graph-bridge publish semantics behind one mutation decision helper (`publish` vs `skip`), added skip-reason telemetry, and expanded contract tests for empty-payload behavior plus `topology -> topology -> pose` ordering invariants; targeted tests + typecheck green.

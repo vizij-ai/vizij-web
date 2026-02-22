@@ -154,8 +154,8 @@ describe("Viewer", () => {
 
     expect(setInputSpy).toHaveBeenCalled();
     expect(stepSpy).not.toHaveBeenCalled();
-    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
-    expect(getRuntimePerfMetricsSnapshot().graphBridgePublishes).toBe(1);
+    expect(setGraphBundleSpy).toHaveBeenCalledTimes(0);
+    expect(getRuntimePerfMetricsSnapshot().graphBridgePublishes).toBe(0);
   });
 
   it("syncs external scene selection into runtime selection", () => {

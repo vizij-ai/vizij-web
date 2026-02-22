@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRuntimeGraphMutation,
   resolveRuntimeGraphMutationClass,
+  resolveRuntimeGraphMutationDecision,
 } from "./runtimeGraphMutation";
 
 describe("resolveRuntimeGraphMutationClass", () => {
@@ -181,5 +182,184 @@ describe("createRuntimeGraphMutation", () => {
       },
       options: { tier: "graphs" },
     });
+  });
+});
+
+describe("resolveRuntimeGraphMutationDecision", () => {
+  it("skips when revisions are unchanged", () => {
+    const revisions = {
+      graphSpecRevision: 2,
+      poseRuntimeRevision: 5,
+      poseGraphSpecRevision: 3,
+      graphBridgeForceTopologyRevision: 1,
+    };
+    const decision = resolveRuntimeGraphMutationDecision(revisions, revisions, {
+      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
+      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
+      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+    });
+
+    expect(decision).toEqual({
+      kind: "skip",
+      reason: "unchanged-revisions",
+      revisions,
+    });
+  });
+
+  it("skips first publish when payload is empty", () => {
+    const revisions = {
+      graphSpecRevision: 0,
+      poseRuntimeRevision: 0,
+      poseGraphSpecRevision: 0,
+      graphBridgeForceTopologyRevision: 0,
+    };
+    const decision = resolveRuntimeGraphMutationDecision(null, revisions, {
+      graphSpec: null,
+      poseGraphSpec: null,
+      poseConfig: null,
+    });
+
+    expect(decision).toEqual({
+      kind: "skip",
+      reason: "empty-payload",
+      revisions,
+    });
+  });
+
+  it("publishes topology when payload is emptied after prior publish", () => {
+    const previous = {
+      graphSpecRevision: 2,
+      poseRuntimeRevision: 5,
+      poseGraphSpecRevision: 3,
+      graphBridgeForceTopologyRevision: 0,
+    };
+    const next = {
+      graphSpecRevision: 3,
+      poseRuntimeRevision: 5,
+      poseGraphSpecRevision: 3,
+      graphBridgeForceTopologyRevision: 0,
+    };
+    const decision = resolveRuntimeGraphMutationDecision(previous, next, {
+      graphSpec: null,
+      poseGraphSpec: null,
+      poseConfig: null,
+    });
+
+    expect(decision).toEqual({
+      kind: "publish",
+      mutationClass: "topology",
+      mutation: {
+        mutationClass: "topology",
+        bundle: {
+          rig: undefined,
+          pose: undefined,
+        },
+        options: { tier: "graphs" },
+      },
+      revisions: next,
+    });
+  });
+
+  it("publishes topology when first payload contains rig graph", () => {
+    const revisions = {
+      graphSpecRevision: 0,
+      poseRuntimeRevision: 0,
+      poseGraphSpecRevision: 0,
+      graphBridgeForceTopologyRevision: 0,
+    };
+    const graphSpec = { nodes: [{ id: "rig-1" }] } as any;
+    const decision = resolveRuntimeGraphMutationDecision(null, revisions, {
+      graphSpec,
+      poseGraphSpec: null,
+      poseConfig: null,
+    });
+
+    expect(decision).toEqual({
+      kind: "publish",
+      mutationClass: "topology",
+      mutation: {
+        mutationClass: "topology",
+        bundle: {
+          rig: { id: "rig", spec: graphSpec },
+          pose: {
+            graph: undefined,
+            config: undefined,
+          },
+        },
+        options: { tier: "graphs" },
+      },
+      revisions,
+    });
+  });
+
+  it("preserves topology -> topology -> pose ordering", () => {
+    const rigSpec = { nodes: [{ id: "rig-1" }] } as any;
+    const poseSpec = { nodes: [{ id: "pose-1" }] } as any;
+    const poseConfigV1 = { version: 1, neutralInputs: {}, poses: [] } as any;
+    const poseConfigV2 = {
+      version: 1,
+      neutralInputs: {},
+      poses: [{ id: "smile", values: { "/standard/mouth/x": 0.3 } }],
+    } as any;
+
+    const first = resolveRuntimeGraphMutationDecision(
+      null,
+      {
+        graphSpecRevision: 1,
+        poseRuntimeRevision: 0,
+        poseGraphSpecRevision: 0,
+        graphBridgeForceTopologyRevision: 0,
+      },
+      {
+        graphSpec: rigSpec,
+        poseGraphSpec: null,
+        poseConfig: null,
+      },
+    );
+    expect(first.kind).toBe("publish");
+    if (first.kind !== "publish") {
+      return;
+    }
+    expect(first.mutationClass).toBe("topology");
+
+    const second = resolveRuntimeGraphMutationDecision(
+      first.revisions,
+      {
+        graphSpecRevision: 1,
+        poseRuntimeRevision: 1,
+        poseGraphSpecRevision: 1,
+        graphBridgeForceTopologyRevision: 0,
+      },
+      {
+        graphSpec: rigSpec,
+        poseGraphSpec: poseSpec,
+        poseConfig: poseConfigV1,
+      },
+    );
+    expect(second.kind).toBe("publish");
+    if (second.kind !== "publish") {
+      return;
+    }
+    expect(second.mutationClass).toBe("topology");
+
+    const third = resolveRuntimeGraphMutationDecision(
+      second.revisions,
+      {
+        graphSpecRevision: 1,
+        poseRuntimeRevision: 2,
+        poseGraphSpecRevision: 1,
+        graphBridgeForceTopologyRevision: 0,
+      },
+      {
+        graphSpec: rigSpec,
+        poseGraphSpec: poseSpec,
+        poseConfig: poseConfigV2,
+      },
+    );
+    expect(third.kind).toBe("publish");
+    if (third.kind !== "publish") {
+      return;
+    }
+    expect(third.mutationClass).toBe("pose");
   });
 });
