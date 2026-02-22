@@ -542,6 +542,23 @@ Notes:
   - Reference header now exposes stepping policy state (`Active` vs `Idle throttled`) alongside FPS.
 - Decision: keep.
 
+### Run 2026-02-22 18:20 (U6 cross-face contract suite)
+
+- Branch/commit: `authoring-features-restart` working tree (pre-commit U6)
+- Asset: N/A (cross-face test/contract pass)
+- Functional result:
+  - Added shared runtime-sync->ready phase-order assertion for both main/reference scopes.
+  - Added selection identity mirroring from main selection into reference runtime host and ensured reference canvas enables selection glow.
+  - Added cross-face source contracts for dual FPS surfaces and post-import pose responsiveness path.
+- Validation:
+  - `pnpm --filter vizij-authoring test -- src/perf/importProgress.test.ts src/__tests__/crossFaceRuntimeContracts.test.ts src/components/app/Viewer.test.tsx src/perf/referenceRuntimeSteppingPolicy.test.ts src/perf/mainFaceLoadingPolicy.test.ts src/__tests__/appRuntimeContracts.test.ts`
+  - `pnpm --filter vizij-authoring typecheck`
+- Notes:
+  - Main viewer runtime badge now includes FPS text.
+  - Reference runtime now accepts `selectedSceneId` and syncs it into runtime selection.
+  - `RuntimeFaceFrame` now supports and forwards `showSelectionGlow` for reference outline parity.
+- Decision: keep.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -571,3 +588,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 20. U3 normalized graph-bridge publish semantics behind one mutation decision helper (`publish` vs `skip`), added skip-reason telemetry, and expanded contract tests for empty-payload behavior plus `topology -> topology -> pose` ordering invariants; targeted tests + typecheck green.
 21. U4 landed staged user-visible loading policy for the main face and policy-driven authoring-panel interaction gates, then validated with targeted policy/import/viewer/runtime-contract tests plus typecheck.
 22. U5 introduced reference-runtime burst/idle stepping policy with explicit status surface and validated policy tests + targeted runtime/viewer regression tests + typecheck.
+23. U6 added cross-face contract coverage (phase ordering, dual-face selection/outline + FPS surfaces, and pose refresh wiring guards) and validated via targeted multi-suite test pass plus typecheck.

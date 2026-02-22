@@ -12,7 +12,7 @@ Worktree: `authoring-features`
 - `[x]` U3 Normalize Publish Semantics Through One Mutation Contract (single decision helper now governs publish/skip semantics and mutation ordering tests)
 - `[x]` U4 Introduce Staged User-Visible Loading Policy (policy-driven control gating now keeps face visible early and unlocks side panels only when runtime input bridge is ready)
 - `[x]` U5 Reference Runtime Load/Step Throttling Policy (reference runtime now uses burst-driven active stepping with idle-throttled fallback and explicit policy badges)
-- `[ ]` U6 Cross-Face Contract Tests
+- `[x]` U6 Cross-Face Contract Tests (phase-order invariants, dual-face selection/outline wiring, dual-FPS surfaces, and pose-refresh contract guards are now covered)
 - `[ ]` U7 Cross-Asset Performance Validation
 
 ## Executive Decision

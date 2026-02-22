@@ -696,6 +696,7 @@ function AppContent({
           />
           <ResizablePanel defaultSize={30} minSize={20}>
             <ReferenceFacePanel
+              selectedSceneId={selectedSceneId}
               splitVertical={viewerSplitVertical}
               onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
             />

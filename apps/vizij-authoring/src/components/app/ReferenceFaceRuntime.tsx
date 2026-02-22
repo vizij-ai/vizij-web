@@ -34,6 +34,7 @@ import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 type ReferenceFaceRuntimeProps = {
   namespace?: string;
   file?: File | null;
+  selectedSceneId?: string | null;
   active?: boolean;
   fallback?: ReactNode;
   autostart?: boolean;
@@ -104,6 +105,7 @@ function createBundleConfig(file: File): {
 export function ReferenceFaceRuntime({
   namespace: _namespace = "refface",
   file = null,
+  selectedSceneId = null,
   active = true,
   fallback = null,
   autostart = true,
@@ -206,6 +208,7 @@ export function ReferenceFaceRuntime({
     >
       <ReferenceFaceBridge
         importFingerprint={importFingerprint ?? "reference-runtime-unknown"}
+        selectedSceneId={selectedSceneId}
         onRuntimeActivity={markRuntimeActivity}
         steppingPolicyLabel={steppingPolicy.label}
         idleThrottled={steppingPolicy.idleThrottled}
@@ -223,6 +226,7 @@ export function ReferenceFaceRuntime({
 
 type ReferenceFaceBridgeProps = {
   importFingerprint: string;
+  selectedSceneId: string | null;
   onRuntimeActivity?: () => void;
   steppingPolicyLabel: string;
   idleThrottled: boolean;
@@ -251,6 +255,7 @@ type ReferenceFaceBridgeProps = {
  */
 function ReferenceFaceBridge({
   importFingerprint,
+  selectedSceneId,
   onRuntimeActivity,
   steppingPolicyLabel,
   idleThrottled,
@@ -270,6 +275,8 @@ function ReferenceFaceBridge({
     error,
     animateValue,
     step,
+    selectedElementId,
+    selectElementById,
     inputConstraints,
     faceId,
     stepHz,
@@ -377,6 +384,13 @@ function ReferenceFaceBridge({
     finalizeRuntimeImportPerfSession("failure", "reference");
     completedFingerprintRef.current = importFingerprint;
   }, [error, importFingerprint]);
+
+  useEffect(() => {
+    if (selectedElementId === selectedSceneId) {
+      return;
+    }
+    selectElementById?.(selectedSceneId);
+  }, [selectElementById, selectedElementId, selectedSceneId]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById, standardInputsByPath } =
@@ -594,7 +608,11 @@ function ReferenceFaceBridge({
         </div>
       </header>
       <div className="ref-face-viewer__canvas">
-        <RuntimeFaceFrame variant="fill" className="hero-face-card" />
+        <RuntimeFaceFrame
+          variant="fill"
+          className="hero-face-card"
+          showSelectionGlow
+        />
       </div>
     </div>
   );

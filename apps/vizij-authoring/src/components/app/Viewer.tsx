@@ -264,6 +264,7 @@ function RuntimeStatusDebug() {
     error,
     controllers,
     outputPaths,
+    stepHz,
   } = useVizijRuntime();
   const runtimeStageLabel = controllableReady
     ? "Controls ready"
@@ -278,6 +279,8 @@ function RuntimeStatusDebug() {
   const runtimeStageTone = controllableReady
     ? "text-emerald-200 border-emerald-600/60 bg-emerald-950/60"
     : "text-amber-100 border-amber-600/60 bg-amber-950/60";
+  const formattedFps =
+    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -308,7 +311,7 @@ function RuntimeStatusDebug() {
     >
       <p className="m-0 font-semibold">{runtimeStageLabel}</p>
       <p className="m-0 text-[9px] opacity-85">
-        {`root: ${rootId ?? "null"} • graphs: ${controllers.graphs.length}`}
+        {`root: ${rootId ?? "null"} • graphs: ${controllers.graphs.length} • ${formattedFps}`}
       </p>
     </div>
   );

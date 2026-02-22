@@ -5,6 +5,7 @@ import { cn } from "../../utils/cn";
 export type RuntimeFaceFrameProps = {
   className?: string;
   variant?: "fill" | "sm" | "md" | "lg";
+  showSelectionGlow?: boolean;
   label?: string;
   subtitle?: string;
   footer?: ReactNode;
@@ -17,6 +18,7 @@ export type RuntimeFaceFrameProps = {
 export function RuntimeFaceFrame({
   className,
   variant = "fill",
+  showSelectionGlow = false,
   label,
   subtitle,
   footer,
@@ -73,7 +75,11 @@ export function RuntimeFaceFrame({
         )}
         onClick={onCanvasClick}
       >
-        <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
+        <VizijRuntimeFace
+          className="face-canvas"
+          showSafeArea={false}
+          showSelectionGlow={showSelectionGlow}
+        />
         <RuntimeStatusBadge
           ready={ready}
           loading={loading}

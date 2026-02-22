@@ -5,11 +5,13 @@ import { Button } from "../ui";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
 
 export interface ReferenceFacePanelProps {
+  selectedSceneId: string | null;
   splitVertical: boolean;
   onToggleSplit: () => void;
 }
 
 export function ReferenceFacePanel({
+  selectedSceneId,
   splitVertical,
   onToggleSplit,
 }: ReferenceFacePanelProps) {
@@ -47,6 +49,7 @@ export function ReferenceFacePanel({
       <OrchestratorProvider autostart={true}>
         <ReferenceFaceRuntime
           file={referenceFace.file}
+          selectedSceneId={selectedSceneId}
           active={true}
           visible={true}
           driveOrchestrator={true}

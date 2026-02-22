@@ -74,6 +74,56 @@ describe("resolveImportProgressState", () => {
     });
   });
 
+  it("keeps shared runtime-sync -> ready ordering for main and reference sessions", () => {
+    startRuntimeImportPerfSession({
+      fingerprint: "main-fingerprint",
+      rootId: "main-root",
+      faceScope: "main",
+    });
+    startRuntimeImportPerfSession({
+      fingerprint: "reference-fingerprint",
+      rootId: "reference-root",
+      faceScope: "reference",
+    });
+    recordGraphBridgeRun(4, "topology", { publishedAtMs: 100 }, "main");
+    recordGraphBridgeRun(4, "topology", { publishedAtMs: 100 }, "reference");
+
+    const mainSync = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: "main-root",
+      faceScope: "main",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("main"),
+    });
+    const referenceSync = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: "reference-root",
+      faceScope: "reference",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("reference"),
+    });
+
+    expect(mainSync.phase).toBe("runtime-sync");
+    expect(referenceSync.phase).toBe("runtime-sync");
+
+    recordRuntimeFirstFrame("main-root", "main");
+    recordRuntimeFirstFrame("reference-root", "reference");
+
+    const mainReady = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: "main-root",
+      faceScope: "main",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("main"),
+    });
+    const referenceReady = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: "reference-root",
+      faceScope: "reference",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("reference"),
+    });
+
+    expect(mainReady).toMatchObject({ phase: "ready", status: "success" });
+    expect(referenceReady).toMatchObject({ phase: "ready", status: "success" });
+  });
+
   it("reports ready after first controllable frame is recorded", () => {
     markRuntimeRootAssigned("root");
     startRuntimeImportPerfSession({
