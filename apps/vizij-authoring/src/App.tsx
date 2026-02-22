@@ -130,6 +130,9 @@ function AppContent({
     loadSampleAssetFromUrl,
     loadQuoriSample,
     loadHugoSample,
+    loadEmptyConfiguredSample,
+    loadLegacyRiggedPosedSample,
+    loadLatestRiggedPosedSample,
     clearSampleLoadFailure,
   } = useSampleAssetLoader({
     clearLoaderError,
@@ -709,6 +712,9 @@ function AppContent({
               onImportClick={handleImportClick}
               onLoadQuori={loadQuoriSample}
               onLoadHugo={loadHugoSample}
+              onLoadEmptyConfigured={loadEmptyConfiguredSample}
+              onLoadLegacyRiggedPosed={loadLegacyRiggedPosedSample}
+              onLoadLatestRiggedPosed={loadLatestRiggedPosedSample}
               onRuntimeStepHzChange={setMainRuntimeStepHz}
             />
           </ResizablePanel>
@@ -741,6 +747,9 @@ function AppContent({
           onImportClick={handleImportClick}
           onLoadQuori={loadQuoriSample}
           onLoadHugo={loadHugoSample}
+          onLoadEmptyConfigured={loadEmptyConfiguredSample}
+          onLoadLegacyRiggedPosed={loadLegacyRiggedPosedSample}
+          onLoadLatestRiggedPosed={loadLatestRiggedPosedSample}
           onRuntimeStepHzChange={setMainRuntimeStepHz}
         />
       )}

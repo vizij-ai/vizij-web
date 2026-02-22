@@ -1,5 +1,5 @@
 import React, { act } from "react";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -95,10 +95,47 @@ describe("Viewer", () => {
       onImportClick: () => {},
       onLoadQuori: () => {},
       onLoadHugo: () => {},
+      onLoadEmptyConfigured: () => {},
+      onLoadLegacyRiggedPosed: () => {},
+      onLoadLatestRiggedPosed: () => {},
     });
 
     expect(container.textContent).toContain("Empty Scene");
     expect(container.querySelector('[data-testid="runtime-face"]')).toBeNull();
+    unmount();
+  });
+
+  it("invokes fixture sample loaders from empty scene quick actions", () => {
+    const onLoadEmptyConfigured = vi.fn();
+    const onLoadLegacyRiggedPosed = vi.fn();
+    const onLoadLatestRiggedPosed = vi.fn();
+    const { unmount } = renderViewer({
+      rootId: null,
+      namespace: "vizij",
+      bundle: null,
+      onClearSelection: () => {},
+      showSelectionGlow: false,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+      onLoadHugo: () => {},
+      onLoadEmptyConfigured,
+      onLoadLegacyRiggedPosed,
+      onLoadLatestRiggedPosed,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Load Empty Configured" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Load Legacy Rig+Pose" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Load Latest Rig+Pose" }),
+    );
+
+    expect(onLoadEmptyConfigured).toHaveBeenCalledTimes(1);
+    expect(onLoadLegacyRiggedPosed).toHaveBeenCalledTimes(1);
+    expect(onLoadLatestRiggedPosed).toHaveBeenCalledTimes(1);
     unmount();
   });
 
@@ -120,6 +157,9 @@ describe("Viewer", () => {
       onImportClick: () => {},
       onLoadQuori: () => {},
       onLoadHugo: () => {},
+      onLoadEmptyConfigured: () => {},
+      onLoadLegacyRiggedPosed: () => {},
+      onLoadLatestRiggedPosed: () => {},
     });
 
     expect(
@@ -149,6 +189,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -181,6 +224,9 @@ describe("Viewer", () => {
       onImportClick: () => {},
       onLoadQuori: () => {},
       onLoadHugo: () => {},
+      onLoadEmptyConfigured: () => {},
+      onLoadLegacyRiggedPosed: () => {},
+      onLoadLatestRiggedPosed: () => {},
     });
 
     expect(selectElementByIdSpy).toHaveBeenCalledWith("shape_1");
@@ -209,6 +255,9 @@ describe("Viewer", () => {
       onImportClick: () => {},
       onLoadQuori: () => {},
       onLoadHugo: () => {},
+      onLoadEmptyConfigured: () => {},
+      onLoadLegacyRiggedPosed: () => {},
+      onLoadLatestRiggedPosed: () => {},
     });
 
     expect(onSelectSceneChange).toHaveBeenCalledWith("shape_2");
@@ -237,6 +286,9 @@ describe("Viewer", () => {
       onImportClick: () => {},
       onLoadQuori: () => {},
       onLoadHugo: () => {},
+      onLoadEmptyConfigured: () => {},
+      onLoadLegacyRiggedPosed: () => {},
+      onLoadLatestRiggedPosed: () => {},
       onRuntimeStepHzChange,
     });
 
@@ -266,6 +318,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -304,6 +359,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -364,6 +422,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -420,6 +481,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -502,6 +566,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -559,6 +626,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );
@@ -606,6 +676,9 @@ describe("Viewer", () => {
           onImportClick={() => {}}
           onLoadQuori={() => {}}
           onLoadHugo={() => {}}
+          onLoadEmptyConfigured={() => {}}
+          onLoadLegacyRiggedPosed={() => {}}
+          onLoadLatestRiggedPosed={() => {}}
         />
       </GraphRuntimeStoreProvider>,
     );

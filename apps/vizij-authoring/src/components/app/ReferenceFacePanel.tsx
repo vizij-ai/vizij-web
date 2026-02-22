@@ -28,6 +28,24 @@ export function ReferenceFacePanel({
     fileInputRef.current?.click();
   }, []);
 
+  const loadReferenceSample = useCallback(
+    async (url: string, filename: string, label: string) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`Failed to load ${label}`);
+        }
+        const blob = await res.blob();
+        const file = new File([blob], filename, { type: "model/gltf-binary" });
+        referenceFace.setFile(file);
+      } catch (e) {
+        console.error(e);
+        alert(`Could not load ${label} asset.`);
+      }
+    },
+    [referenceFace],
+  );
+
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -90,19 +108,12 @@ export function ReferenceFacePanel({
                 <Button
                   size="sm"
                   className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/assets/Hugo_Latest_Rigged.glb");
-                      if (!res.ok) throw new Error("Failed to load Hugo");
-                      const blob = await res.blob();
-                      const file = new File([blob], "Hugo_Latest_Rigged.glb", {
-                        type: "model/gltf-binary",
-                      });
-                      referenceFace.setFile(file);
-                    } catch (e) {
-                      console.error(e);
-                      alert("Could not load Hugo asset.");
-                    }
+                  onClick={() => {
+                    void loadReferenceSample(
+                      "/assets/Hugo_Latest_Rigged.glb",
+                      "Hugo_Latest_Rigged.glb",
+                      "Hugo",
+                    );
                   }}
                 >
                   Load Hugo
@@ -110,24 +121,56 @@ export function ReferenceFacePanel({
                 <Button
                   size="sm"
                   className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(
-                        "/assets/Quori_Latest_Rigged.glb",
-                      );
-                      if (!res.ok) throw new Error("Failed to load Quori");
-                      const blob = await res.blob();
-                      const file = new File([blob], "Quori_Latest_Rigged.glb", {
-                        type: "model/gltf-binary",
-                      });
-                      referenceFace.setFile(file);
-                    } catch (e) {
-                      console.error(e);
-                      alert("Could not load Quori asset.");
-                    }
+                  onClick={() => {
+                    void loadReferenceSample(
+                      "/assets/Quori_Latest_Rigged.glb",
+                      "Quori_Latest_Rigged.glb",
+                      "Quori",
+                    );
                   }}
                 >
                   Load Quori
+                </Button>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  size="sm"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
+                  onClick={() => {
+                    void loadReferenceSample(
+                      "/assets/Face_Empty_Configured.glb",
+                      "Face_Empty_Configured.glb",
+                      "Empty Configured",
+                    );
+                  }}
+                >
+                  Load Empty Configured
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
+                  onClick={() => {
+                    void loadReferenceSample(
+                      "/assets/Face_Legacy_RiggedPosed.glb",
+                      "Face_Legacy_RiggedPosed.glb",
+                      "Legacy Rig+Pose",
+                    );
+                  }}
+                >
+                  Load Legacy Rig+Pose
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
+                  onClick={() => {
+                    void loadReferenceSample(
+                      "/assets/Face_Latest_RiggedPosed.glb",
+                      "Face_Latest_RiggedPosed.glb",
+                      "Latest Rig+Pose",
+                    );
+                  }}
+                >
+                  Load Latest Rig+Pose
                 </Button>
               </div>
             </div>

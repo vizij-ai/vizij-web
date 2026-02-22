@@ -343,6 +343,9 @@ export interface ViewerProps {
   onImportClick: () => void;
   onLoadQuori: () => void;
   onLoadHugo: () => void;
+  onLoadEmptyConfigured: () => void;
+  onLoadLegacyRiggedPosed: () => void;
+  onLoadLatestRiggedPosed: () => void;
   onRuntimeStepHzChange?: (stepHz: number | null) => void;
 }
 
@@ -357,6 +360,9 @@ export function Viewer({
   onImportClick,
   onLoadQuori,
   onLoadHugo,
+  onLoadEmptyConfigured,
+  onLoadLegacyRiggedPosed,
+  onLoadLatestRiggedPosed,
   onRuntimeStepHzChange,
 }: ViewerProps) {
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
@@ -437,16 +443,41 @@ export function Viewer({
                 scene.
               </p>
             </div>
-            <div className="flex gap-3">
-              <Button onClick={onImportClick} size="md">
-                Import File
-              </Button>
-              <Button variant="secondary" onClick={onLoadQuori} size="md">
-                Load Quori
-              </Button>
-              <Button variant="secondary" onClick={onLoadHugo} size="md">
-                Load Hugo
-              </Button>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button onClick={onImportClick} size="md">
+                  Import File
+                </Button>
+                <Button variant="secondary" onClick={onLoadQuori} size="md">
+                  Load Quori
+                </Button>
+                <Button variant="secondary" onClick={onLoadHugo} size="md">
+                  Load Hugo
+                </Button>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={onLoadEmptyConfigured}
+                  size="sm"
+                >
+                  Load Empty Configured
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={onLoadLegacyRiggedPosed}
+                  size="sm"
+                >
+                  Load Legacy Rig+Pose
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={onLoadLatestRiggedPosed}
+                  size="sm"
+                >
+                  Load Latest Rig+Pose
+                </Button>
+              </div>
             </div>
           </div>
         )}
