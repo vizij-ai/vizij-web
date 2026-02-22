@@ -5,6 +5,7 @@ Scope: `apps/vizij-authoring` face import + rig/pose runtime sync
 Branch: `authoring-features-restart`
 
 Companion execution plan: `import-performance-implementation-plan-2026-02-21.md`
+Follow-up architecture plan: `unified-face-import-pipeline-plan-2026-02-22.md`
 
 ## Purpose
 
@@ -202,6 +203,37 @@ Use one block per validation run.
 - Notes:
 - Decision: keep / revise / revert
 ```
+
+### Run 2026-02-22 17:58 (U0 baseline matrix, 5x OFF/ON for Quori + Hugo)
+
+- Branch/commit: `authoring-features-restart` @ `c7d4cdd`
+- Asset: Quori sample (`Load Quori`), Hugo sample (`Load Hugo`)
+- Functional result: imports completed in all sampled runs; graph publish coverage stayed stable (`37` accepted updates per run).
+- Method:
+  - OFF server: `pnpm --filter vizij-authoring run dev --host 127.0.0.1 --port 4173`
+  - ON server: `VITE_RUNTIME_PREWARM=true pnpm --filter vizij-authoring run dev --host 127.0.0.1 --port 4173`
+  - Browser automation: Playwright click `Load Quori` / `Load Hugo`, then poll `getLastRuntimeImportPerfSummary()`.
+  - Note: `rootToControllableMs` is not currently emitted in this summary shape; this run logs the currently emitted fields.
+
+| Mode | Asset | Mean durationMs | Median durationMs | Mean rootAssignedToReadyMs | Mean readyToFirstFrameMs | Mean controllerRegistrationRuns | Mean graphBridgePublishes | Mean graphBridgeTopologyPublishes | Mean graphBridgePosePublishes | Mean graphBridgeAccepted/Attempts |
+| ---- | ----- | --------------: | ----------------: | -------------------------: | -----------------------: | ------------------------------: | ------------------------: | --------------------------------: | ----------------------------: | --------------------------------- |
+| OFF  | Quori |     `10049.951` |        `9986.220` |                 `5622.268` |                  `3.191` |                         `6.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 51.400`                 |
+| OFF  | Hugo  |     `13119.026` |        `9051.025` |                 `6853.925` |                `101.341` |                         `6.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 52.000`                 |
+| ON   | Quori |     `35044.743` |       `34847.715` |                 `7420.099` |               `7308.940` |                         `8.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 51.800`                 |
+| ON   | Hugo  |     `32217.719` |       `31864.095` |                 `6404.530` |               `6852.844` |                         `8.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 51.800`                 |
+
+Raw duration samples (`ms`):
+
+- OFF Quori: `10173.380`, `9970.655`, `9731.835`, `9986.220`, `10387.665`
+- OFF Hugo: `8891.280`, `8947.035`, `9051.025`, `19390.490`, `19315.300`
+- ON Quori: `34847.715`, `36212.020`, `34860.610`, `34720.825`, `34582.545`
+- ON Hugo: `31088.160`, `31864.095`, `34244.220`, `33127.460`, `30764.660`
+
+Notes:
+
+1. Prewarm ON regressed sharply versus OFF in this run set (roughly `3x` slower mean import duration) and increased controller registration runs (`6 -> 8`).
+2. OFF Hugo has two large outlier runs (`~19.3s`), while median remains close to `9.1s`; this suggests a still-variable cold path worth rechecking in U7.
+3. Current U0 decision: keep prewarm default-off, treat ON as experimental until U1-U7 stabilize and we can explain the additional long post-ready cost.
 
 ### Run 2026-02-21 19:35 (5x aggregate, prewarm OFF)
 
