@@ -559,6 +559,49 @@ Notes:
   - `RuntimeFaceFrame` now supports and forwards `showSelectionGlow` for reference outline parity.
 - Decision: keep.
 
+### Run 2026-02-22 18:40 (U7 cross-asset performance validation, 3x OFF)
+
+- Branch/commit: `authoring-features-restart` @ `ae45693` (plus local U7 docs update)
+- Assets:
+  - Quori sample (`Load Quori`)
+  - Hugo sample (`Load Hugo`)
+  - Custom large face (`tmp-benchmark/Hugo_URRAD_Ready.glb`) via `Import File`
+- Functional result:
+  - All runs completed successfully with stable publish/registration counters per asset family.
+  - Custom asset consistently opened Import Review due face-id mismatch (`hugo_urrad_ready` vs `dooley_hugo`); benchmark path used immediate `Accept all (use rebuilt)` to minimize operator delay.
+- Method:
+  - Server: `pnpm --filter vizij-authoring run dev --host 127.0.0.1 --port 4173`
+  - Browser automation: Playwright-driven import actions, then polling `getLastRuntimeImportPerfSummary('main')`.
+  - Note: no prewarm (`VITE_RUNTIME_PREWARM` unset).
+
+| Asset                       | Mean durationMs | Median durationMs | Mean rootAssignedToReadyMs | Mean readyToFirstFrameMs | Mean rigNormalizeTotalMs | Mean poseNormalizeTotalMs | Mean controllerRegistrationRuns | Mean graphBridgePublishes | Mean graphBridgeTopologyPublishes | Mean graphBridgePosePublishes | Mean graphBridgeAccepted/Attempts |
+| --------------------------- | --------------: | ----------------: | -------------------------: | -----------------------: | -----------------------: | ------------------------: | ------------------------------: | ------------------------: | --------------------------------: | ----------------------------: | --------------------------------- |
+| Quori                       |      `7320.915` |        `7287.515` |                 `4022.270` |                 `36.142` |               `1033.275` |                `3426.118` |                         `6.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 51.333`                 |
+| Hugo                        |      `6138.120` |        `6087.825` |                 `2983.713` |                 `75.767` |                `703.070` |                `2860.698` |                         `6.000` |                  `37.000` |                          `30.000` |                       `7.000` | `37.000 / 52.000`                 |
+| Custom (`hugo_urrad_ready`) |     `10607.498` |        `9801.565` |                 `1751.335` |                `104.212` |                `592.783` |                `2195.268` |                         `7.000` |                  `32.000` |                          `26.000` |                       `6.000` | `32.000 / 45.000`                 |
+
+Raw duration samples (`ms`):
+
+- Quori: `7399.070`, `7276.160`, `7287.515`
+- Hugo: `6087.825`, `6315.625`, `6010.910`
+- Custom (`hugo_urrad_ready`): `13372.930`, `8648.000`, `9801.565`
+
+Baseline comparison against U0 OFF means:
+
+- Quori duration mean: `7320.915ms` vs `10049.951ms` (`-2729.036ms`, `-27.155%`).
+- Hugo duration mean: `6138.120ms` vs `13119.026ms` (`-6980.906ms`, `-53.212%`).
+- Primary assets improved materially versus U0, but both means remain above the `<5s` target.
+
+Validation:
+
+- `pnpm --filter vizij-authoring test -- src/perf/importProgress.test.ts src/__tests__/crossFaceRuntimeContracts.test.ts src/components/app/Viewer.test.tsx src/perf/referenceRuntimeSteppingPolicy.test.ts src/perf/mainFaceLoadingPolicy.test.ts src/__tests__/appRuntimeContracts.test.ts`
+- `pnpm --filter vizij-authoring typecheck`
+
+Decision:
+
+- Keep U1-U6 changes.
+- Mark U7 validation complete with open perf objective: continue targeted optimization work toward `<5s` mean on primary assets.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -589,3 +632,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 21. U4 landed staged user-visible loading policy for the main face and policy-driven authoring-panel interaction gates, then validated with targeted policy/import/viewer/runtime-contract tests plus typecheck.
 22. U5 introduced reference-runtime burst/idle stepping policy with explicit status surface and validated policy tests + targeted runtime/viewer regression tests + typecheck.
 23. U6 added cross-face contract coverage (phase ordering, dual-face selection/outline + FPS surfaces, and pose refresh wiring guards) and validated via targeted multi-suite test pass plus typecheck.
+24. U7 cross-asset OFF benchmark matrix (3x Quori/Hugo/custom) is now captured with baseline deltas and correctness validation: primary assets improved significantly vs U0 OFF, but sub-5s means are still open.

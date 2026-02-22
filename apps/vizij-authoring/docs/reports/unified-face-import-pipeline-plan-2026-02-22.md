@@ -13,7 +13,7 @@ Worktree: `authoring-features`
 - `[x]` U4 Introduce Staged User-Visible Loading Policy (policy-driven control gating now keeps face visible early and unlocks side panels only when runtime input bridge is ready)
 - `[x]` U5 Reference Runtime Load/Step Throttling Policy (reference runtime now uses burst-driven active stepping with idle-throttled fallback and explicit policy badges)
 - `[x]` U6 Cross-Face Contract Tests (phase-order invariants, dual-face selection/outline wiring, dual-FPS surfaces, and pose-refresh contract guards are now covered)
-- `[ ]` U7 Cross-Asset Performance Validation
+- `[x]` U7 Cross-Asset Performance Validation (3x OFF matrix rerun completed on Quori/Hugo/custom; correctness checks green; sub-5s mean target still not met)
 
 ## Executive Decision
 
@@ -159,6 +159,14 @@ Exit criteria: all added tests green and stable on repeated runs.
 - Exit criteria:
   - sub-5s mean user-visible target on at least primary assets
   - no regressions in correctness smoke checklist
+
+Execution result (2026-02-22):
+
+- Quori mean `7320.915ms` vs U0 OFF mean `10049.951ms` (`-27.155%`).
+- Hugo mean `6138.120ms` vs U0 OFF mean `13119.026ms` (`-53.212%`).
+- Custom large face (`hugo_urrad_ready`, import-review accept-all path) mean `10607.498ms`.
+- Correctness validation remained green (cross-face/runtime contract suites + typecheck).
+- Outcome: U7 validation is complete, but the `<5s` mean target is still open and remains a follow-up optimization objective.
 
 ## Correctness Guardrails
 
