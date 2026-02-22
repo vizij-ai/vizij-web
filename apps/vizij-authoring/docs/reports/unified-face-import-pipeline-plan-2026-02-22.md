@@ -10,7 +10,7 @@ Worktree: `authoring-features`
 - `[x]` U1 Extract Shared Face Runtime Adapter (shared runtime input dispatcher hook used by main + reference paths)
 - `[x]` U2 Unify Phase Model and Import Summary Shape (face-scoped perf sessions and shared `ImportProgressStatus` schema support)
 - `[x]` U3 Normalize Publish Semantics Through One Mutation Contract (single decision helper now governs publish/skip semantics and mutation ordering tests)
-- `[ ]` U4 Introduce Staged User-Visible Loading Policy
+- `[x]` U4 Introduce Staged User-Visible Loading Policy (policy-driven control gating now keeps face visible early and unlocks side panels only when runtime input bridge is ready)
 - `[ ]` U5 Reference Runtime Load/Step Throttling Policy
 - `[ ]` U6 Cross-Face Contract Tests
 - `[ ]` U7 Cross-Asset Performance Validation

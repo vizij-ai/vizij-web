@@ -265,6 +265,20 @@ function RuntimeStatusDebug() {
     controllers,
     outputPaths,
   } = useVizijRuntime();
+  const runtimeStageLabel = controllableReady
+    ? "Controls ready"
+    : firstFrameReady
+      ? "Face visible, wiring controls"
+      : ready
+        ? "Loading face"
+        : loading
+          ? "Initializing runtime"
+          : "Idle";
+
+  const runtimeStageTone = controllableReady
+    ? "text-emerald-200 border-emerald-600/60 bg-emerald-950/60"
+    : "text-amber-100 border-amber-600/60 bg-amber-950/60";
+
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][viewer]", {
@@ -289,18 +303,13 @@ function RuntimeStatusDebug() {
     rootId,
   ]);
   return (
-    <div className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-      {`runtime: ${
-        controllableReady
-          ? "controllable"
-          : firstFrameReady
-            ? "frame-ready"
-            : ready
-              ? "registered"
-              : loading
-                ? "loading"
-                : "idle"
-      } | rootId: ${rootId ?? "null"} | graphs: ${controllers.graphs.length}`}
+    <div
+      className={`absolute bottom-2 right-2 z-10 rounded border px-2 py-1 text-[10px] backdrop-blur-sm ${runtimeStageTone}`}
+    >
+      <p className="m-0 font-semibold">{runtimeStageLabel}</p>
+      <p className="m-0 text-[9px] opacity-85">
+        {`root: ${rootId ?? "null"} • graphs: ${controllers.graphs.length}`}
+      </p>
     </div>
   );
 }

@@ -52,6 +52,7 @@ import {
   getRuntimePerfMetricsSnapshot,
   recordRuntimeDebugEvent,
 } from "./perf/runtimePerfMetrics";
+import { resolveMainFaceLoadingPolicy } from "./perf/mainFaceLoadingPolicy";
 import {
   createPoseImportResult,
   resolveImportSuccessStatus,
@@ -219,6 +220,9 @@ function AppContent({
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const mainFaceRuntimeInputBridgeReady = useGraphRuntime(
+    (state) => typeof state.stageRuntimeInput === "function",
+  );
   const graphRuntimeStore = useGraphRuntimeStoreApi();
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
@@ -596,6 +600,17 @@ function AppContent({
     loadedBundle: loadedBundle ?? null,
   });
 
+  const mainFaceLoadingPolicy = resolveMainFaceLoadingPolicy({
+    rootId,
+    isAssetLoading: isLoading,
+    hasRuntimeInputBridge: mainFaceRuntimeInputBridgeReady,
+  });
+  const controlsLocked =
+    Boolean(rootId) && !mainFaceLoadingPolicy.interactionEnabled;
+  const panelInteractivityClass = controlsLocked
+    ? "h-full w-full pointer-events-none opacity-65 transition-opacity"
+    : "h-full w-full";
+
   const viewerContent = (
     <div
       className={
@@ -720,50 +735,72 @@ function AppContent({
           // Left
           leftTopVisible={panels.hierarchy.isVisible}
           leftTopPanel={
-            <HierarchyPanel
-              showSelectionGlow={showSelectionGlow}
-              onToggleSelectionGlow={setShowSelectionGlow}
-              onSelectObject={handleSelectObject}
-            />
+            <div className={panelInteractivityClass}>
+              <HierarchyPanel
+                showSelectionGlow={showSelectionGlow}
+                onToggleSelectionGlow={setShowSelectionGlow}
+                onSelectObject={handleSelectObject}
+              />
+            </div>
           }
           leftBottomVisible={variablesPanelVisible}
           leftBottomPanel={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedSceneId}
-              includeAutorigInputs={includeAutorigInputs}
-              onSelectRig={handleSelectRig}
-              onSelectPose={handleSelectPose}
-              onSelectScene={handleSelectObject}
-              availableSurfaces={visibleVariablesSurfaces}
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
-            />
+            <div className={panelInteractivityClass}>
+              <VariablesPanel
+                selectedRigId={selectedRigId}
+                selectedPoseId={selectedPoseId}
+                selectedSceneId={selectedSceneId}
+                includeAutorigInputs={includeAutorigInputs}
+                onSelectRig={handleSelectRig}
+                onSelectPose={handleSelectPose}
+                onSelectScene={handleSelectObject}
+                availableSurfaces={visibleVariablesSurfaces}
+                selectedPoseGroup={selectedPoseGroup}
+                onSelectPoseGroup={setSelectedPoseGroup}
+              />
+            </div>
           }
           leftBottomVisible2={false}
           leftBottomVisible3={false}
           leftMiddleVisible={false}
           // Center
           topPanel={
-            <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default">
+            <div className="h-full flex items-center px-4 gap-3 text-xs select-none bg-bg-panel/50 border-b border-border-default">
               <ImportProgressStatus
                 isAssetLoading={isLoading}
                 rootId={rootId}
                 faceScope="main"
               />
+              <div
+                className={`ml-auto rounded border px-2 py-1 text-[10px] font-semibold tracking-wide ${
+                  mainFaceLoadingPolicy.interactionEnabled
+                    ? "border-emerald-600/60 bg-emerald-900/20 text-emerald-300"
+                    : "border-amber-600/60 bg-amber-900/20 text-amber-300"
+                }`}
+              >
+                {mainFaceLoadingPolicy.label}
+              </div>
+              <p className="max-w-sm truncate text-[10px] text-text-muted">
+                {mainFaceLoadingPolicy.detail}
+              </p>
             </div>
           }
           viewport={viewerContent}
           bottomVisible={panels.animation.isVisible}
-          bottomPanel={<AnimationPanel />}
+          bottomPanel={
+            <div className={panelInteractivityClass}>
+              <AnimationPanel />
+            </div>
+          }
           // Right
           rightTopVisible={panels.inspector.isVisible}
           rightTopPanel={
-            <InspectorPanel
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
-            />
+            <div className={panelInteractivityClass}>
+              <InspectorPanel
+                selectedPoseGroup={selectedPoseGroup}
+                onSelectPoseGroup={setSelectedPoseGroup}
+              />
+            </div>
           }
           rightBottomVisible={panels.debug.isVisible}
           rightBottomPanel={

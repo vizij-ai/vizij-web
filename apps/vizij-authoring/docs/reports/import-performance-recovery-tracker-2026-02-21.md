@@ -514,6 +514,20 @@ Notes:
   - Added ordering invariant coverage for `topology -> topology -> pose` sequence.
 - Decision: keep.
 
+### Run 2026-02-22 18:14 (U4 staged loading policy validation)
+
+- Branch/commit: `authoring-features-restart` working tree (pre-commit U4)
+- Asset: N/A (policy + UI contract pass)
+- Functional result: main-face loading policy now explicitly stages `asset-load -> face-visible -> controls-ready`; side authoring panels lock until runtime input bridge is ready while viewport stays visible.
+- Validation:
+  - `pnpm --filter vizij-authoring test -- src/perf/mainFaceLoadingPolicy.test.ts src/perf/importProgress.test.ts src/components/app/Viewer.test.tsx src/__tests__/appRuntimeContracts.test.ts`
+  - `pnpm --filter vizij-authoring typecheck`
+- Notes:
+  - Added deterministic `resolveMainFaceLoadingPolicy(...)` helper with direct unit coverage.
+  - Added top-bar policy badge/detail and interaction gating wrappers for hierarchy/variables/animation/inspector panels.
+  - Updated viewport runtime stage badge to communicate face-first/control-ready progression.
+- Decision: keep.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -541,3 +555,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 18. U2 wiring update: `ReferenceFaceRuntime` now starts/finalizes reference import sessions and records ready/first-frame lifecycle signals so the reference face emits comparable summaries without schema branching.
 19. U2 validation pass: `pnpm --filter vizij-authoring test -- src/perf/runtimePerfMetrics.test.ts src/perf/importProgress.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useBundleSynchronizer.test.ts` and `pnpm --filter vizij-authoring typecheck` both green.
 20. U3 normalized graph-bridge publish semantics behind one mutation decision helper (`publish` vs `skip`), added skip-reason telemetry, and expanded contract tests for empty-payload behavior plus `topology -> topology -> pose` ordering invariants; targeted tests + typecheck green.
+21. U4 landed staged user-visible loading policy for the main face and policy-driven authoring-panel interaction gates, then validated with targeted policy/import/viewer/runtime-contract tests plus typecheck.
