@@ -528,6 +528,20 @@ Notes:
   - Updated viewport runtime stage badge to communicate face-first/control-ready progression.
 - Decision: keep.
 
+### Run 2026-02-22 18:17 (U5 reference step throttling policy validation)
+
+- Branch/commit: `authoring-features-restart` working tree (pre-commit U5)
+- Asset: N/A (policy + runtime wiring pass)
+- Functional result: reference runtime now keeps full stepping during import or input bursts, then drops to idle-throttled mode after inactivity to reduce dual-face steady-state work.
+- Validation:
+  - `pnpm --filter vizij-authoring test -- src/perf/referenceRuntimeSteppingPolicy.test.ts src/perf/mainFaceLoadingPolicy.test.ts src/components/app/Viewer.test.tsx`
+  - `pnpm --filter vizij-authoring typecheck`
+- Notes:
+  - Added `resolveReferenceRuntimeSteppingPolicy(...)` with direct unit coverage.
+  - `ReferenceFaceRuntime` now tracks activity windows (`burst` + loading keepalive) and maps policy output to runtime provider `autostart`/`driveOrchestrator`.
+  - Reference header now exposes stepping policy state (`Active` vs `Idle throttled`) alongside FPS.
+- Decision: keep.
+
 ## Decision Rule Going Forward
 
 If a change improves perf but breaks controls or poses, revert immediately and record the attempt here.  
@@ -556,3 +570,4 @@ We only keep optimizations that are both measurably faster and behaviorally corr
 19. U2 validation pass: `pnpm --filter vizij-authoring test -- src/perf/runtimePerfMetrics.test.ts src/perf/importProgress.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useBundleSynchronizer.test.ts` and `pnpm --filter vizij-authoring typecheck` both green.
 20. U3 normalized graph-bridge publish semantics behind one mutation decision helper (`publish` vs `skip`), added skip-reason telemetry, and expanded contract tests for empty-payload behavior plus `topology -> topology -> pose` ordering invariants; targeted tests + typecheck green.
 21. U4 landed staged user-visible loading policy for the main face and policy-driven authoring-panel interaction gates, then validated with targeted policy/import/viewer/runtime-contract tests plus typecheck.
+22. U5 introduced reference-runtime burst/idle stepping policy with explicit status surface and validated policy tests + targeted runtime/viewer regression tests + typecheck.

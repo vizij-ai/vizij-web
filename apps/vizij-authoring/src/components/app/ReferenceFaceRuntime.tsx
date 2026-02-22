@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -21,6 +28,7 @@ import {
   recordRuntimeReady,
   startRuntimeImportPerfSession,
 } from "../../perf/runtimePerfMetrics";
+import { resolveReferenceRuntimeSteppingPolicy } from "../../perf/referenceRuntimeSteppingPolicy";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -59,6 +67,19 @@ const FACE_ASSET_GLB_BASE = {
   aggressiveImport: true,
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
+const REFERENCE_ACTIVITY_BURST_MS = 1200;
+const REFERENCE_ACTIVITY_KEEPALIVE_MS = 400;
+
+function getNowMs(): number {
+  if (
+    typeof globalThis !== "undefined" &&
+    "performance" in globalThis &&
+    typeof globalThis.performance.now === "function"
+  ) {
+    return globalThis.performance.now();
+  }
+  return Date.now();
+}
 
 function createBundleConfig(file: File): {
   bundle: VizijAssetBundle;
@@ -96,6 +117,8 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
+  const [activityBurstUntilMs, setActivityBurstUntilMs] = useState(0);
+  const [, setActivityClockTick] = useState(0);
   const bundleConfig = useMemo(() => {
     if (!file) return null;
     return createBundleConfig(file);
@@ -121,6 +144,37 @@ export function ReferenceFaceRuntime({
     };
   }, [bundleConfig]);
 
+  const markRuntimeActivity = useCallback(() => {
+    const nextDeadline = getNowMs() + REFERENCE_ACTIVITY_BURST_MS;
+    setActivityBurstUntilMs((current) =>
+      nextDeadline > current ? nextDeadline : current,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!bundleConfig || !visible) {
+      return;
+    }
+    markRuntimeActivity();
+  }, [bundleConfig, markRuntimeActivity, visible]);
+
+  useEffect(() => {
+    if (activityBurstUntilMs <= 0) {
+      return;
+    }
+    const remainingMs = activityBurstUntilMs - getNowMs();
+    if (remainingMs <= 0 || typeof window === "undefined") {
+      return;
+    }
+    const timeoutId = window.setTimeout(
+      () => {
+        setActivityClockTick((tick) => tick + 1);
+      },
+      Math.max(16, Math.ceil(remainingMs)),
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [activityBurstUntilMs]);
+
   if (!active) {
     return <>{fallback}</>;
   }
@@ -135,17 +189,26 @@ export function ReferenceFaceRuntime({
     );
   }
 
-  const shouldAutostart = autostart && visible;
-  const shouldDriveVisible = driveOrchestrator && visible;
+  const steppingPolicy = resolveReferenceRuntimeSteppingPolicy({
+    hasBundle: Boolean(bundleConfig),
+    visible,
+    autostartRequested: autostart,
+    driveOrchestratorRequested: driveOrchestrator,
+    recentlyActive: activityBurstUntilMs > getNowMs(),
+  });
+
   return (
     <VizijRuntimeProvider
       assetBundle={bundleConfig.bundle}
-      autostart={shouldAutostart}
-      driveOrchestrator={shouldDriveVisible}
+      autostart={steppingPolicy.runtimeAutostart}
+      driveOrchestrator={steppingPolicy.runtimeDriveOrchestrator}
       orchestratorScope="shared"
     >
       <ReferenceFaceBridge
         importFingerprint={importFingerprint ?? "reference-runtime-unknown"}
+        onRuntimeActivity={markRuntimeActivity}
+        steppingPolicyLabel={steppingPolicy.label}
+        idleThrottled={steppingPolicy.idleThrottled}
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
         onAnimateValueReady={onAnimateValueReady}
@@ -160,6 +223,9 @@ export function ReferenceFaceRuntime({
 
 type ReferenceFaceBridgeProps = {
   importFingerprint: string;
+  onRuntimeActivity?: () => void;
+  steppingPolicyLabel: string;
+  idleThrottled: boolean;
   onStandardInputsReady?: (
     inputs: StandardRigInput[],
     byId: Map<string, StandardRigInput>,
@@ -185,6 +251,9 @@ type ReferenceFaceBridgeProps = {
  */
 function ReferenceFaceBridge({
   importFingerprint,
+  onRuntimeActivity,
+  steppingPolicyLabel,
+  idleThrottled,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
@@ -226,13 +295,33 @@ function ReferenceFaceBridge({
     if (!rootId) {
       return;
     }
+    onRuntimeActivity?.();
     markRuntimeRootAssigned(rootId, undefined, "reference");
     startRuntimeImportPerfSession({
       fingerprint: importFingerprint,
       rootId,
       faceScope: "reference",
     });
-  }, [importFingerprint, rootId]);
+  }, [importFingerprint, onRuntimeActivity, rootId]);
+
+  useEffect(() => {
+    if (!onRuntimeActivity) {
+      return;
+    }
+    if (!loading && firstFrameReady && controllableReady) {
+      return;
+    }
+    onRuntimeActivity();
+    if (typeof window === "undefined") {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      onRuntimeActivity();
+    }, REFERENCE_ACTIVITY_KEEPALIVE_MS);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [controllableReady, firstFrameReady, loading, onRuntimeActivity]);
 
   useEffect(() => {
     return () => {
@@ -375,12 +464,13 @@ function ReferenceFaceBridge({
 
   const handleReferenceInputDispatched = useCallback(
     ({ rawPath, value }: RuntimeInputDispatchPayload) => {
+      onRuntimeActivity?.();
       const input = standardInputsByPathRef.current.get(rawPath);
       if (input && onStandardInputChangeRef.current) {
         onStandardInputChangeRef.current(input.id, value);
       }
     },
-    [],
+    [onRuntimeActivity],
   );
 
   const dispatchReferenceRuntimeInput = useRuntimeInputDispatcher({
@@ -431,12 +521,18 @@ function ReferenceFaceBridge({
     }
 
     const animateFn = (inputPath: string, value: number) => {
+      onRuntimeActivity?.();
       // Runtime updates + propagation use the shared input bridge adapter.
       dispatchReferenceRuntimeInput(inputPath, value);
     };
 
     onAnimateValueReady?.(animateFn);
-  }, [controllableReady, dispatchReferenceRuntimeInput, onAnimateValueReady]);
+  }, [
+    controllableReady,
+    dispatchReferenceRuntimeInput,
+    onAnimateValueReady,
+    onRuntimeActivity,
+  ]);
 
   const isLoading = loading || !firstFrameReady || !controllableReady;
   const statusText = isLoading
@@ -471,6 +567,15 @@ function ReferenceFaceBridge({
           </div>
         </div>
         <div className="ref-face-viewer__controls">
+          <span
+            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+              idleThrottled
+                ? "border-amber-600/60 bg-amber-900/20 text-amber-300"
+                : "border-emerald-600/60 bg-emerald-900/20 text-emerald-300"
+            }`}
+          >
+            {steppingPolicyLabel}
+          </span>
           <span className="ref-face-viewer__fps">{formattedFps}</span>
           {onToggleSplit && (
             <button
