@@ -192,7 +192,7 @@ export function useBundleSynchronizer({
       let poseImportedThisPass = false;
       try {
         if (!rootId || !loadedBundle) {
-          finalizeRuntimeImportPerfSession("cancelled");
+          finalizeRuntimeImportPerfSession("cancelled", "main");
           appliedBundleFingerprintRef.current = null;
           activeBundleFingerprintRef.current = null;
           inFlightFingerprintRef.current = null;
@@ -230,7 +230,11 @@ export function useBundleSynchronizer({
         }
 
         if (fingerprint && activeBundleFingerprintRef.current !== fingerprint) {
-          startRuntimeImportPerfSession({ fingerprint, rootId });
+          startRuntimeImportPerfSession({
+            fingerprint,
+            rootId,
+            faceScope: "main",
+          });
           activeBundleFingerprintRef.current = fingerprint;
           rigImportedRef.current = false;
           poseImportedRef.current = false;
@@ -309,7 +313,9 @@ export function useBundleSynchronizer({
           if (standardInputCount === 0) {
             if (hasFailure && fingerprint) {
               appliedBundleFingerprintRef.current = fingerprint;
-              logImportPerfSummary(finalizeRuntimeImportPerfSession("failure"));
+              logImportPerfSummary(
+                finalizeRuntimeImportPerfSession("failure", "main"),
+              );
             }
             return;
           }
@@ -371,9 +377,13 @@ export function useBundleSynchronizer({
           appliedBundleFingerprintRef.current = fingerprint;
         }
         if (hasFailure) {
-          logImportPerfSummary(finalizeRuntimeImportPerfSession("failure"));
+          logImportPerfSummary(
+            finalizeRuntimeImportPerfSession("failure", "main"),
+          );
         } else {
-          logImportPerfSummary(finalizeRuntimeImportPerfSession("success"));
+          logImportPerfSummary(
+            finalizeRuntimeImportPerfSession("success", "main"),
+          );
           onSuccessRef.current?.();
         }
       } finally {

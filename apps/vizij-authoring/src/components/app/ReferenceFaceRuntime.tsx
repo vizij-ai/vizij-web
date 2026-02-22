@@ -14,6 +14,13 @@ import {
   useRuntimeInputDispatcher,
   type RuntimeInputDispatchPayload,
 } from "../../hooks/useRuntimeInputDispatcher";
+import {
+  finalizeRuntimeImportPerfSession,
+  markRuntimeRootAssigned,
+  recordRuntimeFirstFrame,
+  recordRuntimeReady,
+  startRuntimeImportPerfSession,
+} from "../../perf/runtimePerfMetrics";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -93,6 +100,18 @@ export function ReferenceFaceRuntime({
     if (!file) return null;
     return createBundleConfig(file);
   }, [file]);
+  const importFingerprint = useMemo(() => {
+    if (!file) {
+      return null;
+    }
+    return JSON.stringify({
+      version: "reference-runtime-v1",
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      type: file.type,
+    });
+  }, [file]);
 
   useEffect(() => {
     return () => {
@@ -126,6 +145,7 @@ export function ReferenceFaceRuntime({
       orchestratorScope="shared"
     >
       <ReferenceFaceBridge
+        importFingerprint={importFingerprint ?? "reference-runtime-unknown"}
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}
         onAnimateValueReady={onAnimateValueReady}
@@ -139,6 +159,7 @@ export function ReferenceFaceRuntime({
 }
 
 type ReferenceFaceBridgeProps = {
+  importFingerprint: string;
   onStandardInputsReady?: (
     inputs: StandardRigInput[],
     byId: Map<string, StandardRigInput>,
@@ -163,6 +184,7 @@ type ReferenceFaceBridgeProps = {
  * Also manages idle behavior state and renders the face with header.
  */
 function ReferenceFaceBridge({
+  importFingerprint,
   onStandardInputsReady,
   onLoadingStateChange,
   onAnimateValueReady,
@@ -175,6 +197,8 @@ function ReferenceFaceBridge({
     firstFrameReady,
     controllableReady,
     loading,
+    rootId,
+    error,
     animateValue,
     step,
     inputConstraints,
@@ -186,6 +210,9 @@ function ReferenceFaceBridge({
   const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
   const onStandardInputChangeRef = useRef(onStandardInputChange);
+  const readyRootRef = useRef<string | null>(null);
+  const firstFrameRootRef = useRef<string | null>(null);
+  const completedFingerprintRef = useRef<string | null>(null);
 
   // Keep refs updated
   useEffect(() => {
@@ -194,6 +221,73 @@ function ReferenceFaceBridge({
     faceIdRef.current = faceId;
     onStandardInputChangeRef.current = onStandardInputChange;
   }, [animateValue, step, faceId, onStandardInputChange]);
+
+  useEffect(() => {
+    if (!rootId) {
+      return;
+    }
+    markRuntimeRootAssigned(rootId, undefined, "reference");
+    startRuntimeImportPerfSession({
+      fingerprint: importFingerprint,
+      rootId,
+      faceScope: "reference",
+    });
+  }, [importFingerprint, rootId]);
+
+  useEffect(() => {
+    return () => {
+      finalizeRuntimeImportPerfSession("cancelled", "reference");
+    };
+  }, [importFingerprint]);
+
+  useEffect(() => {
+    if (!rootId) {
+      readyRootRef.current = null;
+      firstFrameRootRef.current = null;
+      return;
+    }
+    if (!controllableReady) {
+      readyRootRef.current = null;
+      firstFrameRootRef.current = null;
+      return;
+    }
+    if (readyRootRef.current !== rootId) {
+      readyRootRef.current = rootId;
+      recordRuntimeReady(rootId, "reference");
+    }
+    if (firstFrameRootRef.current === rootId) {
+      return;
+    }
+
+    let cancelled = false;
+    const frameHandle = requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+      firstFrameRootRef.current = rootId;
+      recordRuntimeFirstFrame(rootId, "reference");
+      if (completedFingerprintRef.current !== importFingerprint) {
+        finalizeRuntimeImportPerfSession("success", "reference");
+        completedFingerprintRef.current = importFingerprint;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameHandle);
+    };
+  }, [controllableReady, importFingerprint, rootId]);
+
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+    if (completedFingerprintRef.current === importFingerprint) {
+      return;
+    }
+    finalizeRuntimeImportPerfSession("failure", "reference");
+    completedFingerprintRef.current = importFingerprint;
+  }, [error, importFingerprint]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById, standardInputsByPath } =

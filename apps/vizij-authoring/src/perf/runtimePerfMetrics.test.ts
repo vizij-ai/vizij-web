@@ -145,6 +145,59 @@ describe("runtimePerfMetrics", () => {
     expect(getLastRuntimeImportPerfSummary()).toEqual(summary);
   });
 
+  it("tracks import sessions independently for main and reference scopes", () => {
+    startRuntimeImportPerfSession({
+      fingerprint: "main-session",
+      rootId: "main-root",
+      faceScope: "main",
+    });
+    startRuntimeImportPerfSession({
+      fingerprint: "reference-session",
+      rootId: "reference-root",
+      faceScope: "reference",
+    });
+
+    recordGraphBridgeRun(7, "topology", undefined, "main");
+    recordGraphBridgeRun(11, "pose", undefined, "reference");
+
+    expect(getActiveRuntimeImportPerfSession("main")).toMatchObject({
+      faceScope: "main",
+      fingerprint: "main-session",
+      graphBridgeAcceptedUpdates: 1,
+    });
+    expect(getActiveRuntimeImportPerfSession("reference")).toMatchObject({
+      faceScope: "reference",
+      fingerprint: "reference-session",
+      graphBridgeAcceptedUpdates: 1,
+    });
+
+    const referenceSummary = finalizeRuntimeImportPerfSession(
+      "success",
+      "reference",
+    );
+    expect(referenceSummary).toMatchObject({
+      faceScope: "reference",
+      fingerprint: "reference-session",
+      status: "success",
+    });
+    expect(getLastRuntimeImportPerfSummary("reference")).toMatchObject({
+      faceScope: "reference",
+      fingerprint: "reference-session",
+    });
+    expect(getLastRuntimeImportPerfSummary("main")).toBeNull();
+
+    const mainSummary = finalizeRuntimeImportPerfSession("success", "main");
+    expect(mainSummary).toMatchObject({
+      faceScope: "main",
+      fingerprint: "main-session",
+      status: "success",
+    });
+    expect(getLastRuntimeImportPerfSummary("main")).toMatchObject({
+      faceScope: "main",
+      fingerprint: "main-session",
+    });
+  });
+
   it("applies late controller-registration samples to the latest completed summary", () => {
     startRuntimeImportPerfSession({
       fingerprint: "fingerprint-1",

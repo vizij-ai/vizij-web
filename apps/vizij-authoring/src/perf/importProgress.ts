@@ -1,4 +1,7 @@
-import type { RuntimeImportProgressSnapshot } from "./runtimePerfMetrics";
+import type {
+  RuntimeImportFaceScope,
+  RuntimeImportProgressSnapshot,
+} from "./runtimePerfMetrics";
 
 export type ImportProgressPhase =
   | "idle"
@@ -31,6 +34,7 @@ export type ImportProgressState = {
 interface ResolveImportProgressOptions {
   isAssetLoading: boolean;
   rootId: string | null;
+  faceScope?: RuntimeImportFaceScope;
   sessionSnapshot: RuntimeImportProgressSnapshot;
 }
 
@@ -69,36 +73,40 @@ function buildSummaryDetail(
 export function resolveImportProgressState({
   isAssetLoading,
   rootId,
+  faceScope = "main",
   sessionSnapshot,
 }: ResolveImportProgressOptions): ImportProgressState {
+  const isReferenceFace = faceScope === "reference";
   if (isAssetLoading) {
     return {
       visible: true,
       phase: "asset-load",
       status: "running",
       progress: 0.12,
-      label: "Loading asset",
+      label: isReferenceFace ? "Loading reference asset" : "Loading asset",
       detail: "Reading world, animatables, and bundle payload.",
     };
   }
 
   const activeSession = sessionSnapshot.activeSession;
   if (activeSession) {
-    let phase: ImportProgressPhase = "rig-prepare";
-    let label = "Preparing rig graph";
-    let progress = 0.25;
+    let phase: ImportProgressPhase = isReferenceFace
+      ? "runtime-sync"
+      : "rig-prepare";
+    let label = isReferenceFace ? "Preparing runtime" : "Preparing rig graph";
+    let progress = isReferenceFace ? 0.62 : 0.25;
 
-    if (activeSession.rigNormalizeCalls > 0) {
+    if (!isReferenceFace && activeSession.rigNormalizeCalls > 0) {
       phase = "rig-normalize";
       label = "Normalizing rig graph";
       progress = 0.45;
     }
-    if (activeSession.rigGraphImportRuns > 0) {
+    if (!isReferenceFace && activeSession.rigGraphImportRuns > 0) {
       phase = "rig-import";
       label = "Importing rig graph";
       progress = 0.62;
     }
-    if (activeSession.poseNormalizeRuns > 0) {
+    if (!isReferenceFace && activeSession.poseNormalizeRuns > 0) {
       phase = "pose-normalize";
       label = "Normalizing pose graph";
       progress = 0.74;

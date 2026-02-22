@@ -750,6 +750,7 @@ function AppContent({
               <ImportProgressStatus
                 isAssetLoading={isLoading}
                 rootId={rootId}
+                faceScope="main"
               />
             </div>
           }

@@ -1,6 +1,9 @@
 type RuntimeGraphMutationClass = "topology" | "pose";
 const MAX_TRACKED_ROOT_LIFECYCLES = 24;
 const MAX_RUNTIME_DEBUG_EVENTS = 256;
+const DEFAULT_IMPORT_FACE_SCOPE: RuntimeImportFaceScope = "main";
+
+export type RuntimeImportFaceScope = "main" | "reference";
 
 export type RuntimeDebugEvent = {
   atMs: number;
@@ -121,6 +124,7 @@ function createInitialState(): RuntimePerfMetricsState {
 }
 
 export type RuntimeImportPerfSummary = {
+  faceScope: RuntimeImportFaceScope;
   sessionId: number;
   fingerprint: string;
   rootId: string | null;
@@ -181,9 +185,24 @@ type RuntimeDebugGlobal = {
 };
 
 let state: RuntimePerfMetricsState = createInitialState();
-let nextSessionId = 1;
-let activeImportSession: ActiveRuntimeImportPerfSession | null = null;
-let lastImportSummary: RuntimeImportPerfSummary | null = null;
+const nextSessionIdByScope: Record<RuntimeImportFaceScope, number> = {
+  main: 1,
+  reference: 1,
+};
+const activeImportSessionByScope: Record<
+  RuntimeImportFaceScope,
+  ActiveRuntimeImportPerfSession | null
+> = {
+  main: null,
+  reference: null,
+};
+const lastImportSummaryByScope: Record<
+  RuntimeImportFaceScope,
+  RuntimeImportPerfSummary | null
+> = {
+  main: null,
+  reference: null,
+};
 let rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
 let runtimeDebugEvents: RuntimeDebugEvent[] = [];
 const listeners = new Set<() => void>();
@@ -206,9 +225,24 @@ function sanitizeDuration(durationMs: number) {
   return Math.max(0, durationMs);
 }
 
+function resolveImportFaceScope(
+  faceScope?: RuntimeImportFaceScope,
+): RuntimeImportFaceScope {
+  return faceScope ?? DEFAULT_IMPORT_FACE_SCOPE;
+}
+
+function getScopedRootLifecycleId(
+  rootId: string,
+  faceScope: RuntimeImportFaceScope,
+) {
+  return `${faceScope}:${rootId}`;
+}
+
 function withActiveImportSession(
+  faceScope: RuntimeImportFaceScope,
   updater: (session: ActiveRuntimeImportPerfSession) => void,
 ) {
+  const activeImportSession = activeImportSessionByScope[faceScope];
   if (!activeImportSession) {
     return;
   }
@@ -242,11 +276,15 @@ function isRuntimeDebugCaptureEnabled() {
   );
 }
 
-function cacheRootLifecycle(lifecycle: RuntimeRootLifecycle) {
-  if (rootLifecycleById.has(lifecycle.rootId)) {
-    rootLifecycleById.delete(lifecycle.rootId);
+function cacheRootLifecycle(
+  lifecycle: RuntimeRootLifecycle,
+  faceScope: RuntimeImportFaceScope,
+) {
+  const scopedRootId = getScopedRootLifecycleId(lifecycle.rootId, faceScope);
+  if (rootLifecycleById.has(scopedRootId)) {
+    rootLifecycleById.delete(scopedRootId);
   }
-  rootLifecycleById.set(lifecycle.rootId, lifecycle);
+  rootLifecycleById.set(scopedRootId, lifecycle);
   while (rootLifecycleById.size > MAX_TRACKED_ROOT_LIFECYCLES) {
     const oldestKey = rootLifecycleById.keys().next().value;
     if (typeof oldestKey !== "string") {
@@ -256,8 +294,12 @@ function cacheRootLifecycle(lifecycle: RuntimeRootLifecycle) {
   }
 }
 
-function getOrCreateRootLifecycle(rootId: string): RuntimeRootLifecycle {
-  const existing = rootLifecycleById.get(rootId);
+function getOrCreateRootLifecycle(
+  rootId: string,
+  faceScope: RuntimeImportFaceScope,
+): RuntimeRootLifecycle {
+  const scopedRootId = getScopedRootLifecycleId(rootId, faceScope);
+  const existing = rootLifecycleById.get(scopedRootId);
   if (existing) {
     return existing;
   }
@@ -270,15 +312,16 @@ function getOrCreateRootLifecycle(rootId: string): RuntimeRootLifecycle {
     rootAssignedToReadyMs: null,
     readyToFirstFrameMs: null,
   };
-  cacheRootLifecycle(created);
+  cacheRootLifecycle(created, faceScope);
   return created;
 }
 
 function syncLifecycleIntoSummaries(
   rootId: string,
   lifecycle: RuntimeRootLifecycle,
+  faceScope: RuntimeImportFaceScope,
 ) {
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     if (session.rootId !== rootId) {
       return;
     }
@@ -287,10 +330,11 @@ function syncLifecycleIntoSummaries(
     session.readyToFirstFrameMs = lifecycle.readyToFirstFrameMs;
     session.firstControllableFrameAtMs = lifecycle.firstFrameAtMs;
   });
+  const lastImportSummary = lastImportSummaryByScope[faceScope];
   if (!lastImportSummary || lastImportSummary.rootId !== rootId) {
     return;
   }
-  lastImportSummary = {
+  lastImportSummaryByScope[faceScope] = {
     ...lastImportSummary,
     assetLoadMs: lifecycle.assetLoadMs,
     rootAssignedToReadyMs: lifecycle.rootAssignedToReadyMs,
@@ -361,9 +405,12 @@ function buildSnapshot(): RuntimePerfMetricsSnapshot {
 
 export function resetRuntimePerfMetrics() {
   state = createInitialState();
-  activeImportSession = null;
-  lastImportSummary = null;
-  nextSessionId = 1;
+  activeImportSessionByScope.main = null;
+  activeImportSessionByScope.reference = null;
+  lastImportSummaryByScope.main = null;
+  lastImportSummaryByScope.reference = null;
+  nextSessionIdByScope.main = 1;
+  nextSessionIdByScope.reference = 1;
   rootLifecycleById = new Map<string, RuntimeRootLifecycle>();
   runtimeDebugEvents = [];
   (
@@ -372,30 +419,48 @@ export function resetRuntimePerfMetrics() {
   emitChange();
 }
 
-export function getRuntimePerfMetricsSnapshot(): RuntimePerfMetricsSnapshot {
+export function getRuntimePerfMetricsSnapshot(
+  _faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimePerfMetricsSnapshot {
   return buildSnapshot();
 }
 
-export function getLastRuntimeImportPerfSummary(): RuntimeImportPerfSummary | null {
-  return lastImportSummary;
+export function getLastRuntimeImportPerfSummary(
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimeImportPerfSummary | null {
+  return lastImportSummaryByScope[faceScope];
 }
 
-export function getActiveRuntimeImportPerfSession(): ActiveRuntimeImportPerfSession | null {
-  return cloneActiveImportSession(activeImportSession);
+export function getActiveRuntimeImportPerfSession(
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): ActiveRuntimeImportPerfSession | null {
+  return cloneActiveImportSession(activeImportSessionByScope[faceScope]);
 }
 
-export function getRuntimeImportPerfSessionSnapshot(): RuntimeImportPerfSessionSnapshot {
+export function getRuntimeImportPerfSessionSnapshot(
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimeImportPerfSessionSnapshot {
   return {
-    activeSession: cloneActiveImportSession(activeImportSession),
-    lastSummary: lastImportSummary ? { ...lastImportSummary } : null,
+    activeSession: cloneActiveImportSession(
+      activeImportSessionByScope[faceScope],
+    ),
+    lastSummary: lastImportSummaryByScope[faceScope]
+      ? { ...lastImportSummaryByScope[faceScope] }
+      : null,
     metrics: buildSnapshot(),
   };
 }
 
-export function getRuntimeImportProgressSnapshot(): RuntimeImportProgressSnapshot {
+export function getRuntimeImportProgressSnapshot(
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimeImportProgressSnapshot {
   return {
-    activeSession: cloneActiveImportSession(activeImportSession),
-    lastSummary: lastImportSummary ? { ...lastImportSummary } : null,
+    activeSession: cloneActiveImportSession(
+      activeImportSessionByScope[faceScope],
+    ),
+    lastSummary: lastImportSummaryByScope[faceScope]
+      ? { ...lastImportSummaryByScope[faceScope] }
+      : null,
   };
 }
 
@@ -448,7 +513,10 @@ export function subscribeRuntimePerfMetrics(listener: () => void) {
 export function startRuntimeImportPerfSession(options: {
   fingerprint: string;
   rootId: string | null;
+  faceScope?: RuntimeImportFaceScope;
 }) {
+  const faceScope = resolveImportFaceScope(options.faceScope);
+  const activeImportSession = activeImportSessionByScope[faceScope];
   if (
     activeImportSession &&
     activeImportSession.fingerprint === options.fingerprint
@@ -457,13 +525,18 @@ export function startRuntimeImportPerfSession(options: {
   }
 
   if (activeImportSession) {
-    finalizeRuntimeImportPerfSession("cancelled");
+    finalizeRuntimeImportPerfSession("cancelled", faceScope);
   }
 
   const rootLifecycle =
-    options.rootId === null ? null : rootLifecycleById.get(options.rootId);
+    options.rootId === null
+      ? null
+      : rootLifecycleById.get(
+          getScopedRootLifecycleId(options.rootId, faceScope),
+        );
   const session: ActiveRuntimeImportPerfSession = {
-    sessionId: nextSessionId++,
+    faceScope,
+    sessionId: nextSessionIdByScope[faceScope]++,
     fingerprint: options.fingerprint,
     rootId: options.rootId,
     startedAtMs: getNowMs(),
@@ -497,15 +570,19 @@ export function startRuntimeImportPerfSession(options: {
     rootAssignedToReadyMs: rootLifecycle?.rootAssignedToReadyMs ?? null,
     readyToFirstFrameMs: rootLifecycle?.readyToFirstFrameMs ?? null,
   };
-  activeImportSession = session;
-  state.activeImportSessionId = session.sessionId;
+  activeImportSessionByScope[faceScope] = session;
+  if (faceScope === DEFAULT_IMPORT_FACE_SCOPE) {
+    state.activeImportSessionId = session.sessionId;
+  }
   emitChange();
   return session.sessionId;
 }
 
 export function finalizeRuntimeImportPerfSession(
   status: RuntimeImportPerfSummary["status"],
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimeImportPerfSummary | null {
+  const activeImportSession = activeImportSessionByScope[faceScope];
   if (!activeImportSession) {
     return null;
   }
@@ -513,7 +590,9 @@ export function finalizeRuntimeImportPerfSession(
   const rootLifecycle =
     activeImportSession.rootId === null
       ? null
-      : rootLifecycleById.get(activeImportSession.rootId);
+      : rootLifecycleById.get(
+          getScopedRootLifecycleId(activeImportSession.rootId, faceScope),
+        );
   const summary: RuntimeImportPerfSummary = {
     ...activeImportSession,
     firstControllableFrameAtMs:
@@ -532,9 +611,11 @@ export function finalizeRuntimeImportPerfSession(
     ),
     status,
   };
-  lastImportSummary = summary;
-  activeImportSession = null;
-  state.activeImportSessionId = null;
+  lastImportSummaryByScope[faceScope] = summary;
+  activeImportSessionByScope[faceScope] = null;
+  if (faceScope === DEFAULT_IMPORT_FACE_SCOPE) {
+    state.activeImportSessionId = null;
+  }
   state.completedImportSessions += 1;
   emitChange();
   return summary;
@@ -546,13 +627,14 @@ export function recordGraphBridgeRun(
   options?: {
     publishedAtMs?: number;
   },
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   const publishedAtMs = sanitizeDuration(options?.publishedAtMs ?? getNowMs());
   state.graphBridgeRuns += 1;
   state.graphBridgePublishAttempts += 1;
   state.graphBridgeTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.graphBridgeRuns += 1;
     session.graphBridgePublishAttempts += 1;
   });
@@ -565,14 +647,14 @@ export function recordGraphBridgeRun(
   state.graphBridgeAcceptedUpdates += 1;
   state.graphBridgePublishes += 1;
   state.graphBridgePublishTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.graphBridgeAcceptedUpdates += 1;
     session.graphBridgePublishes += 1;
     session.graphBridgePublishTotalMs += sanitizedDuration;
   });
   if (mutationClass === "topology") {
     state.graphBridgeTopologyPublishes += 1;
-    withActiveImportSession((session) => {
+    withActiveImportSession(faceScope, (session) => {
       session.graphBridgeTopologyPublishes += 1;
       if (session.firstTopologyPublishAtMs === null) {
         session.firstTopologyPublishAtMs = publishedAtMs;
@@ -581,7 +663,7 @@ export function recordGraphBridgeRun(
     });
   } else {
     state.graphBridgePosePublishes += 1;
-    withActiveImportSession((session) => {
+    withActiveImportSession(faceScope, (session) => {
       session.graphBridgePosePublishes += 1;
       if (session.firstPosePublishAtMs === null) {
         session.firstPosePublishAtMs = publishedAtMs;
@@ -594,18 +676,20 @@ export function recordGraphBridgeRun(
 
 export function recordRuntimeControllerRegistrationRun(
   durationMs?: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs ?? 0);
   state.controllerRegistrationRuns += 1;
   state.controllerRegistrationTotalMs += sanitizedDuration;
   let sessionUpdated = false;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.controllerRegistrationRuns += 1;
     session.controllerRegistrationTotalMs += sanitizedDuration;
     sessionUpdated = true;
   });
+  const lastImportSummary = lastImportSummaryByScope[faceScope];
   if (!sessionUpdated && lastImportSummary) {
-    lastImportSummary = {
+    lastImportSummaryByScope[faceScope] = {
       ...lastImportSummary,
       controllerRegistrationRuns:
         lastImportSummary.controllerRegistrationRuns + 1,
@@ -616,9 +700,11 @@ export function recordRuntimeControllerRegistrationRun(
   return emitAndBuildSnapshot();
 }
 
-export function recordRigImportAttempt(): RuntimePerfMetricsSnapshot {
+export function recordRigImportAttempt(
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimePerfMetricsSnapshot {
   state.rigImportAttempts += 1;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.rigImportAttempts += 1;
   });
   return emitAndBuildSnapshot();
@@ -626,11 +712,12 @@ export function recordRigImportAttempt(): RuntimePerfMetricsSnapshot {
 
 export function recordRigPrepareSpecCall(
   durationMs: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.rigPrepareSpecCalls += 1;
   state.rigPrepareSpecTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.rigPrepareSpecCalls += 1;
     session.rigPrepareSpecTotalMs += sanitizedDuration;
   });
@@ -639,11 +726,12 @@ export function recordRigPrepareSpecCall(
 
 export function recordRigNormalizeCall(
   durationMs?: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs ?? 0);
   state.rigNormalizeCalls += 1;
   state.rigNormalizeTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.rigNormalizeCalls += 1;
     session.rigNormalizeTotalMs += sanitizedDuration;
   });
@@ -652,11 +740,12 @@ export function recordRigNormalizeCall(
 
 export function recordRigGraphImportRun(
   durationMs: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.rigGraphImportRuns += 1;
   state.rigGraphImportTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.rigGraphImportRuns += 1;
     session.rigGraphImportTotalMs += sanitizedDuration;
   });
@@ -665,11 +754,12 @@ export function recordRigGraphImportRun(
 
 export function recordBuildRigGraphSpecRun(
   durationMs: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.buildRigGraphSpecRuns += 1;
   state.buildRigGraphSpecTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.buildRigGraphSpecRuns += 1;
     session.buildRigGraphSpecTotalMs += sanitizedDuration;
   });
@@ -678,11 +768,12 @@ export function recordBuildRigGraphSpecRun(
 
 export function recordResolveRuntimeGraphSpecRun(
   durationMs: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.resolveRuntimeGraphSpecRuns += 1;
   state.resolveRuntimeGraphSpecTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.resolveRuntimeGraphSpecRuns += 1;
     session.resolveRuntimeGraphSpecTotalMs += sanitizedDuration;
   });
@@ -691,11 +782,12 @@ export function recordResolveRuntimeGraphSpecRun(
 
 export function recordPoseNormalizeRun(
   durationMs: number,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.poseNormalizeRuns += 1;
   state.poseNormalizeTotalMs += sanitizedDuration;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     session.poseNormalizeRuns += 1;
     session.poseNormalizeTotalMs += sanitizedDuration;
   });
@@ -704,6 +796,7 @@ export function recordPoseNormalizeRun(
 
 export function recordAssetLoadRun(
   durationMs: number,
+  _faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const sanitizedDuration = sanitizeDuration(durationMs);
   state.assetLoadRuns += 1;
@@ -716,9 +809,12 @@ export function markRuntimeRootAssigned(
   options?: {
     assetLoadMs?: number | null;
   },
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
   const nowMs = getNowMs();
-  const existing = rootLifecycleById.get(rootId);
+  const existing = rootLifecycleById.get(
+    getScopedRootLifecycleId(rootId, faceScope),
+  );
   const lifecycle: RuntimeRootLifecycle = {
     rootId,
     assignedAtMs: nowMs,
@@ -731,13 +827,16 @@ export function markRuntimeRootAssigned(
     rootAssignedToReadyMs: null,
     readyToFirstFrameMs: null,
   };
-  cacheRootLifecycle(lifecycle);
-  syncLifecycleIntoSummaries(rootId, lifecycle);
+  cacheRootLifecycle(lifecycle, faceScope);
+  syncLifecycleIntoSummaries(rootId, lifecycle, faceScope);
   return emitAndBuildSnapshot();
 }
 
-export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
-  const lifecycle = getOrCreateRootLifecycle(rootId);
+export function recordRuntimeReady(
+  rootId: string,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
+): RuntimePerfMetricsSnapshot {
+  const lifecycle = getOrCreateRootLifecycle(rootId, faceScope);
   if (lifecycle.readyAtMs !== null) {
     return emitAndBuildSnapshot();
   }
@@ -746,17 +845,18 @@ export function recordRuntimeReady(rootId: string): RuntimePerfMetricsSnapshot {
   lifecycle.rootAssignedToReadyMs = sanitizeDuration(
     nowMs - lifecycle.assignedAtMs,
   );
-  cacheRootLifecycle(lifecycle);
+  cacheRootLifecycle(lifecycle, faceScope);
   state.runtimeReadyRuns += 1;
   state.runtimeReadyTotalMs += lifecycle.rootAssignedToReadyMs;
-  syncLifecycleIntoSummaries(rootId, lifecycle);
+  syncLifecycleIntoSummaries(rootId, lifecycle, faceScope);
   return emitAndBuildSnapshot();
 }
 
 export function recordRuntimeFirstFrame(
   rootId: string,
+  faceScope: RuntimeImportFaceScope = DEFAULT_IMPORT_FACE_SCOPE,
 ): RuntimePerfMetricsSnapshot {
-  const lifecycle = getOrCreateRootLifecycle(rootId);
+  const lifecycle = getOrCreateRootLifecycle(rootId, faceScope);
   if (lifecycle.firstFrameAtMs !== null) {
     return emitAndBuildSnapshot();
   }
@@ -767,10 +867,10 @@ export function recordRuntimeFirstFrame(
     lifecycle.rootAssignedToReadyMs = 0;
   }
   lifecycle.readyToFirstFrameMs = sanitizeDuration(nowMs - lifecycle.readyAtMs);
-  cacheRootLifecycle(lifecycle);
+  cacheRootLifecycle(lifecycle, faceScope);
   state.runtimeReadyToFirstFrameRuns += 1;
   state.runtimeReadyToFirstFrameTotalMs += lifecycle.readyToFirstFrameMs;
-  withActiveImportSession((session) => {
+  withActiveImportSession(faceScope, (session) => {
     if (
       session.rootId === rootId &&
       session.firstControllableFrameAtMs === null
@@ -778,6 +878,6 @@ export function recordRuntimeFirstFrame(
       session.firstControllableFrameAtMs = lifecycle.firstFrameAtMs;
     }
   });
-  syncLifecycleIntoSummaries(rootId, lifecycle);
+  syncLifecycleIntoSummaries(rootId, lifecycle, faceScope);
   return emitAndBuildSnapshot();
 }

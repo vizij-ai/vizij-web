@@ -50,6 +50,30 @@ describe("resolveImportProgressState", () => {
     expect(state.detail).toContain("updates 1/1");
   });
 
+  it("uses the same schema for reference-face sessions", () => {
+    startRuntimeImportPerfSession({
+      fingerprint: "reference-fingerprint",
+      rootId: "reference-root",
+      faceScope: "reference",
+    });
+    recordRuntimeFirstFrame("reference-root", "reference");
+
+    const state = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: "reference-root",
+      faceScope: "reference",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("reference"),
+    });
+
+    expect(state).toMatchObject({
+      visible: true,
+      phase: "ready",
+      status: "success",
+      progress: 1,
+      label: "Import ready",
+    });
+  });
+
   it("reports ready after first controllable frame is recorded", () => {
     markRuntimeRootAssigned("root");
     startRuntimeImportPerfSession({

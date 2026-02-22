@@ -216,7 +216,7 @@ function RuntimeLifecyclePerfBridge() {
     }
     if (readyRootRef.current !== rootId) {
       readyRootRef.current = rootId;
-      recordRuntimeReady(rootId);
+      recordRuntimeReady(rootId, "main");
       recordRuntimeDebugEvent("viewer-runtime-ready", { rootId });
     }
     if (firstFrameRootRef.current === rootId) {
@@ -229,12 +229,12 @@ function RuntimeLifecyclePerfBridge() {
         return;
       }
       firstFrameRootRef.current = rootId;
-      const snapshot = recordRuntimeFirstFrame(rootId);
+      const snapshot = recordRuntimeFirstFrame(rootId, "main");
       recordRuntimeDebugEvent("viewer-runtime-first-frame", { rootId });
       if (process.env.NODE_ENV !== "production") {
         (globalThis as { __vizijRuntimePerf?: unknown }).__vizijRuntimePerf =
           snapshot;
-        const importSummary = getLastRuntimeImportPerfSummary();
+        const importSummary = getLastRuntimeImportPerfSummary("main");
         if (importSummary && importSummary.rootId === rootId) {
           (
             globalThis as { __vizijImportPerfSummary?: unknown }

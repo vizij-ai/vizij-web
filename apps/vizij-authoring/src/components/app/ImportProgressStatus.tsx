@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getRuntimeImportProgressSnapshot,
+  type RuntimeImportFaceScope,
   type RuntimeImportProgressSnapshot,
   subscribeRuntimePerfMetrics,
 } from "../../perf/runtimePerfMetrics";
@@ -9,6 +10,7 @@ import { resolveImportProgressState } from "../../perf/importProgress";
 interface ImportProgressStatusProps {
   isAssetLoading: boolean;
   rootId: string | null;
+  faceScope?: RuntimeImportFaceScope;
 }
 
 function areActiveSessionsEquivalent(
@@ -22,6 +24,7 @@ function areActiveSessionsEquivalent(
     return false;
   }
   return (
+    previous.faceScope === next.faceScope &&
     previous.sessionId === next.sessionId &&
     previous.rigNormalizeCalls === next.rigNormalizeCalls &&
     previous.rigGraphImportRuns === next.rigGraphImportRuns &&
@@ -43,6 +46,7 @@ function areSummariesEquivalent(
     return false;
   }
   return (
+    previous.faceScope === next.faceScope &&
     previous.sessionId === next.sessionId &&
     previous.rootId === next.rootId &&
     previous.status === next.status &&
@@ -82,35 +86,37 @@ function resolveProgressFillClass(
 export function ImportProgressStatus({
   isAssetLoading,
   rootId,
+  faceScope = "main",
 }: ImportProgressStatusProps) {
   const [sessionSnapshot, setSessionSnapshot] =
     useState<RuntimeImportProgressSnapshot>(() =>
-      getRuntimeImportProgressSnapshot(),
+      getRuntimeImportProgressSnapshot(faceScope),
     );
 
   useEffect(() => {
     return subscribeRuntimePerfMetrics(() => {
-      const nextSnapshot = getRuntimeImportProgressSnapshot();
+      const nextSnapshot = getRuntimeImportProgressSnapshot(faceScope);
       setSessionSnapshot((previous) =>
         areProgressSnapshotsEquivalent(previous, nextSnapshot)
           ? previous
           : nextSnapshot,
       );
     });
-  }, []);
+  }, [faceScope]);
 
   useEffect(() => {
-    const nextSnapshot = getRuntimeImportProgressSnapshot();
+    const nextSnapshot = getRuntimeImportProgressSnapshot(faceScope);
     setSessionSnapshot((previous) =>
       areProgressSnapshotsEquivalent(previous, nextSnapshot)
         ? previous
         : nextSnapshot,
     );
-  }, [isAssetLoading, rootId]);
+  }, [faceScope, isAssetLoading, rootId]);
 
   const progressState = resolveImportProgressState({
     isAssetLoading,
     rootId,
+    faceScope,
     sessionSnapshot,
   });
 

@@ -55,7 +55,11 @@ export function useVizijAssetLoader() {
         addWorldElements(worldData, animatables, true);
         const loadDurationMs = getNowMs() - loadStartMs;
         recordAssetLoadRun(loadDurationMs);
-        markRuntimeRootAssigned(nextRootId, { assetLoadMs: loadDurationMs });
+        markRuntimeRootAssigned(
+          nextRootId,
+          { assetLoadMs: loadDurationMs },
+          "main",
+        );
         setRootId(nextRootId);
         setSourceName(label);
         setBundle(loadedBundle ?? null);
