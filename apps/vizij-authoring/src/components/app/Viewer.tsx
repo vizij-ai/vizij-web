@@ -15,6 +15,7 @@ import {
   recordRuntimeFirstFrame,
   recordRuntimeReady,
 } from "../../perf/runtimePerfMetrics";
+import { useRuntimeInputDispatcher } from "../../hooks/useRuntimeInputDispatcher";
 import {
   createRuntimeGraphMutation,
   resolveRuntimeGraphMutationClass,
@@ -23,18 +24,15 @@ import {
 } from "./runtimeGraphMutation";
 
 function RuntimeInputBridge() {
-  const { setInput, controllableReady } = useVizijRuntime();
+  const { controllableReady } = useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const dispatchRuntimeInput = useRuntimeInputDispatcher();
 
   useEffect(() => {
     graphRuntimeStore.setState({
-      stageRuntimeInput: controllableReady
-        ? (graphPath: string, value: number) => {
-            setInput(graphPath, { float: value });
-          }
-        : undefined,
+      stageRuntimeInput: controllableReady ? dispatchRuntimeInput : undefined,
     });
-  }, [controllableReady, graphRuntimeStore, setInput]);
+  }, [controllableReady, dispatchRuntimeInput, graphRuntimeStore]);
 
   return null;
 }

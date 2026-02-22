@@ -7,7 +7,7 @@ Worktree: `authoring-features`
 ## Execution Status
 
 - `[x]` U0 Baseline Lock + Metrics Matrix (captured 5x OFF/ON Quori + Hugo and logged in tracker)
-- `[ ]` U1 Extract Shared Face Runtime Adapter
+- `[x]` U1 Extract Shared Face Runtime Adapter (shared runtime input dispatcher hook used by main + reference paths)
 - `[ ]` U2 Unify Phase Model and Import Summary Shape
 - `[ ]` U3 Normalize Publish Semantics Through One Mutation Contract
 - `[ ]` U4 Introduce Staged User-Visible Loading Policy

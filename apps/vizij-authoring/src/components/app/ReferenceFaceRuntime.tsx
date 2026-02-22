@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -10,6 +10,10 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import {
+  useRuntimeInputDispatcher,
+  type RuntimeInputDispatchPayload,
+} from "../../hooks/useRuntimeInputDispatcher";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -172,7 +176,6 @@ function ReferenceFaceBridge({
     controllableReady,
     loading,
     animateValue,
-    setInput,
     step,
     inputConstraints,
     faceId,
@@ -180,7 +183,6 @@ function ReferenceFaceBridge({
     assetBundle,
   } = useVizijRuntime();
   const animateValueRef = useRef(animateValue);
-  const setInputRef = useRef(setInput);
   const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
   const onStandardInputChangeRef = useRef(onStandardInputChange);
@@ -188,11 +190,10 @@ function ReferenceFaceBridge({
   // Keep refs updated
   useEffect(() => {
     animateValueRef.current = animateValue;
-    setInputRef.current = setInput;
     stepRef.current = step;
     faceIdRef.current = faceId;
     onStandardInputChangeRef.current = onStandardInputChange;
-  }, [animateValue, setInput, step, faceId, onStandardInputChange]);
+  }, [animateValue, step, faceId, onStandardInputChange]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById, standardInputsByPath } =
@@ -271,6 +272,28 @@ function ReferenceFaceBridge({
     standardInputsByPathRef.current = standardInputsByPath;
   }, [standardInputsByPath]);
 
+  const resolveReferenceRigPath = useCallback((inputPath: string) => {
+    const currentFaceId = faceIdRef.current;
+    return currentFaceId
+      ? `rig/${currentFaceId}${inputPath}`
+      : `rig/face${inputPath}`;
+  }, []);
+
+  const handleReferenceInputDispatched = useCallback(
+    ({ rawPath, value }: RuntimeInputDispatchPayload) => {
+      const input = standardInputsByPathRef.current.get(rawPath);
+      if (input && onStandardInputChangeRef.current) {
+        onStandardInputChangeRef.current(input.id, value);
+      }
+    },
+    [],
+  );
+
+  const dispatchReferenceRuntimeInput = useRuntimeInputDispatcher({
+    resolvePath: resolveReferenceRigPath,
+    onDispatched: handleReferenceInputDispatched,
+  });
+
   // Report loading state changes
   useEffect(() => {
     const isLoaded = controllableReady;
@@ -314,24 +337,12 @@ function ReferenceFaceBridge({
     }
 
     const animateFn = (inputPath: string, value: number) => {
-      // Build the full rig path
-      const currentFaceId = faceIdRef.current;
-      const rigPath = currentFaceId
-        ? `rig/${currentFaceId}${inputPath}`
-        : `rig/face${inputPath}`;
-
-      // Just set the input - the runtime's animation loop will pick it up
-      setInputRef.current(rigPath, { float: value });
-
-      // Also notify the callback so the value can be propagated
-      const input = standardInputsByPathRef.current.get(inputPath);
-      if (input && onStandardInputChangeRef.current) {
-        onStandardInputChangeRef.current(input.id, value);
-      }
+      // Runtime updates + propagation use the shared input bridge adapter.
+      dispatchReferenceRuntimeInput(inputPath, value);
     };
 
     onAnimateValueReady?.(animateFn);
-  }, [controllableReady, onAnimateValueReady]);
+  }, [controllableReady, dispatchReferenceRuntimeInput, onAnimateValueReady]);
 
   const isLoading = loading || !firstFrameReady || !controllableReady;
   const statusText = isLoading
