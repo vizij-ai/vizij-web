@@ -39,4 +39,10 @@ describe("pose control input guard contracts", () => {
       "buildFallbackGraphPath(faceId, input)",
     );
   });
+
+  it("routes reset-all defaults through the staged input batch path", () => {
+    expect(useRigControllerTs).toContain("handleResetAllInputValues");
+    expect(useRigControllerTs).toContain("applyStandardInputBatch(defaults");
+    expect(useRigControllerTs).toContain("{ replace: true }");
+  });
 });

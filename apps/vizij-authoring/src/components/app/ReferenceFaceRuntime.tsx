@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   type VizijAssetBundle,
+  VizijRuntimeFace,
   VizijRuntimeProvider,
   useVizijRuntime,
 } from "@vizij/runtime-react";
@@ -29,7 +30,6 @@ import {
   startRuntimeImportPerfSession,
 } from "../../perf/runtimePerfMetrics";
 import { resolveReferenceRuntimeSteppingPolicy } from "../../perf/referenceRuntimeSteppingPolicy";
-import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
   namespace?: string;
@@ -61,6 +61,10 @@ type ReferenceFaceRuntimeProps = {
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
   onToggleSplit?: () => void;
+  /** Whether to show selection outlines on face elements */
+  showSelectionGlow?: boolean;
+  /** Called when runtime stepping FPS estimate changes */
+  onRuntimeStepHzChange?: (stepHz: number | null) => void;
 };
 
 const FACE_ASSET_GLB_BASE = {
@@ -118,6 +122,8 @@ export function ReferenceFaceRuntime({
   onBundleReady,
   splitVertical,
   onToggleSplit,
+  showSelectionGlow = false,
+  onRuntimeStepHzChange,
 }: ReferenceFaceRuntimeProps) {
   const [activityBurstUntilMs, setActivityBurstUntilMs] = useState(0);
   const [, setActivityClockTick] = useState(0);
@@ -219,6 +225,8 @@ export function ReferenceFaceRuntime({
         onBundleReady={onBundleReady}
         splitVertical={splitVertical}
         onToggleSplit={onToggleSplit}
+        showSelectionGlow={showSelectionGlow}
+        onRuntimeStepHzChange={onRuntimeStepHzChange}
       />
     </VizijRuntimeProvider>
   );
@@ -246,6 +254,10 @@ type ReferenceFaceBridgeProps = {
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
   onToggleSplit?: () => void;
+  /** Whether to show selection outlines on face elements */
+  showSelectionGlow?: boolean;
+  /** Called when runtime stepping FPS estimate changes */
+  onRuntimeStepHzChange?: (stepHz: number | null) => void;
 };
 
 /**
@@ -266,6 +278,8 @@ function ReferenceFaceBridge({
   onBundleReady,
   splitVertical,
   onToggleSplit,
+  showSelectionGlow = false,
+  onRuntimeStepHzChange,
 }: ReferenceFaceBridgeProps) {
   const {
     firstFrameReady,
@@ -548,72 +562,53 @@ function ReferenceFaceBridge({
     onRuntimeActivity,
   ]);
 
-  const isLoading = loading || !firstFrameReady || !controllableReady;
-  const statusText = isLoading
-    ? firstFrameReady
-      ? "Preparing controls…"
-      : "Loading…"
-    : "Ready";
-
   const formattedFps =
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
+  useEffect(() => {
+    onRuntimeStepHzChange?.(
+      typeof stepHz === "number" && Number.isFinite(stepHz) ? stepHz : null,
+    );
+    return () => {
+      onRuntimeStepHzChange?.(null);
+    };
+  }, [onRuntimeStepHzChange, stepHz]);
+
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
-            Reference Face
-          </p>
-          <div className="flex items-center gap-1.5">
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                controllableReady
-                  ? "bg-green-500"
-                  : isLoading
-                    ? "bg-accent animate-pulse"
-                    : "bg-text-muted"
-              }`}
-            />
-            <p className="m-0 text-[10px] text-text-secondary font-bold">
-              {statusText}
-            </p>
-          </div>
-        </div>
-        <div className="ref-face-viewer__controls">
-          <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
-              idleThrottled
-                ? "border-amber-600/60 bg-amber-900/20 text-amber-300"
-                : "border-emerald-600/60 bg-emerald-900/20 text-emerald-300"
-            }`}
-          >
-            {steppingPolicyLabel}
-          </span>
-          <span className="ref-face-viewer__fps">{formattedFps}</span>
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="ref-face-viewer__canvas">
-        <RuntimeFaceFrame
-          variant="fill"
-          className="hero-face-card"
-          showSelectionGlow
-        />
+    <div className="h-full w-full relative bg-bg-panel overflow-hidden">
+      <VizijRuntimeFace
+        className="h-full w-full"
+        showSafeArea={false}
+        showSelectionGlow={showSelectionGlow}
+      />
+      <div className="pointer-events-none absolute top-2 left-2 z-10 flex items-center gap-2">
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+            idleThrottled
+              ? "border-amber-600/60 bg-amber-900/20 text-amber-300"
+              : "border-emerald-600/60 bg-emerald-900/20 text-emerald-300"
+          }`}
+        >
+          {steppingPolicyLabel}
+        </span>
+        <span className="ref-face-viewer__fps rounded border border-border-default/70 bg-bg-panel/70 px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary">
+          {formattedFps}
+        </span>
       </div>
+      {onToggleSplit && (
+        <button
+          type="button"
+          className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/30 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all text-xs cursor-pointer active:scale-90"
+          title={
+            splitVertical
+              ? "Switch to horizontal split"
+              : "Switch to vertical split"
+          }
+          onClick={onToggleSplit}
+        >
+          {splitVertical ? "⬌" : "⬍"}
+        </button>
+      )}
     </div>
   );
 }
@@ -628,36 +623,24 @@ function ReferenceFacePlaceholder({
   onToggleSplit,
 }: ReferenceFacePlaceholderProps) {
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
-            Reference Face
-          </p>
-          <p className="m-0 text-[10px] text-text-muted italic font-medium">
-            No file loaded
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-bg-app/40">
-        <p className="text-text-muted text-[11px] text-center px-6 max-w-[240px] italic leading-relaxed">
-          Load a reference face GLB using the sidebar to begin.
+    <div className="h-full w-full relative bg-bg-panel overflow-hidden">
+      {onToggleSplit && (
+        <button
+          type="button"
+          className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/30 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all text-xs cursor-pointer active:scale-90"
+          title={
+            splitVertical
+              ? "Switch to horizontal split"
+              : "Switch to vertical split"
+          }
+          onClick={onToggleSplit}
+        >
+          {splitVertical ? "⬌" : "⬍"}
+        </button>
+      )}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <p className="text-text-muted text-[11px] text-center px-6 max-w-[260px] italic leading-relaxed">
+          Load a reference face GLB to begin comparing and transferring inputs.
         </p>
       </div>
     </div>

@@ -15,6 +15,16 @@ Worktree: `authoring-features`
 - `[x]` U6 Cross-Face Contract Tests (phase-order invariants, dual-face selection/outline wiring, dual-FPS surfaces, and pose-refresh contract guards are now covered)
 - `[x]` U7 Cross-Asset Performance Validation (3x OFF matrix rerun completed on Quori/Hugo/custom; correctness checks green; sub-5s mean target still not met)
 
+## Deep-Dive Follow-Up (2026-02-22)
+
+- Closed an immediate-registration gap in the pending input-binding load path:
+  - `useRigController` now resolves pending binding definitions for graph-build input in the same render, instead of waiting for a post-render effect to publish bindings.
+  - This removes a one-render stale window where imported bindings could appear unresolved until a later interaction.
+- Added focused regression coverage:
+  - `src/hooks/__tests__/pendingInputBindings.test.ts` covers pending-definition resolution behavior (known inputs + parent-route filtering).
+- Confirmed variable copy path remains immediate:
+  - `With Bindings` applies mapped routes before unresolved-route modal decisions, with rollback on `Variable Only`/`Cancel`.
+
 ## Executive Decision
 
 Use the same import/staging pipeline for both faces, but keep two runtime providers/stores.

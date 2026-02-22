@@ -136,7 +136,10 @@ export function resolveImportProgressState({
   }
 
   const summary = sessionSnapshot.lastSummary;
-  if (summary && rootId && summary.rootId === rootId) {
+  const summaryMatchesRoot =
+    summary &&
+    ((rootId && summary.rootId === rootId) || (isReferenceFace && !rootId));
+  if (summary && summaryMatchesRoot) {
     if (summary.status === "failure") {
       return {
         visible: true,

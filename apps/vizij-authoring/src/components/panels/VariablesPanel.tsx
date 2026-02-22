@@ -2175,6 +2175,43 @@ export function VariablesPanel({
     });
   };
 
+  const captureVariableBindingSnapshot = (
+    bindingsToApply: InputBindingMap,
+  ): Map<string, AnimatableBinding | null> => {
+    const snapshot = new Map<string, AnimatableBinding | null>();
+    Object.keys(bindingsToApply).forEach((targetInputId) => {
+      snapshot.set(targetInputId, inputBindings[targetInputId] ?? null);
+    });
+    return snapshot;
+  };
+
+  const restoreVariableBindingSnapshot = (
+    snapshot: Map<string, AnimatableBinding | null>,
+  ) => {
+    if (snapshot.size === 0) {
+      return;
+    }
+    applyInputBindingPatch((previous) => {
+      const next: InputBindingMap = { ...previous };
+      let changed = false;
+      snapshot.forEach((binding, targetInputId) => {
+        if (binding) {
+          if (next[targetInputId] !== binding) {
+            next[targetInputId] = binding;
+            changed = true;
+          }
+          return;
+        }
+        if (!(targetInputId in next)) {
+          return;
+        }
+        delete next[targetInputId];
+        changed = true;
+      });
+      return changed ? next : previous;
+    });
+  };
+
   function copyReferenceVariableToMainWithMode(
     referenceEntry: RigNodeData,
     options?: {
@@ -2202,6 +2239,19 @@ export function VariablesPanel({
           createMissingUpstreams: true,
         },
       );
+      const hasMappedBindings = Object.keys(plan.bindingsToApply).length > 0;
+      const bindingSnapshot = hasMappedBindings
+        ? captureVariableBindingSnapshot(plan.bindingsToApply)
+        : null;
+      if (hasMappedBindings) {
+        // Apply resolvable routes immediately so copied variables are runtime-ready
+        // without waiting for a second modal action.
+        applyVariableBindingCopyPlan(plan.bindingsToApply);
+      }
+      if (select) {
+        onSelectRig?.(copiedId);
+        onSelectPoseGroup?.(null);
+      }
       if (plan.unresolved.length > 0) {
         setCopyRetargetModal({
           title: "Variable Binding Retargeting Needed",
@@ -2212,7 +2262,7 @@ export function VariablesPanel({
               id: "apply-mapped-bindings",
               label: "Apply Mapped Bindings",
               description:
-                "Apply the binding logic that could be resolved and leave unresolved routes disconnected.",
+                "Keep the mapped binding logic and leave unresolved routes disconnected.",
               variant: "primary",
             },
             {
@@ -2231,26 +2281,14 @@ export function VariablesPanel({
             },
           ],
           onResolve: (choice) => {
-            if (choice === "apply-mapped-bindings") {
-              applyVariableBindingCopyPlan(plan.bindingsToApply);
-            }
-            if (
-              select &&
-              (choice === "apply-mapped-bindings" ||
-                choice === "copy-variable-only")
-            ) {
-              onSelectRig?.(copiedId);
-              onSelectPoseGroup?.(null);
+            if (choice === "copy-variable-only" || choice === "cancel") {
+              if (bindingSnapshot) {
+                restoreVariableBindingSnapshot(bindingSnapshot);
+              }
             }
           },
         });
         return null;
-      } else {
-        applyVariableBindingCopyPlan(plan.bindingsToApply);
-        if (select) {
-          onSelectRig?.(copiedId);
-          onSelectPoseGroup?.(null);
-        }
       }
       return copiedId;
     }

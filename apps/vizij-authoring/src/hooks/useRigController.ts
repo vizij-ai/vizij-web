@@ -89,6 +89,7 @@ import {
   updateStandardInputEntry,
 } from "./standardInputMutations";
 import { linkChildInput, unlinkChildInput } from "./standardInputLinks";
+import { resolvePendingInputBindings } from "./pendingInputBindings";
 import {
   buildFallbackGraphPath,
   subscribeRuntimeInputBridgeAvailable,
@@ -1372,32 +1373,30 @@ export function useRigController(
     viewerSelectionActiveRef,
   });
 
+  const pendingInputBindingDefinitions =
+    pendingInputBindingDefinitionsRef.current;
+
   useEffect(() => {
-    const pending = pendingInputBindingDefinitionsRef.current;
-    if (!pending || standardInputsById.size === 0) {
+    const next = resolvePendingInputBindings(
+      pendingInputBindingDefinitions,
+      standardInputsById,
+    );
+    if (!next) {
       return;
     }
-    const next: InputBindingMap = {};
-    Object.entries(pending).forEach(([inputId, definition]) => {
-      const input = standardInputsById.get(inputId);
-      if (!input) {
-        return;
-      }
-      const target = bindingTargetFromInput(input);
-      const binding = bindingFromDefinition(target, definition);
-      const hasParents =
-        (binding.inputId && binding.inputId !== SELF_BINDING_ID) ||
-        binding.slots.some(
-          (slot) => slot.inputId && slot.inputId !== SELF_BINDING_ID,
-        );
-      if (!hasParents) {
-        return;
-      }
-      next[inputId] = binding;
-    });
     setInputBindings(next);
     pendingInputBindingDefinitionsRef.current = null;
-  }, [standardInputsById]);
+  }, [pendingInputBindingDefinitions, standardInputsById]);
+
+  const pendingInputBindings = useMemo(
+    () =>
+      resolvePendingInputBindings(
+        pendingInputBindingDefinitions,
+        standardInputsById,
+      ),
+    [pendingInputBindingDefinitions, standardInputsById],
+  );
+  const effectiveInputBindings = pendingInputBindings ?? inputBindings;
 
   const rigGraphBuild = useMemo<BuildGraphResult | null>(() => {
     if (!faceId) {
@@ -1412,7 +1411,7 @@ export function useRigController(
       components: animatableComponents,
       bindings,
       inputsById: standardInputsById,
-      inputBindings,
+      inputBindings: effectiveInputBindings,
       inputMetadata: standardInputMetadataById,
       inputComposeModesById: poseComposeModesByInputId,
     });
@@ -1422,7 +1421,7 @@ export function useRigController(
     animatableComponents,
     animatables,
     bindings,
-    inputBindings,
+    effectiveInputBindings,
     faceId,
     poseConfigSnapshot,
     standardInputsById,
@@ -1811,21 +1810,13 @@ export function useRigController(
   );
 
   const handleResetAllInputValues = useCallback(() => {
-    updateInputValues((previous) => {
-      const defaults = createDefaultInputValues(
-        managedStandardInputs.map((entry) => entry.input),
-      );
-      const previousKeys = Object.keys(previous);
-      const defaultKeys = Object.keys(defaults);
-      if (
-        previousKeys.length === defaultKeys.length &&
-        defaultKeys.every((key) => previous[key] === defaults[key])
-      ) {
-        return previous;
-      }
-      return defaults;
-    });
-  }, [managedStandardInputs, updateInputValues]);
+    const defaults = createDefaultInputValues(
+      managedStandardInputs.map((entry) => entry.input),
+    );
+    // Route resets through the same staging path used for batched updates so
+    // runtime graph inputs and UI state stay in lockstep.
+    applyStandardInputBatch(defaults, { replace: true });
+  }, [applyStandardInputBatch, managedStandardInputs]);
 
   const handleSelectStandardInputRoots = useCallback(
     (nextRoots: string[]) => {

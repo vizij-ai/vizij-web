@@ -377,6 +377,66 @@ describe("VariablesPanel", () => {
     );
   });
 
+  it("copies binding logic when reference path snapshot is missing but reference input paths exist", () => {
+    const mainDriver = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+    });
+    const referenceDriver = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Ref Jaw Open",
+    });
+    const referenceTarget = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+    });
+    const createdTarget = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.standardInputs = [referenceDriver, referenceTarget];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceDriver.id, referenceDriver],
+      [referenceTarget.id, referenceTarget],
+    ]);
+    referenceFaceState.referenceInputPathById = {};
+    referenceFaceState.referenceInputBindings = {
+      [referenceTarget.id]: {
+        targetId: referenceTarget.id,
+        inputId: referenceDriver.id,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: referenceDriver.id }],
+      },
+    };
+    bindingState.managedStandardInputs = [
+      { input: mainDriver, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([[mainDriver.id, mainDriver]]);
+    bindingState.standardInputsByPath = new Map([
+      [mainDriver.path, mainDriver],
+    ]);
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(createdTarget);
+    let nextBindings: Record<string, any> = {};
+    bindingState.applyInputBindingPatch.mockImplementation((updater: any) => {
+      nextBindings = updater(nextBindings);
+      bindingState.inputBindings = nextBindings;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "With Bindings" }),
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Vars → Main (1)",
+      }),
+    );
+
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
+    expect(nextBindings[createdTarget.id]).toEqual(
+      expect.objectContaining({
+        targetId: createdTarget.id,
+        inputId: mainDriver.id,
+      }),
+    );
+  });
+
   it("shows variable retargeting modal when unresolved binding routes remain", () => {
     const referenceTarget = makeInput("ref_smile", "/standard/mouth/smile", {
       label: "Ref Smile",
@@ -416,6 +476,8 @@ describe("VariablesPanel", () => {
       }),
     );
 
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
+    expect(nextBindings[createdTarget.id]?.inputId).toBeNull();
     expect(
       screen.getByText("Variable Binding Retargeting Needed"),
     ).toBeTruthy();
@@ -424,6 +486,52 @@ describe("VariablesPanel", () => {
     );
     expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
     expect(nextBindings[createdTarget.id]?.inputId).toBeNull();
+  });
+
+  it("reverts mapped bindings when unresolved variable copy chooses Variable Only", () => {
+    const referenceTarget = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+    });
+    const createdTarget = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.standardInputs = [referenceTarget];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceTarget.id, referenceTarget],
+    ]);
+    referenceFaceState.referenceInputPathById = {
+      [referenceTarget.id]: "/standard/mouth/smile",
+    };
+    referenceFaceState.referenceInputBindings = {
+      [referenceTarget.id]: {
+        targetId: referenceTarget.id,
+        inputId: "missing_reference_input",
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "missing_reference_input" }],
+      },
+    };
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(createdTarget);
+    let nextBindings: Record<string, any> = {};
+    bindingState.applyInputBindingPatch.mockImplementation((updater: any) => {
+      nextBindings = updater(nextBindings);
+      bindingState.inputBindings = nextBindings;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "With Bindings" }),
+    );
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Copy Ref Vars → Main (1)",
+      }),
+    );
+
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(1);
+    expect(nextBindings[createdTarget.id]?.inputId).toBeNull();
+    fireEvent.click(screen.getByText("Variable Only").closest("button")!);
+    expect(bindingState.applyInputBindingPatch).toHaveBeenCalledTimes(2);
+    expect(nextBindings[createdTarget.id]).toBeUndefined();
   });
 
   it("surfaces a modal when reference variable copy conflicts with existing main metadata", () => {

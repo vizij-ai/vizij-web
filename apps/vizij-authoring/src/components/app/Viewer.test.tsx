@@ -17,6 +17,7 @@ const setInputSpy = vi.fn();
 const setGraphBundleSpy = vi.fn();
 const selectElementByIdSpy = vi.fn();
 let runtimeSelectedElementId: string | null = null;
+let runtimeStepHz: number | undefined;
 
 vi.mock("@vizij/runtime-react", () => ({
   VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
@@ -36,6 +37,7 @@ vi.mock("@vizij/runtime-react", () => ({
     error: null,
     controllers: { graphs: [] },
     outputPaths: [],
+    stepHz: runtimeStepHz,
     setGraphBundle: setGraphBundleSpy,
     selectedElementId: runtimeSelectedElementId,
     selectElementById: selectElementByIdSpy,
@@ -80,6 +82,7 @@ describe("Viewer", () => {
     vi.clearAllMocks();
     resetRuntimePerfMetrics();
     runtimeSelectedElementId = null;
+    runtimeStepHz = undefined;
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -209,6 +212,36 @@ describe("Viewer", () => {
     });
 
     expect(onSelectSceneChange).toHaveBeenCalledWith("shape_2");
+  });
+
+  it("reports runtime fps updates to app callbacks", () => {
+    runtimeStepHz = 58.4;
+    const onRuntimeStepHzChange = vi.fn();
+
+    const { unmount } = renderViewer({
+      rootId: "root",
+      namespace: "vizij",
+      bundle: {
+        namespace: "vizij",
+        glb: {
+          kind: "world",
+          world: {} as any,
+          animatables: {} as any,
+          bundle: null,
+        },
+      },
+      selectedSceneId: null,
+      onSelectSceneChange: () => {},
+      onClearSelection: () => {},
+      showSelectionGlow: true,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+      onLoadHugo: () => {},
+      onRuntimeStepHzChange,
+    });
+
+    expect(onRuntimeStepHzChange).toHaveBeenCalledWith(58.4);
+    unmount();
   });
 
   it("registers rig and pose graph payloads concurrently", () => {

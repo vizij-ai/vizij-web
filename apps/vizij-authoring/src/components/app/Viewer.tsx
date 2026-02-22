@@ -254,7 +254,13 @@ function RuntimeLifecyclePerfBridge() {
   return null;
 }
 
-function RuntimeStatusDebug() {
+interface RuntimeStatusDebugProps {
+  onRuntimeStepHzChange?: (stepHz: number | null) => void;
+}
+
+function RuntimeStatusDebug({
+  onRuntimeStepHzChange,
+}: RuntimeStatusDebugProps) {
   const {
     loading,
     ready,
@@ -281,6 +287,15 @@ function RuntimeStatusDebug() {
     : "text-amber-100 border-amber-600/60 bg-amber-950/60";
   const formattedFps =
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+
+  useEffect(() => {
+    onRuntimeStepHzChange?.(
+      typeof stepHz === "number" && Number.isFinite(stepHz) ? stepHz : null,
+    );
+    return () => {
+      onRuntimeStepHzChange?.(null);
+    };
+  }, [onRuntimeStepHzChange, stepHz]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -328,6 +343,7 @@ export interface ViewerProps {
   onImportClick: () => void;
   onLoadQuori: () => void;
   onLoadHugo: () => void;
+  onRuntimeStepHzChange?: (stepHz: number | null) => void;
 }
 
 export function Viewer({
@@ -341,6 +357,7 @@ export function Viewer({
   onImportClick,
   onLoadQuori,
   onLoadHugo,
+  onRuntimeStepHzChange,
 }: ViewerProps) {
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
@@ -357,6 +374,12 @@ export function Viewer({
     },
     [],
   );
+  useEffect(() => {
+    if (!rootId || !bundle) {
+      onRuntimeStepHzChange?.(null);
+    }
+  }, [bundle, onRuntimeStepHzChange, rootId]);
+
   return (
     <main className="h-full w-full relative bg-bg-panel overflow-hidden">
       {(runtimeWarning || runtimeError) && (
@@ -387,7 +410,7 @@ export function Viewer({
               selectedSceneId={selectedSceneId}
               onSelectSceneChange={onSelectSceneChange}
             />
-            <RuntimeStatusDebug />
+            <RuntimeStatusDebug onRuntimeStepHzChange={onRuntimeStepHzChange} />
             <div
               className="h-full w-full"
               onPointerDown={(event) => {

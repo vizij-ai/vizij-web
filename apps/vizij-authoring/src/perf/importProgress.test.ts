@@ -166,6 +166,31 @@ describe("resolveImportProgressState", () => {
     expect(state.detail).toContain("duration");
   });
 
+  it("uses reference summary even when reference rootId is not provided", () => {
+    startRuntimeImportPerfSession({
+      fingerprint: "reference-fingerprint",
+      rootId: "reference-root",
+      faceScope: "reference",
+    });
+    recordRuntimeFirstFrame("reference-root", "reference");
+    finalizeRuntimeImportPerfSession("success", "reference");
+
+    const state = resolveImportProgressState({
+      isAssetLoading: false,
+      rootId: null,
+      faceScope: "reference",
+      sessionSnapshot: getRuntimeImportPerfSessionSnapshot("reference"),
+    });
+
+    expect(state).toMatchObject({
+      visible: true,
+      phase: "ready",
+      status: "success",
+      progress: 1,
+      label: "Import ready",
+    });
+  });
+
   it("hides status when there is no active import and no matching summary", () => {
     const state = resolveImportProgressState({
       isAssetLoading: false,

@@ -1962,6 +1962,14 @@ export function InspectorContent() {
     if (rigInput) {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
+      const clampedDefaultValue = clampToRange(
+        typeof input.defaultValue === "number" &&
+          Number.isFinite(input.defaultValue)
+          ? input.defaultValue
+          : 0,
+        input.range.min ?? -1,
+        input.range.max ?? 1,
+      );
       const parentBinding = inputBindings[input.id];
       const isRemovableCustomInput = rigInput.source === "custom";
       const deleteGuardrailMessage = isRemovableCustomInput
@@ -1975,6 +1983,15 @@ export function InspectorContent() {
         !controllableResolution.blockedReason &&
         (controllableResolution.inputId === null ||
           controllableResolution.inputId === input.id);
+      const canResetDirectRigValue =
+        isDirectRigControlAvailable &&
+        Math.abs(value - clampedDefaultValue) > 1e-6;
+      const handleResetDirectRigValue = () => {
+        if (!isDirectRigControlAvailable) {
+          return;
+        }
+        handleInputValueChange(input.id, clampedDefaultValue);
+      };
       const directRigControlReason = controllableResolution.blockedReason
         ? controllableResolution.blockedReason
         : controllableResolution.inputId &&
@@ -2754,6 +2771,16 @@ export function InspectorContent() {
                     }}
                   />
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] whitespace-nowrap"
+                  onClick={handleResetDirectRigValue}
+                  disabled={!canResetDirectRigValue}
+                  title="Reset input to default"
+                >
+                  Reset
+                </Button>
               </div>
             )}
           />

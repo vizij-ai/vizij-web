@@ -46,6 +46,20 @@ describe("App runtime performance contracts", () => {
     expect(selectors).not.toContain("resolveDiscrepancyReview");
   });
 
+  it("surfaces reference-face import progress alongside main progress", () => {
+    const source = readAppSource();
+    expect(source).toContain("referenceFaceStatusVisible");
+    expect(source).toContain('faceScope="reference"');
+  });
+
+  it("keeps top-bar fps monitors and reset-inputs action wired", () => {
+    const source = readAppSource();
+    expect(source).toContain("Main FPS:");
+    expect(source).toContain("Ref FPS:");
+    expect(source).toContain("Reset Inputs");
+    expect(source).toContain("handleResetAllInputs");
+  });
+
   it("keeps Viewer runtime graph bridge driven by revision selectors", () => {
     const source = readViewerSource();
     const selectors = collectGraphRuntimeSelectors(source);

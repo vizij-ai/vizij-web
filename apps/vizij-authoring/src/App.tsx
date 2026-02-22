@@ -113,6 +113,12 @@ function AppContent({
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
   const [includeAutorigInputs, setIncludeAutorigInputs] = useState(true);
+  const [mainRuntimeStepHz, setMainRuntimeStepHz] = useState<number | null>(
+    null,
+  );
+  const [referenceRuntimeStepHz, setReferenceRuntimeStepHz] = useState<
+    number | null
+  >(null);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
@@ -132,6 +138,9 @@ function AppContent({
 
   const mainFaceHandleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
+  );
+  const mainFaceHandleResetAllInputValues = useBindingAuthoring(
+    (state) => state.handleResetAllInputValues,
   );
   const mainFaceInputValues = useBindingAuthoring((state) => state.inputValues);
   const mainFaceInputsById = useBindingAuthoring(
@@ -577,6 +586,17 @@ function AppContent({
     resetBundleSyncState();
   }, [clearLoaderError, clearSampleLoadFailure, loader, resetBundleSyncState]);
 
+  const handleResetAllInputs = useCallback(() => {
+    mainFaceHandleResetAllInputValues();
+    referenceFaceContextValue.handleResetAllInputValues();
+  }, [mainFaceHandleResetAllInputValues, referenceFaceContextValue]);
+
+  useEffect(() => {
+    if (!panels.referenceFace.isVisible || !referenceFaceContextValue.file) {
+      setReferenceRuntimeStepHz(null);
+    }
+  }, [panels.referenceFace.isVisible, referenceFaceContextValue.file]);
+
   const menuBar = (
     <AppMenuBar
       onNew={handleNewClick}
@@ -605,6 +625,10 @@ function AppContent({
     isAssetLoading: isLoading,
     hasRuntimeInputBridge: mainFaceRuntimeInputBridgeReady,
   });
+  const referenceFaceStatusVisible =
+    Boolean(referenceFaceContextValue.file) ||
+    referenceFaceContextValue.isLoading ||
+    referenceFaceContextValue.isLoaded;
   const controlsLocked =
     Boolean(rootId) && !mainFaceLoadingPolicy.interactionEnabled;
   const panelInteractivityClass = controlsLocked
@@ -685,6 +709,7 @@ function AppContent({
               onImportClick={handleImportClick}
               onLoadQuori={loadQuoriSample}
               onLoadHugo={loadHugoSample}
+              onRuntimeStepHzChange={setMainRuntimeStepHz}
             />
           </ResizablePanel>
           <PanelResizeHandle
@@ -699,6 +724,8 @@ function AppContent({
               selectedSceneId={selectedSceneId}
               splitVertical={viewerSplitVertical}
               onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
+              showSelectionGlow={showSelectionGlow}
+              onRuntimeStepHzChange={setReferenceRuntimeStepHz}
             />
           </ResizablePanel>
         </PanelGroup>
@@ -714,6 +741,7 @@ function AppContent({
           onImportClick={handleImportClick}
           onLoadQuori={loadQuoriSample}
           onLoadHugo={loadHugoSample}
+          onRuntimeStepHzChange={setMainRuntimeStepHz}
         />
       )}
 
@@ -772,6 +800,41 @@ function AppContent({
                 rootId={rootId}
                 faceScope="main"
               />
+              {referenceFaceStatusVisible ? (
+                <ImportProgressStatus
+                  isAssetLoading={referenceFaceContextValue.isLoading}
+                  rootId={null}
+                  faceScope="reference"
+                />
+              ) : null}
+              <div className="rounded border border-border-default/70 bg-bg-panel/40 px-2 py-1 text-[10px] font-semibold text-text-secondary">
+                Main FPS:{" "}
+                <span className="font-mono text-text-primary">
+                  {typeof mainRuntimeStepHz === "number" &&
+                  Number.isFinite(mainRuntimeStepHz)
+                    ? `${Math.round(mainRuntimeStepHz)}`
+                    : "—"}
+                </span>
+              </div>
+              {referenceFaceStatusVisible ? (
+                <div className="rounded border border-border-default/70 bg-bg-panel/40 px-2 py-1 text-[10px] font-semibold text-text-secondary">
+                  Ref FPS:{" "}
+                  <span className="font-mono text-text-primary">
+                    {typeof referenceRuntimeStepHz === "number" &&
+                    Number.isFinite(referenceRuntimeStepHz)
+                      ? `${Math.round(referenceRuntimeStepHz)}`
+                      : "—"}
+                  </span>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className="rounded border border-border-default/70 bg-bg-panel/40 px-2 py-1 text-[10px] font-semibold text-text-secondary hover:bg-bg-panel/70 transition-colors"
+                onClick={handleResetAllInputs}
+                title="Reset all main and reference inputs to their default values"
+              >
+                Reset Inputs
+              </button>
               <div
                 className={`ml-auto rounded border px-2 py-1 text-[10px] font-semibold tracking-wide ${
                   mainFaceLoadingPolicy.interactionEnabled

@@ -49,6 +49,10 @@ describe("cross-face runtime contracts", () => {
 
   it("keeps outline glow wiring on both face canvases", () => {
     expect(viewerSource).toContain("showSelectionGlow={showSelectionGlow}");
+    expect(appSource).toContain("showSelectionGlow={showSelectionGlow}");
+    expect(referencePanelSource).toContain(
+      "showSelectionGlow={showSelectionGlow}",
+    );
     expect(referenceRuntimeSource).toContain("showSelectionGlow");
     expect(runtimeFaceFrameSource).toContain(
       "showSelectionGlow={showSelectionGlow}",

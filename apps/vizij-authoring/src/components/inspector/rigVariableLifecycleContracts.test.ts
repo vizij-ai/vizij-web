@@ -16,6 +16,7 @@ describe("B2.1 variable lifecycle contracts", () => {
     expect(inspectorContentTsx).toContain("Variable Metadata");
     expect(inspectorContentTsx).toContain("Apply Metadata");
     expect(inspectorContentTsx).toContain("handleApplyRigMetadataDraft");
+    expect(inspectorContentTsx).toContain("Reset input to default");
   });
 
   it("exposes guardrail messaging for invalid edits and destructive actions", () => {
