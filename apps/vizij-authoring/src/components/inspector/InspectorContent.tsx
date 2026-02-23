@@ -73,6 +73,7 @@ import {
   type InspectorChainNode,
 } from "./inspectorChainPath";
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
+import { buildAutorigLockIndex } from "./autorigLockIndex";
 
 type PoseVariableItem = {
   varId: string;
@@ -255,6 +256,12 @@ export function InspectorContent() {
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const handleDisableStandardInput = useBindingAuthoring(
+    (state) => state.handleDisableStandardInput,
+  );
+  const handleEnableStandardInput = useBindingAuthoring(
+    (state) => state.handleEnableStandardInput,
+  );
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -327,6 +334,10 @@ export function InspectorContent() {
       ) ?? null
     );
   }, [managedStandardInputs, resolvedSelectedRigId]);
+  const autorigLockIndex = useMemo(
+    () => buildAutorigLockIndex(managedStandardInputs),
+    [managedStandardInputs],
+  );
   const autorigInputIdByComponentId = useMemo(() => {
     type Candidate = {
       inputId: string;
@@ -3150,6 +3161,10 @@ export function InspectorContent() {
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
+                  autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+                  disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+                  onDisableAutorigInput={handleDisableStandardInput}
+                  onEnableAutorigInput={handleEnableStandardInput}
                 />
               )}
               {opacityFeature && (
@@ -3169,6 +3184,10 @@ export function InspectorContent() {
                   onConstraintChange={updateAnimatableDescriptor}
                   onUpdateStandardInput={handleUpdateStandardInput}
                   setStaticFeatureValue={setStaticFeatureValue}
+                  autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+                  disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+                  onDisableAutorigInput={handleDisableStandardInput}
+                  onEnableAutorigInput={handleEnableStandardInput}
                 />
               )}
             </div>

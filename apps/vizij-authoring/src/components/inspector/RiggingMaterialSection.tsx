@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue, RawValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
