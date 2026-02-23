@@ -189,8 +189,15 @@ describe("BindingConnections routing", () => {
       />,
     );
 
+    fireEvent.click(view.getByTestId("binding-trace-section-toggle"));
     fireEvent.click(view.getByTitle("Inspect Mouth X"));
+    fireEvent.click(view.getByTestId("binding-rigs-section-toggle"));
+    fireEvent.click(
+      view.getByTestId("binding-rig-category-toggle-pose-aggregates"),
+    );
     fireEvent.click(view.getByRole("button", { name: /Mouth Open/i }));
+    fireEvent.click(view.getByTestId("binding-poses-section-toggle"));
+    fireEvent.click(view.getByTestId("binding-pose-group-toggle-rig_1"));
     fireEvent.click(view.getAllByRole("button", { name: /Smile/i })[0]);
 
     expect(onSelectTarget).toHaveBeenCalledWith("shape:mouth:x");
@@ -392,5 +399,98 @@ describe("BindingConnections routing", () => {
     expect(
       view.getByTestId("binding-traversal-current-label").textContent,
     ).toContain("Jaw Open");
+  });
+
+  it("hides autorig entries from the RIGS section", () => {
+    mockSummary = {
+      poses: [],
+      rigs: [
+        {
+          id: "autorig/mouth/open",
+          label: "Mouth Open Autorig",
+          features: ["Face Mesh · Mouth Open"],
+          sourceKinds: ["pose-entry"],
+        },
+        {
+          id: "rig/parent/jaw_open",
+          label: "Jaw Open",
+          features: ["Face Mesh · Mouth Open"],
+          sourceKinds: ["pose-group-output"],
+        },
+      ],
+    };
+    mockTrace = {
+      targets: [],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+
+    const node: SceneObjectNode = {
+      id: "shape_1",
+      name: "Shape 1",
+      type: "shape",
+      parentId: null,
+      childIds: [],
+      features: [],
+    };
+
+    const view = render(<BindingConnections node={node} />);
+
+    fireEvent.click(view.getByTestId("binding-rigs-section-toggle"));
+    fireEvent.click(
+      view.getByTestId("binding-rig-category-toggle-pose-group-aggregates"),
+    );
+
+    expect(
+      view.queryByRole("button", { name: /Mouth Open Autorig/i }),
+    ).toBeNull();
+    expect(view.getByRole("button", { name: /Jaw Open/i })).toBeTruthy();
+  });
+
+  it("groups pose aggregate output rigs under a collapsed toggle", () => {
+    mockSummary = {
+      poses: [],
+      rigs: [
+        {
+          id: "rig/aggregate/main",
+          label: "Aggregate Main",
+          features: ["Face Mesh · Mouth Open"],
+          sourceKinds: ["pose-aggregate-output"],
+        },
+        {
+          id: "rig/group/jaw_open",
+          label: "Jaw Open",
+          features: ["Face Mesh · Mouth Open"],
+          sourceKinds: ["pose-group-output"],
+        },
+      ],
+    };
+    mockTrace = {
+      targets: [],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [],
+      diagnostics: [],
+    };
+
+    const node: SceneObjectNode = {
+      id: "shape_1",
+      name: "Shape 1",
+      type: "shape",
+      parentId: null,
+      childIds: [],
+      features: [],
+    };
+
+    const view = render(<BindingConnections node={node} />);
+
+    fireEvent.click(view.getByTestId("binding-rigs-section-toggle"));
+    expect(view.queryByRole("button", { name: /Aggregate Main/i })).toBeNull();
+
+    fireEvent.click(
+      view.getByTestId("binding-rig-category-toggle-pose-aggregates"),
+    );
+
+    expect(view.getByRole("button", { name: /Aggregate Main/i })).toBeTruthy();
   });
 });
