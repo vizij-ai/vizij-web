@@ -93,6 +93,7 @@ import {
   type RuntimeGraphSpec,
 } from "./runtimeGraphSpec";
 import { useRigGraphImport } from "./useRigGraphImport";
+import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 import { useRigPersistence } from "./useRigPersistence";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
@@ -211,6 +212,7 @@ interface UseRigControllerOptions {
   namespace: string;
   rootId: string | null;
   sourceName: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
 interface UseRigControllerStores {
@@ -227,7 +229,7 @@ interface RuntimeInputRoute {
 export type RigController = void;
 
 export function useRigController(
-  { namespace, rootId, sourceName }: UseRigControllerOptions,
+  { namespace, rootId, sourceName, onLoadPhaseChange }: UseRigControllerOptions,
   stores: UseRigControllerStores,
 ): RigController {
   const { graphRuntimeStore, bindingAuthoringStore, selectionStore } = stores;
@@ -1941,6 +1943,7 @@ export function useRigController(
     alertDialog,
     debugLog,
     pendingFaceRenameRef,
+    onImportPhaseChange: onLoadPhaseChange,
   });
 
   useEffect(() => {
@@ -2038,11 +2041,22 @@ export function useRigController(
       setGraphStatus("idle");
       setGraphError(null);
       setGraphWarning(null);
+      onLoadPhaseChange?.({
+        stepId: "runtime-stabilization",
+        substepId: "settle-recompiles",
+        status: "pending",
+      });
       graphSummaryRef.current = null;
       graphIrRef.current = null;
       resetDrivenAnimatables();
       return;
     }
+
+    onLoadPhaseChange?.({
+      stepId: "runtime-stabilization",
+      substepId: "settle-recompiles",
+      status: "active",
+    });
 
     const fatalIssues = rigGraphBuild.issues.fatal;
     if (fatalIssues.length > 0) {
@@ -2054,6 +2068,11 @@ export function useRigController(
         fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; "),
       );
       setGraphWarning(null);
+      onLoadPhaseChange?.({
+        stepId: "runtime-stabilization",
+        substepId: "settle-recompiles",
+        status: "error",
+      });
       return;
     }
 
@@ -2070,6 +2089,11 @@ export function useRigController(
         runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.",
       );
       setGraphWarning(null);
+      onLoadPhaseChange?.({
+        stepId: "runtime-stabilization",
+        substepId: "settle-recompiles",
+        status: "error",
+      });
       return;
     }
 
@@ -2100,7 +2124,18 @@ export function useRigController(
     setGraphStatus("ready");
     setGraphError(null);
     setGraphWarning(runtimeGraphSpec.warning ?? null);
-  }, [faceId, resetDrivenAnimatables, rigGraphBuild, runtimeGraphSpec]);
+    onLoadPhaseChange?.({
+      stepId: "runtime-stabilization",
+      substepId: "settle-recompiles",
+      status: "complete",
+    });
+  }, [
+    faceId,
+    onLoadPhaseChange,
+    resetDrivenAnimatables,
+    rigGraphBuild,
+    runtimeGraphSpec,
+  ]);
 
   useEffect(() => {
     const summary = graphSummaryRef.current;

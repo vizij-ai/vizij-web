@@ -11,7 +11,7 @@ import {
 import { isPoseControlInputPath } from "../../poseRig/utils";
 
 function RuntimeInputBridge() {
-  const { setInput, ready } = useVizijRuntime();
+  const { setInput, ready, loading } = useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
@@ -21,8 +21,10 @@ function RuntimeInputBridge() {
             setInput(graphPath, { float: value });
           }
         : undefined,
+      runtimeViewReady: ready,
+      runtimeViewLoading: loading,
     });
-  }, [graphRuntimeStore, ready, setInput]);
+  }, [graphRuntimeStore, loading, ready, setInput]);
 
   return null;
 }

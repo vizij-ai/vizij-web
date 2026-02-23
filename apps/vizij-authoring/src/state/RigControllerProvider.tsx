@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { ReactNode } from "react";
+import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
 import { useRigController } from "../hooks/useRigController";
 import {
   createGraphRuntimeStore,
@@ -28,6 +29,7 @@ interface RigControllerProviderProps {
   namespace: string;
   rootId: string | null;
   sourceName: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }
 
@@ -67,6 +69,7 @@ export function RigControllerProvider({
   namespace,
   rootId,
   sourceName,
+  onLoadPhaseChange,
   children,
 }: RigControllerProviderProps) {
   const graphRuntimeStoreRef = useRef<GraphRuntimeStore | null>(null);
@@ -88,7 +91,7 @@ export function RigControllerProvider({
   const selectionStore = selectionStoreRef.current;
 
   useRigController(
-    { namespace, rootId, sourceName },
+    { namespace, rootId, sourceName, onLoadPhaseChange },
     {
       graphRuntimeStore,
       bindingAuthoringStore,

@@ -15,6 +15,7 @@ import { AnimationPanel } from "./components/panels/AnimationPanel";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
+import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
@@ -51,8 +52,12 @@ export default function App() {
       namespace={DEFAULT_NAMESPACE}
       rootId={assetLoader.rootId}
       sourceName={assetLoader.sourceName}
+      onLoadPhaseChange={assetLoader.updateExternalPhase}
     >
-      <PoseRigProvider rootId={assetLoader.rootId}>
+      <PoseRigProvider
+        rootId={assetLoader.rootId}
+        onLoadPhaseChange={assetLoader.updateExternalPhase}
+      >
         <AuthoringUiProvider>
           <AppContent loader={assetLoader} />
         </AuthoringUiProvider>
@@ -72,6 +77,12 @@ function AppContent({ loader }: AppContentProps) {
     isLoading,
     loadFromFile,
     bundle: loadedBundle,
+    beginImportFlow,
+    markImportFileSelected,
+    cancelImportFlow,
+    markImportFlowError,
+    updateExternalPhase,
+    completeImportFlow,
   } = loader;
 
   // Highlighting State (moved from Viewer)
@@ -86,6 +97,8 @@ function AppContent({ loader }: AppContentProps) {
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
       try {
+        beginImportFlow(`Preset: ${filename}`);
+        markImportFileSelected();
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Failed to fetch ${url} `);
         const blob = await response.blob();
@@ -95,10 +108,16 @@ function AppContent({ loader }: AppContentProps) {
           loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
         );
       } catch (err) {
+        markImportFlowError("load-asset");
         console.error("Failed to load asset from URL:", err);
       }
     },
-    [loadFromFile],
+    [
+      beginImportFlow,
+      loadFromFile,
+      markImportFlowError,
+      markImportFileSelected,
+    ],
   );
 
   const handleLoadQuori = useCallback(() => {
@@ -127,6 +146,13 @@ function AppContent({ loader }: AppContentProps) {
 
   // Graph Runtime Hook
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
+  const graphStatus = useGraphRuntime((state) => state.graphStatus);
+  const graphError = useGraphRuntime((state) => state.graphError);
+  const stageRuntimeInput = useGraphRuntime((state) => state.stageRuntimeInput);
+  const runtimeViewReady = useGraphRuntime((state) => state.runtimeViewReady);
+  const runtimeViewLoading = useGraphRuntime(
+    (state) => state.runtimeViewLoading,
+  );
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
   useGraphRuntime((state) => state.graphSpec);
@@ -206,6 +232,7 @@ function AppContent({ loader }: AppContentProps) {
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
+    onPhaseChange: loader.updateExternalPhase,
   });
 
   const { panels } = useWorkspaceStore();
@@ -264,7 +291,11 @@ function AppContent({ loader }: AppContentProps) {
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      if (!file) return;
+      if (!file) {
+        cancelImportFlow();
+        return;
+      }
+      markImportFileSelected();
 
       if (skipNextDiscrepancyCheck.current) {
         uiActions.setSkipDiscrepancyCheck(true);
@@ -278,18 +309,20 @@ function AppContent({ loader }: AppContentProps) {
       );
       event.target.value = "";
     },
-    [loadFromFile, uiActions],
+    [cancelImportFlow, loadFromFile, markImportFileSelected, uiActions],
   );
 
   const handleImportClick = useCallback(() => {
     skipNextDiscrepancyCheck.current = false;
+    beginImportFlow("File import");
     fileInputRef.current?.click();
-  }, []);
+  }, [beginImportFlow]);
 
   const handleImportSkipChecksClick = useCallback(() => {
     skipNextDiscrepancyCheck.current = true;
+    beginImportFlow("File import (skip checks)");
     fileInputRef.current?.click();
-  }, []);
+  }, [beginImportFlow]);
 
   const menuBar = (
     <AppMenuBar
@@ -310,6 +343,69 @@ function AppContent({ loader }: AppContentProps) {
     loadedBundle: loadedBundle ?? null,
   });
 
+  const runtimeInputReady =
+    typeof stageRuntimeInput === "function" && graphStatus === "ready";
+  const runtimeVisibleReady = runtimeViewReady && !runtimeViewLoading;
+  const loadingSessionActive =
+    loader.faceLoadSessionStartedAtMs !== null &&
+    loader.faceLoadSessionCompletedAtMs === null;
+  const loadingBarVisible = loadingSessionActive;
+  const loadingBarProgress =
+    runtimeInputReady && runtimeVisibleReady
+      ? 1
+      : graphStatus === "ready"
+        ? Math.max(0.92, loader.faceLoadProgress)
+        : loader.faceLoadProgress;
+
+  useEffect(() => {
+    if (!loadingSessionActive) {
+      return;
+    }
+    updateExternalPhase({
+      stepId: "runtime-stabilization",
+      substepId: "wait-runtime-input-bridge",
+      status: runtimeInputReady ? "complete" : "active",
+    });
+    updateExternalPhase({
+      stepId: "runtime-stabilization",
+      substepId: "settle-recompiles",
+      status: runtimeInputReady && runtimeVisibleReady ? "complete" : "active",
+    });
+    if (!runtimeInputReady || !runtimeVisibleReady) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      completeImportFlow();
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [
+    completeImportFlow,
+    loadingSessionActive,
+    runtimeInputReady,
+    runtimeVisibleReady,
+    updateExternalPhase,
+  ]);
+
+  useEffect(() => {
+    if (!loadingSessionActive) {
+      return;
+    }
+    if (graphStatus !== "error") {
+      return;
+    }
+    updateExternalPhase({
+      stepId: "runtime-stabilization",
+      status: "error",
+      substepId: "wait-runtime-input-bridge",
+    });
+    markImportFlowError("finalize-load");
+  }, [
+    graphStatus,
+    loadingSessionActive,
+    markImportFlowError,
+    updateExternalPhase,
+  ]);
+
   const viewerContent = (
     <div
       className={
@@ -324,16 +420,33 @@ function AppContent({ loader }: AppContentProps) {
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
           <ResizablePanel defaultSize={70} minSize={20}>
-            <Viewer
-              rootId={rootId}
-              namespace={DEFAULT_NAMESPACE}
-              bundle={rootId ? runtimeBundle : null}
-              onClearSelection={handleClearSelection}
-              showSelectionGlow={showSelectionGlow}
-              onImportClick={handleImportClick}
-              onLoadQuori={handleLoadQuori}
-              onLoadHugo={handleLoadHugo}
-            />
+            <div className="relative w-full h-full">
+              {loadingBarVisible && (
+                <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">
+                  <FaceLoadingProgressBar
+                    visible={loadingBarVisible}
+                    progress={loadingBarProgress}
+                    steps={loader.faceLoadSteps}
+                    graphStatus={graphStatus}
+                    graphError={graphError}
+                    runtimeInputReady={runtimeInputReady}
+                    sessionStartedAtMs={loader.faceLoadSessionStartedAtMs}
+                    sessionCompletedAtMs={loader.faceLoadSessionCompletedAtMs}
+                    sourceLabel={loader.faceLoadSourceLabel}
+                  />
+                </div>
+              )}
+              <Viewer
+                rootId={rootId}
+                namespace={DEFAULT_NAMESPACE}
+                bundle={rootId ? runtimeBundle : null}
+                onClearSelection={handleClearSelection}
+                showSelectionGlow={showSelectionGlow}
+                onImportClick={handleImportClick}
+                onLoadQuori={handleLoadQuori}
+                onLoadHugo={handleLoadHugo}
+              />
+            </div>
           </ResizablePanel>
           <PanelResizeHandle
             className={
@@ -350,16 +463,33 @@ function AppContent({ loader }: AppContentProps) {
           </ResizablePanel>
         </PanelGroup>
       ) : (
-        <Viewer
-          rootId={rootId}
-          namespace={DEFAULT_NAMESPACE}
-          bundle={rootId ? runtimeBundle : null}
-          onClearSelection={handleClearSelection}
-          showSelectionGlow={showSelectionGlow}
-          onImportClick={handleImportClick}
-          onLoadQuori={handleLoadQuori}
-          onLoadHugo={handleLoadHugo}
-        />
+        <div className="relative w-full h-full">
+          {loadingBarVisible && (
+            <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">
+              <FaceLoadingProgressBar
+                visible={loadingBarVisible}
+                progress={loadingBarProgress}
+                steps={loader.faceLoadSteps}
+                graphStatus={graphStatus}
+                graphError={graphError}
+                runtimeInputReady={runtimeInputReady}
+                sessionStartedAtMs={loader.faceLoadSessionStartedAtMs}
+                sessionCompletedAtMs={loader.faceLoadSessionCompletedAtMs}
+                sourceLabel={loader.faceLoadSourceLabel}
+              />
+            </div>
+          )}
+          <Viewer
+            rootId={rootId}
+            namespace={DEFAULT_NAMESPACE}
+            bundle={rootId ? runtimeBundle : null}
+            onClearSelection={handleClearSelection}
+            showSelectionGlow={showSelectionGlow}
+            onImportClick={handleImportClick}
+            onLoadQuori={handleLoadQuori}
+            onLoadHugo={handleLoadHugo}
+          />
+        </div>
       )}
 
       {/* Hidden file input for Reference Face import */}

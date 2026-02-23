@@ -21,6 +21,7 @@ import {
   parsePoseWeightInputSourceId,
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
+import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -92,6 +93,7 @@ function isPoseInputNamespacePath(path: string | null | undefined): boolean {
 
 interface PoseRigProviderProps {
   rootId: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }
 
@@ -107,9 +109,11 @@ export function usePoseRig() {
 
 function PoseRigController({
   rootId,
+  onLoadPhaseChange,
   children,
 }: {
   rootId: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }) {
   const faceId = useGraphRuntime((state) => state.faceId);
@@ -291,11 +295,21 @@ function PoseRigController({
       }
 
       try {
+        onLoadPhaseChange?.({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "active",
+        });
         const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
         if (cancelled) return;
         graphRuntimeStore.setState({
           poseGraphSpec: normalized,
           poseConfig: projectedPoseConfig,
+        });
+        onLoadPhaseChange?.({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "complete",
         });
       } catch (error) {
         console.warn("[poseRig] Failed to normalize pose graph", error);
@@ -303,6 +317,11 @@ function PoseRigController({
         graphRuntimeStore.setState({
           poseGraphSpec: null,
           poseConfig: projectedPoseConfig,
+        });
+        onLoadPhaseChange?.({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "error",
         });
       }
     };
@@ -312,7 +331,12 @@ function PoseRigController({
     return () => {
       cancelled = true;
     };
-  }, [graphRuntimeStore, poseRig.poseGraphSpec, projectedPoseConfig]);
+  }, [
+    graphRuntimeStore,
+    onLoadPhaseChange,
+    poseRig.poseGraphSpec,
+    projectedPoseConfig,
+  ]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>
@@ -321,7 +345,11 @@ function PoseRigController({
   );
 }
 
-export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
+export function PoseRigProvider({
+  rootId,
+  onLoadPhaseChange,
+  children,
+}: PoseRigProviderProps) {
   const storeRef = useRef<PoseRigStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createPoseRigStore();
@@ -414,7 +442,9 @@ export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
 
   return (
     <PoseRigStoreProvider store={poseRigStore}>
-      <PoseRigController rootId={rootId}>{children}</PoseRigController>
+      <PoseRigController rootId={rootId} onLoadPhaseChange={onLoadPhaseChange}>
+        {children}
+      </PoseRigController>
     </PoseRigStoreProvider>
   );
 }

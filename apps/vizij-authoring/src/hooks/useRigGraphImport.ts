@@ -28,6 +28,8 @@ import {
   rewriteGraphFaceNamespace,
 } from "../utils/graphDiff";
 import { sanitizeFaceId } from "../utils/faceId";
+import { waitForNextFrame } from "../utils/frame";
+import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 interface UseRigGraphImportOptions {
   faceId: string;
@@ -59,6 +61,7 @@ interface UseRigGraphImportOptions {
   }) => Promise<DiscrepancyResolutionResult>;
   alertDialog: (message: string) => void;
   debugLog: (...args: unknown[]) => void;
+  onImportPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
 export function useRigGraphImport({
@@ -82,6 +85,7 @@ export function useRigGraphImport({
   alertDialog,
   debugLog,
   pendingFaceRenameRef,
+  onImportPhaseChange,
 }: UseRigGraphImportOptions & {
   pendingFaceRenameRef: MutableRefObject<string | null>;
 }) {
@@ -99,12 +103,19 @@ export function useRigGraphImport({
       options?: { skipDiscrepancyCheck?: boolean },
     ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          substepId: "rehydrate-rig-data",
+          status: "active",
+        });
+        await waitForNextFrame();
         const blueprint = buildAutoRigInputBlueprints(
           world,
           animatables,
           animatableComponents,
           featureLabelOverrides,
         );
+        await waitForNextFrame();
         const rehydrated = rehydrateRigDataFromGraph(spec, {
           faceId,
           animatables,
@@ -112,6 +123,12 @@ export function useRigGraphImport({
           provisionedAutorigInputs: blueprint.blueprints.map(
             (entry) => entry.input,
           ),
+        });
+        await waitForNextFrame();
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          substepId: "rehydrate-rig-data",
+          status: "complete",
         });
 
         const importedFaceIdRaw = rehydrated.sourceFaceId;
@@ -215,7 +232,13 @@ export function useRigGraphImport({
           inputBindings: rehydrated.inputBindings,
           inputMetadata: normalizedInputMetadata,
         }).spec;
+        await waitForNextFrame();
 
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          substepId: "compare-signatures",
+          status: "active",
+        });
         const [importedNormalized, rebuiltNormalized] = await Promise.all([
           normalizeGraphSpec(spec),
           normalizeGraphSpec(rebuiltSpec),
@@ -227,6 +250,11 @@ export function useRigGraphImport({
 
         const importedSignature = JSON.stringify(importedComparable);
         const rebuiltSignature = JSON.stringify(rebuiltComparable);
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          substepId: "compare-signatures",
+          status: "complete",
+        });
         debugLog("import comparison", {
           importedFaceId,
           loadedFaceId: faceId,
@@ -267,6 +295,11 @@ export function useRigGraphImport({
           normalizationDiagnostics.targetIdRemaps.length +
           normalizationDiagnostics.animatableRetargets.length;
         if (normalizationCount > 0) {
+          onImportPhaseChange?.({
+            stepId: "rig-import-normalization",
+            substepId: "apply-normalization",
+            status: "active",
+          });
           // eslint-disable-next-line no-console -- explicit import migration diagnostics
           console.warn("[vizij-authoring] Import normalization applied.", {
             createdAutorigInputs:
@@ -275,6 +308,11 @@ export function useRigGraphImport({
             targetIdRemaps: normalizationDiagnostics.targetIdRemaps.length,
             animatableRetargets:
               normalizationDiagnostics.animatableRetargets.length,
+          });
+          onImportPhaseChange?.({
+            stepId: "rig-import-normalization",
+            substepId: "apply-normalization",
+            status: "complete",
           });
         }
         if (normalizationDiagnostics.animatableFallbacks.length > 0) {
@@ -331,6 +369,11 @@ export function useRigGraphImport({
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
 
         if (shouldOpenDiscrepancyWizard) {
+          onImportPhaseChange?.({
+            stepId: "rig-import-normalization",
+            status: "active",
+          });
+          await waitForNextFrame();
           const initialDiffResult =
             importedSignature === rebuiltSignature
               ? { entries: [], limitReached: false }
@@ -427,6 +470,10 @@ export function useRigGraphImport({
           debugLog("discrepancy result", discrepancyResult);
 
           if (!discrepancyResult?.accepted) {
+            onImportPhaseChange?.({
+              stepId: "rig-import-normalization",
+              status: "error",
+            });
             return { faceChanged: false, importedFaceId: null };
           }
         }
@@ -501,11 +548,19 @@ export function useRigGraphImport({
           setFaceId(targetFaceId);
         }
 
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          status: "complete",
+        });
         return {
           faceChanged: faceChangedDuringImport || Boolean(targetFaceId),
           importedFaceId: targetFaceId ?? importedFaceId ?? null,
         };
       } catch (error) {
+        onImportPhaseChange?.({
+          stepId: "rig-import-normalization",
+          status: "error",
+        });
         alertDialog(
           `Failed to import graph: ${
             error instanceof Error ? error.message : String(error)
@@ -531,6 +586,7 @@ export function useRigGraphImport({
       openDiscrepancyReview,
       alertDialog,
       debugLog,
+      onImportPhaseChange,
     ],
   );
 }

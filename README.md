@@ -283,7 +283,7 @@ The workflow logs the npm publish output for each changed package. After a succe
 ## Related Repositories
 
 - [`vizij-rs`](../vizij-rs) – Rust source for the animation, graph, and orchestrator cores plus WASM bundles.
-- [`vizij_docs`](../vizij_docs) – Additional design notes, investigation reports, and API documentation.
+- [`vizij-docs`](../vizij-docs) – Additional design notes, investigation reports, and API documentation.
 - [`vizij-spec`](../vizij_spec) – Authoritative schema definitions for animations, node graphs, and orchestrations.
 
 Questions or contributions? Open an issue or reach out to the Vizij front-end & tooling team. Great docs keep this monorepo approachable. 🚀

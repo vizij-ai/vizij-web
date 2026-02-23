@@ -6,6 +6,7 @@ import { waitForNextFrame } from "../utils/frame";
 import { prepareSpecForImport } from "../utils/graphImport";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";
+import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 export interface ImportGraphSpecOptions {
   skipDiscrepancyCheck?: boolean;
@@ -25,6 +26,7 @@ interface UseBundleSynchronizerOptions {
     importedFaceId: string | null;
   } | void>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  onPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
@@ -42,10 +44,16 @@ export function useBundleSynchronizer({
   skipDiscrepancyCheck,
   importGraphSpec,
   importPoseConfigFromData,
+  onPhaseChange,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
-  const appliedBundleFingerprintRef = useRef<string | null>(null);
-  const rigImportedRef = useRef(false);
+  const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
+  const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
+  const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
+  const inflightPoseFingerprintsRef = useRef<Set<string>>(new Set());
+  const importedFaceIdByFingerprintRef = useRef<Map<string, string | null>>(
+    new Map(),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -67,10 +75,15 @@ export function useBundleSynchronizer({
 
     const applyBundleState = async () => {
       if (!rootId || !loadedBundle) {
-        appliedBundleFingerprintRef.current = null;
-        rigImportedRef.current = false;
+        importedRigFingerprintsRef.current.clear();
+        importedPoseFingerprintsRef.current.clear();
+        inflightRigFingerprintsRef.current.clear();
+        inflightPoseFingerprintsRef.current.clear();
+        importedFaceIdByFingerprintRef.current.clear();
         return;
       }
+
+      await waitForNextFrame();
 
       const fingerprintPayload = {
         version: loadedBundle.version,
@@ -78,14 +91,10 @@ export function useBundleSynchronizer({
         poses: loadedBundle.poses?.config ?? null,
       };
       const fingerprint = JSON.stringify(fingerprintPayload);
-
-      if (fingerprint && appliedBundleFingerprintRef.current === fingerprint) {
-        return;
-      }
-
-      if (fingerprint && appliedBundleFingerprintRef.current !== fingerprint) {
-        rigImportedRef.current = false;
-      }
+      onPhaseChange?.({
+        stepId: "bundle-sync",
+        status: "active",
+      });
 
       const bundleGraphs = loadedBundle.graphs as
         | BundleGraphWithIr[]
@@ -94,34 +103,86 @@ export function useBundleSynchronizer({
         bundleGraphs?.find((entry) => entry.kind?.toLowerCase?.() === "rig") ??
         bundleGraphs?.[0];
 
-      let importedFaceIdFromRig: string | null = null;
+      let importedFaceIdFromRig =
+        importedFaceIdByFingerprintRef.current.get(fingerprint) ?? null;
+      const rigAlreadyImported =
+        importedRigFingerprintsRef.current.has(fingerprint);
+      const rigInFlight = inflightRigFingerprintsRef.current.has(fingerprint);
 
-      if (!rigImportedRef.current && rigEntry?.spec) {
+      if (!rigAlreadyImported && !rigInFlight && rigEntry?.spec) {
+        inflightRigFingerprintsRef.current.add(fingerprint);
         try {
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "active",
+            substepId: "normalize-rig-graph",
+          });
+          await waitForNextFrame();
           const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
           const normalisedSpec = await normalizeGraphSpec(preparedSpec);
+          await waitForNextFrame();
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "complete",
+            substepId: "normalize-rig-graph",
+          });
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "active",
+            substepId: "import-rig-graph",
+          });
           const result = await importGraphSpec(normalisedSpec, {
             skipDiscrepancyCheck,
           });
           importedFaceIdFromRig = result?.importedFaceId ?? null;
-          rigImportedRef.current = true;
+          importedRigFingerprintsRef.current.add(fingerprint);
+          importedFaceIdByFingerprintRef.current.set(
+            fingerprint,
+            importedFaceIdFromRig,
+          );
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "complete",
+            substepId: "import-rig-graph",
+          });
         } catch (error) {
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "error",
+            substepId: "import-rig-graph",
+          });
           console.warn(
             "[vizij-authoring] Failed to import rig graph from bundle.",
             error,
           );
+        } finally {
+          inflightRigFingerprintsRef.current.delete(fingerprint);
         }
         if (cancelled) {
           return;
         }
       }
 
+      if (rigInFlight && !rigAlreadyImported) {
+        return;
+      }
+
       if (standardInputCount === 0) {
         return;
       }
 
-      if (loadedBundle.poses?.config) {
+      const poseAlreadyImported =
+        importedPoseFingerprintsRef.current.has(fingerprint);
+      const poseInFlight = inflightPoseFingerprintsRef.current.has(fingerprint);
+
+      if (loadedBundle.poses?.config && !poseAlreadyImported && !poseInFlight) {
+        inflightPoseFingerprintsRef.current.add(fingerprint);
         try {
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "active",
+            substepId: "import-pose-config",
+          });
           if (importedFaceIdFromRig) {
             await waitForFaceIdMatch(importedFaceIdFromRig, () => cancelled);
             if (cancelled) {
@@ -131,19 +192,39 @@ export function useBundleSynchronizer({
           importPoseConfigFromData(
             loadedBundle.poses.config as unknown as PoseRigConfigFile,
           );
+          importedPoseFingerprintsRef.current.add(fingerprint);
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "complete",
+            substepId: "import-pose-config",
+          });
         } catch (error) {
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "error",
+            substepId: "import-pose-config",
+          });
           console.warn(
             "[vizij-authoring] Failed to import pose rig config from bundle.",
             error,
           );
+        } finally {
+          inflightPoseFingerprintsRef.current.delete(fingerprint);
         }
         if (cancelled) {
           return;
         }
       }
 
-      if (fingerprint) {
-        appliedBundleFingerprintRef.current = fingerprint;
+      const rigComplete = importedRigFingerprintsRef.current.has(fingerprint);
+      const poseComplete =
+        !loadedBundle.poses?.config ||
+        importedPoseFingerprintsRef.current.has(fingerprint);
+      if (rigComplete && poseComplete) {
+        onPhaseChange?.({
+          stepId: "bundle-sync",
+          status: "complete",
+        });
       }
     };
 
@@ -157,6 +238,7 @@ export function useBundleSynchronizer({
     importGraphSpec,
     importPoseConfigFromData,
     loadedBundle,
+    onPhaseChange,
     rootId,
     skipDiscrepancyCheck,
     standardInputCount,
