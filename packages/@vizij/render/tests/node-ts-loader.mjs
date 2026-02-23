@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
-import { readFile } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { URL, fileURLToPath } from "node:url";
+import { URL, fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -28,12 +28,56 @@ function isTypeScriptSpecifier(specifier) {
   }
 }
 
+function isRelativeOrFileSpecifier(specifier) {
+  return (
+    specifier.startsWith("./") ||
+    specifier.startsWith("../") ||
+    specifier.startsWith("file://")
+  );
+}
+
+async function resolveTypeScriptCandidate(specifier, parentURL) {
+  if (
+    !isRelativeOrFileSpecifier(specifier) ||
+    isTypeScriptSpecifier(specifier)
+  ) {
+    return null;
+  }
+
+  const baseURL = new URL(specifier, parentURL);
+  const basePath = fileURLToPath(baseURL);
+  const candidates = [
+    `${basePath}.ts`,
+    `${basePath}.tsx`,
+    path.join(basePath, "index.ts"),
+    path.join(basePath, "index.tsx"),
+  ];
+
+  for (const candidatePath of candidates) {
+    try {
+      await access(candidatePath);
+      return pathToFileURL(candidatePath);
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return null;
+}
+
 export async function resolve(specifier, context, defaultResolve) {
   if (isTypeScriptSpecifier(specifier)) {
     const parentURL = context.parentURL ?? import.meta.url;
     const url = new URL(specifier, parentURL);
     return { url: url.href, format: "module", shortCircuit: true };
   }
+
+  const parentURL = context.parentURL ?? import.meta.url;
+  const resolvedTs = await resolveTypeScriptCandidate(specifier, parentURL);
+  if (resolvedTs) {
+    return { url: resolvedTs.href, format: "module", shortCircuit: true };
+  }
+
   return defaultResolve(specifier, context, defaultResolve);
 }
 
