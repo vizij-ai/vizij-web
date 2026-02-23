@@ -298,6 +298,8 @@ function AppContent({ loader }: AppContentProps) {
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
       onExport={() => setShowExportDialog(true)}
+      showSelectionGlow={showSelectionGlow}
+      onToggleSelectionGlow={setShowSelectionGlow}
     />
   );
 

@@ -16,6 +16,8 @@ interface AppMenuBarProps {
   onImportSkipChecks: () => void;
   onImportReferenceFace: () => void;
   onExport: () => void;
+  showSelectionGlow: boolean;
+  onToggleSelectionGlow: (enabled: boolean) => void;
 }
 
 export function AppMenuBar({
@@ -24,6 +26,8 @@ export function AppMenuBar({
   onImportSkipChecks,
   onImportReferenceFace,
   onExport,
+  showSelectionGlow,
+  onToggleSelectionGlow,
 }: AppMenuBarProps) {
   const { panels, togglePanel } = useWorkspaceStore();
 
@@ -115,6 +119,14 @@ export function AppMenuBar({
           onCheckedChange={() => togglePanel("debug")}
         >
           Debug
+        </MenuCheckboxItem>
+
+        <MenuSeparator />
+        <MenuCheckboxItem
+          checked={showSelectionGlow}
+          onCheckedChange={onToggleSelectionGlow}
+        >
+          Highlight Selected
         </MenuCheckboxItem>
       </Menu>
 
