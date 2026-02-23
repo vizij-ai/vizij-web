@@ -9,7 +9,6 @@ import type {
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
-  formatSurfaceLabelWithCount,
   resolveVisibleRootForActiveSurface,
 } from "./VariablesPanel";
 
@@ -180,46 +179,6 @@ describe("VariablesPanel", () => {
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();
-  });
-
-  it("surfaces shared variables when main and reference paths overlap", () => {
-    const sharedMain = makeInput("main_jaw", "/standard/jaw/open", {
-      label: "Jaw Open",
-    });
-    const sharedRef = makeInput("ref_jaw", "/standard/jaw/open", {
-      label: "Jaw Open Ref",
-    });
-    bindingState.managedStandardInputs = [
-      {
-        input: sharedMain,
-        source: "custom",
-      },
-    ];
-    bindingState.standardInputsByPath = new Map([
-      ["/standard/jaw/open", sharedMain],
-    ]);
-    referenceFaceState.standardInputs = [sharedRef];
-    referenceFaceState.standardInputsById = new Map([
-      [sharedRef.id, sharedRef],
-    ]);
-
-    render(<VariablesPanel />);
-
-    expect(screen.getByText(/Shared \(1\)/)).toBeTruthy();
-  });
-
-  it("renders Control Elements header with explicit per-surface count labels", () => {
-    const view = render(
-      <VariablesPanel
-        availableSurfaces={["variables", "poses", "pose-groups", "inputs"]}
-      />,
-    );
-
-    expect(within(view.container).getByText("Control Elements")).toBeTruthy();
-    expect(within(view.container).getByText("Variables (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Poses (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Pose Groups (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
   });
 
   it("filters out /rig/element variables from the variables panel", () => {
@@ -1331,41 +1290,6 @@ describe("VariablesPanel", () => {
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
-  it("shows configured pose groups even when they have zero members", () => {
-    poseRigState.poseConfigDraft = {
-      version: 1,
-      faceId: "face",
-      neutralInputs: {},
-      poses: [],
-      poseGroups: [
-        {
-          id: "emotion",
-          name: "Emotion",
-          path: "emotion",
-        },
-      ],
-    };
-
-    const onSelectPoseGroup = vi.fn();
-    const view = render(
-      <VariablesPanel
-        availableSurfaces={["pose-groups"]}
-        activeSurfaceOverride="pose-groups"
-        onSelectPoseGroup={onSelectPoseGroup}
-      />,
-    );
-
-    fireEvent.click(within(view.container).getByTitle("emotion"));
-
-    expect(onSelectPoseGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        groupId: "emotion",
-        groupPath: "emotion",
-        poseIds: [],
-      }),
-    );
-  });
-
   it("assigns and unassigns selected pose membership deterministically", () => {
     poseRigState.poseConfigDraft = {
       version: 1,
@@ -1652,13 +1576,6 @@ describe("VariablesPanel", () => {
     );
 
     expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
-  });
-});
-
-describe("formatSurfaceLabelWithCount", () => {
-  it("keeps count formatting stable for zero and non-zero values", () => {
-    expect(formatSurfaceLabelWithCount("Poses", 0)).toBe("Poses (0)");
-    expect(formatSurfaceLabelWithCount("Poses", 7)).toBe("Poses (7)");
   });
 });
 

@@ -19,6 +19,10 @@ import {
   resolveFaceInspectorCurrentValue,
   toggleInspectorChannelLock,
 } from "./faceInspectorSemantics";
+import {
+  buildAutorigLockIndex,
+  resolveAutorigInputIdForChannel,
+} from "./autorigLockIndex";
 
 interface BindingLike {
   inputId?: string | null;
@@ -101,6 +105,20 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   );
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
+  );
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const handleDisableStandardInput = useBindingAuthoring(
+    (state) => state.handleDisableStandardInput,
+  );
+  const handleEnableStandardInput = useBindingAuthoring(
+    (state) => state.handleEnableStandardInput,
+  );
+
+  const autorigLockIndex = useMemo(
+    () => buildAutorigLockIndex(managedStandardInputs),
+    [managedStandardInputs],
   );
 
   const { handleSelectMaterial } = useUnifiedSelection();
@@ -218,6 +236,10 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
           node={node}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       )}
 
@@ -239,6 +261,10 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
           node={node}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       )}
     </div>
@@ -274,6 +300,10 @@ interface RiggingScalarRowProps {
     value: RawValue,
   ) => void;
   node?: SceneObjectNode;
+  autorigInputIdByTargetId: ReadonlyMap<string, string>;
+  disabledAutorigInputIds: ReadonlySet<string>;
+  onDisableAutorigInput: (inputId: string) => void;
+  onEnableAutorigInput: (inputId: string) => void;
 }
 
 export function RiggingScalarRow({
@@ -291,6 +321,10 @@ export function RiggingScalarRow({
   onUpdateStandardInput,
   setStaticFeatureValue,
   node,
+  autorigInputIdByTargetId,
+  disabledAutorigInputIds,
+  onDisableAutorigInput,
+  onEnableAutorigInput,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
   const [lockedChannels, setLockedChannels] = useState<Set<string>>(
@@ -334,10 +368,15 @@ export function RiggingScalarRow({
     staticValue: component.staticValue ?? 0,
   });
   const channelLockId = targetId ?? `${feature.id}:value`;
-  const isChannelLocked = isInspectorChannelLocked(
-    lockedChannels,
-    channelLockId,
-  );
+  const autorigInputId = resolveAutorigInputIdForChannel({
+    targetId,
+    inputId,
+    unresolvedInputId,
+    inputIdByTargetId: autorigInputIdByTargetId,
+  });
+  const isChannelLocked = autorigInputId
+    ? disabledAutorigInputIds.has(autorigInputId)
+    : isInspectorChannelLocked(lockedChannels, channelLockId);
   const descriptorNumberConstraints =
     feature.descriptor?.type === "number"
       ? feature.descriptor.constraints
@@ -588,9 +627,13 @@ export function RiggingScalarRow({
             : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
         onClick={() =>
-          setLockedChannels((current) =>
-            toggleInspectorChannelLock(current, channelLockId),
-          )
+          autorigInputId
+            ? disabledAutorigInputIds.has(autorigInputId)
+              ? onEnableAutorigInput(autorigInputId)
+              : onDisableAutorigInput(autorigInputId)
+            : setLockedChannels((current) =>
+                toggleInspectorChannelLock(current, channelLockId),
+              )
         }
       >
         {isChannelLocked ? (
@@ -637,6 +680,10 @@ export function RiggingColorRow({
   onUpdateStandardInput,
   setStaticFeatureValue,
   node,
+  autorigInputIdByTargetId,
+  disabledAutorigInputIds,
+  onDisableAutorigInput,
+  onEnableAutorigInput,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
   const [lockedChannels, setLockedChannels] = useState<Set<string>>(
@@ -690,6 +737,12 @@ export function RiggingColorRow({
     const channelLockId =
       targetId ??
       `${feature.id}:${comp.componentKey ?? comp.label ?? String(compLabel)}`;
+    const autorigInputId = resolveAutorigInputIdForChannel({
+      targetId,
+      inputId,
+      unresolvedInputId,
+      inputIdByTargetId: autorigInputIdByTargetId,
+    });
     const currentValue = authority.currentValue;
     const defaultValue = isBound
       ? (standardInput!.defaultValue ?? 0)
@@ -711,6 +764,7 @@ export function RiggingColorRow({
       isBound,
       unresolvedInputId,
       blockedReason,
+      autorigInputId,
     };
   };
 
@@ -720,6 +774,16 @@ export function RiggingColorRow({
 
   const components = [rComp, gComp, bComp].filter(
     (c): c is NonNullable<typeof c> => c !== null,
+  );
+
+  const isChannelLockedForComponent = useCallback(
+    (component: { channelLockId: string; autorigInputId: string | null }) => {
+      if (component.autorigInputId) {
+        return disabledAutorigInputIds.has(component.autorigInputId);
+      }
+      return isInspectorChannelLocked(lockedChannels, component.channelLockId);
+    },
+    [disabledAutorigInputIds, lockedChannels],
   );
 
   if (components.length === 0) return null;
@@ -872,7 +936,7 @@ export function RiggingColorRow({
       type === "current"
         ? components.some(
             (c) =>
-              !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
+              !isChannelLockedForComponent(c) &&
               (c.isBound || !!onStaticValueChange),
           )
         : type === "default"
@@ -890,10 +954,7 @@ export function RiggingColorRow({
           { comp: bComp, val: rgb.b },
         ].forEach(({ comp, val }) => {
           if (!comp) return;
-          if (
-            type === "current" &&
-            isInspectorChannelLocked(lockedChannels, comp.channelLockId)
-          ) {
+          if (type === "current" && isChannelLockedForComponent(comp)) {
             return;
           }
           if (comp.isBound && comp.inputId) {
@@ -979,7 +1040,7 @@ export function RiggingColorRow({
 
             const canEditComp =
               type === "current"
-                ? !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
+                ? !isChannelLockedForComponent(c) &&
                   (c.isBound || !!onStaticValueChange)
                 : type === "default"
                   ? c.isBound
@@ -1174,17 +1235,25 @@ export function RiggingColorRow({
           title={`Current Source: ${c.currentValueSource}`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            isInspectorChannelLocked(lockedChannels, c.channelLockId)
+            isChannelLockedForComponent(c)
               ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
               : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          onClick={() =>
+          onClick={() => {
+            if (c.autorigInputId) {
+              if (disabledAutorigInputIds.has(c.autorigInputId)) {
+                onEnableAutorigInput(c.autorigInputId);
+              } else {
+                onDisableAutorigInput(c.autorigInputId);
+              }
+              return;
+            }
             setLockedChannels((current) =>
               toggleInspectorChannelLock(current, c.channelLockId),
-            )
-          }
+            );
+          }}
         >
-          {isInspectorChannelLocked(lockedChannels, c.channelLockId) ? (
+          {isChannelLockedForComponent(c) ? (
             <Lock size={10} className="shrink-0" />
           ) : (
             <LockOpen size={10} className="shrink-0" />

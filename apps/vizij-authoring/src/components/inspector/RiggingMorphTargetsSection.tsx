@@ -15,6 +15,10 @@ import {
   resolveFaceInspectorCurrentValue,
   toggleInspectorChannelLock,
 } from "./faceInspectorSemantics";
+import {
+  buildAutorigLockIndex,
+  resolveAutorigInputIdForChannel,
+} from "./autorigLockIndex";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -37,6 +41,20 @@ export function RiggingMorphTargetsSection({
   );
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
+  );
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const handleDisableStandardInput = useBindingAuthoring(
+    (state) => state.handleDisableStandardInput,
+  );
+  const handleEnableStandardInput = useBindingAuthoring(
+    (state) => state.handleEnableStandardInput,
+  );
+
+  const autorigLockIndex = useMemo(
+    () => buildAutorigLockIndex(managedStandardInputs),
+    [managedStandardInputs],
   );
 
   const {
@@ -101,6 +119,10 @@ export function RiggingMorphTargetsSection({
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
           node={node}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       ))}
     </div>
@@ -137,6 +159,10 @@ interface RiggingScalarRowProps {
     value: any,
   ) => void;
   node?: SceneObjectNode;
+  autorigInputIdByTargetId: ReadonlyMap<string, string>;
+  disabledAutorigInputIds: ReadonlySet<string>;
+  onDisableAutorigInput: (inputId: string) => void;
+  onEnableAutorigInput: (inputId: string) => void;
 }
 
 function RiggingScalarRow({
@@ -154,6 +180,10 @@ function RiggingScalarRow({
   onUpdateStandardInput,
   setStaticFeatureValue,
   node,
+  autorigInputIdByTargetId,
+  disabledAutorigInputIds,
+  onDisableAutorigInput,
+  onEnableAutorigInput,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
   const [lockedChannels, setLockedChannels] = useState<Set<string>>(
@@ -198,10 +228,15 @@ function RiggingScalarRow({
     staticValue: component.staticValue ?? 0,
   });
   const channelLockId = targetId ?? `${feature.id}:value`;
-  const isChannelLocked = isInspectorChannelLocked(
-    lockedChannels,
-    channelLockId,
-  );
+  const autorigInputId = resolveAutorigInputIdForChannel({
+    targetId,
+    inputId,
+    unresolvedInputId,
+    inputIdByTargetId: autorigInputIdByTargetId,
+  });
+  const isChannelLocked = autorigInputId
+    ? disabledAutorigInputIds.has(autorigInputId)
+    : isInspectorChannelLocked(lockedChannels, channelLockId);
 
   const minVal = hasInputMetadata
     ? standardInput!.range.min
@@ -431,9 +466,13 @@ function RiggingScalarRow({
             : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
         onClick={() =>
-          setLockedChannels((current) =>
-            toggleInspectorChannelLock(current, channelLockId),
-          )
+          autorigInputId
+            ? disabledAutorigInputIds.has(autorigInputId)
+              ? onEnableAutorigInput(autorigInputId)
+              : onDisableAutorigInput(autorigInputId)
+            : setLockedChannels((current) =>
+                toggleInspectorChannelLock(current, channelLockId),
+              )
         }
       >
         {isChannelLocked ? (

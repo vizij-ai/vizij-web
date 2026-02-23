@@ -39,4 +39,13 @@ describe("B1.4 face inspector truthfulness + lock contracts", () => {
     expect(morphSectionTsx).not.toContain("setFeatureAnimated(");
     expect(materialSectionTsx).not.toContain("setFeatureAnimated(");
   });
+
+  it("routes lock toggles through autorig input enable/disable mutations", () => {
+    expect(transformSectionTsx).toContain("handleDisableStandardInput");
+    expect(transformSectionTsx).toContain("handleEnableStandardInput");
+    expect(morphSectionTsx).toContain("handleDisableStandardInput");
+    expect(morphSectionTsx).toContain("handleEnableStandardInput");
+    expect(materialSectionTsx).toContain("handleDisableStandardInput");
+    expect(materialSectionTsx).toContain("handleEnableStandardInput");
+  });
 });

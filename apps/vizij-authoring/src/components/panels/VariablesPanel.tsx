@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   SELF_BINDING_ID,
+  createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
@@ -1371,20 +1372,58 @@ export function VariablesPanel({
       const normalized = normalizeStandardRigInputPath(entry.input.path);
       mainByPath.set(normalized, entry.input);
     });
-    return referenceFace.standardInputs
-      .filter((entry) => Boolean(entry.path?.trim()))
-      .filter((entry) => !isAutorigStandardInputPath(entry.path))
-      .map((entry) => {
-        const normalizedPath = normalizeStandardRigInputPath(entry.path);
+    const referencePathById = new Map<string, string>();
+    referenceFace.standardInputs.forEach((entry) => {
+      if (!entry.id || !entry.path?.trim()) {
+        return;
+      }
+      referencePathById.set(
+        entry.id,
+        normalizeStandardRigInputPath(entry.path),
+      );
+    });
+    Object.entries(referenceFace.referenceInputPathById ?? {}).forEach(
+      ([inputId, path]) => {
+        if (!inputId || typeof path !== "string" || !path.trim()) {
+          return;
+        }
+        if (!referencePathById.has(inputId)) {
+          referencePathById.set(inputId, normalizeStandardRigInputPath(path));
+        }
+      },
+    );
+
+    return Array.from(referencePathById.entries()).map(
+      ([referenceInputId, normalizedPath]) => {
+        const existingInput =
+          referenceFace.standardInputsById.get(referenceInputId) ?? null;
+        const fallbackInput = createStandardRigInputFromPath(normalizedPath);
+        const input: StandardRigInput = existingInput
+          ? {
+              ...existingInput,
+              id: referenceInputId,
+              path: normalizedPath,
+            }
+          : {
+              ...fallbackInput,
+              id: referenceInputId,
+              path: normalizedPath,
+            };
         const linkedMain = mainByPath.get(normalizedPath);
         return {
-          input: entry,
+          input,
           source: "reference" as const,
           normalizedPath,
           linkedMainInputId: linkedMain?.id ?? null,
         };
-      });
-  }, [mainFaceRigEntries, referenceFace.standardInputs]);
+      },
+    );
+  }, [
+    mainFaceRigEntries,
+    referenceFace.referenceInputPathById,
+    referenceFace.standardInputs,
+    referenceFace.standardInputsById,
+  ]);
 
   const referenceInputPathById = useMemo(() => {
     const map = new Map<string, string>();
@@ -3107,9 +3146,15 @@ export function VariablesPanel({
       visit(child);
     }
     setExpandedIds((prev) => {
+      let changed = false;
       const next = new Set(prev);
-      idsToExpand.forEach((id) => next.add(id));
-      return next;
+      idsToExpand.forEach((id) => {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
     });
   }, [activeSurface, visibleRoot, searchQuery]);
 

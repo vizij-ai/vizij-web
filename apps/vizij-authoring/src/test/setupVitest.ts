@@ -1,3 +1,6 @@
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
 const originalWarn = console.warn;
 
 console.warn = (...args: Parameters<typeof console.warn>) => {
@@ -10,3 +13,7 @@ console.warn = (...args: Parameters<typeof console.warn>) => {
   }
   originalWarn(...args);
 };
+
+afterEach(() => {
+  cleanup();
+});

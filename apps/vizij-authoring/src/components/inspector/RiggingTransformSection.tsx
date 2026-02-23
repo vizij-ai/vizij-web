@@ -21,6 +21,10 @@ import {
   resolveFaceInspectorCurrentValue,
   toggleInspectorChannelLock,
 } from "./faceInspectorSemantics";
+import {
+  buildAutorigLockIndex,
+  resolveAutorigInputIdForChannel,
+} from "./autorigLockIndex";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -41,6 +45,20 @@ export function RiggingTransformSection({
   );
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
+  );
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const handleDisableStandardInput = useBindingAuthoring(
+    (state) => state.handleDisableStandardInput,
+  );
+  const handleEnableStandardInput = useBindingAuthoring(
+    (state) => state.handleEnableStandardInput,
+  );
+
+  const autorigLockIndex = useMemo(
+    () => buildAutorigLockIndex(managedStandardInputs),
+    [managedStandardInputs],
   );
 
   const {
@@ -92,6 +110,10 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       )}
 
@@ -113,6 +135,10 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       )}
 
@@ -134,6 +160,10 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          autorigInputIdByTargetId={autorigLockIndex.inputIdByTargetId}
+          disabledAutorigInputIds={autorigLockIndex.disabledInputIds}
+          onDisableAutorigInput={handleDisableStandardInput}
+          onEnableAutorigInput={handleEnableStandardInput}
         />
       )}
     </div>
@@ -171,6 +201,10 @@ interface RiggingVectorRowProps {
     value: any,
   ) => void;
   node?: SceneObjectNode;
+  autorigInputIdByTargetId: ReadonlyMap<string, string>;
+  disabledAutorigInputIds: ReadonlySet<string>;
+  onDisableAutorigInput: (inputId: string) => void;
+  onEnableAutorigInput: (inputId: string) => void;
 }
 
 function RiggingVectorRow({
@@ -188,6 +222,10 @@ function RiggingVectorRow({
   onStaticValueChange,
   onUpdateStandardInput,
   setStaticFeatureValue,
+  autorigInputIdByTargetId,
+  disabledAutorigInputIds,
+  onDisableAutorigInput,
+  onEnableAutorigInput,
 }: RiggingVectorRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
   const [lockedChannels, setLockedChannels] = useState<Set<string>>(
@@ -243,6 +281,12 @@ function RiggingVectorRow({
       const channelLockId =
         targetId ??
         `${feature.id}:${comp.componentKey ?? comp.label ?? String(label)}`;
+      const autorigInputId = resolveAutorigInputIdForChannel({
+        targetId,
+        inputId,
+        unresolvedInputId,
+        inputIdByTargetId: autorigInputIdByTargetId,
+      });
 
       if (hasInputMetadata && inputId) {
         // Bound Case
@@ -261,6 +305,7 @@ function RiggingVectorRow({
           hasInputMetadata: true,
           unresolvedInputId,
           blockedReason,
+          autorigInputId,
         };
       } else {
         // Descriptor Case (or dynamic input without metadata)
@@ -299,6 +344,7 @@ function RiggingVectorRow({
           hasInputMetadata: false,
           unresolvedInputId,
           blockedReason,
+          autorigInputId,
         };
       }
     });
@@ -309,7 +355,18 @@ function RiggingVectorRow({
     standardInputsById,
     inputBindings,
     inputValues,
+    autorigInputIdByTargetId,
   ]);
+
+  const isChannelLockedForComponent = useCallback(
+    (component: { channelLockId: string; autorigInputId: string | null }) => {
+      if (component.autorigInputId) {
+        return disabledAutorigInputIds.has(component.autorigInputId);
+      }
+      return isInspectorChannelLocked(lockedChannels, component.channelLockId);
+    },
+    [disabledAutorigInputIds, lockedChannels],
+  );
 
   if (components.length === 0) return null;
 
@@ -407,7 +464,7 @@ function RiggingVectorRow({
           if (type === "current") {
             val = c.currentValue;
             canEdit =
-              !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
+              !isChannelLockedForComponent(c) &&
               (c.isBound || !!onStaticValueChange);
           } else if (type === "default") {
             val = c.defaultValue;
@@ -606,13 +663,23 @@ function RiggingVectorRow({
           title={`Current Source: ${c.currentValueSource}`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            isInspectorChannelLocked(lockedChannels, c.channelLockId)
+            isChannelLockedForComponent(c)
               ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
               : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          onClick={() => toggleChannelLock(c.channelLockId)}
+          onClick={() => {
+            if (c.autorigInputId) {
+              if (disabledAutorigInputIds.has(c.autorigInputId)) {
+                onEnableAutorigInput(c.autorigInputId);
+              } else {
+                onDisableAutorigInput(c.autorigInputId);
+              }
+              return;
+            }
+            toggleChannelLock(c.channelLockId);
+          }}
         >
-          {isInspectorChannelLocked(lockedChannels, c.channelLockId) ? (
+          {isChannelLockedForComponent(c) ? (
             <Lock size={10} className="shrink-0" />
           ) : (
             <LockOpen size={10} className="shrink-0" />
