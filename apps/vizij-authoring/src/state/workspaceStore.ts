@@ -33,14 +33,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   panels: {
     hierarchy: { isVisible: true, order: 2 },
     variables: { isVisible: true, order: 1 },
-    poses: { isVisible: false, order: 4 },
-    inputs: { isVisible: false, order: 5 },
+    poses: { isVisible: true, order: 4 },
+    inputs: { isVisible: true, order: 5 },
     inspector: { isVisible: true, order: 0 },
     debug: { isVisible: false, order: 1 },
     animation: { isVisible: false, order: 0 },
     toolbar: { isVisible: true, order: 0 },
     referenceFace: { isVisible: false, order: 0 },
-    materials: { isVisible: false, order: 3 },
+    materials: { isVisible: true, order: 3 },
   },
   togglePanel: (panelId) =>
     set((state) => ({
