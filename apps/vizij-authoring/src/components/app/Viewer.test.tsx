@@ -1,11 +1,15 @@
 import React, { act } from "react";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
 } from "../../state/graphRuntimeStore";
+import {
+  BindingAuthoringStoreProvider,
+  createBindingAuthoringStore,
+} from "../../state/bindingAuthoringStore";
 import { Viewer } from "./Viewer";
 
 const stepSpy = vi.fn();
@@ -38,12 +42,15 @@ function renderViewer(props: ViewerProps) {
   document.body.appendChild(container);
   let root: Root;
   const store = createGraphRuntimeStore();
+  const bindingStore = createBindingAuthoringStore();
 
   act(() => {
     root = createRoot(container);
     root.render(
       <GraphRuntimeStoreProvider store={store}>
-        <Viewer {...props} />
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer {...props} />
+        </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
     );
   });
@@ -118,23 +125,26 @@ describe("Viewer", () => {
 
   it("stages input without forcing step", () => {
     const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
     render(
       <GraphRuntimeStoreProvider store={store}>
-        <Viewer
-          rootId="root"
-          namespace="default"
-          bundle={{
-            namespace: "default",
-            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-            rig: { id: "rig", spec: { nodes: [] } },
-            bundle: null,
-          }}
-          onClearSelection={() => {}}
-          showSelectionGlow={false}
-          onImportClick={() => {}}
-          onLoadQuori={() => {}}
-          onLoadHugo={() => {}}
-        />
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              rig: { id: "rig", spec: { nodes: [] } },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
     );
 
@@ -150,23 +160,31 @@ describe("Viewer", () => {
       poseGraphSpec: { nodes: [] } as any,
       poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
     });
+    const bindingStore = createBindingAuthoringStore();
 
     render(
       <GraphRuntimeStoreProvider store={store}>
-        <Viewer
-          rootId="root"
-          namespace="default"
-          bundle={{
-            namespace: "default",
-            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-            bundle: null,
-          }}
-          onClearSelection={() => {}}
-          showSelectionGlow={false}
-          onImportClick={() => {}}
-          onLoadQuori={() => {}}
-          onLoadHugo={() => {}}
-        />
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: {
+                kind: "world",
+                world: {},
+                animatables: {},
+                bundle: null,
+              },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
     );
 
@@ -188,23 +206,26 @@ describe("Viewer", () => {
       poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
       poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
     });
+    const bindingStore = createBindingAuthoringStore();
 
     render(
       <GraphRuntimeStoreProvider store={store}>
-        <Viewer
-          rootId="root"
-          namespace="default"
-          bundle={{
-            namespace: "default",
-            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-            bundle: null,
-          }}
-          onClearSelection={() => {}}
-          showSelectionGlow={false}
-          onImportClick={() => {}}
-          onLoadQuori={() => {}}
-          onLoadHugo={() => {}}
-        />
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
     );
 
@@ -261,23 +282,26 @@ describe("Viewer", () => {
       poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
       poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
     });
+    const bindingStore = createBindingAuthoringStore();
 
     render(
       <GraphRuntimeStoreProvider store={store}>
-        <Viewer
-          rootId="root"
-          namespace="default"
-          bundle={{
-            namespace: "default",
-            glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-            bundle: null,
-          }}
-          onClearSelection={() => {}}
-          showSelectionGlow={false}
-          onImportClick={() => {}}
-          onLoadQuori={() => {}}
-          onLoadHugo={() => {}}
-        />
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
     );
 
@@ -291,5 +315,95 @@ describe("Viewer", () => {
       },
       { tier: "graphs" },
     );
+  });
+
+  it("resets managed input IDs to their defaults", () => {
+    const store = createGraphRuntimeStore();
+    const applyStandardInputBatchSpy = vi.fn();
+    const bindingStore = createBindingAuthoringStore({
+      managedStandardInputs: [
+        {
+          input: {
+            id: "jaw_open",
+            label: "Jaw Open",
+            path: "/standard/jaw/open",
+            range: { min: -1, max: 1 },
+            defaultValue: 0.5,
+          } as any,
+          source: "custom",
+          disabled: false,
+        },
+        {
+          input: {
+            id: "jaw_control",
+            label: "Pose Control Jaw",
+            path: "/pose/control/jaw_open",
+            range: { min: 0, max: 1 },
+            defaultValue: 0.9,
+          } as any,
+          source: "auto",
+          disabled: false,
+        },
+        {
+          input: {
+            id: "pose_smile_weight",
+            label: "Smile Weight",
+            path: "/poses/pose_smile.weight",
+            range: { min: 0, max: 1 },
+          } as any,
+          source: "auto",
+          disabled: false,
+        },
+      ],
+      applyStandardInputBatch: applyStandardInputBatchSpy,
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <GraphRuntimeStoreProvider store={store}>
+          <BindingAuthoringStoreProvider store={bindingStore}>
+            <Viewer
+              rootId="root"
+              namespace="default"
+              bundle={{
+                namespace: "default",
+                glb: {
+                  kind: "world",
+                  world: {},
+                  animatables: {},
+                  bundle: null,
+                },
+                bundle: null,
+              }}
+              onClearSelection={() => {}}
+              showSelectionGlow={false}
+              onImportClick={() => {}}
+              onLoadQuori={() => {}}
+              onLoadHugo={() => {}}
+            />
+          </BindingAuthoringStoreProvider>
+        </GraphRuntimeStoreProvider>,
+      );
+    });
+
+    const resetButton = container.querySelector(
+      'button[title="Reset graph inputs to their default values"]',
+    );
+    expect(resetButton).toBeTruthy();
+    fireEvent.click(resetButton as HTMLButtonElement);
+
+    expect(applyStandardInputBatchSpy).toHaveBeenCalledWith({
+      jaw_open: 0.5,
+      pose_smile_weight: 0,
+    });
+
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
   });
 });

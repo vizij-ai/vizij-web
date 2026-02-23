@@ -1,12 +1,14 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 import {
+  useBindingAuthoring,
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import { isPoseControlInputPath } from "../../poseRig/utils";
 
 function RuntimeInputBridge() {
   const { setInput, ready } = useVizijRuntime();
@@ -105,6 +107,36 @@ function RuntimeStatusDebug() {
 
 function RuntimeFpsBadge() {
   const { ready, loading, stepHz } = useVizijRuntime();
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
+
+  const resetInputEntries = useMemo(() => {
+    const updates: Record<string, number> = {};
+    managedStandardInputs.forEach((entry) => {
+      if (isPoseControlInputPath(entry.input.path)) {
+        return;
+      }
+      const inputId = entry.input.id?.trim();
+      if (!inputId) {
+        return;
+      }
+      updates[inputId] = Number.isFinite(entry.input.defaultValue)
+        ? entry.input.defaultValue
+        : 0;
+    });
+    return updates;
+  }, [managedStandardInputs]);
+
+  const handleResetInputs = useCallback(() => {
+    if (Object.keys(resetInputEntries).length === 0) {
+      return;
+    }
+    applyStandardInputBatch(resetInputEntries);
+  }, [applyStandardInputBatch, resetInputEntries]);
 
   if (!ready || loading) {
     return null;
@@ -114,8 +146,18 @@ function RuntimeFpsBadge() {
     stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
 
   return (
-    <div className="absolute top-2 left-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-      FPS: {formattedFps}
+    <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+      <div className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
+        FPS: {formattedFps}
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={handleResetInputs}
+        title="Reset graph inputs to their default values"
+      >
+        Reset Inputs
+      </Button>
     </div>
   );
 }
