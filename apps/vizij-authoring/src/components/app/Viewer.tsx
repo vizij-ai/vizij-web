@@ -103,6 +103,23 @@ function RuntimeStatusDebug() {
   );
 }
 
+function RuntimeFpsBadge() {
+  const { ready, loading, stepHz } = useVizijRuntime();
+
+  if (!ready || loading) {
+    return null;
+  }
+
+  const formattedFps =
+    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+
+  return (
+    <div className="absolute top-2 left-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
+      FPS: {formattedFps}
+    </div>
+  );
+}
+
 export interface ViewerProps {
   rootId: string | null;
   namespace: string;
@@ -148,6 +165,7 @@ export function Viewer({
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <RuntimeStatusDebug />
+            <RuntimeFpsBadge />
             <div
               className="h-full w-full"
               onPointerDown={(event) => {
