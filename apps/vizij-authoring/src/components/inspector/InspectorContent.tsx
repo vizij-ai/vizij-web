@@ -1,9 +1,16 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   Trash2,
   Plus,
   Copy,
   Info,
+  ChevronDown,
   ChevronRight,
   Sliders,
   Palette,
@@ -100,7 +107,7 @@ type PoseVariableRenderItem = PoseVariableItem & {
   label: string;
   min: number;
   max: number;
-  directVal: number;
+  neutralVal: number;
   poseDrivenVal: number;
   contributionStrength: number | null;
   contributionLabel: string;
@@ -115,6 +122,13 @@ type PoseVariableRenderGroup = {
   key: string;
   label: string;
   items: PoseVariableRenderItem[];
+};
+
+type PoseSemanticTooltips = {
+  target: string;
+  direct: string;
+  poseDriven: string;
+  contribution: string;
 };
 
 type RigTraversalSummary = {
@@ -239,6 +253,173 @@ function normalizePoseMembershipPath(
   return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
 }
 
+interface PoseVariableExpandedControlsProps {
+  poseId: string;
+  item: PoseVariableRenderItem;
+  poseSemanticTooltips: PoseSemanticTooltips;
+  onInputValueChange: (inputId: string, value: number) => void;
+  onUpdatePoseValue: (poseId: string, inputId: string, value: number) => void;
+}
+
+function PoseVariableExpandedControls({
+  poseId,
+  item,
+  poseSemanticTooltips,
+  onInputValueChange,
+  onUpdatePoseValue,
+}: PoseVariableExpandedControlsProps) {
+  const stagedValue = useBindingAuthoring(
+    (state) => state.inputValues[item.varId],
+  );
+  const directVal =
+    typeof stagedValue === "number" && Number.isFinite(stagedValue)
+      ? stagedValue
+      : item.neutralVal;
+
+  const handleDirectInputChange = useCallback(
+    (nextDirect: number) => {
+      onInputValueChange(
+        item.varId,
+        clampToRange(nextDirect, item.min, item.max),
+      );
+    },
+    [item.max, item.min, item.varId, onInputValueChange],
+  );
+
+  const handleDirectReset = useCallback(() => {
+    onInputValueChange(
+      item.varId,
+      clampToRange(item.directDefaultValue, item.min, item.max),
+    );
+  }, [
+    item.directDefaultValue,
+    item.max,
+    item.min,
+    item.varId,
+    onInputValueChange,
+  ]);
+
+  const handleTargetValueChange = useCallback(
+    (nextTarget: number) => {
+      onUpdatePoseValue(
+        poseId,
+        item.varId,
+        clampToRange(nextTarget, item.min, item.max),
+      );
+    },
+    [item.max, item.min, item.varId, onUpdatePoseValue, poseId],
+  );
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+        <span
+          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+          title={poseSemanticTooltips.direct}
+        >
+          Direct Input
+        </span>
+        <Slider
+          min={item.min}
+          max={item.max}
+          step={0.0001}
+          value={directVal}
+          className="flex-1 min-w-[120px]"
+          onChange={(val) => handleDirectInputChange(val as number)}
+        />
+        <div
+          className="inspector-numeric-control flex-shrink-0"
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <NumberField
+            size="sm"
+            min={item.min}
+            max={item.max}
+            step={0.0001}
+            format={POSE_VALUE_PRECISION_FORMAT}
+            value={directVal}
+            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+            onChange={handleDirectInputChange}
+          />
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          title="Reset direct input to default"
+          onClick={handleDirectReset}
+        >
+          <RotateCcw size={11} />
+          Reset
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          title="Use direct input value as the new pose target"
+          onClick={() => onUpdatePoseValue(poseId, item.varId, directVal)}
+        >
+          <Save size={11} />
+          Set Target
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+        <span
+          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+          title={poseSemanticTooltips.target}
+        >
+          Target Value (100%)
+        </span>
+        <div className="relative flex-1 min-w-[120px]">
+          <Slider
+            min={item.min}
+            max={item.max}
+            step={0.0001}
+            value={item.poseVal}
+            className="w-full"
+            onChange={(val) => handleTargetValueChange(val as number)}
+          />
+          <span
+            className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
+            style={{ left: `${item.poseDrivenPercent}%` }}
+            title={poseSemanticTooltips.poseDriven}
+          />
+        </div>
+        <div
+          className="inspector-numeric-control flex-shrink-0"
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <NumberField
+            size="sm"
+            min={item.min}
+            max={item.max}
+            step={0.0001}
+            format={POSE_VALUE_PRECISION_FORMAT}
+            value={item.poseVal}
+            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+            onChange={handleTargetValueChange}
+          />
+        </div>
+        <span
+          className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
+          title={poseSemanticTooltips.poseDriven}
+        >
+          Pose {item.poseDrivenVal.toFixed(4)}
+        </span>
+        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+          Min {item.min.toFixed(4)}
+        </span>
+        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+          Max {item.max.toFixed(4)}
+        </span>
+      </div>
+    </>
+  );
+}
+
 interface InspectorContentProps {
   hasReferenceFaceFile?: boolean;
 }
@@ -272,6 +453,9 @@ export function InspectorContent({
   const [poseBindingEditorInputId, setPoseBindingEditorInputId] = useState<
     string | null
   >(null);
+  const [expandedPoseVariableIds, setExpandedPoseVariableIds] = useState<
+    Set<string>
+  >(() => new Set());
   const [rigDefaultDraft, setRigDefaultDraft] = useState("0");
   const [rigRangeMinDraft, setRigRangeMinDraft] = useState("-1");
   const [rigRangeMaxDraft, setRigRangeMaxDraft] = useState("1");
@@ -289,7 +473,10 @@ export function InspectorContent({
     handleSelectRig,
     inspectorMode,
   } = useUnifiedSelection();
-  const shouldSubscribeInputValues = inspectorMode !== "scene";
+  const shouldSubscribeInputValues =
+    inspectorMode === "rig" ||
+    inspectorMode === "material" ||
+    (inspectorMode === "pose" && poseBindingEditorInputId !== null);
 
   const {
     getNode,
@@ -565,16 +752,16 @@ export function InspectorContent({
       ? (poseWeightInputIdByPoseId.get(selectedPoseId) ?? null)
       : null;
 
-  const selectedPoseWeightValue = useMemo(() => {
+  const selectedPoseWeightValue = useBindingAuthoring((state) => {
     if (!selectedPoseWeightInputId) {
       return 0;
     }
-    const stored = inputValues[selectedPoseWeightInputId];
+    const stored = state.inputValues[selectedPoseWeightInputId];
     if (typeof stored !== "number" || !Number.isFinite(stored)) {
       return 0;
     }
-    return Math.max(0, Math.min(1, stored));
-  }, [inputValues, selectedPoseWeightInputId]);
+    return clamp01(stored);
+  });
 
   const usePoseWeightPreview = Boolean(
     poseGraphSpec && selectedPoseWeightInputId,
@@ -632,6 +819,28 @@ export function InspectorContent({
       setPoseBindingEditorInputId(null);
     }
   }, [inspectorMode, selectedPoseId]);
+
+  useEffect(() => {
+    if (inspectorMode !== "pose" || !selectedPoseId) {
+      setExpandedPoseVariableIds((current) =>
+        current.size === 0 ? current : new Set(),
+      );
+      return;
+    }
+    setExpandedPoseVariableIds(new Set());
+  }, [inspectorMode, selectedPoseId]);
+
+  const togglePoseVariableExpansion = useCallback((varId: string) => {
+    setExpandedPoseVariableIds((current) => {
+      const next = new Set(current);
+      if (next.has(varId)) {
+        next.delete(varId);
+      } else {
+        next.add(varId);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (inspectorMode !== "rig" || !selectedManagedRigEntry) {
@@ -991,11 +1200,6 @@ export function InspectorContent({
           canInspectVariable: standardInputsById.has(item.varId),
           poseComposeMode: "add" as const,
         };
-        const staged = inputValues[item.varId];
-        const directVal =
-          typeof staged === "number" && Number.isFinite(staged)
-            ? staged
-            : base.neutralVal;
         const interpolated =
           base.neutralVal +
           (item.poseVal - base.neutralVal) * clamp01(activePoseWeight);
@@ -1010,7 +1214,7 @@ export function InspectorContent({
           label: cleanLabel(base.rawLabel, group.label),
           min: base.min,
           max: base.max,
-          directVal,
+          neutralVal: base.neutralVal,
           poseDrivenVal,
           contributionStrength,
           contributionLabel: formatContributionStrength(contributionStrength),
@@ -1032,7 +1236,6 @@ export function InspectorContent({
   }, [
     blendAmount,
     groupedPoseVariables,
-    inputValues,
     inspectorMode,
     poseVariableBaseById,
     selectedPose,
@@ -1040,6 +1243,19 @@ export function InspectorContent({
     standardInputsById,
     usePoseWeightPreview,
   ]);
+  const poseVariableIds = useMemo(
+    () =>
+      poseVariableRenderGroups.flatMap((group) =>
+        group.items.map((item) => item.varId),
+      ),
+    [poseVariableRenderGroups],
+  );
+  const allPoseVariablesExpanded = useMemo(
+    () =>
+      poseVariableIds.length > 0 &&
+      poseVariableIds.every((varId) => expandedPoseVariableIds.has(varId)),
+    [expandedPoseVariableIds, poseVariableIds],
+  );
   const selectedRigTraversal = useMemo<RigTraversalSummary>(() => {
     if (inspectorMode !== "rig" || !resolvedSelectedRigId) {
       return EMPTY_RIG_TRAVERSAL_SUMMARY;
@@ -1558,7 +1774,7 @@ export function InspectorContent({
       resolvedInputIds.forEach((inputId) => addPoseInput(pose.id, inputId));
     };
 
-    const poseSemanticTooltips = {
+    const poseSemanticTooltips: PoseSemanticTooltips = {
       target:
         "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
       direct:
@@ -1575,6 +1791,11 @@ export function InspectorContent({
       if (usePoseWeightPreview && selectedPoseWeightInputId) {
         handleInputValueChange(selectedPoseWeightInputId, clampedAmount);
       }
+    };
+    const handleToggleAllPoseVariables = () => {
+      setExpandedPoseVariableIds(() =>
+        allPoseVariablesExpanded ? new Set() : new Set(poseVariableIds),
+      );
     };
     const poseBindingEditorInput = poseBindingEditorInputId
       ? (rigInputById.get(poseBindingEditorInputId) ?? null)
@@ -1755,6 +1976,14 @@ export function InspectorContent({
             What I Drive · {Object.keys(pose.values).length} Variables
           </span>
           <div className="h-px bg-border-default flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] whitespace-nowrap"
+            onClick={handleToggleAllPoseVariables}
+          >
+            {allPoseVariablesExpanded ? "Collapse Channels" : "Expand Channels"}
+          </Button>
         </div>
 
         <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
@@ -1778,228 +2007,136 @@ export function InspectorContent({
               <div className="flex flex-col gap-1.5 px-0.5">
                 {group.items.map((item) => {
                   const varId = item.varId;
-                  const poseVal = item.poseVal;
+                  const isExpanded = expandedPoseVariableIds.has(varId);
                   const {
                     label,
-                    min,
-                    max,
-                    directVal,
+                    poseVal,
                     poseDrivenVal,
                     contributionStrength,
                     contributionLabel,
                     poseComposeMode,
                     canInspectVariable,
                     chainSummary,
-                    directDefaultValue,
-                    poseDrivenPercent,
                   } = item;
-                  const handleDirectInputChange = (nextDirect: number) => {
-                    handleInputValueChange(
-                      varId,
-                      clampToRange(nextDirect, min, max),
-                    );
-                  };
-                  const handleDirectReset = () => {
-                    handleInputValueChange(
-                      varId,
-                      clampToRange(directDefaultValue, min, max),
-                    );
-                  };
-                  const handleTargetValueChange = (nextTarget: number) => {
-                    updatePoseValue(
-                      pose.id,
-                      varId,
-                      clampToRange(nextTarget, min, max),
-                    );
-                  };
 
                   return (
                     <div
-                      key={varId}
+                      key={`${pose.id}:${varId}`}
                       className="flex flex-col gap-2 rounded border border-border-default/50 bg-bg-panel/30 p-2"
                     >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium text-text-primary">
-                          {label}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
-                            contributionStrength === null
-                              ? "text-text-muted border-border-default/50"
-                              : "text-accent border-accent/40 bg-accent/10",
-                          )}
-                          title={poseSemanticTooltips.contribution}
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          className="mt-0.5 p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+                          onClick={() => togglePoseVariableExpansion(varId)}
+                          aria-expanded={isExpanded}
+                          title={
+                            isExpanded
+                              ? "Collapse channel details"
+                              : "Expand channel details"
+                          }
                         >
-                          Contrib {contributionLabel}
-                        </span>
-                        <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
-                          <span className="uppercase tracking-wide font-bold">
-                            Compose
+                          {isExpanded ? (
+                            <ChevronDown size={12} />
+                          ) : (
+                            <ChevronRight size={12} />
+                          )}
+                        </button>
+                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                          <span className="text-xs font-medium text-text-primary truncate">
+                            {label}
                           </span>
-                          <select
-                            className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
-                            value={poseComposeMode}
-                            title="Compose direct/current value with this pose target for this channel."
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) => {
+                          <span
+                            className={cn(
+                              "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
+                              contributionStrength === null
+                                ? "text-text-muted border-border-default/50"
+                                : "text-accent border-accent/40 bg-accent/10",
+                            )}
+                            title={poseSemanticTooltips.contribution}
+                          >
+                            Contrib {contributionLabel}
+                          </span>
+                          <span
+                            className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted"
+                            title={poseSemanticTooltips.target}
+                          >
+                            Target {poseVal.toFixed(4)}
+                          </span>
+                          <span
+                            className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
+                            title={poseSemanticTooltips.poseDriven}
+                          >
+                            Pose {poseDrivenVal.toFixed(4)}
+                          </span>
+                          <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
+                            <span className="uppercase tracking-wide font-bold">
+                              Compose
+                            </span>
+                            <select
+                              className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
+                              value={poseComposeMode}
+                              title="Compose direct/current value with this pose target for this channel."
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                event.stopPropagation();
+                                setPoseInputComposeMode(
+                                  pose.id,
+                                  varId,
+                                  event.target.value === "average"
+                                    ? "average"
+                                    : "add",
+                                );
+                              }}
+                            >
+                              <option value="add">Add</option>
+                              <option value="average">Average</option>
+                            </select>
+                          </label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
+                            title={`Inspect variable ${varId}`}
+                            disabled={!canInspectVariable}
+                            onClick={(event) => {
                               event.stopPropagation();
-                              setPoseInputComposeMode(
-                                pose.id,
-                                varId,
-                                event.target.value === "average"
-                                  ? "average"
-                                  : "add",
-                              );
+                              if (canInspectVariable) {
+                                openRigInspector(varId, "bindings");
+                              }
                             }}
                           >
-                            <option value="add">Add</option>
-                            <option value="average">Average</option>
-                          </select>
-                        </label>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
-                          title={`Inspect variable ${varId}`}
-                          disabled={!canInspectVariable}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (canInspectVariable) {
-                              openRigInspector(varId, "bindings");
-                            }
-                          }}
-                        >
-                          {varId}
-                          <ChevronRight size={11} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
-                          title="Remove from Pose"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removePoseInput(pose.id, varId);
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
-                        <span
-                          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                          title={poseSemanticTooltips.direct}
-                        >
-                          Direct Input
-                        </span>
-                        <Slider
-                          min={min}
-                          max={max}
-                          step={0.0001}
-                          value={directVal}
-                          className="flex-1 min-w-[120px]"
-                          onChange={(val) =>
-                            handleDirectInputChange(val as number)
-                          }
-                        />
-                        <div
-                          className="inspector-numeric-control flex-shrink-0"
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onPointerDown={(event) => event.stopPropagation()}
-                        >
-                          <NumberField
+                            {varId}
+                            <ChevronRight size={11} />
+                          </Button>
+                          <Button
+                            variant="ghost"
                             size="sm"
-                            min={min}
-                            max={max}
-                            step={0.0001}
-                            format={POSE_VALUE_PRECISION_FORMAT}
-                            value={directVal}
-                            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                            onChange={handleDirectInputChange}
-                          />
+                            className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
+                            title="Remove from Pose"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removePoseInput(pose.id, varId);
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          title="Reset direct input to default"
-                          onClick={handleDirectReset}
-                        >
-                          <RotateCcw size={11} />
-                          Reset
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          title="Use direct input value as the new pose target"
-                          onClick={() =>
-                            updatePoseValue(pose.id, varId, directVal)
-                          }
-                        >
-                          <Save size={11} />
-                          Set Target
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
-                        <span
-                          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                          title={poseSemanticTooltips.target}
-                        >
-                          Target Value (100%)
-                        </span>
-                        <div className="relative flex-1 min-w-[120px]">
-                          <Slider
-                            min={min}
-                            max={max}
-                            step={0.0001}
-                            value={poseVal}
-                            className="w-full"
-                            onChange={(val) =>
-                              handleTargetValueChange(val as number)
-                            }
-                          />
-                          <span
-                            className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
-                            style={{ left: `${poseDrivenPercent}%` }}
-                            title={poseSemanticTooltips.poseDriven}
-                          />
-                        </div>
-                        <div
-                          className="inspector-numeric-control flex-shrink-0"
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onPointerDown={(event) => event.stopPropagation()}
-                        >
-                          <NumberField
-                            size="sm"
-                            min={min}
-                            max={max}
-                            step={0.0001}
-                            format={POSE_VALUE_PRECISION_FORMAT}
-                            value={poseVal}
-                            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                            onChange={handleTargetValueChange}
-                          />
-                        </div>
-                        <span
-                          className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
-                          title={poseSemanticTooltips.poseDriven}
-                        >
-                          Pose {poseDrivenVal.toFixed(4)}
-                        </span>
-                        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-                          Min {min.toFixed(4)}
-                        </span>
-                        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-                          Max {max.toFixed(4)}
-                        </span>
                       </div>
                       {chainSummary && (
-                        <div className="text-[9px] text-text-muted font-mono">
+                        <div className="ml-6 text-[9px] text-text-muted font-mono">
                           {chainSummary}
+                        </div>
+                      )}
+                      {isExpanded && (
+                        <div className="ml-6 flex flex-col gap-2">
+                          <PoseVariableExpandedControls
+                            poseId={pose.id}
+                            item={item}
+                            poseSemanticTooltips={poseSemanticTooltips}
+                            onInputValueChange={handleInputValueChange}
+                            onUpdatePoseValue={updatePoseValue}
+                          />
                         </div>
                       )}
                     </div>

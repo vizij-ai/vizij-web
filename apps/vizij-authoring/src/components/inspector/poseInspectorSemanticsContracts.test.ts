@@ -19,7 +19,7 @@ describe("B1.3 pose inspector value semantics contracts", () => {
     expect(inspectorContentTsx).toContain("poseVariableBaseById");
     expect(inspectorContentTsx).toContain("poseVariableRenderGroups");
     expect(inspectorContentTsx).toContain(
-      "const staged = inputValues[item.varId]",
+      "const stagedValue = useBindingAuthoring((state) => state.inputValues[item.varId]);",
     );
     expect(inspectorContentTsx).toContain(
       "const poseDrivenVal = clampToRange(interpolated, base.min, base.max)",
@@ -50,5 +50,11 @@ describe("B1.3 pose inspector value semantics contracts", () => {
       '<option value="average">Average</option>',
     );
     expect(inspectorContentTsx).toContain("setPoseInputComposeMode");
+  });
+
+  it("defers heavy channel controls behind explicit expansion", () => {
+    expect(inspectorContentTsx).toContain("togglePoseVariableExpansion");
+    expect(inspectorContentTsx).toContain("isExpanded && (");
+    expect(inspectorContentTsx).toContain("PoseVariableExpandedControls");
   });
 });
