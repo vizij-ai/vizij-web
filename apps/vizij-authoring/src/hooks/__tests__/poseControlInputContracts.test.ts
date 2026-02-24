@@ -44,4 +44,10 @@ describe("pose control input guard contracts", () => {
     expect(useRigControllerTs).toContain("stagedRuntimeInputValuesRef");
     expect(useRigControllerTs).toContain("Object.is(previous, value)");
   });
+
+  it("skips no-op direct input updates before staging", () => {
+    expect(useRigControllerTs).toContain(
+      "Object.is(inputValuesRef.current[resolvedInputId], value)",
+    );
+  });
 });

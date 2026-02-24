@@ -4,6 +4,29 @@
 
 This pass removed low-risk redundant work in active authoring hot paths (variables, drivers, and pose controls). The items below are intentionally deferred because they require wider architectural changes and migration validation.
 
+## Post-Tuning Snapshot (Same Day)
+
+Additional low-risk tuning landed after the initial stabilization commit:
+
+1. No-op direct input writes now short-circuit before state update + staging.
+2. `VariablesPanel` now separates stable pose-group metadata from per-value row recomputation.
+
+Measured with `VIZIJ_CAPTURE_PERF=1 vitest --run src/components/panels/VariablesPanel.perf.test.tsx --reporter=verbose` (3 runs before/after):
+
+| Metric                             | Pre-Tuning Avg | Post-Tuning Avg |  Delta |
+| ---------------------------------- | -------------: | --------------: | -----: |
+| Interaction latency avg (ms)       |         26.487 |          24.287 |  -8.3% |
+| Interaction latency p95 (ms)       |         77.621 |          72.100 |  -7.1% |
+| Profiler totalActualDuration (ms)  |        142.119 |         126.440 | -11.0% |
+| Profiler updateActualDuration (ms) |         77.245 |          69.527 | -10.0% |
+| Profiler updateMaxDuration (ms)    |         16.653 |          14.839 | -10.9% |
+| Profiler maxBaseDuration (ms)      |         47.291 |          40.534 | -14.3% |
+
+Interpretation:
+
+- We have meaningful local gains from pruning redundant work.
+- Remaining wins now likely require architectural decomposition rather than micro-optimizations.
+
 ## Proposed Refactors
 
 ### 1. Split `useRigController` into focused runtime services
@@ -19,6 +42,7 @@ This pass removed low-risk redundant work in active authoring hot paths (variabl
   - Keep the hook as orchestration-only glue.
 - Expected gain:
   - Lower rerender/effect churn pressure and clearer profiling boundaries.
+  - Easier targeted profiling of input-route resolution vs staging vs compile cost.
 
 ### 2. Move pose authoring to explicit incremental projection pipeline
 
@@ -33,6 +57,7 @@ This pass removed low-risk redundant work in active authoring hot paths (variabl
   - Add an explicit projection coordinator in `poseRig/services` so store actions dispatch intent, not compile policy.
 - Expected gain:
   - Smoother slider/edit interactions for pose values and target tweaks on dense rigs.
+  - Reduced compile pressure during frequent pose target/value edits.
 
 ### 3. Add runtime input staging transaction boundary
 
@@ -46,6 +71,24 @@ This pass removed low-risk redundant work in active authoring hot paths (variabl
     - flush once per runtime tick/bridge-ready phase.
 - Expected gain:
   - Fewer bridge calls under bursty UI interaction and cleaner deterministic behavior during reconnects.
+
+## Recommended Execution Order
+
+1. `useRigController` split first (highest leverage, lowest semantic risk if boundaries are preserved).
+2. Runtime staging transaction boundary second (build on the service split).
+3. Pose incremental projection third (largest semantics surface, should land with dedicated fixtures and traces).
+
+## Rollout / Guardrails
+
+1. Land each refactor behind behavior-preserving contracts first, then perf gates.
+2. Expand tests for:
+   - variable + driver authoring live update parity,
+   - pose target add/remove/edit + apply parity,
+   - bridge reconnect + deterministic restage.
+3. Keep a benchmark bundle:
+   - Inputs pane perf baseline (existing),
+   - pose slider drag workload,
+   - mixed direct-control + pose-control workload.
 
 ## Quality Gates Needed Before Landing
 

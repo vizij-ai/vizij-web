@@ -1177,7 +1177,7 @@ export function VariablesPanel({
   }, [selectedRigId, standardInputsById]);
   const effectiveSelectedRigId = resolvedSelectedRigId || selectedRigId || null;
 
-  const inputRows = useMemo(() => {
+  const poseCountByGroupId = useMemo(() => {
     const poseCountByGroupId = new Map<string, number>();
     poses.forEach((pose) => {
       const memberships =
@@ -1197,7 +1197,10 @@ export function VariablesPanel({
         );
       });
     });
+    return poseCountByGroupId;
+  }, [poses]);
 
+  const poseGroupLabelById = useMemo(() => {
     const groupLabelById = new Map<string, string>();
     (poseConfigDraft?.poseGroups ?? []).forEach((group) => {
       const groupId = group.id?.trim();
@@ -1211,40 +1214,49 @@ export function VariablesPanel({
         groupId;
       groupLabelById.set(groupId, poseGroupDisplayLabel(normalizedPath));
     });
+    return groupLabelById;
+  }, [poseConfigDraft?.poseGroups]);
 
-    const managedRows = managedStandardInputs
-      .filter((entry) => !isPoseControlInputPath(entry.input.path))
-      .map((entry) => {
-        const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
-        const min = entry.input.range?.min ?? 0;
-        const max = entry.input.range?.max ?? 1;
-        const value = inputValues[entry.input.id];
-        const poseWeightPoseId = parsePoseWeightInputSourceId(
-          entry.input.sourceId,
-        );
-        const controlKind: InputListRow["controlKind"] = poseWeightPoseId
-          ? "pose-weight"
-          : "rig-input";
-        return {
-          id: entry.input.id,
-          label: entry.input.label || entry.input.id,
-          inputId: entry.input.id,
-          source: resolveManagedSource(entry),
-          path: normalizedPath,
-          value: Number.isFinite(value)
-            ? value
-            : (entry.input.defaultValue ?? 0),
-          min,
-          max,
-          controlKind,
-          provenance: poseWeightPoseId
-            ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
-            : undefined,
-          editable: true,
-          selectable: true,
-        } as const;
-      });
+  const managedInputRows = useMemo(
+    () =>
+      managedStandardInputs
+        .filter((entry) => !isPoseControlInputPath(entry.input.path))
+        .map((entry) => {
+          const normalizedPath = normalizeStandardRigInputPath(
+            entry.input.path,
+          );
+          const min = entry.input.range?.min ?? 0;
+          const max = entry.input.range?.max ?? 1;
+          const value = inputValues[entry.input.id];
+          const poseWeightPoseId = parsePoseWeightInputSourceId(
+            entry.input.sourceId,
+          );
+          const controlKind: InputListRow["controlKind"] = poseWeightPoseId
+            ? "pose-weight"
+            : "rig-input";
+          return {
+            id: entry.input.id,
+            label: entry.input.label || entry.input.id,
+            inputId: entry.input.id,
+            source: resolveManagedSource(entry),
+            path: normalizedPath,
+            value: Number.isFinite(value)
+              ? value
+              : (entry.input.defaultValue ?? 0),
+            min,
+            max,
+            controlKind,
+            provenance: poseWeightPoseId
+              ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
+              : undefined,
+            editable: true,
+            selectable: true,
+          } as const;
+        }),
+    [inputValues, managedStandardInputs, poseNameById],
+  );
 
+  const derivedPoseOutputRows = useMemo(() => {
     const groupOutputRows = (poseConfigDraft?.poseGroups ?? []).map((group) => {
       const groupId = group.id?.trim() || "group";
       const path = normalizeStandardRigInputPath(
@@ -1257,7 +1269,7 @@ export function VariablesPanel({
       const poseCount = poseCountByGroupId.get(groupId) ?? 0;
       return {
         id: `pose_group_output:${groupId}`,
-        label: `Group Output · ${groupLabelById.get(groupId) ?? groupId}`,
+        label: `Group Output · ${poseGroupLabelById.get(groupId) ?? groupId}`,
         inputId: `__pose_group_output__:${groupId}`,
         source: "auto" as const,
         path,
@@ -1282,7 +1294,7 @@ export function VariablesPanel({
           stage.sources
             .map((source) => {
               if (source.kind === "group") {
-                return `group:${groupLabelById.get(source.id) ?? source.id}`;
+                return `group:${poseGroupLabelById.get(source.id) ?? source.id}`;
               }
               return `stage:${source.id}`;
             })
@@ -1304,16 +1316,19 @@ export function VariablesPanel({
       },
     );
 
-    return [...managedRows, ...groupOutputRows, ...stageOutputRows];
+    return [...groupOutputRows, ...stageOutputRows];
   }, [
-    inputValues,
-    managedStandardInputs,
+    poseCountByGroupId,
     poseConfigDraft?.blendStages,
     poseConfigDraft?.poseGroups,
     poseGroupBlendModeFallback,
-    poseNameById,
-    poses,
+    poseGroupLabelById,
   ]);
+
+  const inputRows = useMemo(
+    () => [...managedInputRows, ...derivedPoseOutputRows],
+    [derivedPoseOutputRows, managedInputRows],
+  );
 
   const inputRootNode = useMemo(() => {
     const root: TreeNode = {
@@ -1325,9 +1340,7 @@ export function VariablesPanel({
     };
 
     inputRows.forEach((row) => {
-      const pathParts = normalizeStandardRigInputPath(row.path)
-        .split("/")
-        .filter(Boolean);
+      const pathParts = row.path.split("/").filter(Boolean);
       let current = root;
       for (const part of pathParts) {
         current = getOrCreateChild(current, part, part);

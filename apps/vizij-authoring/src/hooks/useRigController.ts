@@ -1710,6 +1710,9 @@ export function useRigController(
   const handleInputValueChange = useCallback(
     (inputId: string, value: number) => {
       const resolvedInputId = resolveRuntimeInputId(inputId);
+      if (Object.is(inputValuesRef.current[resolvedInputId], value)) {
+        return;
+      }
       updateInputValues((previous) => ({
         ...previous,
         [resolvedInputId]: value,
