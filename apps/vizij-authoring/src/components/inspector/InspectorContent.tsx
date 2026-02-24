@@ -276,6 +276,12 @@ function PoseVariableExpandedControls({
     sliderRange > 0
       ? clamp01((item.poseVal - item.min) / sliderRange) * 100
       : 0;
+  const poseDrivenPercent = item.poseDrivenPercent;
+  const targetToCurrentRangeStart = Math.min(targetPercent, poseDrivenPercent);
+  const targetToCurrentRangeWidth = Math.max(
+    0,
+    Math.abs(targetPercent - poseDrivenPercent),
+  );
 
   const handleDirectInputChange = useCallback(
     (nextDirect: number) => {
@@ -326,6 +332,7 @@ function PoseVariableExpandedControls({
             max={item.max}
             step={0.0001}
             value={directVal}
+            fillMode="none"
             className="w-full"
             onChange={(val) => handleDirectInputChange(val as number)}
           />
@@ -388,9 +395,19 @@ function PoseVariableExpandedControls({
             max={item.max}
             step={0.0001}
             value={item.poseVal}
+            fillMode="none"
             className="w-full"
             onChange={(val) => handleTargetValueChange(val as number)}
           />
+          {targetToCurrentRangeWidth > 0 ? (
+            <span
+              className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
+              style={{
+                left: `${targetToCurrentRangeStart}%`,
+                width: `${targetToCurrentRangeWidth}%`,
+              }}
+            />
+          ) : null}
           <span
             className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200/90 bg-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.45)]"
             style={{ left: `${targetPercent}%` }}
@@ -1910,6 +1927,7 @@ export function InspectorContent({
                 max={1}
                 step={0.01}
                 value={blendAmount}
+                fillMode="value"
                 className="flex-1"
                 onChange={(val) => handleBlend(val as number)}
               />
@@ -3016,6 +3034,7 @@ export function InspectorContent({
                   max={input.range.max ?? 1}
                   step={0.01}
                   value={value}
+                  fillMode="none"
                   className="flex-1"
                   onChange={(val) => {
                     if (!isDirectRigControlAvailable) {

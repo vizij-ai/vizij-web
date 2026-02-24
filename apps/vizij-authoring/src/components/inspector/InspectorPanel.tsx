@@ -382,6 +382,7 @@ export function InspectorPanel({
                           max={1}
                           step={0.01}
                           value={weight}
+                          fillMode="value"
                           className="flex-1"
                           onChange={(value) =>
                             handlePoseGroupWeightChange(

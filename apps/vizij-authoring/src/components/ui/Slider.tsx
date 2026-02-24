@@ -6,6 +6,7 @@ export interface SliderProps {
   min?: number;
   max?: number;
   step?: number;
+  fillMode?: "none" | "value";
   onChange?: (value: number | number[]) => void;
   disabled?: boolean;
   className?: string;
@@ -16,10 +17,17 @@ export function Slider({
   min = 0,
   max = 100,
   step = 1,
+  fillMode = "none",
   onChange,
   disabled = false,
   className,
 }: SliderProps) {
+  const safeValue = Number.isFinite(value) ? value : min;
+  const valuePercent =
+    max > min
+      ? Math.max(0, Math.min(100, ((safeValue - min) / (max - min)) * 100))
+      : 0;
+
   return (
     <BaseSlider.Root
       value={value}
@@ -33,14 +41,20 @@ export function Slider({
       }}
       disabled={disabled}
       className={cn(
-        "relative flex items-center select-none touch-none w-full h-4",
+        "relative flex items-center select-none touch-none w-full h-6",
         disabled && "opacity-50 cursor-not-allowed",
         className,
       )}
     >
-      <BaseSlider.Control className="flex w-full items-center">
-        <BaseSlider.Track className="relative bg-zinc-800 rounded-full flex-grow h-1">
-          <BaseSlider.Indicator className="absolute bg-accent rounded-full h-full" />
+      <BaseSlider.Control className="flex h-full w-full items-center">
+        <BaseSlider.Track className="relative flex-grow h-full cursor-pointer">
+          <span className="pointer-events-none absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-zinc-800" />
+          {fillMode === "value" ? (
+            <span
+              className="pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
+              style={{ width: `${valuePercent}%` }}
+            />
+          ) : null}
           <BaseSlider.Thumb className="block w-3 h-3 bg-white rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-transform" />
         </BaseSlider.Track>
       </BaseSlider.Control>
