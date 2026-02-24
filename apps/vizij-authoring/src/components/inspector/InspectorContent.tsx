@@ -69,10 +69,6 @@ import {
   resolveRigDrivenSelection,
 } from "./inspectorActions";
 import { resolveControllableInputId } from "./bindingSlotResolution";
-import {
-  computePoseContributionSemantics,
-  formatContributionStrength,
-} from "./poseContributionSemantics";
 import { resolvePosePropertySelectionInputIds } from "./poseTargetSelection";
 import {
   appendOrRevisitInspectorChainPath,
@@ -109,8 +105,6 @@ type PoseVariableRenderItem = PoseVariableItem & {
   max: number;
   neutralVal: number;
   poseDrivenVal: number;
-  contributionStrength: number | null;
-  contributionLabel: string;
   poseComposeMode: "add" | "average";
   canInspectVariable: boolean;
   chainSummary: string | null;
@@ -275,6 +269,13 @@ function PoseVariableExpandedControls({
     typeof stagedValue === "number" && Number.isFinite(stagedValue)
       ? stagedValue
       : item.neutralVal;
+  const sliderRange = item.max - item.min;
+  const directPercent =
+    sliderRange > 0 ? clamp01((directVal - item.min) / sliderRange) * 100 : 0;
+  const targetPercent =
+    sliderRange > 0
+      ? clamp01((item.poseVal - item.min) / sliderRange) * 100
+      : 0;
 
   const handleDirectInputChange = useCallback(
     (nextDirect: number) => {
@@ -312,23 +313,30 @@ function PoseVariableExpandedControls({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+      <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
         <span
           className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
           title={poseSemanticTooltips.direct}
         >
-          Direct Input
+          Control Variable
         </span>
-        <Slider
-          min={item.min}
-          max={item.max}
-          step={0.0001}
-          value={directVal}
-          className="flex-1 min-w-[120px]"
-          onChange={(val) => handleDirectInputChange(val as number)}
-        />
+        <div className="relative min-w-0">
+          <Slider
+            min={item.min}
+            max={item.max}
+            step={0.0001}
+            value={directVal}
+            className="w-full"
+            onChange={(val) => handleDirectInputChange(val as number)}
+          />
+          <span
+            className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/90 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.45)]"
+            style={{ left: `${directPercent}%` }}
+            title={poseSemanticTooltips.direct}
+          />
+        </div>
         <div
-          className="inspector-numeric-control flex-shrink-0"
+          className="inspector-numeric-control min-w-0"
           onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -343,36 +351,38 @@ function PoseVariableExpandedControls({
             onChange={handleDirectInputChange}
           />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-[10px]"
-          title="Reset direct input to default"
-          onClick={handleDirectReset}
-        >
-          <RotateCcw size={11} />
-          Reset
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-[10px]"
-          title="Use direct input value as the new pose target"
-          onClick={() => onUpdatePoseValue(poseId, item.varId, directVal)}
-        >
-          <Save size={11} />
-          Set Target
-        </Button>
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            title="Reset control variable to default"
+            onClick={handleDirectReset}
+          >
+            <RotateCcw size={11} />
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            title="Use control variable value as the new control target"
+            onClick={() => onUpdatePoseValue(poseId, item.varId, directVal)}
+          >
+            <Save size={11} />
+            Set Target
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+      <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
         <span
           className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
           title={poseSemanticTooltips.target}
         >
-          Target Value (100%)
+          Control Target
         </span>
-        <div className="relative flex-1 min-w-[120px]">
+        <div className="relative min-w-0">
           <Slider
             min={item.min}
             max={item.max}
@@ -382,13 +392,18 @@ function PoseVariableExpandedControls({
             onChange={(val) => handleTargetValueChange(val as number)}
           />
           <span
-            className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
+            className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200/90 bg-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.45)]"
+            style={{ left: `${targetPercent}%` }}
+            title={poseSemanticTooltips.target}
+          />
+          <span
+            className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/90 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.45)]"
             style={{ left: `${item.poseDrivenPercent}%` }}
             title={poseSemanticTooltips.poseDriven}
           />
         </div>
         <div
-          className="inspector-numeric-control flex-shrink-0"
+          className="inspector-numeric-control min-w-0"
           onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -403,18 +418,14 @@ function PoseVariableExpandedControls({
             onChange={handleTargetValueChange}
           />
         </div>
-        <span
-          className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
-          title={poseSemanticTooltips.poseDriven}
-        >
-          Pose {item.poseDrivenVal.toFixed(4)}
-        </span>
-        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-          Min {item.min.toFixed(4)}
-        </span>
-        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-          Max {item.max.toFixed(4)}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <span
+            className="text-[10px] font-mono whitespace-nowrap text-white"
+            title={poseSemanticTooltips.poseDriven}
+          >
+            Current Pose: {item.poseDrivenVal.toFixed(4)}
+          </span>
+        </div>
       </div>
     </>
   );
@@ -1204,11 +1215,6 @@ export function InspectorContent({
           base.neutralVal +
           (item.poseVal - base.neutralVal) * clamp01(activePoseWeight);
         const poseDrivenVal = clampToRange(interpolated, base.min, base.max);
-        const contributionStrength = computePoseContributionSemantics({
-          targetValue: item.poseVal,
-          appliedValue: poseDrivenVal,
-          neutralValue: base.neutralVal,
-        }).contributionStrength;
         return {
           ...item,
           label: cleanLabel(base.rawLabel, group.label),
@@ -1216,8 +1222,6 @@ export function InspectorContent({
           max: base.max,
           neutralVal: base.neutralVal,
           poseDrivenVal,
-          contributionStrength,
-          contributionLabel: formatContributionStrength(contributionStrength),
           poseComposeMode: base.poseComposeMode,
           canInspectVariable: base.canInspectVariable,
           chainSummary:
@@ -1776,9 +1780,9 @@ export function InspectorContent({
 
     const poseSemanticTooltips: PoseSemanticTooltips = {
       target:
-        "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
+        "Control Target: authored pose value for this rig input when the pose contributes at 100%.",
       direct:
-        "Direct Input: canonical rig input value edited directly (matches Inputs pane for this variable).",
+        "Control Variable: canonical rig input value edited directly (matches Inputs pane for this variable).",
       poseDriven:
         "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
       contribution:
@@ -1938,38 +1942,6 @@ export function InspectorContent({
             </div>
           )}
         />
-        <div className="flex items-start gap-2 px-1 py-1 rounded border border-border-default/50 bg-bg-panel/30">
-          <Info size={11} className="mt-0.5 text-text-secondary shrink-0" />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[9px] uppercase tracking-wider font-bold text-text-secondary">
-              Legend
-            </span>
-            <span
-              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-              title={poseSemanticTooltips.target}
-            >
-              Target Value
-            </span>
-            <span
-              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-              title={poseSemanticTooltips.direct}
-            >
-              Direct Input
-            </span>
-            <span
-              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-              title={poseSemanticTooltips.poseDriven}
-            >
-              Pose Driven
-            </span>
-            <span
-              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-              title={poseSemanticTooltips.contribution}
-            >
-              Contribution Strength
-            </span>
-          </div>
-        </div>
         <div className="flex items-center gap-2 px-1 mb-2">
           <div className="h-px bg-border-default flex-1" />
           <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
@@ -2011,12 +1983,11 @@ export function InspectorContent({
                   const {
                     label,
                     poseVal,
-                    poseDrivenVal,
-                    contributionStrength,
-                    contributionLabel,
                     poseComposeMode,
                     canInspectVariable,
                     chainSummary,
+                    drivenVariableCount,
+                    drivenPropertyCount,
                   } = item;
 
                   return (
@@ -2028,7 +1999,10 @@ export function InspectorContent({
                         <button
                           type="button"
                           className="mt-0.5 p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
-                          onClick={() => togglePoseVariableExpansion(varId)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            togglePoseVariableExpansion(varId);
+                          }}
                           aria-expanded={isExpanded}
                           title={
                             isExpanded
@@ -2042,92 +2016,80 @@ export function InspectorContent({
                             <ChevronRight size={12} />
                           )}
                         </button>
-                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-                          <span className="text-xs font-medium text-text-primary truncate">
-                            {label}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
-                              contributionStrength === null
-                                ? "text-text-muted border-border-default/50"
-                                : "text-accent border-accent/40 bg-accent/10",
-                            )}
-                            title={poseSemanticTooltips.contribution}
-                          >
-                            Contrib {contributionLabel}
-                          </span>
-                          <span
-                            className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted"
-                            title={poseSemanticTooltips.target}
-                          >
-                            Target {poseVal.toFixed(4)}
-                          </span>
-                          <span
-                            className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
-                            title={poseSemanticTooltips.poseDriven}
-                          >
-                            Pose {poseDrivenVal.toFixed(4)}
-                          </span>
-                          <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
-                            <span className="uppercase tracking-wide font-bold">
-                              Compose
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="flex flex-wrap items-center gap-2 flex-1 min-w-0 rounded px-1 py-0.5 cursor-pointer hover:bg-bg-hover/40"
+                          onClick={() => togglePoseVariableExpansion(varId)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              togglePoseVariableExpansion(varId);
+                            }
+                          }}
+                          aria-expanded={isExpanded}
+                          title={
+                            isExpanded
+                              ? "Collapse channel details"
+                              : "Expand channel details"
+                          }
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className="text-xs font-medium text-text-primary truncate">
+                              {label}
                             </span>
-                            <select
-                              className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
-                              value={poseComposeMode}
-                              title="Compose direct/current value with this pose target for this channel."
+                          </div>
+                          <div className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <span
+                              className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/70 bg-amber-500/12 px-1 py-0.5 text-amber-200"
+                              title={poseSemanticTooltips.target}
+                            >
+                              Target {poseVal.toFixed(4)}
+                            </span>
+                            <label
+                              className="inline-flex items-center gap-1 rounded border border-border-default/60 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-muted"
                               onClick={(event) => event.stopPropagation()}
-                              onChange={(event) => {
+                              onMouseDown={(event) => event.stopPropagation()}
+                            >
+                              <span className="uppercase tracking-wide font-bold">
+                                Compose
+                              </span>
+                              <select
+                                className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
+                                value={poseComposeMode}
+                                title="Compose direct/current value with this pose target for this channel."
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) => {
+                                  event.stopPropagation();
+                                  setPoseInputComposeMode(
+                                    pose.id,
+                                    varId,
+                                    event.target.value === "average"
+                                      ? "average"
+                                      : "add",
+                                  );
+                                }}
+                              >
+                                <option value="add">Add</option>
+                                <option value="average">Average</option>
+                              </select>
+                            </label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 rounded border border-border-default/60 text-text-secondary hover:text-red-400 hover:border-red-400/70"
+                              title="Remove from Pose"
+                              onClick={(event) => {
                                 event.stopPropagation();
-                                setPoseInputComposeMode(
-                                  pose.id,
-                                  varId,
-                                  event.target.value === "average"
-                                    ? "average"
-                                    : "add",
-                                );
+                                removePoseInput(pose.id, varId);
                               }}
                             >
-                              <option value="add">Add</option>
-                              <option value="average">Average</option>
-                            </select>
-                          </label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
-                            title={`Inspect variable ${varId}`}
-                            disabled={!canInspectVariable}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (canInspectVariable) {
-                                openRigInspector(varId, "bindings");
-                              }
-                            }}
-                          >
-                            {varId}
-                            <ChevronRight size={11} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
-                            title="Remove from Pose"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removePoseInput(pose.id, varId);
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </Button>
+                              <Trash2 size={12} />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      {chainSummary && (
-                        <div className="ml-6 text-[9px] text-text-muted font-mono">
-                          {chainSummary}
-                        </div>
-                      )}
                       {isExpanded && (
                         <div className="ml-6 flex flex-col gap-2">
                           <PoseVariableExpandedControls
@@ -2137,6 +2099,30 @@ export function InspectorContent({
                             onInputValueChange={handleInputValueChange}
                             onUpdatePoseValue={updatePoseValue}
                           />
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-default/50 pt-2">
+                            <span
+                              className="text-[9px] text-text-muted font-mono"
+                              title={`Downstream links from this channel: drives ${drivenVariableCount} variable${drivenVariableCount === 1 ? "" : "s"} and ${drivenPropertyCount} propert${drivenPropertyCount === 1 ? "y" : "ies"}.`}
+                            >
+                              {chainSummary ?? "0 vars · 0 props"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
+                              title={`Inspect variable ${varId}`}
+                              disabled={!canInspectVariable}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (canInspectVariable) {
+                                  openRigInspector(varId, "bindings");
+                                }
+                              }}
+                            >
+                              {varId}
+                              <ChevronRight size={11} />
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>

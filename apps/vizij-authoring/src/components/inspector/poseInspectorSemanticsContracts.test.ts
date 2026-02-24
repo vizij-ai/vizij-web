@@ -9,9 +9,9 @@ const inspectorContentTsx = readFileSync(
 
 describe("B1.3 pose inspector value semantics contracts", () => {
   it("defines explicit legend labels for target, direct, pose-driven, and contribution", () => {
-    expect(inspectorContentTsx).toContain("Target Value");
-    expect(inspectorContentTsx).toContain("Direct Input");
-    expect(inspectorContentTsx).toContain("Pose Driven");
+    expect(inspectorContentTsx).toContain("Control Target");
+    expect(inspectorContentTsx).toContain("Control Variable");
+    expect(inspectorContentTsx).toContain("Current Pose");
     expect(inspectorContentTsx).toContain("Contribution Strength");
   });
 
@@ -19,8 +19,9 @@ describe("B1.3 pose inspector value semantics contracts", () => {
     expect(inspectorContentTsx).toContain("poseVariableBaseById");
     expect(inspectorContentTsx).toContain("poseVariableRenderGroups");
     expect(inspectorContentTsx).toContain(
-      "const stagedValue = useBindingAuthoring((state) => state.inputValues[item.varId]);",
+      "const stagedValue = useBindingAuthoring(",
     );
+    expect(inspectorContentTsx).toContain("state.inputValues[item.varId]");
     expect(inspectorContentTsx).toContain(
       "const poseDrivenVal = clampToRange(interpolated, base.min, base.max)",
     );
@@ -30,16 +31,17 @@ describe("B1.3 pose inspector value semantics contracts", () => {
     expect(inspectorContentTsx).toContain(
       "this pose's computed channel value at the current pose weight",
     );
-    expect(inspectorContentTsx).toContain("computePoseContributionSemantics");
   });
 
   it("removes ambiguous current/applied labeling", () => {
     expect(inspectorContentTsx).not.toContain("Current/Applied");
-    expect(inspectorContentTsx).toContain("Target Value (100%)");
-    expect(inspectorContentTsx).toContain("Direct Input");
+    expect(inspectorContentTsx).toContain("Control Target");
+    expect(inspectorContentTsx).toContain("Control Variable");
     expect(inspectorContentTsx).toContain(
       "title={poseSemanticTooltips.target}",
     );
+    expect(inspectorContentTsx).not.toContain("Target Value (100%)");
+    expect(inspectorContentTsx).not.toContain("Direct Input");
     expect(inspectorContentTsx).not.toContain('defaultLabel="Pose Target"');
   });
 
@@ -56,5 +58,9 @@ describe("B1.3 pose inspector value semantics contracts", () => {
     expect(inspectorContentTsx).toContain("togglePoseVariableExpansion");
     expect(inspectorContentTsx).toContain("isExpanded && (");
     expect(inspectorContentTsx).toContain("PoseVariableExpandedControls");
+  });
+
+  it("removes the per-channel contribution badge from pose rows", () => {
+    expect(inspectorContentTsx).not.toContain("Contrib {contributionLabel}");
   });
 });
