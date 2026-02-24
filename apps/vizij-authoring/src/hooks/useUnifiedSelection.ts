@@ -46,6 +46,16 @@ export function useUnifiedSelection() {
               : renderable.type === "rectangle"
                 ? "rectangle"
                 : "shape";
+        const existing = state.elementSelection?.[0];
+        if (
+          existing &&
+          existing.id === id &&
+          existing.type === selectionType &&
+          existing.namespace === DEFAULT_NAMESPACE &&
+          (state.elementSelection?.length ?? 0) === 1
+        ) {
+          return state;
+        }
         return {
           ...state,
           elementSelection: [
@@ -72,6 +82,14 @@ export function useUnifiedSelection() {
 
   const handleSelectObject = useCallback(
     (id: string) => {
+      if (
+        selectedId === id &&
+        !selectedPoseId &&
+        !selectedRigId &&
+        !selectedMaterialId
+      ) {
+        return;
+      }
       // Note: We also perform the actual selection here now to make this a complete selection handler.
       if (selectedPoseId) selectPose("");
       if (selectedRigId) handleSelectRig(null);
@@ -79,6 +97,7 @@ export function useUnifiedSelection() {
       selectObject(id);
     },
     [
+      selectedId,
       selectedPoseId,
       selectedRigId,
       selectedMaterialId,

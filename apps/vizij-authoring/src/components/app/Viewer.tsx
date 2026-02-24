@@ -2,6 +2,7 @@ import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
+import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { Button } from "../ui";
 import {
   useBindingAuthoring,
@@ -9,6 +10,116 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { isPoseControlInputPath } from "../../poseRig/utils";
+
+type RuntimeRenderableSelectionType =
+  | "group"
+  | "shape"
+  | "ellipse"
+  | "rectangle";
+
+function selectionTypeFromRenderableType(
+  type: string | undefined,
+): RuntimeRenderableSelectionType {
+  if (type === "group" || type === "ellipse" || type === "rectangle") {
+    return type;
+  }
+  return "shape";
+}
+
+interface RuntimeSelectionBridgeProps {
+  selectedSceneId: string | null;
+  onSelectScene: (id: string) => void;
+}
+
+function RuntimeSelectionBridge({
+  selectedSceneId,
+  onSelectScene,
+}: RuntimeSelectionBridgeProps) {
+  const { namespace } = useVizijRuntime();
+  const setRuntimeStoreState = useVizijStoreSetter();
+  const runtimeSelectedId = useVizijStore(
+    (state) => state.elementSelection[0]?.id ?? null,
+  );
+  const pendingRuntimeSelectionRef = useRef<string | "__clear__" | null>(null);
+  const forwardedRuntimeSelectionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!runtimeSelectedId) {
+      if (pendingRuntimeSelectionRef.current === "__clear__") {
+        pendingRuntimeSelectionRef.current = null;
+      }
+      forwardedRuntimeSelectionRef.current = null;
+      return;
+    }
+    if (runtimeSelectedId === selectedSceneId) {
+      forwardedRuntimeSelectionRef.current = null;
+      return;
+    }
+    if (forwardedRuntimeSelectionRef.current === runtimeSelectedId) {
+      return;
+    }
+    const pendingRuntimeSelection = pendingRuntimeSelectionRef.current;
+    if (pendingRuntimeSelection === "__clear__" && runtimeSelectedId === null) {
+      pendingRuntimeSelectionRef.current = null;
+      return;
+    }
+    if (
+      pendingRuntimeSelection &&
+      pendingRuntimeSelection !== "__clear__" &&
+      pendingRuntimeSelection === runtimeSelectedId
+    ) {
+      pendingRuntimeSelectionRef.current = null;
+      return;
+    }
+    forwardedRuntimeSelectionRef.current = runtimeSelectedId;
+    onSelectScene(runtimeSelectedId);
+  }, [onSelectScene, runtimeSelectedId, selectedSceneId]);
+
+  useEffect(() => {
+    if (selectedSceneId === runtimeSelectedId) {
+      return;
+    }
+    setRuntimeStoreState((state) => {
+      if (!selectedSceneId) {
+        if ((state.elementSelection?.length ?? 0) === 0) {
+          return state;
+        }
+        pendingRuntimeSelectionRef.current = "__clear__";
+        return { ...state, elementSelection: [] };
+      }
+
+      const renderable = state.world[selectedSceneId];
+      if (!renderable) {
+        return state;
+      }
+
+      const nextType = selectionTypeFromRenderableType(renderable.type);
+      const existing = state.elementSelection[0];
+      if (
+        existing &&
+        existing.id === selectedSceneId &&
+        existing.type === nextType &&
+        existing.namespace === namespace
+      ) {
+        return state;
+      }
+
+      pendingRuntimeSelectionRef.current = selectedSceneId;
+      return {
+        ...state,
+        elementSelection: [
+          {
+            id: selectedSceneId,
+            type: nextType,
+            namespace,
+          },
+        ],
+      };
+    });
+  }, [namespace, runtimeSelectedId, selectedSceneId, setRuntimeStoreState]);
+
+  return null;
+}
 
 function RuntimeInputBridge() {
   const { setInput, ready, loading, rootId, outputPaths } = useVizijRuntime();
@@ -190,6 +301,8 @@ export interface ViewerProps {
   rootId: string | null;
   namespace: string;
   bundle: VizijAssetBundle | null;
+  selectedSceneId?: string | null;
+  onSelectScene?: (id: string) => void;
   onClearSelection: () => void;
   showSelectionGlow: boolean;
   onImportClick: () => void;
@@ -201,6 +314,8 @@ export function Viewer({
   rootId,
   namespace: _namespace,
   bundle,
+  selectedSceneId = null,
+  onSelectScene,
   onClearSelection,
   showSelectionGlow,
   onImportClick,
@@ -257,22 +372,24 @@ export function Viewer({
             autostart
             onRegisterControllers={handleRuntimeControllersRegistered}
           >
+            {onSelectScene ? (
+              <RuntimeSelectionBridge
+                selectedSceneId={selectedSceneId}
+                onSelectScene={onSelectScene}
+              />
+            ) : null}
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <RuntimeStatusDebug />
             <RuntimeFpsBadge />
-            <div
-              className="h-full w-full"
-              onPointerDown={(event) => {
-                if (event.button === 0) {
-                  onClearSelection();
-                }
-              }}
-            >
+            <div className="h-full w-full">
               <VizijRuntimeFace
                 className="h-full w-full"
                 showSafeArea={false}
                 showSelectionGlow={showSelectionGlow}
+                onPointerMissed={() => {
+                  onClearSelection();
+                }}
               />
             </div>
           </VizijRuntimeProvider>

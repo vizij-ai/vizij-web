@@ -94,6 +94,7 @@ export function HierarchyPanel({
     (id: string) => {
       if (onSelectObject) {
         onSelectObject(id);
+        return;
       }
       selectObject(id);
     },

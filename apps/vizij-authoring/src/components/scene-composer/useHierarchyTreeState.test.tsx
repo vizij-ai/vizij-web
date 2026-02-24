@@ -10,6 +10,7 @@ function renderHook(props: { namespace: string; nodes: string[] }) {
   document.body.appendChild(container);
 
   const result: { current: HookResult | null } = { current: null };
+  let renderCount = 0;
 
   function HookWrapper({
     namespace,
@@ -18,6 +19,7 @@ function renderHook(props: { namespace: string; nodes: string[] }) {
     namespace: string;
     nodes: string[];
   }) {
+    renderCount += 1;
     result.current = useHierarchyTreeState(namespace, nodes);
     return null;
   }
@@ -43,6 +45,7 @@ function renderHook(props: { namespace: string; nodes: string[] }) {
         container.parentNode.removeChild(container);
       }
     },
+    getRenderCount: () => renderCount,
   };
 }
 
@@ -85,6 +88,29 @@ describe("useHierarchyTreeState", () => {
 
     hook.rerender({ namespace: "scene", nodes: ["next"] });
     expect(hook.result.current?.isExpanded("next")).toBe(true);
+
+    hook.unmount();
+  });
+
+  it("does not dispatch when setExpanded requests the current state", () => {
+    const hook = renderHook({ namespace: "scene", nodes: ["shape"] });
+    const initialRenderCount = hook.getRenderCount();
+
+    act(() => {
+      hook.result.current?.setExpanded("shape", true);
+    });
+    expect(hook.getRenderCount()).toBe(initialRenderCount);
+
+    act(() => {
+      hook.result.current?.setExpanded("shape", false);
+    });
+    const afterCollapseRenderCount = hook.getRenderCount();
+    expect(afterCollapseRenderCount).toBeGreaterThan(initialRenderCount);
+
+    act(() => {
+      hook.result.current?.setExpanded("shape", false);
+    });
+    expect(hook.getRenderCount()).toBe(afterCollapseRenderCount);
 
     hook.unmount();
   });

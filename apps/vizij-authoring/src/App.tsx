@@ -655,6 +655,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 rootId={rootId}
                 namespace={DEFAULT_NAMESPACE}
                 bundle={rootId ? runtimeBundle : null}
+                selectedSceneId={selectedSceneId}
+                onSelectScene={handleSelectObject}
                 onClearSelection={handleClearSelection}
                 showSelectionGlow={showSelectionGlow}
                 onImportClick={handleImportClick}
@@ -700,6 +702,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             rootId={rootId}
             namespace={DEFAULT_NAMESPACE}
             bundle={rootId ? runtimeBundle : null}
+            selectedSceneId={selectedSceneId}
+            onSelectScene={handleSelectObject}
             onClearSelection={handleClearSelection}
             showSelectionGlow={showSelectionGlow}
             onImportClick={handleImportClick}
