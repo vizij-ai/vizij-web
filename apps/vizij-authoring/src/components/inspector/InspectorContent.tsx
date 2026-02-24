@@ -81,10 +81,68 @@ type PoseVariableItem = {
   drivenVariableCount: number;
 };
 
+type PoseVariableGroup = {
+  key: string;
+  label: string;
+  items: PoseVariableItem[];
+};
+
+type PoseVariableBaseDefinition = {
+  rawLabel: string;
+  min: number;
+  max: number;
+  neutralVal: number;
+  directDefaultValue: number;
+  canInspectVariable: boolean;
+  poseComposeMode: "add" | "average";
+};
+
+type PoseVariableRenderItem = PoseVariableItem & {
+  label: string;
+  min: number;
+  max: number;
+  directVal: number;
+  poseDrivenVal: number;
+  contributionStrength: number | null;
+  contributionLabel: string;
+  poseComposeMode: "add" | "average";
+  canInspectVariable: boolean;
+  chainSummary: string | null;
+  directDefaultValue: number;
+  poseDrivenPercent: number;
+};
+
+type PoseVariableRenderGroup = {
+  key: string;
+  label: string;
+  items: PoseVariableRenderItem[];
+};
+
+type RigTraversalSummary = {
+  downstreamConnections: ReturnType<typeof collectDirectDownstreamRigInputs>;
+  downstreamInputs: ReturnType<typeof collectDirectDownstreamRigInputs>;
+  downstreamAutorigInputs: ReturnType<typeof collectDirectDownstreamRigInputs>;
+  directDependents: ReturnType<typeof collectDirectRigDependents>;
+  dependents: ReturnType<typeof collectRigDependents>;
+};
+
 type RigLifecycleMessage = {
   tone: "error" | "info";
   text: string;
 };
+
+const EMPTY_RIG_TRAVERSAL_SUMMARY: RigTraversalSummary = {
+  downstreamConnections: [],
+  downstreamInputs: [],
+  downstreamAutorigInputs: [],
+  directDependents: [],
+  dependents: [],
+};
+
+const POSE_VALUE_PRECISION_FORMAT = {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+} as const;
 
 function extractComponentIdFromInputSourceId(
   sourceId: string | null | undefined,
@@ -724,6 +782,286 @@ export function InspectorContent() {
     () => new Map(poses.map((pose) => [pose.id, pose])),
     [poses],
   );
+  const selectedPose = useMemo(() => {
+    if (!selectedPoseId) {
+      return null;
+    }
+    return poseById.get(selectedPoseId) ?? null;
+  }, [poseById, selectedPoseId]);
+  const standardInputList = useMemo(
+    () => managedStandardInputs.map((entry) => entry.input),
+    [managedStandardInputs],
+  );
+  const poseBindingTargetByInputId = useMemo(() => {
+    const mapping = new Map<
+      string,
+      {
+        objectId: string;
+        objectName: string;
+      }
+    >();
+    if (inspectorMode !== "pose") {
+      return mapping;
+    }
+    Object.entries(bindings).forEach(([targetId, binding]) => {
+      const objectId = targetOwnerById.get(targetId);
+      if (!objectId) {
+        return;
+      }
+      const objectName = sceneNodeById.get(objectId)?.name || objectId;
+      const inputIds = new Set<string>();
+      if (binding.inputId) {
+        inputIds.add(binding.inputId);
+      }
+      (binding.slots ?? []).forEach((slot) => {
+        if (slot.inputId) {
+          inputIds.add(slot.inputId);
+        }
+      });
+      inputIds.forEach((inputId) => {
+        if (!mapping.has(inputId)) {
+          mapping.set(inputId, { objectId, objectName });
+        }
+      });
+    });
+    return mapping;
+  }, [bindings, inspectorMode, sceneNodeById, targetOwnerById]);
+  const poseConnectionCountsByInputId = useMemo(() => {
+    const counts = new Map<
+      string,
+      { drivenPropertyCount: number; drivenVariableCount: number }
+    >();
+    if (inspectorMode !== "pose" || !selectedPose) {
+      return counts;
+    }
+    const inputIds = new Set<string>(Object.keys(selectedPose.values));
+    if (poseBindingEditorInputId) {
+      inputIds.add(poseBindingEditorInputId);
+    }
+    inputIds.forEach((inputId) => {
+      counts.set(inputId, {
+        drivenPropertyCount: collectRigDependents({
+          selectedRigId: inputId,
+          bindings,
+          inputBindings,
+          objects,
+          standardInputsById,
+        }).length,
+        drivenVariableCount: collectDirectDownstreamRigInputs({
+          selectedRigId: inputId,
+          inputBindings,
+          standardInputsById,
+        }).length,
+      });
+    });
+    return counts;
+  }, [
+    bindings,
+    inputBindings,
+    inspectorMode,
+    objects,
+    poseBindingEditorInputId,
+    selectedPose,
+    standardInputsById,
+  ]);
+  const groupedPoseVariables = useMemo<PoseVariableGroup[]>(() => {
+    if (inspectorMode !== "pose" || !selectedPose) {
+      return [];
+    }
+    const groups = new Map<string, PoseVariableGroup>();
+    Object.entries(selectedPose.values).forEach(([varId, poseVal]) => {
+      const inputDef = rigInputById.get(varId);
+      const featureInfo = poseBindingTargetByInputId.get(varId) ?? null;
+      let groupKey = "Unassigned";
+      let groupLabel = "Unassigned";
+
+      if (featureInfo) {
+        groupKey = `obj:${featureInfo.objectId} `;
+        groupLabel = featureInfo.objectName;
+      } else if (inputDef?.group) {
+        groupKey = `group:${inputDef.group} `;
+        groupLabel = inputDef.group;
+      }
+
+      const connectionCounts = poseConnectionCountsByInputId.get(varId);
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          key: groupKey,
+          label: groupLabel,
+          items: [],
+        });
+      }
+      groups.get(groupKey)!.items.push({
+        varId,
+        poseVal,
+        drivenPropertyCount: connectionCounts?.drivenPropertyCount ?? 0,
+        drivenVariableCount: connectionCounts?.drivenVariableCount ?? 0,
+      });
+    });
+    return Array.from(groups.values()).sort((left, right) => {
+      if (left.label === "Unassigned") {
+        return 1;
+      }
+      if (right.label === "Unassigned") {
+        return -1;
+      }
+      return left.label.localeCompare(right.label);
+    });
+  }, [
+    inspectorMode,
+    poseBindingTargetByInputId,
+    poseConnectionCountsByInputId,
+    rigInputById,
+    selectedPose,
+  ]);
+  const poseVariableBaseById = useMemo(() => {
+    const baseById = new Map<string, PoseVariableBaseDefinition>();
+    if (inspectorMode !== "pose" || !selectedPose) {
+      return baseById;
+    }
+    Object.keys(selectedPose.values).forEach((varId) => {
+      const inputDef = rigInputById.get(varId);
+      const min = inputDef?.range?.min ?? -1;
+      const max = inputDef?.range?.max ?? 1;
+      const fallbackDefault = standardInputsById.get(varId)?.defaultValue;
+      const neutralVal =
+        typeof neutralInputs[varId] === "number" &&
+        Number.isFinite(neutralInputs[varId])
+          ? neutralInputs[varId]
+          : typeof fallbackDefault === "number" &&
+              Number.isFinite(fallbackDefault)
+            ? fallbackDefault
+            : 0;
+      const directDefaultValue = Number.isFinite(inputDef?.defaultValue)
+        ? (inputDef?.defaultValue ?? neutralVal)
+        : neutralVal;
+      baseById.set(varId, {
+        rawLabel: inputDef?.label || varId,
+        min,
+        max,
+        neutralVal,
+        directDefaultValue,
+        canInspectVariable: standardInputsById.has(varId),
+        poseComposeMode: selectedPose.composeModes?.[varId] ?? "add",
+      });
+    });
+    return baseById;
+  }, [
+    inspectorMode,
+    neutralInputs,
+    rigInputById,
+    selectedPose,
+    standardInputsById,
+  ]);
+  const poseVariableRenderGroups = useMemo<PoseVariableRenderGroup[]>(() => {
+    if (inspectorMode !== "pose" || !selectedPose) {
+      return [];
+    }
+    const activePoseWeight = usePoseWeightPreview
+      ? selectedPoseWeightValue
+      : blendAmount;
+    return groupedPoseVariables.map((group) => ({
+      key: group.key,
+      label: group.label,
+      items: group.items.map((item) => {
+        const base = poseVariableBaseById.get(item.varId) ?? {
+          rawLabel: item.varId,
+          min: -1,
+          max: 1,
+          neutralVal: 0,
+          directDefaultValue: 0,
+          canInspectVariable: standardInputsById.has(item.varId),
+          poseComposeMode: "add" as const,
+        };
+        const staged = inputValues[item.varId];
+        const directVal =
+          typeof staged === "number" && Number.isFinite(staged)
+            ? staged
+            : base.neutralVal;
+        const interpolated =
+          base.neutralVal +
+          (item.poseVal - base.neutralVal) * clamp01(activePoseWeight);
+        const poseDrivenVal = clampToRange(interpolated, base.min, base.max);
+        const contributionStrength = computePoseContributionSemantics({
+          targetValue: item.poseVal,
+          appliedValue: poseDrivenVal,
+          neutralValue: base.neutralVal,
+        }).contributionStrength;
+        return {
+          ...item,
+          label: cleanLabel(base.rawLabel, group.label),
+          min: base.min,
+          max: base.max,
+          directVal,
+          poseDrivenVal,
+          contributionStrength,
+          contributionLabel: formatContributionStrength(contributionStrength),
+          poseComposeMode: base.poseComposeMode,
+          canInspectVariable: base.canInspectVariable,
+          chainSummary:
+            item.drivenVariableCount > 0 || item.drivenPropertyCount > 0
+              ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
+              : null,
+          directDefaultValue: base.directDefaultValue,
+          poseDrivenPercent:
+            base.max > base.min
+              ? clamp01((poseDrivenVal - base.min) / (base.max - base.min)) *
+                100
+              : 0,
+        };
+      }),
+    }));
+  }, [
+    blendAmount,
+    groupedPoseVariables,
+    inputValues,
+    inspectorMode,
+    poseVariableBaseById,
+    selectedPose,
+    selectedPoseWeightValue,
+    standardInputsById,
+    usePoseWeightPreview,
+  ]);
+  const selectedRigTraversal = useMemo<RigTraversalSummary>(() => {
+    if (inspectorMode !== "rig" || !resolvedSelectedRigId) {
+      return EMPTY_RIG_TRAVERSAL_SUMMARY;
+    }
+    const downstreamConnections = collectDirectDownstreamRigInputs({
+      selectedRigId: resolvedSelectedRigId,
+      inputBindings,
+      standardInputsById,
+      includeAutorig: true,
+    });
+    return {
+      downstreamConnections,
+      downstreamInputs: downstreamConnections.filter(
+        (entry) => entry.layer === "rig",
+      ),
+      downstreamAutorigInputs: downstreamConnections.filter(
+        (entry) => entry.layer === "autorig",
+      ),
+      directDependents: collectDirectRigDependents({
+        selectedRigId: resolvedSelectedRigId,
+        bindings,
+        objects,
+        standardInputsById,
+      }),
+      dependents: collectRigDependents({
+        selectedRigId: resolvedSelectedRigId,
+        bindings,
+        inputBindings,
+        objects,
+        standardInputsById,
+      }),
+    };
+  }, [
+    bindings,
+    inspectorMode,
+    inputBindings,
+    objects,
+    resolvedSelectedRigId,
+    standardInputsById,
+  ]);
 
   const currentInspectorChainNode = useMemo(() => {
     if (inspectorMode === "scene" && selectedId) {
@@ -1086,874 +1424,700 @@ export function InspectorContent() {
   }
 
   // 2. Pose Mode
-  if (inspectorMode === "pose" && selectedPoseId) {
-    const pose = poses.find((p) => p.id === selectedPoseId);
-    if (pose) {
-      const configuredPoseGroups = (poseConfigDraft?.poseGroups ?? [])
-        .map((group, index) => {
-          const path = normalizePoseMembershipPath(
-            group.path ?? group.name ?? group.id,
-          );
-          if (!path) {
-            return null;
-          }
-          return {
-            id: group.id,
-            path,
-            index,
-          };
-        })
-        .filter((group): group is { id: string; path: string; index: number } =>
-          Boolean(group),
+  if (inspectorMode === "pose" && selectedPose) {
+    const pose = selectedPose;
+    const configuredPoseGroups = (poseConfigDraft?.poseGroups ?? [])
+      .map((group, index) => {
+        const path = normalizePoseMembershipPath(
+          group.path ?? group.name ?? group.id,
         );
-      const configuredPathOrder = new Map(
-        configuredPoseGroups.map((group) => [group.path, group.index]),
-      );
-      const configuredPathById = new Map(
-        configuredPoseGroups.map((group) => [group.id, group.path]),
-      );
-      const sortGroupPaths = (left: string, right: string) => {
-        const leftOrder = configuredPathOrder.get(left);
-        const rightOrder = configuredPathOrder.get(right);
-        if (leftOrder !== undefined && rightOrder !== undefined) {
-          return leftOrder - rightOrder;
+        if (!path) {
+          return null;
         }
-        if (leftOrder !== undefined) {
-          return -1;
-        }
-        if (rightOrder !== undefined) {
-          return 1;
-        }
-        return left.localeCompare(right);
-      };
-      const membershipPaths = (() => {
-        const paths = new Set<string>();
-        const addPath = (rawPath: string | null | undefined) => {
-          const normalized = normalizePoseMembershipPath(rawPath);
-          if (!normalized) {
-            return;
-          }
-          paths.add(normalized);
+        return {
+          id: group.id,
+          path,
+          index,
         };
-        const addById = (groupId: string | null | undefined) => {
-          const trimmed = groupId?.trim();
-          if (!trimmed) {
-            return;
-          }
-          const configuredPath = configuredPathById.get(trimmed);
-          if (configuredPath) {
-            paths.add(configuredPath);
-            return;
-          }
-          addPath(trimmed);
-        };
-
-        pose.groupIds?.forEach((groupId) => {
-          addById(groupId);
-        });
-        addById(pose.groupId);
-        addPath(pose.group);
-        return Array.from(paths).sort(sortGroupPaths);
-      })();
-
-      const handlePromptAddPoseGroupMembership = () => {
-        const response = promptDialog("Add pose to group", "");
-        if (response === null) {
-          return;
-        }
-        const normalized = normalizePoseMembershipPath(response);
+      })
+      .filter((group): group is { id: string; path: string; index: number } =>
+        Boolean(group),
+      );
+    const configuredPathOrder = new Map(
+      configuredPoseGroups.map((group) => [group.path, group.index]),
+    );
+    const configuredPathById = new Map(
+      configuredPoseGroups.map((group) => [group.id, group.path]),
+    );
+    const sortGroupPaths = (left: string, right: string) => {
+      const leftOrder = configuredPathOrder.get(left);
+      const rightOrder = configuredPathOrder.get(right);
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+      if (leftOrder !== undefined) {
+        return -1;
+      }
+      if (rightOrder !== undefined) {
+        return 1;
+      }
+      return left.localeCompare(right);
+    };
+    const membershipPaths = (() => {
+      const paths = new Set<string>();
+      const addPath = (rawPath: string | null | undefined) => {
+        const normalized = normalizePoseMembershipPath(rawPath);
         if (!normalized) {
-          alertDialog("Group path cannot be empty.");
           return;
         }
-        if (membershipPaths.includes(normalized)) {
-          alertDialog(`Pose already belongs to "${normalized}".`);
+        paths.add(normalized);
+      };
+      const addById = (groupId: string | null | undefined) => {
+        const trimmed = groupId?.trim();
+        if (!trimmed) {
           return;
         }
-        addPoseToGroup(pose.id, normalized);
+        const configuredPath = configuredPathById.get(trimmed);
+        if (configuredPath) {
+          paths.add(configuredPath);
+          return;
+        }
+        addPath(trimmed);
       };
 
-      // Grouping Logic for Pose
-      const groupedVariables = (() => {
-        const targetToFeature: Record<
-          string,
-          {
-            objectId: string;
-            objectName: string;
-          }
-        > = {};
-        for (const obj of objects) {
-          for (const feat of obj.features) {
-            for (const comp of feat.components) {
-              if (comp.targetId) {
-                targetToFeature[comp.targetId] = {
-                  objectId: obj.id,
-                  objectName: obj.name,
-                };
-              }
-            }
-          }
-        }
+      pose.groupIds?.forEach((groupId) => {
+        addById(groupId);
+      });
+      addById(pose.groupId);
+      addPath(pose.group);
+      return Array.from(paths).sort(sortGroupPaths);
+    })();
 
-        const groups: Record<
-          string,
-          { label: string; items: PoseVariableItem[] }
-        > = {};
+    const handlePromptAddPoseGroupMembership = () => {
+      const response = promptDialog("Add pose to group", "");
+      if (response === null) {
+        return;
+      }
+      const normalized = normalizePoseMembershipPath(response);
+      if (!normalized) {
+        alertDialog("Group path cannot be empty.");
+        return;
+      }
+      if (membershipPaths.includes(normalized)) {
+        alertDialog(`Pose already belongs to "${normalized}".`);
+        return;
+      }
+      addPoseToGroup(pose.id, normalized);
+    };
 
-        Object.entries(pose.values).forEach(([varId, val]) => {
-          const mInput = managedStandardInputs.find(
-            (m) => m.input.id === varId,
-          );
-          const inputDef = mInput?.input;
-          let groupKey = "Unassigned";
-          let groupLabel = "Unassigned";
+    const handleAddVariable = (selection: VariableSelection) => {
+      setShowSelector(false);
+      if (selection.type === "variable") {
+        addPoseInput(pose.id, selection.id);
+        return;
+      }
+      if (selection.type !== "property") {
+        return;
+      }
 
-          let featureInfo = null;
-          for (const [targetId, binding] of Object.entries(bindings)) {
-            if (
-              binding.inputId === varId ||
-              (binding.slots && binding.slots.some((s) => s.inputId === varId))
-            ) {
-              if (targetToFeature[targetId]) {
-                featureInfo = targetToFeature[targetId];
-                groupKey = `obj:${featureInfo.objectId} `;
-                groupLabel = featureInfo.objectName;
-                break;
-              }
-            }
-          }
+      const targetIds = resolveAnimatablePropertyTargetIds(
+        resolveSelectionTargetIds(selection, objects),
+      );
+      const resolvedInputIds = resolvePosePropertySelectionInputIds({
+        selection,
+        standardInputsById,
+        fallbackTargetIds: targetIds,
+        autorigInputIdByComponentId,
+      });
 
-          if (!featureInfo && inputDef?.group) {
-            groupKey = `group:${inputDef.group} `;
-            groupLabel = inputDef.group;
-          }
-
-          if (!groups[groupKey])
-            groups[groupKey] = { label: groupLabel, items: [] };
-          const drivenPropertyCount = collectRigDependents({
-            selectedRigId: varId,
-            bindings,
-            inputBindings,
-            objects,
-            standardInputsById,
-          }).length;
-          const drivenVariableCount = collectDirectDownstreamRigInputs({
-            selectedRigId: varId,
-            inputBindings,
-            standardInputsById,
-          }).length;
-          groups[groupKey].items.push({
-            varId,
-            poseVal: val,
-            drivenPropertyCount,
-            drivenVariableCount,
-          });
-        });
-
-        return Object.values(groups).sort((a, b) => {
-          if (a.label === "Unassigned") return 1;
-          if (b.label === "Unassigned") return -1;
-          return a.label.localeCompare(b.label);
-        });
-      })();
-
-      const handleAddVariable = (selection: VariableSelection) => {
-        setShowSelector(false);
-        if (selection.type === "variable") {
-          addPoseInput(pose.id, selection.id);
-          return;
-        }
-        if (selection.type !== "property") {
-          return;
-        }
-
-        const targetIds = resolveAnimatablePropertyTargetIds(
-          resolveSelectionTargetIds(selection, objects),
+      if (resolvedInputIds.length === 0) {
+        alertDialog(
+          "Selected properties are not currently mapped to existing rig variables.",
         );
-        const resolvedInputIds = resolvePosePropertySelectionInputIds({
-          selection,
-          standardInputsById,
-          fallbackTargetIds: targetIds,
-          autorigInputIdByComponentId,
-        });
+        return;
+      }
 
-        if (resolvedInputIds.length === 0) {
-          alertDialog(
-            "Selected properties are not currently mapped to existing rig variables.",
-          );
-          return;
-        }
+      resolvedInputIds.forEach((inputId) => addPoseInput(pose.id, inputId));
+    };
 
-        resolvedInputIds.forEach((inputId) => addPoseInput(pose.id, inputId));
-      };
+    const poseSemanticTooltips = {
+      target:
+        "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
+      direct:
+        "Direct Input: canonical rig input value edited directly (matches Inputs pane for this variable).",
+      poseDriven:
+        "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
+      contribution:
+        "Contribution Strength: (Pose Driven - Neutral) / (Target - Neutral) for this pose channel.",
+    };
 
-      const resolvePoseNeutralValue = (varId: string): number => {
-        const neutral = neutralInputs[varId];
-        if (typeof neutral === "number" && Number.isFinite(neutral)) {
-          return neutral;
-        }
-        const fallbackDefault = standardInputsById.get(varId)?.defaultValue;
-        if (
-          typeof fallbackDefault === "number" &&
-          Number.isFinite(fallbackDefault)
-        ) {
-          return fallbackDefault;
-        }
-        return 0;
-      };
+    const handleBlend = (amount: number) => {
+      const clampedAmount = clamp01(amount);
+      setBlendAmount(clampedAmount);
+      if (usePoseWeightPreview && selectedPoseWeightInputId) {
+        handleInputValueChange(selectedPoseWeightInputId, clampedAmount);
+      }
+    };
+    const poseBindingEditorInput = poseBindingEditorInputId
+      ? (rigInputById.get(poseBindingEditorInputId) ?? null)
+      : null;
 
-      const resolveDirectInputValue = (varId: string): number => {
-        // Direct rig-input lane: canonical input value edited in Inputs pane.
-        const staged = inputValues[varId];
-        if (typeof staged === "number" && Number.isFinite(staged)) {
-          return staged;
-        }
-        return resolvePoseNeutralValue(varId);
-      };
-
-      const resolvePoseDrivenValue = (
-        varId: string,
-        poseTargetValue: number,
-        min: number,
-        max: number,
-      ): number => {
-        const neutralVal = resolvePoseNeutralValue(varId);
-        const activePoseWeight = usePoseWeightPreview
-          ? selectedPoseWeightValue
-          : blendAmount;
-        const interpolated =
-          neutralVal +
-          (poseTargetValue - neutralVal) * clamp01(activePoseWeight);
-        return clampToRange(interpolated, min, max);
-      };
-
-      const poseSemanticTooltips = {
-        target:
-          "Target Value: authored pose value for this rig input when the pose contributes at 100%.",
-        direct:
-          "Direct Input: canonical rig input value edited directly (matches Inputs pane for this variable).",
-        poseDriven:
-          "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
-        contribution:
-          "Contribution Strength: (Pose Driven - Neutral) / (Target - Neutral) for this pose channel.",
-      };
-
-      const handleBlend = (amount: number) => {
-        const clampedAmount = clamp01(amount);
-        setBlendAmount(clampedAmount);
-        if (usePoseWeightPreview && selectedPoseWeightInputId) {
-          handleInputValueChange(selectedPoseWeightInputId, clampedAmount);
-        }
-      };
-
-      return (
-        <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
-          <InspectorHeader
-            name={pose.name}
-            path={pose.group || ""}
-            typeLabel="Pose"
-            id={pose.id}
-            onNameChange={(name) => updatePoseName(pose.id, name)}
-            onPathChange={(group) => updatePoseGroup(pose.id, group)}
-          />
-          <div className="flex flex-col gap-2 px-1 py-2 rounded border border-border-default/60 bg-bg-panel/30">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-text-secondary">
-                Pose Groups
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => duplicatePose(pose.id)}
-                  title="Duplicate this pose"
-                >
-                  <Copy size={11} />
-                  Duplicate
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={handlePromptAddPoseGroupMembership}
-                >
-                  <Plus size={11} />
-                  Add Group
-                </Button>
-              </div>
+    return (
+      <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
+        <InspectorHeader
+          name={pose.name}
+          path={pose.group || ""}
+          typeLabel="Pose"
+          id={pose.id}
+          onNameChange={(name) => updatePoseName(pose.id, name)}
+          onPathChange={(group) => updatePoseGroup(pose.id, group)}
+        />
+        <div className="flex flex-col gap-2 px-1 py-2 rounded border border-border-default/60 bg-bg-panel/30">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-text-secondary">
+              Pose Groups
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => duplicatePose(pose.id)}
+                title="Duplicate this pose"
+              >
+                <Copy size={11} />
+                Duplicate
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={handlePromptAddPoseGroupMembership}
+              >
+                <Plus size={11} />
+                Add Group
+              </Button>
             </div>
-            {membershipPaths.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1">
-                {membershipPaths.map((groupPath) => (
-                  <span
-                    key={groupPath}
-                    className="inline-flex items-center gap-1 text-[10px] font-mono border border-border-default/60 rounded px-1.5 py-0.5 text-text-muted"
-                  >
-                    {groupPath}
-                    <button
-                      type="button"
-                      className="h-4 w-4 inline-flex items-center justify-center rounded hover:bg-bg-hover hover:text-text-primary"
-                      title={`Remove pose from "${groupPath}"`}
-                      onClick={() => removePoseFromGroup(pose.id, groupPath)}
-                    >
-                      <Trash2 size={9} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <div className="text-[10px] text-text-muted font-mono">
-                Unassigned
-              </div>
-            )}
-            {configuredPoseGroups.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1">
-                {configuredPoseGroups.map((group) => {
-                  const isAssigned = membershipPaths.includes(group.path);
-                  return (
-                    <Button
-                      key={group.path}
-                      variant={isAssigned ? "subtle" : "ghost"}
-                      size="sm"
-                      className="h-6 px-2 text-[10px]"
-                      disabled={isAssigned}
-                      onClick={() => addPoseToGroup(pose.id, group.path)}
-                      title={
-                        isAssigned
-                          ? `Already assigned to "${group.path}"`
-                          : `Assign to "${group.path}"`
-                      }
-                    >
-                      {group.path}
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
           </div>
-          {renderChainPath()}
-          {renderAuthoringStatus()}
-          <RiggingPropertyRow
-            label="Contribution Strength"
-            onScrub={(_, totalDelta) => {
-              // Blend based on delta (assuming 100px = 100% blend)
-              const newAmount = Math.max(
-                0,
-                Math.min(1, blendAmount + totalDelta / 100),
-              );
-              handleBlend(newAmount);
-            }}
-            renderMainInput={() => (
-              <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={blendAmount}
-                  className="flex-1"
-                  onChange={(val) => handleBlend(val as number)}
-                />
+          {membershipPaths.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {membershipPaths.map((groupPath) => (
                 <span
-                  className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                  title={poseSemanticTooltips.contribution}
+                  key={groupPath}
+                  className="inline-flex items-center gap-1 text-[10px] font-mono border border-border-default/60 rounded px-1.5 py-0.5 text-text-muted"
                 >
-                  Contrib
+                  {groupPath}
+                  <button
+                    type="button"
+                    className="h-4 w-4 inline-flex items-center justify-center rounded hover:bg-bg-hover hover:text-text-primary"
+                    title={`Remove pose from "${groupPath}"`}
+                    onClick={() => removePoseFromGroup(pose.id, groupPath)}
+                  >
+                    <Trash2 size={9} />
+                  </button>
                 </span>
-                <div className="inspector-numeric-control flex-shrink-0">
-                  <Input
+              ))}
+            </div>
+          ) : (
+            <div className="text-[10px] text-text-muted font-mono">
+              Unassigned
+            </div>
+          )}
+          {configuredPoseGroups.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              {configuredPoseGroups.map((group) => {
+                const isAssigned = membershipPaths.includes(group.path);
+                return (
+                  <Button
+                    key={group.path}
+                    variant={isAssigned ? "subtle" : "ghost"}
                     size="sm"
-                    type="text"
-                    value={(blendAmount * 100).toFixed(0) + "%"}
-                    className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
-                    readOnly
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
-                  title="Play Pose (100%)"
-                  onClick={() => {
-                    handleBlend(1);
-                  }}
-                >
-                  <Play size={12} fill="currentColor" />
-                </Button>
-              </div>
-            )}
-          />
-          <div className="flex items-start gap-2 px-1 py-1 rounded border border-border-default/50 bg-bg-panel/30">
-            <Info size={11} className="mt-0.5 text-text-secondary shrink-0" />
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[9px] uppercase tracking-wider font-bold text-text-secondary">
-                Legend
-              </span>
+                    className="h-6 px-2 text-[10px]"
+                    disabled={isAssigned}
+                    onClick={() => addPoseToGroup(pose.id, group.path)}
+                    title={
+                      isAssigned
+                        ? `Already assigned to "${group.path}"`
+                        : `Assign to "${group.path}"`
+                    }
+                  >
+                    {group.path}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {renderChainPath()}
+        {renderAuthoringStatus()}
+        <RiggingPropertyRow
+          label="Contribution Strength"
+          onScrub={(_, totalDelta) => {
+            // Blend based on delta (assuming 100px = 100% blend)
+            const newAmount = Math.max(
+              0,
+              Math.min(1, blendAmount + totalDelta / 100),
+            );
+            handleBlend(newAmount);
+          }}
+          renderMainInput={() => (
+            <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={blendAmount}
+                className="flex-1"
+                onChange={(val) => handleBlend(val as number)}
+              />
               <span
-                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-                title={poseSemanticTooltips.target}
-              >
-                Target Value
-              </span>
-              <span
-                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-                title={poseSemanticTooltips.direct}
-              >
-                Direct Input
-              </span>
-              <span
-                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
-                title={poseSemanticTooltips.poseDriven}
-              >
-                Pose Driven
-              </span>
-              <span
-                className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+                className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
                 title={poseSemanticTooltips.contribution}
               >
-                Contribution Strength
+                Contrib
               </span>
+              <div className="inspector-numeric-control flex-shrink-0">
+                <Input
+                  size="sm"
+                  type="text"
+                  value={(blendAmount * 100).toFixed(0) + "%"}
+                  className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
+                  readOnly
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
+                title="Play Pose (100%)"
+                onClick={() => {
+                  handleBlend(1);
+                }}
+              >
+                <Play size={12} fill="currentColor" />
+              </Button>
             </div>
-          </div>
-          <div className="flex items-center gap-2 px-1 mb-2">
-            <div className="h-px bg-border-default flex-1" />
-            <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
-              What I Drive · {Object.keys(pose.values).length} Variables
+          )}
+        />
+        <div className="flex items-start gap-2 px-1 py-1 rounded border border-border-default/50 bg-bg-panel/30">
+          <Info size={11} className="mt-0.5 text-text-secondary shrink-0" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wider font-bold text-text-secondary">
+              Legend
             </span>
-            <div className="h-px bg-border-default flex-1" />
+            <span
+              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+              title={poseSemanticTooltips.target}
+            >
+              Target Value
+            </span>
+            <span
+              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+              title={poseSemanticTooltips.direct}
+            >
+              Direct Input
+            </span>
+            <span
+              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+              title={poseSemanticTooltips.poseDriven}
+            >
+              Pose Driven
+            </span>
+            <span
+              className="text-[9px] font-mono text-text-muted border border-border-default/60 rounded px-1 py-0.5"
+              title={poseSemanticTooltips.contribution}
+            >
+              Contribution Strength
+            </span>
           </div>
+        </div>
+        <div className="flex items-center gap-2 px-1 mb-2">
+          <div className="h-px bg-border-default flex-1" />
+          <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
+            What I Drive · {Object.keys(pose.values).length} Variables
+          </span>
+          <div className="h-px bg-border-default flex-1" />
+        </div>
 
-          <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
-            {groupedVariables.length === 0 && (
-              <EmptyState
-                icon={Sliders}
-                iconSize={18}
-                title="No Connected Variables"
-                description="This pose has no variable targets yet. Connect one or more rig variables to define the pose output."
-                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-              />
-            )}
-            {groupedVariables.map((group) => (
-              <div key={group.label} className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 px-1 py-1 border-b border-border-default/50">
-                  <Box size={10} className="text-text-secondary" />
-                  <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">
-                    {group.label}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1.5 px-0.5">
-                  {group.items.map((item) => {
-                    const varId = item.varId;
-                    const poseVal = item.poseVal;
-                    const mInput = managedStandardInputs.find(
-                      (m) => m.input.id === varId,
-                    );
-                    const inputDef = mInput?.input;
-                    const rawLabel = inputDef?.label || varId;
-                    const label = cleanLabel(rawLabel, group.label);
-                    const min = inputDef?.range?.min ?? -1;
-                    const max = inputDef?.range?.max ?? 1;
-                    const directVal = resolveDirectInputValue(varId);
-                    const neutralVal = resolvePoseNeutralValue(varId);
-                    const poseDrivenVal = resolvePoseDrivenValue(
+        <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar flex-1 min-h-[100px] pr-1">
+          {poseVariableRenderGroups.length === 0 && (
+            <EmptyState
+              icon={Sliders}
+              iconSize={18}
+              title="No Connected Variables"
+              description="This pose has no variable targets yet. Connect one or more rig variables to define the pose output."
+              className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+            />
+          )}
+          {poseVariableRenderGroups.map((group) => (
+            <div key={group.key} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 px-1 py-1 border-b border-border-default/50">
+                <Box size={10} className="text-text-secondary" />
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">
+                  {group.label}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5 px-0.5">
+                {group.items.map((item) => {
+                  const varId = item.varId;
+                  const poseVal = item.poseVal;
+                  const {
+                    label,
+                    min,
+                    max,
+                    directVal,
+                    poseDrivenVal,
+                    contributionStrength,
+                    contributionLabel,
+                    poseComposeMode,
+                    canInspectVariable,
+                    chainSummary,
+                    directDefaultValue,
+                    poseDrivenPercent,
+                  } = item;
+                  const handleDirectInputChange = (nextDirect: number) => {
+                    handleInputValueChange(
                       varId,
-                      poseVal,
-                      min,
-                      max,
+                      clampToRange(nextDirect, min, max),
                     );
-                    const contributionSemantics =
-                      computePoseContributionSemantics({
-                        targetValue: poseVal,
-                        appliedValue: poseDrivenVal,
-                        neutralValue: neutralVal,
-                      });
-                    const contributionLabel = formatContributionStrength(
-                      contributionSemantics.contributionStrength,
+                  };
+                  const handleDirectReset = () => {
+                    handleInputValueChange(
+                      varId,
+                      clampToRange(directDefaultValue, min, max),
                     );
-                    const precisionFormat = {
-                      minimumFractionDigits: 4,
-                      maximumFractionDigits: 4,
-                    } as const;
-                    const canInspectVariable = standardInputsById.has(varId);
-                    const poseComposeMode = pose.composeModes?.[varId] ?? "add";
-                    const chainSummary =
-                      item.drivenVariableCount > 0 ||
-                      item.drivenPropertyCount > 0
-                        ? `${item.drivenVariableCount} vars · ${item.drivenPropertyCount} props`
-                        : null;
-                    const directDefaultValue = Number.isFinite(
-                      inputDef?.defaultValue,
-                    )
-                      ? (inputDef?.defaultValue ?? neutralVal)
-                      : neutralVal;
-                    const poseDrivenPercent =
-                      max > min
-                        ? clamp01((poseDrivenVal - min) / (max - min)) * 100
-                        : 0;
-                    const handleDirectInputChange = (nextDirect: number) => {
-                      handleInputValueChange(
-                        varId,
-                        clampToRange(nextDirect, min, max),
-                      );
-                    };
-                    const handleDirectReset = () => {
-                      handleInputValueChange(
-                        varId,
-                        clampToRange(directDefaultValue, min, max),
-                      );
-                    };
-                    const handleTargetValueChange = (nextTarget: number) => {
-                      updatePoseValue(
-                        pose.id,
-                        varId,
-                        clampToRange(nextTarget, min, max),
-                      );
-                    };
+                  };
+                  const handleTargetValueChange = (nextTarget: number) => {
+                    updatePoseValue(
+                      pose.id,
+                      varId,
+                      clampToRange(nextTarget, min, max),
+                    );
+                  };
 
-                    return (
-                      <div
-                        key={varId}
-                        className="flex flex-col gap-2 rounded border border-border-default/50 bg-bg-panel/30 p-2"
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-medium text-text-primary">
-                            {label}
+                  return (
+                    <div
+                      key={varId}
+                      className="flex flex-col gap-2 rounded border border-border-default/50 bg-bg-panel/30 p-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-text-primary">
+                          {label}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
+                            contributionStrength === null
+                              ? "text-text-muted border-border-default/50"
+                              : "text-accent border-accent/40 bg-accent/10",
+                          )}
+                          title={poseSemanticTooltips.contribution}
+                        >
+                          Contrib {contributionLabel}
+                        </span>
+                        <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
+                          <span className="uppercase tracking-wide font-bold">
+                            Compose
                           </span>
-                          <span
-                            className={cn(
-                              "text-[9px] font-mono whitespace-nowrap rounded border px-1 py-0.5",
-                              contributionSemantics.contributionStrength ===
-                                null
-                                ? "text-text-muted border-border-default/50"
-                                : "text-accent border-accent/40 bg-accent/10",
-                            )}
-                            title={poseSemanticTooltips.contribution}
-                          >
-                            Contrib {contributionLabel}
-                          </span>
-                          <label className="inline-flex items-center gap-1 rounded border border-border-default/60 px-1 py-0.5 text-[9px] text-text-muted">
-                            <span className="uppercase tracking-wide font-bold">
-                              Compose
-                            </span>
-                            <select
-                              className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
-                              value={poseComposeMode}
-                              title="Compose direct/current value with this pose target for this channel."
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) => {
-                                event.stopPropagation();
-                                setPoseInputComposeMode(
-                                  pose.id,
-                                  varId,
-                                  event.target.value === "average"
-                                    ? "average"
-                                    : "add",
-                                );
-                              }}
-                            >
-                              <option value="add">Add</option>
-                              <option value="average">Average</option>
-                            </select>
-                          </label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
-                            title={`Inspect variable ${varId}`}
-                            disabled={!canInspectVariable}
-                            onClick={(event) => {
+                          <select
+                            className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
+                            value={poseComposeMode}
+                            title="Compose direct/current value with this pose target for this channel."
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => {
                               event.stopPropagation();
-                              if (canInspectVariable) {
-                                openRigInspector(varId, "bindings");
-                              }
+                              setPoseInputComposeMode(
+                                pose.id,
+                                varId,
+                                event.target.value === "average"
+                                  ? "average"
+                                  : "add",
+                              );
                             }}
                           >
-                            {varId}
-                            <ChevronRight size={11} />
-                          </Button>
-                          <Button
-                            variant="ghost"
+                            <option value="add">Add</option>
+                            <option value="average">Average</option>
+                          </select>
+                        </label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
+                          title={`Inspect variable ${varId}`}
+                          disabled={!canInspectVariable}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (canInspectVariable) {
+                              openRigInspector(varId, "bindings");
+                            }
+                          }}
+                        >
+                          {varId}
+                          <ChevronRight size={11} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
+                          title="Remove from Pose"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removePoseInput(pose.id, varId);
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                        <span
+                          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                          title={poseSemanticTooltips.direct}
+                        >
+                          Direct Input
+                        </span>
+                        <Slider
+                          min={min}
+                          max={max}
+                          step={0.0001}
+                          value={directVal}
+                          className="flex-1 min-w-[120px]"
+                          onChange={(val) =>
+                            handleDirectInputChange(val as number)
+                          }
+                        />
+                        <div
+                          className="inspector-numeric-control flex-shrink-0"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                        >
+                          <NumberField
                             size="sm"
-                            className="h-6 w-6 p-0 text-text-secondary hover:text-red-400"
-                            title="Remove from Pose"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removePoseInput(pose.id, varId);
-                            }}
-                          >
-                            <Trash2 size={12} />
-                          </Button>
+                            min={min}
+                            max={max}
+                            step={0.0001}
+                            format={POSE_VALUE_PRECISION_FORMAT}
+                            value={directVal}
+                            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                            onChange={handleDirectInputChange}
+                          />
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          title="Reset direct input to default"
+                          onClick={handleDirectReset}
+                        >
+                          <RotateCcw size={11} />
+                          Reset
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          title="Use direct input value as the new pose target"
+                          onClick={() =>
+                            updatePoseValue(pose.id, varId, directVal)
+                          }
+                        >
+                          <Save size={11} />
+                          Set Target
+                        </Button>
+                      </div>
 
-                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
-                          <span
-                            className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                            title={poseSemanticTooltips.direct}
-                          >
-                            Direct Input
-                          </span>
+                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                        <span
+                          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+                          title={poseSemanticTooltips.target}
+                        >
+                          Target Value (100%)
+                        </span>
+                        <div className="relative flex-1 min-w-[120px]">
                           <Slider
                             min={min}
                             max={max}
                             step={0.0001}
-                            value={directVal}
-                            className="flex-1 min-w-[120px]"
+                            value={poseVal}
+                            className="w-full"
                             onChange={(val) =>
-                              handleDirectInputChange(val as number)
+                              handleTargetValueChange(val as number)
                             }
                           />
-                          <div
-                            className="inspector-numeric-control flex-shrink-0"
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onPointerDown={(event) => event.stopPropagation()}
-                          >
-                            <NumberField
-                              size="sm"
-                              min={min}
-                              max={max}
-                              step={0.0001}
-                              format={precisionFormat}
-                              value={directVal}
-                              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                              onChange={handleDirectInputChange}
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px]"
-                            title="Reset direct input to default"
-                            onClick={handleDirectReset}
-                          >
-                            <RotateCcw size={11} />
-                            Reset
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px]"
-                            title="Use direct input value as the new pose target"
-                            onClick={() =>
-                              updatePoseValue(pose.id, varId, directVal)
-                            }
-                          >
-                            <Save size={11} />
-                            Set Target
-                          </Button>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
                           <span
-                            className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                            title={poseSemanticTooltips.target}
-                          >
-                            Target Value (100%)
-                          </span>
-                          <div className="relative flex-1 min-w-[120px]">
-                            <Slider
-                              min={min}
-                              max={max}
-                              step={0.0001}
-                              value={poseVal}
-                              className="w-full"
-                              onChange={(val) =>
-                                handleTargetValueChange(val as number)
-                              }
-                            />
-                            <span
-                              className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
-                              style={{ left: `${poseDrivenPercent}%` }}
-                              title={poseSemanticTooltips.poseDriven}
-                            />
-                          </div>
-                          <div
-                            className="inspector-numeric-control flex-shrink-0"
-                            onMouseDown={(event) => event.stopPropagation()}
-                            onPointerDown={(event) => event.stopPropagation()}
-                          >
-                            <NumberField
-                              size="sm"
-                              min={min}
-                              max={max}
-                              step={0.0001}
-                              format={precisionFormat}
-                              value={poseVal}
-                              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-                              onChange={handleTargetValueChange}
-                            />
-                          </div>
-                          <span
-                            className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
+                            className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200 bg-amber-400 shadow"
+                            style={{ left: `${poseDrivenPercent}%` }}
                             title={poseSemanticTooltips.poseDriven}
-                          >
-                            Pose {poseDrivenVal.toFixed(4)}
-                          </span>
-                          <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-                            Min {min.toFixed(4)}
-                          </span>
-                          <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
-                            Max {max.toFixed(4)}
-                          </span>
+                          />
                         </div>
-                        {chainSummary && (
-                          <div className="text-[9px] text-text-muted font-mono">
-                            {chainSummary}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full mt-2 gap-2 border border-dashed border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover hover:bg-bg-hover transition-all group"
-            onClick={() => setShowSelector(true)}
-          >
-            <Plus
-              size={14}
-              className="group-hover:text-accent transition-colors"
-            />
-            <span className="font-normal text-xs">
-              Connect Variable to Pose
-            </span>
-          </Button>
-          <Modal
-            open={showSelector}
-            onClose={() => setShowSelector(false)}
-            title="Connect Variable to Pose"
-            maxWidth="md"
-          >
-            <VariableSelector
-              onSelect={handleAddVariable}
-              onCancel={() => setShowSelector(false)}
-              defaultTab="variables"
-            />
-          </Modal>
-          <Modal
-            open={poseBindingEditorInputId !== null}
-            onClose={() => setPoseBindingEditorInputId(null)}
-            title={
-              poseBindingEditorInputId
-                ? `Edit My Drivers · ${
-                    managedStandardInputs.find(
-                      (entry) => entry.input.id === poseBindingEditorInputId,
-                    )?.input.label ?? poseBindingEditorInputId
-                  }`
-                : "Edit My Drivers"
-            }
-            maxWidth="lg"
-          >
-            {poseBindingEditorInputId &&
-            managedStandardInputs.find(
-              (entry) => entry.input.id === poseBindingEditorInputId,
-            )?.input ? (
-              (() => {
-                const inputToEdit = managedStandardInputs.find(
-                  (entry) => entry.input.id === poseBindingEditorInputId,
-                )!.input;
-                const bindingToEdit = inputBindings[inputToEdit.id] ?? null;
-                const standardInputList = managedStandardInputs.map(
-                  (entry) => entry.input,
-                );
-                if (!bindingToEdit) {
-                  const drivenVariableCount = collectDirectDownstreamRigInputs({
-                    selectedRigId: inputToEdit.id,
-                    inputBindings,
-                    standardInputsById,
-                  }).length;
-                  const drivenPropertyCount = collectRigDependents({
-                    selectedRigId: inputToEdit.id,
-                    bindings,
-                    inputBindings,
-                    objects,
-                    standardInputsById,
-                  }).length;
-                  const emptyStateKind = classifyPoseParentBindingEmptyState(
-                    drivenVariableCount,
-                    drivenPropertyCount,
-                  );
-                  return (
-                    <EmptyState
-                      icon={Sliders}
-                      iconSize={20}
-                      title={
-                        emptyStateKind === "root"
-                          ? "Root Variable (No Parent Drivers)"
-                          : "No Parent Drivers (Currently Unlinked)"
-                      }
-                      description={
-                        emptyStateKind === "root"
-                          ? "This pose-driven variable is currently a root input. Create a parent binding only if you want it remapped from upstream rig variables."
-                          : "This pose-driven variable has no parent drivers and no downstream outputs yet. Add downstream targets or create a parent binding to connect it."
-                      }
-                      className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-                      action={
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-[10px] text-text-muted font-mono">
-                            Downstream: {drivenVariableCount} vars ·{" "}
-                            {drivenPropertyCount} props
-                          </span>
-                          <Button
-                            variant="secondary"
+                        <div
+                          className="inspector-numeric-control flex-shrink-0"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                        >
+                          <NumberField
                             size="sm"
-                            onClick={() =>
-                              handleEnsureParentBinding(inputToEdit.id)
-                            }
-                          >
-                            Create Parent Binding
-                          </Button>
+                            min={min}
+                            max={max}
+                            step={0.0001}
+                            format={POSE_VALUE_PRECISION_FORMAT}
+                            value={poseVal}
+                            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+                            onChange={handleTargetValueChange}
+                          />
                         </div>
-                      }
-                    />
+                        <span
+                          className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/60 bg-amber-500/10 px-1 py-0.5 text-amber-200"
+                          title={poseSemanticTooltips.poseDriven}
+                        >
+                          Pose {poseDrivenVal.toFixed(4)}
+                        </span>
+                        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+                          Min {min.toFixed(4)}
+                        </span>
+                        <span className="text-[9px] font-mono whitespace-nowrap rounded border border-border-default/60 px-1 py-0.5 text-text-muted">
+                          Max {max.toFixed(4)}
+                        </span>
+                      </div>
+                      {chainSummary && (
+                        <div className="text-[9px] text-text-muted font-mono">
+                          {chainSummary}
+                        </div>
+                      )}
+                    </div>
                   );
-                }
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-2 gap-2 border border-dashed border-border-default text-text-secondary hover:text-text-primary hover:border-border-hover hover:bg-bg-hover transition-all group"
+          onClick={() => setShowSelector(true)}
+        >
+          <Plus
+            size={14}
+            className="group-hover:text-accent transition-colors"
+          />
+          <span className="font-normal text-xs">Connect Variable to Pose</span>
+        </Button>
+        <Modal
+          open={showSelector}
+          onClose={() => setShowSelector(false)}
+          title="Connect Variable to Pose"
+          maxWidth="md"
+        >
+          <VariableSelector
+            onSelect={handleAddVariable}
+            onCancel={() => setShowSelector(false)}
+            defaultTab="variables"
+          />
+        </Modal>
+        <Modal
+          open={poseBindingEditorInputId !== null}
+          onClose={() => setPoseBindingEditorInputId(null)}
+          title={
+            poseBindingEditorInputId
+              ? `Edit My Drivers · ${
+                  poseBindingEditorInput?.label ?? poseBindingEditorInputId
+                }`
+              : "Edit My Drivers"
+          }
+          maxWidth="lg"
+        >
+          {poseBindingEditorInput ? (
+            (() => {
+              const inputToEdit = poseBindingEditorInput;
+              const bindingToEdit = inputBindings[inputToEdit.id] ?? null;
+              if (!bindingToEdit) {
+                const connectionCounts = poseConnectionCountsByInputId.get(
+                  inputToEdit.id,
+                );
+                const drivenVariableCount =
+                  connectionCounts?.drivenVariableCount ?? 0;
+                const drivenPropertyCount =
+                  connectionCounts?.drivenPropertyCount ?? 0;
+                const emptyStateKind = classifyPoseParentBindingEmptyState(
+                  drivenVariableCount,
+                  drivenPropertyCount,
+                );
                 return (
-                  <BindingEditor
-                    binding={bindingToEdit}
-                    targetId={inputToEdit.id}
-                    issues={bindingIssues.get(inputToEdit.id)}
-                    label={inputToEdit.label || inputToEdit.id}
-                    standardInputs={standardInputList}
-                    standardInputLookup={standardInputsById}
-                    onBindingInputChange={handleParentBindingInputChange}
-                    onAddBindingSlot={handleParentAddBindingSlot}
-                    onRemoveBindingSlot={handleParentRemoveBindingSlot}
-                    onBindingExpressionChange={
-                      handleParentBindingExpressionChange
+                  <EmptyState
+                    icon={Sliders}
+                    iconSize={20}
+                    title={
+                      emptyStateKind === "root"
+                        ? "Root Variable (No Parent Drivers)"
+                        : "No Parent Drivers (Currently Unlinked)"
                     }
-                    onBindingSlotAliasChange={
-                      handleParentBindingSlotAliasChange
+                    description={
+                      emptyStateKind === "root"
+                        ? "This pose-driven variable is currently a root input. Create a parent binding only if you want it remapped from upstream rig variables."
+                        : "This pose-driven variable has no parent drivers and no downstream outputs yet. Add downstream targets or create a parent binding to connect it."
                     }
-                    onBindingSlotValueTypeChange={
-                      handleParentBindingSlotValueTypeChange
+                    className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
+                    action={
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-[10px] text-text-muted font-mono">
+                          Downstream: {drivenVariableCount} vars ·{" "}
+                          {drivenPropertyCount} props
+                        </span>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            handleEnsureParentBinding(inputToEdit.id)
+                          }
+                        >
+                          Create Parent Binding
+                        </Button>
+                      </div>
                     }
-                    onRequestCreateStandardInput={
-                      handleRequestCreateStandardInput
-                    }
-                    onResetBinding={handleParentResetBinding}
-                    expandable={false}
-                    defaultExpanded={true}
-                    currentValues={inputValues}
-                    onInputValueChange={handleInputValueChange}
-                    featureFlags={{
-                      vectorAuthoringBeta: true,
-                      conditionalAuthoringBeta: true,
-                    }}
                   />
                 );
-              })()
-            ) : (
-              <p className="text-xs text-text-muted">No variable selected.</p>
-            )}
-          </Modal>
-        </div>
-      );
-    }
+              }
+              return (
+                <BindingEditor
+                  binding={bindingToEdit}
+                  targetId={inputToEdit.id}
+                  issues={bindingIssues.get(inputToEdit.id)}
+                  label={inputToEdit.label || inputToEdit.id}
+                  standardInputs={standardInputList}
+                  standardInputLookup={standardInputsById}
+                  onBindingInputChange={handleParentBindingInputChange}
+                  onAddBindingSlot={handleParentAddBindingSlot}
+                  onRemoveBindingSlot={handleParentRemoveBindingSlot}
+                  onBindingExpressionChange={
+                    handleParentBindingExpressionChange
+                  }
+                  onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
+                  onBindingSlotValueTypeChange={
+                    handleParentBindingSlotValueTypeChange
+                  }
+                  onRequestCreateStandardInput={
+                    handleRequestCreateStandardInput
+                  }
+                  onResetBinding={handleParentResetBinding}
+                  expandable={false}
+                  defaultExpanded={true}
+                  currentValues={inputValues}
+                  onInputValueChange={handleInputValueChange}
+                  featureFlags={{
+                    vectorAuthoringBeta: true,
+                    conditionalAuthoringBeta: true,
+                  }}
+                />
+              );
+            })()
+          ) : (
+            <p className="text-xs text-text-muted">No variable selected.</p>
+          )}
+        </Modal>
+      </div>
+    );
   }
 
   // 3. Rig Mode
@@ -1981,21 +2145,12 @@ export function InspectorContent() {
             controllableResolution.inputId !== input.id
           ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Edit My Drivers to add local control or adjust "${controllableResolution.inputId}".`
           : null;
-      const standardInputList = managedStandardInputs.map(
-        (entry) => entry.input,
-      );
-      const downstreamConnections = collectDirectDownstreamRigInputs({
-        selectedRigId: resolvedSelectedRigId,
-        inputBindings,
-        standardInputsById,
-        includeAutorig: true,
-      });
-      const downstreamInputs = downstreamConnections.filter(
-        (entry) => entry.layer === "rig",
-      );
-      const downstreamAutorigInputs = downstreamConnections.filter(
-        (entry) => entry.layer === "autorig",
-      );
+      const {
+        downstreamInputs,
+        downstreamAutorigInputs,
+        directDependents,
+        dependents,
+      } = selectedRigTraversal;
       const parentRigInputRefs = collectBindingInputIds(parentBinding)
         .filter((candidateId) => candidateId !== input.id)
         .map((candidateId) => {
@@ -2006,19 +2161,6 @@ export function InspectorContent() {
             isAutorig: isCanonicalAutorigInputPath(parentEntry?.path),
           };
         });
-      const directDependents = collectDirectRigDependents({
-        selectedRigId: resolvedSelectedRigId,
-        bindings,
-        objects,
-        standardInputsById,
-      });
-      const dependents = collectRigDependents({
-        selectedRigId: resolvedSelectedRigId,
-        bindings,
-        inputBindings,
-        objects,
-        standardInputsById,
-      });
       const sharedLink = linksByMainInputId.get(input.id) ?? null;
       const sharedConflict = sharedLink
         ? (sharedSyncConflictsByPath.get(sharedLink.path) ?? null)

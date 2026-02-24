@@ -16,8 +16,14 @@ describe("B1.3 pose inspector value semantics contracts", () => {
   });
 
   it("separates direct-input editing from pose-driven preview semantics", () => {
-    expect(inspectorContentTsx).toContain("resolveDirectInputValue");
-    expect(inspectorContentTsx).toContain("resolvePoseDrivenValue");
+    expect(inspectorContentTsx).toContain("poseVariableBaseById");
+    expect(inspectorContentTsx).toContain("poseVariableRenderGroups");
+    expect(inspectorContentTsx).toContain(
+      "const staged = inputValues[item.varId]",
+    );
+    expect(inspectorContentTsx).toContain(
+      "const poseDrivenVal = clampToRange(interpolated, base.min, base.max)",
+    );
     expect(inspectorContentTsx).toContain(
       "canonical rig input value edited directly",
     );

@@ -19,7 +19,9 @@ describe("B2.2 pose weight synchronization contracts", () => {
     expect(inspectorContentTsx).toContain(
       "handleInputValueChange(selectedPoseWeightInputId, clampedAmount)",
     );
-    expect(inspectorContentTsx).toContain("resolvePoseDrivenValue");
+    expect(inspectorContentTsx).toContain(
+      "const activePoseWeight = usePoseWeightPreview",
+    );
   });
 
   it("routes pose-group inspector controls through canonical pose-weight inputs", () => {
