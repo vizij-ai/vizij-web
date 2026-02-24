@@ -42,6 +42,8 @@ import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 
+const __DEV__ = process.env.NODE_ENV !== "production";
+
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 type FaceLoadPhaseChange = Parameters<
   VizijAssetLoaderState["updateExternalPhase"]
@@ -51,12 +53,33 @@ export default function App() {
   const assetLoader = useVizijAssetLoader();
   const updateFaceLoadPhase = useCallback(
     (update: FaceLoadPhaseChange) => {
+      const sessionToken = assetLoader.faceLoadSessionToken;
       assetLoader.updateExternalPhase({
         ...update,
-        sessionToken: assetLoader.faceLoadSessionToken,
+        sessionToken,
       });
+      if (update.stepId === "bundle-sync" && update.status === "complete") {
+        assetLoader.markFaceLoadMilestone("bundle-synced", {
+          sessionToken,
+        });
+      }
+      if (
+        update.stepId === "runtime-stabilization" &&
+        update.substepId === "settle-recompiles" &&
+        update.status === "complete" &&
+        assetLoader.faceLoadMilestones["bundle-synced"] !== null
+      ) {
+        assetLoader.markFaceLoadMilestone("graph-ready", {
+          sessionToken,
+        });
+      }
     },
-    [assetLoader.faceLoadSessionToken, assetLoader.updateExternalPhase],
+    [
+      assetLoader.faceLoadSessionToken,
+      assetLoader.faceLoadMilestones,
+      assetLoader.markFaceLoadMilestone,
+      assetLoader.updateExternalPhase,
+    ],
   );
 
   return (
@@ -91,6 +114,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
     sourceName,
     isLoading,
+    faceLoadSessionToken,
+    faceLoadMilestones,
+    markFaceLoadMilestone,
     loadFromFile,
     bundle: loadedBundle,
     beginImportFlow,
@@ -168,6 +194,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeViewLoading = useGraphRuntime(
     (state) => state.runtimeViewLoading,
   );
+  const runtimeViewRootId = useGraphRuntime((state) => state.runtimeViewRootId);
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
   useGraphRuntime((state) => state.graphSpec);
@@ -360,10 +387,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const runtimeInputReady =
     typeof stageRuntimeInput === "function" && graphStatus === "ready";
-  const runtimeVisibleReady = runtimeViewReady && !runtimeViewLoading;
+  const runtimeVisibleReady =
+    runtimeViewReady &&
+    !runtimeViewLoading &&
+    runtimeViewRootId !== null &&
+    runtimeViewRootId === rootId;
   const loadingSessionActive =
     loader.faceLoadSessionStartedAtMs !== null &&
     loader.faceLoadSessionCompletedAtMs === null;
+  const deterministicMilestoneChainReady =
+    faceLoadMilestones["asset-loaded"] !== null &&
+    faceLoadMilestones["bundle-synced"] !== null &&
+    faceLoadMilestones["graph-ready"] !== null;
   const loadingBarVisible = loadingSessionActive;
   const loadingBarProgress =
     runtimeInputReady && runtimeVisibleReady
@@ -371,6 +406,40 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       : graphStatus === "ready"
         ? Math.max(0.92, loader.faceLoadProgress)
         : loader.faceLoadProgress;
+  const previousLoadingSessionActiveRef = useRef(loadingSessionActive);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    const previous = previousLoadingSessionActiveRef.current;
+    if (previous !== loadingSessionActive) {
+      console.log("[face-load][app]", {
+        event: loadingSessionActive ? "session-visible" : "session-hidden",
+        sessionToken: faceLoadSessionToken,
+        graphStatus,
+        runtimeInputReady,
+        runtimeVisibleReady,
+        runtimeViewRootId,
+        rootId,
+        milestones: faceLoadMilestones,
+        startedAtMs: loader.faceLoadSessionStartedAtMs,
+        completedAtMs: loader.faceLoadSessionCompletedAtMs,
+      });
+      previousLoadingSessionActiveRef.current = loadingSessionActive;
+    }
+  }, [
+    faceLoadMilestones,
+    faceLoadSessionToken,
+    graphStatus,
+    loader.faceLoadSessionCompletedAtMs,
+    loader.faceLoadSessionStartedAtMs,
+    loadingSessionActive,
+    rootId,
+    runtimeInputReady,
+    runtimeViewRootId,
+    runtimeVisibleReady,
+  ]);
 
   useEffect(() => {
     if (!loadingSessionActive) {
@@ -381,44 +450,62 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       substepId: "wait-runtime-input-bridge",
       status: runtimeInputReady ? "complete" : "active",
     });
-    onFaceLoadPhaseChange({
-      stepId: "runtime-stabilization",
-      substepId: "settle-recompiles",
-      status: runtimeInputReady && runtimeVisibleReady ? "complete" : "active",
-    });
+    if (runtimeInputReady && runtimeVisibleReady) {
+      if (deterministicMilestoneChainReady) {
+        markFaceLoadMilestone("runtime-ready", {
+          sessionToken: faceLoadSessionToken,
+        });
+      }
+    }
     if (!runtimeInputReady || !runtimeVisibleReady) {
       return;
     }
+    if (!deterministicMilestoneChainReady) {
+      if (__DEV__) {
+        console.log("[face-load][app]", {
+          event: "wait-milestone-chain",
+          sessionToken: faceLoadSessionToken,
+          graphStatus,
+          runtimeInputReady,
+          runtimeVisibleReady,
+          runtimeViewRootId,
+          rootId,
+          milestones: faceLoadMilestones,
+        });
+      }
+      return;
+    }
+    if (__DEV__) {
+      console.log("[face-load][app]", {
+        event: "complete-scheduled",
+        sessionToken: faceLoadSessionToken,
+        milestones: faceLoadMilestones,
+      });
+    }
     const timer = window.setTimeout(() => {
+      if (__DEV__) {
+        console.log("[face-load][app]", {
+          event: "complete-fired",
+          sessionToken: faceLoadSessionToken,
+          milestones: faceLoadMilestones,
+        });
+      }
       completeImportFlow();
     }, 300);
     return () => window.clearTimeout(timer);
   }, [
     completeImportFlow,
     loadingSessionActive,
+    deterministicMilestoneChainReady,
+    faceLoadMilestones,
+    faceLoadSessionToken,
+    graphStatus,
+    markFaceLoadMilestone,
     runtimeInputReady,
+    runtimeViewRootId,
     runtimeVisibleReady,
     onFaceLoadPhaseChange,
-  ]);
-
-  useEffect(() => {
-    if (!loadingSessionActive) {
-      return;
-    }
-    if (graphStatus !== "error") {
-      return;
-    }
-    onFaceLoadPhaseChange({
-      stepId: "runtime-stabilization",
-      status: "error",
-      substepId: "wait-runtime-input-bridge",
-    });
-    markImportFlowError("finalize-load");
-  }, [
-    graphStatus,
-    loadingSessionActive,
-    markImportFlowError,
-    onFaceLoadPhaseChange,
+    rootId,
   ]);
 
   const viewerContent = (
@@ -442,6 +529,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     visible={loadingBarVisible}
                     progress={loadingBarProgress}
                     steps={loader.faceLoadSteps}
+                    milestones={faceLoadMilestones}
                     graphStatus={graphStatus}
                     graphError={graphError}
                     runtimeInputReady={runtimeInputReady}
@@ -485,6 +573,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 visible={loadingBarVisible}
                 progress={loadingBarProgress}
                 steps={loader.faceLoadSteps}
+                milestones={faceLoadMilestones}
                 graphStatus={graphStatus}
                 graphError={graphError}
                 runtimeInputReady={runtimeInputReady}

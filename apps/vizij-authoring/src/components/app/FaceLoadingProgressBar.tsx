@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  FaceLoadMilestones,
   FaceLoadStep,
   FaceLoadStepStatus,
 } from "../../hooks/useVizijAssetLoader";
@@ -10,6 +11,7 @@ interface FaceLoadingProgressBarProps {
   visible: boolean;
   progress: number;
   steps: FaceLoadStep[];
+  milestones: FaceLoadMilestones;
   graphStatus: GraphStatus;
   graphError: string | null;
   runtimeInputReady: boolean;
@@ -136,6 +138,7 @@ export function FaceLoadingProgressBar({
   visible,
   progress,
   steps,
+  milestones,
   graphStatus,
   graphError,
   runtimeInputReady,
@@ -239,6 +242,13 @@ export function FaceLoadingProgressBar({
           {Math.round(normalizedProgress * 100)}% · total{" "}
           {formatDuration(totalElapsedMs)}
         </div>
+      </div>
+
+      <div className="text-[9px] text-text-muted truncate">
+        Path: asset {milestones["asset-loaded"] ? "✓" : "…"}
+        {" -> "}bundle {milestones["bundle-synced"] ? "✓" : "…"}
+        {" -> "}graph {milestones["graph-ready"] ? "✓" : "…"}
+        {" -> "}runtime {milestones["runtime-ready"] ? "✓" : "…"}
       </div>
 
       <div className="flex flex-wrap gap-1">

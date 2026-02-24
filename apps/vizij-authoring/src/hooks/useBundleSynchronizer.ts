@@ -200,7 +200,16 @@ export function useBundleSynchronizer({
         return;
       }
 
+      const rigComplete =
+        !rigEntry || importedRigFingerprintsRef.current.has(fingerprint);
+
       if (standardInputCount === 0) {
+        if (rigComplete) {
+          onPhaseChange?.({
+            stepId: "bundle-sync",
+            status: "complete",
+          });
+        }
         return;
       }
 
@@ -249,7 +258,6 @@ export function useBundleSynchronizer({
         }
       }
 
-      const rigComplete = importedRigFingerprintsRef.current.has(fingerprint);
       const poseComplete =
         !loadedBundle.poses?.config ||
         importedPoseFingerprintsRef.current.has(fingerprint);

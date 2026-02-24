@@ -54,6 +54,9 @@ export interface GraphRuntimeState {
   stageRuntimeInput?: (graphPath: string, value: number) => void;
   runtimeViewReady: boolean;
   runtimeViewLoading: boolean;
+  runtimeViewRootId: string | null;
+  runtimeViewGraphCount: number;
+  runtimeViewOutputCount: number;
 }
 
 type GraphRuntimeStoreUpdate =
@@ -105,6 +108,9 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   stageRuntimeInput: undefined,
   runtimeViewReady: false,
   runtimeViewLoading: false,
+  runtimeViewRootId: null,
+  runtimeViewGraphCount: 0,
+  runtimeViewOutputCount: 0,
 };
 
 export function createGraphRuntimeStore(

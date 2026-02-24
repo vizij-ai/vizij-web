@@ -11,7 +11,8 @@ import {
 import { isPoseControlInputPath } from "../../poseRig/utils";
 
 function RuntimeInputBridge() {
-  const { setInput, ready, loading } = useVizijRuntime();
+  const { setInput, ready, loading, rootId, controllers, outputPaths } =
+    useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
@@ -23,8 +24,33 @@ function RuntimeInputBridge() {
         : undefined,
       runtimeViewReady: ready,
       runtimeViewLoading: loading,
+      runtimeViewRootId: rootId ?? null,
+      runtimeViewGraphCount: controllers.graphs.length,
+      runtimeViewOutputCount: outputPaths.length,
     });
-  }, [graphRuntimeStore, loading, ready, setInput]);
+  }, [
+    controllers.graphs.length,
+    graphRuntimeStore,
+    loading,
+    outputPaths.length,
+    ready,
+    rootId,
+    setInput,
+  ]);
+
+  useEffect(
+    () => () => {
+      graphRuntimeStore.setState({
+        stageRuntimeInput: undefined,
+        runtimeViewReady: false,
+        runtimeViewLoading: false,
+        runtimeViewRootId: null,
+        runtimeViewGraphCount: 0,
+        runtimeViewOutputCount: 0,
+      });
+    },
+    [graphRuntimeStore],
+  );
 
   return null;
 }
@@ -102,7 +128,7 @@ function RuntimeStatusDebug() {
     <div className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
       {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
         rootId ?? "null"
-      } | graphs: ${controllers.graphs.length}`}
+      } | graphs: ${controllers.graphs.length} | outputs: ${outputPaths.length}`}
     </div>
   );
 }
@@ -185,8 +211,24 @@ export function Viewer({
   onLoadQuori,
   onLoadHugo,
 }: ViewerProps) {
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
+
+  useEffect(() => {
+    if (rootId && bundle) {
+      return;
+    }
+    graphRuntimeStore.setState({
+      stageRuntimeInput: undefined,
+      runtimeViewReady: false,
+      runtimeViewLoading: false,
+      runtimeViewRootId: null,
+      runtimeViewGraphCount: 0,
+      runtimeViewOutputCount: 0,
+    });
+  }, [bundle, graphRuntimeStore, rootId]);
+
   return (
     <main className="h-full w-full relative bg-bg-panel overflow-hidden">
       {(runtimeWarning || runtimeError) && (
