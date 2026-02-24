@@ -149,7 +149,15 @@ export function buildRuntimeInputRouteSnapshot({
     }
     if (matched) {
       registerInputRoute(matched.id, graphPath, matched.defaultValue ?? 0);
+      return;
     }
+
+    const fallbackPath = normalizeStandardRigInputPath(`/${remainder}`);
+    if (!fallbackPath || fallbackPath === "/custom/input") {
+      return;
+    }
+    const fallbackInputId = deriveStandardRigInputIdFromPath(fallbackPath);
+    registerInputRoute(fallbackInputId, graphPath, 0);
   });
 
   managedStandardInputs.forEach(({ input }) => {

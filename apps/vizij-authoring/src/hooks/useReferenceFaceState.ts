@@ -47,11 +47,39 @@ export function useReferenceFaceState(
     (inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
       setStandardInputs(inputs);
       setStandardInputsById(byId);
-      const initialValues: Record<string, number> = {};
-      for (const input of inputs) {
-        initialValues[input.id] = input.defaultValue;
-      }
-      setInputValues(initialValues);
+      setInputValues((previous) => {
+        const nextValues: Record<string, number> = {};
+        let changed = false;
+        for (const input of inputs) {
+          const previousValue = previous[input.id];
+          const resolvedValue =
+            typeof previousValue === "number" && Number.isFinite(previousValue)
+              ? previousValue
+              : input.defaultValue;
+          nextValues[input.id] = resolvedValue;
+          if (
+            !changed &&
+            (!Object.prototype.hasOwnProperty.call(previous, input.id) ||
+              Math.abs(previousValue - resolvedValue) > 1e-6)
+          ) {
+            changed = true;
+          }
+        }
+        if (!changed) {
+          const previousKeys = Object.keys(previous);
+          if (previousKeys.length !== inputs.length) {
+            changed = true;
+          } else if (
+            previousKeys.some(
+              (inputId) =>
+                !Object.prototype.hasOwnProperty.call(nextValues, inputId),
+            )
+          ) {
+            changed = true;
+          }
+        }
+        return changed ? nextValues : previous;
+      });
     },
     [],
   );

@@ -5,14 +5,11 @@ import {
   useVizijRuntime,
 } from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
-import {
-  createStandardRigInputFromPath,
-  normalizeStandardRigInputPath,
-  type StandardRigInput,
-} from "@vizij/utils";
+import { type StandardRigInput } from "@vizij/utils";
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import { Button } from "../ui";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
+import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -183,76 +180,16 @@ function ReferenceFaceBridge({
     onStandardInputChangeRef.current = onStandardInputChange;
   }, [setInput, faceId, onStandardInputChange]);
 
-  // Discover standard inputs from inputConstraints (paths containing /standard/)
-  const { standardInputs, standardInputsById, standardInputsByPath } =
-    useMemo(() => {
-      if (!ready || !inputConstraints) {
-        return {
-          standardInputs: [],
-          standardInputsById: new Map<string, StandardRigInput>(),
-          standardInputsByPath: new Map<string, StandardRigInput>(),
-        };
-      }
-
-      const available: StandardRigInput[] = [];
-      const byId = new Map<string, StandardRigInput>();
-      const byPath = new Map<string, StandardRigInput>();
-      const seenPaths = new Set<string>();
-
-      // Iterate over all input constraint paths and find those with /standard/
-      for (const [fullPath, constraint] of Object.entries(inputConstraints)) {
-        // Check if this path contains /standard/
-        if (!fullPath.includes("/standard/")) {
-          continue;
-        }
-
-        // Extract the /standard/... portion from the path (strips namespace prefix like "refface/")
-        const standardMatch = fullPath.match(/(\/standard\/.+)$/);
-        if (!standardMatch) {
-          continue;
-        }
-
-        // Normalize the extracted standard path
-        const normalizedPath = normalizeStandardRigInputPath(standardMatch[1]);
-
-        // Skip if we've already processed this normalized path
-        if (seenPaths.has(normalizedPath)) {
-          continue;
-        }
-        seenPaths.add(normalizedPath);
-
-        // Create a StandardRigInput from the path
-        const input = createStandardRigInputFromPath(normalizedPath);
-
-        // Override with constraint metadata if available
-        if (constraint.min !== undefined || constraint.max !== undefined) {
-          input.range = {
-            min: constraint.min ?? input.range.min,
-            max: constraint.max ?? input.range.max,
-          };
-        }
-        if (constraint.defaultValue !== undefined) {
-          input.defaultValue = constraint.defaultValue;
-        }
-
-        available.push(input);
-        byId.set(input.id, input);
-        byPath.set(input.path, input);
-      }
-
-      // Sort by group then by label for consistent ordering
-      available.sort((a, b) => {
-        const groupCompare = a.group.localeCompare(b.group);
-        if (groupCompare !== 0) return groupCompare;
-        return a.label.localeCompare(b.label);
-      });
-
-      return {
-        standardInputs: available,
-        standardInputsById: byId,
-        standardInputsByPath: byPath,
-      };
-    }, [ready, inputConstraints]);
+  // Discover runtime inputs from available constraints (standard + non-standard).
+  const {
+    inputs: standardInputs,
+    byId: standardInputsById,
+    byPath: standardInputsByPath,
+  } = useMemo(
+    () =>
+      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null),
+    [inputConstraints, ready],
+  );
 
   // Keep a ref of standardInputsByPath for use in callbacks
   const standardInputsByPathRef = useRef(standardInputsByPath);

@@ -3,6 +3,7 @@ import type { VizijAssetBundle } from "@vizij/runtime-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import {
   useBindingAuthoring,
@@ -11,6 +12,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
+import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 
 type RuntimeRenderableSelectionType =
   | "group"
@@ -157,6 +159,47 @@ function RuntimeInputBridge() {
   return null;
 }
 
+interface RuntimeInputCatalogBridgeProps {
+  onRuntimeInputsReady: (
+    inputs: StandardRigInput[],
+    byId: Map<string, StandardRigInput>,
+  ) => void;
+}
+
+function RuntimeInputCatalogBridge({
+  onRuntimeInputsReady,
+}: RuntimeInputCatalogBridgeProps) {
+  const { ready, inputConstraints } = useVizijRuntime();
+  const { inputs, byId } = useMemo(
+    () =>
+      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null),
+    [inputConstraints, ready],
+  );
+  const lastSignatureRef = useRef<string | null>(null);
+
+  const signature = useMemo(() => {
+    if (!ready || inputs.length === 0) {
+      return "__empty__";
+    }
+    return inputs
+      .map(
+        (input) =>
+          `${input.id}:${input.path}:${input.defaultValue}:${input.range.min}:${input.range.max}`,
+      )
+      .join("|");
+  }, [inputs, ready]);
+
+  useEffect(() => {
+    if (lastSignatureRef.current === signature) {
+      return;
+    }
+    lastSignatureRef.current = signature;
+    onRuntimeInputsReady(inputs, byId);
+  }, [byId, inputs, onRuntimeInputsReady, signature]);
+
+  return null;
+}
+
 function RuntimeGraphBridge() {
   const { setGraphBundle } = useVizijRuntime();
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
@@ -247,6 +290,10 @@ export interface ViewerProps {
   bundle: VizijAssetBundle | null;
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
+  onRuntimeInputsReady?: (
+    inputs: StandardRigInput[],
+    byId: Map<string, StandardRigInput>,
+  ) => void;
   onClearSelection: () => void;
   showSelectionGlow: boolean;
   onImportClick: () => void;
@@ -260,6 +307,7 @@ export function Viewer({
   bundle,
   selectedSceneId = null,
   onSelectScene,
+  onRuntimeInputsReady,
   onClearSelection,
   showSelectionGlow,
   onImportClick,
@@ -312,7 +360,8 @@ export function Viewer({
       runtimeViewGraphCount: 0,
       runtimeViewOutputCount: 0,
     });
-  }, [bundle, graphRuntimeStore, rootId]);
+    onRuntimeInputsReady?.([], new Map());
+  }, [bundle, graphRuntimeStore, onRuntimeInputsReady, rootId]);
 
   const handleRuntimeControllersRegistered = useCallback(
     (ids: { graphs: string[]; anims: string[] }) => {
@@ -350,6 +399,11 @@ export function Viewer({
               <RuntimeSelectionBridge
                 selectedSceneId={selectedSceneId}
                 onSelectScene={onSelectScene}
+              />
+            ) : null}
+            {onRuntimeInputsReady ? (
+              <RuntimeInputCatalogBridge
+                onRuntimeInputsReady={onRuntimeInputsReady}
               />
             ) : null}
             <RuntimeInputBridge />

@@ -6,6 +6,7 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
+import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
@@ -186,6 +187,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const referenceFaceContextValue = useReferenceFaceState();
   const sharedVariableSyncEnabled =
     referenceFaceContextValue.standardInputs.length > 0;
+  const [mainRuntimeInputsById, setMainRuntimeInputsById] = useState<
+    Map<string, StandardRigInput>
+  >(new Map());
   const mainFaceHandleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -194,6 +198,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const mainFaceInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
+  );
+  const mirrorableMainInputsById = useMemo(() => {
+    if (mainRuntimeInputsById.size === 0) {
+      return mainFaceInputsById;
+    }
+    const merged = new Map(mainRuntimeInputsById);
+    mainFaceInputsById.forEach((input, inputId) => {
+      merged.set(inputId, input);
+    });
+    return merged;
+  }, [mainFaceInputsById, mainRuntimeInputsById]);
+  const handleMainRuntimeInputsReady = useCallback(
+    (_inputs: StandardRigInput[], byId: Map<string, StandardRigInput>) => {
+      setMainRuntimeInputsById(new Map(byId));
+    },
+    [],
   );
 
   // Graph Runtime Hook
@@ -368,7 +388,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const sharedVariableSync = useSharedVariableSync({
-    mainInputsById: mainFaceInputsById,
+    mainInputsById: mirrorableMainInputsById,
     mainInputValues: mainFaceInputValues,
     referenceInputs: referenceFaceContextValue.standardInputs,
     referenceInputValues: referenceFaceContextValue.inputValues,
@@ -657,6 +677,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 bundle={rootId ? runtimeBundle : null}
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObject}
+                onRuntimeInputsReady={handleMainRuntimeInputsReady}
                 onClearSelection={handleClearSelection}
                 showSelectionGlow={showSelectionGlow}
                 onImportClick={handleImportClick}
@@ -704,6 +725,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             bundle={rootId ? runtimeBundle : null}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObject}
+            onRuntimeInputsReady={handleMainRuntimeInputsReady}
             onClearSelection={handleClearSelection}
             showSelectionGlow={showSelectionGlow}
             onImportClick={handleImportClick}
