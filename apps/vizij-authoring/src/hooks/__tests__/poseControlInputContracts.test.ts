@@ -7,6 +7,21 @@ const useRigControllerTs = readFileSync(
   "utf8",
 );
 
+const runtimeInputRoutesTs = readFileSync(
+  path.resolve(process.cwd(), "src/hooks/rigController/runtimeInputRoutes.ts"),
+  "utf8",
+);
+
+const runtimeInputStagingTs = readFileSync(
+  path.resolve(process.cwd(), "src/hooks/rigController/runtimeInputStaging.ts"),
+  "utf8",
+);
+
+const rigGraphCompilerTs = readFileSync(
+  path.resolve(process.cwd(), "src/hooks/rigController/rigGraphCompiler.ts"),
+  "utf8",
+);
+
 const variablesPanelTsx = readFileSync(
   path.resolve(process.cwd(), "src/components/panels/VariablesPanel.tsx"),
   "utf8",
@@ -14,10 +29,7 @@ const variablesPanelTsx = readFileSync(
 
 describe("pose control input guard contracts", () => {
   it("keeps internal pose-control graph inputs out of runtime editable input routes", () => {
-    expect(useRigControllerTs).toContain("isPoseControlInputPath(graphPath)");
-    expect(useRigControllerTs).toContain(
-      "should not become editable direct-input routes",
-    );
+    expect(runtimeInputRoutesTs).toContain("isPoseControlInputPath(graphPath)");
   });
 
   it("hides internal pose-control managed inputs from the Inputs pane rows", () => {
@@ -27,22 +39,21 @@ describe("pose control input guard contracts", () => {
   });
 
   it("projects per-channel compose modes into rig graph compilation", () => {
-    expect(useRigControllerTs).toContain("buildPoseComposeModeByInputId");
-    expect(useRigControllerTs).toContain(
-      "inputComposeModesById: poseComposeModesByInputId",
-    );
+    expect(rigGraphCompilerTs).toContain("buildPoseComposeModeByInputId");
+    expect(rigGraphCompilerTs).toContain("inputComposeModesById");
   });
 
   it("keeps managed-input fallback routing so pose weights remain stageable", () => {
-    expect(useRigControllerTs).toContain("managedStandardInputs.forEach");
-    expect(useRigControllerTs).toContain(
+    expect(runtimeInputRoutesTs).toContain("managedStandardInputs.forEach");
+    expect(runtimeInputRoutesTs).toContain(
       "buildFallbackGraphPath(faceId, input)",
     );
   });
 
   it("deduplicates runtime staging writes for unchanged graph-path values", () => {
+    expect(runtimeInputStagingTs).toContain("stagedByGraphPath");
+    expect(runtimeInputStagingTs).toContain("Object.is(staged, value)");
     expect(useRigControllerTs).toContain("stagedRuntimeInputValuesRef");
-    expect(useRigControllerTs).toContain("Object.is(previous, value)");
   });
 
   it("skips no-op direct input updates before staging", () => {

@@ -406,4 +406,70 @@ describe("Viewer", () => {
     });
     container.remove();
   });
+
+  it("skips runtime reset when only pose-control inputs exist", () => {
+    const store = createGraphRuntimeStore();
+    const applyStandardInputBatchSpy = vi.fn();
+    const bindingStore = createBindingAuthoringStore({
+      managedStandardInputs: [
+        {
+          input: {
+            id: "pose_control_jaw",
+            label: "Pose Control Jaw",
+            path: "/pose/control/jaw_open",
+            range: { min: 0, max: 1 },
+            defaultValue: 0.5,
+          } as any,
+          source: "auto",
+          disabled: false,
+        },
+      ],
+      applyStandardInputBatch: applyStandardInputBatchSpy,
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <GraphRuntimeStoreProvider store={store}>
+          <BindingAuthoringStoreProvider store={bindingStore}>
+            <Viewer
+              rootId="root"
+              namespace="default"
+              bundle={{
+                namespace: "default",
+                glb: {
+                  kind: "world",
+                  world: {},
+                  animatables: {},
+                  bundle: null,
+                },
+                bundle: null,
+              }}
+              onClearSelection={() => {}}
+              showSelectionGlow={false}
+              onImportClick={() => {}}
+              onLoadQuori={() => {}}
+              onLoadHugo={() => {}}
+            />
+          </BindingAuthoringStoreProvider>
+        </GraphRuntimeStoreProvider>,
+      );
+    });
+
+    const resetButton = container.querySelector(
+      'button[title="Reset graph inputs to their default values"]',
+    );
+    expect(resetButton).toBeTruthy();
+    fireEvent.click(resetButton as HTMLButtonElement);
+
+    expect(applyStandardInputBatchSpy).not.toHaveBeenCalled();
+
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

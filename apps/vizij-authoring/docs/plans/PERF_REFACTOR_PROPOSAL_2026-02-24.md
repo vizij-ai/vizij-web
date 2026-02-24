@@ -78,6 +78,17 @@ Interpretation:
 2. Runtime staging transaction boundary second (build on the service split).
 3. Pose incremental projection third (largest semantics surface, should land with dedicated fixtures and traces).
 
+## Implementation Status (2026-02-24)
+
+1. `useRigController` service split: implemented.
+   - Added `rigController/rigGraphCompiler.ts`, `rigController/runtimeInputRoutes.ts`, and `rigController/runtimeInputStaging.ts`.
+   - Hook now orchestrates service calls instead of owning the full logic inline.
+2. Runtime input staging transaction boundary: implemented.
+   - Direct input updates and state restage now queue by graph path and flush through a single staging effect.
+3. Pose incremental projection: deferred.
+   - A draft shortcut to skip `PoseIrService.toConfig` on pose-only edits was tested but removed because it can desynchronize config canonicalization from IR normalization.
+   - This phase remains in proposal state pending a safe incremental projection coordinator in `poseRig/services`.
+
 ## Rollout / Guardrails
 
 1. Land each refactor behind behavior-preserving contracts first, then perf gates.
