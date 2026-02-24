@@ -54,9 +54,13 @@ export default function App() {
   const updateFaceLoadPhase = useCallback(
     (update: FaceLoadPhaseChange) => {
       const sessionToken = assetLoader.faceLoadSessionToken;
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
       assetLoader.updateExternalPhase({
         ...update,
         sessionToken,
+        operationId,
       });
       if (update.stepId === "bundle-sync" && update.status === "complete") {
         assetLoader.markFaceLoadMilestone("bundle-synced", {
@@ -116,6 +120,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     isLoading,
     faceLoadSessionToken,
     faceLoadMilestones,
+    faceLoadInFlightOperationCount,
+    faceLoadLastOperationUpdateAtMs,
     markFaceLoadMilestone,
     loadFromFile,
     bundle: loadedBundle,
@@ -195,6 +201,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.runtimeViewLoading,
   );
   const runtimeViewRootId = useGraphRuntime((state) => state.runtimeViewRootId);
+  const runtimeViewGraphCount = useGraphRuntime(
+    (state) => state.runtimeViewGraphCount,
+  );
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
   useGraphRuntime((state) => state.graphSpec);
@@ -395,16 +404,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const loadingSessionActive =
     loader.faceLoadSessionStartedAtMs !== null &&
     loader.faceLoadSessionCompletedAtMs === null;
+  const loadingCoordinatorSettled = faceLoadInFlightOperationCount === 0;
   const deterministicMilestoneChainReady =
     faceLoadMilestones["asset-loaded"] !== null &&
     faceLoadMilestones["bundle-synced"] !== null &&
     faceLoadMilestones["graph-ready"] !== null;
   const loadingBarVisible = loadingSessionActive;
   const loadingBarProgress =
-    runtimeInputReady && runtimeVisibleReady
+    runtimeInputReady && runtimeVisibleReady && loadingCoordinatorSettled
       ? 1
       : graphStatus === "ready"
-        ? Math.max(0.92, loader.faceLoadProgress)
+        ? Math.max(
+            loadingCoordinatorSettled ? 0.95 : 0.92,
+            loader.faceLoadProgress,
+          )
         : loader.faceLoadProgress;
   const previousLoadingSessionActiveRef = useRef(loadingSessionActive);
 
@@ -421,8 +434,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         runtimeInputReady,
         runtimeVisibleReady,
         runtimeViewRootId,
+        runtimeViewGraphCount,
         rootId,
         milestones: faceLoadMilestones,
+        inFlightOperations: faceLoadInFlightOperationCount,
+        lastOperationAtMs: faceLoadLastOperationUpdateAtMs,
         startedAtMs: loader.faceLoadSessionStartedAtMs,
         completedAtMs: loader.faceLoadSessionCompletedAtMs,
       });
@@ -431,6 +447,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [
     faceLoadMilestones,
     faceLoadSessionToken,
+    faceLoadInFlightOperationCount,
+    faceLoadLastOperationUpdateAtMs,
     graphStatus,
     loader.faceLoadSessionCompletedAtMs,
     loader.faceLoadSessionStartedAtMs,
@@ -438,10 +456,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
     runtimeInputReady,
     runtimeViewRootId,
+    runtimeViewGraphCount,
     runtimeVisibleReady,
   ]);
 
   useEffect(() => {
+    const completionSettleWindowMs = 500;
     if (!loadingSessionActive) {
       return;
     }
@@ -469,16 +489,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           runtimeInputReady,
           runtimeVisibleReady,
           runtimeViewRootId,
+          runtimeViewGraphCount,
           rootId,
           milestones: faceLoadMilestones,
         });
       }
       return;
     }
+    if (!loadingCoordinatorSettled) {
+      if (__DEV__) {
+        console.log("[face-load][app]", {
+          event: "wait-operations",
+          sessionToken: faceLoadSessionToken,
+          inFlightOperations: faceLoadInFlightOperationCount,
+        });
+      }
+      return;
+    }
+    const sinceLastOperationMs =
+      typeof faceLoadLastOperationUpdateAtMs === "number"
+        ? Math.max(0, Date.now() - faceLoadLastOperationUpdateAtMs)
+        : completionSettleWindowMs;
+    const settleDelayMs = Math.max(
+      0,
+      completionSettleWindowMs - sinceLastOperationMs,
+    );
     if (__DEV__) {
       console.log("[face-load][app]", {
         event: "complete-scheduled",
         sessionToken: faceLoadSessionToken,
+        settleDelayMs,
+        inFlightOperations: faceLoadInFlightOperationCount,
         milestones: faceLoadMilestones,
       });
     }
@@ -491,18 +532,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         });
       }
       completeImportFlow();
-    }, 300);
+    }, settleDelayMs);
     return () => window.clearTimeout(timer);
   }, [
     completeImportFlow,
-    loadingSessionActive,
     deterministicMilestoneChainReady,
+    faceLoadInFlightOperationCount,
+    faceLoadLastOperationUpdateAtMs,
     faceLoadMilestones,
     faceLoadSessionToken,
     graphStatus,
+    loadingCoordinatorSettled,
+    loadingSessionActive,
     markFaceLoadMilestone,
     runtimeInputReady,
     runtimeViewRootId,
+    runtimeViewGraphCount,
     runtimeVisibleReady,
     onFaceLoadPhaseChange,
     rootId,
@@ -535,6 +580,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     runtimeInputReady={runtimeInputReady}
                     sessionStartedAtMs={loader.faceLoadSessionStartedAtMs}
                     sessionCompletedAtMs={loader.faceLoadSessionCompletedAtMs}
+                    inFlightOperations={faceLoadInFlightOperationCount}
                     sourceLabel={loader.faceLoadSourceLabel}
                   />
                 </div>
@@ -579,6 +625,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 runtimeInputReady={runtimeInputReady}
                 sessionStartedAtMs={loader.faceLoadSessionStartedAtMs}
                 sessionCompletedAtMs={loader.faceLoadSessionCompletedAtMs}
+                inFlightOperations={faceLoadInFlightOperationCount}
                 sourceLabel={loader.faceLoadSourceLabel}
               />
             </div>

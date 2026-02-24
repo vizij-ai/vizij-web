@@ -1923,6 +1923,19 @@ export function useRigController(
     [renameInputsForShape, refreshAutoMetadataForShape, setStoreState, world],
   );
 
+  const emitLoadPhase = useCallback(
+    (update: FaceLoadPhaseUpdate) => {
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
+      onLoadPhaseChange?.({
+        ...update,
+        operationId,
+      });
+    },
+    [onLoadPhaseChange],
+  );
+
   const handleImportGraphSpec = useRigGraphImport({
     faceId,
     animatables,
@@ -1944,7 +1957,7 @@ export function useRigController(
     alertDialog,
     debugLog,
     pendingFaceRenameRef,
-    onImportPhaseChange: onLoadPhaseChange,
+    onImportPhaseChange: emitLoadPhase,
   });
 
   useEffect(() => {
@@ -2042,7 +2055,7 @@ export function useRigController(
       setGraphStatus("idle");
       setGraphError(null);
       setGraphWarning(null);
-      onLoadPhaseChange?.({
+      emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
         status: "pending",
@@ -2053,7 +2066,7 @@ export function useRigController(
       return;
     }
 
-    onLoadPhaseChange?.({
+    emitLoadPhase({
       stepId: "runtime-stabilization",
       substepId: "settle-recompiles",
       status: "active",
@@ -2069,7 +2082,7 @@ export function useRigController(
         fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; "),
       );
       setGraphWarning(null);
-      onLoadPhaseChange?.({
+      emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
         status: "error",
@@ -2090,7 +2103,7 @@ export function useRigController(
         runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.",
       );
       setGraphWarning(null);
-      onLoadPhaseChange?.({
+      emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
         status: "error",
@@ -2125,14 +2138,14 @@ export function useRigController(
     setGraphStatus("ready");
     setGraphError(null);
     setGraphWarning(runtimeGraphSpec.warning ?? null);
-    onLoadPhaseChange?.({
+    emitLoadPhase({
       stepId: "runtime-stabilization",
       substepId: "settle-recompiles",
       status: "complete",
     });
   }, [
     faceId,
-    onLoadPhaseChange,
+    emitLoadPhase,
     resetDrivenAnimatables,
     rigGraphBuild,
     runtimeGraphSpec,

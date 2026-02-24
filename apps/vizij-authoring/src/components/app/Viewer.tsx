@@ -11,8 +11,7 @@ import {
 import { isPoseControlInputPath } from "../../poseRig/utils";
 
 function RuntimeInputBridge() {
-  const { setInput, ready, loading, rootId, controllers, outputPaths } =
-    useVizijRuntime();
+  const { setInput, ready, loading, rootId, outputPaths } = useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
@@ -25,18 +24,9 @@ function RuntimeInputBridge() {
       runtimeViewReady: ready,
       runtimeViewLoading: loading,
       runtimeViewRootId: rootId ?? null,
-      runtimeViewGraphCount: controllers.graphs.length,
       runtimeViewOutputCount: outputPaths.length,
     });
-  }, [
-    controllers.graphs.length,
-    graphRuntimeStore,
-    loading,
-    outputPaths.length,
-    ready,
-    rootId,
-    setInput,
-  ]);
+  }, [graphRuntimeStore, loading, outputPaths.length, ready, rootId, setInput]);
 
   useEffect(
     () => () => {
@@ -112,6 +102,12 @@ function RuntimeGraphBridge() {
 function RuntimeStatusDebug() {
   const { loading, ready, rootId, error, controllers, outputPaths } =
     useVizijRuntime();
+  const runtimeViewGraphCount = useGraphRuntime(
+    (state) => state.runtimeViewGraphCount,
+  );
+  const runtimeViewOutputCount = useGraphRuntime(
+    (state) => state.runtimeViewOutputCount,
+  );
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][viewer]", {
@@ -128,7 +124,7 @@ function RuntimeStatusDebug() {
     <div className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
       {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
         rootId ?? "null"
-      } | graphs: ${controllers.graphs.length} | outputs: ${outputPaths.length}`}
+      } | graphs: ${runtimeViewGraphCount} | outputs: ${runtimeViewOutputCount}`}
     </div>
   );
 }
@@ -229,6 +225,15 @@ export function Viewer({
     });
   }, [bundle, graphRuntimeStore, rootId]);
 
+  const handleRuntimeControllersRegistered = useCallback(
+    (ids: { graphs: string[]; anims: string[] }) => {
+      graphRuntimeStore.setState({
+        runtimeViewGraphCount: ids.graphs.length,
+      });
+    },
+    [graphRuntimeStore],
+  );
+
   return (
     <main className="h-full w-full relative bg-bg-panel overflow-hidden">
       {(runtimeWarning || runtimeError) && (
@@ -247,7 +252,11 @@ export function Viewer({
       )}
       <div className="h-full w-full">
         {rootId && bundle ? (
-          <VizijRuntimeProvider assetBundle={bundle} autostart>
+          <VizijRuntimeProvider
+            assetBundle={bundle}
+            autostart
+            onRegisterControllers={handleRuntimeControllersRegistered}
+          >
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <RuntimeStatusDebug />

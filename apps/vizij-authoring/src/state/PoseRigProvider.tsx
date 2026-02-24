@@ -284,6 +284,15 @@ function PoseRigController({
 
   useEffect(() => {
     let cancelled = false;
+    const emitPhase = (update: FaceLoadPhaseUpdate) => {
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
+      onLoadPhaseChange?.({
+        ...update,
+        operationId,
+      });
+    };
 
     const syncPoseGraph = async () => {
       if (!poseRig.poseGraphSpec) {
@@ -295,7 +304,7 @@ function PoseRigController({
       }
 
       try {
-        onLoadPhaseChange?.({
+        emitPhase({
           stepId: "pose-graph-bootstrap",
           substepId: "normalize-pose-graph",
           status: "active",
@@ -306,7 +315,7 @@ function PoseRigController({
           poseGraphSpec: normalized,
           poseConfig: projectedPoseConfig,
         });
-        onLoadPhaseChange?.({
+        emitPhase({
           stepId: "pose-graph-bootstrap",
           substepId: "normalize-pose-graph",
           status: "complete",
@@ -318,7 +327,7 @@ function PoseRigController({
           poseGraphSpec: null,
           poseConfig: projectedPoseConfig,
         });
-        onLoadPhaseChange?.({
+        emitPhase({
           stepId: "pose-graph-bootstrap",
           substepId: "normalize-pose-graph",
           status: "error",

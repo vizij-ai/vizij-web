@@ -59,6 +59,15 @@ export function useBundleSynchronizer({
 
   useEffect(() => {
     let cancelled = false;
+    const emitPhase = (update: FaceLoadPhaseUpdate) => {
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
+      onPhaseChange?.({
+        ...update,
+        operationId,
+      });
+    };
 
     const waitForFaceIdMatch = async (
       targetFaceId: string,
@@ -131,7 +140,7 @@ export function useBundleSynchronizer({
         poseConfigSignature,
       ].join("::");
 
-      onPhaseChange?.({
+      emitPhase({
         stepId: "bundle-sync",
         status: "active",
       });
@@ -145,7 +154,7 @@ export function useBundleSynchronizer({
       if (!rigAlreadyImported && !rigInFlight && rigEntry?.spec) {
         inflightRigFingerprintsRef.current.add(fingerprint);
         try {
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "active",
             substepId: "normalize-rig-graph",
@@ -154,12 +163,12 @@ export function useBundleSynchronizer({
           const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
           const normalisedSpec = await normalizeGraphSpec(preparedSpec);
           await waitForNextFrame();
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "complete",
             substepId: "normalize-rig-graph",
           });
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "active",
             substepId: "import-rig-graph",
@@ -173,13 +182,13 @@ export function useBundleSynchronizer({
             fingerprint,
             importedFaceIdFromRig,
           );
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "complete",
             substepId: "import-rig-graph",
           });
         } catch (error) {
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "error",
             substepId: "import-rig-graph",
@@ -205,7 +214,7 @@ export function useBundleSynchronizer({
 
       if (standardInputCount === 0) {
         if (rigComplete) {
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "complete",
           });
@@ -220,7 +229,7 @@ export function useBundleSynchronizer({
       if (loadedBundle.poses?.config && !poseAlreadyImported && !poseInFlight) {
         inflightPoseFingerprintsRef.current.add(fingerprint);
         try {
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "active",
             substepId: "import-pose-config",
@@ -235,13 +244,13 @@ export function useBundleSynchronizer({
             loadedBundle.poses.config as unknown as PoseRigConfigFile,
           );
           importedPoseFingerprintsRef.current.add(fingerprint);
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "complete",
             substepId: "import-pose-config",
           });
         } catch (error) {
-          onPhaseChange?.({
+          emitPhase({
             stepId: "bundle-sync",
             status: "error",
             substepId: "import-pose-config",
@@ -262,7 +271,7 @@ export function useBundleSynchronizer({
         !loadedBundle.poses?.config ||
         importedPoseFingerprintsRef.current.has(fingerprint);
       if (rigComplete && poseComplete) {
-        onPhaseChange?.({
+        emitPhase({
           stepId: "bundle-sync",
           status: "complete",
         });

@@ -17,6 +17,7 @@ interface FaceLoadingProgressBarProps {
   runtimeInputReady: boolean;
   sessionStartedAtMs: number | null;
   sessionCompletedAtMs: number | null;
+  inFlightOperations: number;
   sourceLabel: string | null;
 }
 
@@ -144,6 +145,7 @@ export function FaceLoadingProgressBar({
   runtimeInputReady,
   sessionStartedAtMs,
   sessionCompletedAtMs,
+  inFlightOperations,
   sourceLabel,
 }: FaceLoadingProgressBarProps) {
   const [showDetails, setShowDetails] = useState(false);
@@ -239,8 +241,8 @@ export function FaceLoadingProgressBar({
             : ""}
         </div>
         <div className="text-[10px] font-mono text-text-secondary">
-          {Math.round(normalizedProgress * 100)}% · total{" "}
-          {formatDuration(totalElapsedMs)}
+          {Math.round(normalizedProgress * 100)}% · ops {inFlightOperations} ·
+          total {formatDuration(totalElapsedMs)}
         </div>
       </div>
 

@@ -29,6 +29,8 @@ export interface FaceLoadPhaseUpdate {
   substepLabel?: string;
   sessionToken?: string | null;
   sequence?: number;
+  operationId?: string;
+  operationLabel?: string;
 }
 
 export interface FaceLoadSubstep {
@@ -46,6 +48,14 @@ export interface FaceLoadStep {
   substeps: FaceLoadSubstep[];
   startedAtMs?: number;
   completedAtMs?: number;
+}
+
+interface FaceLoadOperationUpdate {
+  operationId: string;
+  stepId?: string;
+  substepId?: string;
+  label?: string;
+  sessionToken?: string | null;
 }
 
 function createDefaultFaceLoadMilestones(): FaceLoadMilestones {
@@ -326,6 +336,10 @@ export function useVizijAssetLoader() {
     useState<number | null>(null);
   const [faceLoadMilestones, setFaceLoadMilestones] =
     useState<FaceLoadMilestones>(createDefaultFaceLoadMilestones);
+  const [faceLoadInFlightOperationCount, setFaceLoadInFlightOperationCount] =
+    useState(0);
+  const [faceLoadLastOperationUpdateAtMs, setFaceLoadLastOperationUpdateAtMs] =
+    useState<number | null>(null);
 
   const faceLoadSessionTokenRef = useRef<string | null>(null);
   const faceLoadSessionStartedAtRef = useRef<number | null>(null);
@@ -339,6 +353,17 @@ export function useVizijAssetLoader() {
   const faceLoadExternalPhaseStepOrderRef = useRef<Map<string, number>>(
     createFaceLoadStepOrderMap(createDefaultFaceLoadSteps()),
   );
+  const faceLoadOperationsRef = useRef<
+    Map<
+      string,
+      {
+        stepId?: string;
+        substepId?: string;
+        label?: string;
+        startedAtMs: number;
+      }
+    >
+  >(new Map());
 
   const logFaceLoadEvent = useCallback(
     (event: string, payload?: Record<string, unknown>) => {
@@ -370,6 +395,91 @@ export function useVizijAssetLoader() {
     faceLoadMilestonesRef.current = next;
     setFaceLoadMilestones(next);
   }, []);
+
+  const clearFaceLoadOperations = useCallback(
+    (reason?: string) => {
+      const activeCount = faceLoadOperationsRef.current.size;
+      if (activeCount > 0) {
+        logFaceLoadEvent("ops-cleared", {
+          reason: reason ?? "unspecified",
+          activeCount,
+        });
+      }
+      faceLoadOperationsRef.current.clear();
+      const timestampMs = nowMs();
+      setFaceLoadInFlightOperationCount(0);
+      setFaceLoadLastOperationUpdateAtMs(timestampMs);
+    },
+    [logFaceLoadEvent],
+  );
+
+  const beginFaceLoadOperation = useCallback(
+    ({
+      operationId,
+      stepId,
+      substepId,
+      label,
+      sessionToken,
+    }: FaceLoadOperationUpdate) => {
+      const currentSessionToken = faceLoadSessionTokenRef.current;
+      if (sessionToken !== undefined && sessionToken !== currentSessionToken) {
+        return;
+      }
+      if (!operationId || faceLoadOperationsRef.current.has(operationId)) {
+        return;
+      }
+      const timestampMs = nowMs();
+      faceLoadOperationsRef.current.set(operationId, {
+        stepId,
+        substepId,
+        label,
+        startedAtMs: timestampMs,
+      });
+      setFaceLoadInFlightOperationCount(faceLoadOperationsRef.current.size);
+      setFaceLoadLastOperationUpdateAtMs(timestampMs);
+      logFaceLoadEvent("op-begin", {
+        operationId,
+        stepId: stepId ?? null,
+        substepId: substepId ?? null,
+        label: label ?? null,
+      });
+    },
+    [logFaceLoadEvent],
+  );
+
+  const endFaceLoadOperation = useCallback(
+    ({
+      operationId,
+      sessionToken,
+      stepId,
+      substepId,
+      label,
+    }: FaceLoadOperationUpdate & { status?: FaceLoadStepStatus }) => {
+      const currentSessionToken = faceLoadSessionTokenRef.current;
+      if (sessionToken !== undefined && sessionToken !== currentSessionToken) {
+        return;
+      }
+      if (!operationId) {
+        return;
+      }
+      const existing = faceLoadOperationsRef.current.get(operationId);
+      if (!existing) {
+        return;
+      }
+      faceLoadOperationsRef.current.delete(operationId);
+      const timestampMs = nowMs();
+      setFaceLoadInFlightOperationCount(faceLoadOperationsRef.current.size);
+      setFaceLoadLastOperationUpdateAtMs(timestampMs);
+      logFaceLoadEvent("op-end", {
+        operationId,
+        stepId: stepId ?? existing.stepId ?? null,
+        substepId: substepId ?? existing.substepId ?? null,
+        label: label ?? existing.label ?? null,
+        durationMs: Math.max(0, timestampMs - existing.startedAtMs),
+      });
+    },
+    [logFaceLoadEvent],
+  );
 
   const markFaceLoadMilestone = useCallback(
     (
@@ -431,6 +541,7 @@ export function useVizijAssetLoader() {
       faceLoadSessionStartedAtRef.current = startedAtMs;
       setFaceLoadSessionToken(sessionToken);
       resetExternalPhaseTrackers();
+      clearFaceLoadOperations("begin-import-flow");
       setIsImportFlowActive(true);
       setFaceLoadSourceLabel(sourceLabel);
       setFaceLoadSessionStartedAtMs(startedAtMs);
@@ -454,7 +565,12 @@ export function useVizijAssetLoader() {
       );
       logFaceLoadEvent("session-begin", { sourceLabel });
     },
-    [logFaceLoadEvent, resetExternalPhaseTrackers, resetFaceLoadMilestones],
+    [
+      clearFaceLoadOperations,
+      logFaceLoadEvent,
+      resetExternalPhaseTrackers,
+      resetFaceLoadMilestones,
+    ],
   );
 
   const markImportFileSelected = useCallback(() => {
@@ -480,6 +596,7 @@ export function useVizijAssetLoader() {
       logFaceLoadEvent("session-error", { failedStepId });
       setIsImportFlowActive(false);
       setFaceLoadSessionCompletedAtMs(nowMs());
+      clearFaceLoadOperations("session-error");
       setFaceLoadSteps((previous) =>
         updateFaceLoadStatus(previous, {
           stepId: failedStepId,
@@ -487,7 +604,7 @@ export function useVizijAssetLoader() {
         }),
       );
     },
-    [logFaceLoadEvent],
+    [clearFaceLoadOperations, logFaceLoadEvent],
   );
 
   const cancelImportFlow = useCallback(() => {
@@ -496,6 +613,7 @@ export function useVizijAssetLoader() {
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
     resetExternalPhaseTrackers();
+    clearFaceLoadOperations("session-cancel");
     resetFaceLoadMilestones();
     setIsImportFlowActive(false);
     setFaceLoadProgress(0);
@@ -503,16 +621,22 @@ export function useVizijAssetLoader() {
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
-  }, [logFaceLoadEvent, resetExternalPhaseTrackers, resetFaceLoadMilestones]);
+  }, [
+    clearFaceLoadOperations,
+    logFaceLoadEvent,
+    resetExternalPhaseTrackers,
+    resetFaceLoadMilestones,
+  ]);
 
   const completeImportFlow = useCallback(() => {
     logFaceLoadEvent("session-complete-requested", {
       milestones: faceLoadMilestonesRef.current,
     });
+    clearFaceLoadOperations("session-complete");
     setIsImportFlowActive(false);
     setFaceLoadProgress(1);
     setFaceLoadSessionCompletedAtMs(nowMs());
-  }, [logFaceLoadEvent]);
+  }, [clearFaceLoadOperations, logFaceLoadEvent]);
 
   const updateExternalPhase = useCallback(
     (update: FaceLoadPhaseUpdate) => {
@@ -535,6 +659,35 @@ export function useVizijAssetLoader() {
       const nextSequence = faceLoadExternalPhaseSequenceRef.current + 1;
       faceLoadExternalPhaseSequenceRef.current = nextSequence;
 
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
+      const operationLabel =
+        update.operationLabel ?? update.substepLabel ?? update.label;
+      const shouldTrackOperation =
+        typeof operationId === "string" && currentSessionToken !== null;
+
+      if (shouldTrackOperation) {
+        if (update.status === "active") {
+          beginFaceLoadOperation({
+            operationId,
+            stepId: update.stepId,
+            substepId: update.substepId,
+            label: operationLabel,
+            sessionToken: update.sessionToken,
+          });
+        } else {
+          endFaceLoadOperation({
+            operationId,
+            stepId: update.stepId,
+            substepId: update.substepId,
+            label: operationLabel,
+            sessionToken: update.sessionToken,
+            status: update.status,
+          });
+        }
+      }
+
       const knownStepOrder = faceLoadExternalPhaseStepOrderRef.current.get(
         update.stepId,
       );
@@ -556,6 +709,25 @@ export function useVizijAssetLoader() {
 
       setFaceLoadSteps((previous) => {
         const hasStep = previous.some((step) => step.id === update.stepId);
+        if (hasStep) {
+          const existingStep = previous.find(
+            (step) => step.id === update.stepId,
+          );
+          if (existingStep) {
+            const existingSubstep = update.substepId
+              ? existingStep.substeps.find(
+                  (substep) => substep.id === update.substepId,
+                )
+              : undefined;
+            const stepStatusMatches = existingStep.status === update.status;
+            const substepStatusMatches = update.substepId
+              ? existingSubstep?.status === update.status
+              : true;
+            if (stepStatusMatches && substepStatusMatches) {
+              return previous;
+            }
+          }
+        }
         const next = hasStep
           ? previous
           : [
@@ -584,7 +756,7 @@ export function useVizijAssetLoader() {
         });
       });
     },
-    [logFaceLoadEvent],
+    [beginFaceLoadOperation, endFaceLoadOperation, logFaceLoadEvent],
   );
 
   const loadVizij = useCallback(
@@ -799,6 +971,7 @@ export function useVizijAssetLoader() {
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
     resetExternalPhaseTrackers();
+    clearFaceLoadOperations("session-reset");
     resetFaceLoadMilestones();
     setRootId(null);
     setSourceName(null);
@@ -811,7 +984,12 @@ export function useVizijAssetLoader() {
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
-  }, [logFaceLoadEvent, resetExternalPhaseTrackers, resetFaceLoadMilestones]);
+  }, [
+    clearFaceLoadOperations,
+    logFaceLoadEvent,
+    resetExternalPhaseTrackers,
+    resetFaceLoadMilestones,
+  ]);
 
   const updateBundle = useCallback(
     (
@@ -848,6 +1026,8 @@ export function useVizijAssetLoader() {
     faceLoadSessionToken,
     faceLoadSessionStartedAtMs,
     faceLoadSessionCompletedAtMs,
+    faceLoadInFlightOperationCount,
+    faceLoadLastOperationUpdateAtMs,
     faceLoadMilestones,
     faceLoadProgress,
     faceLoadSteps,
@@ -859,6 +1039,8 @@ export function useVizijAssetLoader() {
     markImportFlowError,
     cancelImportFlow,
     completeImportFlow,
+    beginFaceLoadOperation,
+    endFaceLoadOperation,
     markFaceLoadMilestone,
     updateExternalPhase,
     loadVizij,
