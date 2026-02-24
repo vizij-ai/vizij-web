@@ -34,7 +34,7 @@ export function ReferenceFacePanel({
   );
 
   return (
-    <div className="w-full h-full bg-zinc-900 border-zinc-800 shadow-xl overflow-hidden flex flex-col pointer-events-auto relative">
+    <div className="h-full w-full relative bg-bg-panel overflow-hidden pointer-events-auto">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -63,7 +63,7 @@ export function ReferenceFacePanel({
         {!referenceFace.file && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {/* We use pointer-events-none on container and auto on button so it floats above the placeholder */}
-            <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
               <Button
                 variant="primary"
                 onClick={handleLoadClick}

@@ -10,6 +10,7 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { isPoseControlInputPath } from "../../poseRig/utils";
+import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 
 type RuntimeRenderableSelectionType =
   | "group"
@@ -240,8 +241,34 @@ function RuntimeStatusDebug() {
   );
 }
 
-function RuntimeFpsBadge() {
-  const { ready, loading, stepHz } = useVizijRuntime();
+export interface ViewerProps {
+  rootId: string | null;
+  namespace: string;
+  bundle: VizijAssetBundle | null;
+  selectedSceneId?: string | null;
+  onSelectScene?: (id: string) => void;
+  onClearSelection: () => void;
+  showSelectionGlow: boolean;
+  onImportClick: () => void;
+  onLoadQuori: () => void;
+  onLoadHugo: () => void;
+}
+
+export function Viewer({
+  rootId,
+  namespace: _namespace,
+  bundle,
+  selectedSceneId = null,
+  onSelectScene,
+  onClearSelection,
+  showSelectionGlow,
+  onImportClick,
+  onLoadQuori,
+  onLoadHugo,
+}: ViewerProps) {
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
+  const runtimeError = useGraphRuntime((state) => state.graphError);
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
@@ -272,59 +299,6 @@ function RuntimeFpsBadge() {
     }
     applyStandardInputBatch(resetInputEntries);
   }, [applyStandardInputBatch, resetInputEntries]);
-
-  if (!ready || loading) {
-    return null;
-  }
-
-  const formattedFps =
-    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
-
-  return (
-    <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
-      <div className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-        FPS: {formattedFps}
-      </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={handleResetInputs}
-        title="Reset graph inputs to their default values"
-      >
-        Reset Inputs
-      </Button>
-    </div>
-  );
-}
-
-export interface ViewerProps {
-  rootId: string | null;
-  namespace: string;
-  bundle: VizijAssetBundle | null;
-  selectedSceneId?: string | null;
-  onSelectScene?: (id: string) => void;
-  onClearSelection: () => void;
-  showSelectionGlow: boolean;
-  onImportClick: () => void;
-  onLoadQuori: () => void;
-  onLoadHugo: () => void;
-}
-
-export function Viewer({
-  rootId,
-  namespace: _namespace,
-  bundle,
-  selectedSceneId = null,
-  onSelectScene,
-  onClearSelection,
-  showSelectionGlow,
-  onImportClick,
-  onLoadQuori,
-  onLoadHugo,
-}: ViewerProps) {
-  const graphRuntimeStore = useGraphRuntimeStoreApi();
-  const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
-  const runtimeError = useGraphRuntime((state) => state.graphError);
 
   useEffect(() => {
     if (rootId && bundle) {
@@ -381,7 +355,7 @@ export function Viewer({
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <RuntimeStatusDebug />
-            <RuntimeFpsBadge />
+            <RuntimeFaceControlsOverlay onResetInputs={handleResetInputs} />
             <div className="h-full w-full">
               <VizijRuntimeFace
                 className="h-full w-full"

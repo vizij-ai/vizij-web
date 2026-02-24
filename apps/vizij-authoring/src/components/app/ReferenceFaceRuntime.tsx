@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -10,6 +10,9 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { isPoseControlInputPath } from "../../poseRig/utils";
+import { Button } from "../ui";
+import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -156,7 +159,7 @@ type ReferenceFaceBridgeProps = {
 /**
  * Bridge component that connects the Vizij runtime to callbacks.
  * It extracts standard inputs from the runtime and reports them to the parent.
- * Also manages idle behavior state and renders the face with header.
+ * Also manages idle behavior state and renders the face frame.
  */
 function ReferenceFaceBridge({
   onStandardInputsReady,
@@ -167,31 +170,18 @@ function ReferenceFaceBridge({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const {
-    ready,
-    loading,
-    animateValue,
-    setInput,
-    step,
-    inputConstraints,
-    faceId,
-    stepHz,
-    assetBundle,
-  } = useVizijRuntime();
-  const animateValueRef = useRef(animateValue);
+  const { ready, loading, setInput, inputConstraints, faceId, assetBundle } =
+    useVizijRuntime();
   const setInputRef = useRef(setInput);
-  const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
   const onStandardInputChangeRef = useRef(onStandardInputChange);
 
   // Keep refs updated
   useEffect(() => {
-    animateValueRef.current = animateValue;
     setInputRef.current = setInput;
-    stepRef.current = step;
     faceIdRef.current = faceId;
     onStandardInputChangeRef.current = onStandardInputChange;
-  }, [animateValue, setInput, step, faceId, onStandardInputChange]);
+  }, [setInput, faceId, onStandardInputChange]);
 
   // Discover standard inputs from inputConstraints (paths containing /standard/)
   const { standardInputs, standardInputsById, standardInputsByPath } =
@@ -270,6 +260,23 @@ function ReferenceFaceBridge({
     standardInputsByPathRef.current = standardInputsByPath;
   }, [standardInputsByPath]);
 
+  const stageStandardInputPath = useCallback(
+    (inputPath: string, value: number) => {
+      const currentFaceId = faceIdRef.current;
+      const rigPath = currentFaceId
+        ? `rig/${currentFaceId}${inputPath}`
+        : `rig/face${inputPath}`;
+
+      setInputRef.current(rigPath, { float: value });
+
+      const input = standardInputsByPathRef.current.get(inputPath);
+      if (input && onStandardInputChangeRef.current) {
+        onStandardInputChangeRef.current(input.id, value);
+      }
+    },
+    [],
+  );
+
   // Report loading state changes
   useEffect(() => {
     onLoadingStateChange?.(loading, ready);
@@ -303,71 +310,43 @@ function ReferenceFaceBridge({
     }
 
     const animateFn = (inputPath: string, value: number) => {
-      // Build the full rig path
-      const currentFaceId = faceIdRef.current;
-      const rigPath = currentFaceId
-        ? `rig/${currentFaceId}${inputPath}`
-        : `rig/face${inputPath}`;
-
-      // Just set the input - the runtime's animation loop will pick it up
-      setInputRef.current(rigPath, { float: value });
-
-      // Also notify the callback so the value can be propagated
-      const input = standardInputsByPathRef.current.get(inputPath);
-      if (input && onStandardInputChangeRef.current) {
-        onStandardInputChangeRef.current(input.id, value);
-      }
+      stageStandardInputPath(inputPath, value);
     };
 
     onAnimateValueReady?.(animateFn);
-  }, [ready, onAnimateValueReady]);
+  }, [ready, onAnimateValueReady, stageStandardInputPath]);
 
-  const formattedFps =
-    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+  const resettableStandardInputs = useMemo(
+    () =>
+      standardInputs.filter(
+        (input) =>
+          !isPoseControlInputPath(input.path) && input.id.trim().length > 0,
+      ),
+    [standardInputs],
+  );
+
+  const handleResetInputs = useCallback(() => {
+    resettableStandardInputs.forEach((input) => {
+      const resetValue = Number.isFinite(input.defaultValue)
+        ? input.defaultValue
+        : 0;
+      stageStandardInputPath(input.path, resetValue);
+    });
+  }, [resettableStandardInputs, stageStandardInputPath]);
 
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
-            Reference Face
-          </p>
-          <div className="flex items-center gap-1.5">
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                ready
-                  ? "bg-green-500"
-                  : loading
-                    ? "bg-accent animate-pulse"
-                    : "bg-text-muted"
-              }`}
-            />
-            <p className="m-0 text-[10px] text-text-secondary font-bold">
-              {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
-            </p>
-          </div>
-        </div>
-        <div className="ref-face-viewer__controls">
-          <span className="ref-face-viewer__fps">{formattedFps}</span>
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="ref-face-viewer__canvas">
-        <RuntimeFaceFrame variant="fill" className="hero-face-card" />
-      </div>
+    <div className="h-full w-full bg-bg-panel overflow-hidden">
+      <RuntimeFaceFrame
+        variant="fill"
+        className="h-full w-full"
+        overlay={
+          <RuntimeFaceControlsOverlay
+            onResetInputs={handleResetInputs}
+            onToggleSplit={onToggleSplit}
+            splitVertical={splitVertical}
+          />
+        }
+      />
     </div>
   );
 }
@@ -382,35 +361,25 @@ function ReferenceFacePlaceholder({
   onToggleSplit,
 }: ReferenceFacePlaceholderProps) {
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden bg-bg-app/20">
-      <header className="flex justify-between items-center px-3 py-2 border-b border-border-default/60 bg-bg-panel/40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <p className="m-0 uppercase tracking-widest text-[10px] text-text-muted font-black">
-            Reference Face
-          </p>
-          <p className="m-0 text-[10px] text-text-muted italic font-medium">
-            No file loaded
-          </p>
+    <div className="h-full w-full relative bg-bg-panel overflow-hidden">
+      {onToggleSplit && (
+        <div className="absolute top-2 left-2 z-10">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onToggleSplit}
+            title={
+              splitVertical
+                ? "Switch to horizontal split"
+                : "Switch to vertical split"
+            }
+          >
+            {splitVertical ? "⬌" : "⬍"}
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="w-6 h-6 flex items-center justify-center border border-slate-700/50 rounded bg-slate-800/20 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-all text-xs cursor-pointer active:scale-90"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-bg-app/40">
-        <p className="text-text-muted text-[11px] text-center px-6 max-w-[240px] italic leading-relaxed">
+      )}
+      <div className="flex h-full w-full items-center justify-center p-8 text-center">
+        <p className="text-text-muted text-sm max-w-xs">
           Load a reference face GLB using the sidebar to begin.
         </p>
       </div>
