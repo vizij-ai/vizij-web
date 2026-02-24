@@ -35,7 +35,9 @@ export function AnimationPanel() {
     updateKeyframe,
   } = useAnimationStore();
 
-  const { handleInputValueChange } = useBindingAuthoring((s) => s);
+  const handleInputValueChange = useBindingAuthoring(
+    (state) => state.handleInputValueChange,
+  );
   const [showVariableSelector, setShowVariableSelector] = useState(false);
 
   // Playback Loop

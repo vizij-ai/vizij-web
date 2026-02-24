@@ -23,7 +23,6 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import type {
@@ -138,6 +137,8 @@ const EMPTY_RIG_TRAVERSAL_SUMMARY: RigTraversalSummary = {
   directDependents: [],
   dependents: [],
 };
+const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+const EMPTY_INPUT_ID_MAP = new Map<string, string>();
 
 const POSE_VALUE_PRECISION_FORMAT = {
   minimumFractionDigits: 4,
@@ -238,7 +239,13 @@ function normalizePoseMembershipPath(
   return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
 }
 
-export function InspectorContent() {
+interface InspectorContentProps {
+  hasReferenceFaceFile?: boolean;
+}
+
+export function InspectorContent({
+  hasReferenceFaceFile = false,
+}: InspectorContentProps) {
   const [showSelector, setShowSelector] = useState(false);
   const [showRigDriversModal, setShowRigDriversModal] = useState(false);
   const [blendAmount, setBlendAmount] = useState(0);
@@ -282,6 +289,7 @@ export function InspectorContent() {
     handleSelectRig,
     inspectorMode,
   } = useUnifiedSelection();
+  const shouldSubscribeInputValues = inspectorMode !== "scene";
 
   const {
     getNode,
@@ -316,7 +324,9 @@ export function InspectorContent() {
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
-  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const inputValues = useBindingAuthoring((state) =>
+    shouldSubscribeInputValues ? state.inputValues : EMPTY_INPUT_VALUES,
+  );
   const bindings = useBindingAuthoring((state) => state.bindings);
   const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
@@ -386,6 +396,9 @@ export function InspectorContent() {
     );
   }, [managedStandardInputs, resolvedSelectedRigId]);
   const autorigInputIdByComponentId = useMemo(() => {
+    if (inspectorMode !== "pose" && inspectorMode !== "rig") {
+      return EMPTY_INPUT_ID_MAP;
+    }
     type Candidate = {
       inputId: string;
       resolvedInputId: string;
@@ -511,8 +524,7 @@ export function InspectorContent() {
     });
 
     return selected;
-  }, [bindings, managedStandardInputs, standardInputsById]);
-  const referenceFace = useReferenceFace();
+  }, [bindings, inspectorMode, managedStandardInputs, standardInputsById]);
   const {
     policy: sharedSyncPolicy,
     linksByMainInputId,
@@ -534,6 +546,9 @@ export function InspectorContent() {
   );
 
   const poseWeightInputIdByPoseId = useMemo(() => {
+    if (inspectorMode !== "pose") {
+      return EMPTY_INPUT_ID_MAP;
+    }
     const map = new Map<string, string>();
     managedStandardInputs.forEach((entry) => {
       const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
@@ -543,7 +558,7 @@ export function InspectorContent() {
       map.set(poseId, entry.input.id);
     });
     return map;
-  }, [managedStandardInputs]);
+  }, [inspectorMode, managedStandardInputs]);
 
   const selectedPoseWeightInputId =
     selectedPoseId && poseWeightInputIdByPoseId.has(selectedPoseId)
@@ -649,6 +664,9 @@ export function InspectorContent() {
     [targetOwnerById],
   );
   const componentIdByInputId = useMemo(() => {
+    if (inspectorMode !== "pose" && inspectorMode !== "rig") {
+      return EMPTY_INPUT_ID_MAP;
+    }
     const mapping = new Map<string, string>();
     managedStandardInputs.forEach((entry) => {
       const componentId =
@@ -665,7 +683,7 @@ export function InspectorContent() {
       mapping.set(resolvedInputId, componentId);
     });
     return mapping;
-  }, [managedStandardInputs, standardInputsById]);
+  }, [inspectorMode, managedStandardInputs, standardInputsById]);
   const resolveAnimatablePropertyTargetIds = (
     targetIds: readonly string[],
   ): string[] => {
@@ -2708,7 +2726,7 @@ export function InspectorContent() {
                   </Button>
                 </div>
               )}
-              {!referenceFace.file && (
+              {!hasReferenceFaceFile && (
                 <span className="text-[10px] text-text-muted">
                   Load a reference face to activate shared sync.
                 </span>

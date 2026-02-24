@@ -15,6 +15,7 @@ import { InspectorContent } from "./InspectorContent";
 interface InspectorPanelProps {
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
+  hasReferenceFaceFile?: boolean;
 }
 
 function clamp01(value: number): number {
@@ -27,6 +28,7 @@ function clamp01(value: number): number {
 export function InspectorPanel({
   selectedPoseGroup = null,
   onSelectPoseGroup,
+  hasReferenceFaceFile = false,
 }: InspectorPanelProps) {
   const {
     poses,
@@ -250,7 +252,7 @@ export function InspectorPanel({
     >
       <div className="flex flex-col h-full min-h-0">
         <div className="flex-1 min-h-0">
-          <InspectorContent />
+          <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
         </div>
         {selectedPoseGroup && (
           <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[42%] overflow-y-auto custom-scrollbar">

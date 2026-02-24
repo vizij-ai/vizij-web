@@ -738,6 +738,7 @@ export function buildPoseRigFaceTrace(params: {
   poses: PoseDefinition[];
   neutralInputs: Record<string, number>;
   standardInputsById: Map<string, StandardRigInput>;
+  includeSuggestedFixes?: boolean;
 }): PoseRigFaceTrace {
   const {
     node,
@@ -747,6 +748,7 @@ export function buildPoseRigFaceTrace(params: {
     poses,
     neutralInputs,
     standardInputsById,
+    includeSuggestedFixes = true,
   } = params;
   const activePoseOutputs = collectActivePoseOutputs(poses, neutralInputs);
   const nodesById = buildNodeLookup(objects);
@@ -831,13 +833,15 @@ export function buildPoseRigFaceTrace(params: {
       `${unmatchedPoseOutputs.length} active pose outputs are not mapped to this element's rig chain.`,
     );
   }
-  const suggestedFixes = buildTraceSuggestions({
-    traceTargets,
-    unmatchedPoseOutputs,
-    allReachableRigInputIds,
-    standardInputsById,
-  });
-  if (suggestedFixes.length > 0) {
+  const suggestedFixes = includeSuggestedFixes
+    ? buildTraceSuggestions({
+        traceTargets,
+        unmatchedPoseOutputs,
+        allReachableRigInputIds,
+        standardInputsById,
+      })
+    : [];
+  if (includeSuggestedFixes && suggestedFixes.length > 0) {
     diagnostics.push(
       `${suggestedFixes.length} suggested migration fixes are available.`,
     );

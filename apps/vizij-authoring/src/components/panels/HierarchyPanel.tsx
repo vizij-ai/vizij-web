@@ -5,7 +5,6 @@ import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useSelectionStore } from "../../state/RigControllerProvider";
-import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
@@ -18,6 +17,7 @@ interface HierarchyPanelProps {
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
   onSelectObject?: (id: string) => void;
+  referenceFaceFile: File | null;
 }
 
 export function HierarchyPanel({
@@ -25,6 +25,7 @@ export function HierarchyPanel({
   showSelectionGlow,
   onToggleSelectionGlow,
   onSelectObject,
+  referenceFaceFile,
 }: HierarchyPanelProps) {
   const {
     objects,
@@ -43,7 +44,6 @@ export function HierarchyPanel({
     () => (selectedId ? getNode(selectedId) : null),
     [getNode, selectedId],
   );
-  const referenceFace = useReferenceFace();
 
   // Filtering
   const [search, setSearch] = useState("");
@@ -261,8 +261,8 @@ export function HierarchyPanel({
 
   const renderReferenceFaceRoot = () => {
     const isRefExpanded = isExpanded("virtual_ref_face");
-    const fileLabel = referenceFace.file
-      ? referenceFace.file.name
+    const fileLabel = referenceFaceFile
+      ? referenceFaceFile.name
       : "No file loaded";
 
     return (
@@ -283,7 +283,7 @@ export function HierarchyPanel({
                 <span
                   className={cn(
                     "text-[10px] font-mono",
-                    referenceFace.file
+                    referenceFaceFile
                       ? "text-text-primary"
                       : "text-text-muted italic",
                   )}
@@ -477,7 +477,7 @@ export function HierarchyPanel({
 
         <div className="flex-1 min-h-[200px] overflow-y-auto px-1 custom-scrollbar">
           <div className="flex flex-col pb-4">
-            {referenceFace.file ? (
+            {referenceFaceFile ? (
               <>
                 {renderMainFaceRoot()}
                 {renderReferenceFaceRoot()}

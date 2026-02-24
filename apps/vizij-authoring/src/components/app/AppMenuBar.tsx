@@ -29,7 +29,34 @@ export function AppMenuBar({
   showSelectionGlow,
   onToggleSelectionGlow,
 }: AppMenuBarProps) {
-  const { panels, togglePanel } = useWorkspaceStore();
+  const hierarchyPanelVisible = useWorkspaceStore(
+    (state) => state.panels.hierarchy.isVisible,
+  );
+  const variablesPanelVisible = useWorkspaceStore(
+    (state) => state.panels.variables.isVisible,
+  );
+  const posesPanelVisible = useWorkspaceStore(
+    (state) => state.panels.poses.isVisible,
+  );
+  const inputsPanelVisible = useWorkspaceStore(
+    (state) => state.panels.inputs.isVisible,
+  );
+  const materialsPanelVisible = useWorkspaceStore(
+    (state) => state.panels.materials.isVisible,
+  );
+  const animationPanelVisible = useWorkspaceStore(
+    (state) => state.panels.animation.isVisible,
+  );
+  const referenceFacePanelVisible = useWorkspaceStore(
+    (state) => state.panels.referenceFace.isVisible,
+  );
+  const inspectorPanelVisible = useWorkspaceStore(
+    (state) => state.panels.inspector.isVisible,
+  );
+  const debugPanelVisible = useWorkspaceStore(
+    (state) => state.panels.debug.isVisible,
+  );
+  const togglePanel = useWorkspaceStore((state) => state.togglePanel);
 
   return (
     <MenuBar>
@@ -61,31 +88,31 @@ export function AppMenuBar({
       <Menu label="View">
         <MenuLabel>Left Panel</MenuLabel>
         <MenuCheckboxItem
-          checked={panels.hierarchy.isVisible}
+          checked={hierarchyPanelVisible}
           onCheckedChange={() => togglePanel("hierarchy")}
         >
           Hierarchy
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.variables.isVisible}
+          checked={variablesPanelVisible}
           onCheckedChange={() => togglePanel("variables")}
         >
           Variables
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.poses.isVisible}
+          checked={posesPanelVisible}
           onCheckedChange={() => togglePanel("poses")}
         >
           Poses
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.inputs.isVisible}
+          checked={inputsPanelVisible}
           onCheckedChange={() => togglePanel("inputs")}
         >
           Inputs
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.materials.isVisible}
+          checked={materialsPanelVisible}
           onCheckedChange={() => togglePanel("materials")}
         >
           Pose Groups
@@ -94,13 +121,13 @@ export function AppMenuBar({
         <MenuSeparator />
         <MenuLabel>Center Panel</MenuLabel>
         <MenuCheckboxItem
-          checked={panels.animation.isVisible}
+          checked={animationPanelVisible}
           onCheckedChange={() => togglePanel("animation")}
         >
           Timeline
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.referenceFace.isVisible}
+          checked={referenceFacePanelVisible}
           onCheckedChange={() => togglePanel("referenceFace")}
         >
           Reference Face
@@ -109,13 +136,13 @@ export function AppMenuBar({
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
         <MenuCheckboxItem
-          checked={panels.inspector.isVisible}
+          checked={inspectorPanelVisible}
           onCheckedChange={() => togglePanel("inspector")}
         >
           Inspector
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={panels.debug.isVisible}
+          checked={debugPanelVisible}
           onCheckedChange={() => togglePanel("debug")}
         >
           Debug

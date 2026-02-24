@@ -43,6 +43,7 @@ import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
+const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 type FaceLoadPhaseChange = Parameters<
@@ -181,15 +182,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
   }, [handleLoadAssetFromUrl]);
 
+  const referenceFaceContextValue = useReferenceFaceState();
+  const sharedVariableSyncEnabled =
+    referenceFaceContextValue.standardInputs.length > 0;
   const mainFaceHandleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
-  const mainFaceInputValues = useBindingAuthoring((state) => state.inputValues);
+  const mainFaceInputValues = useBindingAuthoring((state) =>
+    sharedVariableSyncEnabled ? state.inputValues : EMPTY_INPUT_VALUES,
+  );
   const mainFaceInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
-
-  const referenceFaceContextValue = useReferenceFaceState();
 
   // Graph Runtime Hook
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
@@ -281,13 +285,48 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     onPhaseChange: onFaceLoadPhaseChange,
   });
 
-  const { panels } = useWorkspaceStore();
-  const visibleVariablesSurfaces = getVisibleVariablesSurfaces({
-    variables: panels.variables,
-    poses: panels.poses,
-    materials: panels.materials,
-    inputs: panels.inputs,
-  });
+  const hierarchyPanelVisible = useWorkspaceStore(
+    (state) => state.panels.hierarchy.isVisible,
+  );
+  const variablesPanelTabVisible = useWorkspaceStore(
+    (state) => state.panels.variables.isVisible,
+  );
+  const posesPanelTabVisible = useWorkspaceStore(
+    (state) => state.panels.poses.isVisible,
+  );
+  const materialsPanelTabVisible = useWorkspaceStore(
+    (state) => state.panels.materials.isVisible,
+  );
+  const inputsPanelTabVisible = useWorkspaceStore(
+    (state) => state.panels.inputs.isVisible,
+  );
+  const referenceFacePanelVisible = useWorkspaceStore(
+    (state) => state.panels.referenceFace.isVisible,
+  );
+  const animationPanelVisible = useWorkspaceStore(
+    (state) => state.panels.animation.isVisible,
+  );
+  const inspectorPanelVisible = useWorkspaceStore(
+    (state) => state.panels.inspector.isVisible,
+  );
+  const debugPanelVisible = useWorkspaceStore(
+    (state) => state.panels.debug.isVisible,
+  );
+  const visibleVariablesSurfaces = useMemo(
+    () =>
+      getVisibleVariablesSurfaces({
+        variables: { isVisible: variablesPanelTabVisible },
+        poses: { isVisible: posesPanelTabVisible },
+        materials: { isVisible: materialsPanelTabVisible },
+        inputs: { isVisible: inputsPanelTabVisible },
+      }),
+    [
+      inputsPanelTabVisible,
+      materialsPanelTabVisible,
+      posesPanelTabVisible,
+      variablesPanelTabVisible,
+    ],
+  );
   const variablesPanelVisible = visibleVariablesSurfaces.length > 0;
   const {
     selectedId,
@@ -561,7 +600,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       style={{ height: "100%", width: "100%" }}
     >
-      {panels.referenceFace.isVisible ? (
+      {referenceFacePanelVisible ? (
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
@@ -659,12 +698,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         <WorkspaceLayout
           menuBar={menuBar}
           // Left
-          leftTopVisible={panels.hierarchy.isVisible}
+          leftTopVisible={hierarchyPanelVisible}
           leftTopPanel={
             <HierarchyPanel
               showSelectionGlow={showSelectionGlow}
               onToggleSelectionGlow={setShowSelectionGlow}
               onSelectObject={handleSelectObject}
+              referenceFaceFile={referenceFaceContextValue.file}
             />
           }
           leftBottomVisible={variablesPanelVisible}
@@ -689,17 +729,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
           }
           viewport={viewerContent}
-          bottomVisible={panels.animation.isVisible}
+          bottomVisible={animationPanelVisible}
           bottomPanel={<AnimationPanel />}
           // Right
-          rightTopVisible={panels.inspector.isVisible}
+          rightTopVisible={inspectorPanelVisible}
           rightTopPanel={
             <InspectorPanel
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={setSelectedPoseGroup}
+              hasReferenceFaceFile={Boolean(referenceFaceContextValue.file)}
             />
           }
-          rightBottomVisible={panels.debug.isVisible}
+          rightBottomVisible={debugPanelVisible}
           rightBottomPanel={
             <DebugPanel
               rootId={loader.rootId}

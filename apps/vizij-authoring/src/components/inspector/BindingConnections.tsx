@@ -46,6 +46,8 @@ const traversalStageLabels: Record<PoseRigTraversalNode["kind"], string> = {
   animatable: "Animatable",
 };
 
+const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+
 interface BindingConnectionsProps {
   node: SceneObjectNode;
   onSelectPose?: (poseId: string) => void;
@@ -65,7 +67,12 @@ export function BindingConnections({
   );
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
-  const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const [isPosesSectionOpen, setIsPosesSectionOpen] = useState(false);
+  const [isRigsSectionOpen, setIsRigsSectionOpen] = useState(false);
+  const [isTraceSectionOpen, setIsTraceSectionOpen] = useState(false);
+  const inputValues = useBindingAuthoring((state) =>
+    isRigsSectionOpen ? state.inputValues : EMPTY_INPUT_VALUES,
+  );
   const animatables = useGraphRuntime((state) => state.animatables);
   const handleCreateParentDriverBinding = useBindingAuthoring(
     (state) => state.handleCreateParentDriverBinding,
@@ -91,9 +98,11 @@ export function BindingConnections({
         poses,
         neutralInputs,
         standardInputsById,
+        includeSuggestedFixes: isTraceSectionOpen,
       }),
     [
       bindings,
+      isTraceSectionOpen,
       inputBindings,
       neutralInputs,
       node,
@@ -144,28 +153,37 @@ export function BindingConnections({
       ),
     [nonAggregateRigs],
   );
-  const rigCategories = useMemo(
-    () =>
-      [
-        {
-          id: "top-level",
-          label: "Top Level Variables",
-          rigs: topLevelVariableRigs,
-        },
-        {
-          id: "pose-group-aggregates",
-          label: "Pose Group Aggregates",
-          rigs: poseGroupAggregateRigs,
-        },
-        {
-          id: "pose-aggregates",
-          label: "Pose Aggregates",
-          rigs: aggregateOutputRigs,
-        },
-      ].filter((category) => category.rigs.length > 0),
-    [aggregateOutputRigs, poseGroupAggregateRigs, topLevelVariableRigs],
-  );
+  const rigCategories = useMemo(() => {
+    if (!isRigsSectionOpen) {
+      return [];
+    }
+    return [
+      {
+        id: "top-level",
+        label: "Top Level Variables",
+        rigs: topLevelVariableRigs,
+      },
+      {
+        id: "pose-group-aggregates",
+        label: "Pose Group Aggregates",
+        rigs: poseGroupAggregateRigs,
+      },
+      {
+        id: "pose-aggregates",
+        label: "Pose Aggregates",
+        rigs: aggregateOutputRigs,
+      },
+    ].filter((category) => category.rigs.length > 0);
+  }, [
+    aggregateOutputRigs,
+    isRigsSectionOpen,
+    poseGroupAggregateRigs,
+    topLevelVariableRigs,
+  ]);
   const poseGroups = useMemo(() => {
+    if (!isPosesSectionOpen) {
+      return [];
+    }
     const poseById = new Map(connections.poses.map((pose) => [pose.id, pose]));
     const groups = new Map<
       string,
@@ -227,7 +245,12 @@ export function BindingConnections({
     }
 
     return resolvedGroups;
-  }, [connections.poses, standardInputsById, trace.targets]);
+  }, [
+    connections.poses,
+    isPosesSectionOpen,
+    standardInputsById,
+    trace.targets,
+  ]);
   const traversalPaths = useMemo(
     () =>
       buildPoseRigTraversalPaths({
@@ -295,9 +318,6 @@ export function BindingConnections({
   const [expandedRigIds, setExpandedRigIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [isPosesSectionOpen, setIsPosesSectionOpen] = useState(false);
-  const [isRigsSectionOpen, setIsRigsSectionOpen] = useState(false);
-  const [isTraceSectionOpen, setIsTraceSectionOpen] = useState(false);
   const [expandedPoseGroupIds, setExpandedPoseGroupIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -458,6 +478,9 @@ export function BindingConnections({
   );
 
   useEffect(() => {
+    if (!isTraceSectionOpen) {
+      return;
+    }
     const liveIds = new Set(
       trace.suggestedFixes.map((suggestion) => suggestion.id),
     );
@@ -488,7 +511,7 @@ export function BindingConnections({
     if (previewSuggestionId && !liveIds.has(previewSuggestionId)) {
       setPreviewSuggestionId(null);
     }
-  }, [previewSuggestionId, trace.suggestedFixes]);
+  }, [isTraceSectionOpen, previewSuggestionId, trace.suggestedFixes]);
 
   useEffect(() => {
     setTraversalSelection((current) =>
@@ -506,10 +529,12 @@ export function BindingConnections({
 
   const visibleSuggestions = useMemo(
     () =>
-      trace.suggestedFixes.filter(
-        (suggestion) => !ignoredSuggestionIds.has(suggestion.id),
-      ),
-    [ignoredSuggestionIds, trace.suggestedFixes],
+      isTraceSectionOpen
+        ? trace.suggestedFixes.filter(
+            (suggestion) => !ignoredSuggestionIds.has(suggestion.id),
+          )
+        : [],
+    [ignoredSuggestionIds, isTraceSectionOpen, trace.suggestedFixes],
   );
 
   const previewSuggestion = useMemo(
